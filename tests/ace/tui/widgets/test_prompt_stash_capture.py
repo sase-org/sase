@@ -98,7 +98,7 @@ def _assert_frontmatter_contains_local_xprompt(frontmatter: str) -> None:
     """Assert the stashed frontmatter has canonical delimiters and helper data."""
     assert frontmatter.startswith("---\n")
     assert frontmatter.endswith("---")
-    assert "xprompts:\n" in frontmatter
+    assert "macros:\n" in frontmatter
     assert f"  {_LOCAL_XPROMPT_NAME}: {_LOCAL_XPROMPT_CONTENT}\n" in frontmatter
     model = PromptFrontmatter.parse(frontmatter)
     assert model.macros[_LOCAL_XPROMPT_NAME].content == _LOCAL_XPROMPT_CONTENT

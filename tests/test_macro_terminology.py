@@ -135,6 +135,10 @@ _MACRO_NAME_ALLOWLIST = {
     ("tests/test_project_tag_surfaces.py", "_tag_styled_xprompt_body"),
     ("tests/test_embedded_workflows_per_step.py", "load_xprompts_used"),
     ("tests/test_legacy_macro_names.py", "load_xprompts_used"),
+    # Config-frontmatter follows of TUI-owned spellings kept verbatim for
+    # the TUI phase (sase-1eq.5 owns the rename); remove with that phase.
+    ("tests/test_config_macro_frontmatter.py", "auto_xprompt_menu"),
+    ("tests/test_config_macro_frontmatter.py", "_xprompt_placeholder_args_enabled"),
     # TUI keymap action and field spellings, which stay verbatim.
     ("tests/test_keymaps_defaults_panels.py", "start_last_vcs_xprompt_in_editor"),
     ("tests/test_keymaps_registry_loading_panes.py", "focus_xprompt"),
@@ -177,6 +181,11 @@ def _allowed_module(relative: Path, module: str, line: str) -> bool:
         return True
     if module == "sase.legacy_xprompt_names":
         # The canonical legacy home; callers import it on purpose.
+        return True
+    if module == "sase.legacy_xprompt_syntax":
+        # The cutover's temporary syntax home owns every sunset alias and
+        # the flag-gated normalization policy (plan 202610/macro_syntax_cutover.md).
+        # Remove when the sunset flag and this module are deleted.
         return True
     if module.startswith("sase.ace.tui."):
         # TUI paths keep xprompt components by plan scope.

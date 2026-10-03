@@ -133,11 +133,21 @@ def _indent_width(line: str) -> int:
     return len(line) - len(line.lstrip())
 
 
+_CANONICAL_SECTION_KEYS = {"macros:", "macros: {}"}
+_LEGACY_SECTION_KEYS = {"xprompts:", "xprompts: {}"}
+
+
 def _find_macros_section(lines: list[str]) -> _MacrosSection | None:
-    """Return the macros section span, if present."""
+    """Return the macros section span, if present.
+
+    Canonical ``macros:`` wins when both spellings are present; callers
+    that mutate must reject that both-present file instead of leaving two
+    section keys behind (see :func:`insert_macro_into_config`).
+    """
+    found: _MacrosSection | None = None
     for i, line in enumerate(lines):
         stripped = line.rstrip()
-        if stripped not in {"xprompts:", "xprompts: {}"}:
+        if stripped not in _CANONICAL_SECTION_KEYS | _LEGACY_SECTION_KEYS:
             continue
 
         section_start = i + 1
@@ -147,14 +157,18 @@ def _find_macros_section(lines: list[str]) -> _MacrosSection | None:
                 section_end = j
                 break
 
-        return _MacrosSection(
+        section = _MacrosSection(
             key_index=i,
             start=section_start,
             end=section_end,
-            is_empty_mapping=stripped == "xprompts: {}",
+            is_empty_mapping=stripped in {"macros: {}", "xprompts: {}"},
         )
+        if stripped in _CANONICAL_SECTION_KEYS:
+            return section
+        if found is None:
+            found = section
 
-    return None
+    return found
 
 
 def _parse_entry_blocks(
@@ -282,6 +296,18 @@ def _insert_entry_lines(
     return lines[:insert_at] + inserted + lines[insert_at:]
 
 
+def _reject_both_section_keys(lines: list[str]) -> None:
+    """Raise when a file carries both ``macros:`` and ``xprompts:`` sections.
+
+    Supplying both spellings in one authored file is an error in both flag
+    states; the writer refuses rather than leaving two section keys behind.
+    """
+    seen_canonical = any(line.rstrip() in _CANONICAL_SECTION_KEYS for line in lines)
+    seen_legacy = any(line.rstrip() in _LEGACY_SECTION_KEYS for line in lines)
+    if seen_canonical and seen_legacy:
+        raise ValueError("xprompts and macros cannot be combined; use only macros")
+
+
 def insert_macro_into_config(
     config_path: str,
     name: str,
@@ -316,6 +342,7 @@ def insert_macro_into_config(
         frontmatter=frontmatter,
     )
 
+    _reject_both_section_keys(lines)
     section = _find_macros_section(lines)
     if section is None:
         # No macros section - append one at the end of the file.
@@ -323,15 +350,19 @@ def insert_macro_into_config(
             lines.pop()
         if lines:
             lines.append("")
-        lines.append("xprompts:")
+        lines.append("macros:")
         lines.extend(entry_lines)
         lines.append("")
         _atomic_write_text(path, "\n".join(lines))
         return True
 
-    # Replace ``macros: {}`` with bare ``macros:``
-    if section.is_empty_mapping:
-        lines[section.key_index] = "xprompts:"
+    # Migrate a legacy ``xprompts:`` header to canonical ``macros:`` so an
+    # edit never leaves two section keys behind. Replace ``macros: {}``
+    # with bare ``macros:``.
+    if lines[section.key_index].rstrip() in _LEGACY_SECTION_KEYS:
+        lines[section.key_index] = "macros:"
+    elif section.is_empty_mapping:
+        lines[section.key_index] = "macros:"
 
     blocks = _parse_entry_blocks(lines, section.start, section.end)
     for block in blocks:

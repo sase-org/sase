@@ -69,12 +69,10 @@ def load_workflow_from_mapping(
         record_load_issue(source_path, exc, kind="workflow")
         return None
 
-    macros_data = data.get("xprompts")
-    parsed_macros = (
-        parse_macro_entries(macros_data, source_path)
-        if isinstance(macros_data, dict)
-        else {}
-    )
+    from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+
+    macros_data = normalize_frontmatter_macros(data, source=source_path)
+    parsed_macros = parse_macro_entries(macros_data, source_path) if macros_data else {}
 
     environment_data = data.get("environment")
     environment: dict[str, str] = {}

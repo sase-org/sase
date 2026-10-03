@@ -6,7 +6,7 @@ from sase.macro.config_yaml import insert_macro_into_config
 
 
 _PACKED_SORTED_CONFIG = (
-    "xprompts:\n"
+    "macros:\n"
     "  # keep-sorted start\n"
     "\n"
     "  prompt/review: |\n"
@@ -68,12 +68,12 @@ def test_sorted_insert_uses_colon_tiebreak_for_bare_name(tmp_path: Path) -> None
 
 
 def test_unsorted_section_appends_new_entry_without_reordering(tmp_path: Path) -> None:
-    initial = "xprompts:\n  charlie: |\n    C\n\n  alpha: |\n    A\n"
+    initial = "macros:\n  charlie: |\n    C\n\n  alpha: |\n    A\n"
 
     text = _insert(tmp_path, initial, "bravo", "B")
 
     assert text == (
-        "xprompts:\n  charlie: |\n    C\n\n  alpha: |\n    A\n\n  bravo: |-\n    B\n"
+        "macros:\n  charlie: |\n    C\n\n  alpha: |\n    A\n\n  bravo: |-\n    B\n"
     )
 
 
@@ -90,21 +90,21 @@ def test_overwrite_replaces_only_matching_block(tmp_path: Path) -> None:
 def test_one_blank_spacing_is_mirrored_for_first_middle_and_last_inserts(
     tmp_path: Path,
 ) -> None:
-    initial = "xprompts:\n  alpha: |\n    A\n\n  charlie: |\n    C\n"
+    initial = "macros:\n  alpha: |\n    A\n\n  charlie: |\n    C\n"
 
     first = _insert(tmp_path, initial, "aardvark", "AA")
     assert first == (
-        "xprompts:\n  aardvark: |-\n    AA\n\n  alpha: |\n    A\n\n  charlie: |\n    C\n"
+        "macros:\n  aardvark: |-\n    AA\n\n  alpha: |\n    A\n\n  charlie: |\n    C\n"
     )
 
     middle = _insert(tmp_path, initial, "bravo", "B")
     assert middle == (
-        "xprompts:\n  alpha: |\n    A\n\n  bravo: |-\n    B\n\n  charlie: |\n    C\n"
+        "macros:\n  alpha: |\n    A\n\n  bravo: |-\n    B\n\n  charlie: |\n    C\n"
     )
 
     last = _insert(tmp_path, initial, "zulu", "Z")
     assert last == (
-        "xprompts:\n  alpha: |\n    A\n\n  charlie: |\n    C\n\n  zulu: |-\n    Z\n"
+        "macros:\n  alpha: |\n    A\n\n  charlie: |\n    C\n\n  zulu: |-\n    Z\n"
     )
 
 
@@ -112,10 +112,10 @@ def test_empty_and_missing_section_fallbacks_insert_without_stray_blanks(
     tmp_path: Path,
 ) -> None:
     cases = [
-        ("xprompts: {}\n", "xprompts:\n  foo: |-\n    Foo\n"),
-        ("xprompts:\n", "xprompts:\n  foo: |-\n    Foo\n"),
-        ("", "xprompts:\n  foo: |-\n    Foo\n"),
-        ("other_key: value\n", "other_key: value\n\nxprompts:\n  foo: |-\n    Foo\n"),
+        ("macros: {}\n", "macros:\n  foo: |-\n    Foo\n"),
+        ("macros:\n", "macros:\n  foo: |-\n    Foo\n"),
+        ("", "macros:\n  foo: |-\n    Foo\n"),
+        ("other_key: value\n", "other_key: value\n\nmacros:\n  foo: |-\n    Foo\n"),
     ]
 
     for index, (initial, expected) in enumerate(cases):

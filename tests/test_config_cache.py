@@ -188,7 +188,9 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
     ):
         first = load_merged_config()
         loads_after_first = call_count["n"]
-        assert loads_after_first <= 1
+        # One cached read serves the flag snapshot's raw layers and one
+        # serves the merge default cache; both are reused afterwards.
+        assert loads_after_first <= 2
         # Force a different cache token by editing the user file.
         sase_yml = global_dir / "sase.yml"
         sase_yml.write_text(yaml.dump({"key": "user2"}))
@@ -366,7 +368,7 @@ def test_owner_config_snapshot_discards_build_invalidated_by_concurrent_clear(
 
 
 def test_merged_config_cache_is_a_single_slot(tmp_path: Path) -> None:
-    """The merged-config cache is one ``(token, value)`` pair, not two globals."""
+    """The merged-config cache is one ``(key, value)`` pair, not two globals."""
     global_dir = tmp_path / "global"
     _write_user_config(global_dir, {"key": "user"})
 
@@ -377,7 +379,12 @@ def test_merged_config_cache_is_a_single_slot(tmp_path: Path) -> None:
         result = load_merged_config()
         cached = config_core._merged_config_cache
         assert cached is not None
-        assert cached[0] == config_core.current_config_token()
+        # The key pairs the filesystem token with the legacy-syntax policy
+        # so a flag change recomputes instead of reusing stale values.
+        assert cached[0] == (
+            config_core.current_config_token(),
+            config_core._normalization_cache_policy(),
+        )
         assert cached[1] is result
 
         clear_config_cache()

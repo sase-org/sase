@@ -42,6 +42,10 @@ CANONICAL_PLUGIN_GROUP = "sase_macros"
 RETIRED_LSP_BINARY = "sase-xprompt-lsp"
 CANONICAL_LSP_BINARY = "sase-macro-lsp"
 
+#: Retired frontmatter/workflow local-helper key and its replacement.
+RETIRED_FRONTMATTER_KEY = "xprompts"
+CANONICAL_FRONTMATTER_KEY = "macros"
+
 
 def legacy_xprompt_syntax_enabled() -> bool:
     """Return whether retired xprompt syntax is accepted."""
@@ -84,13 +88,57 @@ def normalize_config_layer(
     return canonical, list(diagnostics)
 
 
+def normalize_frontmatter_macros(
+    mapping: Mapping[str, Any] | None,
+    *,
+    source: str = "",
+    accept_legacy: bool | None = None,
+) -> dict[str, Any]:
+    """Return the local-helper entries from a frontmatter/workflow mapping.
+
+    Accepts canonical ``macros``, gates retired ``xprompts`` through the
+    ``legacy_xprompt_syntax`` flag, and rejects both spellings in one mapping
+    in both flag states. Presence (not truthiness) decides: a legacy key
+    holding null, an empty mapping, false, or an empty string still counts.
+    A retired-name failure raises ``ValueError`` naming the replacement and
+    must never be reduced to empty helpers by a broad caller catch.
+    """
+    if not isinstance(mapping, dict):
+        return {}
+    has_legacy = RETIRED_FRONTMATTER_KEY in mapping
+    has_canonical = CANONICAL_FRONTMATTER_KEY in mapping
+    if has_legacy and has_canonical:
+        raise ValueError(
+            f"{RETIRED_FRONTMATTER_KEY} and {CANONICAL_FRONTMATTER_KEY} "
+            f"cannot be combined; use only {CANONICAL_FRONTMATTER_KEY}"
+            + (f" ({source})" if source else "")
+        )
+    if has_canonical:
+        entries = mapping[CANONICAL_FRONTMATTER_KEY]
+        return entries if isinstance(entries, dict) else {}
+    if not has_legacy:
+        return {}
+    if accept_legacy is None:
+        accept_legacy = legacy_xprompt_syntax_enabled()
+    if not accept_legacy:
+        raise ValueError(
+            f"{RETIRED_FRONTMATTER_KEY} is retired; "
+            f"use {CANONICAL_FRONTMATTER_KEY}" + (f" ({source})" if source else "")
+        )
+    entries = mapping[RETIRED_FRONTMATTER_KEY]
+    return entries if isinstance(entries, dict) else {}
+
+
 __all__ = [
+    "CANONICAL_FRONTMATTER_KEY",
     "CANONICAL_LSP_BINARY",
     "CANONICAL_PLUGIN_GROUP",
     "RETIRED_CONFIG_KEYS",
     "RETIRED_ENV_VARS",
+    "RETIRED_FRONTMATTER_KEY",
     "RETIRED_LSP_BINARY",
     "RETIRED_PLUGIN_GROUP",
     "legacy_xprompt_syntax_enabled",
     "normalize_config_layer",
+    "normalize_frontmatter_macros",
 ]

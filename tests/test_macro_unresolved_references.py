@@ -29,7 +29,7 @@ def _stable_unresolved_env(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "sase.config.load_merged_config",
-        lambda: {"xprompt_aliases": {}},
+        lambda: {"macro_aliases": {}},
     )
     monkeypatch.setattr(
         "sase.workspace_provider.get_workflow_names",
@@ -76,7 +76,7 @@ def test_known_global_workflow_and_local_macro_are_not_flagged(
 def test_alias_resolved_name_is_not_flagged(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.config.load_merged_config",
-        lambda: {"xprompt_aliases": {"rvw": "review"}},
+        lambda: {"macro_aliases": {"rvw": "review"}},
     )
     monkeypatch.setattr(
         "sase.macro.loader.get_all_prompts",

@@ -514,10 +514,12 @@ def parse_macro_entries(entries: dict[str, Any], source_path: str) -> dict[str, 
             description = value.get("description")
             skill = value.get("skill")
             log_skill_use = value.get("log_skill_use", True)
-            local_entries = value.get("xprompts")
+            from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+
+            local_entries = normalize_frontmatter_macros(value, source=source_path)
             local_macros = (
                 parse_local_macro_entries(local_entries, source_path)
-                if isinstance(local_entries, dict)
+                if local_entries
                 else {}
             )
         else:

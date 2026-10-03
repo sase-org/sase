@@ -17,7 +17,7 @@ from sase.macro.processor import resolve_macro_aliases
 
 
 def _mock_config(aliases: dict[str, str]) -> dict:
-    return {"xprompt_aliases": aliases}
+    return {"macro_aliases": aliases}
 
 
 def _record(
@@ -427,7 +427,7 @@ class TestResolveMacroAliases:
     def test_no_aliases_configured(self) -> None:
         with patch(
             "sase.config.load_merged_config",
-            return_value={"xprompt_aliases": {}},
+            return_value={"macro_aliases": {}},
         ):
             assert resolve_macro_aliases("hello #foo") == "hello #foo"
 

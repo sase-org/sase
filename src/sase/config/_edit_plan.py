@@ -41,6 +41,92 @@ def _apply_to_text(text: str, write_plan: ConfigWritePlan) -> str:
     return unset_key(text, write_plan.key_path)
 
 
+def _retired_counterpart_key_path(
+    key_path: tuple[str, ...],
+) -> tuple[str, ...] | None:
+    """Return the retired spelling of a canonical macro *key_path*, if any.
+
+    Mirrors the layer-normalization contract in
+    :mod:`sase.legacy_xprompt_syntax`: top-level ``macros``/``macro_aliases``,
+    the two nested ``ace`` toggles, and ``mentor_profiles`` mentor ``macro``
+    fields. Anything else has no retired counterpart.
+    """
+    if not key_path:
+        return None
+    if key_path[0] == "macros":
+        return ("xprompts", *key_path[1:])
+    if key_path[0] == "macro_aliases":
+        return ("xprompt_aliases", *key_path[1:])
+    if (
+        len(key_path) >= 3
+        and key_path[0] == "ace"
+        and key_path[1] == "prompt_completion"
+        and key_path[2] == "auto_macro_menu"
+    ):
+        return ("ace", "prompt_completion", "auto_xprompt_menu", *key_path[3:])
+    if (
+        len(key_path) >= 3
+        and key_path[0] == "ace"
+        and key_path[1] == "prompt_inputs"
+        and key_path[2] == "macro_placeholder_args"
+    ):
+        return (
+            "ace",
+            "prompt_inputs",
+            "xprompt_placeholder_args",
+            *key_path[3:],
+        )
+    if (
+        len(key_path) >= 5
+        and key_path[0] == "mentor_profiles"
+        and key_path[2] == "mentors"
+        and key_path[4] == "macro"
+    ):
+        return (
+            key_path[0],
+            key_path[1],
+            key_path[2],
+            key_path[3],
+            "xprompt",
+            *key_path[5:],
+        )
+    return None
+
+
+def _without_retired_counterpart(text: str, key_path: tuple[str, ...]) -> str:
+    """Remove the retired spelling of canonical *key_path* from *text*.
+
+    A canonical edit of a legacy layer must produce a valid candidate:
+    writing the canonical key while leaving the old key behind would create
+    a both-present file that the next load rejects. Missing keys are a
+    no-op through :func:`unset_key`. When the removal empties a top-level
+    legacy section, the header goes too: even ``xprompts: {}`` counts as
+    presence and would fail a flag-off load.
+    """
+    counterpart = _retired_counterpart_key_path(tuple(key_path))
+    if counterpart is None:
+        return text
+    updated = unset_key(text, counterpart)
+    return _without_empty_legacy_section(updated, counterpart[0])
+
+
+def _without_empty_legacy_section(text: str, top_key: str) -> str:
+    """Drop top-level legacy *top_key* from *text* when it holds no value."""
+    if top_key not in ("xprompts", "xprompt_aliases"):
+        return text
+    try:
+        import yaml  # type: ignore[import-untyped]
+
+        data = yaml.safe_load(text)
+    except Exception:
+        return text
+    if not isinstance(data, dict) or top_key not in data:
+        return text
+    if data[top_key] not in (None, {}, ""):
+        return text
+    return unset_key(text, (top_key,))
+
+
 def _unified_diff(old: str, new: str, target: Path | None) -> str:
     label = str(target) if target is not None else "config"
     return "".join(
@@ -120,6 +206,7 @@ def build_edit_plan_result(
             f"config target is not valid UTF-8: {write_path}"
         ) from exc
     new_text = _apply_to_text(current_text, write_plan)
+    new_text = _without_retired_counterpart(new_text, write_plan.key_path)
     text_diff = _unified_diff(current_text, new_text, write_path)
 
     return EditPlanResult(

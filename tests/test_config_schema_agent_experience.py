@@ -12,7 +12,7 @@ from tests._config_schema_helpers import format_schema_error, schema
 def test_config_schema_accepts_macro_input_descriptions() -> None:
     public_schema = schema()
     config = {
-        "xprompts": {
+        "macros": {
             "review": {
                 "description": "Review a selected path.",
                 "input": {
@@ -47,7 +47,7 @@ def test_config_schema_accepts_macro_input_descriptions() -> None:
 def test_config_schema_accepts_macro_log_skill_use() -> None:
     public_schema = schema()
     config = {
-        "xprompts": {
+        "macros": {
             "quiet_skill": {
                 "description": "A skill that does not log its own use.",
                 "skill": True,
@@ -69,7 +69,7 @@ def test_config_schema_rejects_retired_memory_keywords() -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(schema()).validate(
             {
-                "xprompts": {
+                "macros": {
                     "legacy_memory": {
                         "content": "Legacy memory prompt",
                         "keywords": ["memory"],

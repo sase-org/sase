@@ -109,6 +109,19 @@ def _layer_kind(name: str) -> str:
     return "other"
 
 
+def _normalize_layer_value(value: dict[str, Any], *, source: str) -> dict[str, Any]:
+    """Normalize one authored layer to canonical macro spellings.
+
+    Layers are normalized independently with the live flag policy so the
+    inventory, effective views, and edit planning all see canonical keys
+    with source identity retained. Policy errors propagate to the caller.
+    """
+    from sase.legacy_xprompt_syntax import normalize_config_layer
+
+    canonical, _ = normalize_config_layer(value, source=source)
+    return canonical
+
+
 def _serialize_layer(layer: ConfigLayer) -> dict[str, Any]:
     """Serialize a discovered ``ConfigLayer`` to the wire input shape.
 
@@ -116,10 +129,15 @@ def _serialize_layer(layer: ConfigLayer) -> dict[str, Any]:
     and are never writable; file-backed layers (user, overlays, local) are.
     Project-owned catalogs such as ``tools:`` are stripped from non-local
     layers so list concatenation and deep merge cannot change argv identity.
+    Each authored layer is normalized to canonical macro spellings before
+    serialization; raw layer metadata stays on ``ConfigLayer.data`` for
+    doctor checks.
     """
     value = without_retired_sdd_selectors(layer.data or {})
     if _layer_kind(layer.name) != "local":
         value = without_project_only_keys(value)
+    if isinstance(value, dict) and value:
+        value = _normalize_layer_value(value, source=layer.name)
     return {
         "name": layer.name,
         "kind": _layer_kind(layer.name),
@@ -141,11 +159,14 @@ def _serialize_local_path(path: str | Path, *, name: str) -> dict[str, Any]:
     """Load an explicitly-selected local ``sase.yml`` into a wire layer."""
     target = Path(path)
     _, data, error = load_yaml_file_with_metadata(target)
+    value = without_retired_sdd_selectors(data or {})
+    if error is None and isinstance(value, dict) and value:
+        value = _normalize_layer_value(value, source=name)
     return {
         "name": name,
         "kind": "local",
         "path": str(target),
-        "value": without_retired_sdd_selectors(data or {}),
+        "value": value,
         "list_strategy": "concatenate",
         "writable": True,
         "exists": data is not None,

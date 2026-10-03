@@ -294,7 +294,7 @@ def _definition_key_lines(source_text: str, name: str) -> list[int]:
         if key is None:
             continue
         if indent == 0:
-            section_indent = 0 if key in {"workflows", "xprompts"} else None
+            section_indent = 0 if key in {"workflows", "macros", "xprompts"} else None
             continue
         if section_indent is not None and indent > section_indent and key == name:
             matches.append(line_number)

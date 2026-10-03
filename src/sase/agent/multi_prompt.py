@@ -72,11 +72,17 @@ def parse_multi_prompt(text: str) -> _MultiPrompt:
     """
     frontmatter, body = parse_yaml_front_matter(text)
 
-    # Extract local macros from frontmatter.
+    # Extract local macros from frontmatter: canonical ``macros``, with
+    # retired ``xprompts`` gated by the sunset flag. Both spellings in one
+    # mapping, or a retired spelling with the flag off, raises.
     local_macros: dict[str, Macro] = {}
     if frontmatter is not None:
-        macro_entries = frontmatter.pop("xprompts", None)
-        if isinstance(macro_entries, dict):
+        from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+
+        macro_entries = normalize_frontmatter_macros(frontmatter, source="user-prompt")
+        frontmatter.pop("xprompts", None)
+        frontmatter.pop("macros", None)
+        if macro_entries:
             local_macros = parse_local_macro_entries(
                 macro_entries, source_path="user-prompt"
             )

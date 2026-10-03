@@ -104,8 +104,10 @@ def _parse_markdown_local_macros(
 ) -> dict[str, Macro]:
     if not front_matter:
         return {}
-    macros_data = front_matter.get("xprompts")
-    if not isinstance(macros_data, dict):
+    from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+
+    macros_data = normalize_frontmatter_macros(front_matter, source=source_path)
+    if not macros_data:
         return {}
     return parse_local_macro_entries(macros_data, source_path)
 
@@ -580,8 +582,12 @@ def load_project_local_macros(workspace_dir: Path, project: str) -> dict[str, Ma
     if not isinstance(data, dict):
         return {}
 
-    macros_data: dict[str, Any] = data.get("xprompts", {})
-    if not isinstance(macros_data, dict) or not macros_data:
+    from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+
+    macros_data: dict[str, Any] = normalize_frontmatter_macros(
+        data, source=f"project_local_config:{project}"
+    )
+    if not macros_data:
         return {}
 
     source_label = f"project_local_config:{project}"

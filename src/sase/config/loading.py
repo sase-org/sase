@@ -217,6 +217,33 @@ def _without_owner_identity(
     return cleaned
 
 
+def _normalize_layer(
+    data: dict[str, Any],
+    *,
+    source: str,
+    accept_legacy: bool,
+) -> dict[str, Any]:
+    """Normalize one authored layer to canonical macro spellings.
+
+    Policy errors (same-layer collisions, legacy spellings with the flag
+    off) propagate as actionable errors; they are never swallowed into an
+    empty contribution.
+    """
+    from sase.legacy_xprompt_syntax import normalize_config_layer
+
+    canonical, _ = normalize_config_layer(
+        data, source=source, accept_legacy=accept_legacy
+    )
+    return canonical
+
+
+def _resolve_normalization_policy() -> bool:
+    """Resolve the legacy-syntax policy bit without recursing into merge."""
+    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
+    return legacy_xprompt_syntax_enabled()
+
+
 def merge_config_sources(
     *,
     default_config: dict[str, Any],
@@ -227,10 +254,21 @@ def merge_config_sources(
     local_path: Path | None,
     yaml_loader: Callable[[Path], dict[str, Any] | None],
 ) -> dict[str, Any]:
-    """Load and merge the already-discovered config source chain."""
-    default_contribution = _without_project_only_catalog(
-        _without_owner_identity(default_config, source="default"),
+    """Load and merge the already-discovered config source chain.
+
+    Each authored layer is normalized independently before merging, so a
+    canonical bundled default plus an old user override stays valid while
+    the flag is enabled and keeps existing layer precedence instead of
+    becoming a both-present error after merging.
+    """
+    accept_legacy = _resolve_normalization_policy()
+    default_contribution = _normalize_layer(
+        _without_project_only_catalog(
+            _without_owner_identity(default_config, source="default"),
+            source="default",
+        ),
         source="default",
+        accept_legacy=accept_legacy,
     )
     layer_inputs = [
         _layer_input(
@@ -246,9 +284,13 @@ def merge_config_sources(
 
     for index, plugin_config in enumerate(plugin_configs, start=1):
         log.debug("Loading layer 'plugin' (keys: %s)", ", ".join(plugin_config))
-        contribution = _without_project_only_catalog(
-            _without_owner_identity(plugin_config, source=f"plugin #{index}"),
-            source=f"plugin #{index}",
+        contribution = _normalize_layer(
+            _without_project_only_catalog(
+                _without_owner_identity(plugin_config, source=f"plugin #{index}"),
+                source=f"plugin #{index}",
+            ),
+            source=f"plugin:{index}",
+            accept_legacy=accept_legacy,
         )
         layer_inputs.append(
             _layer_input(
@@ -263,9 +305,13 @@ def merge_config_sources(
 
     user_base = yaml_loader(user_base_path)
     if user_base:
-        contribution = _without_project_only_catalog(
-            _without_owner_identity(user_base, source=str(user_base_path)),
-            source=str(user_base_path),
+        contribution = _normalize_layer(
+            _without_project_only_catalog(
+                _without_owner_identity(user_base, source=str(user_base_path)),
+                source=str(user_base_path),
+            ),
+            source="user",
+            accept_legacy=accept_legacy,
         )
         layer_inputs.append(
             _layer_input(
@@ -309,6 +355,11 @@ def merge_config_sources(
                 _without_owner_identity(overlay, source=str(overlay_path)),
                 source=str(overlay_path),
             )
+        contribution = _normalize_layer(
+            contribution,
+            source=f"overlay:{overlay_path.name}",
+            accept_legacy=accept_legacy,
+        )
         layer_inputs.append(
             _layer_input(
                 name=f"overlay:{overlay_path.name}",
@@ -323,7 +374,11 @@ def merge_config_sources(
     if local_path:
         local_config = yaml_loader(local_path)
         if local_config:
-            contribution = _without_owner_identity(local_config, source=str(local_path))
+            contribution = _normalize_layer(
+                _without_owner_identity(local_config, source=str(local_path)),
+                source="local",
+                accept_legacy=accept_legacy,
+            )
             layer_inputs.append(
                 _layer_input(
                     name="local",

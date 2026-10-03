@@ -67,9 +67,13 @@ def _xprompt_placeholder_args_enabled() -> bool:
     """
     try:
         ace = _config_section(load_merged_config(), "ace")
-        raw = _config_section(ace, "prompt_inputs").get(
-            "xprompt_placeholder_args", True
-        )
+        inputs = _config_section(ace, "prompt_inputs")
+        # Canonical key first so a user's explicit false survives
+        # config-layer normalization; fall back to the retired spelling.
+        if "macro_placeholder_args" in inputs:
+            raw = inputs.get("macro_placeholder_args", True)
+        else:
+            raw = inputs.get("xprompt_placeholder_args", True)
     except Exception:
         log.debug("xprompt placeholder argument toggle unavailable", exc_info=True)
         return True

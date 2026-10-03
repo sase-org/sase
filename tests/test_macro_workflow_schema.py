@@ -45,7 +45,7 @@ def test_workflow_schema_accepts_descriptions() -> None:
                     "description": "User request for the workflow.",
                 }
             ],
-            "xprompts": {
+            "macros": {
                 "_local": {
                     "description": "Local helper prompt.",
                     "input": {

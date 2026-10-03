@@ -160,7 +160,7 @@ async def test_mini_xprompt_pane_config_save_writes_entry(
             await pilot.pause()
 
             payload = yaml.safe_load(config.read_text(encoding="utf-8"))
-            assert payload["xprompts"]["review"] == {
+            assert payload["macros"]["review"] == {
                 "description": "Review",
                 "content": "Check this",
             }

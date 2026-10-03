@@ -124,7 +124,7 @@ class TestInsertXpromptIntoConfig:
         result = insert_macro_into_config(str(config), "foo", [], "Foo content")
         assert result is True
         text = config.read_text()
-        assert "xprompts:" in text
+        assert "macros:" in text
         assert "  foo: |-" in text
 
     def test_insert_with_inputs(self, tmp_path: Path) -> None:

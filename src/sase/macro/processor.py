@@ -143,7 +143,7 @@ def resolve_macro_aliases(prompt: str) -> str:
 
     from sase.config import load_merged_config
 
-    aliases: dict[str, str] = load_merged_config().get("xprompt_aliases", {})
+    aliases: dict[str, str] = load_merged_config().get("macro_aliases", {})
     if not aliases:
         return prompt
 

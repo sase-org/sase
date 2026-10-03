@@ -154,7 +154,26 @@ class FrontmatterPanel(
         self._height_cap: int | None = None
         schema = frontmatter_field_schema()
         self._schema = {f.name: f for f in schema}
+        # Config-frontmatter glue (sase-1eq.4.1.2): the Python model now
+        # serializes canonical ``macros`` while core still advertises the
+        # retired ``xprompts`` field. Alias the canonical key to the same
+        # structured descriptor until the core schema flips; the TUI rename
+        # phase owns widget terminology. Field/item kind names stay.
+        if "macros" not in self._schema and "xprompts" in self._schema:
+            base = self._schema["xprompts"]
+            self._schema["macros"] = type(base)(
+                name="macros",
+                kind=base.kind,
+                required=base.required,
+                description=base.description,
+                allowed_values=base.allowed_values,
+                example=base.example,
+            )
         self._schema_order = [f.name for f in schema]
+        if "macros" in self._schema and "xprompts" in self._schema_order:
+            self._schema_order = [
+                "macros" if name == "xprompts" else name for name in self._schema_order
+            ]
 
     # -- composition ----------------------------------------------------------
 
@@ -572,8 +591,8 @@ class FrontmatterPanel(
         if nav is None:
             return
         kind, key = nav
-        field = key if kind == "field" else ("input" if kind == "input" else "xprompts")
-        if field not in ("input", "xprompts"):
+        field = key if kind == "field" else ("input" if kind == "input" else "macros")
+        if field not in ("input", "macros", "xprompts"):
             return
         if folded:
             self._folded.add(field)

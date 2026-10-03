@@ -67,7 +67,7 @@ async def test_unified_config_result_inserts_xprompt(tmp_path: Path) -> None:
         await harness._write_xprompt_target(target, "check this")
 
     payload = yaml.safe_load(config.read_text(encoding="utf-8"))
-    assert payload["xprompts"]["review"] == {
+    assert payload["macros"]["review"] == {
         "description": "Review code",
         "content": "check this",
     }

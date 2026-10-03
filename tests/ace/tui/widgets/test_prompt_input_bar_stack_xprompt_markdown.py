@@ -52,7 +52,7 @@ async def test_all_editor_markdown_serializes_canonical_frontmatter() -> None:
             "description",
             "tags",
             "input",
-            "xprompts",
+            "macros",
             "skill",
             "snippet",
         ):

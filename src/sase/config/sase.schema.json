@@ -924,7 +924,7 @@
         }
       }
     },
-    "xpromptInputDefinitions": {
+    "macroInputDefinitions": {
       "description": "Input argument definitions (array or object shorthand)",
       "oneOf": [
         {
@@ -2181,9 +2181,9 @@
               "description": "Whether automatic completion may scan file path candidates while typing",
               "default": false
             },
-            "auto_xprompt_menu": {
+            "auto_macro_menu": {
               "type": "boolean",
-              "description": "Whether matching #name, #!name, and /skill tokens automatically open the xprompt/skill completion menu while typing",
+              "description": "Whether matching #name, #!name, and /skill tokens automatically open the macro/skill completion menu while typing",
               "default": true
             },
             "auto_directive_menu": {
@@ -2408,9 +2408,9 @@
               "description": "Whether submitting a prompt with raw <placeholder> tags opens the Prompt Inputs panel to collect a value for each tag",
               "default": true
             },
-            "xprompt_placeholder_args": {
+            "macro_placeholder_args": {
               "type": "boolean",
-              "description": "Whether saving a draft as a new global (gx) or local (gX) xprompt converts its raw <placeholder> tags into text input arguments",
+              "description": "Whether saving a draft as a new global (gx) or local (gX) macro converts its raw <placeholder> tags into text input arguments",
               "default": true
             }
           }
@@ -3937,14 +3937,14 @@
               "type": "object",
               "additionalProperties": false,
               "oneOf": [
-                { "required": ["xprompt"] },
+                { "required": ["macro"] },
                 { "required": ["prompt"] },
                 { "required": ["mentor_name", "role", "focus_areas"] }
               ],
               "properties": {
-                "xprompt": {
+                "macro": {
                   "type": "string",
-                  "description": "Reference to an xprompt (e.g., #mentor/aaa)"
+                  "description": "Reference to a macro (e.g., #mentor/aaa)"
                 },
                 "prompt": {
                   "type": "string",
@@ -5089,9 +5089,9 @@
         }
       }
     },
-    "xprompt_aliases": {
+    "macro_aliases": {
       "type": "object",
-      "description": "Aliases for xprompt references, substituted before any other xprompt processing (e.g., {\"#deploy_notes\": \"#release-notes\"})",
+      "description": "Aliases for macro references, substituted before any other macro processing (e.g., {\"#deploy_notes\": \"#release-notes\"})",
       "additionalProperties": {
         "type": "string"
       }
@@ -5495,7 +5495,7 @@
       "description": "Remap home xprompt paths to chezmoi-managed equivalents under ~/.local/share/chezmoi/home/",
       "default": false
     },
-    "xprompts": {
+    "macros": {
       "type": "object",
       "description": "Reusable text templates that can be referenced in prompts",
       "additionalProperties": {
@@ -5507,14 +5507,14 @@
             "additionalProperties": false,
             "properties": {
               "input": {
-                "$ref": "#/definitions/xpromptInputDefinitions"
+                "$ref": "#/definitions/macroInputDefinitions"
               },
               "content": {
                 "type": "string",
                 "description": "Template content with Jinja2 placeholders"
               },
               "tags": {
-                "description": "Semantic role tags for tag-based xprompt lookup",
+                "description": "Semantic role tags for tag-based macro lookup",
                 "oneOf": [
                   { "type": "string" },
                   {
@@ -5531,7 +5531,7 @@
               },
               "description": {
                 "type": "string",
-                "description": "Human-readable xprompt description"
+                "description": "Human-readable macro description"
               },
               "skill": {
                 "description": "Skill deployment metadata for generated skills",

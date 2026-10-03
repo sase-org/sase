@@ -102,17 +102,22 @@ def save_config_macro(
 
 def load_config_macro_markdown(config_path: str | Path, name: str) -> str:
     """Reconstruct editable markdown for one simple config-backed macro."""
+    from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+
     path = Path(config_path)
     payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or not isinstance(payload.get("xprompts"), dict):
-        raise ValueError("config has no xprompts mapping")
-    entry = payload["xprompts"].get(name)
+    if not isinstance(payload, dict):
+        raise ValueError("config has no macros mapping")
+    entries = normalize_frontmatter_macros(payload, source=str(path))
+    if not entries:
+        raise ValueError("config has no macros mapping")
+    entry = entries.get(name)
     if entry is None:
-        raise KeyError(f"xprompt {name!r} is not present in {path}")
+        raise KeyError(f"macro {name!r} is not present in {path}")
     if isinstance(entry, str):
         return entry
     if not isinstance(entry, dict):
-        raise ValueError(f"xprompt {name!r} is not a simple config entry")
+        raise ValueError(f"macro {name!r} is not a simple config entry")
     mapping = dict(entry)
     body = str(mapping.pop("content", ""))
     mapping.pop("name", None)

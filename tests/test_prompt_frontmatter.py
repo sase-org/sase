@@ -39,7 +39,7 @@ def test_round_trip_full_frontmatter_is_lossless() -> None:
         "  service: word\n"
         "  dry_run: {type: bool, default: false}\n"
         "  retries: {type: int, default: 3, description: how many}\n"
-        "xprompts:\n"
+        "macros:\n"
         '  _rules: "Follow the checklist"\n'
         "  _greet:\n"
         "    input: {who: word}\n"
@@ -308,10 +308,10 @@ def test_enum_input_labeled_choices_round_trip() -> None:
 
 
 def test_simple_macro_serializes_as_bare_string() -> None:
-    model = PromptFrontmatter.parse('---\nxprompts:\n  _rules: "be concise"\n---')
+    model = PromptFrontmatter.parse('---\nmacros:\n  _rules: "be concise"\n---')
     serialized = model.serialize()
     assert "_rules: be concise" in serialized
-    _, reparsed = _round_trip('---\nxprompts:\n  _rules: "be concise"\n---')
+    _, reparsed = _round_trip('---\nmacros:\n  _rules: "be concise"\n---')
     assert reparsed.macros["_rules"].content == "be concise"
     assert reparsed.macros["_rules"].source_path == LOCAL_MACRO_SOURCE
 
@@ -319,7 +319,7 @@ def test_simple_macro_serializes_as_bare_string() -> None:
 def test_structured_macro_round_trips() -> None:
     raw = (
         "---\n"
-        "xprompts:\n"
+        "macros:\n"
         "  _greet:\n"
         "    input: {who: word}\n"
         '    content: "Hello {{ who }}"\n'
@@ -347,7 +347,7 @@ def test_macro_multiline_content_round_trips() -> None:
 
 def test_macro_name_must_be_underscore_prefixed() -> None:
     with pytest.raises(LocalMacroNameError):
-        PromptFrontmatter.parse('---\nxprompts:\n  rules: "no underscore"\n---')
+        PromptFrontmatter.parse('---\nmacros:\n  rules: "no underscore"\n---')
 
 
 # --- accessors / mutators --------------------------------------------------

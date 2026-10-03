@@ -512,7 +512,7 @@ ace:
     auto: soft
     debounce_ms: 90
     auto_file_paths: false
-    auto_xprompt_menu: true
+    auto_macro_menu: true
     # Also controls automatic =alias and ==model shortcut menus; manual Ctrl+T still works.
     auto_directive_menu: true
     auto_artifact_menu: true
@@ -536,7 +536,7 @@ ace:
     confirm_on_enter: true
   prompt_inputs:
     collect_raw_placeholders: true
-    xprompt_placeholder_args: true
+    macro_placeholder_args: true
   keymaps:
     # Focused Command Line panel bindings. These keys are inactive everywhere
     # else, even when they overlap app-level actions. The completion-menu keys
@@ -2053,10 +2053,10 @@ external_mirror:
   # non-empty. Remote PR authors whose pull requests are adopted as Patches.
   pr_authors: []
 
-xprompt_aliases:
+macro_aliases:
   c: commit
   p: propose
-xprompts:
+macros:
   # keep-sorted start
 
   bd/land_epic:

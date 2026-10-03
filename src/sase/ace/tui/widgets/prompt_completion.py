@@ -119,12 +119,18 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         DEFAULT_PROMPT_COMPLETION_SETTINGS.debounce_ms,
     )
     auto_file_paths = bool(raw.get("auto_file_paths", False))
-    auto_xprompt_menu = bool(
-        raw.get(
-            "auto_xprompt_menu",
-            DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_xprompt_menu,
+    # Canonical key first so a user's explicit false survives config-layer
+    # normalization; the retired spelling is honored only while the sunset
+    # flag accepts it. Field names stay for the TUI rename phase.
+    if "auto_macro_menu" in raw:
+        auto_xprompt_menu = bool(raw.get("auto_macro_menu"))
+    else:
+        auto_xprompt_menu = bool(
+            raw.get(
+                "auto_xprompt_menu",
+                DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_xprompt_menu,
+            )
         )
-    )
     auto_directive_menu = bool(
         raw.get(
             "auto_directive_menu",

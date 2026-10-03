@@ -54,9 +54,12 @@ LOCAL_MACRO_SOURCE = "user-prompt"
 # Canonical top-to-bottom field order, matching the core field schema
 # (``frontmatter_field_schema``) and the panel's row order.  Kept local so
 # serialization stays pure Python and does not require the Rust binding.
-_FIELD_ORDER = ("name", "description", "tags", "input", "xprompts", "skill", "snippet")
+_FIELD_ORDER = ("name", "description", "tags", "input", "macros", "skill", "snippet")
 _KNOWN_INPUT_KEYS = frozenset({"input", "inputs"})
-_KNOWN_FIELDS = frozenset(_FIELD_ORDER) | _KNOWN_INPUT_KEYS
+# Retired spellings are known fields, never extras: a legacy ``xprompts:``
+# input normalizes into :attr:`macros`, so it must not also round-trip as an
+# unknown extra (which would serialize both keys back out).
+_KNOWN_FIELDS = frozenset(_FIELD_ORDER) | _KNOWN_INPUT_KEYS | frozenset({"xprompts"})
 
 
 class FrontmatterValueState(StrEnum):
@@ -139,9 +142,11 @@ class PromptFrontmatter:
         # `input` is canonical; accept a user-typed `inputs` as an alias.
         input_data = mapping.get("input", mapping.get("inputs"))
 
-        macro_entries = mapping.get("xprompts")
+        from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+
+        macro_entries = normalize_frontmatter_macros(mapping, source=LOCAL_MACRO_SOURCE)
         macros: dict[str, Macro] = {}
-        if isinstance(macro_entries, dict):
+        if macro_entries:
             macros = parse_local_macro_entries(
                 macro_entries, source_path=LOCAL_MACRO_SOURCE
             )
@@ -199,7 +204,7 @@ class PromptFrontmatter:
         if self.inputs:
             mapping["input"] = {arg.name: _input_to_yaml(arg) for arg in self.inputs}
         if self.macros:
-            mapping["xprompts"] = {
+            mapping["macros"] = {
                 name: _macro_to_yaml(xp) for name, xp in self.macros.items()
             }
         if self.skill is not None:
@@ -226,7 +231,7 @@ class PromptFrontmatter:
         """Return a schema field value without panel-side name branching."""
         if name == "input":
             return self.inputs
-        if name == "xprompts":
+        if name in ("macros", "xprompts"):
             return self.macros
         if name in self.extras:
             return self.extras[name]
@@ -236,7 +241,7 @@ class PromptFrontmatter:
         """Unset a schema field or passthrough extra."""
         if name == "input":
             self.inputs.clear()
-        elif name == "xprompts":
+        elif name in ("macros", "xprompts"):
             self.macros.clear()
         elif name == "tags":
             self.tags.clear()

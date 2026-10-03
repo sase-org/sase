@@ -115,7 +115,7 @@ def test_config_save_round_trips_full_frontmatter_and_orders_entries(
 ) -> None:
     config = tmp_path / "sase.yml"
     config.write_text(
-        "xprompts:\n  alpha: |\n    Alpha\n\n  zulu: |\n    Zulu\n",
+        "macros:\n  alpha: |\n    Alpha\n\n  zulu: |\n    Zulu\n",
         encoding="utf-8",
     )
 
@@ -129,7 +129,7 @@ def test_config_save_round_trips_full_frontmatter_and_orders_entries(
     assert "      ---" in text
 
     data = yaml.safe_load(text)
-    entries = data["xprompts"]
+    entries = data["macros"]
     parsed = parse_macro_entries(entries, "config")
     loaded = parsed["bravo"]
     # ``|-`` strips the trailing newline, so the submitted body round-trips
@@ -144,7 +144,7 @@ def test_config_save_round_trips_full_frontmatter_and_orders_entries(
 
 def test_config_save_refuses_a_skill_entry(tmp_path: Path) -> None:
     config = tmp_path / "sase.yml"
-    config.write_text("xprompts:\n  alpha: |\n    Alpha\n", encoding="utf-8")
+    config.write_text("macros:\n  alpha: |\n    Alpha\n", encoding="utf-8")
 
     # A config entry can never be a skill: generation needs a Markdown source
     # in a canonical skill directory to render from.
@@ -158,7 +158,7 @@ def test_config_save_refuses_a_skill_entry(tmp_path: Path) -> None:
 def test_config_insert_overwrites_existing_name(tmp_path: Path) -> None:
     config = tmp_path / "sase.yml"
     config.write_text(
-        "xprompts:\n  alpha: |\n    Old\n\n  beta: |\n    Keep\n",
+        "macros:\n  alpha: |\n    Old\n\n  beta: |\n    Keep\n",
         encoding="utf-8",
     )
 

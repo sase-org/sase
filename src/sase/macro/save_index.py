@@ -69,7 +69,12 @@ def _config_names(path: Path, *, snippet: bool) -> frozenset[str]:
         ace = payload.get("ace")
         mapping = ace.get("snippets") if isinstance(ace, dict) else None
     else:
-        mapping = payload.get("xprompts")
+        from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
+
+        try:
+            mapping = normalize_frontmatter_macros(payload, source=str(path))
+        except ValueError:
+            return frozenset()
     if not isinstance(mapping, dict):
         return frozenset()
     return frozenset(str(name) for name in mapping)
@@ -95,7 +100,7 @@ def load_definition(
         markdown = load_config_macro_markdown(source, name)
         frontmatter, body = _split_markdown(markdown)
         lines = [
-            "xprompts:",
+            "macros:",
             *generate_macro_yaml(name, [], body, frontmatter=frontmatter),
         ]
         text = "\n".join(lines) + "\n"
