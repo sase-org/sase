@@ -46,7 +46,7 @@ async def mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
     return bar
 
 
-def compute_jinja_now(text_area: PromptTextArea) -> None:
+async def compute_jinja_now(text_area: PromptTextArea) -> None:
     text_area._jinja_diagnostics_generation += 1
     generation = text_area._jinja_diagnostics_generation
     text_area._fire_jinja_diagnostics_timer(
@@ -54,3 +54,6 @@ def compute_jinja_now(text_area: PromptTextArea) -> None:
         text_area.text,
         text_area._absolute_offset(text_area.cursor_location),
     )
+    task = text_area._jinja_diagnostics_task
+    if task is not None:
+        await task

@@ -12,6 +12,7 @@ from sase.ace.tui.widgets._codeblock_syntax_highlight import (
     CodeBlockHighlightMixin,
 )
 from sase.ace.tui.widgets._file_completion import FileCompletionMixin
+from sase.ace.tui.widgets._highlight_batch import HighlightBatchMixin
 from sase.ace.tui.widgets._jinja_diagnostics import JinjaDiagnosticsMixin
 from sase.ace.tui.widgets._jinja_highlight import JinjaHighlightMixin
 from sase.ace.tui.widgets._misspelling_highlight import MisspellingHighlightMixin
@@ -80,6 +81,7 @@ __all__ = [
 
 
 class PromptTextArea(
+    HighlightBatchMixin,
     PromptNextWordMixin,
     PromptTextAreaKeyHandlingMixin,
     PromptTextAreaActionsMixin,

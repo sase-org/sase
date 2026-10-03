@@ -24,7 +24,7 @@ from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from ._completion_helpers import CompletionTestApp
 
 
-def _compute_jinja_now(ta: PromptTextArea) -> None:
+async def _compute_jinja_now(ta: PromptTextArea) -> None:
     ta._jinja_diagnostics_generation += 1
     generation = ta._jinja_diagnostics_generation
     ta._fire_jinja_diagnostics_timer(
@@ -32,6 +32,9 @@ def _compute_jinja_now(ta: PromptTextArea) -> None:
         ta.text,
         ta._absolute_offset(ta.cursor_location),
     )
+    task = ta._jinja_diagnostics_task
+    if task is not None:
+        await task
 
 
 async def test_jinja_highlight_overlay_adds_spans() -> None:
@@ -50,21 +53,23 @@ async def test_jinja_highlight_overlay_adds_spans() -> None:
 
 async def test_jinja_valid_chip_and_invalid_panel() -> None:
     app = CompletionTestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         panel = bar.query_one("#prompt-completion", Static)
 
         ta.load_text("Hello {{ root }}")
         ta.cursor_location = (0, len(ta.text))
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
         assert "jinja ✓" in str(bar.border_title)
         assert panel.has_class("hidden")
 
         ta.load_text("Hello {{ name }")
         ta.cursor_location = (0, len(ta.text))
         ta._on_prompt_completion_context_changed()
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
 
     assert "jinja ! L1" in str(bar.border_title)
     assert panel.border_title == "jinja diagnostics"
@@ -74,14 +79,15 @@ async def test_jinja_valid_chip_and_invalid_panel() -> None:
 
 async def test_jinja_unknown_variable_warning() -> None:
     app = CompletionTestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         panel = bar.query_one("#prompt-completion", Static)
 
         ta.load_text("Hello {{ missing }}")
         ta.cursor_location = (0, len(ta.text))
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
 
     assert "jinja ! var" in str(bar.border_title)
     assert panel.border_title == "jinja diagnostics"
@@ -92,7 +98,7 @@ async def test_jinja_unknown_variable_warning() -> None:
 
 async def test_jinja_diagnostics_knows_stack_frontmatter_inputs() -> None:
     app = CompletionTestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         panel = bar.query_one("#prompt-completion", Static)
@@ -102,7 +108,8 @@ async def test_jinja_diagnostics_knows_stack_frontmatter_inputs() -> None:
 
         ta.load_text("{{ topic }} {{ root }}")
         ta.cursor_location = (0, len(ta.text))
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
 
     assert "jinja ✓" in str(bar.border_title)
     assert panel.has_class("hidden")
@@ -111,14 +118,15 @@ async def test_jinja_diagnostics_knows_stack_frontmatter_inputs() -> None:
 
 async def test_jinja_diagnostics_patch_name_known_without_inputs() -> None:
     app = CompletionTestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         panel = bar.query_one("#prompt-completion", Static)
 
         ta.load_text("{{ patch_name }} {{ wait_chats }} {{ n }}")
         ta.cursor_location = (0, len(ta.text))
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
 
     assert "jinja ✓" in str(bar.border_title)
     assert panel.has_class("hidden")
@@ -129,7 +137,7 @@ async def test_jinja_diagnostics_run_names_unavailable_in_input_declaring_prompt
     None
 ):
     app = CompletionTestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         panel = bar.query_one("#prompt-completion", Static)
@@ -139,7 +147,8 @@ async def test_jinja_diagnostics_run_names_unavailable_in_input_declaring_prompt
 
         ta.load_text("{{ topic }} {{ patch_name }}")
         ta.cursor_location = (0, len(ta.text))
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
 
     assert "jinja ! var" in str(bar.border_title)
     assert panel.border_title == "jinja diagnostics"
@@ -155,7 +164,7 @@ async def test_jinja_diagnostics_run_names_unavailable_in_input_declaring_prompt
 
 async def test_jinja_diagnostics_still_flags_unknown_with_known_context() -> None:
     app = CompletionTestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         panel = bar.query_one("#prompt-completion", Static)
@@ -165,7 +174,8 @@ async def test_jinja_diagnostics_still_flags_unknown_with_known_context() -> Non
 
         ta.load_text("{{ topic }} {{ wait_chats }} {{ definitely_unknown }}")
         ta.cursor_location = (0, len(ta.text))
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
 
     assert "jinja ! var" in str(bar.border_title)
     assert panel.border_title == "jinja diagnostics"
@@ -176,14 +186,15 @@ async def test_jinja_diagnostics_still_flags_unknown_with_known_context() -> Non
 
 async def test_jinja_diagnostics_knows_inline_frontmatter_inputs() -> None:
     app = CompletionTestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         panel = bar.query_one("#prompt-completion", Static)
 
         ta.load_text("---\ninput:\n  topic: line\n---\n{{ topic }} {{ root }}")
         ta.cursor_location = (4, len("{{ topic }} {{ root }}"))
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
 
     assert "jinja ✓" in str(bar.border_title)
     assert panel.has_class("hidden")
@@ -192,7 +203,7 @@ async def test_jinja_diagnostics_knows_inline_frontmatter_inputs() -> None:
 
 async def test_completion_panel_entrypoints_noop_when_panel_pruned() -> None:
     app = CompletionTestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
         panel = bar.query_one("#prompt-completion", Static)
@@ -203,7 +214,8 @@ async def test_completion_panel_entrypoints_noop_when_panel_pruned() -> None:
 
         ta.load_text("{{}}")
         ta.cursor_location = (0, len(ta.text))
-        _compute_jinja_now(ta)
+        await pilot.pause()
+        await _compute_jinja_now(ta)
 
         candidate = CompletionCandidate(
             display="alpha.txt",

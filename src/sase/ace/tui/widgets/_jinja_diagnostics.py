@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks, spawn_pump_free_task
+from sase.ace.tui.widgets.jinja_completion import jinja_scope_for_editor
 from sase.xprompt import jinja_assist, jinja_inspect
 
 _POSITIONAL_RE = re.compile(r"_[0-9]+")
@@ -34,10 +37,23 @@ class JinjaDiagnosticsMixin(_MixinBase):
         super().__init__(*args, **kwargs)
         self._jinja_diagnostics_generation = 0
         self._jinja_diagnostics_timer: Any | None = None
+        self._jinja_diagnostics_task: Any | None = None
         self._jinja_diagnostics = jinja_inspect.JinjaDiagnostics(
             has_jinja=False,
             ok=True,
         )
+
+    def _prompt_unmount_hook(self) -> None:
+        """Stop the diagnostics timer and drop any in-flight inspect task."""
+        if self._jinja_diagnostics_timer is not None:
+            self._jinja_diagnostics_timer.stop()
+            self._jinja_diagnostics_timer = None
+        self._jinja_diagnostics_generation += 1
+        self._cancel_jinja_diagnostics_task()
+        cancel_pump_free_tasks(self)
+        super_hook = getattr(super(), "_prompt_unmount_hook", None)
+        if callable(super_hook):
+            super_hook()
 
     def _on_prompt_completion_context_changed(self) -> None:
         super_changed = getattr(super(), "_on_prompt_completion_context_changed", None)
@@ -48,6 +64,7 @@ class JinjaDiagnosticsMixin(_MixinBase):
 
     def _schedule_jinja_diagnostics_refresh(self) -> None:
         self._jinja_diagnostics_generation += 1
+        self._cancel_jinja_diagnostics_task()
         if self._jinja_diagnostics_timer is not None:
             self._jinja_diagnostics_timer.stop()
         settings_getter = getattr(self, "_prompt_completion_settings", None)
@@ -82,8 +99,50 @@ class JinjaDiagnosticsMixin(_MixinBase):
         ):
             return
 
-        diagnostics = _inspect_with_engine_scope(self._find_prompt_bar(), text, self)
+        # The engine scope is an immutable snapshot captured on the pump;
+        # the inspect itself runs in a pump-free thread task.
+        scope = jinja_scope_for_editor(self)
+        task = spawn_pump_free_task(
+            self,
+            self._run_jinja_diagnostics_async(generation, text, cursor_offset, scope),
+            name="jinja-diagnostics",
+            registry_attr="_jinja_diagnostics_async_tasks",
+        )
+        self._jinja_diagnostics_task = task
+        if task is None:
+            self._apply_jinja_diagnostics(_inspect_with_scope(scope, text))
+
+    async def _run_jinja_diagnostics_async(
+        self,
+        generation: int,
+        text: str,
+        cursor_offset: int,
+        scope: jinja_assist.JinjaScope,
+    ) -> None:
+        """Inspect *text* off the pump and apply it when still current."""
+        try:
+            diagnostics = await asyncio.to_thread(_inspect_with_scope, scope, text)
+        finally:
+            current = asyncio.current_task()
+            if current is not None and self._jinja_diagnostics_task is current:
+                self._jinja_diagnostics_task = None
+        if generation != self._jinja_diagnostics_generation:
+            return
+        if not self.is_mounted:
+            return
+        if text != self.text or cursor_offset != self._absolute_offset(
+            self.cursor_location
+        ):
+            return
         self._apply_jinja_diagnostics(diagnostics)
+
+    def _cancel_jinja_diagnostics_task(self) -> None:
+        task = getattr(self, "_jinja_diagnostics_task", None)
+        if task is None:
+            return
+        self._jinja_diagnostics_task = None
+        if not task.done():
+            task.cancel()
 
     def _apply_jinja_diagnostics(
         self,
@@ -152,24 +211,13 @@ class JinjaDiagnosticsMixin(_MixinBase):
         self._refresh_jinja_overlay()
 
 
-def _inspect_with_engine_scope(
-    bar: Any, text: str, text_area: object | None = None
+def _inspect_with_scope(
+    scope: jinja_assist.JinjaScope, text: str
 ) -> jinja_inspect.JinjaDiagnostics:
-    """Lint *text* against the engine's scope variables for its pane.
+    """Lint *text* against a snapshot engine *scope*.
 
-    Truly unknown names land in ``unknown_variables``; names the engine
-    reports as unavailable in this scope land in
-    ``unavailable_variables`` with the engine's reason instead of being
-    called unknown. In ``xprompt`` scope any ``_<digits>`` name is known.
+    Both inputs are immutable values, so this may run in a worker thread.
     """
-    scope_getter = getattr(bar, "jinja_scope_for_text_area", None)
-    if callable(scope_getter):
-        try:
-            scope = scope_getter(text_area)
-        except Exception:
-            scope = jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
-    else:
-        scope = jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
     scope_vars: jinja_assist.JinjaScopeVariables = jinja_assist.jinja_scope_variables(
         text, scope
     )

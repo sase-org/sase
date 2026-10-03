@@ -381,8 +381,11 @@ class VcsMruCyclingMixin(_MixinBase):
 
         def _clear_soft_completion(self, *, cancel_timer: bool = False) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
+        def _cursor_may_need_arg_hint(self) -> bool: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _on_prompt_completion_context_changed(self) -> None: ...
+
+        def _highlight_batch(self) -> Any: ...
 
     def _reset_vcs_mru_cycle_state(self) -> None:
         """Clear the pinned snapshot ring and cycle index for a new session.
@@ -495,21 +498,23 @@ class VcsMruCyclingMixin(_MixinBase):
 
         start = self._location_from_absolute(edit.start_offset)
         end = self._location_from_absolute(edit.end_offset)
-        if self._replace_via_keyboard(edit.replacement, start, end) is None:
-            if perf is not None:
-                perf.discard()
-            return False
+        with self._highlight_batch():
+            if self._replace_via_keyboard(edit.replacement, start, end) is None:
+                if perf is not None:
+                    perf.discard()
+                return False
 
-        self._vcs_mru_index = edit.mru_index
-        self.move_cursor(self._location_from_absolute(edit.cursor_offset))
-        if perf is not None and host_app is not None:
-            perf.mark_model_updated()
-            host_app.call_after_refresh(perf.mark_painted)
-        self._clear_soft_completion(cancel_timer=True)
-        self._clear_xprompt_arg_hint()
-        self._refresh_xprompt_arg_hint_from_cursor()
-        self._on_prompt_completion_context_changed()
-        return True
+            self._vcs_mru_index = edit.mru_index
+            self.move_cursor(self._location_from_absolute(edit.cursor_offset))
+            if perf is not None and host_app is not None:
+                perf.mark_model_updated()
+                host_app.call_after_refresh(perf.mark_painted)
+            self._clear_soft_completion(cancel_timer=True)
+            self._clear_xprompt_arg_hint()
+            if self._cursor_may_need_arg_hint():
+                self._refresh_xprompt_arg_hint_from_cursor()
+            self._on_prompt_completion_context_changed()
+            return True
 
 
 __all__ = [

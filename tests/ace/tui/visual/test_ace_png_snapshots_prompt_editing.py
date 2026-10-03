@@ -136,7 +136,7 @@ async def test_prompt_jinja_valid_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, JINJA_VALID_PROMPT)
-        compute_jinja_now(bar.active_text_area())
+        await compute_jinja_now(bar.active_text_area())
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -158,7 +158,7 @@ async def test_prompt_jinja_invalid_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, JINJA_INVALID_PROMPT)
-        compute_jinja_now(bar.active_text_area())
+        await compute_jinja_now(bar.active_text_area())
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

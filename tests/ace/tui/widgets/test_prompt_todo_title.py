@@ -29,7 +29,7 @@ def _rendered_todo_title_style(bar: PromptInputBar) -> Style:
     )
 
 
-def _compute_jinja_now(bar: PromptInputBar) -> None:
+async def _compute_jinja_now(bar: PromptInputBar) -> None:
     text_area = bar.active_text_area()
     text_area._jinja_diagnostics_generation += 1
     generation = text_area._jinja_diagnostics_generation
@@ -38,6 +38,9 @@ def _compute_jinja_now(bar: PromptInputBar) -> None:
         text_area.text,
         text_area._absolute_offset(text_area.cursor_location),
     )
+    task = text_area._jinja_diagnostics_task
+    if task is not None:
+        await task
 
 
 async def test_todo_title_tracks_initial_offscreen_text_and_live_edits() -> None:
@@ -190,7 +193,7 @@ async def test_todo_title_keeps_binding_mode_agent_and_jinja_adornments(
         bar._refresh_title()
         await pilot.press("!")
         bar.active_text_area()._enter_normal_mode()
-        _compute_jinja_now(bar)
+        await _compute_jinja_now(bar)
 
         title = _plain_title(bar)
         assert "Prompt · 2 agents" in title

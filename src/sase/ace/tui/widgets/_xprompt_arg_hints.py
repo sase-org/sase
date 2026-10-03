@@ -110,9 +110,37 @@ class XPromptArgHintMixin(_MixinBase):
             self.text[hint.reference_start : hint.reference_end] == hint.reference_text
         )
 
+    def _cursor_may_need_arg_hint(self) -> bool:
+        """Return whether the cursor could sit inside an xprompt argument list.
+
+        This mirrors the text scan at the top of
+        :meth:`_detect_xprompt_arg_hint_from_cursor`: when it returns False
+        detection would find nothing, so callers may skip the catalog-backed
+        detect entirely. A leading-tag swap (for example a ``ctrl+n/p``
+        cycle) never lands inside an argument list.
+        """
+        try:
+            text = self.text
+            cursor_offset = self._absolute_offset(self.cursor_location)
+        except Exception:
+            return True
+        if "#" not in text:
+            return False
+        marker = text.rfind("#", 0, cursor_offset)
+        if marker == -1:
+            return False
+        window = text[marker:cursor_offset]
+        return (":" in window) or ("(" in window)
+
     def _refresh_xprompt_arg_hint_from_cursor(self) -> None:
         """Refresh typed xprompt arg hints and dismiss stale accepted hints."""
         if self._file_completion_active or self.snippet_session_active:
+            return
+
+        if (
+            self._active_xprompt_arg_hint is None
+            and not self._cursor_may_need_arg_hint()
+        ):
             return
 
         detected = self._detect_xprompt_arg_hint_from_cursor()
