@@ -105,7 +105,9 @@ def _seed_prompt_key_home(
         entries.append(f"#git:vanished_pad_{len(entries):02d}")
     import json
 
-    (sase_home / "vcs_xprompt_mru.json").write_text(
+    from sase.legacy_xprompt_names import VCS_MACRO_MRU_FILENAME
+
+    (sase_home / VCS_MACRO_MRU_FILENAME).write_text(
         json.dumps({"entries": entries[:30]}), encoding="utf-8"
     )
 

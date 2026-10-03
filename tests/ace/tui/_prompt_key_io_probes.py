@@ -7,8 +7,8 @@ trip it.
 
 Counts:
 
-- MRU file reads (:func:`_load_vcs_xprompt_mru`) and writes
-  (:func:`_save_vcs_xprompt_mru`);
+- MRU file reads (:func:`_load_vcs_macro_mru`) and writes
+  (:func:`_save_vcs_macro_mru`);
 - ``list_project_records`` calls, patched at the facade *and* at the modules
   that import it by name;
 - :class:`subprocess.Popen` constructions (covers ``subprocess.run``, which

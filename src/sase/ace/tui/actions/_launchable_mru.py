@@ -48,6 +48,8 @@ def init_launchable_mru_state(self: Any) -> None:
     self._launchable_mru_tick_count = 0
     self._launchable_mru_tick_timer = None
     self._pending_space_prefill = None
+    self._macro_identity_warm_in_flight = False
+    self._macro_identity_cold_fallback_pending = False
 
 
 class LaunchableMruMixin:
@@ -204,9 +206,80 @@ class LaunchableMruMixin:
         except Exception:  # noqa: BLE001 - pending state is best-effort.
             pass
 
+    def request_macro_project_identity_warm(self: Any) -> bool:
+        """Request one off-thread macro-identity warm; single-flight.
+
+        Memory-only on the keystroke path: when the registry is already
+        built this returns ``False`` without spawning anything. Requests
+        made while a warm is in flight coalesce and return ``True``.
+        The warm runs ``warm_macro_project_identity()`` in a pump-free
+        thread task and is cancelled at teardown with the other pump-free
+        tasks. When the warm makes a previously cold fallback ready, the
+        visible prompt surfaces are re-resolved once.
+        """
+        from sase.macro.project_identity import macro_project_identity_ready
+
+        try:
+            if macro_project_identity_ready():
+                return False
+        except Exception:  # noqa: BLE001 - readiness check never blocks.
+            log.debug("Macro identity readiness check skipped", exc_info=True)
+            return False
+        if getattr(self, "_macro_identity_warm_in_flight", False):
+            return True
+        self._macro_identity_warm_in_flight = True
+        self._macro_identity_cold_fallback_pending = True
+        task = spawn_pump_free_task(
+            self,
+            self._run_macro_identity_warm(),
+            name="macro-identity-warm",
+            registry_attr="_macro_identity_warm_tasks",
+        )
+        if task is None:
+            self._macro_identity_warm_in_flight = False
+            return False
+        return True
+
+    async def _run_macro_identity_warm(self: Any) -> None:
+        """Build the identity registry off-thread, then refresh surfaces.
+
+        The ``asyncio.to_thread`` continuation resumes on the event-loop
+        thread, so the refresh helper is called directly.
+        """
+        from sase.macro.project_identity import warm_macro_project_identity
+
+        try:
+            await asyncio.to_thread(warm_macro_project_identity)
+        except Exception:  # noqa: BLE001 - warm never breaks the pump.
+            log.debug("Macro identity warm failed", exc_info=True)
+        finally:
+            self._macro_identity_warm_in_flight = False
+        self._maybe_refresh_visible_prompt_after_identity_warm()
+
+    def _maybe_refresh_visible_prompt_after_identity_warm(self: Any) -> None:
+        """Re-resolve visible prompt surfaces once identity becomes ready."""
+        if not getattr(self, "_macro_identity_cold_fallback_pending", False):
+            return
+        try:
+            from sase.macro.project_identity import macro_project_identity_ready
+
+            if not macro_project_identity_ready():
+                return
+        except Exception:  # noqa: BLE001 - refresh is best-effort.
+            return
+        self._macro_identity_cold_fallback_pending = False
+        refresher = getattr(self, "_refresh_visible_prompt_catalog_surfaces", None)
+        if not callable(refresher):
+            return
+        try:
+            refresher()
+        except Exception:  # noqa: BLE001 - late refresh never breaks publish.
+            log.debug("Post-warm prompt surface refresh skipped", exc_info=True)
+
     def _drain_launchable_mru_build(self: Any) -> None:
         """Mark the in-flight build done and start one pending follow-up."""
         self._launchable_mru_build_in_flight = False
+        self._maybe_refresh_visible_prompt_after_identity_warm()
         pending = getattr(self, "_launchable_mru_pending", None)
         self._launchable_mru_pending = None
         if pending is not None:

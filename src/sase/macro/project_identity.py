@@ -48,13 +48,42 @@ def get_known_project_workspaces() -> dict[str, Path]:
     return _get_known_project_workspaces()
 
 
+#: Whether the process-wide identity registry has been built. Set on the first
+#: successful or degraded build and cleared by invalidation, so keystroke paths
+#: can check readiness without touching the ``lru_cache`` internals or disk.
+_identity_ready = False
+
+
 @lru_cache(maxsize=1)
 def _identity_registry() -> tuple[dict[str, str], ProjectDisplaySnapshot] | None:
     """Return cached project alias and display-name projections."""
+    global _identity_ready  # noqa: PLW0603
     try:
-        return load_project_alias_map(), load_project_display_snapshot()
+        result = load_project_alias_map(), load_project_display_snapshot()
     except Exception:
-        return None
+        result = None
+    _identity_ready = True
+    return result
+
+
+def macro_project_identity_ready() -> bool:
+    """Return whether the identity registry is already built.
+
+    Memory-only: never touches disk and never lists project records.
+    """
+    return _identity_ready
+
+
+def warm_macro_project_identity() -> None:
+    """Build the identity registry for off-thread callers.
+
+    Never raises: registry failures degrade to a cached empty projection.
+    Safe to call from worker threads; keystroke paths must never call it.
+    """
+    try:
+        _identity_registry()
+    except Exception:
+        pass
 
 
 @lru_cache(maxsize=512)
@@ -84,8 +113,10 @@ def canonical_macro_project(ref: str | None) -> str | None:
 
 def invalidate_macro_project_identity() -> None:
     """Clear process-lifetime macro project identity projections."""
+    global _identity_ready  # noqa: PLW0603
     _identity_registry.cache_clear()
     _canonical_macro_project.cache_clear()
+    _identity_ready = False
 
 
 def known_project_namespaces() -> dict[str, Path]:
@@ -110,4 +141,6 @@ __all__ = [
     "canonical_macro_project",
     "invalidate_macro_project_identity",
     "known_project_namespaces",
+    "macro_project_identity_ready",
+    "warm_macro_project_identity",
 ]

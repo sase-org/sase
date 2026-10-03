@@ -14,7 +14,10 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     merge_local_xprompt_entries,
     named_args_skeleton,
 )
-from sase.macro.project_identity import canonical_macro_project
+from sase.macro.project_identity import (
+    canonical_macro_project,
+    macro_project_identity_ready,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -260,6 +263,30 @@ class XPromptArgHintMixin(_MixinBase):
         entries = getter(project, schedule=schedule)
         return entries if isinstance(entries, list) else None
 
+    def _canonical_macro_project_for_keystroke(self, project: str) -> str | None:
+        """Canonicalize *project* without building identity on the key path.
+
+        When the macro project identity registry is already built this is
+        memory-only. When it is cold and the host exposes the app-owned
+        warm hook, request one warm and return the global namespace (``None``)
+        for this refresh so no spurious catalog project key is registered.
+        Hosts without the hook keep the synchronous call.
+        """
+        if macro_project_identity_ready():
+            return canonical_macro_project(project)
+        try:
+            host_app = self.app
+        except Exception:  # noqa: BLE001 - no active app outside a run.
+            host_app = None
+        warmer = getattr(host_app, "request_macro_project_identity_warm", None)
+        if callable(warmer):
+            try:
+                warmer()
+            except Exception:  # noqa: BLE001 - warm is best-effort.
+                pass
+            return None
+        return canonical_macro_project(project)
+
     def _xprompt_arg_assist_project_from_text(self) -> str | None:
         """Derive xprompt context from a leading workspace target or the app.
 
@@ -291,14 +318,18 @@ class XPromptArgHintMixin(_MixinBase):
         if tag is not None:
             project = prompt_text_area.extract_project_from_vcs_tag(tag)
             if project:
-                return canonical_macro_project(project)
+                return self._canonical_macro_project_for_keystroke(project)
 
-        ctx = getattr(self.app, "_prompt_context", None)
+        try:
+            host_app = self.app
+        except Exception:  # noqa: BLE001 - no active app outside a run.
+            return None
+        ctx = getattr(host_app, "_prompt_context", None)
         if ctx is None or bool(getattr(ctx, "is_home_mode", False)):
             return None
         project_name = getattr(ctx, "project_name", None)
         if isinstance(project_name, str) and project_name:
-            return canonical_macro_project(project_name)
+            return self._canonical_macro_project_for_keystroke(project_name)
         return None
 
     def _maybe_show_inserted_xprompt_arg_hint(

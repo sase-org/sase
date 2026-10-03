@@ -1,14 +1,14 @@
 """Immutable launchable-MRU snapshot for prompt project cycling.
 
 Epic sase-1ex, phase mru-snapshot. The prompt ``<ctrl+n/p>`` keys used to call
-:func:`sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru` on every
+:func:`sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru` on every
 press, re-validating the whole MRU (project records, ``git config``
 subprocesses, stats) on the UI thread. This module is the Textual-free pure
 model for the replacement: an immutable snapshot owned by ``AceApp`` that a
 single-flight worker builds off the pump while the keys only peek it.
 
 A build calls the existing
-:func:`~sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs`
+:func:`~sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs`
 with ``prune=False``, so validation policy stays single-sourced and key
 paths never write the MRU file. ``"ready"`` with no pairs means "the MRU is
 empty" and is distinct from ``"cold"`` ("not built yet").
@@ -118,7 +118,12 @@ def build_launchable_mru_data(
     from sase.history.vcs_macro_mru import (
         load_launchable_vcs_macro_mru_pairs,
     )
+    from sase.macro.project_identity import warm_macro_project_identity
 
+    # Warm the macro project identity registry first, before the fast-path
+    # signature check, so the skip still shortens the cold window. This
+    # runs off-thread (the caller invokes this via ``asyncio.to_thread``).
+    warm_macro_project_identity()
     token = peek_current_project_change_token()
     signature = _compute_launchable_mru_inputs_signature()
     if not force and last_signature is not None and signature == last_signature:
