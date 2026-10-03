@@ -2869,6 +2869,10 @@
                   "type": "string",
                   "description": "Return the memory card to now"
                 },
+                "history_toggle_diff": {
+                  "type": "string",
+                  "description": "Toggle the memory card word-diff view"
+                },
                 "copy_body": {
                   "type": "string",
                   "description": "Copy the selected note's body"

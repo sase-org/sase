@@ -441,6 +441,7 @@ class MemoryPanelKeymaps:
     history_newer: str = ")"
     history_first: str = "{"
     history_now: str = "}"
+    history_toggle_diff: str = "="
     copy_body: str = "y"
     copy_source_path: str = "Y"
     refresh: str = "r"

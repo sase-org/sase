@@ -7028,6 +7028,11 @@ MemoryPane #memory-panel-card-body {
     height: auto;
 }
 
+MemoryPane #memory-panel-card-diff {
+    width: 100%;
+    height: auto;
+}
+
 MemoryPane #memory-panel-card-meta {
     width: 100%;
     height: auto;

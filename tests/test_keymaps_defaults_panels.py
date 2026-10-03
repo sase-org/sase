@@ -153,6 +153,7 @@ def test_default_config_covers_all_memory_keymaps() -> None:
         "history_newer": ")",
         "history_first": "{",
         "history_now": "}",
+        "history_toggle_diff": "=",
         "copy_body": "y",
         "copy_source_path": "Y",
         "refresh": "r",

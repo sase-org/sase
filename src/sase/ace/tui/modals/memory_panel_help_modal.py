@@ -86,6 +86,7 @@ class MemoryPanelHelpModal(ModalScreen[None]):
             "\n◌ NOW · uncommitted — worktree edits on top of the newest version"
             "\n✖ DELETED · v12 — the deletion tombstone"
             "\n( older version · ) newer version · { first version · } now"
+            "\n= toggles the word-diff view (sticky for the pane session)"
             "\nH opens the pager at the exact version on screen"
             "\nEsc returns to now before closing; o always edits now"
         )

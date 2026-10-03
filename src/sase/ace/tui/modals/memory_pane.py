@@ -58,6 +58,7 @@ from .memory_panel_state import (
 )
 from .memory_panel_travel import MemoryPanelTravelMixin
 from .memory_panel_view import MemoryPanelViewMixin
+from .memory_pane_diff import MemoryPaneDiffMixin
 from .memory_pane_history import MemoryPaneHistoryMixin
 from .memory_pane_loading import MemoryPaneLoadingMixin
 from .memory_pane_time import MemoryPaneTimeMixin
@@ -122,6 +123,7 @@ class MemoryPane(
     MemoryPaneLoadingMixin,
     MemoryPaneHistoryMixin,
     MemoryPaneTimeMixin,
+    MemoryPaneDiffMixin,
     MemoryPanelStateMixin,
     MemoryPanelViewMixin,
     MemoryPanelNavigationMixin,
@@ -211,6 +213,12 @@ class MemoryPane(
         self._time_generation = 0
         self._time_request: tuple[str, str, int, int] | None = None
         self._time_worker: Worker[Any] | None = None
+        self._time_diff_view = False
+        self._time_diffs: dict[tuple[str, str, int, int], dict[str, Any]] = {}
+        self._diff_failed: set[tuple[str, str, int, int]] = set()
+        self._diff_generation = 0
+        self._diff_request: tuple[str, str, int, int, int] | None = None
+        self._diff_worker: Worker[Any] | None = None
 
     def on_key(self, event: events.Key) -> None:
         from .config_hub_keys import handle_config_hub_subtab_select_key
@@ -236,6 +244,7 @@ class MemoryPane(
                     with VerticalScroll(id="memory-panel-card-scroll"):
                         yield Static("", id="memory-panel-card-description")
                         yield Markdown("", id="memory-panel-card-body")
+                        yield Static("", id="memory-panel-card-diff")
                         yield Static("", id="memory-panel-card-meta")
             yield _MemoryFilterInput(
                 placeholder="Filter notes…",
@@ -269,6 +278,7 @@ class MemoryPane(
             self._history_open_worker,
             self._history_probe_worker,
             self._time_worker,
+            self._diff_worker,
         ):
             if worker is not None and not worker.is_finished:
                 worker.cancel()
@@ -383,6 +393,8 @@ class MemoryPane(
             self._on_history_probe_state_changed(event)
         elif event.worker is self._time_worker:
             self._on_time_body_state_changed(event)
+        elif event.worker is self._diff_worker:
+            self._on_diff_state_changed(event)
 
     # --- passive actions ------------------------------------------------
 

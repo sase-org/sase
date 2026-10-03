@@ -74,12 +74,22 @@ class MemoryPanelViewMixin(_MixinBase):
         def _selected_is_writable(self) -> bool: ...
 
         def _card_moment(
-            self, node: Any | None, *, applied: bool = True
+            self, node: Any | None, *, applied: bool = True, view: str = "read"
         ) -> Any | None: ...
+
+        def _diff_overlay_for_node(self, node: Any | None) -> Any | None: ...
+
+        def _diff_text_for_node(self, node: Any | None) -> Any | None: ...
+
+        def _diff_view_on(self) -> bool: ...
+
+        def _ensure_diff(self, node: Any) -> bool: ...
 
         def _maybe_prefetch_at_now(self, node: Any | None) -> None: ...
 
-        def _now_moment_for_footer(self, node: Any | None) -> Any | None: ...
+        def _now_moment_for_footer(
+            self, node: Any | None, *, view: str = "read"
+        ) -> Any | None: ...
 
         def _past_card_for_node(self, node: Any | None) -> Any | None: ...
 
@@ -147,12 +157,17 @@ class MemoryPanelViewMixin(_MixinBase):
         ):
             focused_link_stem = self._chip_notes[self._chip_cursor].path.stem
         pinned = self._time_applied_ordinal(node) > 0 if node is not None else False
+        try:
+            diff_on = bool(self._diff_view_on())
+        except Exception:
+            diff_on = False
         time_verbs: tuple[str, ...] = ()
         if node is not None and not self._loading:
             try:
-                moment = self._card_moment(node)
+                view = "diff" if diff_on else "read"
+                moment = self._card_moment(node, view=view)
                 if moment is None and not pinned:
-                    moment = self._now_moment_for_footer(node)
+                    moment = self._now_moment_for_footer(node, view=view)
                 if moment is not None:
                     from .memory_pane_time import step_footer_verbs
 
@@ -200,6 +215,68 @@ class MemoryPanelViewMixin(_MixinBase):
             return "collapse web"
         return "collapse" if node.expanded else "expand"
 
+    def _diff_widgets_for_card(self) -> tuple[Any | None, Any | None]:
+        """Return the ``(body, diff)`` card widgets, tolerating old mounts."""
+        try:
+            body_widget = self.query_one("#memory-panel-card-body", Markdown)
+        except Exception:
+            body_widget = None
+        try:
+            diff_widget = self.query_one("#memory-panel-card-diff", Static)
+        except Exception:
+            diff_widget = None
+        return (body_widget, diff_widget)
+
+    def _diff_show_for_node(self, node: Any) -> tuple[Any | None, Any | None]:
+        """Return the ``(overlay, diff_text)`` when the diff is ready.
+
+        ``None`` overlay means the card renders its read chrome: diff
+        off, still loading (the read view stays on screen), or failed
+        (the read view stays, with a toast already sent).
+        """
+        try:
+            overlay = self._diff_overlay_for_node(node)
+        except Exception:
+            return (None, None)
+        if overlay is None:
+            return (None, None)
+        try:
+            text = self._diff_text_for_node(node)
+        except Exception:
+            text = None
+        if text is None:
+            return (None, None)
+        return (overlay, text)
+
+    def _paint_card_text(
+        self, body_widget: Any | None, diff_widget: Any | None, diff_text: Any | None
+    ) -> bool:
+        """Show the diff widget or the read body; True when diff shows."""
+        if diff_text is not None and diff_widget is not None:
+            try:
+                diff_widget.display = True
+                diff_widget.update(diff_text)
+            except Exception:
+                pass
+            if body_widget is not None:
+                try:
+                    body_widget.display = False
+                except Exception:
+                    pass
+            return True
+        if diff_widget is not None:
+            try:
+                diff_widget.display = False
+                diff_widget.update("")
+            except Exception:
+                pass
+        if body_widget is not None:
+            try:
+                body_widget.display = True
+            except Exception:
+                pass
+        return False
+
     def _render_note_card(self) -> None:
         self._update_trail_strip()
         title_widget = self.query_one("#memory-panel-card-title", Static)
@@ -208,7 +285,7 @@ class MemoryPanelViewMixin(_MixinBase):
         except Exception:
             strip_widget = None
         description_widget = self.query_one("#memory-panel-card-description", Static)
-        body_widget = self.query_one("#memory-panel-card-body", Markdown)
+        body_widget, diff_widget = self._diff_widgets_for_card()
         meta_widget = self.query_one("#memory-panel-card-meta", Static)
 
         def _hide_strip() -> None:
@@ -219,11 +296,24 @@ class MemoryPanelViewMixin(_MixinBase):
                 except Exception:
                     pass
 
+        def _body(text: str) -> None:
+            if body_widget is not None:
+                try:
+                    body_widget.display = True
+                    body_widget.update(text)
+                except Exception:
+                    pass
+            if diff_widget is not None:
+                try:
+                    diff_widget.display = False
+                except Exception:
+                    pass
+
         if self._loading:
             title_widget.update("")
             _hide_strip()
             description_widget.update("")
-            body_widget.update("Loading…")
+            _body("Loading…")
             meta_widget.update("")
             return
 
@@ -232,7 +322,7 @@ class MemoryPanelViewMixin(_MixinBase):
             title_widget.update("")
             _hide_strip()
             description_widget.update("")
-            body_widget.update("No memory scopes are available.")
+            _body("No memory scopes are available.")
             meta_widget.update("")
             return
 
@@ -240,7 +330,7 @@ class MemoryPanelViewMixin(_MixinBase):
             title_widget.update("")
             _hide_strip()
             description_widget.update("")
-            body_widget.update("")
+            _body("")
             meta_widget.update(
                 build_diagnostics_message(snapshot.diagnostics, accent=self._accent)
             )
@@ -250,7 +340,7 @@ class MemoryPanelViewMixin(_MixinBase):
             title_widget.update("")
             _hide_strip()
             description_widget.update("")
-            body_widget.update("")
+            _body("")
             if snapshot.scope.memory_read_root is None:
                 meta_widget.update(
                     build_empty_scope_no_root_message(
@@ -270,13 +360,22 @@ class MemoryPanelViewMixin(_MixinBase):
             title_widget.update("")
             _hide_strip()
             description_widget.update("")
-            body_widget.update("")
+            _body("")
             if self._filter_text:
                 meta_widget.update(build_no_match_message(self._filter_text))
             else:
                 meta_widget.update("")
             return
 
+        overlay, diff_text = self._diff_show_for_node(node)
+        if overlay is None and diff_text is None:
+            # Diff on but not ready: kick the render-path load so the
+            # read view swaps as soon as the worker lands.
+            try:
+                if self._diff_view_on():
+                    self._ensure_diff(node)
+            except Exception:
+                pass
         past = self._past_card_for_node(node)
         if past is not None and past.body_text is not None:
             self._render_past_card(
@@ -287,7 +386,10 @@ class MemoryPanelViewMixin(_MixinBase):
                 strip_widget,
                 description_widget,
                 body_widget,
+                diff_widget,
                 meta_widget,
+                diff_chrome=overlay,
+                diff_text=diff_text,
             )
             self._update_time_frame(node)
             self._update_footer()
@@ -297,10 +399,13 @@ class MemoryPanelViewMixin(_MixinBase):
             self._maybe_prefetch_at_now(node)
         except Exception:
             pass
-        title_widget.update(self._pinned_head_for_node(node, snapshot_scope=snapshot))
-        self._update_time_strip(node, strip_widget)
+        title_widget.update(
+            self._pinned_head_for_node(node, snapshot_scope=snapshot, past=overlay)
+        )
+        self._update_time_strip(node, strip_widget, past=overlay)
         description_widget.update(build_rail_node_description(node))
-        body_widget.update(self._body_preview_for_node(node))
+        if not self._paint_card_text(body_widget, diff_widget, diff_text):
+            _body(self._body_preview_for_node(node))
         parent = self._chip_notes[: self._chip_parent_count]
         children = self._chip_notes[self._chip_parent_count :]
         focused_link_number = (
@@ -327,14 +432,24 @@ class MemoryPanelViewMixin(_MixinBase):
         title_widget: Static,
         strip_widget: Any,
         description_widget: Static,
-        body_widget: Markdown,
+        body_widget: Any | None,
+        diff_widget: Any | None,
         meta_widget: Static,
+        *,
+        diff_chrome: Any | None = None,
+        diff_text: Any | None = None,
     ) -> None:
-        """Paint one past version: past pill, strip, frame, body, footer."""
+        """Paint one past version: past pill, strip, frame, body, footer.
+
+        When the sticky diff view is ready, *diff_chrome* (a diff-view
+        kit moment overlay) drives the pill, context, and strip, and
+        *diff_text* replaces the body; otherwise the read view renders.
+        """
         from dataclasses import replace as _replace
 
         from rich.console import Group
 
+        chrome = diff_chrome if diff_chrome is not None else past
         past_note = self._time_past_note(node, past.body_text or "")
         past_node = node
         if past_note is not None:
@@ -343,15 +458,26 @@ class MemoryPanelViewMixin(_MixinBase):
             except Exception:
                 past_node = node
         title_widget.update(
-            self._pinned_head_for_node(node, snapshot_scope=snapshot, past=past)
+            self._pinned_head_for_node(node, snapshot_scope=snapshot, past=chrome)
         )
-        self._update_time_strip(node, strip_widget, past=past)
+        self._update_time_strip(node, strip_widget, past=chrome)
         description_widget.update(build_rail_node_description(past_node))
-        if past_note is not None:
+        if self._paint_card_text(body_widget, diff_widget, diff_text):
+            pass
+        elif past_note is not None:
             body_text = past_note.body
-            body_widget.update(body_text if body_text.strip() else "_No body content._")
-        else:
-            body_widget.update(past.body_text or "")
+            if body_widget is not None:
+                try:
+                    body_widget.update(
+                        body_text if body_text.strip() else "_No body content._"
+                    )
+                except Exception:
+                    pass
+        elif body_widget is not None:
+            try:
+                body_widget.update(past.body_text or "")
+            except Exception:
+                pass
         parent = self._chip_notes[: self._chip_parent_count]
         children = self._chip_notes[self._chip_parent_count :]
         focused_link_number = (

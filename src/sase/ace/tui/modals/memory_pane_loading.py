@@ -68,6 +68,7 @@ class MemoryPaneLoadingMixin(_MixinBase):
         def _time_applied_ordinal(self, node: Any | None) -> int: ...
 
         _strand_read_worker_identity: str | None
+        _time_diff_view: bool
         _trail: list[str]
 
         def _apply_snapshot(
@@ -94,6 +95,8 @@ class MemoryPaneLoadingMixin(_MixinBase):
 
         def _record_session_selection(self) -> None: ...
 
+        def _reset_diff_view(self) -> None: ...
+
         def _render_note_card(self) -> None: ...
 
         def _reset_strand_read_state(self) -> None: ...
@@ -110,6 +113,11 @@ class MemoryPaneLoadingMixin(_MixinBase):
 
     def _start_initial_load(self) -> None:
         self._loading = True
+        # Opening the pane resets the sticky read/diff choice to read.
+        try:
+            self._reset_diff_view()
+        except Exception:
+            pass
         self._update_header()
         self._render_note_card()
         self._update_footer()

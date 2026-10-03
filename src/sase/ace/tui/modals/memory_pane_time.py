@@ -50,15 +50,23 @@ def _moment_for_card(
     *,
     subject_id: str,
     pin_ordinal: int,
+    view: str = "read",
 ) -> Any | None:
     """Return the kit moment for *pin_ordinal* (0 means now), or ``None``.
 
-    Never raises: ``None`` means the card renders as it would with no
-    history (fail-open per §5.4 rule 4).
+    *view* selects the read body or its change: ``"diff"`` fills in the
+    moment's own ``(base, target)`` endpoints through the pager's
+    endpoint rules, so callers never re-derive them. Never raises:
+    ``None`` means the card renders as it would with no history
+    (fail-open per §5.4 rule 4).
     """
     if not isinstance(timeline, dict):
         return None
+    if view not in ("read", "diff"):
+        view = "read"
     try:
+        from dataclasses import replace as _replace
+
         from sase.pager.history_kit import (
             build_moment,
             committed_pin_for_ordinal,
@@ -87,6 +95,8 @@ def _moment_for_card(
                 continue
         if int(pin_ordinal) <= 0:
             pin = live_pin_for_subject(subject_id)
+            if view == "diff":
+                pin = _replace(pin, view="diff")
             status = "live"
             # Summaries filter out the ordinal-0 pseudo row before
             # caching, so they carry a precomputed `dirty` flag next to
@@ -104,7 +114,11 @@ def _moment_for_card(
                 raw_blob = pinned_row.get("blob_oid")
                 blob = str(raw_blob) if isinstance(raw_blob, str) else None
             pin = committed_pin_for_ordinal(
-                subject_id, int(pin_ordinal), commit=commit, blob_oid=blob
+                subject_id,
+                int(pin_ordinal),
+                commit=commit,
+                blob_oid=blob,
+                view=view,  # type: ignore[arg-type]
             )
             status = (
                 "tombstone"
@@ -146,12 +160,34 @@ def _step_boundary_notice(moment: Any, intent: str) -> str:
         return "Already at the oldest version."
 
 
+def card_moment_for_view(
+    timeline: dict[str, Any] | None,
+    *,
+    subject_id: str,
+    pin_ordinal: int,
+    view: str = "read",
+) -> Any | None:
+    """Return the kit moment for *pin_ordinal* in the *view* ("read"/"diff").
+
+    Public wrapper over :func:`_moment_for_card` for sibling pane
+    modules (which never import ``_``-prefixed names): a ``"diff"``
+    moment carries the pager's own ``(base, target)`` endpoints on
+    ``moment.diff``, so diff callers never re-derive them. Never raises.
+    """
+    try:
+        return _moment_for_card(
+            timeline, subject_id=subject_id, pin_ordinal=pin_ordinal, view=view
+        )
+    except Exception:
+        return None
+
+
 def step_footer_verbs(moment: Any, *, keymaps: Any) -> tuple[str, ...]:
     """Return the footer step verbs for *moment* with configured keys.
 
-    Only the stepping verbs of this phase (``(`` ``)`` ``}``): the
-    ``=``/``@`` verbs belong to later phases whose keys do not exist
-    yet, so showing them would advertise dead keys.
+    The stepping verbs (``(`` ``)`` ``}``) plus the diff toggle
+    (``=``): the ``@`` verb belongs to a later phase whose key does not
+    exist yet, so showing it would advertise a dead key.
     """
     try:
         from sase.pager.history_kit import time_verbs_for_moment
@@ -165,13 +201,19 @@ def step_footer_verbs(moment: Any, *, keymaps: Any) -> tuple[str, ...]:
             "(": key_display_name(keymaps.history_older),
             ")": key_display_name(keymaps.history_newer),
             "}": key_display_name(keymaps.history_now),
+            "=": key_display_name(keymaps.history_toggle_diff),
         }
     except Exception:
-        key_for = {"(": "(", ")": ")", "}": "}"}
+        key_for = {"(": "(", ")": ")", "}": "}", "=": "="}
     shown: list[str] = []
-    for text, _label in verbs:
+    for text, label in verbs:
         glyph = str(text or "")[:1]
         if glyph not in key_for:
+            continue
+        if glyph == "=" and label:
+            # The kit carries the toggle direction as the label, so the
+            # card footer reads `= diff` / `= read` like the pager.
+            shown.append(f"{key_for[glyph]} {label}")
             continue
         rest = str(text or "")[1:]
         shown.append(f"{key_for[glyph]}{rest}")
@@ -278,7 +320,9 @@ class MemoryPaneTimeMixin(_MixinBase):
         except Exception:
             return f"note:{selector}"
 
-    def _card_moment(self, node: Any | None, *, applied: bool = True) -> Any | None:
+    def _card_moment(
+        self, node: Any | None, *, applied: bool = True, view: str = "read"
+    ) -> Any | None:
         """Return the kit moment for *node*'s applied (or target) pin."""
         ordinal = (
             self._time_applied_ordinal(node)
@@ -291,14 +335,18 @@ class MemoryPaneTimeMixin(_MixinBase):
             self._time_timeline(node),
             subject_id=self._time_subject_id(node),
             pin_ordinal=ordinal,
+            view=view,
         )
 
-    def _now_moment_for_footer(self, node: Any | None) -> Any | None:
+    def _now_moment_for_footer(
+        self, node: Any | None, *, view: str = "read"
+    ) -> Any | None:
         """Return the live moment for *node* so now cards show `( vN`."""
         return _moment_for_card(
             self._time_timeline(node),
             subject_id=self._time_subject_id(node),
             pin_ordinal=0,
+            view=view,
         )
 
     def _past_card_for_node(self, node: Any | None) -> _PastCard | None:
@@ -770,5 +818,6 @@ class MemoryPaneTimeMixin(_MixinBase):
 
 __all__ = [
     "MemoryPaneTimeMixin",
+    "card_moment_for_view",
     "step_footer_verbs",
 ]

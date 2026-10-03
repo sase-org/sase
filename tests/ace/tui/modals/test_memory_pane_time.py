@@ -131,8 +131,8 @@ def test_footer_verbs_show_only_steps() -> None:
     moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
     assert moment is not None
     verbs = step_footer_verbs(moment, keymaps=MemoryPanelKeymaps())
-    assert verbs == ("( v1", ") v3", "} now")
-    assert not any(verb.startswith(("=", "@")) for verb in verbs)
+    assert verbs == ("( v1", ") v3", "} now", "= diff")
+    assert not any(verb.startswith("@") for verb in verbs)
 
 
 def test_footer_verbs_use_configured_keys() -> None:
@@ -141,7 +141,7 @@ def test_footer_verbs_use_configured_keys() -> None:
     assert moment is not None
     keymaps = MemoryPanelKeymaps(history_older="<", history_newer=">", history_now="~")
     verbs = step_footer_verbs(moment, keymaps=keymaps)
-    assert verbs == ("> v2", "~ now")
+    assert verbs == ("> v2", "~ now", "= diff")
 
 
 def test_parse_past_note_reads_past_frontmatter() -> None:

@@ -382,6 +382,7 @@ _MEMORY_BINDING_META: tuple[tuple[str, str], ...] = (
     ("history_newer", "Newer Version"),
     ("history_first", "First Version"),
     ("history_now", "Now"),
+    ("history_toggle_diff", "Toggle Diff"),
     ("copy_body", "Copy Body"),
     ("copy_source_path", "Copy Source Path"),
     ("refresh", "Refresh"),

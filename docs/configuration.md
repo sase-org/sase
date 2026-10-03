@@ -1191,42 +1191,43 @@ browse-and-edit surface for notes, webs, and strands opened from a prompt pane w
 `gm`, `Ctrl+G m`, `gG`, or `Ctrl+G G`. A value may list more than one key, separated by
 commas:
 
-| Field                | Default             | Description                                                                                  |
-| -------------------- | ------------------- | -------------------------------------------------------------------------------------------- |
-| `next_note`          | `j`                 | Move the note rail cursor to the next note.                                                  |
-| `prev_note`          | `k`                 | Move the note rail cursor to the previous note.                                              |
-| `first_note`         | `g`                 | Jump to the first note.                                                                      |
-| `last_note`          | `G`                 | Jump to the last note.                                                                       |
-| `toggle_web`         | `space`             | Expand or collapse the selected memory web.                                                  |
-| `next_strand`        | `s`                 | Jump to the next strand in the selected memory web.                                          |
-| `prev_strand`        | `S`                 | Jump to the previous strand in the selected memory web.                                      |
-| `scroll_body_down`   | `ctrl+d`            | Scroll the note card down by half a page.                                                    |
-| `scroll_body_up`     | `ctrl+u`            | Scroll the note card up by half a page.                                                      |
-| `filter_notes`       | `slash`             | Filter notes by stem and description.                                                        |
-| `toggle_body_filter` | `greater_than_sign` | Extend the active filter into note bodies.                                                   |
-| `next_link`          | `tab`               | Focus the next `PARENT`/`CHILDREN` (or `SEE ALSO`/`REFERENCED BY` on a mention strand) chip. |
-| `prev_link`          | `shift+tab`         | Focus the previous link chip.                                                                |
-| `follow_link`        | `enter,l`           | Travel to the focused chip's note or strand (or chip ① when none focused).                   |
-| `travel_back`        | `backspace,h`       | Walk back one step along the travel trail.                                                   |
-| `next_scope`         | `p`                 | Cycle forward through the memory scope ring.                                                 |
-| `prev_scope`         | `P`                 | Cycle backward through the memory scope ring.                                                |
-| `pick_scope`         | `ctrl+p`            | Open the filterable scope picker.                                                            |
-| `add_note`           | `a`                 | Open the add-note form, or the add-strand form on a web row.                                 |
-| `edit_note`          | `e`                 | Open the edit form for the selected note's type/parent/description.                          |
-| `delete_note`        | `d`                 | Confirm and delete the selected note, or the selected strand.                                |
-| `publish`            | `I`                 | Open the publish confirmation (`sase memory init`).                                          |
-| `open_source`        | `o`                 | Open the note or strand body in `$EDITOR`.                                                   |
-| `open_viewer`        | `Z`                 | Hand the source file to the artifact viewer.                                                 |
-| `open_history`       | `H`                 | Open the selected note, web, or strand in the pager at now (see `docs/memory_history.md`).   |
-| `open_changes`       | `C`                 | Open the cross-file memory changes feed (see `docs/memory_history.md`).                      |
-| `history_older`      | `(`                 | Step the memory card to the older version.                                                   |
-| `history_newer`      | `)`                 | Step the memory card to the newer version.                                                   |
-| `history_first`      | `{`                 | Step the memory card to the first version.                                                   |
-| `history_now`        | `}`                 | Return the memory card to now.                                                               |
-| `copy_body`          | `y`                 | Copy the note or strand body to the clipboard.                                               |
-| `copy_source_path`   | `Y`                 | Copy the source path to the clipboard.                                                       |
-| `refresh`            | `r`                 | Re-read the current scope.                                                                   |
-| `help`               | `question_mark`     | Open the panel-scoped help overlay.                                                          |
+| Field                 | Default             | Description                                                                                  |
+| --------------------- | ------------------- | -------------------------------------------------------------------------------------------- |
+| `next_note`           | `j`                 | Move the note rail cursor to the next note.                                                  |
+| `prev_note`           | `k`                 | Move the note rail cursor to the previous note.                                              |
+| `first_note`          | `g`                 | Jump to the first note.                                                                      |
+| `last_note`           | `G`                 | Jump to the last note.                                                                       |
+| `toggle_web`          | `space`             | Expand or collapse the selected memory web.                                                  |
+| `next_strand`         | `s`                 | Jump to the next strand in the selected memory web.                                          |
+| `prev_strand`         | `S`                 | Jump to the previous strand in the selected memory web.                                      |
+| `scroll_body_down`    | `ctrl+d`            | Scroll the note card down by half a page.                                                    |
+| `scroll_body_up`      | `ctrl+u`            | Scroll the note card up by half a page.                                                      |
+| `filter_notes`        | `slash`             | Filter notes by stem and description.                                                        |
+| `toggle_body_filter`  | `greater_than_sign` | Extend the active filter into note bodies.                                                   |
+| `next_link`           | `tab`               | Focus the next `PARENT`/`CHILDREN` (or `SEE ALSO`/`REFERENCED BY` on a mention strand) chip. |
+| `prev_link`           | `shift+tab`         | Focus the previous link chip.                                                                |
+| `follow_link`         | `enter,l`           | Travel to the focused chip's note or strand (or chip ① when none focused).                   |
+| `travel_back`         | `backspace,h`       | Walk back one step along the travel trail.                                                   |
+| `next_scope`          | `p`                 | Cycle forward through the memory scope ring.                                                 |
+| `prev_scope`          | `P`                 | Cycle backward through the memory scope ring.                                                |
+| `pick_scope`          | `ctrl+p`            | Open the filterable scope picker.                                                            |
+| `add_note`            | `a`                 | Open the add-note form, or the add-strand form on a web row.                                 |
+| `edit_note`           | `e`                 | Open the edit form for the selected note's type/parent/description.                          |
+| `delete_note`         | `d`                 | Confirm and delete the selected note, or the selected strand.                                |
+| `publish`             | `I`                 | Open the publish confirmation (`sase memory init`).                                          |
+| `open_source`         | `o`                 | Open the note or strand body in `$EDITOR`.                                                   |
+| `open_viewer`         | `Z`                 | Hand the source file to the artifact viewer.                                                 |
+| `open_history`        | `H`                 | Open the selected note, web, or strand in the pager at now (see `docs/memory_history.md`).   |
+| `open_changes`        | `C`                 | Open the cross-file memory changes feed (see `docs/memory_history.md`).                      |
+| `history_older`       | `(`                 | Step the memory card to the older version.                                                   |
+| `history_newer`       | `)`                 | Step the memory card to the newer version.                                                   |
+| `history_first`       | `{`                 | Step the memory card to the first version.                                                   |
+| `history_now`         | `}`                 | Return the memory card to now.                                                               |
+| `history_toggle_diff` | `=`                 | Toggle the memory card word-diff view (sticky for the pane session).                         |
+| `copy_body`           | `y`                 | Copy the note or strand body to the clipboard.                                               |
+| `copy_source_path`    | `Y`                 | Copy the source path to the clipboard.                                                       |
+| `refresh`             | `r`                 | Re-read the current scope.                                                                   |
+| `help`                | `question_mark`     | Open the panel-scoped help overlay.                                                          |
 
 Like gate and statistics keys, memory keys are scoped to the panel and may overlap
 app-level bindings. `.` then `1`–`9` follows a numbered link or relation chip; that

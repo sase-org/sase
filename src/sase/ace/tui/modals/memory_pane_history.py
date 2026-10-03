@@ -45,7 +45,11 @@ class MemoryPaneHistoryMixin(_MixinBase):
 
         def _after_history_landed(self, scope_key: str, selector: str) -> None: ...
 
+        def _drop_diff_state_for_scope(self, scope_key: str) -> None: ...
+
         def _drop_time_state_for_scope(self, scope_key: str) -> None: ...
+
+        def _history_diff_carry(self) -> tuple[str, str | None]: ...
 
         def _history_initial_revision(self) -> str: ...
 
@@ -266,6 +270,10 @@ class MemoryPaneHistoryMixin(_MixinBase):
             self._drop_time_state_for_scope(scope_key)
         except Exception:
             pass
+        try:
+            self._drop_diff_state_for_scope(scope_key)
+        except Exception:
+            pass
         if clear_failures:
             for key in [key for key in self._history_failed if key[0] == scope_key]:
                 self._history_failed.discard(key)
@@ -362,7 +370,7 @@ class MemoryPaneHistoryMixin(_MixinBase):
         self._ensure_history_load(scope_key, selector)
 
     def action_open_history(self) -> None:
-        """Open the selected note, web, or strand in the pager at now."""
+        """Open the selection in the pager at the card's exact pin and view."""
         from .memory_panel_history import selector_for_node
 
         node = self._selected_row()
@@ -401,11 +409,16 @@ class MemoryPaneHistoryMixin(_MixinBase):
                         )
                     except Exception:
                         core_selector = selector
+                    try:
+                        carried_view, carried_base = self._history_diff_carry()
+                    except Exception:
+                        carried_view, carried_base = "read", None
                     return build_history_document(
                         scope=scope,
                         subject=core_selector,
                         initial_revision=self._history_initial_revision(),
-                        view="read",
+                        view=carried_view,
+                        compare_base=carried_base,
                         service=service,
                         title=selector,
                     )
