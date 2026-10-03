@@ -381,6 +381,8 @@ _STRING_DATA_MODULES = frozenset(
     {
         Path("tests/_macro_terminology_string_pairs_a.py"),
         Path("tests/_macro_terminology_string_pairs_b.py"),
+        Path("tests/_macro_terminology_string_pairs_b_early.py"),
+        Path("tests/_macro_terminology_string_pairs_b_late.py"),
     }
 )
 
