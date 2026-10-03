@@ -582,3 +582,200 @@ async def test_required_text_completion_does_not_record_pending_spacer() -> None
         await pilot.press(",")
 
     assert ta.text == "#body:: ,"
+
+
+def _optional_multi_entry(name: str = "optional"):
+    """Optional-only entry with a real word input plus a second optional."""
+    return _entry(
+        name,
+        inputs=(
+            _input("topic", "word", required=False),
+            _input("count", "int", required=False, position=1),
+        ),
+    )
+
+
+async def test_optional_multi_spacer_paren_opens_argument_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_multi_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "#optional "
+        assert ta._pending_xprompt_completion_spacer is not None
+
+        await pilot.press("(")
+
+    assert ta.text == "#optional()"
+    assert ta.cursor_location == (0, len("#optional("))
+    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._file_completion_active is True
+    assert ta._completion_kind == "xprompt_arg_name"
+    assert [c.insertion for c in ta._file_completion_candidates] == [
+        "topic=",
+        "count=",
+    ]
+
+
+async def test_optional_multi_spacer_paren_accept_topic() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_multi_entry()])
+        await pilot.press("ctrl+t")
+        await pilot.press("(")
+
+        assert ta._file_completion_active is True
+        await pilot.press("ctrl+f")
+
+    assert ta.text == "#optional(topic=)"
+    assert ta.cursor_location == (0, len("#optional(topic="))
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_optional_multi_spacer_paren_respects_disabled_auto_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_multi_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta._pending_xprompt_completion_spacer is not None
+        with patch.object(
+            type(ta),
+            "_prompt_completion_settings",
+            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+        ):
+            await pilot.press("(")
+
+    assert ta.text == "#optional()"
+    assert ta.cursor_location == (0, len("#optional("))
+    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._file_completion_active is False
+
+
+async def test_no_input_spacer_paren_keeps_space() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#p")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_entry("plain")])
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "#plain "
+        assert ta._pending_xprompt_completion_spacer is not None
+
+        await pilot.press("(")
+
+    assert ta.text == "#plain ()"
+    assert ta.cursor_location == (0, len("#plain ("))
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_spacer_paren_preserves_prefix_and_suffix() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("before #o after")
+        ta.cursor_location = (0, len("before #o"))
+        _seed_entries(ta, [_optional_multi_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "before #optional  after"
+        await pilot.press("(")
+
+    assert ta.text == "before #optional() after"
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_spacer_paren_uses_literal_when_pairing_unsafe() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_multi_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "#optional "
+        # Make pairing unsafe: a word character follows the spacer.
+        ta._replace_absolute_range(len(ta.text), len(ta.text), "x")
+        assert ta.text == "#optional x"
+        # Cursor is no longer immediately after the spacer, so the owned
+        # rewrite is stale; ordinary pairing inserts a literal "(".
+        await pilot.press("(")
+
+    assert ta.text == "#optional x()"
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_spacer_paren_selection_and_normal_mode_keep_space() -> None:
+    from textual.widgets.text_area import Selection
+
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#o")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, [_optional_multi_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta._pending_xprompt_completion_spacer is not None
+        ta.selection = Selection((0, 0), (0, 1))
+        await pilot.press("(")
+
+    assert ta.text != "#optional()"
+    assert ta.text != "#optional "
+    assert ta._pending_xprompt_completion_spacer is None
+
+
+async def test_spacer_paren_is_one_undo_step() -> None:
+    from sase.ace.testing import PromptPage
+
+    async with PromptPage(
+        "#optional ",
+        cursor=(0, len("#optional ")),
+        mode="insert",
+    ) as page:
+        ta = page.ta
+        _seed_entries(ta, [_optional_multi_entry()])
+        # Simulate an accepted completion that owns the trailing space.
+        from sase.ace.tui.widgets.xprompt_arg_assist import (
+            PendingXPromptCompletionSpacer,
+        )
+
+        ta._pending_xprompt_completion_spacer = PendingXPromptCompletionSpacer(
+            spacer_offset=len("#optional"),
+            reference_start=0,
+            reference_text="#optional",
+            has_optional_inputs=True,
+        )
+        await page.press("(")
+        assert page.text == "#optional()"
+
+        await page.press("escape", "u")
+
+        assert page.text == "#optional "
+
+
+async def test_manual_lookalike_space_is_preserved_on_paren() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_optional_multi_entry()])
+        ta.load_text("#optional ")
+        ta.cursor_location = (0, len("#optional "))
+
+        assert ta._pending_xprompt_completion_spacer is None
+        await pilot.press("(")
+
+    assert ta.text == "#optional ()"
+    assert ta._pending_xprompt_completion_spacer is None

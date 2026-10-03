@@ -83,7 +83,77 @@ def _editor_position(
     return {"line": row, "character": utf16_character(line[:col])}
 
 
+def _location_from_offset(
+    text: str,
+    offset: int,
+) -> tuple[int, int] | None:
+    """Convert an absolute character offset to a ``(row, col)`` location."""
+    if offset < 0 or offset > len(text):
+        return None
+    row = text.count("\n", 0, offset)
+    line_start = text.rfind("\n", 0, offset) + 1
+    return row, offset - line_start
+
+
+def plan_xprompt_completion_spacer_to_parentheses_edit(
+    text: str,
+    cursor_location: tuple[int, int],
+    pending: Any,
+) -> TextEdit | None:
+    """Return the shared completion-owned spacer deletion at *cursor_location*.
+
+    *pending* is the widget's :class:`PendingXPromptCompletionSpacer` recorded
+    at acceptance. The Rust planner validates the exact reference, single
+    ASCII space, adjacency, bounds, input eligibility, and excluded regions.
+    Returns a single-character deletion edit with the cursor at its start.
+    """
+    try:
+        spacer_offset = int(pending.spacer_offset)
+        reference_start = int(pending.reference_start)
+        reference_text = str(pending.reference_text)
+        has_optional_inputs = bool(pending.has_optional_inputs)
+    except Exception:
+        return None
+    position = _editor_position(text, cursor_location)
+    if position is None:
+        return None
+    reference_location = _location_from_offset(text, reference_start)
+    spacer_location = _location_from_offset(text, spacer_offset)
+    if reference_location is None or spacer_location is None:
+        return None
+    reference_position = _editor_position(text, reference_location)
+    spacer_position = _editor_position(text, spacer_location)
+    if reference_position is None or spacer_position is None:
+        return None
+    record = {
+        "reference_text": reference_text,
+        "reference_start": reference_position,
+        "spacer_start": spacer_position,
+        "has_optional_inputs": has_optional_inputs,
+    }
+    binding = require_rust_binding("xprompt_completion_spacer_to_parentheses_edit")
+    payload: Any = binding(text, position, record)
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("new_text") != "":
+        return None
+    edit_range = editor_range_to_offsets(
+        text,
+        payload.get("range"),
+        allow_empty=False,
+    )
+    if edit_range is None:
+        return None
+    start, end = edit_range
+    if end != start + 1 or text[start:end] != " ":
+        return None
+    if start != spacer_offset:
+        return None
+    return TextEdit(start=start, end=end, text="", cursor=start)
+
+
 __all__ = [
     "plan_argument_colon_to_parentheses_edit",
     "plan_argument_double_colon_to_parentheses_edit",
+    "plan_xprompt_completion_spacer_to_parentheses_edit",
 ]

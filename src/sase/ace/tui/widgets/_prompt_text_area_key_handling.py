@@ -30,6 +30,7 @@ from sase.ace.tui.widgets._prompt_text_area_key_g_prefix import (
 )
 from sase.ace.tui.widgets._prompt_text_area_key_pairing import (
     PromptTextAreaKeyPairingMixin,
+    plan_xprompt_spacer_pair_conversion,
 )
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
@@ -243,12 +244,13 @@ class PromptTextAreaKeyHandlingMixin(
         # A just-accepted no-required-input xprompt left a trailing spacer
         # (``#name ``). An immediate comma replaces it for both no-input and
         # optional-only entries; an immediate colon does so only for
-        # optional-only entries. An immediate Tab / Shift+Tab that jumps to
-        # another snippet tabstop deletes the spacer instead of rewriting it,
-        # and is handled in the ``tab`` branch below rather than here because
-        # tabstop jumps are INSERT-mode only. The spacer is a one-shot
-        # convenience: any other key or invalidated text/cursor drops the
-        # pending state.
+        # optional-only entries, and an immediate opening parenthesis consumes
+        # the spacer alongside pairing for optional-only entries. An immediate
+        # Tab / Shift+Tab that jumps to another snippet tabstop deletes the
+        # spacer instead of rewriting it, and is handled in the ``tab`` branch
+        # below rather than here because tabstop jumps are INSERT-mode only.
+        # The spacer is a one-shot convenience: any other key or invalidated
+        # text/cursor drops the pending state.
         pending_spacer = self._pending_xprompt_completion_spacer
         if pending_spacer is not None:
             self._pending_xprompt_completion_spacer = None
@@ -261,6 +263,25 @@ class PromptTextAreaKeyHandlingMixin(
                 event.stop()
                 event.prevent_default()
                 return
+            if event.character == "(" and pending_spacer.has_optional_inputs:
+                start, end = self.selection
+                if self._vim_mode == "insert" and start == end:
+                    text = self.text
+                    offset = self._absolute_offset(self.cursor_location)
+                    plan = plan_xprompt_spacer_pair_conversion(
+                        text,
+                        offset,
+                        self.cursor_location,
+                        pending_spacer,
+                    )
+                    if plan is not None:
+                        self._apply_planned_text_edit(plan, remap_dot_capture=True)
+                        self._open_auto_reference_completion_after_change(
+                            event.character
+                        )
+                        event.stop()
+                        event.prevent_default()
+                        return
 
         if self._is_prompt_search_active():
             self._clear_insert_g_prefix()

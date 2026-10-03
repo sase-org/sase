@@ -407,6 +407,22 @@ in sase's TUI, with the cursor between the parentheses, and `#review:` can becom
 double-colon shorthand, fenced or inline code, disabled xprompt regions, prompt
 frontmatter, and Jinja tags are left alone.
 
+Accepting an xprompt entry with optional inputs from completion inserts the reference
+with a completion-owned trailing space (for example, `#optional ` with the caret after
+the space). Typing `(` immediately after that space deletes only the owned space and
+opens parenthesized arguments — `#optional()` with the caret between the parentheses —
+followed by the existing argument menu, including `topic=`; accepting that row produces
+`#optional(topic=)`. The rewrite applies only while the accepted reference and space are
+intact, the selection is empty, and the widget is in insert mode: any other key consumes
+eligibility, pasted or manually typed lookalike text never acquires it, and a zero-input
+xprompt keeps its space with ordinary pairing behavior. Suffix text and snippet
+placeholders are preserved, and the automatic argument menu respects
+`auto_xprompt_menu`; disabling that menu does not disable the space rewrite. In external
+editors over LSP, the same rewrite needs a client that executes completion-item
+commands, applies `(` on-type formatting, and requests completion on the advertised `(`
+trigger. Clients missing those facilities retain ordinary editing, and the server cannot
+reproduce the widget's exact move-away-and-back cancellation.
+
 For double-colon text shorthand, typing `(` immediately after the `::` and any ASCII
 spaces moves the delimiter after a new argument pair instead: `#review:: ` becomes
 `#review():: ` with the caret inside `()`, and `#review:: body` becomes

@@ -380,9 +380,10 @@ class XPromptArgHintMixin(_MixinBase):
 
         Xprompts without required inputs complete to ``#name ``. Remembering
         that exact spacer lets the next comma replace it for both no-input and
-        optional-only entries, while a colon may replace it only when optional
-        inputs exist. Must be called immediately after skeleton expansion while
-        the cursor still sits right after the inserted space.
+        optional-only entries, while a colon or opening parenthesis may
+        replace it only when optional inputs exist. Must be called immediately
+        after skeleton expansion while the cursor still sits right after the
+        inserted space.
         """
         self._pending_xprompt_completion_spacer = None
         if not has_no_required_inputs(entry):
@@ -435,9 +436,10 @@ class XPromptArgHintMixin(_MixinBase):
         """Replace a pending completion spacer with eligible punctuation.
 
         A comma is eligible for no-input and optional-only entries; a colon is
-        eligible only when the completed entry has optional inputs. Returns
-        False when the character is ineligible or the cursor, spacer, or
-        reference text changed since completion acceptance.
+        eligible only when the completed entry has optional inputs. An opening
+        parenthesis is handled on a dedicated pairing path alongside colons.
+        Returns False when the character is ineligible or the cursor, spacer,
+        or reference text changed since completion acceptance.
         """
         if character != "," and not (character == ":" and pending.has_optional_inputs):
             return False
