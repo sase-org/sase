@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
@@ -496,6 +497,23 @@ def test_tool_call_input_summaries_are_conservative() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _spawn_json_lines(events: list[str]) -> subprocess.Popen[str]:
+    payload = "".join(f"{event}\n" for event in events)
+    script = (
+        "import os, sys\n"
+        "data = sys.argv[1].encode()\n"
+        "while data:\n"
+        "    count = os.write(1, data)\n"
+        "    data = data[count:]\n"
+    )
+    return subprocess.Popen(
+        [sys.executable, "-c", script, payload],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
 def test_stream_and_parse_json_output_returns_usage() -> None:
     """stream_and_parse_json_output returns usage_totals as 4th element."""
     events = [
@@ -512,32 +530,10 @@ def test_stream_and_parse_json_output_returns_usage() -> None:
             }
         ),
     ]
-    process = MagicMock(spec=subprocess.Popen)
-    process.stdout = MagicMock()
-    process.stderr = MagicMock()
-    process.stdout.fileno.return_value = 99
-    process.stderr.fileno.return_value = 100
-
-    # Simulate readline returning lines then empty string
-    process.stdout.readline = MagicMock(side_effect=[*[e + "\n" for e in events], ""])
-    process.stderr.readline = MagicMock(return_value="")
-    process.poll = MagicMock(side_effect=[None, None, 0])
-    process.wait = MagicMock(return_value=0)
-
-    # After poll returns 0, remaining stdout/stderr iteration yields nothing
-    process.stdout.__iter__ = MagicMock(return_value=iter([]))
-    process.stderr.__iter__ = MagicMock(return_value=iter([]))
-
-    with patch("sase.llm_provider._subprocess.os.set_blocking"):
-        with patch("sase.llm_provider._subprocess.select.select") as mock_select:
-            mock_select.side_effect = [
-                ([process.stdout], [], []),
-                ([process.stdout], [], []),
-                ([process.stdout], [], []),
-            ]
-            text, stderr, rc, usage = stream_and_parse_json_output(
-                process, suppress_output=True
-            )
+    process = _spawn_json_lines(events)
+    text, stderr, rc, usage = stream_and_parse_json_output(
+        process, suppress_output=True
+    )
 
     assert rc == 0
     assert "hello" in text
@@ -561,28 +557,10 @@ def test_usage_json_written_to_artifacts_dir() -> None:
         ),
     ]
 
-    process = MagicMock(spec=subprocess.Popen)
-    process.stdout = MagicMock()
-    process.stderr = MagicMock()
-    process.stdout.fileno.return_value = 99
-    process.stderr.fileno.return_value = 100
-    process.stdout.readline = MagicMock(side_effect=[events[0] + "\n", ""])
-    process.stderr.readline = MagicMock(return_value="")
-    process.poll = MagicMock(side_effect=[None, 0])
-    process.wait = MagicMock(return_value=0)
-    process.stdout.__iter__ = MagicMock(return_value=iter([]))
-    process.stderr.__iter__ = MagicMock(return_value=iter([]))
+    process = _spawn_json_lines(events)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with (
-            patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": tmpdir}),
-            patch("sase.llm_provider._subprocess.os.set_blocking"),
-            patch("sase.llm_provider._subprocess.select.select") as mock_select,
-        ):
-            mock_select.side_effect = [
-                ([process.stdout], [], []),
-                ([process.stdout], [], []),
-            ]
+        with patch.dict(os.environ, {"SASE_ARTIFACTS_DIR": tmpdir}):
             stream_and_parse_json_output(process, suppress_output=True)
 
         usage_path = os.path.join(tmpdir, "usage.json")
