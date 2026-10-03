@@ -416,7 +416,11 @@ def _build_feed_section(
 
 
 def _feed_title(
-    feed: dict[str, Any], scopes_label: str, *, window_label: str | None
+    feed: dict[str, Any],
+    scopes_label: str,
+    *,
+    window_label: str | None,
+    review_lines: tuple[str, ...] = (),
 ) -> str:
     """Return the feed document title (the header summary)."""
     changesets = feed.get("changesets", ())
@@ -425,6 +429,8 @@ def _feed_title(
     title = f"▤ Memory changes · {scopes_label} · {count} {noun}"
     if window_label:
         title += f" · {window_label}"
+    for line in review_lines:
+        title += f" · {line}"
     return title
 
 
@@ -434,13 +440,15 @@ def build_feed_document(
     *,
     window_label: str | None = None,
     expanded_regen: frozenset[str] | Literal["all"] = frozenset(),
+    review_lines: tuple[str, ...] = (),
 ) -> _FeedDocumentResult:
     """Build the pager feed document for one ``memory_history_feed`` result.
 
     Changesets group by local day (newest first, wire order preserved);
     home changesets interleave with a ``⌂`` tag. Regen-only changesets
     collapse into a per-day count line unless their day is in
-    *expanded_regen* (or it is ``"all"``).
+    *expanded_regen* (or it is ``"all"``). *review_lines* (the CLI
+    review header lines) append to the document title.
     """
     raw_changesets = feed.get("changesets", ())
     changesets = [dict(item) for item in raw_changesets if isinstance(item, dict)]
@@ -485,7 +493,9 @@ def build_feed_document(
         folds.extend(section_folds)
     document = PagerDocument(
         sections=tuple(sections),
-        title=_feed_title(feed, scopes_label, window_label=window_label),
+        title=_feed_title(
+            feed, scopes_label, window_label=window_label, review_lines=review_lines
+        ),
         origin=PagerOrigin.FILE,
         expand_fold_fn=_make_feed_expander(days, expanded_regen),
     )

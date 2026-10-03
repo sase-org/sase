@@ -139,6 +139,15 @@ def test_feed_title_carries_scopes_and_counts() -> None:
     assert "3 changesets" in result.document.title
 
 
+def test_feed_title_appends_review_lines() -> None:
+    result = build_feed_document(
+        _feed(), "project:sase", review_lines=("● 1 new since 2026-09-20",)
+    )
+
+    assert "3 changesets" in result.document.title
+    assert "● 1 new since 2026-09-20" in result.document.title
+
+
 def test_feed_subject_rows_are_versioned_labels() -> None:
     result = build_feed_document(_feed(), "project:sase")
     section = result.document.sections[0]
@@ -301,7 +310,7 @@ def test_resolve_feed_subject_declines_unknown_refs() -> None:
 
 
 def test_feed_pager_wires_resolve_refresh_and_all_flag(
-    monkeypatch: Any,
+    monkeypatch: Any, tmp_path: Any
 ) -> None:
     """The no-selector pager path feeds hidden changesets and rebuilds."""
     import argparse
@@ -336,15 +345,32 @@ def test_feed_pager_wires_resolve_refresh_and_all_flag(
             self.calls.append(include_hidden)
             return _feed()
 
+        def review_state(self, scopes: Any, **kwargs: Any) -> dict[str, Any]:
+            return {
+                "scopes": [
+                    {
+                        "scope_key": "project:sase",
+                        "watermark": {"commit": "d" * 40, "committer_time": 1},
+                        "new_count": 2,
+                        "newest_commit": "d" * 40,
+                        "newest_committer_time": 1,
+                    }
+                ],
+                "store_corrupt": False,
+            }
+
     service = _FakeService()
     scopes = [SimpleNamespace(scope_key="project:sase", scope_kind="project")]
     args = argparse.Namespace(all=False, limit=None, since=None)
 
-    cli_history_command._handle_feed_pager(service, scopes, args)  # noqa: SLF001
+    cli_history_command._handle_feed_pager(  # noqa: SLF001
+        service, scopes, args, state_dir=tmp_path
+    )
 
     assert captured.get("ran") is True
     document = captured["document"]
     assert "project:sase" in document.title
+    assert "2 new since you last reviewed" in document.title
     # Regen-only data stays client-side so the count line can expand.
     assert service.calls == [True]
     assert "chore: regen" not in document.sections[1].plain_text
@@ -360,9 +386,7 @@ def test_feed_pager_wires_resolve_refresh_and_all_flag(
     ]
 
 
-def test_feed_pager_all_flag_pre_expands_regen(
-    monkeypatch: Any,
-) -> None:
+def test_feed_pager_all_flag_pre_expands_regen(monkeypatch: Any, tmp_path: Any) -> None:
     import argparse
     from types import SimpleNamespace
 
@@ -383,10 +407,14 @@ def test_feed_pager_all_flag_pre_expands_regen(
         def feed(self, scopes: Any, **kwargs: Any) -> dict[str, Any]:
             return _feed()
 
+        def review_state(self, scopes: Any, **kwargs: Any) -> dict[str, Any]:
+            return {"scopes": [], "store_corrupt": False}
+
     cli_history_command._handle_feed_pager(  # noqa: SLF001
         _FakeService(),
         [SimpleNamespace(scope_key="project:sase", scope_kind="project")],
         argparse.Namespace(all=True, limit=None, since=None),
+        state_dir=tmp_path,
     )
 
     assert captured.get("ran") is True

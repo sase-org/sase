@@ -534,12 +534,63 @@ def render_feed(
     _ = now_epoch
 
 
+def review_header_lines(review_state: dict[str, Any]) -> list[str]:
+    """Return one plain-text review line per scope in a review-state wire.
+
+    ``● N new since you last reviewed <date>`` names unreviewed
+    changesets; a fresh mark reports nothing new; a scope never marked
+    points at ``-m``. The pager feed title reuses these same lines.
+    """
+    lines = []
+    entries = list(review_state.get("scopes", ()))
+    for entry in entries:
+        scope = dict(entry)
+        scope_key = str(scope.get("scope_key", ""))
+        prefix = f"{_scope_display_for_key(scope_key)}: " if len(entries) > 1 else ""
+        watermark = scope.get("watermark")
+        if not watermark:
+            lines.append(f"{prefix}not reviewed yet · use -m to mark reviewed")
+            continue
+        stamp = dict(watermark)
+        date = (
+            _format_date(int(stamp.get("committer_time", 0) or 0))
+            if stamp.get("committer_time")
+            else "an unknown date"
+        )
+        new_count = int(scope.get("new_count", 0) or 0)
+        if new_count == 1:
+            lines.append(f"{prefix}● 1 new since you last reviewed {date}")
+        elif new_count > 1:
+            lines.append(f"{prefix}● {new_count} new since you last reviewed {date}")
+        else:
+            lines.append(f"{prefix}✓ nothing new since you last reviewed {date}")
+    if review_state.get("store_corrupt"):
+        lines.append("review store unreadable · watermarks unavailable")
+    return lines
+
+
+def render_review_header(console: Console, review_state: dict[str, Any]) -> None:
+    """Print per-scope review lines above the feed."""
+    for line in review_header_lines(review_state):
+        text = Text()
+        if line.startswith("●"):
+            text.append("●", style=STYLE_ROLES["past"])
+            text.append(line[1:])
+        elif line.startswith("✓"):
+            text.append(line, style=STYLE_ROLES["dim"])
+        else:
+            text.append(line, style=STYLE_ROLES["dim"])
+        console.print(text)
+
+
 __all__ = [
     "format_age",
     "render_diff",
     "render_feed",
+    "render_review_header",
     "render_timeline",
     "render_version",
+    "review_header_lines",
     "short_display_for_subject_id",
     "summary_text",
 ]

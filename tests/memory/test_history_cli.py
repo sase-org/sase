@@ -114,8 +114,15 @@ def fixture_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, s
     monkeypatch.setattr(
         history_scopes, "_default_cache_dir", lambda home=None: cache_dir
     )
+    state_dir = tmp_path / "history-state"
+    monkeypatch.setattr(history_scopes, "default_state_dir", lambda: state_dir)
     monkeypatch.chdir(repo)
-    return {"repo": str(repo), "first": first, "second": second}
+    return {
+        "repo": str(repo),
+        "first": first,
+        "second": second,
+        "state_dir": str(state_dir),
+    }
 
 
 def _args(**overrides: object) -> argparse.Namespace:
@@ -126,6 +133,7 @@ def _args(**overrides: object) -> argparse.Namespace:
         "diff": False,
         "format": "text",
         "limit": None,
+        "mark_reviewed": False,
         "project": None,
         "since": None,
         "scope": "project",
@@ -134,9 +142,11 @@ def _args(**overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**values)
 
 
-def _run(args: argparse.Namespace) -> str:
+def _run(args: argparse.Namespace, state_dir: Path | None = None) -> str:
     console = Console(record=True, width=120, force_terminal=False)
-    handle_memory_history_command(args, console=console, service=HistoryService())
+    handle_memory_history_command(
+        args, console=console, service=HistoryService(), state_dir=state_dir
+    )
     return console.export_text()
 
 
@@ -270,3 +280,70 @@ def test_history_writes_no_read_audit_rows(
 
     assert list(repo.glob("**/memory_reads.jsonl")) == []
     assert list(tmp_path.glob("**/memory_reads.jsonl")) == []
+
+
+def test_feed_shows_not_reviewed_header_on_first_use(
+    fixture_repo: dict[str, str],
+) -> None:
+    text = _run(_args())
+
+    assert "not reviewed yet · use -m to mark reviewed" in text
+    assert "Memory changes" in text
+
+
+def test_mark_reviewed_advances_watermark_and_clears_header(
+    fixture_repo: dict[str, str],
+) -> None:
+    marked = _run(_args(mark_reviewed=True))
+
+    assert "nothing new since you last reviewed" in marked
+    assert "Memory changes" in marked
+
+    # The mark survives restarts: a fresh service reads the same store.
+    again = _run(_args())
+
+    assert "nothing new since you last reviewed" in again
+    assert "not reviewed yet" not in again
+
+    store = Path(fixture_repo["state_dir"]) / "memory_history_review.json"
+    assert store.exists()
+
+
+def test_mark_reviewed_counts_new_changesets(
+    fixture_repo: dict[str, str],
+) -> None:
+    service = HistoryService()
+    scope = service.project_scope(Path(fixture_repo["repo"]))
+    service.mark_reviewed(scope, fixture_repo["first"])
+    text = _run(_args())
+
+    assert "● 1 new since you last reviewed 2026-09-20" in text
+
+
+def test_mark_reviewed_with_selectors_is_an_error(
+    fixture_repo: dict[str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        _run(_args(selectors=["note.md"], mark_reviewed=True))
+
+    assert excinfo.value.code == 2
+    _, err = capsys.readouterr()
+    assert "--mark-reviewed needs feed mode" in err
+
+
+def test_json_feed_wire_carries_no_review_state(
+    fixture_repo: dict[str, str],
+) -> None:
+    console = Console(record=True, width=120, force_terminal=False)
+    handle_memory_history_command(
+        _args(format="json"),
+        console=console,
+        service=HistoryService(),
+    )
+    payload = json.loads(console.export_text())
+
+    assert set(payload.keys()) == {
+        "changesets",
+        "hidden_changeset_count",
+        "schema_version",
+    }

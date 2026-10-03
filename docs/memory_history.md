@@ -179,6 +179,7 @@ sase memory history AGENTS.md -d           # instruction change as a diff
 sase memory history tui.md -A v7           # one version with its body
 sase memory history tui.md -f json         # Rust wire unchanged, for agents
 sase memory history -S home --since 2026-09-01 -l 20
+sase memory history -m                     # mark the shown scopes reviewed
 ```
 
 Selectors accept flat names, repo-relative paths, bare web names, `web:keyword` strands
@@ -186,8 +187,18 @@ Selectors accept flat names, repo-relative paths, bare web names, `web:keyword` 
 historical names (`build_and_run.md` resolves to the renamed subject, with a notice).
 Options: `-a/--all`, `-A/--at REV` (`v7`, `~2`, SHA prefix, or date), `-d/--diff`,
 `-f/--format {json,pager,text}` (pager on a TTY, else text), `-l/--limit N`,
-`-p/--project REF`, `-s/--since DATE`, `-S/--scope {all,home,project}`. Viewing history
-never writes a read-audit event.
+`-m/--mark-reviewed` (feed mode only; an error with selectors), `-p/--project REF`,
+`-s/--since DATE`, `-S/--scope {all,home,project}`. Viewing history never writes a
+read-audit event.
+
+**Review watermark.** The feed header reports `● N new since you last reviewed <date>`
+per scope: the default-visible changesets (not hidden, not regen-only) that are strict
+first-parent descendants of the scope's watermark commit, falling back to committer time
+when this checkout does not know that commit. A scope never marked shows
+`not reviewed yet · use -m to mark reviewed`. Watermarks live in SASE's state area (one
+store shared by every workspace clone of a project, never in the disposable snapshot
+cache) and change only on an explicit `-m`, which advances the shown scopes to their
+newest changesets. The `--format json` wire is unchanged.
 
 ## What is and is not tracked
 

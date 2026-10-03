@@ -19,8 +19,9 @@ from sase.memory.history._cli_history_common import (
     emit_json,
     parse_date_bound,
 )
+from sase.memory.history import scopes as _history_scopes
 from sase.memory.history.cli_history_timeline import handle_selectors
-from sase.memory.history.render_text import render_feed
+from sase.memory.history.render_text import render_feed, render_review_header
 from sase.memory.history.scopes import HistoryScopeError, map_deployed_home_path
 from sase.memory.history.service import (
     HistoryAmbiguityError,
@@ -48,11 +49,17 @@ def handle_memory_history_command(
     *,
     console: Console | None = None,
     service: HistoryService | None = None,
+    state_dir: Path | str | None = None,
 ) -> None:
     """Render or serialize memory history for selectors or the feed."""
     active_console = console or Console()
     active_service = service or HistoryService()
     now_epoch = int(time.time())
+    resolved_state_dir = (
+        Path(state_dir)
+        if state_dir is not None
+        else _history_scopes.default_state_dir()
+    )
     try:
         project_root = _project_root_for_args(args)
         scope_arg = getattr(args, "scope", None) or "all"
@@ -70,16 +77,23 @@ def handle_memory_history_command(
             sys.exit(2)
         if output_format == "pager" and getattr(args, "format", None) == "json":
             output_format = "json"
+        selectors = list(getattr(args, "selectors", None) or ())
+        if getattr(args, "mark_reviewed", False) and selectors:
+            print(
+                "sase memory history: --mark-reviewed needs feed mode (no selectors)",
+                file=sys.stderr,
+            )
+            sys.exit(2)
         if output_format == "pager":
             _handle_pager(
                 active_service,
                 scopes,
                 project_root,
-                list(getattr(args, "selectors", None) or ()),
+                selectors,
                 args,
+                state_dir=resolved_state_dir,
             )
             return
-        selectors = list(getattr(args, "selectors", None) or ())
         if not selectors:
             _handle_feed(
                 active_console,
@@ -88,6 +102,7 @@ def handle_memory_history_command(
                 args,
                 now_epoch=now_epoch,
                 output_format=output_format,
+                state_dir=resolved_state_dir,
             )
             return
         handle_selectors(
@@ -111,6 +126,8 @@ def _handle_pager(
     project_root: Path,
     selectors: list[str],
     args: argparse.Namespace,
+    *,
+    state_dir: Path,
 ) -> None:
     """Open selector history in the pager with per-selector scopes and pins."""
     from sase.memory.history.pager_provider import (
@@ -119,7 +136,7 @@ def _handle_pager(
     )
 
     if not selectors:
-        _handle_feed_pager(service, scopes, args)
+        _handle_feed_pager(service, scopes, args, state_dir=state_dir)
         return
     requested_view = "diff" if bool(getattr(args, "diff", False)) else "read"
     sections: list[Any] = []
@@ -187,10 +204,32 @@ def _feed_query_bounds(
     return since, limit, since_raw
 
 
+def _mark_scopes_reviewed(
+    service: HistoryService,
+    scopes: list[Any],
+    *,
+    state_dir: Path,
+) -> None:
+    """Advance every shown scope's watermark to its newest changeset."""
+    states = {
+        str(entry.get("scope_key", "")): dict(entry)
+        for entry in service.review_state(scopes, state_dir=state_dir).get("scopes", ())
+    }
+    for scope in scopes:
+        newest = str(states.get(scope.scope_key, {}).get("newest_commit") or "")
+        if not newest:
+            raise HistoryScopeError(
+                f"no changesets to mark reviewed ({scope.scope_key})"
+            )
+        service.mark_reviewed(scope, newest, state_dir=state_dir)
+
+
 def _handle_feed_pager(
     service: HistoryService,
     scopes: list[Any],
     args: argparse.Namespace,
+    *,
+    state_dir: Path,
 ) -> None:
     """Open the cross-file changes feed in the pager (one section per day)."""
     from sase.memory.history.feed_document import (
@@ -198,10 +237,13 @@ def _handle_feed_pager(
         parse_feed_subject_target,
         resolve_feed_subject,
     )
+    from sase.memory.history.render_text import review_header_lines
     from sase.pager.app import SasePager
 
     since, limit, since_raw = _feed_query_bounds(args)
     show_all = bool(getattr(args, "all", False))
+    if bool(getattr(args, "mark_reviewed", False)):
+        _mark_scopes_reviewed(service, scopes, state_dir=state_dir)
     window_label = f"since {since_raw}" if since_raw else None
     scopes_label = " + ".join(scope.scope_key for scope in scopes)
     scopes_by_key = {scope.scope_key: scope for scope in scopes}
@@ -212,9 +254,19 @@ def _handle_feed_pager(
         feed = service.feed(scopes, since=since, limit=limit, include_hidden=True)
     except Exception as exc:
         raise HistoryScopeError(f"cannot build history feed: {exc}") from exc
+    try:
+        review_lines = tuple(
+            review_header_lines(service.review_state(scopes, state_dir=state_dir))
+        )
+    except Exception as exc:
+        raise HistoryScopeError(f"cannot read review state: {exc}") from exc
     expanded: frozenset[str] | Literal["all"] = "all" if show_all else frozenset()
     result = build_feed_document(
-        feed, scopes_label, window_label=window_label, expanded_regen=expanded
+        feed,
+        scopes_label,
+        window_label=window_label,
+        expanded_regen=expanded,
+        review_lines=review_lines,
     )
 
     def _resolve_ref(ref: str, *, context: Any | None = None) -> Any | None:
@@ -235,6 +287,9 @@ def _handle_feed_pager(
     def _refresh_document() -> Any | None:
         try:
             fresh = service.feed(scopes, since=since, limit=limit, include_hidden=True)
+            fresh_review = tuple(
+                review_header_lines(service.review_state(scopes, state_dir=state_dir))
+            )
         except Exception:
             return None
         try:
@@ -243,6 +298,7 @@ def _handle_feed_pager(
                 scopes_label,
                 window_label=window_label,
                 expanded_regen=expanded,
+                review_lines=fresh_review,
             ).document
         except Exception:
             return None
@@ -262,12 +318,15 @@ def _handle_feed(
     *,
     now_epoch: int,
     output_format: str,
+    state_dir: Path,
 ) -> None:
     """Show the merged changes feed for the enabled scopes."""
     include_hidden = bool(getattr(args, "all", False))
     limit = getattr(args, "limit", None)
     since_raw = getattr(args, "since", None)
     since = parse_date_bound(since_raw, end_of_day=False) if since_raw else None
+    if bool(getattr(args, "mark_reviewed", False)):
+        _mark_scopes_reviewed(service, scopes, state_dir=state_dir)
     try:
         feed = service.feed(
             scopes, since=since, limit=limit, include_hidden=include_hidden
@@ -277,6 +336,11 @@ def _handle_feed(
     if output_format == "json":
         emit_json(console, feed)
         return
+    try:
+        review = service.review_state(scopes, state_dir=state_dir)
+    except Exception as exc:
+        raise HistoryScopeError(f"cannot read review state: {exc}") from exc
+    render_review_header(console, review)
     label = " + ".join(scope.scope_key for scope in scopes)
     render_feed(console, feed, label, now_epoch=now_epoch)
 

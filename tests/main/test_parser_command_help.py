@@ -238,6 +238,14 @@ def test_pipe_help_documents_prompt_flags_and_turn_warning() -> None:
     assert args.name == "review"
 
 
+def test_memory_history_help_documents_mark_reviewed() -> None:
+    """The history help names the review-watermark flag and its feed-only rule."""
+    history_help = flat_help(parser_for(("sase", "memory", "history")).format_help())
+
+    assert "-m, --mark-reviewed" in history_help
+    assert "feed mode only" in history_help
+
+
 def test_memory_help_marks_primary_command_and_init_alias() -> None:
     """Memory help text points users to the new primary command surface."""
     memory_help = flat_help(parser_for(("sase", "memory")).format_help())

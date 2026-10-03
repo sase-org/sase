@@ -20,7 +20,9 @@ from sase.core.memory_history_facade import (
     get_timeline,
     get_version,
     list_subjects,
+    mark_reviewed as _mark_reviewed,
     resolve_subject,
+    review_state as _review_state,
     sync_scope,
     wire_schema_version,
 )
@@ -28,6 +30,7 @@ from sase.core.memory_history_wire import (
     MEMORY_HISTORY_WIRE_SCHEMA_VERSION,
     MemoryHistoryScope,
 )
+from sase.memory.history import scopes as _history_scopes
 from sase.memory.history.scopes import (
     HistoryScopeError,
     build_home_scope,
@@ -187,6 +190,37 @@ class HistoryService:
     ) -> dict[str, Any]:
         """Merge scopes' changesets into one feed."""
         return get_feed(scopes, since=since, limit=limit, include_hidden=include_hidden)
+
+    def review_state(
+        self,
+        scopes: list[MemoryHistoryScope],
+        *,
+        state_dir: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """Return per-scope review watermarks, N-new counts, and newest commits."""
+        resolved = (
+            Path(state_dir)
+            if state_dir is not None
+            else _history_scopes.default_state_dir()
+        )
+        return _review_state(scopes, state_dir=resolved.as_posix())
+
+    def mark_reviewed(
+        self,
+        scope: MemoryHistoryScope,
+        through_commit: str,
+        *,
+        state_dir: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """Record one scope's review watermark through a commit."""
+        resolved = (
+            Path(state_dir)
+            if state_dir is not None
+            else _history_scopes.default_state_dir()
+        )
+        return _mark_reviewed(
+            scope, through_commit=through_commit, state_dir=resolved.as_posix()
+        )
 
     def resolve_in_scopes(
         self,

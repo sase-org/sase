@@ -20859,7 +20859,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "5c72ce4c8e77d191",
+            "description_digest": "de8e86c6669441e1",
             "hidden": false,
             "mutex_groups": [],
             "name": "history",
@@ -20963,6 +20963,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "int"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "mark_reviewed",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-m",
+                  "--mark-reviewed"
+                ],
+                "takes_value": false,
+                "value_hint": null
               },
               {
                 "choices": null,

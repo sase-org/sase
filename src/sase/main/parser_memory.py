@@ -234,6 +234,15 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Keep at most N feed changesets or timeline versions",
     )
     history_parser.add_argument(
+        "-m",
+        "--mark-reviewed",
+        action="store_true",
+        help=(
+            "Mark the shown scopes reviewed through their newest "
+            "changesets (feed mode only; an error with selectors)"
+        ),
+    )
+    history_parser.add_argument(
         "-p",
         "--project",
         metavar="REF",

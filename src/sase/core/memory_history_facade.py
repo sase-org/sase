@@ -135,6 +135,38 @@ def get_feed(
     return _call("memory_history_feed", request)
 
 
+def review_state(
+    scopes: list[MemoryHistoryScope],
+    *,
+    state_dir: str,
+) -> dict[str, Any]:
+    """Return per-scope review watermarks, N-new counts, and newest commits."""
+    return _call(
+        "memory_history_review_state",
+        {
+            "scopes": [scope.to_dict() for scope in scopes],
+            "state_dir": state_dir,
+        },
+    )
+
+
+def mark_reviewed(
+    scope: MemoryHistoryScope,
+    *,
+    through_commit: str,
+    state_dir: str,
+) -> dict[str, Any]:
+    """Record one scope's review watermark through a commit."""
+    return _call(
+        "memory_history_mark_reviewed",
+        {
+            "scope": scope.to_dict(),
+            "through_commit": through_commit,
+            "state_dir": state_dir,
+        },
+    )
+
+
 __all__ = [
     "MEMORY_HISTORY_WIRE_SCHEMA_VERSION",
     "compare_versions",
@@ -142,7 +174,9 @@ __all__ = [
     "get_timeline",
     "get_version",
     "list_subjects",
+    "mark_reviewed",
     "resolve_subject",
+    "review_state",
     "sync_scope",
     "wire_schema_version",
 ]

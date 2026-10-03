@@ -54,6 +54,19 @@ AMD_RENDERER_PREFIX = "src/sase/amd"
 MEMORY_HISTORY_CACHE_SUBDIR = Path(".sase") / "cache" / "memory_history"
 
 
+def default_state_dir() -> Path:
+    """Return the caller-supplied review-watermark root.
+
+    SASE's state area (``SASE_HOME``, ``~/.sase`` by default): core
+    appends its store filename there. Never the disposable snapshot
+    cache above, so marks survive cache clears and every workspace
+    clone of a project shares them.
+    """
+    from sase.core.paths import sase_home
+
+    return sase_home()
+
+
 class HistoryScopeError(RuntimeError):
     """Raised when a requested history scope cannot be built."""
 
@@ -262,6 +275,7 @@ __all__ = [
     "PROJECT_MEMORY_ROOTS",
     "build_home_scope",
     "build_project_scope",
+    "default_state_dir",
     "git_repo_root",
     "map_deployed_home_path",
 ]
