@@ -6,8 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from sase.ace.tui.actions.hints._view_processing import (
-    _memory_version_pin_sections,
+from sase.ace.tui.actions.hints._view_materialize import (
+    memory_version_pin_sections,
     _snapshot_section,
 )
 
@@ -52,7 +52,7 @@ def test_snapshot_pin_opens_stored_bytes(tmp_path: Path) -> None:
         snapshot_title="AGENTS.md as launched · not in git",
     )
 
-    sections, failures = _memory_version_pin_sections((pin,))
+    sections, failures = memory_version_pin_sections((pin,))
 
     assert failures == []
     assert len(sections) == 1
@@ -67,7 +67,7 @@ def test_snapshot_pin_missing_bytes_reports_failure(tmp_path: Path) -> None:
         snapshot_title="AGENTS.md as launched · not in git",
     )
 
-    sections, failures = _memory_version_pin_sections((pin,))
+    sections, failures = memory_version_pin_sections((pin,))
 
     assert sections == []
     assert failures == ["AGENTS.md as launched: snapshot unavailable"]
@@ -99,7 +99,7 @@ def test_committed_pin_builds_history_document(monkeypatch) -> None:
     )
     monkeypatch.setattr(provider, "build_history_document", _fake_build_document)
 
-    sections, failures = _memory_version_pin_sections((_pin(),))
+    sections, failures = memory_version_pin_sections((_pin(),))
 
     assert failures == []
     assert built == [("gotchas.md", "v24")]
@@ -129,7 +129,7 @@ def test_committed_pin_failure_is_a_warning(monkeypatch) -> None:
     )
     monkeypatch.setattr(provider, "build_history_document", _boom)
 
-    sections, failures = _memory_version_pin_sections((_pin(),))
+    sections, failures = memory_version_pin_sections((_pin(),))
 
     assert sections == []
     assert len(failures) == 1
@@ -137,4 +137,4 @@ def test_committed_pin_failure_is_a_warning(monkeypatch) -> None:
 
 
 def test_empty_pins_build_nothing() -> None:
-    assert _memory_version_pin_sections(()) == ([], [])
+    assert memory_version_pin_sections(()) == ([], [])

@@ -48,7 +48,7 @@ async def test_bead_hint_opens_pager_with_bead_section() -> None:
     app = _make_app("bead:sase-1")
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
 
-    import sase.ace.tui.actions.hints._view_processing as processing
+    import sase.ace.tui.actions.hints._view_materialize as processing
 
     def fake_resolve(ref: str, *, context=None) -> LinkResolution:
         assert ref == "bead:sase-1"
@@ -83,7 +83,7 @@ async def test_mixed_bead_and_file_selection_orders_bead_first(
         return _bead_resolution(section)
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.resolve_link",
+        "sase.ace.tui.actions.hints._view_materialize.resolve_link",
         fake_resolve,
     )
 
@@ -107,7 +107,7 @@ async def test_unresolved_bead_warns_without_opening_pager(
         return LinkResolution(unresolved_message="bead:sase-1 could not be resolved")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.resolve_link",
+        "sase.ace.tui.actions.hints._view_materialize.resolve_link",
         fake_resolve,
     )
 
@@ -134,7 +134,7 @@ async def test_bead_resolution_runs_off_event_loop_thread(
         return _bead_resolution(section)
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.resolve_link",
+        "sase.ace.tui.actions.hints._view_materialize.resolve_link",
         fake_resolve,
     )
 
@@ -165,7 +165,7 @@ async def test_bead_copy_suffix_copies_bare_id_without_resolving(
         raise AssertionError("copy must not resolve beads")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.resolve_link",
+        "sase.ace.tui.actions.hints._view_materialize.resolve_link",
         fake_resolve,
     )
 
@@ -186,7 +186,7 @@ async def test_bead_editor_suffix_warns_without_opening_editor(
         raise AssertionError("editor must not resolve beads")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.resolve_link",
+        "sase.ace.tui.actions.hints._view_materialize.resolve_link",
         fake_resolve,
     )
 

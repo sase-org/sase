@@ -128,7 +128,7 @@ async def test_tool_call_report_materialization_runs_off_event_loop_thread(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_tool_call_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_tool_call_report",
         write_report,
     )
 
@@ -200,7 +200,7 @@ async def test_tool_call_report_materialization_failure_drops_path(
     app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_tool_call_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_tool_call_report",
         lambda _spec: None,
     )
 
@@ -253,7 +253,7 @@ async def test_glossary_report_materialization_runs_off_event_loop_thread(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_glossary_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_glossary_read_report",
         write_report,
     )
 
@@ -293,7 +293,7 @@ async def test_memory_report_hint_is_materialized_for_pager(
 ) -> None:
     """Fallback coverage: unresolvable batch hints page the generated report."""
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (),
     )
     report_path = str(tmp_path / ".sase" / "memory_read_reports" / "memory.md")
@@ -307,7 +307,7 @@ async def test_memory_report_hint_is_materialized_for_pager(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_memory_read_report",
         write_report,
     )
 
@@ -323,7 +323,7 @@ async def test_memory_report_materialization_runs_off_event_loop_thread(
 ) -> None:
     """Fallback coverage: report fallback materialization runs off-thread."""
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (),
     )
     report_path = str(tmp_path / "memory-report.md")
@@ -339,7 +339,7 @@ async def test_memory_report_materialization_runs_off_event_loop_thread(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_memory_read_report",
         write_report,
     )
 
@@ -356,7 +356,7 @@ async def test_memory_report_hint_is_materialized_for_editor(
 ) -> None:
     """Fallback coverage: unresolvable batch hint opens the report in $EDITOR."""
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (),
     )
     report_path = str(tmp_path / "memory-report.md")
@@ -369,7 +369,7 @@ async def test_memory_report_hint_is_materialized_for_editor(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_memory_read_report",
         write_report,
     )
 
@@ -386,7 +386,7 @@ async def test_memory_report_hint_is_materialized_for_clipboard(
 ) -> None:
     """Fallback coverage: unresolvable batch hint copies the report path."""
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (),
     )
     report_path = str(tmp_path / "memory-report.md")
@@ -399,7 +399,7 @@ async def test_memory_report_hint_is_materialized_for_clipboard(
         return report_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_memory_read_report",
         write_report,
     )
 
@@ -414,7 +414,7 @@ async def test_mixed_memory_glossary_tool_call_and_file_selection_preserves_orde
 ) -> None:
     """Fallback coverage: report fallback preserves selection order."""
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (),
     )
     notes = tmp_path / "notes.md"
@@ -441,15 +441,15 @@ async def test_mixed_memory_glossary_tool_call_and_file_selection_preserves_orde
         return tool_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_memory_read_report",
         write_memory,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_glossary_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_glossary_read_report",
         write_glossary,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_tool_call_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_tool_call_report",
         write_tool,
     )
 
@@ -466,7 +466,7 @@ async def test_memory_report_materialization_failure_drops_path(
 ) -> None:
     """Fallback coverage: report write failure still drops the hint path."""
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (),
     )
     report_path = str(tmp_path / "memory-report.md")
@@ -474,7 +474,7 @@ async def test_memory_report_materialization_failure_drops_path(
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_memory_read_report",
         lambda _spec: None,
     )
 
@@ -500,7 +500,7 @@ async def test_memory_batch_hint_expands_to_requested_files_for_pager(
     app._hint_memory_reports = {report_key: _memory_spec(report_key)}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (str(first), str(second)),
     )
 
@@ -508,7 +508,7 @@ async def test_memory_batch_hint_expands_to_requested_files_for_pager(
         raise AssertionError("report fallback must not run when files resolve")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_memory_read_report",
         fail_report,
     )
 
@@ -530,7 +530,7 @@ async def test_memory_batch_hint_expands_for_editor(
     app._hint_memory_reports = {report_key: _memory_spec(report_key)}
     app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (str(first), str(second)),
     )
 
@@ -554,7 +554,7 @@ async def test_memory_batch_hint_expands_for_clipboard(
     app._hint_memory_reports = {report_key: _memory_spec(report_key)}
     app._copy_files_to_clipboard = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (str(first), str(second)),
     )
 
@@ -581,7 +581,7 @@ async def test_memory_batch_expansion_preserves_selection_order(
     app._hint_tool_call_reports = {tool_path: _report_spec(tool_path)}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (str(first), str(second)),
     )
 
@@ -591,7 +591,7 @@ async def test_memory_batch_expansion_preserves_selection_order(
         return tool_path
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.write_tool_call_report",
+        "sase.ace.tui.actions.hints._view_materialize.write_tool_call_report",
         write_tool,
     )
 
@@ -613,7 +613,7 @@ async def test_memory_batch_expansion_dedupes_overlapping_hints(
     app._hint_memory_reports = {memory_key: _memory_spec(memory_key)}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (str(first), str(second)),
     )
 
@@ -634,7 +634,7 @@ async def test_memory_batch_partial_missing_warns_and_opens_existing(
     app._hint_memory_reports = {report_key: _memory_spec(report_key)}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         lambda _event: (str(first), missing),
     )
 
@@ -667,7 +667,7 @@ async def test_memory_batch_resolver_runs_off_event_loop_thread(
         return (str(first), str(second))
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        "sase.ace.tui.actions.hints._view_materialize.memory_read_file_paths",
         resolve,
     )
 

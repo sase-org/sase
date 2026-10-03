@@ -50,7 +50,7 @@ async def test_builds_the_document_off_the_event_loop_thread(
         return real_build_pager_document(*args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.build_pager_document",
+        "sase.ace.tui.actions.hints._view_input.build_pager_document",
         spy,
     )
 
@@ -134,7 +134,7 @@ def test_prepare_view_input_snapshots_agent_inputs_without_building_context(
         raise AssertionError("ACE preparation must only snapshot agent inputs")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.link_context_from_capture",
+        "sase.ace.tui.actions.hints._view_materialize.link_context_from_capture",
         boom,
     )
     monkeypatch.setattr(
@@ -174,7 +174,7 @@ def test_prepare_view_input_snapshots_patch_inputs_without_building_context(
         raise AssertionError("ACE preparation must only snapshot patch inputs")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.link_context_from_capture",
+        "sase.ace.tui.actions.hints._view_materialize.link_context_from_capture",
         boom,
     )
     monkeypatch.setattr(
@@ -284,7 +284,7 @@ async def test_view_link_context_is_built_off_the_event_loop(
         return LinkResolutionContext(anchors=(LinkAnchor(tmp_path, workspace_num=7),))
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.link_context_from_capture",
+        "sase.ace.tui.actions.hints._view_materialize.link_context_from_capture",
         spy_from_capture,
     )
 
@@ -324,7 +324,7 @@ async def test_pager_build_oserror_is_reported(
         raise OSError("vanished")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.build_pager_document",
+        "sase.ace.tui.actions.hints._view_input.build_pager_document",
         fail_build,
     )
 
@@ -355,7 +355,7 @@ async def test_artifact_read_hint_recovery_opens_repaired_path(
         return str(recovered)
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.repair_artifact_read_path",
+        "sase.ace.tui.actions.hints._view_materialize.repair_artifact_read_path",
         repair,
     )
 
@@ -381,7 +381,7 @@ async def test_artifact_read_hint_recovery_none_reports_missing(
     app._hint_artifact_read_refs = {str(missing): spec}
     app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.repair_artifact_read_path",
+        "sase.ace.tui.actions.hints._view_materialize.repair_artifact_read_path",
         lambda _spec: None,
     )
 

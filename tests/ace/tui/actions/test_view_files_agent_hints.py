@@ -250,11 +250,11 @@ async def test_immediate_agent_hint_submission_waits_for_rendered_mapping(
         return document
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.build_pager_document",
+        "sase.ace.tui.actions.hints._view_input.build_pager_document",
         build_document,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._view_processing.os.path.exists",
+        "sase.ace.tui.actions.hints._view_materialize.os.path.exists",
         lambda _path: True,
     )
 

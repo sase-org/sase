@@ -470,12 +470,13 @@ def test_jump_targets_listed_and_open_selects_block() -> None:
 
 
 def test_toolrun_jump_never_reaches_file_opener() -> None:
-    from sase.ace.tui.actions.hints._view_processing import _ViewRequest
+    from sase.ace.tui.actions.hints._view_models import ViewRequest
     from sase.ace.tui.tool_runs.links_jumps import tool_run_jump_target
 
     target = tool_run_jump_target("cc" + "0" * 30)
     assert target is not None and target.startswith("toolrun-jump:")
-    # The jump branch in _view_processing consumes this target before the
+    assert ViewRequest is not None
+    # The jump branch in _view_input consumes this target before the
     # file-path fallback, so it never reaches the file opener.
     from sase.ace.tui.tool_runs.links_jumps import run_id_from_jump_target as _from_jump
     from sase.ace.tui.tool_runs.hints import run_id_from_hint_target as _from_log
