@@ -7965,6 +7965,20 @@ exactly (cursor, filter, expansion, trail) while the card stays on the cursor's 
 so a second `Esc` returns it to now. `C` is inert inside the lens, and `r` or a scope
 switch leaves the lens first. Clicking the time strip opens the lens.
 
+`C` turns the rail into a day-grouped Changes review of the current scope (or
+`All scopes` via `p`/`P`, which gains that lens-only entry): one row per changeset with
+its clock time, first authored subject plus `+N more`, word delta, and `⌂` for home,
+under `Today`/`Yesterday`/weekday headers that `j`/`k` skip. Regen-only changesets fold
+into one count row per day, and the trailing `··· N older` row extends the 100-row
+window by 100. The card shows the commit subject, `◈` bead / `⬡` agent / `◉` commit
+provenance chips, subject totals, and one titled diff section per authored subject (at
+most six inline, then `+N more`), filling progressively with stale loads dropped. `⏎`,
+`l`, and `H` open the first authored subject in the pager diff view at that changeset's
+version (`.1`–`.9` open subject N); `/` filters every fetched changeset by commit
+subject, subject names, bead, and agent; `r` refetches. Leaving (`Esc`, `C`, or `h`)
+restores the Notes rail exactly, and `@` is inert inside the lens. A scope that fails
+(or has no VCS) shows as a header chip instead of being silently dropped.
+
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
 scope resolved through the active [`use_chezmoi`](configuration.md#use_chezmoi) mode,

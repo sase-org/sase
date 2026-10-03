@@ -89,6 +89,8 @@ class MemoryPanelHelpModal(ModalScreen[None]):
             "\n= toggles the word-diff view (sticky for the pane session)"
             "\n@ turns the rail into the subject's timeline (▸ cursor, ● open, ◇ base)"
             "\nb sets the compare base in the Timeline lens; . reveals hidden versions"
+            "\nC turns the rail into day-grouped changesets (··· older loads more;"
+            " p/P adds All scopes; .N opens one subject)"
             "\nH opens the pager at the exact version on screen"
             "\nEsc peels filter, then lens, then pin, before closing; o always edits now"
         )

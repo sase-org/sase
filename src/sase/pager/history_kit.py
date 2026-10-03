@@ -12,6 +12,25 @@ the same change.
 
 from __future__ import annotations
 
+from sase.memory.history.feed_model import FEED_WINDOW as FEED_WINDOW
+from sase.memory.history.feed_model import (
+    MAX_INLINE_SECTIONS as MAX_INLINE_SECTIONS,
+)
+from sase.memory.history.feed_model import changeset_row_text as changeset_row_text
+from sase.memory.history.feed_model import changeset_view as changeset_view
+from sase.memory.history.feed_model import changeset_word_delta as changeset_word_delta
+from sase.memory.history.feed_model import day_header as day_header
+from sase.memory.history.feed_model import day_key as day_key
+from sase.memory.history.feed_model import dedupe_changesets as dedupe_changesets
+from sase.memory.history.feed_model import filter_changesets as filter_changesets
+from sase.memory.history.feed_model import flatten_visible as flatten_visible
+from sase.memory.history.feed_model import format_clock as format_clock
+from sase.memory.history.feed_model import group_feed as group_feed
+from sase.memory.history.feed_model import older_window_text as older_window_text
+from sase.memory.history.feed_model import provenance_items as provenance_items
+from sase.memory.history.feed_model import regen_count_text as regen_count_text
+from sase.memory.history.feed_model import window_changesets as window_changesets
+from sase.memory.history.feed_model import words_suffix as words_suffix
 from sase.memory.history.pager_provider_timelines import (
     dirty_now_from_timeline as dirty_now_from_timeline,
 )
@@ -91,7 +110,9 @@ from sase.pager.history.styles import (
 )
 
 __all__ = [
+    "FEED_WINDOW",
     "HistoryStyles",
+    "MAX_INLINE_SECTIONS",
     "PickerColumns",
     "SectionTimeState",
     "TimeBandData",
@@ -104,15 +125,25 @@ __all__ = [
     "build_time_band_data",
     "canonical_ordinal",
     "cause_row",
+    "changeset_row_text",
+    "changeset_view",
+    "changeset_word_delta",
     "chrome_row_budget",
     "committed_pin_for_ordinal",
+    "day_header",
+    "day_key",
+    "dedupe_changesets",
     "default_history_styles",
     "diff_endpoints",
     "dirty_now_from_timeline",
+    "filter_changesets",
     "filter_picker_rows",
+    "flatten_visible",
     "format_age",
+    "format_clock",
     "format_picker_row",
     "glyph_for",
+    "group_feed",
     "hidden_picker_rows",
     "hidden_summary_text",
     "history_badge",
@@ -126,10 +157,13 @@ __all__ = [
     "meaning_row",
     "moment_for_state",
     "newest_committed_row",
+    "older_window_text",
     "picker_columns",
     "picker_footer_preview",
     "picker_header_text",
     "picker_pill_text",
+    "provenance_items",
+    "regen_count_text",
     "render_scrubber",
     "render_sparkline",
     "render_time_band",
@@ -138,4 +172,6 @@ __all__ = [
     "time_verbs_for_moment",
     "visible_ordinals_for_timeline",
     "visible_picker_rows",
+    "window_changesets",
+    "words_suffix",
 ]

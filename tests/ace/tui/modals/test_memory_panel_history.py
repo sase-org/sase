@@ -507,29 +507,34 @@ async def test_open_history_key_opens_pager(
         assert pushed[0].document is sentinel
 
 
-async def test_open_changes_key_opens_feed_pager(
+async def test_open_changes_key_opens_changes_lens(
     monkeypatch,
 ) -> None:
-    """Pressing ``C`` opens the changes feed instead of failing silently."""
-    from types import SimpleNamespace
-
+    """Pressing ``C`` turns the rail into the Changes lens (no pager push)."""
     from sase.ace.testing import wait_for
 
     panel, app, pushed, service = _prepare_history_panel(monkeypatch)
-    sentinel = object()
-    service.feed = lambda _scopes, **_kwargs: []
-    import sase.memory.history.feed_document as feed_document_module
+    panel._ace_history().feed = lambda _scopes: {"changesets": []}
+    import sase.ace.tui.modals.memory_pane_changes_lens as changes_module
+
+    seen: dict = {}
+    real_fetch = changes_module.MemoryPaneChangesLensMixin._changes_fetch
+
+    def _spy_fetch(self) -> None:  # noqa: ANN001, ANN202
+        seen["fetched"] = True
+        return real_fetch(self)
 
     monkeypatch.setattr(
-        feed_document_module,
-        "build_feed_document",
-        lambda _feed, _label: SimpleNamespace(document=sentinel),
+        changes_module.MemoryPaneChangesLensMixin, "_changes_fetch", _spy_fetch
     )
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
         await pilot.press("C")
-        await wait_for(pilot, lambda: len(pushed) == 1)
-        assert pushed[0].document is sentinel
+        await wait_for(pilot, lambda: panel._lens == "changes")
+        assert pushed == []
+        assert seen.get("fetched") is True
+        await pilot.press("C")
+        await wait_for(pilot, lambda: panel._lens == "notes")
 
 
 async def test_open_history_failure_surfaces_error_toast(

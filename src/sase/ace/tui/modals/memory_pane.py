@@ -58,6 +58,7 @@ from .memory_panel_state import (
 )
 from .memory_panel_travel import MemoryPanelTravelMixin
 from .memory_panel_view import MemoryPanelViewMixin
+from .memory_pane_changes_lens import MemoryPaneChangesLensMixin
 from .memory_pane_diff import MemoryPaneDiffMixin
 from .memory_pane_history import MemoryPaneHistoryMixin
 from .memory_pane_lens import MemoryPaneLensMixin
@@ -139,6 +140,7 @@ class MemoryPane(
     # Lens mixins come first so their rail/selection/header/footer and
     # hand-off overrides win over the Notes paths they re-home; every
     # fallback delegates explicitly to the owning mixin.
+    MemoryPaneChangesLensMixin,
     MemoryPaneTimelineLensMixin,
     MemoryPaneLensMixin,
     MemoryPanelActionsMixin,
@@ -256,6 +258,22 @@ class MemoryPane(
         self._timeline_preview_pending = False
         self._timeline_scheduled = -1
         self._timeline_has_hidden_line = False
+        self._changes_feed: dict[str, Any] | None = None
+        self._changes_listed: tuple[dict[str, Any], ...] = ()
+        self._changes_cursor = 0
+        self._changes_scheduled = -1
+        self._changes_filter = ""
+        self._changes_limit = 100
+        self._changes_all_scopes = False
+        self._changes_failed: tuple[str, ...] = ()
+        self._changes_scope_label = ""
+        self._changes_total = 0
+        self._changes_older = 0
+        self._changes_loading = False
+        self._changes_generation = 0
+        self._changes_sections: dict[tuple[str, str, str], str] = {}
+        self._changes_section_failed: set[tuple[str, str, str]] = set()
+        self._changes_worker: Worker[None] | None = None
 
     def on_key(self, event: events.Key) -> None:
         from .config_hub_keys import handle_config_hub_subtab_select_key
@@ -340,6 +358,7 @@ class MemoryPane(
             self._history_probe_worker,
             self._time_worker,
             self._diff_worker,
+            self._changes_worker,
         ):
             if worker is not None and not worker.is_finished:
                 worker.cancel()

@@ -24,7 +24,6 @@ so builder goldens never need git or the Rust core.
 
 from __future__ import annotations
 
-import datetime
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -32,6 +31,27 @@ from typing import Any, Literal
 
 from rich.text import Text
 
+from sase.memory.history.feed_model import (
+    day_header as _model_day_header,
+)
+from sase.memory.history.feed_model import (
+    day_key as _model_day_key,
+)
+from sase.memory.history.feed_model import (
+    entry_revision as _model_entry_revision,
+)
+from sase.memory.history.feed_model import (
+    entry_selector as _model_entry_selector,
+)
+from sase.memory.history.feed_model import (
+    format_clock as _model_format_clock,
+)
+from sase.memory.history.feed_model import (
+    has_provenance as _model_has_provenance,
+)
+from sase.memory.history.feed_model import (
+    words_suffix as _model_words_suffix,
+)
 from sase.memory.history.render_text import (
     short_display_for_subject_id,
     summary_text,
@@ -133,64 +153,32 @@ def parse_feed_subject_target(ref: str) -> _FeedSubject | None:
 
 def _day_key(epoch: int) -> str:
     """Return the grouping key (local ``YYYY-MM-DD``) for *epoch*."""
-    if not epoch:
-        return "undated"
-    return datetime.datetime.fromtimestamp(epoch).strftime("%Y-%m-%d")
+    return _model_day_key(epoch)
 
 
 def _day_header(epoch: int) -> str:
     """Return the day section title (``Mon Sep 28``) for *epoch*."""
-    if not epoch:
-        return "undated"
-    return datetime.datetime.fromtimestamp(epoch).strftime("%a %b %d")
+    return _model_day_header(epoch)
 
 
 def _format_clock(epoch: int) -> str:
     """Return a local clock time (``11:03``) for *epoch*."""
-    if not epoch:
-        return "--:--"
-    return datetime.datetime.fromtimestamp(epoch).strftime("%H:%M")
+    return _model_format_clock(epoch)
 
 
 def _words_suffix(summary: dict[str, Any], class_name: str) -> str:
     """Return the word-delta suffix (``+31w −4w``) for a version."""
-    if class_name == "created":
-        return ""
-    added = int(summary.get("words_added", 0) or 0)
-    removed = int(summary.get("words_removed", 0) or 0)
-    parts = []
-    if added:
-        parts.append(f"+{added}w")
-    if removed:
-        parts.append(f"-{removed}w")
-    return " ".join(parts)
+    return _model_words_suffix(summary, class_name)
 
 
 def _entry_selector(entry: dict[str, Any]) -> str:
     """Return the core selector identifying one feed entry's subject."""
-    path = entry.get("path")
-    if isinstance(path, str) and path:
-        return path
-    subject_id = entry.get("subject_id")
-    if isinstance(subject_id, str) and subject_id:
-        return subject_id
-    return ""
+    return _model_entry_selector(entry)
 
 
 def _entry_revision(entry: dict[str, Any], changeset_commit: str | None) -> str:
     """Return the version revision (``vN`` or SHA) for one feed entry."""
-    try:
-        ordinal = int(entry.get("ordinal", 0) or 0)
-    except (TypeError, ValueError):
-        ordinal = 0
-    if ordinal > 0:
-        return f"v{ordinal}"
-    commit = entry.get("commit")
-    if isinstance(commit, str) and commit:
-        return commit
-    if isinstance(changeset_commit, str) and changeset_commit:
-        return changeset_commit
-    return "now"
+    return _model_entry_revision(entry, changeset_commit)
 
 
 class _BodyBuilder:
@@ -310,13 +298,7 @@ def _render_changeset_rows(
 
 def _has_provenance(changeset: dict[str, Any]) -> bool:
     """Return whether a changeset row carries bead/agent/commit labels."""
-    provenance = changeset.get("provenance", {})
-    if isinstance(provenance, dict) and (
-        provenance.get("bead") or provenance.get("agent")
-    ):
-        return True
-    commit = changeset.get("commit")
-    return isinstance(commit, str) and bool(commit)
+    return _model_has_provenance(changeset)
 
 
 def _render_subject_row(
