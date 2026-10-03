@@ -29,6 +29,7 @@ class FeatureFlag(StrEnum):
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
     legacy_agent_family_syntax = "legacy_agent_family_syntax"
     legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
+    legacy_xprompt_syntax = "legacy_xprompt_syntax"
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
@@ -110,6 +111,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "and the `gate.shell.reclaim_grace_seconds` config key."
         ),
         bead="sase-1ar",
+    ),
+    FeatureFlag.legacy_xprompt_syntax: FeatureFlagDefinition(
+        key=FeatureFlag.legacy_xprompt_syntax,
+        kind="sunset",
+        description=(
+            "SASE silently accepts retired xprompt spellings as aliases "
+            "of their macro replacements."
+        ),
+        bead="sase-1fj",
     ),
     FeatureFlag.bgcmd_legacy_slots: FeatureFlagDefinition(
         key=FeatureFlag.bgcmd_legacy_slots,
