@@ -159,8 +159,8 @@ def test_embedded_multi_parent_fork_renders_provenance_envelope(
 
     assert pre_step_count == 2
     assert embedded_workflows == []
-    assert expanded_prompt.count("%xprompts_enabled:false") == 1
-    assert expanded_prompt.count("%xprompts_enabled:true") == 1
+    assert expanded_prompt.count("%macros_enabled:false") == 1
+    assert expanded_prompt.count("%macros_enabled:true") == 1
     assert "# Previous Conversations" in expanded_prompt
     assert "forking from 2 prior agent conversations" in expanded_prompt
     assert "## Conversation 1 of 2 — agent `planner`" in expanded_prompt
@@ -205,12 +205,12 @@ def test_embedded_single_parent_fork_keeps_legacy_envelope(
         )
 
     assert expanded_prompt == (
-        "%xprompts_enabled:false\n"
+        "%macros_enabled:false\n"
         "# Previous Conversation\n\n"
         "**User:**\n\nOld question\n\n"
         "**Assistant:**\n\nOld answer\n\n"
         "---\n\n"
-        "%xprompts_enabled:true\n"
+        "%macros_enabled:true\n"
         "# New Query\n"
         "Continue"
     )
@@ -344,7 +344,7 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
             str(artifacts_dir),
         )
 
-    marker_index = expanded_fork.index("%xprompts_enabled:false")
+    marker_index = expanded_fork.index("%macros_enabled:false")
     assert expanded_fork[marker_index - 1] == "\n"
 
     workspace_workflow = Workflow(
@@ -374,7 +374,7 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
     fake_prettier_missing(monkeypatch)
     final_prompt = preprocess_prompt_late(without_workspace, file_ref_mode="skip")
 
-    assert "%xprompts_enabled" not in final_prompt
+    assert "%macros_enabled" not in final_prompt
     assert "\n # New Query" not in final_prompt
     _, separator, new_query = final_prompt.rpartition("\n# New Query")
     assert separator, f"missing New Query heading in {final_prompt!r}"
@@ -500,8 +500,12 @@ def test_deferred_launch_ignores_bare_fork_prose_inside_disabled_region(
         "typed proc/monitor #fork sources in "
         "`src/sase/scripts/agent_chat_from_name.py`" in expanded
     )
-    assert expanded.count("%xprompts_enabled:false") == 2
-    assert expanded.count("%xprompts_enabled:true") == 2
+    # The authored legacy region is preserved verbatim; the writer emits one
+    # canonical region around the fork expansion.
+    assert expanded.count("%xprompts_enabled:false") == 1
+    assert expanded.count("%xprompts_enabled:true") == 1
+    assert expanded.count("%macros_enabled:false") == 1
+    assert expanded.count("%macros_enabled:true") == 1
     assert expanded.endswith("Continue the work")
 
 

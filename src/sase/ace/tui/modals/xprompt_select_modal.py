@@ -19,6 +19,7 @@ from sase.ace.hints import build_editor_args
 from sase.macro import get_all_prompts
 from sase.macro.models import UNSET, InputArg
 from sase.macro.reference_display import (
+    SIMPLE_MACRO_KIND_VALUE,
     workflow_reference_insertion,
     workflow_kind_value,
     workflow_reference_prefix,
@@ -264,7 +265,7 @@ class XPromptSelectModal(
     def _create_styled_label(self, name: str) -> Text:
         """Create styled text for an xprompt or workflow name."""
         text = Text()
-        kind = self._all_items.get(name, ("", "xprompt"))[1]
+        kind = self._all_items.get(name, ("", SIMPLE_MACRO_KIND_VALUE))[1]
         workflow = self._prompts.get(name)
         prefix = workflow_reference_prefix(workflow) if workflow else "#"
         if kind == "standalone_workflow":

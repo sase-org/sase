@@ -214,7 +214,6 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("snippet", "show"), "trigger"): ValueKind.SNIPPET,
         (("stitch", "list"), "repos"): ValueKind.REPO,
         (("macro", "show"), "name"): ValueKind.MACRO,
-        (("xprompt", "show"), "name"): ValueKind.MACRO,
     }
     for slot in _BEAD_ID_SLOTS:
         overrides[slot] = ValueKind.BEAD

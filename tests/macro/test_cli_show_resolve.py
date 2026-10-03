@@ -74,7 +74,7 @@ def test_workflow_wins_over_shadowed_macro(
     assert isinstance(record, MacroShowRecord)
     assert record.body == "workflow body"
     assert record.raw == workflow_path.read_text()
-    assert any("shadows xprompt" in warning for warning in record.warnings)
+    assert any("shadows macro" in warning for warning in record.warnings)
 
 
 def test_lookup_miss_suggests_copyable_reference_markers(

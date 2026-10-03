@@ -126,7 +126,7 @@ class TestMacroPluginDiscovery:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from sase.main.plugin_discovery import (
-            discover_macro_plugin_entry_points,
+            _discover_macro_plugin_entry_points,
             discover_macro_plugin_modules,
             macro_plugin_definition_dirname,
         )
@@ -149,7 +149,7 @@ class TestMacroPluginDiscovery:
             assert macro_plugin_definition_dirname(module) == "macros"
             modules = discover_macro_plugin_modules()
             assert [mod.__name__ for mod in modules].count(module.__name__) == 1
-            entry_points = discover_macro_plugin_entry_points()
+            entry_points = _discover_macro_plugin_entry_points()
             assert len(entry_points) == 1
             assert entry_points[0].group == "sase_macros"
 

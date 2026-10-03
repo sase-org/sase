@@ -12,6 +12,10 @@ from sase.macro.reference_display import (
 from sase.macro.workflow_models import Workflow
 
 from .xprompt_browser_helpers import BrowserItem
+from .xprompt_location_modal import (
+    XPROMPT_HOME_DIR_LABEL,
+    XPROMPT_PROJECT_DIR_LABEL,
+)
 
 
 class _PromptLoader(Protocol):
@@ -82,9 +86,9 @@ def group_browser_items(
         items_list.sort(key=lambda x: x.name)
 
     known_order = [
-        "Project sase/xprompts/",
+        XPROMPT_PROJECT_DIR_LABEL,
         "Project xprompts/ (legacy)",
-        "Home ~/sase/xprompts/",
+        XPROMPT_HOME_DIR_LABEL,
         "Home xprompts/ (legacy)",
     ]
 

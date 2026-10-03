@@ -9,10 +9,6 @@ from sase.macro.models import UNSET, InputArg
 def handle_macro_command(args: argparse.Namespace) -> None:
     """Handle the 'sase macro' command."""
     subcommand = getattr(args, "macro_subcommand", None)
-    if subcommand is None:
-        # Narrowed-parser compat: ``create_parser(only="xprompt")`` still
-        # parses into the retired dest.
-        subcommand = getattr(args, "xprompt_subcommand", None)
 
     if subcommand == "expand":
         _handle_expand(args)

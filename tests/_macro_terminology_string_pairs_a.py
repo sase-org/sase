@@ -361,10 +361,6 @@ _STRING_PAIRS: set[tuple[str, str]] = {
         '"xprompt_catalog.json"',
     ),
     (
-        "tests/_macro_directive_completion_parity_lsp_session.py",
-        'f"sase-xprompt-lsp binary is missing at {binary}"',
-    ),
-    (
         "tests/agent/test_failed_launch_prompt_stash.py",
         '"---\\nxprompts:\\n  _helper: Use saved helper rules\\n---"',
     ),
@@ -639,6 +635,30 @@ _STRING_PAIRS: set[tuple[str, str]] = {
         '"""``create_parser(only="xprompt")`` keeps working for legacy callers."""',
     ),
     ("tests/main/test_parser_macro_show.py", '"xprompt"'),
+    (
+        "tests/main/test_parser_macro_show.py",
+        '"""Root-position normalization rewrites ``xprompt`` to ``macro`` (flag on)."""',
+    ),
+    (
+        "tests/main/test_parser_macro_show.py",
+        '"""With the sunset flag off, a root ``xprompt`` exits 2 with a hint."""',
+    ),
+    ("tests/main/test_parser_macro_show.py", '"xprompt is retired; use macro"'),
+    (
+        "tests/main/test_parser_macro_show.py",
+        '"""``sase path xprompts-dir`` behaves like its canonical form (flag on)."""',
+    ),
+    ("tests/main/test_parser_macro_show.py", '"xprompts-dir"'),
+    (
+        "tests/main/test_parser_macro_show.py",
+        '"""With the sunset flag off, ``sase path xprompts-dir`` exits 2."""',
+    ),
+    (
+        "tests/main/test_parser_macro_show.py",
+        '"xprompts-dir is retired; use macros-dir"',
+    ),
+    ("tests/main/test_parser_macro_show.py", '"xprompts-schema"'),
+    ("tests/main/test_parser_macro_show.py", '"xprompts-collection-schema"'),
     (
         "tests/main/test_parser_root_help.py",
         '"Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history."',

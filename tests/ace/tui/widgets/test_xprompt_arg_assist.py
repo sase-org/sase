@@ -87,7 +87,7 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
     assert entry.description == "Run typed inputs."
     assert entry.insertion == "#typed"
     assert entry.reference_prefix == "#"
-    assert entry.kind == "xprompt"
+    assert entry.kind == "macro"
     assert entry.memory_type is None
     assert entry.input_signature == (
         "(required_word: word, string_default?: line, null_default?: text, "

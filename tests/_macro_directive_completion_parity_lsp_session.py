@@ -73,9 +73,13 @@ class LspSession:
         self.initialize_result: dict[str, Any] = {}
 
     def __enter__(self) -> LspSession:
-        binary = Path(sys.executable).with_name("sase-xprompt-lsp")
+        binary = Path(sys.executable).with_name("sase-macro-lsp")
         if not binary.is_file():
-            pytest.fail(f"sase-xprompt-lsp binary is missing at {binary}")
+            legacy = Path(sys.executable).with_name("sase-xprompt-lsp")
+            if legacy.is_file():
+                binary = legacy
+            else:
+                pytest.fail(f"sase-macro-lsp binary is missing at {binary}")
 
         helper = self._helper or _write_helper(self._tmp_path)
         model_catalog = self._tmp_path / "model_catalog.json"

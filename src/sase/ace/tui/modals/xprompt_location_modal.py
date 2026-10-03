@@ -43,8 +43,8 @@ from .base import FilterInput, OptionListNavigationMixin
 
 #: Canonical discovery labels matched by the save-location picker.
 #: The picker imports these instead of duplicating the literals below.
-XPROMPT_PROJECT_DIR_LABEL = "Project sase/xprompts/"
-XPROMPT_HOME_DIR_LABEL = "Home ~/sase/xprompts/"
+XPROMPT_PROJECT_DIR_LABEL = "Project sase/macros/"
+XPROMPT_HOME_DIR_LABEL = "Home ~/sase/macros/"
 XPROMPT_PROJECT_HOME_LABEL_PREFIX = "Project home ("
 XPROMPT_PROJECT_CONFIG_LABEL = "Project sase/sase.yml"
 XPROMPT_USER_CONFIG_LABEL = "User sase.yml"

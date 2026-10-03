@@ -90,7 +90,6 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "version": ("sase.main.parser_version", "register_version_parser"),
     "workspace": ("sase.main.parser_workspace", "register_workspace_parser"),
     "macro": ("sase.main.parser_macro", "register_macro_parser"),
-    "xprompt": ("sase.main.parser_macro", "register_macro_parser"),
 }
 
 

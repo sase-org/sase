@@ -43,15 +43,15 @@ macros:
 ---
 
 %id:reads-{@1}.agy %clan:reads-{@1} %model:agy/gemini-3.7-flash-high
-#\_article_search_agent
+#_article_search_agent
 
 ---
 
-%id(cld, clan=reads-{@1}) %model:claude/opus #\_article_search_agent
+%id(cld, clan=reads-{@1}) %model:claude/opus #_article_search_agent
 
 ---
 
-%id(cdx, clan=reads-{@1}) %model:codex/gpt-6.1-sol #\_article_search_agent
+%id(cdx, clan=reads-{@1}) %model:codex/gpt-6.1-sol #_article_search_agent
 
 ---
 

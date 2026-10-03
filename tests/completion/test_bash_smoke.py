@@ -281,7 +281,7 @@ def test_run_prompt_offers_files_and_macros(tmp_path: Path) -> None:
     fixture.write_text(
         "#!/usr/bin/env bash\n"
         'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
-        "  printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n'\n"
+        "  printf 'zzz-fixture-macro\\tA fixture macro\\n'\n"
         "fi\n",
         encoding="utf-8",
     )
@@ -310,14 +310,14 @@ printf '%s\\n' "${{COMPREPLY[@]}}"
     )
     assert result.returncode == 0, result.stderr
     replies = [line for line in result.stdout.splitlines() if line]
-    assert "zzz-fixture-xprompt" in replies, replies
+    assert "zzz-fixture-macro" in replies, replies
     assert "zzz-fixture-notes.md" in replies, replies
 
 
 @pytest.mark.parametrize(
     ("typed", "expected"),
     [
-        ("ask #zz", "ask #zzz-fixture-xprompt"),
+        ("ask #zz", "ask #zzz-fixture-macro"),
         ("ask %mo", "ask %model"),
         ("ask @file:e", "ask @file:explicit:abc123"),
         ("ask +zz", "ask +zzz-fixture-project"),
@@ -403,7 +403,7 @@ def _write_marker_fixture_sase(tmp_path: Path) -> Path:
         "fi\n"
         'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
         '  case "$3" in\n'
-        "    xprompt) printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n' ;;\n"
+        "    macro) printf 'zzz-fixture-macro\\tA fixture macro\\n' ;;\n"
         "    directive) printf 'model\\tOverride the LLM model\\n' ;;\n"
         "    artifact_ref) printf 'file:explicit:abc123\\tScreenshot\\n' ;;\n"
         "    project_tag) printf 'zzz-fixture-project\\tGitHub project\\n' ;;\n"

@@ -315,11 +315,7 @@ def _scan_plugin_groups() -> list[dict[str, str]]:
     except Exception:  # noqa: BLE001 - no importlib on this host.
         return findings
     try:
-        entry_points = importlib_metadata.entry_points()
-        if hasattr(entry_points, "select"):
-            retired = entry_points.select(group=RETIRED_PLUGIN_GROUP)
-        else:  # pragma: no cover - legacy importlib API.
-            retired = entry_points.get(RETIRED_PLUGIN_GROUP, ())
+        retired = importlib_metadata.entry_points(group=RETIRED_PLUGIN_GROUP)
     except Exception:  # noqa: BLE001 - entry-point scan must not traceback.
         return findings
     seen: set[str] = set()

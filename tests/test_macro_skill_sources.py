@@ -164,7 +164,7 @@ def test_skill_declaration_outside_a_skill_source_is_rejected(
     home_root: Path,
 ) -> None:
     _write(
-        home_root / "sase" / "xprompts" / "stale.md",
+        home_root / "sase" / "macros" / "stale.md",
         "---\nname: stale\nskill: true\n---\n\nbody\n",
     )
 
@@ -191,7 +191,7 @@ def test_non_skill_in_a_skill_source_is_rejected(home_root: Path) -> None:
     placement = [i for i in issues if i.kind == SKILL_PLACEMENT_ISSUE_KIND]
     assert len(placement) == 1
     assert "declares no truthy `skill:` value" in placement[0].error
-    assert str(home_root / "sase" / "xprompts") in placement[0].error
+    assert str(home_root / "sase" / "macros") in placement[0].error
 
 
 def test_falsey_skill_value_in_a_skill_source_is_rejected(home_root: Path) -> None:

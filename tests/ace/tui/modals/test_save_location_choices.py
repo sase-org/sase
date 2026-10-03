@@ -46,7 +46,7 @@ def _standard_xrows(tmp_path: Path) -> list[UnifiedSaveLocation]:
     personal = tmp_path / "personal"
     personal.mkdir()
     return [
-        _xrow(proj, "Project sase/xprompts/", namespace="sase"),
+        _xrow(proj, "Project sase/macros/", namespace="sase"),
         _xrow(
             tmp_path / "sase.yml",
             "Project sase/sase.yml",
@@ -54,7 +54,7 @@ def _standard_xrows(tmp_path: Path) -> list[UnifiedSaveLocation]:
             group="Config files",
         ),
         _xrow(personal, "Project home (sase)"),
-        _xrow(home, "Home ~/sase/xprompts/"),
+        _xrow(home, "Home ~/sase/macros/"),
         _xrow(
             tmp_path / "u.yml",
             "User sase.yml",
@@ -239,7 +239,7 @@ def test_xprompt_has_name_badges_and_previews(tmp_path: Path) -> None:
     rows = _standard_xrows(tmp_path)
     rows[0] = _xrow(
         tmp_path / "proj",
-        "Project sase/xprompts/",
+        "Project sase/macros/",
         names=frozenset({"review"}),
         namespace="sase",
     )
@@ -383,3 +383,99 @@ def test_snippet_has_trigger_badges_and_previews(tmp_path: Path) -> None:
         project="sase",
     )
     assert "ace.snippets.<trigger>" in _by_label(choices)["User config"].preview
+
+
+def test_unified_save_has_single_canonical_project_and_home_dirs(
+    tmp_path: Path,
+) -> None:
+    """Canonical macro dirs appear exactly once with unique hotkeys."""
+    from sase.ace.tui.modals.unified_xprompt_save_support import (
+        _with_missing_standard_directories,
+    )
+    from sase.ace.tui.modals.xprompt_location_modal import (
+        XPROMPT_HOME_DIR_LABEL,
+        XPROMPT_PROJECT_DIR_LABEL,
+    )
+
+    project_dir = tmp_path / "proj-macros"
+    project_dir.mkdir()
+    home_dir = tmp_path / "home-macros"
+    home_dir.mkdir()
+    locations: list[tuple[str, XPromptLocation]] = [
+        (
+            "Directories",
+            XPromptLocation(XPROMPT_PROJECT_DIR_LABEL, str(project_dir), "directory"),
+        ),
+        (
+            "Directories",
+            XPromptLocation(XPROMPT_HOME_DIR_LABEL, str(home_dir), "directory"),
+        ),
+    ]
+
+    import sase.ace.tui.modals.unified_xprompt_save_support as support_mod
+
+    def _fake_project_layout(root: object) -> object:
+        class _Paths:
+            write_path = project_dir
+
+        class _Layout:
+            macros = _Paths()
+
+        return _Layout()  # type: ignore[return-value]
+
+    def _fake_home_layout(*args: object, **kwargs: object) -> object:
+        class _Paths:
+            write_path = home_dir
+
+        class _Layout:
+            macros = _Paths()
+
+        return _Layout()  # type: ignore[return-value]
+
+    def _fake_chezmoi_layout(*args: object, **kwargs: object) -> object:
+        class _Paths:
+            write_path = home_dir
+
+        class _Layout:
+            macros = _Paths()
+
+        return _Layout()  # type: ignore[return-value]
+
+    original_project = support_mod.resolve_project_layout
+    original_home = support_mod.resolve_home_layout
+    original_chezmoi = support_mod.resolve_chezmoi_layout
+    original_chezmoi_flag = support_mod.get_use_chezmoi
+    support_mod.resolve_project_layout = _fake_project_layout  # type: ignore[assignment]
+    support_mod.resolve_home_layout = _fake_home_layout  # type: ignore[assignment]
+    support_mod.resolve_chezmoi_layout = _fake_chezmoi_layout  # type: ignore[assignment]
+    support_mod.get_use_chezmoi = lambda: False  # type: ignore[assignment]
+    try:
+        completed = _with_missing_standard_directories(locations)
+    finally:
+        support_mod.resolve_project_layout = original_project  # type: ignore[assignment]
+        support_mod.resolve_home_layout = original_home  # type: ignore[assignment]
+        support_mod.resolve_chezmoi_layout = original_chezmoi  # type: ignore[assignment]
+        support_mod.get_use_chezmoi = original_chezmoi_flag  # type: ignore[assignment]
+
+    project_rows = [
+        location
+        for _, location in completed
+        if location.label == XPROMPT_PROJECT_DIR_LABEL
+    ]
+    home_rows = [
+        location
+        for _, location in completed
+        if location.label == XPROMPT_HOME_DIR_LABEL
+    ]
+    assert len(project_rows) == 1
+    assert len(home_rows) == 1
+
+    rows = [
+        _xrow(project_dir, XPROMPT_PROJECT_DIR_LABEL, namespace="sase"),
+        _xrow(home_dir, XPROMPT_HOME_DIR_LABEL, group="Home directories"),
+    ]
+    choices, _default = xprompt_location_choices(rows, project="sase")
+    by_label = _by_label(choices)
+    assert by_label["Project xprompts"].hotkey == "p"
+    assert by_label["Home xprompts"].hotkey == "h"
+    assert by_label["Project xprompts"].hotkey != by_label["Home xprompts"].hotkey

@@ -11,6 +11,10 @@ def main() -> NoReturn:
 
         consume_global_options(print_command_header=True)
 
+    from sase.legacy_xprompt_syntax import normalize_legacy_root_args
+
+    normalize_legacy_root_args()
+
     if len(sys.argv) >= 2 and sys.argv[1] == "bead":
         from .bead_fast_path import try_handle_bead_fast_path
 
@@ -432,42 +436,11 @@ def main() -> NoReturn:
         from sase.macro.loader import get_sase_package_macros_dir
 
         macros_dir = get_sase_package_macros_dir()
-        if args.name in {"macros-dir", "xprompts-dir"}:
-            if args.name == "xprompts-dir":
-                from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-                if not legacy_xprompt_syntax_enabled():
-                    print(
-                        "xprompts-dir is retired; use macros-dir",
-                        file=sys.stderr,
-                    )
-                    sys.exit(2)
+        if args.name == "macros-dir":
             print(macros_dir)
-        elif args.name in {"macros-schema", "xprompts-schema"}:
-            if args.name == "xprompts-schema":
-                from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-                if not legacy_xprompt_syntax_enabled():
-                    print(
-                        "xprompts-schema is retired; use macros-schema",
-                        file=sys.stderr,
-                    )
-                    sys.exit(2)
+        elif args.name == "macros-schema":
             print(macros_dir / "workflow.schema.json")
-        elif args.name in {
-            "macros-collection-schema",
-            "xprompts-collection-schema",
-        }:
-            if args.name == "xprompts-collection-schema":
-                from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-                if not legacy_xprompt_syntax_enabled():
-                    print(
-                        "xprompts-collection-schema is retired; "
-                        "use macros-collection-schema",
-                        file=sys.stderr,
-                    )
-                    sys.exit(2)
+        elif args.name == "macros-collection-schema":
             print(macros_dir / "macros-collection.schema.json")
         sys.exit(0)
 
@@ -648,13 +621,7 @@ def main() -> NoReturn:
         handle_workspace_command(args)
 
     # --- macro ---
-    if args.command in {"macro", "xprompt"}:  # legacy command alias
-        if args.command == "xprompt":
-            from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-            if not legacy_xprompt_syntax_enabled():
-                print("xprompt is retired; use macro", file=sys.stderr)
-                sys.exit(2)
+    if args.command == "macro":
         from .macro_handler import handle_macro_command
 
         handle_macro_command(args)

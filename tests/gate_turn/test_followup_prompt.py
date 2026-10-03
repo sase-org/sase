@@ -277,9 +277,9 @@ def test_body_is_exactly_one_disabled_region() -> None:
 
     regions = disabled_region_ranges(prompt)
     assert len(regions) == 1
-    body_start = prompt.index("%xprompts_enabled:false")
+    body_start = prompt.index("%macros_enabled:false")
     assert prompt[:body_start] == "#fork:acme\n\n"
-    assert prompt.rstrip().endswith("%xprompts_enabled:true")
+    assert prompt.rstrip().endswith("%macros_enabled:true")
 
 
 def test_adversarial_result_payload_stays_inert() -> None:
@@ -343,7 +343,7 @@ def test_no_fork_target_omits_the_fork_prefix() -> None:
     )
 
     assert "#fork:" not in prompt
-    assert prompt.startswith("%xprompts_enabled:false\n")
+    assert prompt.startswith("%macros_enabled:false\n")
 
 
 def test_workspace_degraded_reason_renders_its_own_section() -> None:

@@ -112,7 +112,12 @@ def test_snippet_candidates_use_rust_loader(
     (tmp_path / "sase").mkdir()
     calls: list[tuple[str | None, str]] = []
 
-    def fake_loader(project: str | None, root_dir: str) -> dict[str, object]:
+    def fake_loader(
+        project: str | None, root_dir: str, accept_legacy_xprompt_names: bool
+    ) -> dict[str, object]:
+        from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
+        assert accept_legacy_xprompt_names == legacy_xprompt_syntax_enabled()
         calls.append((project, root_dir))
         return {
             "entries": [

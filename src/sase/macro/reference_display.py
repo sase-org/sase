@@ -10,13 +10,17 @@ def _workflow_uses_standalone_reference_marker(workflow: Workflow) -> bool:
     return workflow.prompt_kind() is WorkflowKind.STANDALONE_WORKFLOW
 
 
+#: Canonical catalog kind for a simple macro definition.
+SIMPLE_MACRO_KIND_VALUE = "macro"
+
+
 def workflow_kind_value(workflow: Workflow) -> str:
     """Return the stable catalog kind for a workflow-like macro entry."""
     if workflow.memory_type is not None:
         return "memory"
     kind = workflow.prompt_kind()
     if kind is WorkflowKind.SIMPLE_MACRO:
-        return "macro"
+        return SIMPLE_MACRO_KIND_VALUE
     return kind.value
 
 

@@ -442,30 +442,19 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def register_path_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'path' subcommand parser."""
-    from sase.completion.compat import set_completion_compat_choices
-
     path_parser = subparsers.add_parser(
         "path",
         help="Print well-known sase paths (for editor integration)",
     )
-    name_action = path_parser.add_argument(
+    path_parser.add_argument(
         "name",
         choices=[
             "config-schema",
             "macros-dir",
             "macros-schema",
             "macros-collection-schema",
-            "xprompts-dir",
-            "xprompts-schema",
-            "xprompts-collection-schema",
         ],
         help="Which path to print",
-    )
-    set_completion_compat_choices(
-        name_action,
-        "xprompts-dir",
-        "xprompts-schema",
-        "xprompts-collection-schema",
     )
 
 

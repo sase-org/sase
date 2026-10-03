@@ -3,28 +3,14 @@
 import argparse
 import textwrap
 
-from sase.completion.compat import set_completion_compat_aliases
-
 
 def register_macro_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the canonical 'macro' subcommand parser.
-
-    The retired ``xprompt`` spelling remains accepted as a hidden
-    compatibility alias; completion generation omits it. Flag gating
-    (retirement error when ``legacy_xprompt_syntax`` is off) happens at
-    dispatch in :mod:`sase.main.entry`, not here, so both full and narrowed
-    parser construction keep working.
-    """
+    """Register the canonical 'macro' subcommand parser."""
     macro_parser = subparsers.add_parser(
         "macro",
-        aliases=["xprompt"],
         help="Expand and visualize macro workflows",
     )
-    set_completion_compat_aliases(macro_parser, "xprompt")
     macro_subparsers = macro_parser.add_subparsers(dest="macro_subcommand")
-    # Narrowed-parser compat: ``create_parser(only="xprompt")`` still parses
-    # into the old dest, so the handler reads both.
-    macro_parser.set_defaults(xprompt_subcommand=None)
 
     # macro catalog
     catalog_parser = macro_subparsers.add_parser(

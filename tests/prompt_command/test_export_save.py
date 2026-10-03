@@ -117,7 +117,7 @@ def test_save_local_creates_loadable_macro(
 
     handle_prompt_save(_save_ns(_prompt_id(text), name="fix-parser"))
 
-    dest = tmp_path / "sase" / "xprompts" / "fix-parser.md"
+    dest = tmp_path / "sase" / "macros" / "fix-parser.md"
     macro_def = load_macro_from_file(dest)
     assert macro_def is not None
     assert macro_def.name == "fix-parser"
@@ -141,7 +141,7 @@ def test_save_tag_persists_prompt_tags_and_stays_loadable(
         _save_ns(_prompt_id(text), name="fix-auth-review", tag=["review"])
     )
 
-    dest = tmp_path / "sase" / "xprompts" / "fix-auth-review.md"
+    dest = tmp_path / "sase" / "macros" / "fix-auth-review.md"
     raw = dest.read_text(encoding="utf-8")
     # User tags live under prompt_tags, not the reserved semantic ``tags`` key,
     # so the loader does not raise on free-form labels.
@@ -167,7 +167,7 @@ def test_save_global_writes_home_macros(
 
     handle_prompt_save(_save_ns(_prompt_id(text), name="global-prompt", global_=True))
 
-    assert (tmp_path / "sase" / "xprompts" / "global-prompt.md").is_file()
+    assert (tmp_path / "sase" / "macros" / "global-prompt.md").is_file()
 
 
 def test_save_project_writes_config_dir(
@@ -181,7 +181,7 @@ def test_save_project_writes_config_dir(
 
     handle_prompt_save(_save_ns(_prompt_id(text), name="proj-prompt", project="bob"))
 
-    dest = tmp_path / "sase" / "xprompts" / "bob" / "proj-prompt.md"
+    dest = tmp_path / "sase" / "macros" / "bob" / "proj-prompt.md"
     assert dest.is_file()
 
 
@@ -197,7 +197,7 @@ def test_save_auto_name_derives_slug(
     handle_prompt_save(_save_ns(_prompt_id(text)))
 
     assert (
-        tmp_path / "sase" / "xprompts" / "improve-the-launcher-startup-time.md"
+        tmp_path / "sase" / "macros" / "improve-the-launcher-startup-time.md"
     ).is_file()
 
 
@@ -216,7 +216,7 @@ def test_save_description_override(
         _save_ns(_prompt_id(text), name="custom", description="My summary")
     )
 
-    macro_def = load_macro_from_file(tmp_path / "sase" / "xprompts" / "custom.md")
+    macro_def = load_macro_from_file(tmp_path / "sase" / "macros" / "custom.md")
     assert macro_def is not None
     assert macro_def.description == "My summary"
 
@@ -240,7 +240,7 @@ def test_save_guards_overwrite(
 
     # --force replaces the existing file.
     handle_prompt_save(_save_ns(_prompt_id(text), name="dup", force=True))
-    assert (tmp_path / "sase" / "xprompts" / "dup.md").is_file()
+    assert (tmp_path / "sase" / "macros" / "dup.md").is_file()
 
 
 def test_save_global_and_project_are_mutually_exclusive(

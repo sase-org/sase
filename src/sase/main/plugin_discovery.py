@@ -108,7 +108,7 @@ def macro_plugins_disabled(
     return bool(env.get(MACRO_PLUGIN_DISABLE_ENV))
 
 
-def discover_macro_plugin_entry_points(
+def _discover_macro_plugin_entry_points(
     *,
     accept_legacy: bool | None = None,
 ) -> list[importlib.metadata.EntryPoint]:
@@ -148,7 +148,7 @@ def discover_macro_plugin_modules(
     Modules that fail to load are silently skipped and logged at debug level.
     """
     modules: list[ModuleType] = []
-    for ep in discover_macro_plugin_entry_points(accept_legacy=accept_legacy):
+    for ep in _discover_macro_plugin_entry_points(accept_legacy=accept_legacy):
         try:
             modules.append(ep.load())
         except Exception:

@@ -357,8 +357,8 @@ class TestPlanFollowupQuestions:
         assert "#### Q2: Symptom" in state.current_prompt
         assert "#### Q3: Launch surface" in state.current_prompt
         assert "#### Q4: Symptom" in state.current_prompt
-        assert state.current_prompt.count("%xprompts_enabled:false") == 1
-        assert state.current_prompt.count("%xprompts_enabled:true") == 1
+        assert state.current_prompt.count("%macros_enabled:false") == 1
+        assert state.current_prompt.count("%macros_enabled:true") == 1
         assert "final note" in state.current_prompt
 
     def test_question_from_code_phase_rebuilds_from_code_prompt(self, tmp_path) -> None:

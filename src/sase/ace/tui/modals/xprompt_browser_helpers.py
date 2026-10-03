@@ -27,6 +27,11 @@ from sase.macro.project_identity import (
 )
 from sase.macro.workflow_models import Workflow
 
+from .xprompt_location_modal import (
+    XPROMPT_HOME_DIR_LABEL,
+    XPROMPT_PROJECT_DIR_LABEL,
+)
+
 
 @dataclass
 class BrowserItem:
@@ -39,7 +44,7 @@ class BrowserItem:
     display_path: str
     is_editable: bool
     item_type: str  # "xprompt" or "workflow"
-    kind: str  # "xprompt", "embeddable_workflow", or "standalone_workflow"
+    kind: str  # "macro", "embeddable_workflow", "standalone_workflow", or "memory"
     insertion: str
 
 
@@ -105,14 +110,17 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
         return "Built-in", source_path.replace(home, "~"), False
 
     path = Path(source_path)
-    for candidate in project_layout.xprompts.candidates:
+    project_macros_candidates: list[Path] = list(project_layout.macros.candidates)
+    if project_layout.xprompts.write_path not in project_macros_candidates:
+        project_macros_candidates.append(project_layout.xprompts.write_path)
+    for candidate in project_macros_candidates:
         try:
             path.relative_to(candidate)
         except ValueError:
             continue
         label = (
-            "Project sase/xprompts/"
-            if candidate == project_layout.xprompts.write_path
+            XPROMPT_PROJECT_DIR_LABEL
+            if candidate == project_layout.macros.write_path
             else "Project xprompts/ (legacy)"
         )
         return label, display_path(path, project_root=project_root), True
@@ -129,8 +137,10 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
         )
         return label, display_path(path, project_root=project_root), True
 
-    home_candidates = home_layout.xprompts.candidates
-    for candidate in home_candidates:
+    home_macros_candidates: list[Path] = list(home_layout.macros.candidates)
+    if home_layout.xprompts.write_path not in home_macros_candidates:
+        home_macros_candidates.append(home_layout.xprompts.write_path)
+    for candidate in home_macros_candidates:
         try:
             relative = path.relative_to(candidate)
         except ValueError:
@@ -143,8 +153,8 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
                 True,
             )
         label = (
-            "Home ~/sase/xprompts/"
-            if candidate == home_layout.xprompts.write_path
+            XPROMPT_HOME_DIR_LABEL
+            if candidate == home_layout.macros.write_path
             else "Home xprompts/ (legacy)"
         )
         return label, display_path(path, home_root=home_path), True

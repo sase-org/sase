@@ -27092,10 +27092,7 @@
               "config-schema",
               "macros-dir",
               "macros-schema",
-              "macros-collection-schema",
-              "xprompts-dir",
-              "xprompts-schema",
-              "xprompts-collection-schema"
+              "macros-collection-schema"
             ],
             "dest": "name",
             "is_remainder": false,

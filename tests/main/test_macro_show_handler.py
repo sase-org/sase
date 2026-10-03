@@ -56,7 +56,7 @@ def _record(**overrides: object) -> MacroShowRecord:
 
 
 def _dispatch(argv: list[str]) -> int:
-    args = create_parser().parse_args(["xprompt", *argv])
+    args = create_parser().parse_args(["macro", *argv])
     with pytest.raises(SystemExit) as exc_info:
         handle_macro_command(args)
     return int(exc_info.value.code)

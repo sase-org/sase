@@ -46,6 +46,19 @@ CANONICAL_LSP_BINARY = "sase-macro-lsp"
 RETIRED_FRONTMATTER_KEY = "xprompts"
 CANONICAL_FRONTMATTER_KEY = "macros"
 
+#: Retired root command and its canonical replacement.
+RETIRED_ROOT_COMMAND = "xprompt"
+CANONICAL_ROOT_COMMAND = "macro"
+
+#: Retired ``sase path`` targets paired with their canonical replacements.
+RETIRED_PATH_TARGETS: tuple[tuple[str, str], ...] = (
+    ("xprompts-dir", "macros-dir"),
+    ("xprompts-schema", "macros-schema"),
+    ("xprompts-collection-schema", "macros-collection-schema"),
+)
+
+_RETIRED_PATH_TARGET_MAP = dict(RETIRED_PATH_TARGETS)
+
 
 def legacy_xprompt_syntax_enabled() -> bool:
     """Return whether retired xprompt syntax is accepted."""
@@ -129,16 +142,72 @@ def normalize_frontmatter_macros(
     return entries if isinstance(entries, dict) else {}
 
 
+def normalize_legacy_root_args(argv: list[str] | None = None) -> None:
+    """Rewrite retired root-position spellings to their canonical forms.
+
+    Takes ``sys.argv`` (after ``consume_global_options``). Locates the root
+    command with ``sase.main.parser_root_args.root_command_index``, the same
+    way ``parser_only_hint`` does. Rewrites a root ``xprompt`` to ``macro``,
+    and rewrites the first positional after a root ``path`` from a retired
+    ``xprompts-*`` target to its ``macros-*`` replacement. With
+    ``legacy_xprompt_syntax`` off, prints ``<old> is retired; use <new>`` to
+    stderr and exits 2, matching the retired-branch messages. Never rewrites
+    any other token (for example ``sase run "xprompt ..."`` or
+    ``sase macro show xprompt``).
+
+    Mutates *argv* (default ``sys.argv``) in place.
+    """
+    import sys
+
+    from sase.main.parser_root_args import root_command_index
+
+    target = sys.argv if argv is None else argv
+    args = target[1:]
+    command_index = root_command_index(args)
+    if command_index is None:
+        return
+    candidate = args[command_index]
+    if candidate == RETIRED_ROOT_COMMAND:
+        if not legacy_xprompt_syntax_enabled():
+            print(
+                f"{RETIRED_ROOT_COMMAND} is retired; use {CANONICAL_ROOT_COMMAND}",
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
+        target[command_index + 1] = CANONICAL_ROOT_COMMAND
+        return
+    if candidate != "path":
+        return
+    for offset in range(command_index + 1, len(args)):
+        token = args[offset]
+        if token == "--":
+            continue
+        if token.startswith("-"):
+            continue
+        replacement = _RETIRED_PATH_TARGET_MAP.get(token)
+        if replacement is None:
+            return
+        if not legacy_xprompt_syntax_enabled():
+            print(f"{token} is retired; use {replacement}", file=sys.stderr)
+            raise SystemExit(2)
+        target[offset + 1] = replacement
+        return
+
+
 __all__ = [
     "CANONICAL_FRONTMATTER_KEY",
     "CANONICAL_LSP_BINARY",
     "CANONICAL_PLUGIN_GROUP",
+    "CANONICAL_ROOT_COMMAND",
     "RETIRED_CONFIG_KEYS",
     "RETIRED_ENV_VARS",
     "RETIRED_FRONTMATTER_KEY",
     "RETIRED_LSP_BINARY",
+    "RETIRED_PATH_TARGETS",
     "RETIRED_PLUGIN_GROUP",
+    "RETIRED_ROOT_COMMAND",
     "legacy_xprompt_syntax_enabled",
     "normalize_config_layer",
     "normalize_frontmatter_macros",
+    "normalize_legacy_root_args",
 ]

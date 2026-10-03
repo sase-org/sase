@@ -13,6 +13,7 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
 )
 from sase.macro.config_yaml import insert_macro_into_config
 from sase.macro.loader import get_sase_package_macros_dir
+from sase.macro.reference_display import SIMPLE_MACRO_KIND_VALUE
 from sase.macro.write_targets import (
     PostWriteActionKind,
     PostWriteActionOffer,
@@ -45,7 +46,7 @@ class XPromptBrowserActionsMixin:
         item = self._get_highlighted_item()  # type: ignore[attr-defined]
         if item is None:
             return
-        if item.kind != "xprompt":
+        if item.kind != SIMPLE_MACRO_KIND_VALUE:
             self.notify("Workflow graphs use E / $EDITOR", severity="warning")  # type: ignore[attr-defined]
             return
         file_path = resolve_source_to_file_path(item.source_path)

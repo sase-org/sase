@@ -30,6 +30,8 @@ from sase.macro.snippet_targets import (
 )
 
 from .xprompt_location_modal import (
+    XPROMPT_HOME_DIR_LABEL,
+    XPROMPT_PROJECT_DIR_LABEL,
     XPromptLocation,
     get_all_xprompt_locations,
     shorten_xprompt_location_path,
@@ -219,20 +221,20 @@ def _with_missing_standard_directories(
 ) -> list[tuple[str, XPromptLocation]]:
     existing = {location.path for _, location in locations}
     project_root = discover_project_root() or Path.cwd()
-    project_dir = resolve_project_layout(project_root).xprompts.write_path
+    project_dir = resolve_project_layout(project_root).macros.write_path
     home_dir = (
-        resolve_chezmoi_layout(CHEZMOI_HOME).xprompts.write_path
+        resolve_chezmoi_layout(CHEZMOI_HOME).macros.write_path
         if get_use_chezmoi()
-        else resolve_home_layout().xprompts.write_path
+        else resolve_home_layout().macros.write_path
     )
     additions = [
         (
             "Directories",
-            XPromptLocation("Project sase/xprompts/", str(project_dir), "directory"),
+            XPromptLocation(XPROMPT_PROJECT_DIR_LABEL, str(project_dir), "directory"),
         ),
         (
             "Directories",
-            XPromptLocation("Home ~/sase/xprompts/", str(home_dir), "directory"),
+            XPromptLocation(XPROMPT_HOME_DIR_LABEL, str(home_dir), "directory"),
         ),
     ]
     return locations + [item for item in additions if item[1].path not in existing]
@@ -254,9 +256,9 @@ def _display_group(source_group: str, label: str) -> str:
 
 def _precedence(source_group: str, label: str, ordinal: int) -> int:
     """Map display locations onto loader first-wins discovery order."""
-    if label == "Project sase/xprompts/":
+    if label == XPROMPT_PROJECT_DIR_LABEL:
         return 0
-    if label == "Home ~/sase/xprompts/":
+    if label == XPROMPT_HOME_DIR_LABEL:
         return 1
     if label.startswith("Project home ("):
         return 2

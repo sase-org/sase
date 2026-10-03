@@ -173,10 +173,10 @@ def test_answered_followup_prompt_has_live_fork_and_no_leaked_markers(
     prompt = captured["prompt"]
 
     assert prompt.startswith("#fork:lane\n")
-    assert "%xprompts_enabled:false" in prompt
-    assert "%xprompts_enabled:true" in prompt
-    assert "% xprompts_enabled:false" not in prompt
-    assert "% xprompts_enabled:true" not in prompt
+    assert "%macros_enabled:false" in prompt
+    assert "%macros_enabled:true" in prompt
+    assert "% macros_enabled:false" not in prompt
+    assert "% macros_enabled:true" not in prompt
     assert "## Results" in prompt
     assert (
         "Question 2?" in prompt.split("## Results")[1].split("## Your next action")[0]
