@@ -27,6 +27,9 @@ plugins:
       categories:
         - categories
       image: https://sase.sh/images/sase_overview.png
+  - redirects:
+      redirect_maps:
+        'xprompt.md': 'macros.md'
   - exporter:
       formats:
         pdf:

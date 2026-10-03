@@ -2,15 +2,15 @@
 type: reference
 parent: AGENTS.md
 description:
-  Read when working with sase agent skills (aka xprompt skills), which are generated
-  from source templates in the `src/sase/xprompts/skills/` and deployed to managed
-  locations (my chezmoi repo, for example).
+  Read when working with sase agent skills (aka macro skills), which are generated from
+  source templates in the `src/sase/macros/skills/` and deployed to managed locations
+  (my chezmoi repo, for example).
 ---
 
 # Generated Skill Files
 
 Chezmoi skill files (`SKILL.md`) are **generated**, not hand-edited. The source
-templates live in `src/sase/xprompts/skills/` and are rendered per-provider by
+templates live in `src/sase/macros/skills/` and are rendered per-provider by
 `sase skill init`. Newly generated skills teach canonical commands; the
 compatibility-only `sase_changespecs` source has been retired, so the next
 `sase skill init` from a landed host revision should prune leftover provider copies. Do
@@ -24,7 +24,7 @@ not deploy generated skills from an unlanded source revision.
 The chezmoi destination is global and shared by every workspace, so deploying from a
 dirty or unmerged tree deploys content that exists in no landed source revision in the
 sase repo and reverts whatever another agent deployed. After changing a skill source
-file in `src/sase/xprompts/skills/`:
+file in `src/sase/macros/skills/`:
 
 1. Preview while iterating with `sase skill init --diff` or `--dry-run` (read-only; no
    guard applies).
@@ -32,9 +32,9 @@ file in `src/sase/xprompts/skills/`:
 3. From that clean, merged tree, run `sase skill init --force`, then `chezmoi apply` if
    it was skipped.
 
-A chezmoi deploy is refused when `src/sase/xprompts/` has uncommitted changes, when
-`HEAD` is not an ancestor of the canonical branch, or when the recorded provenance
-manifest (`.sase-skills-manifest.json` in the chezmoi source root) names a source commit
+A chezmoi deploy is refused when `src/sase/macros/` has uncommitted changes, when `HEAD`
+is not an ancestor of the canonical branch, or when the recorded provenance manifest
+(`.sase-skills-manifest.json` in the chezmoi source root) names a source commit
 different from the one being deployed. These refusals mean the source is not canonical
 yet — land it instead of overriding.
 

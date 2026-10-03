@@ -22,7 +22,7 @@ The final deterministic labels match the current product model:
 
 1. `sase's TUI` is the interactive control surface and `AXE` is the scheduled/background
    surface.
-2. Prompt, XPrompt, and Workflow are grouped as reusable inputs rather than peer runtime
+2. Prompt, Macro, and Workflow are grouped as reusable inputs rather than peer runtime
    modules.
 3. The three isolated workspace cards contain the current labels `Claude Code`, `Codex`,
    and `Antigravity CLI`.

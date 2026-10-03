@@ -48,7 +48,7 @@ Configured linked and sidecar repositories associated with this project:
   support.
 - `sase-research-artifacts`: Installable artifact-reference plugin that provides the
   `@research` document provider, `research-highlights` file-hook template, and
-  `#research*` xprompts.
+  `#research*` macros.
 - `sase-listen`: Standalone text-to-speech CLI for turning Markdown into chaptered,
   loudness-normalized MP3 audio editions and publishing private podcast feeds.
 - `sase--research`: Durable SASE research reports and generated media used by research
@@ -116,27 +116,27 @@ memory files directly.
 2. **`sase/memory/dispatch.md`** - Read before dispatching agents to a remote machine
    with `%dispatch`.
 3. **`sase/memory/generated_skills.md`** - Read when working with sase agent skills (aka
-   xprompt skills), which are generated from source templates in the
-   `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for
+   macro skills), which are generated from source templates in the
+   `src/sase/macros/skills/` and deployed to managed locations (my chezmoi repo, for
    example).
 4. **`sase/memory/lint_and_test.md`** - If you changed any file tracked by git in the
    sase repo (excluding file changes in the separate repos contained in the sase/repos/
    directory), you MUST read this note before you finish your turn.
-5. **`sase/memory/sase_artifacts.md`** - Read before creating, consuming, resolving,
+5. **`sase/memory/macros.md`** - Read before macros, prompt directives, or launching
+   agents with git/gh VCS workflow blocks.
+6. **`sase/memory/sase_artifacts.md`** - Read before creating, consuming, resolving,
    linking, or managing retention for SASE artifact references and indexed files.
-6. **`sase/memory/sase_beads.md`** - Read before creating, updating, closing, or
+7. **`sase/memory/sase_beads.md`** - Read before creating, updating, closing, or
    querying sase beads — bead types and tiers, the status lifecycle agents must never
    hand-edit, task-bead triage, phase-bead description prefixes, and non-cascading
    close, resolution, and note semantics.
-7. **`sase/memory/sase_flags.md`** - Read before adding, deferring, or removing a SASE
+8. **`sase/memory/sase_flags.md`** - Read before adding, deferring, or removing a SASE
    feature flag or flag bead, and before deprecating user-reaching behavior or landing
    code whose old branch must stay reachable for backward compatibility.
-8. **`sase/memory/symvision.md`** - Read before fixing Symvision lint failures,
+9. **`sase/memory/symvision.md`** - Read before fixing Symvision lint failures,
    including unused symbols, private misuse, pragmas, and epic whitelists.
-9. **`sase/memory/tui.md`** - Read before changing the SASE TUI, its live screenshot
-   tooling, visual snapshots, or performance-sensitive UI paths.
-10. **`sase/memory/xprompts.md`** - Read before xprompts, prompt directives, or
-    launching agents with git/gh VCS workflow blocks.
+10. **`sase/memory/tui.md`** - Read before changing the SASE TUI, its live screenshot
+    tooling, visual snapshots, or performance-sensitive UI paths.
 
 ## 3. Memory Webs
 
@@ -249,17 +249,17 @@ jump target); Agent Tab (agents sub-tab, agents sub-tabs); Agent Tribe; Agent Tu
 Artifact; Artifact Markdown File (artifact md file, artifact md); Artifact Reference
 (ref); Core Memory (core memory); Current Project; Deck Panel (deck layout); Failure
 Signature; Feature Flag; Flag Bead (flag bead); Gate Turn; Goal (⌖); Job (Chop); LLM
-Calls; Machine Tab; Memory Strand; Memory Web; Named Proc; Nav Item (navigation item);
-Nav Section (navigation section); Node Panel; Oneshot Service Proc (oneshot, background
-command); Patch; Proc; Project Tag (xprompt project tag); Prompt Stash (stash); Receipt;
-Reference Memory (reference memory); Required Plugin (required plugin); Routine
-(Lumberjack); Sase Agent (agent); Sase Agent Session (agent session); Sase Gate (gate);
-Sase Monitor (monitor, monitor turn); Sase Node (node); Sase Project; Sase Repo; Sase
-Scheduler (scheduler, AXE); Sase Service (service host); Sase Turn (turn); Sase
-Workspace (workspace); Service Proc; Stash Trash; Stitch; Strand Keyword; Task Type
-(task type); Tool Catalog; Tool Run; Triage Verdict; Usage Window (usage-window);
-Xprompt; Xprompt Memory (memory file, sase memory); Xprompt Part; Xprompt Swarm; Xprompt
-Workflow
+Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro
+Part; Macro Swarm; Macro Workflow; Memory Strand; Memory Web; Named Proc; Nav Item
+(navigation item); Nav Section (navigation section); Node Panel; Oneshot Service Proc
+(oneshot, background command); Patch; Proc; Project Tag (macro project tag); Prompt
+Stash (stash); Receipt; Reference Memory (reference memory); Required Plugin (required
+plugin); Routine (Lumberjack); Sase Agent (agent); Sase Agent Session (agent session);
+Sase Gate (gate); Sase Monitor (monitor, monitor turn); Sase Node (node); Sase Project;
+Sase Repo; Sase Scheduler (scheduler, AXE); Sase Service (service host); Sase Turn
+(turn); Sase Workspace (workspace); Service Proc; Stash Trash; Stitch; Strand Keyword;
+Task Type (task type); Tool Catalog; Tool Run; Triage Verdict; Usage Window
+(usage-window)
 
 ### 3.3 Task Bead Types (task_types)
 

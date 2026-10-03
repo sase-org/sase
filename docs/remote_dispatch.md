@@ -211,7 +211,7 @@ explicit before submission; it stays hidden for ordinary local launches.
 
 Remote launch carries portable project evidence rather than the controller's local
 paths. A trusted launch integration can supply a Patch reference or explicit revision in
-the durable request payload. Merely mentioning a Patch or xprompt in the prompt does not
+the durable request payload. Merely mentioning a Patch or macro in the prompt does not
 supply that source-side evidence. Without payload evidence, including for an ordinary
 `sase run` invocation, the controller requires a clean Git checkout, a current branch
 with an upstream, and a `HEAD` that is already published. This check happens before the

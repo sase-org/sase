@@ -1,15 +1,15 @@
 ---
-diagram: docs/images/xprompt-resolution-infographic.png
-embedded_in: docs/xprompt.md
+diagram: docs/images/macro-resolution-infographic.png
+embedded_in: docs/macros.md
 phase: final-review
 pdf: false
 ---
 
-# Final Review: `xprompt-resolution-infographic.png`
+# Final Review: `macro-resolution-infographic.png`
 
 ## Outcome
 
-The revised infographic is accurate enough to embed in `docs/xprompt.md`. It preserves
+The revised infographic is accurate enough to embed in `docs/macros.md`. It preserves
 the useful three-zone inputs → resolution → outcomes structure while removing legacy
 compatibility paths from the discovery inset.
 
@@ -30,7 +30,7 @@ The final labels match the authoritative launch and expansion model:
    developer tools.
 
 The discovery panel now presents only the 11 canonical project, home, config, plugin,
-and package sources from the current `docs/xprompt.md` table. Their relative first-wins
+and package sources from the current `docs/macros.md` table. Their relative first-wins
 order is preserved. The six legacy directory and config fallback paths are intentionally
 absent.
 

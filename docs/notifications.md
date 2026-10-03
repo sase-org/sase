@@ -747,7 +747,7 @@ of creating a new one.
   tags; later checks append `Still blocked on …` evidence.
 - **Hold armed and released.** Arming a `sase agent hold` admission hold posts one
   `agent_hold` row per armer with the `agent-hold` and `armed` tags, its expiry, and any
-  frozen `pending` capture counts. The [`%hold`](xprompt.md#hold-directive) directive
+  frozen `pending` capture counts. The [`%hold`](macros.md#hold-directive) directive
   pre-arms the same durable hold during launch submission. Re-arming appends `+1`
   evidence. A release posts an `agent-hold` / `released` row with the reason, including
   automatic release after the armer dies or the TTL expires. Expiry evidence names the

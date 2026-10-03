@@ -90,7 +90,7 @@ sase run "%model:grok/grok-4.7 +home summarize this workspace's layout; do not c
 sase agent list
 ```
 
-The `+home` [project tag](xprompt.md#project-tags) targets SASE's built-in `home`
+The `+home` [project tag](macros.md#project-tags) targets SASE's built-in `home`
 sandbox. On first use, SASE bootstraps that managed project with a bare git repository,
 a primary checkout, and generated SDD scaffolding, then launches the provider CLI in an
 isolated numbered workspace managed by SASE. Prompts with no workspace reference are
@@ -150,10 +150,10 @@ for editing. `Esc` closes the overlay.
 Pressing `,` then `.` does not reopen this home launch. `#git:home` is the default
 workspace prefix, and sase does not keep it on the list of recently launched workspace
 prefixes that `,.` reads. With nothing else on that list, sase warns
-`No previously launched VCS xprompt` and stays on the current tab. After you have
-launched some other project, `,.` opens History from a main tab (not from inside a text
-field) and rewrites the workspace prefix of a prompt you submit or edit to that most
-recent non-home prefix.
+`No previously launched VCS macro` and stays on the current tab. After you have launched
+some other project, `,.` opens History from a main tab (not from inside a text field)
+and rewrites the workspace prefix of a prompt you submit or edit to that most recent
+non-home prefix.
 
 **Stash** holds drafts saved with `Ctrl+S` from a non-empty prompt pane. `Ctrl+S` on an
 empty prompt opens Stash instead of saving. **Trash** holds drafts you discarded from
@@ -201,8 +201,8 @@ status to change, not for the row to appear. The second instruction registers a 
 snapshot while leaving the tracked `notes.md` in the workspace.
 
 For your own repositories, target an existing managed project with its short
-[project tag](xprompt.md#project-tags): `sase run "+home list the files in this repo"`
-is the same launch as `sase run "#git:home list the files in this repo"`, and a GitHub
+[project tag](macros.md#project-tags): `sase run "+home list the files in this repo"` is
+the same launch as `sase run "#git:home list the files in this repo"`, and a GitHub
 project named `sase` can be targeted as `+sase` without remembering its provider. Use
 `#git:<name>` to create a managed project, or `#git:<bare-repo-path>` to register an
 existing bare repository. Provider plugins add other workspace references, such as
@@ -292,11 +292,11 @@ expansion order and literal regions.
 **What you just did.** Passed one durable output from a completed run to a new agent
 without depending on chat history or a recycled workspace path.
 
-## Step 7 — Reuse The Prompt As An XPrompt
+## Step 7 — Reuse The Prompt As A Macro
 
 A one-off prompt is fine once. The second time you find yourself reaching for it, wrap
-it as an **XPrompt** so you're not retyping the same paragraph forever. Create
-`sase/xprompts/til.md` at the project root where you run `sase`:
+it as an **Macro** so you're not retyping the same paragraph forever. Create
+`sase/macros/til.md` at the project root where you run `sase`:
 
 ```markdown
 Append one Today-I-Learned entry to `til.md` about something useful in this workspace.
@@ -309,15 +309,15 @@ Now the same agent run is one tag:
 sase run "#til"
 ```
 
-That is the smallest XPrompt shape: a single Markdown file becomes a reusable prompt
-part. Because this prompt has no workspace reference, the same `#git:home` default kicks
-in at launch. XPrompts also support YAML files with typed inputs, multi-step workflows
-(prompt parts, Python, bash, parallel fan-out, approvals), and `---` separators for
-multi-agent dispatch. The [XPrompts guide](xprompt.md) covers the full surface, and the
+That is the smallest Macro shape: a single Markdown file becomes a reusable prompt part.
+Because this prompt has no workspace reference, the same `#git:home` default kicks in at
+launch. Macros also support YAML files with typed inputs, multi-step workflows (prompt
+parts, Python, bash, parallel fan-out, approvals), and `---` separators for multi-agent
+dispatch. The [Macros guide](macros.md) covers the full surface, and the
 [workflow spec reference](workflow_spec.md) documents the YAML form.
 
-**What you just did.** Turned a one-off prompt into a reusable XPrompt, the smallest
-unit of repeatable agent work in SASE.
+**What you just did.** Turned a one-off prompt into a reusable Macro, the smallest unit
+of repeatable agent work in SASE.
 
 ## Step 8 — Plan Bigger Work With SDD And Beads
 
@@ -393,7 +393,7 @@ The names you'll keep bumping into, in one place:
   prompt pane in NORMAL mode, `K` previews the term under the cursor and `gG` opens the
   browse-and-edit [Memory panel](ace.md#memory-panel) seeded on it. `gT` opens the
   [Snippets panel](ace.md#snippets-panel).
-- **[XPrompts](xprompt.md)** — reusable prompt templates and YAML workflows with typed
+- **[Macros](macros.md)** — reusable prompt templates and YAML workflows with typed
   inputs and multi-agent fan-out. See also [workflow specs](workflow_spec.md).
 - **[SDD](sdd.md)** — Spec-Driven Development. Plans and epics as first-class artifacts
   on disk.

@@ -30,12 +30,12 @@ already live; after a processless gate releases capacity, the successor must tra
 still-live claim or reacquire capacity normally. Workflow Python/bash steps and axe
 Patch runners hold none of this capacity.
 
-The bundled task, phase, and lander xprompts used by `sase bead work` do not set an
+The bundled task, phase, and lander macros used by `sase bead work` do not set an
 authored wait priority or a non-default queue weight, so they claim the default `1.0`
 capacity unit and default priority once eligible. A project, user, config, or plugin
-override of any bundled xprompt supplies its own body and may author a different
-priority or weight. `sase bead work --capacity N` still raises a segment to
-`ceil(weight)` when an override authors a weight greater than `N`.
+override of any bundled macro supplies its own body and may author a different priority
+or weight. `sase bead work --capacity N` still raises a segment to `ceil(weight)` when
+an override authors a weight greater than `N`.
 
 Selecting a ranked waiter in sase's TUI also shows a bounded `QUEUE` ladder in that same
 capacity-aware order. Its `N ahead` count is the number of earlier ladder entries.
@@ -167,7 +167,7 @@ own weight so already-parked upgrades keep the same run-alone behavior.
 
 ## Held agents
 
-An active [agent hold](../xprompt.md#hold-directive) keeps every agent it matches
+An active [agent hold](../macros.md#hold-directive) keeps every agent it matches
 `QUEUED` at this gate even when capacity is free. A held row ends with
 `held by <armer>`, and the agent's `waiting.json` and `sase agent list -j` entry carry
 `held_by` (the armer key) and `hold_expires_at`. The runner rewrites these fields on

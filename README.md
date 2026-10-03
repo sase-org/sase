@@ -36,7 +36,7 @@ want a standalone agent instead of a coordination layer, use those CLIs directly
 - Launch, monitor, resume, and archive agent runs from one keyboard-driven TUI (**sase's
   TUI**).
 - Run agents in parallel, each in an isolated numbered workspace clone.
-- Keep prompts and multi-step workflows reusable (**XPrompts**) instead of trapped in
+- Keep prompts and multi-step workflows reusable (**Macros**) instead of trapped in
   shell history.
 - Track every PR-sized unit of work with status, commits, comments, and review state
   (**Patches**).
@@ -96,10 +96,10 @@ sase tui                                                  # open the interactive
 
 For a first run, use the auto-detected-provider command, or one of the explicit
 Muse/Grok examples for deterministic provider selection. The `+home`
-[project tag](docs/xprompt.md#project-tags) targets the built-in `home` project, which
-is bootstrapped automatically, so the first run needs no project setup. It expands to
-the canonical `#git:home` workspace reference. After the run completes, `sase tui` opens
-the TUI with the completed run visible on the Agents tab.
+[project tag](docs/macros.md#project-tags) targets the built-in `home` project, which is
+bootstrapped automatically, so the first run needs no project setup. It expands to the
+canonical `#git:home` workspace reference. After the run completes, `sase tui` opens the
+TUI with the completed run visible on the Agents tab.
 
 If `sase doctor` reports a missing provider, install and authenticate it, then run the
 check again; see [Agent Providers](https://sase.sh/agent_providers/). For full
@@ -131,7 +131,7 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Goals](https://sase.sh/goals/) — track outcomes across agent runs
 - [Named Tools and ToolRuns](https://sase.sh/tool/) — run a declared command or an
   ad-hoc argv and keep the result, output, and diagnostics
-- [XPrompts](https://sase.sh/xprompt/) — reusable prompts and multi-step workflows
+- [Macros](https://sase.sh/macros/) — reusable prompts and multi-step workflows
 - [Patches](https://sase.sh/change_spec/) — tracked PR-sized units of work
 - [Scheduler and Service Host](https://sase.sh/axe/) — scheduled and background agent
   work

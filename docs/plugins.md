@@ -4,7 +4,7 @@ Sase uses Python
 [entry points](https://packaging.python.org/en/latest/specifications/entry-points/) to
 discover optional functionality installed in the same Python environment as `sase`.
 Runtime providers use [pluggy](https://pluggy.readthedocs.io/) hooks; resource plugins
-expose package data such as xprompt files and `default_config.yml`.
+expose package data such as macro files and `default_config.yml`.
 
 The core `sase` package provides the plugin infrastructure, the built-in LLM providers,
 and local git/directory workspace support. Extra packages add hosted VCS workflows,
@@ -24,7 +24,7 @@ Sase defines eleven entry point groups:
 | `sase_vcs`             | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
 | `sase_workspace`       | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
 | `sase_llm`             | Provider class    | LLM provider plugins                                | built-in or third-party         |
-| `sase_xprompts`        | Package module    | XPrompt templates and workflows                     | `my_sase_plugin`                |
+| `sase_macros`          | Package module    | Macro templates and workflows                       | `my_sase_plugin`                |
 | `sase_config`          | Package module    | Default configuration (`default_config.yml`)        | `sase-github`, `my_sase_plugin` |
 | `sase_plugin_manifest` | Package module    | Plugin metadata resource used by diagnostics        | third-party plugin packages     |
 
@@ -35,14 +35,14 @@ only: their provider ref is `<normalized-distribution>@<entry-point-name>`, and 
 code is imported later in an isolated helper subprocess only for the selected discovery
 or connection-plan operation.
 
-An `sase_xprompts` package may provide ordinary templates in `xprompts/`.
+An `sase_macros` package may provide ordinary templates in `macros/`.
 
 ## Available Plugin Packages
 
 | Package         | Description                                                                          | Entry Points                                                                                                                                                          |
 | --------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider              | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_dispatch: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations          | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`, `sase_task_types: github`                                     |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations          | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_macros: sase_github`, `sase_task_types: github`                                       |
 | `sase-telegram` | Telegram integration via job scripts (`sase_job_tg_outbound`, `sase_job_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                                                 |
 | `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                 | standalone Neovim plugin files (not Python entry points)                                                                                                              |
 
@@ -567,12 +567,12 @@ There are two discovery paths:
    `sase_vcs`, `sase_workspace`, and `sase_llm` entry points resolve to classes. The
    relevant registry loads the class, instantiates it, and registers the instance with a
    pluggy `PluginManager`.
-2. **Package resources**: `sase_xprompts`, `sase_config`, and `sase_plugin_manifest`
-   entry points resolve to modules. The shared helper in
-   `src/sase/main/plugin_discovery.py` sorts config and xprompt entry points by name,
-   loads the modules, and skips module load failures after logging them at debug level.
-   `sase doctor -C plugins.resources` loads resource entry points directly so packaging
-   problems are visible as diagnostics instead of only debug logs.
+2. **Package resources**: `sase_macros`, `sase_config`, and `sase_plugin_manifest` entry
+   points resolve to modules. The shared helper in `src/sase/main/plugin_discovery.py`
+   sorts config and macro entry points by name, loads the modules, and skips module load
+   failures after logging them at debug level. `sase doctor -C plugins.resources` loads
+   resource entry points directly so packaging problems are visible as diagnostics
+   instead of only debug logs.
 
 ### VCS Plugins (pluggy)
 
@@ -703,13 +703,13 @@ surface.
 See [docs/llms.md](llms.md) for the full LLM provider reference, including authoring new
 providers with `@hookimpl`.
 
-### XPrompt Plugins
+### Macro Plugins
 
-Plugin packages can contribute xprompt templates by declaring a `sase_xprompts` entry
-point that points to a module. The module's package directory is searched for
-`xprompts/*.md` files and `xprompts/*.yml` / `xprompts/*.yaml` workflow files. Plugin
-xprompts are priority 8 in the [discovery order](xprompt.md#discovery-order) (above
-built-in files and below config-based xprompts).
+Plugin packages can contribute macro templates by declaring a `sase_macros` entry point
+that points to a module. The module's package directory is searched for `macros/*.md`
+files and `macros/*.yml` / `macros/*.yaml` workflow files. Plugin macros are priority 8
+in the [discovery order](macros.md#discovery-order) (above built-in files and below
+config-based macros).
 
 ### Config Plugins
 
@@ -866,7 +866,7 @@ disabled via environment variables:
 | Variable                            | Effect                                                      |
 | ----------------------------------- | ----------------------------------------------------------- |
 | `SASE_DISABLE_PLUGINS`              | Disable resource plugins and third-party artifact providers |
-| `SASE_DISABLE_PLUGIN_XPROMPTS`      | Disable xprompt/workflow resource plugins only              |
+| `SASE_DISABLE_PLUGIN_MACROS`        | Disable macro/workflow resource plugins only                |
 | `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin `default_config.yml` resource loading only   |
 | `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable artifact-reference provider entry points only       |
 | `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable file-hook provider entry points only                |
@@ -945,19 +945,19 @@ class MyWorkspacePlugin:
         ...
 ```
 
-### Example: XPrompt Plugin
+### Example: Macro Plugin
 
-Place xprompt files in your package's `xprompts/` directory and register the module:
+Place macro files in your package's `macros/` directory and register the module:
 
 ```toml
-[project.entry-points."sase_xprompts"]
+[project.entry-points."sase_macros"]
 my_plugin = "my_sase_plugin"
 ```
 
 ```
 my_sase_plugin/
 ├── __init__.py
-└── xprompts/
+└── macros/
     ├── my_template.md
     └── my_workflow.yml
 ```

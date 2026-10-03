@@ -56,16 +56,16 @@ add/delete web strands; note bodies, existing strand bodies, and web descriptors
 `AGENTS.md` or the provider shims directly — only `sase memory init` (run from the
 panel's publish flow, or by hand) does that.
 
-## XPrompt Inclusion
+## Macro Inclusion
 
 Every valid ordinary flat note that declares `type: core` or `type: reference` is also
-available as an explicit `#memory/<stem>` xprompt reference:
+available as an explicit `#memory/<stem>` macro reference:
 `sase/memory/sase_artifacts.md` expands with `#memory/sase_artifacts`, and
 `sase/memory/sase_beads.md` expands with `#memory/sase_beads`. The `memory/` prefix is
-required — there is no bare `#<stem>` alias, and an ordinary xprompt cannot claim the
+required — there is no bare `#<stem>` alias, and an ordinary macro cannot claim the
 `memory/` namespace. A selected project's note shadows a same-stem home note using the
 same first-wins precedence described in [Audited Reads](#audited-reads) below. A
-type-free memory-web descriptor is not an xprompt catalog entry: its body is already
+type-free memory-web descriptor is not a macro catalog entry: its body is already
 inlined into the generated `## Memory Webs` instruction section. Strand bodies stay on
 demand; read them with `sase memory read <web>:<keyword>`, covered in
 [Memory Webs](#memory-webs) below.
@@ -76,7 +76,7 @@ This is explicit, launch-time prompt composition, not an audited lookup: expandi
 `sase memory read` (below) when an already-running agent needs to consult reference
 memory on its own and have that access recorded. It is not a restoration of the retired
 dynamic-memory runtime — there is no keyword matching, prompt scanning, or automatic
-context injection. See [Memory Field](xprompt.md#memory-field) for the full expansion
+context injection. See [Memory Field](macros.md#memory-field) for the full expansion
 contract and [Memory Order](content_layout.md#memory-order) for source precedence.
 
 ## Inspect Context
@@ -237,7 +237,7 @@ files are its strands. The bundled `glossary` web ships this way:
 its Memory Webs subsection, plus — for a web that opts into an inline roster, as
 `glossary` does — a single semicolon-separated `**GLOSSARY TERMS:**` line naming every
 strand keyword and alias. The descriptor note is listed by `sase memory list` and is not
-a `#memory/<stem>` xprompt catalog entry because it declares no flat-note `type:`.
+a `#memory/<stem>` macro catalog entry because it declares no flat-note `type:`.
 `sase memory read glossary.md` also fails because `read` rejects an always-loaded memory
 web descriptor the same way it rejects core notes as already-loaded context; read its
 strand bodies with `glossary:<keyword>` selectors instead.

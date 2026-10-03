@@ -140,8 +140,8 @@ def test_scan_memory_links_skips_fenced_and_inline_code() -> None:
 
 
 def test_scan_memory_links_ignores_real_macros_inline_code_case() -> None:
-    text = Path("sase/memory/xprompts.md").read_text(encoding="utf-8")
-    body = parse_memory_note_text(text, "xprompts.md").body
+    text = Path("sase/memory/macros.md").read_text(encoding="utf-8")
+    body = parse_memory_note_text(text, "macros.md").body
 
     links = scan_memory_links(body)
 

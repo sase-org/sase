@@ -449,9 +449,9 @@ replaced onto the `^` history stack, and returns focus to the list. `Escape` aba
 the edit, restoring the committed query, its result, and the row you had selected. A
 parse error stays inline in the row and leaves the visible Patch list on the last valid
 query. `Tab` accepts completions for keys, values, shorthand sigils, state predicates,
-status macros, and — while the row is empty — saved-slot commands. Saved-query commands
-such as `#3 status:Draft`, `# status:Ready`, and `#3` save, allocate, or delete a slot
-without changing the active query or closing the editor.
+status shorthands, and — while the row is empty — saved-slot commands. Saved-query
+commands such as `#3 status:Draft`, `# status:Ready`, and `#3` save, allocate, or delete
+a slot without changing the active query or closing the editor.
 
 Stitches keeps its effective canonical query visible above the timeline. Press `/` or
 the local `f` shortcut to focus that row for live editing; `Enter` commits the query and
@@ -822,8 +822,8 @@ another commit always returns the modal to commit mode.
 
 Press `Enter` on a Beads entry, provider document, or Files row to open its full
 contents in the preview reader. Prompt-normal-mode `K` opens the same reader for a
-previewable xprompt, skill, or file. When sase's TUI knows a canonical artifact
-reference, the title shows that logical reference beside the resolved local path.
+previewable macro, skill, or file. When sase's TUI knows a canonical artifact reference,
+the title shows that logical reference beside the resolved local path.
 
 The reader opens at its normal size when the content fits and grows toward a
 near-full-screen maximum (a thin backdrop margin remains) for long or wide content.
@@ -840,7 +840,7 @@ recomputes it.
 | `Y`                 | Copy the local source path, when available                 |
 | `%`                 | Open the active Artifacts sub-tab's **Copy as…** palette   |
 | `R`                 | Toggle Markdown previews between rendered and source views |
-| `p`                 | Toggle the full xprompt properties view                    |
+| `p`                 | Toggle the full macro properties view                      |
 | `/`                 | Open source search (smartcase substring matching)          |
 | `n` / `N`           | Jump to the next / previous match with wraparound          |
 | `o`                 | Open the source path in `$EDITOR` (falling back to `nvim`) |
@@ -851,16 +851,16 @@ recomputes it.
 Path-only actions are omitted from the footer when the preview has no local source path;
 invoking one still produces a specific warning instead of failing. Clipboard operations
 run in the background and report when no clipboard tool is available. Plans open in
-rendered Markdown by default when they fit the reader's bounded render budget; xprompts,
+rendered Markdown by default when they fit the reader's bounded render budget; macros,
 skills, files, and oversized documents open as source.
 
-For an xprompt or skill preview with declared properties (inputs, tags, skill/snippet/
-memory flags, local xprompts, or steps), a compact band appears above the source pane
+For a macro or skill preview with declared properties (inputs, tags, skill/snippet/
+memory flags, local macros, or steps), a compact band appears above the source pane
 showing its description, an inputs table, and a dim chips summary of everything else it
 declares. `p` opens a full, scrollable properties view — the same projection
-`sase xprompt show` renders — with the band hidden while that view is active; `p` again
+`sase macro show` renders — with the band hidden while that view is active; `p` again
 restores whichever mode was showing before. A preview with no declared properties (a
-bare-body xprompt, a plain file, a bead, and so on) shows no band, no `p` row in the
+bare-body macro, a plain file, a bead, and so on) shows no band, no `p` row in the
 footer, and `p` emits a warning toast instead of switching views.
 
 Search is commit-on-enter: `/` opens a one-line input prefilled with the last committed
@@ -1139,14 +1139,14 @@ the full list. The section is omitted entirely when the Patch has no deltas.
 
 ### Workflows and Agents
 
-| Key        | Action                                                                                                                               |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `r`        | Run workflow on current PR                                                                                                           |
-| `+`        | Run a custom agent (opens project/Patch selection)                                                                                   |
-| `Space`    | Prefill the prompt with the most recently launched VCS xprompt (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt) |
-| `,<space>` | Run an agent from the current PR (skips selection)                                                                                   |
-| `Ctrl+G`   | Open that most recent VCS xprompt in `$EDITOR` first                                                                                 |
-| `@`        | Restore a stashed prompt                                                                                                             |
+| Key        | Action                                                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `r`        | Run workflow on current PR                                                                                                         |
+| `+`        | Run a custom agent (opens project/Patch selection)                                                                                 |
+| `Space`    | Prefill the prompt with the most recently launched VCS macro (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt) |
+| `,<space>` | Run an agent from the current PR (skips selection)                                                                                 |
+| `Ctrl+G`   | Open that most recent VCS macro in `$EDITOR` first                                                                                 |
+| `@`        | Restore a stashed prompt                                                                                                           |
 
 If sase's TUI cannot detect a workspace provider for the selected Patch or agent, the
 quick-launch actions show an error toast instead of opening a prompt with a broken VCS
@@ -1316,7 +1316,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 The Agents tab shows one agent tab at a time instead of the whole roster. A tab is a
 presentation-only placement: it never changes where an agent runs, its identity, clan,
 session, or tribe. Tabs come from each root's recorded tab (see
-[Tab Directive](xprompt.md#tab-directive)): `%tab:<name>` authors a named tab, and roots
+[Tab Directive](macros.md#tab-directive)): `%tab:<name>` authors a named tab, and roots
 without one land on the default tab. The default tab is labeled `main`, or
 `⌂ <machine name>` in machine mode (`ace.agent_tabs.machine_tabs`: `on`, or `auto` when
 dispatch machines are configured), where `<machine name>` is the viewer's
@@ -1661,7 +1661,7 @@ levels. Clan sections appear only when their content is known to exist: known-em
 sections are omitted, while unknown required disk-backed content produces one dim
 `⋯ scanning member data…` tail for the document instead of a placeholder for each
 section. Session rosters and their numeric jumps likewise remain available at both
-effective levels. Session xprompt and prompt sections are omitted when absent, while an
+effective levels. Session macro and prompt sections are omitted when absent, while an
 unfinished reply remains visible as pending rather than disappearing as empty.
 `AGENT PROMPT` and the consolidated `AGENT REPLY` are plain navigation anchors whose
 available conversation bodies stay fully visible at both session levels.
@@ -2292,7 +2292,7 @@ every fold to level 4; at level 4, it closes every fold to level 1:
 | Level | Name      | Tribe summary content                                                                                                                                                                                                                             |
 | ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | Glance    | Header, compact numbered top-level roster, attention previews, clan summary headline index (up to 8 clans), prompt headline digest (up to 8 distinct prompts), and headings/counts for non-empty sections                                         |
-| 2     | Triage    | Bounded previews for every represented section; every clan summary (up to 24) with styled ledes, and every distinct prompt (up to 24) with labels, xprompt chips, and sizes                                                                       |
+| 2     | Triage    | Bounded previews for every represented section; every clan summary (up to 24) with styled ledes, and every distinct prompt (up to 24) with labels, macro chips, and sizes                                                                         |
 | 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds; 16-line clan summary previews and 10-line prompt previews                                                                                                     |
 | 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, full clan summary bodies (500-line safety cap per clan), full prompt bodies (500-line safety cap per prompt) and launch directives, and all-time runtime statistics and percentiles |
 
@@ -2307,7 +2307,7 @@ itself lives in the jump panel): it maps what each agent in the tribe was asked 
 Its number chips are the same digits as the roster jump targets. Identical prompt bodies
 are listed once with a `×N` badge and a shared-by list. `za`/`zA` on a prompt entry
 opens just that prompt. It is the level-1 exception: unlike most sections, it shows
-prompt headlines at Glance instead of only a heading. Entries also carry green xprompt
+prompt headlines at Glance instead of only a heading. Entries also carry green macro
 chips and, for multi-line prompts, a dim line count, separated by dim `·` dividers. When
 the tribe's prompts target more than one known project, each entry ends with that
 project's accent-colored `+<project>` chip (or its `#<workflow>:<name>` spelling when
@@ -2841,7 +2841,7 @@ durable cleanup proc stops it through the native proc service — and `x` dismis
 finished one with no confirmation. Dismissal only clears the Agents-tab row — the proc
 stays visible in the [Procs pane](#durable-procs) and in `sase proc show`, and a
 dismissed Agents-tab row does not come back. See
-[Experimental typed launch units](xprompt.md#experimental-typed-launch-units) for the
+[Experimental typed launch units](macros.md#experimental-typed-launch-units) for the
 directives that create it.
 
 ### Agent Search
@@ -2855,8 +2855,8 @@ yank the current match or selection / its whole line, and `Esc` or `q` closes a
 committed search. The filter bar uses the same **structured Boolean Agent dialect** as
 Artifacts -> Agent and [`sase agent search`](configuration.md#sase-agent), evaluated
 against the live `agents-live` profile. Bare words match an agent's `cl_name`,
-`display_name`, `agent_name`, and `status`, plus its **xprompt, live reply/response,
-chat transcript, and prior attempt replies** through the `text` corpus. When
+`display_name`, `agent_name`, and `status`, plus its **macro, live reply/response, chat
+transcript, and prior attempt replies** through the `text` corpus. When
 `ace.current_project.seed_agents_query` is on, sase's TUI seeds this query with the
 current project's exact `project:` term on first load and marks it `seeded` until you
 edit it. That setting defaults **off** because the same query also drives unread jumps
@@ -3548,11 +3548,11 @@ removal bead, and removal horizon; it does not edit portable configuration files
 With the default-on `admin_center_flags` sunset flag, Config's nested catalog is:
 
 ```text
-01 All · 02 Flags · 03 Holds · 04 Launch · 05 Memory · 06 Snippets · 07 XPrompts
+01 All · 02 Flags · 03 Holds · 04 Launch · 05 Memory · 06 Snippets · 07 Macros
 ```
 
 Disable `admin_center_flags` to drop Flags, leaving the six-child catalog numbered `01`
-All through `06` XPrompts. `sase flag enable` and `sase flag disable` remain available
+All through `06` Macros. `sase flag enable` and `sase flag disable` remain available
 either way; they are the recovery and automation surface when the pane is off.
 
 The pane uses the Admin Center list/detail layout: a header with registered/on/saved
@@ -3598,8 +3598,8 @@ These work on all tabs:
 | `;`                     | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
 | `i`                     | Show notifications inbox                                                                                                                                               |
 | `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                     |
-| `Space`                 | Prefill the prompt with the most recently launched VCS xprompt (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt)                                   |
-| `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                               |
+| `Space`                 | Prefill the prompt with the most recently launched VCS macro (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt)                                     |
+| `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS macro prefix                                                                                                 |
 | `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                      |
 | `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the Prompts overlay on Stash (`@@` pops the newest draft when several are stashed)              |
 | `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                          |
@@ -3644,7 +3644,7 @@ own keybindings table names its jump targets; two are deliberate exceptions. The
 Statistics tab has no row cursor, so `'` there arms the same numbered-view selection the
 `0` prefix already arms, using the visible strip numbers as hints. Config's nested
 catalog is ordered **01 All · 02 Flags · 03 Holds · 04 Launch · 05 Memory · 06 Snippets
-· 07 XPrompts** when `admin_center_flags` is on, or **01 All** through **06 XPrompts**
+· 07 Macros** when `admin_center_flags` is on, or **01 All** through **06 Macros**
 (without Flags) when it is off; `0` then the matching digits selects those children,
 while bare digits continue to belong to the active child or the Admin Center's top-level
 tabs. The Updates tab's single merged list jumps normally across every section — SASE,
@@ -3948,10 +3948,10 @@ system-managed projects such as `home` are excluded from the panel.
 ## Statistics Tab
 
 Open the SASE Admin Center with `#`, then press `6` or switch to **Statistics**. Its
-eight sub-tabs summarize overview, runners, projects, providers, agent activity, xprompt
+eight sub-tabs summarize overview, runners, projects, providers, agent activity, macro
 usage, plan/question activity, and performance for the selected time range. The strip is
 numbered **01 Overview · 02 Runners · 03 Projects · 04 Providers · 05 Activity · 06
-XPrompts · 07 Plans & Questions · 08 Perf**; press `0` and then the second digit to jump
+Macros · 07 Plans & Questions · 08 Perf**; press `0` and then the second digit to jump
 straight to a view. The Admin Center-wide `'` entry-jump key arms this same
 numbered-view selection instead of painting row hints — Statistics has no row cursor, so
 the already visible strip numbers act as its jump hints; `Esc` or any non-digit cancels.
@@ -3975,35 +3975,35 @@ project chip remains visible but is marked **not applied**. See
 [Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
 for data sources, retention, and probe details.
 
-The Statistics **XPrompts** sub-tab reports xprompts referenced by agent launch prompts:
+The Statistics **Macros** sub-tab reports macros referenced by agent launch prompts:
 
-- **By Usage** ranks xprompts by runs and shows references, share, agents, success,
+- **By Usage** ranks macros by runs and shows references, share, agents, success,
   runtime, and recency.
-- **By Model** breaks each xprompt down by model.
+- **By Model** breaks each macro down by model.
 - **By Project** breaks it down by project.
-- **Used With** shows xprompts referenced together in the same run.
+- **Used With** shows macros referenced together in the same run.
 
 Press `g` to cycle those four groupings without reloading the underlying statistics.
-Press `x` to choose one xprompt and replace the ranking with its full time, model,
+Press `x` to choose one macro and replace the ranking with its full time, model,
 project, provider, tribe, and co-usage breakdown; press `X` to clear that focus. The
-range and project filters apply before all xprompt aggregation.
+range and project filters apply before all macro aggregation.
 
-These counts come from each run's launch-boundary `xprompts.json`, recorded before
-prompt expansion. A run counts once per xprompt name, while **Refs** counts distinct
-argument variants of the same name separately. References introduced inside workflow
-step templates are intentionally excluded. Historical runs appear after the
-agent-artifact index rebuilds at the current schema.
+These counts come from each run's launch-boundary `macros.json`, recorded before prompt
+expansion. A run counts once per macro name, while **Refs** counts distinct argument
+variants of the same name separately. References introduced inside workflow step
+templates are intentionally excluded. Historical runs appear after the agent-artifact
+index rebuilds at the current schema.
 
-Each record carries a kind — `workflow`, `part`, or `swarm`. An xprompt swarm is
-consumed by the dispatcher before any agent starts, so it never appears as a lexical
-reference in a child's prompt; instead the swarm is attributed to every agent it
-launched, and a nested swarm records every link of its chain. Because swarm records
-carry no arguments, **Refs** equals **Runs** for a swarm row. Attribution is
-forward-only: runs launched before this feature shipped are not backfilled.
+Each record carries a kind — `workflow`, `part`, or `swarm`. A macro swarm is consumed
+by the dispatcher before any agent starts, so it never appears as a lexical reference in
+a child's prompt; instead the swarm is attributed to every agent it launched, and a
+nested swarm records every link of its chain. Because swarm records carry no arguments,
+**Refs** equals **Runs** for a swarm row. Attribution is forward-only: runs launched
+before this feature shipped are not backfilled.
 
-This Statistics sub-tab is distinct from Config's **XPrompts** child described in
-[XPrompt Browser](#xprompt-browser): that child browses and edits xprompt definitions,
-while the Statistics sub-tab measures how launch prompts used them.
+This Statistics sub-tab is distinct from Config's **Macros** child described in
+[Macro Browser](#macro-browser): that child browses and edits macro definitions, while
+the Statistics sub-tab measures how launch prompts used them.
 
 ## Tools Tab
 
@@ -4517,9 +4517,9 @@ The fixed detail strip below the list explains the highlighted run: the recorded
 trail resolved to its concrete provider/model/effort, the same origin explanation as the
 chip (an honest, non-speculative note for `unrecorded` rather than a guessed reason),
 and the prompt snippet plus whichever of project, workspace, bead, Patch, start time and
-duration, retry attempt, hidden state, and xprompt context are actually present —
-nothing is invented for a field the query did not return. The returned window is a
-display limit, not the full retention history; the title's recorded/shown counts and the
+duration, retry attempt, hidden state, and macro context are actually present — nothing
+is invented for a field the query did not return. The returned window is a display
+limit, not the full retention history; the title's recorded/shown counts and the
 footer's "more available" hint make the difference visible.
 
 Below the detail strip, a compact model-usage region ranks the models the currently
@@ -4547,7 +4547,7 @@ the leftover count and percent so the shown shares still total 100%. `Ctrl+J`, `
 | `Esc` / `q`                         | Close and return to Launch Control, unchanged                                                      |
 
 A run without a durable agent name warns instead of copying a guessed reference, and a
-missing or unreadable `raw_xprompt.md` warns instead of closing the panel.
+missing or unreadable `raw_macros.md` warns instead of closing the panel.
 
 ### Temporary overrides
 
@@ -4906,20 +4906,20 @@ Agent completion and failure toasts include the `%id`-set agent name with an `@`
 when present (e.g., `CLAUDE(opus) @sase-q.land completed: ace(run)-...`); anonymous
 agents (no `agent_name`) keep the prior format.
 
-## XPrompt Browser
+## Macro Browser
 
 Press `#` on any tab to open **SASE Admin Center**, press `1` for **Config**, then
-choose the **XPrompts** child (`0` then `7`, or `[` / `]`; within a session, Config
-reopens on the child you used last). It displays all discovered xprompts in a two-panel
+choose the **Macros** child (`0` then `7`, or `[` / `]`; within a session, Config
+reopens on the child you used last). It displays all discovered macros in a two-panel
 layout: a filterable list on the left and a syntax-highlighted preview on the right.
-Markdown xprompts with leading YAML frontmatter render the frontmatter and body with
-their respective syntax styles.
+Markdown macros with leading YAML frontmatter render the frontmatter and body with their
+respective syntax styles.
 
-Xprompts are grouped by source (project `sase/xprompts/`, home `~/sase/xprompts/`,
+Macros are grouped by source (project `sase/macros/`, home `~/sase/macros/`,
 project-specific home, config `sase.yml`, plugins, built-in, plus labeled legacy
-compatibility sources). Workflow xprompts (multi-step YAML) are marked with a gear icon;
+compatibility sources). Workflow macros (multi-step YAML) are marked with a gear icon;
 standalone workflows are displayed with the `#!name` insertion syntax. Project-local
-xprompts defined in each project's `sase.yml` file are also included, even though the
+macros defined in each project's `sase.yml` file are also included, even though the
 TUI's normal config loading does not read project-local config files.
 
 The list rows and preview metadata show the same insertion form and visible input
@@ -4928,22 +4928,22 @@ surface because they are supplied by workflow execution rather than typed by the
 
 ### Keybindings
 
-| Key       | Action                                                                       |
-| --------- | ---------------------------------------------------------------------------- |
-| `j` / `↓` | Navigate to next xprompt                                                     |
-| `k` / `↑` | Navigate to previous xprompt                                                 |
-| `Ctrl+N`  | Navigate to next xprompt                                                     |
-| `Ctrl+P`  | Navigate to previous xprompt                                                 |
-| `'`       | Jump to a non-header row via adaptive hints                                  |
-| `/`       | Show and focus the filter input                                              |
-| `[` / `]` | Switch to the previous / next Config child                                   |
-| `Ctrl+D`  | Scroll preview panel down                                                    |
-| `Ctrl+U`  | Scroll preview panel up / clear input                                        |
-| `Enter`   | Target the highlighted xprompt: load it into the home prompt bar for editing |
-| `E`       | Open the highlighted definition in `$EDITOR`                                 |
-| `Ctrl+O`  | Add a new xprompt                                                            |
-| `Ctrl+I`  | Inline-expand the highlighted xprompt into the home prompt bar               |
-| `Esc`     | Close SASE Admin Center                                                      |
+| Key       | Action                                                                     |
+| --------- | -------------------------------------------------------------------------- |
+| `j` / `↓` | Navigate to next macro                                                     |
+| `k` / `↑` | Navigate to previous macro                                                 |
+| `Ctrl+N`  | Navigate to next macro                                                     |
+| `Ctrl+P`  | Navigate to previous macro                                                 |
+| `'`       | Jump to a non-header row via adaptive hints                                |
+| `/`       | Show and focus the filter input                                            |
+| `[` / `]` | Switch to the previous / next Config child                                 |
+| `Ctrl+D`  | Scroll preview panel down                                                  |
+| `Ctrl+U`  | Scroll preview panel up / clear input                                      |
+| `Enter`   | Target the highlighted macro: load it into the home prompt bar for editing |
+| `E`       | Open the highlighted definition in `$EDITOR`                               |
+| `Ctrl+O`  | Add a new macro                                                            |
+| `Ctrl+I`  | Inline-expand the highlighted macro into the home prompt bar               |
+| `Esc`     | Close SASE Admin Center                                                    |
 
 The filter input starts hidden. Press `/` to reveal it, then type to narrow the list in
 real time; `Enter` or `Esc` closes the input and returns to the list. While the input is
@@ -4952,28 +4952,28 @@ values such as `bug2` can be typed normally; `Ctrl+N` / `Ctrl+P`, `Ctrl+D` / `Ct
 `Ctrl+O`, and `Ctrl+I` still reach the list. From the list itself, `'` arms entry-jump
 over the non-header rows.
 
-### Editing XPrompts
+### Editing Macros
 
-Press `Enter` on any xprompt to load its definition into the home prompt bar and target
-it for editing — see
-[Editing an Existing XPrompt from the TUI](#editing-an-existing-xprompt-from-the-tui)
-for the full targeting loop, including the visual chip states, the target-aware `Enter`
-save menu, and the chezmoi-aware write path. Project, home, and config sources are
-editable and bind the bar to their source file. Read-only sources (legacy, plugin, and
-built-in) load without a target: the bar shows a persistent read-only marker instead,
-and `gw` falls through to the save-as flow so your edits land in a new, editable copy
-rather than being silently discarded. Press `E` to open an editable definition directly
-in `$EDITOR` instead; after saving, the browser offers the applicable follow-up actions
-(commit/push, a scoped chezmoi apply, or `sase memory init` / `sase skill init`).
+Press `Enter` on any macro to load its definition into the home prompt bar and target it
+for editing — see
+[Editing an Existing Macro from the TUI](#editing-an-existing-macro-from-the-tui) for
+the full targeting loop, including the visual chip states, the target-aware `Enter` save
+menu, and the chezmoi-aware write path. Project, home, and config sources are editable
+and bind the bar to their source file. Read-only sources (legacy, plugin, and built-in)
+load without a target: the bar shows a persistent read-only marker instead, and `gw`
+falls through to the save-as flow so your edits land in a new, editable copy rather than
+being silently discarded. Press `E` to open an editable definition directly in `$EDITOR`
+instead; after saving, the browser offers the applicable follow-up actions (commit/push,
+a scoped chezmoi apply, or `sase memory init` / `sase skill init`).
 
-### Creating XPrompts
+### Creating Macros
 
 Press `Ctrl+O` to start the guided creation flow:
 
-1. **Location modal** — Choose where to save the new xprompt (project `sase/xprompts/`,
-   home `~/sase/xprompts/`, project `sase/sase.yml`, or a global config file). Legacy
-   sources remain browseable but are never new-write destinations. Press `Ctrl+G` to
-   open the selected config file in `$EDITOR` instead of proceeding with creation.
+1. **Location modal** — Choose where to save the new macro (project `sase/macros/`, home
+   `~/sase/macros/`, project `sase/sase.yml`, or a global config file). Legacy sources
+   remain browseable but are never new-write destinations. Press `Ctrl+G` to open the
+   selected config file in `$EDITOR` instead of proceeding with creation.
 2. **Filename modal** — Enter a filename (`.md` for prompt parts, `.yml` for workflows).
    Workflow files are pre-filled with a YAML template containing the workflow scaffold.
 3. **Editor** — The file opens in `$EDITOR` for editing.
@@ -5104,7 +5104,7 @@ the `origin:` query property.
 
 ## Current project
 
-sase's TUI has one **current project**: the head of the VCS xprompt MRU store. Launching
+sase's TUI has one **current project**: the head of the VCS macro MRU store. Launching
 an agent on a project — or on a Patch owned by that project — promotes it to that head.
 `sase project set-current <project>` and the Projects tab's `c` key (see
 [Projects Tab](#projects-tab)) move it the same way, by promoting the project to the MRU
@@ -5296,11 +5296,11 @@ names such as `0`, then `1`.
 An explicit `%id` value containing exactly one marker is an agent-name template. The
 legacy marker is bare `@`, so the first allocation for `%id:@.cld` becomes `0.cld`,
 `%id:build-@` becomes `build-0`, and `%id:research.@.final` becomes `research.0.final`.
-Keyed markers such as `%id:research.{@1}.final` are preferred for xprompt swarms: SASE
+Keyed markers such as `%id:research.{@1}.final` are preferred for macro swarms: SASE
 resolves every matching key in `%id`, `%clan`, `clan=`, waits, fork/resume references,
 and prose before any spawned member can start. Bare `@` still works, but template
 references use latest-wins lookup and can be unsafe when a swarm member starts after a
-newer overlapping launch. See [XPrompt template directives](xprompt.md#directives) for
+newer overlapping launch. See [Macro template directives](macros.md#directives) for
 `{@<id>}` and `{@<id>!}` qualification rules.
 
 Names are permanent IDs: a name used by any existing agent state remains reserved until
@@ -5930,34 +5930,34 @@ the preferred card.
   through Timestamps, plus Fold where present) renders in its own always-visible panel
   at the top of the detail column, above the deck panels in every deck layout.
   Collapsed, it keeps the two chip rows — who and how on row 1, what and state on row 2
-  — and previews the agent's `AGENT XPROMPT` below them as a card: an `XPROMPT` tab row
-  over a rectangle on the Monokai code surface, so the prompt reads as one block apart
-  from the metadata chips. Every card row carries the `▎` quote bar in the XPROMPT
-  accent, which acts as the card's accent edge; hard-wrapped prose reflows into wrapped
-  rows, hard breaks render as a dim `¶`, and the highlighting matches the expanded
-  prompt. The card fills the panel width and shows at most three rows
+  — and previews the agent's `AGENT MACRO` below them as a card: an `MACRO` tab row over
+  a rectangle on the Monokai code surface, so the prompt reads as one block apart from
+  the metadata chips. Every card row carries the `▎` quote bar in the MACRO accent,
+  which acts as the card's accent edge; hard-wrapped prose reflows into wrapped rows,
+  hard breaks render as a dim `¶`, and the highlighting matches the expanded prompt. The
+  card fills the panel width and shows at most three rows
   (`ace.agent_header.collapsed_preview_max_rows`), fewer when the
   `ace.agent_header.collapsed_max_share` height budget of a short column is tighter (`0`
   still turns the preview off and shows no tab). The tab row counts against that budget,
   next to the border and the chip rows. On overflow the last row ends in `…` and the
   border subtitle becomes `+N lines · ▾ d more` (`+1 line` when one line is hidden). `d`
-  expands the panel to the full field list plus the complete `AGENT XPROMPT` under its
-  own heading (or collapses it back). The kind label moves into the panel's border title
-  in the node's accent color — `AGENT`, `AGENT TURN`, `SESSION`, `CLAN`, `WORKFLOW`,
+  expands the panel to the full field list plus the complete `AGENT MACRO` under its own
+  heading (or collapses it back). The kind label moves into the panel's border title in
+  the node's accent color — `AGENT`, `AGENT TURN`, `SESSION`, `CLAN`, `WORKFLOW`,
   `STEP`, `GATE TURN`, `MONITOR TURN`, `NAMED PROC`, or, for a selected whole tribe
   panel, `TRIBE` — and the border subtitle shows what `d` will do (`▾ d more` /
   `▴ d less`, naming the configured `toggle_agent_header` key). The panel is hidden only
-  for "No agent selected". `AGENT XPROMPT` no longer renders in the scrolling body and
-  is not a `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words through
+  for "No agent selected". `AGENT MACRO` no longer renders in the scrolling body and is
+  not a `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words through
   `AGENT PROMPT`. A clan's collapsed rows mirror the tribe layout: name, status, and
   count chip on row 1; tribes, member totals, runtime, and the fold chip on row 2.
   Collapsed/expanded state is per session and holds across row moves, tribe focus, and
   layout changes. Hint mode never changes the panel's state: expanded, its fields and
-  `AGENT XPROMPT` carry hint markers numbered first; collapsed, it keeps its normal
+  `AGENT MACRO` carry hint markers numbered first; collapsed, it keeps its normal
   preview, header content gets no markers, and numbering starts in the deck body.
-  Attempt-pinned views never rendered `AGENT XPROMPT` and show no preview, and nodes
-  without an xprompt show exactly the two chip rows inside the border. Deck search
-  (`,/`) covers the focused panel's deck only, since header fields stay on screen.
+  Attempt-pinned views never rendered `AGENT MACRO` and show no preview, and nodes
+  without a macro show exactly the two chip rows inside the border. Deck search (`,/`)
+  covers the focused panel's deck only, since header fields stay on screen.
 - **Jump panel**: Every live numbered roster target (session turns, neighbors, clan
   members, tribe members) lives in its own always-visible panel at the bottom of the
   detail column, below the deck panels in every deck layout; the Main deck body does not
@@ -6157,7 +6157,7 @@ the preferred card.
   consolidated session reply after settlement, including terminal branches that
   intentionally launch no successor. Legacy dotted and single-dash suffixes render the
   same way.
-- **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with
+- **WORKFLOW VARIABLES**: macro workflow output variables from step outputs with
   additional `meta_*` keys are grouped under a dedicated header. The special routing
   keys `meta_project`, `meta_patch`, and `meta_workspace` are promoted into the normal
   header fields; `meta_changespec` remains accepted as a legacy alias for `meta_patch`.
@@ -6558,7 +6558,7 @@ that needs the terminal gate result can then run
 An agent hold is a durable reverse wait: while it is active, matching `WAITING` or
 `QUEUED` agents, later launches, and undispatched procs are kept from starting. Holds
 are armed with [`sase agent hold`](cli.md#sase-agent-hold) or the
-[`%hold` directive](xprompt.md#hold-directive). sase's TUI shows holds in three places:
+[`%hold` directive](macros.md#hold-directive). sase's TUI shows holds in three places:
 
 - **Agents tab rows.** A `QUEUED` row parked by a hold appends `held by <armer>` after
   its queue position. If a held agent and the agent that armed the hold end up blocking
@@ -6674,8 +6674,8 @@ ace:
       cycle_group: "g"
       cycle_project_filter: "p"
       cycle_project_filter_reverse: "P"
-      focus_xprompt: "x"
-      clear_xprompt_focus: "X"
+      focus_macro: "x"
+      clear_macro_focus: "X"
       scroll_down: "ctrl+d"
       scroll_up: "ctrl+u"
       refresh: "f10"
@@ -6694,14 +6694,14 @@ always shows the effective keys. Press the configured `select_view` prefix and t
 to switch the Admin Center's top-level tabs. `jump_to_entry` arms that same
 numbered-view selection, which is how the Admin Center-wide `'` behaves on a pane that
 has no row cursor to jump between — the visible strip numbers serve as its hints. The
-group control is visible and active only in Projects, XPrompts, and Perf. On the
-XPrompts view, the focus key opens a filterable picker and the clear-focus key restores
-**All xprompts**. Project filtering cycles through **All projects** and the latest
-cached unfiltered ranking: the configured forward key moves toward the first ranked
-project, the reverse key moves toward the last, and both wrap. First open seeds the
-current project when `ace.current_project.seed_filters` is on; either key can cycle away
-from that seed. Either key clears an active project filter directly when its loaded
-result is empty.
+group control is visible and active only in Projects, Macros, and Perf. On the Macros
+view, the focus key opens a filterable picker and the clear-focus key restores **All
+macros**. Project filtering cycles through **All projects** and the latest cached
+unfiltered ranking: the configured forward key moves toward the first ranked project,
+the reverse key moves toward the last, and both wrap. First open seeds the current
+project when `ace.current_project.seed_filters` is on; either key can cycle away from
+that seed. Either key clears an active project filter directly when its loaded result is
+empty.
 
 ### Remapping Gate Modal Keys
 
@@ -6843,23 +6843,23 @@ space-indented `<N>.` / `<N>)` ordered marker, are additionally bolded with the 
 theme-aware accent, including inside fenced code; this presentation does not change the
 prompt text. A tab-indented dash or ordered marker is not treated as a list marker.
 
-Known xprompt syntax is layered over the Markdown colors using the active theme:
-`#xprompt` references are bold in the theme's success color, `%directives` are bold in
-its warning color, `/skill` references use a tint of the accent color, and `---`
-separators are dimmed. Argument text is split into parts instead of one flat color —
-delimiters such as `:`, `(`, `,`, and `)` and the `=` sign are muted, keyword names use
-a lighter tint of the owning reference's color, and values are tinted by type (strings,
-numbers, and booleans each get their own hue). Directive arguments get the same
-treatment in the directive palette. An argument that names an unknown keyword, repeats a
-keyword, or has a value of the wrong type is additionally underlined.
+Known macro syntax is layered over the Markdown colors using the active theme: `#macro`
+references are bold in the theme's success color, `%directives` are bold in its warning
+color, `/skill` references use a tint of the accent color, and `---` separators are
+dimmed. Argument text is split into parts instead of one flat color — delimiters such as
+`:`, `(`, `,`, and `)` and the `=` sign are muted, keyword names use a lighter tint of
+the owning reference's color, and values are tinted by type (strings, numbers, and
+booleans each get their own hue). Directive arguments get the same treatment in the
+directive palette. An argument that names an unknown keyword, repeats a keyword, or has
+a value of the wrong type is additionally underlined.
 
 When loaded prompt text contains literal top-level `---` multi-agent separators, sase's
 TUI renders the text as a prompt stack: one pane per agent segment. YAML frontmatter at
 the start stays prompt-level metadata, and `---` lines inside fenced code blocks are
-left alone. A `#name` xprompt swarm invocation stays a single pane and expands only when
+left alone. A `#name` macro swarm invocation stays a single pane and expands only when
 it is launched. During live editing, typed `---` lines stay literal text; add prompt
 panes with `g-` in prompt NORMAL mode. The detailed multi-agent parsing rules live in
-the [XPrompt reference](xprompt.md#multi-agent-prompts).
+the [Macro reference](macros.md#multi-agent-prompts).
 
 ### Cursor Readout
 
@@ -6928,28 +6928,28 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+G G`                   | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                                                                                                                                                                                                          |
 | `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                                                                                                                                                                                                             |
 | `Ctrl+G D`                   | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                                                                                                                                                                                                                    |
-| `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                                                                                                                                                                                                                  |
+| `Ctrl+G d`                   | Edit the macro definition under the cursor in the prompt bar                                                                                                                                                                                                                                                                    |
 | `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                                                                                                                                                                                                        |
-| `Ctrl+G w`                   | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                                                                                                                                                                                                        |
-| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                                                                                                                                                                                                                    |
+| `Ctrl+G w`                   | Write a bound macro definition; unbound drafts fall through to save-as                                                                                                                                                                                                                                                          |
+| `Ctrl+G =`                   | Show/focus the macro frontmatter panel; its rows-mode `g=` returns to the originating pane                                                                                                                                                                                                                                      |
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                                                                                                                                                                                                                  |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                                                                                                                                                                                                        |
-| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open or retarget one mini-xprompt pane                                                                                                                                                                                                                                                                                          |
+| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open or retarget one mini-macro pane                                                                                                                                                                                                                                                                                            |
 | `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                                                                                                                                                |
-| `Ctrl+G X`                   | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                                                                                                                                                                                                            |
-| `Ctrl+G L`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                                                                                                                                                                                                            |
+| `Ctrl+G X`                   | Save as reusable macro/snippet; macro mode converts raw `<tags>`                                                                                                                                                                                                                                                                |
+| `Ctrl+G L`                   | Convert the active pane into a frontmatter-local macro; raw `<tags>` become inputs                                                                                                                                                                                                                                              |
 | `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                                                                                                                                                                                                   |
 | `Ctrl+G p`                   | Open the Prompts overlay on Stash                                                                                                                                                                                                                                                                                               |
 | `Ctrl+G r`                   | Open the recent-files history menu (recently referenced files and `@kind:payload` references)                                                                                                                                                                                                                                   |
 | `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                                                                                                                                                                                                                   |
 | `Ctrl+K`                     | Open the Prompts overlay on History from a single-line prompt, scoped to that prompt's project (see [Prompts Overlay](#prompt-history-modal))                                                                                                                                                                                   |
-| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its last row                                                                                                                                                                                   |
-| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its first row                                                                                                                                                                                  |
+| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes (no-prefix stop before wrapping); in a macro keyword slot, open the keyword menu at its last row                                                                                                                                                                                      |
+| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes (no-prefix stop before wrapping); in a macro keyword slot, open the keyword menu at its first row                                                                                                                                                                                     |
 | `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, history words, or next-word ghosts and border peeks; at a whitespace boundary it requests next words instead — recent files moved to `Ctrl+G r`; a second press accepts the highlighted word-menu row or takes one ghost or peek word; see [Completion](#completion)) |
 | `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                                                                                                                                                                                                                            |
 | `Tab`                        | Expand a snippet or advance its tabstop; otherwise indent a bullet or nest an ordered item under a preceding marker                                                                                                                                                                                                             |
 | `Shift+Tab`                  | Retreat to the previous snippet tabstop; otherwise dedent a bullet or unnest an ordered item into its enclosing run                                                                                                                                                                                                             |
-| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                                                                                                                                                                                                                 |
+| `#@`                         | Open Macro snippet picker (type `#` then `@`)                                                                                                                                                                                                                                                                                   |
 | `Escape` / `Ctrl+]`          | Switch to vim NORMAL mode; `Ctrl+]` is the race-free alternative when typing following NORMAL commands quickly                                                                                                                                                                                                                  |
 
 In prompt INSERT mode, sase's TUI auto-pairs safe openers for `()`, `[]`, `{}`, `<>`,
@@ -6960,13 +6960,13 @@ before token characters, when text is selected (the typed character replaces the
 selection literally), for contractions or possessives, and for repeated quotes/backticks
 needed to type Markdown fences or code spans.
 
-When `(` is typed immediately after an xprompt or supported directive argument
-delimiter, the prompt input normalizes the shorthand in one keyboard edit. A single
-colon is removed (`#review:` -> `#review()`), while `::` followed only by ASCII spaces
-is moved after a complete pair (`#review:: body` -> `#review():: body`) with the caret
-inside the parentheses. The double-colon form preserves the exact spaces and suffix
-text; tabs, newlines, nonbreaking spaces, existing argument lists, selected text, and
-literal regions keep ordinary insertion behavior.
+When `(` is typed immediately after a macro or supported directive argument delimiter,
+the prompt input normalizes the shorthand in one keyboard edit. A single colon is
+removed (`#review:` -> `#review()`), while `::` followed only by ASCII spaces is moved
+after a complete pair (`#review:: body` -> `#review():: body`) with the caret inside the
+parentheses. The double-colon form preserves the exact spaces and suffix text; tabs,
+newlines, nonbreaking spaces, existing argument lists, selected text, and literal
+regions keep ordinary insertion behavior.
 
 INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing
 space-indented `- ` bullet using that bullet's indentation. Prompt NORMAL-mode `J` is
@@ -7072,7 +7072,7 @@ as any required frontmatter-declared `input:` arguments. After confirmation, sas
 substitutes the collected values into the prompt and records history for the resolved
 prompt that the agents actually received.
 
-Inline backtick spans, fenced code blocks, and `%xprompts_enabled:false` regions are
+Inline backtick spans, fenced code blocks, and `%macros_enabled:false` regions are
 literal zones. Tags inside those zones are not highlighted as raw placeholders, recorded
 in the saved common-placeholder store, or collected on submit. Their text is still
 offered as a current-prompt completion candidate, ranked after live tags. Use backticks
@@ -7087,10 +7087,10 @@ placeholder rows literal. A literal row counts as filled and leaves its original
 
 Set `ace.prompt_inputs.collect_raw_placeholders: false` to stop collecting raw tags on
 submit; declared frontmatter inputs are still collected. Set
-`ace.prompt_inputs.xprompt_placeholder_args: false` to keep live raw tags literal when
+`ace.prompt_inputs.macro_placeholder_args: false` to keep live raw tags literal when
 using `gX`, `gL`, or a fresh `gx` extraction and mint no placeholder-derived `text`
 inputs; Jinja-variable inference for `gL` still runs. See
-[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact conversion
+[Raw Prompt Placeholders](macros.md#raw-prompt-placeholders) for the exact conversion
 and naming rules.
 
 ### Launch Target Picker
@@ -7142,19 +7142,19 @@ text; use `Ctrl+G -` while drafting, or `g-` from prompt NORMAL mode, to add a n
 bottom pane. `Ctrl+G g` and `Ctrl+G Ctrl+G` open the whole stack in `$EDITOR` when the
 bar already has multiple panes (a single-pane bar opens just the current prompt).
 Returning from a whole-bar editor session, or from a single-pane editor buffer with a
-` @` review marker, reloads xprompt-style Markdown and parses `---` separators into
-fresh panes. History loads parse only real multi-agent prompts; a single history item
-with leading YAML frontmatter stays one verbatim pane instead of auto-opening the
-Frontmatter Panel.
+` @` review marker, reloads macro-style Markdown and parses `---` separators into fresh
+panes. History loads parse only real multi-agent prompts; a single history item with
+leading YAML frontmatter stays one verbatim pane instead of auto-opening the Frontmatter
+Panel.
 
 A single-pane editor session normally launches the moment you close `$EDITOR`. To review
 it in the prompt bar first, end any line of the buffer with the exact suffix ` @` (a
 space followed by `@`). On return, that marker is stripped from every matching line and
-the cleaned text reloads with editor-file semantics: leading xprompt frontmatter is
-lifted into the Frontmatter Panel and real `---` separators split into one pane per
-agent, so a marked multi-agent buffer comes back as a reviewable stack instead of
-launching. The marker is editor-return-only — typing ` @` in the prompt bar and
-submitting carries no special meaning. (This replaces the removed `%edit` directive.)
+the cleaned text reloads with editor-file semantics: leading macro frontmatter is lifted
+into the Frontmatter Panel and real `---` separators split into one pane per agent, so a
+marked multi-agent buffer comes back as a reviewable stack instead of launching. The
+marker is editor-return-only — typing ` @` in the prompt bar and submitting carries no
+special meaning. (This replaces the removed `%edit` directive.)
 
 In prompt INSERT mode, pressing `Ctrl+G` opens the same context-aware hint row as prompt
 NORMAL mode's `g` prefix, plus the editor continuation. Press `Esc` while the prefix is
@@ -7177,19 +7177,19 @@ prefix actions currently available.
 | `gm`        | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                                                                 |
 | `gD`        | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                                                                        |
 | `gT`        | Open the Snippets panel; seeds from a bare trigger or `#[trigger]` under the cursor when one can be resolved without I/O                                                            |
-| `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane                                                                                 |
+| `g=`        | Show/focus the macro frontmatter panel; in panel rows mode, return to the originating prompt pane                                                                                   |
 | `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                                                                                                           |
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                                                                                                      |
-| `gw`        | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                                                            |
-| `gd`        | Edit the xprompt definition under the cursor in the prompt bar                                                                                                                      |
+| `gw`        | Write a bound macro definition; unbound drafts fall through to save-as                                                                                                              |
+| `gd`        | Edit the macro definition under the cursor in the prompt bar                                                                                                                        |
 | `gf`        | Reformat the active prompt pane's Markdown with Prettier                                                                                                                            |
-| `gx`        | Open or retarget one mini-xprompt pane                                                                                                                                              |
+| `gx`        | Open or retarget one mini-macro pane                                                                                                                                                |
 | `gt`        | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                    |
-| `gX`        | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>` and leaves the bar open                                                                                        |
-| `gL`        | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                                                                |
+| `gX`        | Save as reusable macro/snippet; macro mode converts raw `<tags>` and leaves the bar open                                                                                            |
+| `gL`        | Convert the active pane into a frontmatter-local macro; raw `<tags>` become inputs                                                                                                  |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane
-so local xprompts and metadata continue to resolve. Empty selected panes are dropped
+so local macros and metadata continue to resolve. Empty selected panes are dropped
 without launching. Whole-stack submission joins panes in top-to-bottom order and then
 uses the usual multi-agent launch path, including `%wait`, `%id`, `%model`, and other
 segment-local directives. A selected-pane TODO warning counts only that pane; a
@@ -7198,8 +7198,8 @@ Choosing **Keep editing**, `n`, `Escape`, or `q` leaves pane order, selection,
 frontmatter, and source binding intact. Segment order alone does not make later agents
 wait; add `%wait` to a later pane when it must start after the immediately preceding
 submitted pane succeeds. That bare wait binding also applies when the wait comes from a
-frontmatter-local or file-backed xprompt referenced by the pane. Explicit waits,
-`%queue`, and waits inside literal code/disabled regions keep their normal meanings.
+frontmatter-local or file-backed macro referenced by the pane. Explicit waits, `%queue`,
+and waits inside literal code/disabled regions keep their normal meanings.
 
 The `Enter` submit chooser accepts `Enter`, `a`, or `Ctrl+S` for all panes, `c` for the
 current pane, and `Esc`/`q` to cancel without changing the stack. For a single ordinary
@@ -7220,27 +7220,27 @@ restore focuses that pane in INSERT mode at the same logical line and column. Le
 rows and failed-launch recovery rows have no saved position, so they still restore to
 the last pane at end of text. `gX` and `Ctrl+G X` open one save screen containing the
 name, storage location, resolved path, and a live preview when the name collides. Inside
-that screen, `Ctrl+X` switches between xprompt and snippet mode. `Ctrl+T` remains manual
+that screen, `Ctrl+X` switches between macro and snippet mode. `Ctrl+T` remains manual
 completion in the prompt input and does not toggle this save screen. A successful
 whole-stack save binds the prompt stack to that source. `gw` then performs atomic
 write-back, and if the source changed since load it offers overwrite, reload, or save-as
-instead of clobbering it. `gd` loads the simple xprompt under the cursor for the same
+instead of clobbering it. `gd` loads the simple macro under the cursor for the same
 bound editing loop. `gx` first shows the [location picker](#save-location-picker) and
-then opens or retargets one focused mini-xprompt pane; saving that pane publishes the
+then opens or retargets one focused mini-macro pane; saving that pane publishes the
 definition without binding the surrounding prompt stack. `gL` converts the active pane
 through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed
-helper. Before `gX` opens the save preview, its xprompt version converts live `<label>`
+helper. Before `gX` opens the save preview, its macro version converts live `<label>`
 tags into required Jinja `text` inputs; switching that screen to snippet mode shows and
 saves the original active-pane body instead. A fresh `gx` extraction applies the same
 raw-placeholder conversion to the copied origin-pane body before the mini pane opens and
 seeds the mini definition's inferred inputs. Raw placeholders typed later in the mini
 pane are saved as edited; the mini save review does not run another conversion pass.
 `gL` also applies the conversion when it creates a frontmatter-local helper. Set
-`ace.prompt_inputs.xprompt_placeholder_args: false` to disable these conversions while
+`ace.prompt_inputs.macro_placeholder_args: false` to disable these conversions while
 preserving `gL` Jinja-variable inference. `gw` only writes the currently bound
 definition—it does not reinterpret newly typed raw placeholders. Tags in inline code,
-fenced code, and disabled xprompt regions stay literal throughout. See
-[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact launch,
+fenced code, and disabled macro regions stay literal throughout. See
+[Raw Prompt Placeholders](macros.md#raw-prompt-placeholders) for the exact launch,
 conversion, and naming rules.
 
 `Ctrl+G p` opens the Prompts overlay on the Stash tab from the prompt bar. From the main
@@ -7336,16 +7336,16 @@ new-format write, sase verifies a recoverable pre-upgrade backup of `prompt_stas
 under the stash lock and fails closed when backup creation fails; recover pre-upgrade
 drafts from that backup.
 
-### Editing an Existing XPrompt from the TUI
+### Editing an Existing Macro from the TUI
 
 Loading a definition into the prompt bar for editing puts the bar into a **targeting**
 state instead of a plain draft: the bar tracks the exact source file your edits will
 write to, and everything below applies whenever the bar shows a target. Every surface
 that loads an editable definition enters this state the same way:
 
-- The Config XPrompts child's `Enter` (see [Editing XPrompts](#editing-xprompts)).
-- The Select XPrompt `#` picker's `Ctrl+O` ("edit here"), alongside its existing
-  `Ctrl+E` (open in `$EDITOR`) and `Ctrl+I` (inline-expand) keys.
+- The Config Macros child's `Enter` (see [Editing Macros](#editing-macros)).
+- The Select Macro `#` picker's `Ctrl+O` ("edit here"), alongside its existing `Ctrl+E`
+  (open in `$EDITOR`) and `Ctrl+I` (inline-expand) keys.
 - The jump panel (`Ctrl+]`, `gd`) and `gd` under the cursor in the prompt bar.
 - Returning from a whole-bar `$EDITOR` round trip (`Ctrl+G g`) preserves whatever target
   the bar already had — your edits stay bound to the same file.
@@ -7394,7 +7394,7 @@ through the tracked proc queue in order:
   [SASE memory note](memory.md), since it already commits and pushes for you while
   regenerating `AGENTS.md` and the provider instruction shims.
 - **`sase skill init`** — offered instead of the two above when you edited a canonical
-  [skill source](xprompt.md#skill-field), since it already commits, pushes, and deploys
+  [skill source](macros.md#skill-field), since it already commits, pushes, and deploys
   the generated skill files for you.
 
 With a single offered action, `Enter` runs it and `Esc` skips, matching the previous
@@ -7406,13 +7406,13 @@ plain commit/push confirmation. With more than one, each row's key toggles it an
 Press `Ctrl+T` to activate token completion. The completion kind is determined by the
 token under the cursor:
 
-- **XPrompt completion**: When the cursor is on a `#`-prefixed token (e.g., `#my_pro`),
-  completion shows matching xprompt names from all discovery sources, including
-  registered workspace workflow xprompts. Completion rows include the xprompt kind and
-  visible typed inputs, with required arguments shown as `name: type` and optional
-  arguments shown as `name?: type` plus a default when the default is a simple scalar.
-  Standalone workflow references use the `#!name` insertion form; typing `#!` filters
-  completion to entries whose canonical insertion starts with `#!`.
+- **Macro completion**: When the cursor is on a `#`-prefixed token (e.g., `#my_pro`),
+  completion shows matching macro names from all discovery sources, including registered
+  workspace workflow macros. Completion rows include the macro kind and visible typed
+  inputs, with required arguments shown as `name: type` and optional arguments shown as
+  `name?: type` plus a default when the default is a simple scalar. Standalone workflow
+  references use the `#!name` insertion form; typing `#!` filters completion to entries
+  whose canonical insertion starts with `#!`.
 - **Project/Patch completion**: When the cursor is on a `+query` token whose plus is at
   the start of the prompt or directly after whitespace (including a newline or tab),
   `{`, or `|`, completion opens a project/Patch picker. A plus glued to other text
@@ -7428,7 +7428,7 @@ token under the cursor:
   syntax) at the earliest existing workspace target in that `---` segment, or at the
   segment's leading tag position when it has none — and a Patch row places
   `#<workflow>:<patch>` the same way. Either way, the other workspace targets in that
-  segment are removed. See [Project Tags](xprompt.md#project-tags).
+  segment are removed. See [Project Tags](macros.md#project-tags).
 - **VCS ref completion**: When the cursor is inside the root segment of a registered VCS
   workflow ref, such as `#gh:`, `#gh:sa`, or `#git(`, completion lists that provider's
   projects and active PR-sized Patches. Providers can add namespace rows, such as GitHub
@@ -7451,15 +7451,15 @@ token under the cursor:
   hints, previews, and jumps agree. Packaged built-in skills are included, so
   `/sase_plan`, `/sase_questions`, and other bundled SASE skills are available without a
   project-local skill file.
-- **XPrompt argument completion**: When the cursor is inside a known xprompt argument
-  position, `Ctrl+T` completes the active argument instead of the xprompt name. For
-  `path` inputs it delegates to file path completion, for `bool` inputs it offers `true`
-  and `false`, and inside parenthesized syntax it completes missing `name=` arguments
+- **Macro argument completion**: When the cursor is inside a known macro argument
+  position, `Ctrl+T` completes the active argument instead of the macro name. For `path`
+  inputs it delegates to file path completion, for `bool` inputs it offers `true` and
+  `false`, and inside parenthesized syntax it completes missing `name=` arguments
   without repeating names already present in the argument list. Each keyword row shows
   the input's type, its default when optional, and its description. At a keyword slot
   (right after `#review(`, or after a comma and space in `#review(a=1,`), the keyword
   menu also opens automatically while typing (unless
-  `ace.prompt_completion.auto_xprompt_menu` is off), and INSERT-mode `Ctrl+N` / `Ctrl+P`
+  `ace.prompt_completion.auto_macro_menu` is off), and INSERT-mode `Ctrl+N` / `Ctrl+P`
   open it with the first / last keyword highlighted. Accepting a keyword immediately
   opens its value menu when the input has one (bool values, agent targets, or paths).
   `Enter` always submits the prompt as typed, even on an automatically opened first-row
@@ -7484,8 +7484,8 @@ token under the cursor:
   `%repeat` / `%wait` for conditional names, `legacy`, `closes for`), and description;
   the border title names the slot (`{{ variables`, `| filters`, `is tests`,
   `{% statements`, or `<namespace> members`) plus the scope label when the pane is
-  xprompt-bound. The menu opens automatically while typing inside a tag — right after
-  `{{` / `{%` auto-pair, on `|` and `.`, and on identifier characters — unless
+  macro-bound. The menu opens automatically while typing inside a tag — right after `{{`
+  / `{%` auto-pair, on `|` and `.`, and on identifier characters — unless
   `ace.prompt_completion.auto_jinja_menu` is off; manual `Ctrl+T` still works when off.
   With the menu off, an in-tag cursor still claims completion, so placeholder,
   directive, `@`, and `#` menus leave the tag alone. Next-word ghosts and peeks stay off
@@ -7497,10 +7497,10 @@ token under the cursor:
 - **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g.,
   `%m`), completion lists user-facing prompt directives and accepts aliases into their
   canonical forms. For example, `%m` completes to `%model` and `%w` completes to
-  `%wait`. The same shared directive matrix used by the xprompt LSP is documented in
-  [Directive Completion Matrix](xprompt.md#directive-completion-matrix): `%model`
+  `%wait`. The same shared directive matrix used by the macro LSP is documented in
+  [Directive Completion Matrix](macros.md#directive-completion-matrix): `%model`
   completes live model catalog rows, aliases, provider drill-down rows, and
-  parenthesized alias keys; `%effort`, `%auto`, `%repeat`, and `%xprompts_enabled`
+  parenthesized alias keys; `%effort`, `%auto`, `%repeat`, and `%macros_enabled`
   complete their fixed values; `%id`, `%clan`, and `%wait(...)` complete their supported
   keyword names and keyword-value rows. `%wait:` never offers structured keywords, so
   `time=` and `bead=` appear only in parenthesized `%wait(...)`. `capacity=`,
@@ -7530,8 +7530,8 @@ token under the cursor:
   equals tokens submit as ordinary prose. These shortcuts do not fire inside inline
   code, fenced code, frontmatter, placeholder/directive contexts, escaped equals signs,
   Markdown-style `=text=` / `==text==` marker pairs, or path-like tokens such as
-  `path/=`. The old `*alias` and `**model` forms are ordinary prompt text. The xprompt
-  LSP uses the same shared filter and edit plans; see
+  `path/=`. The old `*alias` and `**model` forms are ordinary prompt text. The macro LSP
+  uses the same shared filter and edit plans; see
   [Equals model shortcuts](editor.md#equals-model-shortcuts).
   `ace.prompt_completion.auto_directive_menu` only controls whether sase's TUI
   auto-opens these menus and does not govern an external editor's `=` trigger.
@@ -7606,9 +7606,9 @@ token under the cursor:
   saved (`◆`) placeholder from the store; current-prompt (`<>`) rows are not deletable.
   By default, submitting from sase's TUI opens **Fill in this prompt** and asks once for
   each distinct live tag before launch; `Ctrl+L` can keep a tag literal. Saving a new
-  xprompt converts the same live tags to typed inputs. Inline-code, fenced-code, and
+  macro converts the same live tags to typed inputs. Inline-code, fenced-code, and
   disabled-region tags stay literal in both paths; see
-  [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
+  [Raw Prompt Placeholders](macros.md#raw-prompt-placeholders).
 
   By default (`ace.prompt_completion.placeholder_ranking: smart`) saved rows are ranked
   by the same weighted composite the history-word menu uses: how strongly a tag relates
@@ -7631,7 +7631,7 @@ token under the cursor:
   `./`, `../`, `~/`, or containing `/`), completion shows matching filesystem entries.
   Tokens starting with `@` are also recognized — the `@` prefix is preserved in the
   completed path (useful for file-reference arguments). Relative paths use the
-  prompt-selected base directory: `+<project>` [project tags](xprompt.md#project-tags),
+  prompt-selected base directory: `+<project>` [project tags](macros.md#project-tags),
   registered workspace-provider refs, and known-project refs such as `#git:<project>` or
   `#gh:<owner>/<repo>` can root completion in that project checkout. If no prompt
   workspace ref resolves, sase's TUI uses the TUI process directory.
@@ -7850,16 +7850,16 @@ position captured when the finder opened. Inside the finder, type to filter, use
 `Ctrl+N` / `Ctrl+P` or arrows to move, `Ctrl+U` to clear the query, `Enter` to insert,
 and `Esc` to cancel.
 
-In prompt NORMAL mode, `K` previews the xprompt, slash skill, or file under the cursor.
+In prompt NORMAL mode, `K` previews the macro, slash skill, or file under the cursor.
 Image files preview inline in the reader, while `Ctrl+]` still opens images directly in
 the artifact viewer. Inside `#name: ` / `#name:: ` argument text, `K` and `Ctrl+]`
 prefer a nested reference, file path, glossary term, or plain word under the cursor, and
-fall back to the xprompt that owns the argument text only when nothing else matches. On
+fall back to the macro that owns the argument text only when nothing else matches. On
 ordinary prompt text, sase's TUI checks the warm project glossary before falling back to
-plain word lookup or spelling fixes. `Ctrl+]` jumps to an xprompt, skill, file, or
-glossary definition, or opens an action picker when several jump targets are available.
-Glossary terms come from the project selected by a leading VCS workflow reference, or
-from the active workspace project when the prompt does not select one.
+plain word lookup or spelling fixes. `Ctrl+]` jumps to a macro, skill, file, or glossary
+definition, or opens an action picker when several jump targets are available. Glossary
+terms come from the project selected by a leading VCS workflow reference, or from the
+active workspace project when the prompt does not select one.
 
 #### Glossary terms
 
@@ -7869,10 +7869,10 @@ term per strand file, described by the `sase/memory/glossary.md` web descriptor;
 the prompt after the catalog is warm, rendering them bold, underlined, and in a muted
 blue so they read apart from the lavender repo-name highlight — the same "you can
 preview this with `K` or jump to it with `Ctrl+]`" affordance, a different hue. Matching
-skips inline code and fenced code and uses the shared longest-match rules from the
-xprompt LSP. Loading, validation, and matcher compilation run off the render path and
-are cached per project/source signature. Strand edits, project changes, and watched
-memory changes invalidate the cache.
+skips inline code and fenced code and uses the shared longest-match rules from the macro
+LSP. Loading, validation, and matcher compilation run off the render path and are cached
+per project/source signature. Strand edits, project changes, and watched memory changes
+invalidate the cache.
 
 `K` on a glossary phrase opens a compact definition card. The title shows the canonical
 term and discloses the matched phrase only when you opened an alias. The body renders
@@ -7903,7 +7903,7 @@ INSERT or NORMAL. `K` previews one highlighted glossary phrase in place (see
 [Glossary terms](#glossary-terms)); `gG` in NORMAL mode or `Ctrl+G G` in INSERT or
 NORMAL opens this same panel seeded on the glossary strand under the cursor, or on the
 `glossary` web when the cursor is not on a highlighted term. The which-key hint row
-lists `memory…` on both prefixes. If the cursor sits on a `#memory/<stem>` xprompt
+lists `memory…` on both prefixes. If the cursor sits on a `#memory/<stem>` macro
 reference, that note is selected; otherwise the panel opens on the first note. Closing
 with `Esc` or `q` restores the prompt pane and the vim mode you left.
 
@@ -8114,9 +8114,9 @@ Closing with `Esc` or `q` restores the prompt pane, vim mode, selection, and cur
 
 The header reads `SNIPPETS · <project> · N snippets · project i/N` and always uses the
 configured `PROJECT_NAME:`, never a `ProjectSpec` key. Generated initial-capital aliases
-are metadata on their source entry, not extra rail rows. Xprompt-derived entries are
-viewable and linkable but source-edited: `e` opens the real xprompt definition instead
-of converting a generated template back into Jinja.
+are metadata on their source entry, not extra rail rows. Macro-derived entries are
+viewable and linkable but source-edited: `e` opens the real macro definition instead of
+converting a generated template back into Jinja.
 
 Two navigation axes stay synchronized:
 
@@ -8139,7 +8139,7 @@ the life of the panel.
 `a` opens a trigger/template form with live trigger and link diagnostics, destination
 cycling (`Ctrl+N` / `Ctrl+P`), a composed preview, and explicit collision wording
 (replace vs shadow). `e` preloads an authored config template and its source
-fingerprint; on an xprompt entry it opens the real source. `d` confirms a delete naming
+fingerprint; on a macro entry it opens the real source. `d` confirms a delete naming
 backlinks, the exact file being changed, and any lower-priority definition that will
 become effective. Writes use the same engine as `sase snippet add` / `delete`, run as
 tracked procs with one exclusive scope per project and destination, refresh the panel,
@@ -8209,7 +8209,7 @@ chooser at all for an external repo. sase's TUI never runs `sase repo open` itse
 
 #### Word definitions & spellcheck
 
-When no xprompt, slash skill, workflow, or file target matches, `K` treats a plain
+When no macro, slash skill, workflow, or file target matches, `K` treats a plain
 natural-language word that is not a glossary match as a lookup target. Correctly spelled
 words open a scrollable definition panel; use `j` / `k`, `Ctrl+D` / `Ctrl+U`, and `g` /
 `G` to navigate it. Misspelled words open a compact correction panel: press `1`–`9` to
@@ -8250,16 +8250,16 @@ the prompt input is in INSERT mode. The suggestion appears in the prompt bar sub
 `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits the prompt as
 typed, so live suggestions cannot accidentally replace text on send.
 
-Live soft completion covers directives, xprompt names, xprompt argument names, and bool
+Live soft completion covers directives, macro names, macro argument names, and bool
 argument values. File-path soft completion is disabled by default because it can scan
 the filesystem while typing; enable it with
-`ace.prompt_completion.auto_file_paths: true`. The xprompt/skill menu also opens
+`ace.prompt_completion.auto_file_paths: true`. The macro/skill menu also opens
 automatically while typing matching `#name`, `#!name`, or `/skill` tokens; disable that
-xprompt auto-open behavior with `ace.prompt_completion.auto_xprompt_menu: false`. The
+macro auto-open behavior with `ace.prompt_completion.auto_macro_menu: false`. The
 directive menu likewise opens automatically while typing matching `%` directive tokens,
 fixed values such as `%model:`, and `=alias` / `==model` shortcuts; disable it with
 `ace.prompt_completion.auto_directive_menu: false`. That setting is sase's TUI-only and
-does not change xprompt LSP trigger characters in an external editor. The xprompt/skill
+does not change macro LSP trigger characters in an external editor. The macro/skill
 auto-menu opens only once at least one identifier character follows its marker, so bare
 `#` and `/` stay quiet. Directive completion opens from a valid bare `%`, and no
 automatic menu ever auto-accepts a single match. The grouped `@` reference menu opens
@@ -8277,7 +8277,7 @@ for an incomplete `<...` context; saved common placeholders join automatic resul
 the prefix is non-empty, while manual `Ctrl+T` can show them from a bare `<`. Manual
 `Ctrl+T` inserts a lone match in the highest-priority placeholder source group outright;
 automatic completion only opens the menu, even for one match. Manual `Ctrl+T` completion
-still supports file paths, xprompt names, directives, skills, `=alias` / `==model`
+still supports file paths, macro names, directives, skills, `=alias` / `==model`
 shortcuts, `@` references, project/Patch tags, VCS ref roots, VCS repository refs,
 prompt-local prose words, placeholders, and enabled history words regardless of the
 automatic settings. Live suggestions pause while the manual completion panel is open,
@@ -8289,17 +8289,17 @@ re-opens completion for the next level (drill-down). The completion panel shows 
 eight candidates at a time — seven when more candidates remain, so the `↓ N more…` line
 always fits, and one fewer again when the grouped `@` reference menu draws its
 `── files · <base-dir>` rule — and scrolls to keep the highlight visible. When exactly
-one xprompt or file candidate matches, accepting completion inserts the canonical
+one macro or file candidate matches, accepting completion inserts the canonical
 reference immediately.
 
-Accepting an xprompt completion, or selecting an xprompt from the `#@` picker, opens an
-`xprompt args` hint panel when the xprompt has required user-facing inputs. The panel
-shows the supported arguments and highlights the active one. Press `:` while the
-accepted reference is still current to switch to colon syntax, or press `(` to insert a
+Accepting a macro completion, or selecting a macro from the `#@` picker, opens an
+`macro args` hint panel when the macro has required user-facing inputs. The panel shows
+the supported arguments and highlights the active one. Press `:` while the accepted
+reference is still current to switch to colon syntax, or press `(` to insert a
 required-argument named snippet and use `Tab` to advance through the snippet fields.
 
 The same smart insertion rules apply to `#@` selections and `Ctrl+T` completions. A
-selected xprompt with no required inputs inserts a trailing space, a single required
+selected macro with no required inputs inserts a trailing space, a single required
 non-text input inserts colon syntax, a single required text input inserts double-colon
 shorthand, and multiple required inputs insert a parenthesized named-argument snippet.
 When that trailing space sits at a live snippet tabstop and the next keystroke is `Tab`
@@ -8308,15 +8308,15 @@ has nowhere to go, the space is kept and ordinary snippet/list fallback continue
 
 The same hint panel appears while typing narrow, known argument forms such as `#name:`,
 `#!name:`, `#ns/name:`, `#ns__name:`, `#name!!:`, `#name??:`, `#name(`, and
-`#name(arg=`. The hint is advisory; the backend xprompt parser still owns expansion
+`#name(arg=`. The hint is advisory; the backend macro parser still owns expansion
 semantics when the prompt is submitted. Detection intentionally stays conservative, so
-prose shorthand, URLs, unknown xprompt names, `#name+`, and completed colon text such as
+prose shorthand, URLs, unknown macro names, `#name+`, and completed colon text such as
 `#name: value` do not keep the prompt-bar hint open.
 
 ### Alt Brace Syntax (`%{...}`)
 
 The prompt input has dedicated highlighting and editing help for the `%{A | B}` alt
-fan-out shorthand (see the [Alt Directive reference](xprompt.md#alt-directive)). It
+fan-out shorthand (see the [Alt Directive reference](macros.md#alt-directive)). It
 distinguishes the alt delimiters from the branch separators so a fan-out is easy to read
 at a glance:
 
@@ -8353,8 +8353,7 @@ punctuation, or nested inside another branch:
   stray opener cannot capture a later `|`; and when alternations nest, the innermost
   span wins.
 - **No Jinja pair after `%{`** — typing `%`, `#`, or `{` right after an alternation
-  opener starts a branch (`%m:`, `#xprompt`) instead of a Jinja `{%  %}` or `{#  #}`
-  pair.
+  opener starts a branch (`%m:`, `#macro`) instead of a Jinja `{%  %}` or `{#  #}` pair.
 
 These edits are suppressed when there is an active selection or when the cursor is not
 inside a `%{...}` context, so ordinary `{` and `|` typing elsewhere is unaffected.
@@ -8514,8 +8513,8 @@ cross-pane operators, and wrapscan for operators.
 | `~`         | Toggle case of character(s) at cursor (supports count: `5~`)                                          |
 | `.`         | Repeat last mutation, including inserted text; a count replaces the recorded count                    |
 | `J`         | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
-| `K`         | Preview the xprompt, workflow, skill, file, glossary term, repo name, or plain word under the cursor  |
-| `Ctrl+]`    | Jump to the xprompt/workflow/skill/glossary definition, file, or repo checkout under the cursor       |
+| `K`         | Preview the macro, workflow, skill, file, glossary term, repo name, or plain word under the cursor    |
+| `Ctrl+]`    | Jump to the macro/workflow/skill/glossary definition, file, or repo checkout under the cursor         |
 | `/` / `?`   | Search forward / backward in the current prompt pane; after an operator, acts up to the match         |
 | `n` / `N`   | Repeat the last confirmed search in its original / opposite direction                                 |
 | `*` / `#`   | Search forward / backward for the whole word under the cursor                                         |
@@ -8532,9 +8531,9 @@ onto a nonblank current line, renumbering the run an ordered item left behind; a
 current line keeps the marker, and non-prompt editors retain vanilla `J` behavior.
 
 For `Ctrl+]`, sase's TUI opens the target directly in `$EDITOR` when there is only one
-available action. Inside tmux, or for loadable Markdown xprompt definitions, it can show
-a small chooser for editor, tmux-pane, or load-into-prompt actions. Glossary jumps use
-the same flow, targeting the owning project's `sase/sase.yml` `definition` scalar.
+available action. Inside tmux, or for loadable Markdown macro definitions, it can show a
+small chooser for editor, tmux-pane, or load-into-prompt actions. Glossary jumps use the
+same flow, targeting the owning project's `sase/sase.yml` `definition` scalar.
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with
 count 2 is pending).
@@ -8622,17 +8621,16 @@ you are not typing in a text field, to open that same unfiltered History tab. `,
 the most recently launched workspace prefix other than the built-in `#git:home` default.
 Submitting or editing a row replaces that row's workspace prefix with that recorded
 prefix. A `+home` launch does not create a qualifying prefix. When none is recorded,
-sase warns `No previously launched VCS xprompt` and opens nothing. `,>` opens History
-with cancelled prompts visible, and `,Ctrl+G` skips the overlay and opens the newest
-history entry in `$EDITOR`. Both use that same prefix check and the same prefix
-replacement, so with no qualifying prefix they warn and open nothing. `Space` on a main
-tab is separate: it prefills the prompt input with that same non-home prefix, or opens a
-blank home prompt when none is recorded. The History tab loads prompts previously
-launched from sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default
-100). Normal launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they
-do not clutter the list, while failed-launch recovery can still preserve a short
-submitted prompt. The same history is available from the shell through
-[`sase prompt`](prompt.md).
+sase warns `No previously launched VCS macro` and opens nothing. `,>` opens History with
+cancelled prompts visible, and `,Ctrl+G` skips the overlay and opens the newest history
+entry in `$EDITOR`. Both use that same prefix check and the same prefix replacement, so
+with no qualifying prefix they warn and open nothing. `Space` on a main tab is separate:
+it prefills the prompt input with that same non-home prefix, or opens a blank home
+prompt when none is recorded. The History tab loads prompts previously launched from
+sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100). Normal
+launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do not
+clutter the list, while failed-launch recovery can still preserve a short submitted
+prompt. The same history is available from the shell through [`sase prompt`](prompt.md).
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace
@@ -8697,7 +8695,7 @@ loaded into the overlay; it does not search the whole history archive.
 
 Prompt-history rows are compact single-line entries: cancelled marker, last-used
 timestamp (`MM-DD HH:MM` when parseable), a project column in the project's accent
-color, xprompt/directive chips, and a first-line prompt preview. The preview panel shows
+color, macro/directive chips, and a first-line prompt preview. The preview panel shows
 the full prompt, with `+<project>` tags in their project accent colors, and timestamp
 metadata. History writes use a sidecar lock plus atomic tempfile replacement of monthly
 shard files under `~/.sase/prompt_history/`, so concurrent agent launches do not
@@ -9098,7 +9096,7 @@ privacy, publication, status, and recovery behavior.
 The prompt input supports expandable text snippets triggered by pressing `Tab`. Snippets
 are configured in the `ace.snippets` section of `sase.yml` as a mapping of trigger words
 to template strings. Inspect or edit the same catalog from the shell with
-[`sase snippet`](xprompt.md#snippet-cli) (`list`, `show`, `add`, `delete`), or from
+[`sase snippet`](macros.md#snippet-cli) (`list`, `show`, `add`, `delete`), or from
 sase's TUI with the [Snippets panel](#snippets-panel) (`gT` / `Ctrl+G T`).
 
 ```yaml
@@ -9138,8 +9136,8 @@ tabstop. If neither snippet action succeeds, the key falls back to INSERT-mode l
 shifting when the cursor is on a supported marker line. Advancing from the final tabstop
 clears the session before that same fallback check runs.
 
-XPrompt-derived snippets compose normal xprompt references before they enter the snippet
-registry. After xprompt-derived snippets and `ace.snippets` are merged, any snippet can
+Macro-derived snippets compose normal macro references before they enter the snippet
+registry. After macro-derived snippets and `ace.snippets` are merged, any snippet can
 splice another snippet by trigger with `#[trigger]`. `#[trigger(value)]` and
 `#[trigger:value]` fill the referenced snippet's `$1`, `$2`, ... tabstops before
 splicing. The final template is renumbered so tabstops from the caller and referenced
@@ -9197,13 +9195,13 @@ exposes both `foo` → `foo bar baz` and `Foo` → `Foo bar baz`.
 - An explicitly authored capitalized trigger always wins. If both `foo` and `Foo` are
   defined, each keeps its own template, and no alias is generated over the authored
   `Foo`.
-- Aliases are runtime-only. They are never written back to `sase.yml`, xprompt front
+- Aliases are runtime-only. They are never written back to `sase.yml`, macro front
   matter, or chezmoi source files, and they never prevent you from later defining the
   capitalized name yourself.
 - Both spellings participate in `#[trigger]` composition, so `#[foo]` and `#[Foo]` both
   resolve, and generated templates preserve tabstop and escape behavior.
 
-The rule applies uniformly to xprompt-derived snippets, merged `ace.snippets`, and
+The rule applies uniformly to macro-derived snippets, merged `ace.snippets`, and
 snippets saved into the current sase's TUI session — including a second save that
 updates an already-pending trigger. The same pairs appear through sase's TUI,
 `sase editor helper-bridge snippet-catalog`, normal LSP completion, and the native Rust
@@ -9238,7 +9236,7 @@ entries, because raw `$1` / `$0` markers would not behave like sase's TUI tabsto
 
 ### Save location picker
 
-Starting a new mini-xprompt (`gx`, `Ctrl+G x`, `Ctrl+G Ctrl+X`) or a new snippet (`gt`,
+Starting a new mini-macro (`gx`, `Ctrl+G x`, `Ctrl+G Ctrl+X`) or a new snippet (`gt`,
 `Ctrl+G t`) first shows a location picker: one panel that asks where the new entry
 should live. The picker opens synchronously, before any disk reads, so keys typed while
 destinations load are buffered and applied — never dropped into the prompt pane.
@@ -9249,26 +9247,26 @@ shown (`★ current`, `★ last used`, `★ configured`, `★ default`). `j`/`k`
 `q`) cancels and returns focus to the origin pane.
 
 Hotkeys are mnemonic and scope-first: `p` is the project destination and `h` is the home
-destination in both pickers. In the mini-xprompt picker the Shift variant picks the
-config file of the same scope.
+destination in both pickers. In the mini-macro picker the Shift variant picks the config
+file of the same scope.
 
 If the prompt pane that opened the picker is gone before you choose — closed, or no
 longer in the stack — the picker closes and sase's TUI warns
 `Prompt pane is no longer available - snippet discarded` or
-`Prompt pane is no longer available - mini-xprompt discarded`. A destination load that
+`Prompt pane is no longer available - mini-macro discarded`. A destination load that
 fails stays on the picker and replaces the list with one red error row. For a snippet
 that row and the error toast both read `Failed to prepare snippet pane: …`. For a
-mini-xprompt the row reads `Failed to load destinations: …` and the error toast reads
-`Failed to prepare mini-xprompt pane: …`. Cancel still returns to the origin pane when
+mini-macro the row reads `Failed to load destinations: …` and the error toast reads
+`Failed to prepare mini-macro pane: …`. Cancel still returns to the origin pane when
 that pane is still there.
 
 | Picker  | Key   | Destination                                            |
 | ------- | ----- | ------------------------------------------------------ |
-| xprompt | `p`   | Project `sase/xprompts/` directory (`#<project>/…`)    |
-| xprompt | `P`   | Project `sase/sase.yml`                                |
-| xprompt | `h`   | Home `~/sase/xprompts/` directory                      |
-| xprompt | `H`   | User `sase.yml`                                        |
-| xprompt | `1–9` | Other Project/Home rows in display order               |
+| macro   | `p`   | Project `sase/macros/` directory (`#<project>/…`)      |
+| macro   | `P`   | Project `sase/sase.yml`                                |
+| macro   | `h`   | Home `~/sase/macros/` directory                        |
+| macro   | `H`   | User `sase.yml`                                        |
+| macro   | `1–9` | Other Project/Home rows in display order               |
 | snippet | `p`   | Project `sase/sase.yml`                                |
 | snippet | `h`   | User `sase.yml`                                        |
 | snippet | `c`   | Configured `ace.snippet_config_path` (own top section) |
@@ -9276,7 +9274,7 @@ that pane is still there.
 
 The default (↵) precedence is:
 
-- **Mini-xprompt:** `★ current` (the open pane's location when retargeting) →
+- **Mini-macro:** `★ current` (the open pane's location when retargeting) →
   `★ last used` → `★ default` on the Project directory (the Home directory in home mode)
   → the first writable row.
 - **Snippet:** `★ current` (the open pane's location when renaming) → `★ configured` (an
@@ -9284,7 +9282,7 @@ The default (↵) precedence is:
   `★ default` on the resolved default file → the first writable row.
 
 The footer previews each destination
-(`→ <dir>/<name>.md · called as #<ns>/<name> · N xprompts here` for directories,
+(`→ <dir>/<name>.md · called as #<ns>/<name> · N macros here` for directories,
 `→ <file> · ace.snippets.<trigger> · N snippets here` for snippets). Rows that already
 define the typed name show `has #name` / `has ⇥ trigger`. Choosing a destination locks
 it for the name step: the old destination cycling is gone, and `⇧Tab` in the name step
@@ -9308,16 +9306,16 @@ save panel above when you already know you're authoring a trigger:
    trigger; `✓ Create` for a fresh trigger; a warning that the trigger already exists in
    the destination (`Enter` will load it for editing); a warning that it's defined in a
    different config file (saving here will shadow or be shadowed by that file, per your
-   project's precedence); or a warning that the trigger is derived from an xprompt and
-   this entry will override it.
+   project's precedence); or a warning that the trigger is derived from a macro and this
+   entry will override it.
 3. **Open the pane.** `Enter` opens the snippet pane — empty for a new trigger, or
    pre-filled with the current definition (from the destination, the shadowing file, or
-   the derived xprompt template) when the trigger already exists. The pane always opens
-   in INSERT mode and is unmistakably not a prompt pane: its own separator rule names
-   the `⇥ <trigger>` and destination, with a state marker (`✓` clean, `●` dirty, `new`
-   for an unsaved trigger), and its own accent color and subtitle. It is never included
-   in a launch, a stash, or a save-as — `Enter` in it means "save the snippet", not
-   "submit the stack".
+   the derived macro template) when the trigger already exists. The pane always opens in
+   INSERT mode and is unmistakably not a prompt pane: its own separator rule names the
+   `⇥ <trigger>` and destination, with a state marker (`✓` clean, `●` dirty, `new` for
+   an unsaved trigger), and its own accent color and subtitle. It is never included in a
+   launch, a stash, or a save-as — `Enter` in it means "save the snippet", not "submit
+   the stack".
 4. **Save it.** `Enter` in the pane opens the save confirmation, showing `[Draft]` for a
    brand-new trigger or opening straight on `Diff` — a real `difflib` unified diff
    against the existing entry — for an overwrite (`Ctrl+O` cycles Draft / Existing /
@@ -9339,16 +9337,16 @@ save panel above when you already know you're authoring a trigger:
    the body you've written. On close (saved or discarded), focus and the cursor return
    to exactly the pane and position you were at before `gt`.
 
-### XPrompt Picker (`#@`)
+### Macro Picker (`#@`)
 
-Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker modal.
-This lists all available xprompts (including project-local xprompts from `sase/sase.yml`
-files) and inserts the selected reference at the cursor position. Inline-capable
-xprompts and workflows insert as `#name`; standalone workflows insert as `#!name`. The
-picker uses the same argument-aware skeletons as xprompt completion, so typed inputs can
-be filled immediately after selection. Markdown xprompt swarms are inline-capable and
-insert as `#name`. This is separate from the `ace.snippets` mechanism — it provides
-quick access to xprompt references rather than expanding static templates.
+Typing `#@` (the `#` character followed by `@`) opens the Macro snippet picker modal.
+This lists all available macros (including project-local macros from `sase/sase.yml`
+files) and inserts the selected reference at the cursor position. Inline-capable macros
+and workflows insert as `#name`; standalone workflows insert as `#!name`. The picker
+uses the same argument-aware skeletons as macro completion, so typed inputs can be
+filled immediately after selection. Markdown macro swarms are inline-capable and insert
+as `#name`. This is separate from the `ace.snippets` mechanism — it provides quick
+access to macro references rather than expanding static templates.
 
 ## Auto-Refresh
 

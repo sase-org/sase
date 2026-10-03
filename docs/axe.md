@@ -770,9 +770,9 @@ summary/body grammar in [Description Grammar](#description-grammar).
 `proposed_launches`; it does not gate mentor, hook, or CRS workflow launchers. The
 runner prepends it to each proposed prompt as `%queue(capacity=N)` unless the prompt
 already authors its own `%queue` capacity, so it follows the
-[per-launch capacity budget](xprompt.md#agent-names-waits-and-queue-admission) rules:
-the agent starts when the occupied weighted load plus its own weight fits within `N`,
-and `1` makes a default-weight lane agent run alone. While the default-on
+[per-launch capacity budget](macros.md#agent-names-waits-and-queue-admission) rules: the
+agent starts when the occupied weighted load plus its own weight fits within `N`, and
+`1` makes a default-weight lane agent run alone. While the default-on
 `queue_capacity_budget` flag is enabled, `N` must be at least `1`; `wait_runners: 0`
 produces a `%queue(capacity=0)` that is rejected at launch. When a job proposes a clan,
 every member carries the budget and waits independently, so a low budget can serialize
@@ -806,8 +806,8 @@ state. Literal targets may include an `overrides:` object for per-target fields 
 Configuration is validated fail-closed. Unknown fields, duplicate job identities, and
 invalid or non-positive durations produce actionable errors with their config paths.
 Secret references resolve at dispatch and fail closed with provider-specific
-diagnostics. Legacy `agent:` and `xprompt:` job fields are rejected: scheduled agent
-work must originate from a script's structured launch proposals.
+diagnostics. Legacy `agent:` and `macro:` job fields are rejected: scheduled agent work
+must originate from a script's structured launch proposals.
 
 ### Description Grammar
 
@@ -1016,7 +1016,7 @@ that omit it inherit that agreed value before once-per filtering. The first acce
 member therefore retains and declares the summary even when an earlier member is
 deduplicated. Different raw clan templates may have different summaries. A summary must
 be nonblank, contain no NUL byte, fit within 32 KiB of UTF-8, and avoid both the `]]`
-text-block terminator and `+` (which xprompt argument decoding would turn into a space).
+text-block terminator and `+` (which macro argument decoding would turn into a space).
 
 A proposal that also carries an active `%if` predicate is admitted through the typed
 launch path (see [Agent Launch Flow](architecture.md#agent-launch-flow)), so a member
@@ -1093,7 +1093,7 @@ later members join it, while waits use their full resolved names. The declarer r
 `%clan(<name>, tribe=chop, summary=[[<literal Rich markup>]])` when it carries a
 summary; joiners receive only `%id(<member>, clan=<name>)`. Axe neither executes the
 summary as a script nor inserts it into any proposal's work prompt. Standalone
-`#!workflow` references are forbidden in proposal prompts; reusable inline `#xprompt`
+`#!workflow` references are forbidden in proposal prompts; reusable inline `#macro`
 references remain valid. The runner records every launched agent in `agent_chops.json`
 and finalizes the job only when the linked agents reach terminal state.
 
@@ -1287,7 +1287,7 @@ adoption can fall outside the ten-minute incremental overlap window.
 
 #### Builtin `refresh_docs`
 
-`sase_job_refresh_docs` replaces the former scheduled xprompt workflow. It expects an
+`sase_job_refresh_docs` replaces the former scheduled macro workflow. It expects an
 expanded target with a `workspace`, then emits an `update` proposal and a `polish`
 proposal whose `wait_on` points to `update`. Commit counting and checkpoints belong to
 `git.commits_since`; project fan-out belongs to `for_each`:

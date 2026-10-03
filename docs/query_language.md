@@ -41,8 +41,8 @@ valid query against the already-loaded Patch snapshot, `Enter` commits it and cl
 editor, and `Escape` abandons the edit and restores the committed query, its result, and
 your selection. A parse error is reported inline and leaves the visible list on the last
 valid query. `Tab` accepts completions for property keys and values, shorthand sigils,
-predicates, and macros — and, while the row is empty, saved-query slots. A leading `#`
-saves or deletes a slot without changing the active query; see
+predicates, and shorthands — and, while the row is empty, saved-query slots. A leading
+`#` saves or deletes a slot without changing the active query; see
 [sase's TUI: Editing Queries](ace.md#editing-queries).
 
 Agent, Stitches, Beads, Plans, Files, and document-provider panes use the same idle

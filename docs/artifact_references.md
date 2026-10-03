@@ -1,10 +1,10 @@
 # Artifact References
 
 Artifact references are typed `@<kind>:<argument>` citations in launch prompts. They are
-not xprompts: SASE resolves them late in prompt preprocessing, after xprompt expansion
-and command substitution, using the project context for that prompt segment. Each
-successful reference expands to prompt text, records a per-agent use row, and can
-publish as a numbered Markdown reference link.
+not macros: SASE resolves them late in prompt preprocessing, after macro expansion and
+command substitution, using the project context for that prompt segment. Each successful
+reference expands to prompt text, records a per-agent use row, and can publish as a
+numbered Markdown reference link.
 
 References name artifacts. Typed [Artifact Links](artifact_links.md) record why two
 artifacts are related and render on the artifact markdown file; prompt references record
@@ -28,8 +28,8 @@ Use quotes when the argument contains spaces:
 ```
 
 Fragments such as `#L10-L20`, `#page=2`, and `#t=30` stay attached to the reference when
-the target kind supports them. Inline code, fenced code, and disabled xprompt regions
-stay literal. Unknown `@kind:` text remains prose; malformed or missing references for a
+the target kind supports them. Inline code, fenced code, and disabled macro regions stay
+literal. Unknown `@kind:` text remains prose; malformed or missing references for a
 known kind stop launch with a diagnostic.
 
 ## Live Kinds
@@ -61,12 +61,12 @@ commit trailers and bead event streams that already carry them are immutable —
 neither is ever emitted again; new references always render as `@plan:` in prose and
 `plan:` in machine fields. Historical `@chat:` and `@bug:` references remain archive
 readers and are not offered for new authoring. The retired `#ref/<kind>:<argument>`
-xprompt renderer syntax is not accepted.
+macro renderer syntax is not accepted.
 
 ## Project Context
 
 Short references resolve from the prompt segment, not from the current working
-directory. A segment's leading `+<project>` [project tag](xprompt.md#project-tags),
+directory. A segment's leading `+<project>` [project tag](macros.md#project-tags),
 `#git:`, `#gh:`, or other VCS workflow tag supplies the project context. If a segment
 has no explicit tag, the caller's launch identity supplies it.
 
@@ -96,7 +96,7 @@ Pointer document kinds, including `@plan:...` and `@research:...`, never trigger
 their expansion does not depend on a local checkout, so citing one never clones its
 sidecar.
 
-This write is launch-only. Validation, xprompt display and expansion previews, editor
+This write is launch-only. Validation, macro display and expansion previews, editor
 catalogs, and other discovery paths remain read-only and never clone a missing sidecar.
 Materialize the role explicitly when one of those surfaces needs a local inventory —
 `sase repo path <role> --ensure` is the CLI form, and typing `@<kind>::` in sase's TUI
@@ -106,8 +106,8 @@ reopens the payload menu with the newly-arrived rows badged. Pointer kinds such 
 `@plan:` and `@research:` never auto-materialize at launch (see above), but they are
 reachable this way — `@research::` clones the sidecar on first use. See
 [sase's TUI](ace.md) for the full gesture, its status row, and its `ref_sync_gesture`
-feature flag. References inside inline code, fenced code, or disabled xprompt regions
-stay literal and do not trigger materialization.
+feature flag. References inside inline code, fenced code, or disabled macro regions stay
+literal and do not trigger materialization.
 
 ## Allow-Listed Files
 

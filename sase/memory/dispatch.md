@@ -7,7 +7,7 @@ description: Read before dispatching agents to a remote machine with `%dispatch`
 # Remote Dispatch
 
 Remote dispatch launches agents on an enrolled machine from a controller prompt. Full
-contract: `docs/remote_dispatch.md`. Directive grammar: [[xprompts.md]].
+contract: `docs/remote_dispatch.md`. Directive grammar: [[macros.md]].
 
 ## Launch selector
 

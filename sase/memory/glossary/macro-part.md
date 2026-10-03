@@ -1,5 +1,5 @@
 ---
-keyword: Xprompt Part
+keyword: Macro Part
 ---
 
 .md file -> single `prompt_part` step with the file's content.

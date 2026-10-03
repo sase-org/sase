@@ -8,8 +8,8 @@ review state, and the coordination layer around coding agents.
 
 Start with
 [SASE: Structured Agentic Software Engineering](posts/structured-agentic-software-engineering.md),
-the launch post: why SASE wraps agent CLIs, how XPrompts work, what sase's TUI Agents
-tab changes, and how to install the tool.
+the launch post: why SASE wraps agent CLIs, how Macros work, what sase's TUI Agents tab
+changes, and how to install the tool.
 
 If you want the practical path first, use
 [Getting Started: Your First 15 Minutes](../getting_started.md): install, provider

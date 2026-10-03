@@ -16,7 +16,7 @@ archives to disk as first-class artifacts:
   preprocessed prompt SASE handed to the provider in the agents sidecar's
   `prompts/<YYYYMM>/` archive. For an approved plan, the primary body is the
   dry-expanded planning snapshot; for an ordinary commit publication, it is the
-  pre-expansion XPrompt.
+  pre-expansion Macro.
 - **Tales** record ordinary approved implementation plans, so decomposition decisions
   are queryable after the fact.
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
@@ -60,7 +60,7 @@ guidance, and offline/push behavior.
 
 For built-in bare-git projects, SASE creates or refreshes the generated SDD guide files
 automatically. Target an existing project with its `+<project>`
-[project tag](xprompt.md#project-tags); first-use `#git:<project>` initialization (which
+[project tag](macros.md#project-tags); first-use `#git:<project>` initialization (which
 creates a new project and keeps its `#git:` spelling) includes them in the initial
 commit; existing bare-repo registration, `#git` materialization, and `sase repo open`
 commit and push an `Initialize SDD` init commit when the generated files are missing or
@@ -68,7 +68,7 @@ stale. First SDD writes, plan archiving, and `sase bead init` also refresh the g
 files before writing project-local SDD content.
 
 Research notes live under `research/{YYYYMM}/` inside the effective SDD root. A
-`#research` xprompt (defined in user or project config -- the packaged default was
+`#research` macro (defined in user or project config -- the packaged default was
 removed) conventionally tells the agent to create a new markdown file in the current
 month directory; SASE does not write research files automatically.
 
@@ -80,15 +80,14 @@ SASE has two prompt-publication paths, and their ordering matters:
 
 1. **Approved plan:** while handling approval, SASE first dry-expands the planner
    prompt, publishes the plan-named archive entry, and then writes the tale or hands the
-   epic to `sase bead work`. Dry expansion resolves xprompts, strips prompt directives,
+   epic to `sase bead work`. Dry expansion resolves macros, strips prompt directives,
    and inlines workflow `prompt_part` content without executing pre- or post-steps.
 2. **Agent-backed commit:** after the primary commit succeeds, the commit workflow
-   publishes the run's `raw_xprompt.md` inline. Project and configured xprompt aliases
-   have already been resolved, but xprompts have not been expanded. A plan-backed entry
-   uses the plan slug; an entry without a plan uses the publishing agent's global lane
-   name.
+   publishes the run's `raw_macros.md` inline. Project and configured macro aliases have
+   already been resolved, but macros have not been expanded. A plan-backed entry uses
+   the plan slug; an entry without a plan uses the publishing agent's global lane name.
 
-That plan snapshot or pre-expansion XPrompt becomes the archive body. SASE turns staged
+That plan snapshot or pre-expansion Macro becomes the archive body. SASE turns staged
 `@...` references into durable links when possible.
 
 ### Artifact Persistence
@@ -216,7 +215,7 @@ of planning decisions is preserved.
 Multi-round Q&A is rendered as a single merged `### Questions and Answers` section with
 monotonic `Q1..QN` numbering across all rounds (a second round of questions continues at
 the next free number rather than restarting at `Q1`). The section is wrapped in exactly
-one `%xprompts_enabled` pair regardless of round count, and follow-up writes strip any
+one `%macros_enabled` pair regardless of round count, and follow-up writes strip any
 prior Q&A block (including legacy duplicate blocks from older runs) before re-emitting
 the merged section. When a round carries a global note the "last non-empty wins" rule
 applies — a later round's note replaces the earlier one, but an empty later note
@@ -248,7 +247,7 @@ size: small
   - [bbugyi200.athena.sase-8k.6](https://github.com/sase-org/sase--agents/blob/main/agents/bbugyi200.athena.sase-8k.6/README.md)
 - **COMMITS:**
   - [699456a](https://github.com/sase-org/sase/commit/699456a521e25e0aaa38f4e289db38e71a6488a6)
-    — fix(xprompt): canonicalize workflow project identity
+    — fix(macro): canonicalize workflow project identity
 
 # Plan: Example
 ```

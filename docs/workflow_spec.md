@@ -1,6 +1,6 @@
 # Workflow Specification
 
-This document describes the YAML workflow format for sase xprompt workflows. Workflows
+This document describes the YAML workflow format for sase macro workflows. Workflows
 enable multi-step agent pipelines with control flow, parallel execution, and
 human-in-the-loop approval.
 
@@ -29,7 +29,7 @@ human-in-the-loop approval.
 ## Top-Level Structure
 
 A workflow YAML file must define `steps` and can include optional metadata, inputs,
-environment variables, and local xprompt helpers:
+environment variables, and local macro helpers:
 
 ```yaml
 description: Refresh generated docs # One-line summary (optional)
@@ -39,7 +39,7 @@ input: # Input parameter definitions (optional)
   ...
 environment: # Environment variables (optional)
   MY_VAR: "value"
-xprompts: # Workflow-local xprompt definitions (optional)
+macros: # Workflow-local macro definitions (optional)
   helper:
     content: "Use {{ setup.path }}"
 steps: # Ordered list of steps (required)
@@ -50,13 +50,13 @@ steps: # Ordered list of steps (required)
 
 | Field         | Required | Description                                                                      |
 | ------------- | -------- | -------------------------------------------------------------------------------- |
-| `description` | No       | One-line human-facing summary for catalogs and other rich xprompt surfaces.      |
-| `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.      |
+| `description` | No       | One-line human-facing summary for catalogs and other rich macro surfaces.        |
+| `tags`        | No       | Semantic role tags. See [Macro Tags](macros.md#tags) for available tags.         |
 | `hidden`      | No       | Hide the workflow run row from sase's TUI default Agents-tab view.               |
 | `wraps_all`   | No       | Legacy wrapper flag; new workflows should prefer `tags: vcs`.                    |
 | `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).          |
 | `environment` | No       | Environment variables set before any steps run. See [Environment](#environment). |
-| `xprompts`    | No       | Workflow-local xprompt definitions available to this workflow's steps.           |
+| `macros`      | No       | Workflow-local macro definitions available to this workflow's steps.             |
 | `steps`       | Yes      | Ordered list of workflow steps to execute.                                       |
 
 The workflow's name, as used in `#name` and `#!name` references, is always its file name
@@ -100,21 +100,21 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple PRs" } }
 
 ### Supported Types
 
-| Type    | Description                                                                         |
-| ------- | ----------------------------------------------------------------------------------- |
-| `word`  | Single word, no whitespace                                                          |
-| `line`  | Single line, no newlines (the default when `type` is omitted)                       |
-| `text`  | Multi-line text (any content)                                                       |
-| `path`  | File path (no whitespace)                                                           |
-| `agent` | Agent name (no whitespace); sase's TUI completes agent targets                      |
-| `int`   | Integer value (alias `integer`)                                                     |
-| `bool`  | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`; alias `boolean`)    |
-| `float` | Floating point value                                                                |
-| `enum`  | One of the input's `choices`; declare `choices` with the shortform syntax           |
-| `code`  | Structured source plus language (see [Supported Types](xprompt.md#supported-types)) |
+| Type    | Description                                                                        |
+| ------- | ---------------------------------------------------------------------------------- |
+| `word`  | Single word, no whitespace                                                         |
+| `line`  | Single line, no newlines (the default when `type` is omitted)                      |
+| `text`  | Multi-line text (any content)                                                      |
+| `path`  | File path (no whitespace)                                                          |
+| `agent` | Agent name (no whitespace); sase's TUI completes agent targets                     |
+| `int`   | Integer value (alias `integer`)                                                    |
+| `bool`  | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`; alias `boolean`)   |
+| `float` | Floating point value                                                               |
+| `enum`  | One of the input's `choices`; declare `choices` with the shortform syntax          |
+| `code`  | Structured source plus language (see [Supported Types](macros.md#supported-types)) |
 
 Inputs can also set `description` and, on the last positional input, `repeatable: true`;
-see [Typed Inputs](xprompt.md#typed-inputs) for the shared input rules.
+see [Typed Inputs](macros.md#typed-inputs) for the shared input rules.
 
 ### Default Values
 
@@ -153,7 +153,7 @@ Each step must have exactly one of these execution types:
 
 ### Agent Steps
 
-Execute an LLM prompt, optionally referencing inline-capable xprompts:
+Execute an LLM prompt, optionally referencing inline-capable macros:
 
 ```yaml
 - name: generate_plan
@@ -167,7 +167,7 @@ Execute an LLM prompt, optionally referencing inline-capable xprompts:
 
 The `agent` field contains a prompt template that can:
 
-- Reference xprompts using `#xprompt_name(args)` syntax
+- Reference macros using `#macro_name(args)` syntax
 - Use Jinja2 template variables: `{{ variable }}`
 - Include multi-line content
 
@@ -193,7 +193,7 @@ as pre/post-processing.
     ---
 ```
 
-This is the step type that simple `.md` xprompts are internally converted to — a single
+This is the step type that simple `.md` macros are internally converted to — a single
 `prompt_part` step. Workflows with a `prompt_part` step can mix it with other step types
 (bash, python) for pre/post-processing around an inline prompt fragment:
 
@@ -313,16 +313,16 @@ file extension.
 Step definitions are resolved from the following `steps/` directories (in priority
 order):
 
-1. `<project>/sase/xprompts/steps/` (canonical)
-2. `<project>/.xprompts/steps/` (legacy)
-3. `<project>/xprompts/steps/` (legacy)
-4. `~/sase/xprompts/steps/` (canonical)
-5. `~/.xprompts/steps/` (legacy)
-6. `~/xprompts/steps/` (legacy)
-7. `~/sase/xprompts/<project>/steps/` (canonical project-specific home source)
-8. `~/.config/sase/xprompts/<project>/steps/` (legacy project-specific home source)
+1. `<project>/sase/macros/steps/` (canonical)
+2. `<project>/.macros/steps/` (legacy)
+3. `<project>/macros/steps/` (legacy)
+4. `~/sase/macros/steps/` (canonical)
+5. `~/.macros/steps/` (legacy)
+6. `~/macros/steps/` (legacy)
+7. `~/sase/macros/<project>/steps/` (canonical project-specific home source)
+8. `~/.config/sase/macros/<project>/steps/` (legacy project-specific home source)
 9. A `steps/` directory next to the workflow file itself, when it is not already listed
-10. `<sase-package>/xprompts/steps/` (built-in)
+10. `<sase-package>/macros/steps/` (built-in)
 
 Both `.yml` and `.yaml` extensions are checked. First match wins. New shared steps are
 written only to canonical project or home directories; the legacy sources remain

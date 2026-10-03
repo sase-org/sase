@@ -504,7 +504,7 @@ extracted from `item.completed` events.
 ### Plan Handling
 
 The Codex provider does not enable Codex CLI's native plan mode. SASE planning flows are
-implemented at the orchestration layer through workflows, xprompts, and the `sase_plan`
+implemented at the orchestration layer through workflows, macros, and the `sase_plan`
 skill, so provider behavior stays consistent across runtimes.
 
 ### Environment Variables
@@ -1387,7 +1387,7 @@ of the model's context. The shipped `agy` values mirror the
 
 ## Per-Prompt Provider Switching
 
-The `%model` directive (see [xprompt directives](xprompt.md#directives)) can switch both
+The `%model` directive (see [macro directives](macros.md#directives)) can switch both
 the model and the LLM provider for a single prompt. Provider resolution uses configured
 aliases first, then concrete provider/model syntax and known model metadata.
 
@@ -1439,7 +1439,7 @@ reference may carry a trailing effort such as `@large@high`, which overrides the
 referenced alias's effort; an effort on the outer reference still wins. Alias-to-alias
 chains are followed with cycle and depth protection; a cyclic or unresolved reference
 falls back to the raw input rather than crashing a launch. The `@` marker is only
-directive surface syntax: alias keys and xprompt values stay bare. A bare
+directive surface syntax: alias keys and macro values stay bare. A bare
 configured/implicit alias raises with a migration hint, and `@` in front of a non-alias
 raises.
 
@@ -1526,7 +1526,7 @@ Launch Control shows descriptions from config; a user alias without one shows th
 `llm_provider.model_aliases.custom.<name>.description` path to fix.
 
 The same alias vocabulary appears in the `%model:` / `%m:` completion menu in sase's TUI
-and in editors through the xprompt LSP: alias rows sit beneath the concrete model names
+and in editors through the macro LSP: alias rows sit beneath the concrete model names
 with their kind, resolved `PROVIDER(model)` target, and provenance, and typing `@` right
 after the colon narrows the menu to aliases only. Concrete model rows and provider-scope
 rows for **hard**-disabled providers are omitted, while aliases remain and show their
@@ -1535,8 +1535,8 @@ priority providers are annotated `priority`, and providers left behind the activ
 priority provider are annotated `backup`. Provider rows such as `claude/` sit at the
 bottom of the broad menu; accepting one opens that provider's scoped model list and
 inserts qualified values such as `claude/opus`. See
-[xprompt directive syntax](xprompt.md#syntax) for the row anatomy. The completion menu
-is read-only; sase's TUI Launch Control (`,m`) remains the authoritative place to edit
+[macro directive syntax](macros.md#syntax) for the row anatomy. The completion menu is
+read-only; sase's TUI Launch Control (`,m`) remains the authoritative place to edit
 alias targets and to set or clear temporary overrides.
 
 There are no built-in Launch Control buckets: the compact five-size-alias contract ships
@@ -1552,10 +1552,10 @@ A bare `%model` token that is _not_ a configured alias, an explicit `provider/mo
 target, or a known provider model silently falls back to the default provider rather
 than erroring. To catch this drift — for example a removed `model_aliases` entry that
 quietly reroutes a `#m_<provider>_*` preset to the default provider — `sase doctor`
-(`-C config.model_xprompts`) scans configured model presets and warns with
-`<xprompt> -> <token> does not resolve to a provider; it will fall back to the default provider`.
+(`-C config.model_macros`) scans configured model presets and warns with
+`<macro> -> <token> does not resolve to a provider; it will fall back to the default provider`.
 The check is provider-neutral and read-only. For retired prompt directive syntax such as
-`%wait(priority=...)`, use `sase doctor -C config.xprompt_directives`.
+`%wait(priority=...)`, use `sase doctor -C config.macro_directives`.
 
 #### Implicit role aliases
 
@@ -1655,8 +1655,8 @@ a launch-scoped keyword matching the alias `default_model` references also beats
 machine-wide temporary override on the `default model` setting. An explicit concrete
 model for the current agent remains concrete, while an explicit alias is resolved
 through this launch map. See
-[Launch-Scoped Model Alias Overrides](xprompt.md#launch-scoped-model-alias-overrides)
-for syntax and validation rules.
+[Launch-Scoped Model Alias Overrides](macros.md#launch-scoped-model-alias-overrides) for
+syntax and validation rules.
 
 > **Migration note:** `@worker`, `@other`, `@coder`, registered `@<provider>_coder`
 > aliases, `@epic_creator`, `@phase_worker`, and its `<size>_phase_worker` aliases were
@@ -1684,9 +1684,9 @@ Use `provider/model` to specify both explicitly:
 %model:fakey/fakey-large
 ```
 
-In sase's TUI and xprompt-aware editors, `%model:` completion includes provider rows
-such as `claude/`, `codex/`, and `opencode/` after concrete models and aliases. Typing
-or accepting a visible provider prefix scopes the menu to that provider, so `%m:claude/`
+In sase's TUI and macro-aware editors, `%model:` completion includes provider rows such
+as `claude/`, `codex/`, and `opencode/` after concrete models and aliases. Typing or
+accepting a visible provider prefix scopes the menu to that provider, so `%m:claude/`
 offers `claude/opus`, `claude/sonnet`, and the rest of Claude's model catalog while
 `%m:opencode/anthropic/` continues narrowing inside OpenCode's slash-bearing model
 names.
@@ -1814,7 +1814,7 @@ There are five ways an effort reaches a launch, in precedence order:
 
 1. An explicit per-prompt `%effort:<level>` directive, or the `@<level>` suffix on a
    `%model`/alias reference (`%model:opus@xhigh`, `%model:@large@medium`). See
-   [Effort Directive](xprompt.md#effort-directive) for the directive syntax and
+   [Effort Directive](macros.md#effort-directive) for the directive syntax and
    per-branch fan-out (`%{%m:opus@xhigh | %m:sonnet@low}`).
 2. A trailing effort on the selected alias target, temporary model override, or pool
    member (for example `claude/opus@medium`). An outer alias-reference suffix wins over
@@ -1889,7 +1889,7 @@ a warning. The effort args are appended alongside the existing
 [`SASE_LLM_*_ARGS` / `SASE_<P>_LARGE_ARGS`](#environment-variable-reference) escape
 hatches, which remain available.
 
-Source: `src/sase/xprompt/effort.py` (vocabulary + `split_model_effort`),
+Source: `src/sase/macro/effort.py` (vocabulary + `split_model_effort`),
 `src/sase/llm_provider/config.py` (`resolve_effective_effort`, the temporary-effort
 facade, and the public `default_reasoning_effort` config reader),
 `src/sase/llm_provider/_effort_args.py` (per-provider translation).
@@ -3107,7 +3107,7 @@ Source: `src/sase/llm_provider/_subprocess.py`, `src/sase/llm_provider/types.py`
 ## Prompt Preprocessing Pipeline
 
 Before any prompt reaches a provider, it passes through the shared preprocessing
-pipeline defined in `preprocessing.py`. The pipeline has an early phase used for xprompt
+pipeline defined in `preprocessing.py`. The pipeline has an early phase used for macro
 expansion and directive extraction, then a late phase used for command, file, template,
 and formatting work.
 
@@ -3115,10 +3115,10 @@ and formatting work.
 
 | Phase | Step                       | Syntax                                     | Description                                              |
 | ----- | -------------------------- | ------------------------------------------ | -------------------------------------------------------- |
-| Early | Optional workflow Jinja2   | `{{ var }}`                                | Render workflow-supplied template context before xprompt |
-| Early | xprompt references         | `#name`                                    | Expand reusable prompt snippets or workflows             |
-| Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after xprompt expansion               |
-| Late  | Disabled/fenced protection | `%xprompts_enabled:false`, fenced code     | Protect regions that should not be rewritten             |
+| Early | Optional workflow Jinja2   | `{{ var }}`                                | Render workflow-supplied template context before macro   |
+| Early | macro references           | `#name`                                    | Expand reusable prompt snippets or workflows             |
+| Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after macro expansion                 |
+| Late  | Disabled/fenced protection | `%macros_enabled:false`, fenced code       | Protect regions that should not be rewritten             |
 | Late  | Command substitution       | `$(cmd)`                                   | Execute shell commands and inline their output           |
 | Late  | Artifact references        | `@kind:payload`                            | Expand known artifact kinds into portable semantic prose |
 | Late  | File references            | `@path`                                    | Process, validate, or skip file references               |
@@ -3129,11 +3129,11 @@ and formatting work.
 
 ### Order Matters
 
-The pipeline runs in strict order. Prompt directives are extracted after xprompt
-expansion, so directives embedded in xprompts are honored. Before extraction, segments
+The pipeline runs in strict order. Prompt directives are extracted after macro
+expansion, so directives embedded in macros are honored. Before extraction, segments
 disabled by a static `%if(should_run=false)` are dropped, and a kept segment loses only
 its `%if(...)` line (see
-[Static Conditional Segments](xprompt.md#static-conditional-segments)). Late-phase
+[Static Conditional Segments](macros.md#static-conditional-segments)). Late-phase
 command substitution and reference processing run with fenced blocks protected, so
 examples inside code fences are not executed or rewritten. Canonical artifact references
 are expanded before ordinary file references: built-in artifact expansions become
@@ -3164,7 +3164,7 @@ used when the invocation doesn't need workspace-local copies from `@path` refere
 
 The preprocessing steps delegate to functions from two libraries:
 
-- **`xprompt`**: `process_xprompt_references()`, `extract_prompt_directives()`,
+- **`macro`**: `process_macro_references()`, `extract_prompt_directives()`,
   `is_jinja2_template()`, `render_toplevel_jinja2()`
 - **`artifact_refs`**: `process_artifact_references()`, `validate_artifact_references()`
 - **`file_references`**: `process_command_substitution()`, `process_file_references()`,
@@ -3364,7 +3364,7 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 ├── 3. Build LoggingContext from parameters
 │
 ├── 4. Preprocess prompt unless skip_preprocessing=True
-│   ├── early phase: optional workflow Jinja2, xprompt expansion, directive extraction
+│   ├── early phase: optional workflow Jinja2, macro expansion, directive extraction
 │   └── late phase: command substitution, file refs, top-level Jinja2, formatting, comment stripping
 │
 ├── 5. Resolve %model / temporary provider-model override

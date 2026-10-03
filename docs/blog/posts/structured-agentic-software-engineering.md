@@ -3,20 +3,22 @@ title: "SASE: Structured Agentic Software Engineering"
 date: 2026-07-08
 description: >-
   From a tmux full of coding agents to an operating layer around them: agent CLIs,
-  XPrompts, sase's TUI Agents tab, and a practical install path for SASE.
+  Macros, sase's TUI Agents tab, and a practical install path for SASE.
 categories:
   - Agentic Software Engineering
 slug: structured-agentic-software-engineering
 image: images/blog/agents_observability_still.png
 links:
   - sase's TUI: ace.md
-  - XPrompts: xprompt.md
+  - Macros: macros.md
   - Initialization: init.md
   - Configuration: configuration.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
 # SASE: Structured Agentic Software Engineering
+
+> Note: SASE xprompts have been renamed to macros since this post was published.
 
 The status quo is useful enough to be dangerous. Open a handful of terminal or tmux
 windows, run one coding-agent CLI in each, hand each one a scoped task, and hop between
@@ -58,14 +60,14 @@ a screen you can read.
 - 😇 Agent runs become durable records with prompts, transcripts, status, and artifacts.
 - 😇 Notifications tell you when a plan, question, failure, or launch request needs
   attention.
-- 😇 XPrompts make repeated prompts reusable and composable.
+- 😇 Macros make repeated prompts reusable and composable.
 - 😇 sase's TUI gives one control surface for many agents.
 - 😇 Alternations and multi-prompt syntax launch many agents from one prompt.
 - 😇 Plan and launch approvals put gates back where the human still matters.
 
-This post is the front door: how SASE wraps agent CLIs instead of model APIs, how
-XPrompts work, how the Agents tab in sase's TUI changes the day-to-day UX, and how to
-install and initialize the system. The deeper engineering pieces get their own posts.
+This post is the front door: how SASE wraps agent CLIs instead of model APIs, how Macros
+work, how the Agents tab in sase's TUI changes the day-to-day UX, and how to install and
+initialize the system. The deeper engineering pieces get their own posts.
 
 <!-- DIAGRAM: window_farm_vs_control_tower.prompt.md — placeholder for a diagram brief contrasting tmux windows with sase's TUI control surface. -->
 
@@ -74,7 +76,7 @@ install and initialize the system. The deeper engineering pieces get their own p
 SASE is not a model router that happens to know about coding. It is an orchestration
 layer around existing agent runtimes. The
 [architecture guide](../../architecture.md#agent-launch-flow) describes the launch path:
-parse prompt text and directives, resolve a workspace reference, expand XPrompts, invoke
+parse prompt text and directives, resolve a workspace reference, expand Macros, invoke
 the selected LLM provider or workflow executor, stream subprocess output, write agent
 artifacts, emit notifications, and hand review or commit work back to the VCS layer. The
 [LLM provider docs](../../llms.md#provider-architecture) make the boundary explicit:
@@ -126,9 +128,9 @@ isolated workspaces and remain controllable from the same sase's TUI view._
 
 <!-- DIAGRAM: one_prompt_provider_clis.prompt.md — placeholder for a diagram brief showing one SASE operating layer routing to supported provider CLIs. -->
 
-## XPrompts
+## Macros
 
-The smallest XPrompt is just a Markdown file. Put this in `sase/xprompts/til.md` at the
+The smallest Macro is just a Markdown file. Put this in `sase/macros/til.md` at the
 project root where you run SASE:
 
 ```markdown
@@ -143,16 +145,16 @@ sase run "#til"
 ```
 
 That single `#til` reference expands into the Markdown body before the agent sees the
-prompt. XPrompts can live in a project `sase/xprompts/` directory, the user-wide
-`~/sase/xprompts/` directory, or the `xprompts:` block in `sase/sase.yml`; project-local
+prompt. Macros can live in a project `sase/macros/` directory, the user-wide
+`~/sase/macros/` directory, or the `macros:` block in `sase/sase.yml`; project-local
 definitions win when names collide. The full discovery table has more tiers for plugins
 and built-ins, but day one is simple: put reusable prompts near the work, then move them
 outward when they become personal tools.
 
-![sase's TUI prompt input expanding an XPrompt reference with workspace and file completion](../../images/blog/sase_ace_prompt_input.gif)
+![sase's TUI prompt input expanding an Macro reference with workspace and file completion](../../images/blog/sase_ace_prompt_input.gif)
 
-_ACE prompt input expands an XPrompt reference, offers completion, and keeps the
-workspace prefix visible._
+_ACE prompt input expands an Macro reference, offers completion, and keeps the workspace
+prefix visible._
 
 Typed inputs turn that Markdown file into a small interface. The reference example is
 deliberately boring:
@@ -213,7 +215,7 @@ an agent, and `%wait` decides which ones depend on earlier work:
 
 ```text
 ---
-xprompts:
+macros:
   _common: "Follow the project coding conventions."
 ---
 
@@ -234,10 +236,10 @@ segment waits on the first. YAML workflows exist for real graphs, bash/python st
 approvals, structured outputs, and joins; do not reach for them just because a Markdown
 file feels too small to be serious. Small is often the point.
 
-There are a few special XPrompts worth knowing early. `#fork` resumes a prior agent
+There are a few special Macros worth knowing early. `#fork` resumes a prior agent
 conversation by name. Workspace refs such as `#git:home`, `#git:<project>`, and
-`#gh:<owner>/<repo>` decide where the agent runs. Project XPrompts can be namespaced, so
-a prompt like `#gh:sase #sase/sync` can target a repo and expand a project-specific
+`#gh:<owner>/<repo>` decide where the agent runs. Project Macros can be namespaced, so a
+prompt like `#gh:sase #sase/sync` can target a repo and expand a project-specific
 prompt.
 
 You type the same language in several places. `sase run` accepts it directly. sase's TUI
@@ -251,7 +253,7 @@ catalog to an editor through completion, hover, diagnostics, and jump-to-definit
 _Prompt history and stashes make useful launches recoverable instead of leaving them in
 shell history._
 
-<!-- DIAGRAM: prompt_burrito.prompt.md — placeholder for a funny diagram brief showing directives, workspace refs, XPrompts, and prompt text as layers. -->
+<!-- DIAGRAM: prompt_burrito.prompt.md — placeholder for a funny diagram brief showing directives, workspace refs, Macros, and prompt text as layers. -->
 
 ## The Agents Tab In sase's TUI
 
@@ -395,7 +397,7 @@ that launched it. For the guided path, use [Getting Started](../../getting_start
 
 ## What's Next
 
-This post covered SASE's front door: provider CLIs, XPrompts, sase's TUI Agents tab, and
+This post covered SASE's front door: provider CLIs, Macros, sase's TUI Agents tab, and
 the installation path. The parts that make it an engineering system deserve their own
 posts: Beads and Spec-Driven Development, Patches, hooks, mentors, review comments,
 memory, Telegram/mobile control, and SASE's plugin architecture.

@@ -28,17 +28,17 @@ def validate_line_break_matching(module: ModuleType) -> dict[str, Any]:
 
     _require_bindings(module)
     catalog = module.compile_glossary_catalog(
-        [{"term": "Xprompt Memory", "definition": "A memory-backed xprompt."}]
+        [{"term": "Macro Memory", "definition": "A memory-backed macro."}]
     )
 
-    wrapped = "ask xprompt\n  memory now"
+    wrapped = "ask macro\n  memory now"
     spans = list(catalog.scan(wrapped))
     if len(spans) != 1:
         raise RuntimeError(f"expected one wrapped glossary span, got {spans!r}")
     span = spans[0]
-    if span.get("term") != "Xprompt Memory":
+    if span.get("term") != "Macro Memory":
         raise RuntimeError(f"expected full term match, got {span!r}")
-    if span.get("matched_text") != "xprompt\n  memory":
+    if span.get("matched_text") != "macro\n  memory":
         raise RuntimeError(f"wrapped match did not preserve raw text: {span!r}")
     if span.get("range") != {
         "start": {"line": 0, "character": 4},
@@ -50,15 +50,15 @@ def validate_line_break_matching(module: ModuleType) -> dict[str, Any]:
     expected_segments = [
         {
             "byte_start": 4,
-            "byte_end": 11,
+            "byte_end": 9,
             "range": {
                 "start": {"line": 0, "character": 4},
-                "end": {"line": 0, "character": 11},
+                "end": {"line": 0, "character": 9},
             },
         },
         {
-            "byte_start": 14,
-            "byte_end": 20,
+            "byte_start": 12,
+            "byte_end": 18,
             "range": {
                 "start": {"line": 1, "character": 2},
                 "end": {"line": 1, "character": 8},
@@ -72,7 +72,7 @@ def validate_line_break_matching(module: ModuleType) -> dict[str, Any]:
         if segment_range["start"]["line"] != segment_range["end"]["line"]:
             raise RuntimeError(f"segment is not single-line: {segment!r}")
 
-    blank_line_spans = list(catalog.scan("ask xprompt\n\nmemory now"))
+    blank_line_spans = list(catalog.scan("ask macro\n\nmemory now"))
     if blank_line_spans:
         raise RuntimeError(
             f"blank-line-separated phrase should not match: {blank_line_spans!r}"

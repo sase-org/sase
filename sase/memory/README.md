@@ -109,7 +109,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: No description set.
 - Lines: 83
-- Approx. tokens: 1098
+- Approx. tokens: 1097
 
 ### `sase/memory/decisions.md`
 
@@ -124,7 +124,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: No description set.
 - Lines: 39
-- Approx. tokens: 518
+- Approx. tokens: 517
 
 ### `sase/memory/task_types.md`
 
@@ -147,17 +147,17 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before dispatching agents to a remote machine with `%dispatch`.
 - Lines: 60
-- Approx. tokens: 731
+- Approx. tokens: 730
 
 ### `sase/memory/generated_skills.md`
 
 - Type: `reference`
 - Parent: `AGENTS.md`
-- Description: Read when working with sase agent skills (aka xprompt skills), which are
-  generated from source templates in the `src/sase/xprompts/skills/` and deployed to
+- Description: Read when working with sase agent skills (aka macro skills), which are
+  generated from source templates in the `src/sase/macros/skills/` and deployed to
   managed locations (my chezmoi repo, for example).
 - Lines: 74
-- Approx. tokens: 837
+- Approx. tokens: 834
 
 ### `sase/memory/lint_and_test.md`
 
@@ -168,6 +168,15 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
   this note before you finish your turn.
 - Lines: 160
 - Approx. tokens: 2382
+
+### `sase/memory/macros.md`
+
+- Type: `reference`
+- Parent: `AGENTS.md`
+- Description: Read before macros, prompt directives, or launching agents with git/gh
+  VCS workflow blocks.
+- Lines: 165
+- Approx. tokens: 2963
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -245,23 +254,14 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Lines: 99
 - Approx. tokens: 1446
 
-### `sase/memory/xprompts.md`
-
-- Type: `reference`
-- Parent: `AGENTS.md`
-- Description: Read before xprompts, prompt directives, or launching agents with git/gh
-  VCS workflow blocks.
-- Lines: 166
-- Approx. tokens: 2969
-
 ## Statistics
 
 - Total notes: 19
 - Core notes: 3
 - Reference notes: 13
 - Web descriptor notes: 3
-- Total lines: 1516
-- Total approx. tokens: 20812
+- Total lines: 1515
+- Total approx. tokens: 20800
 
 ## Commands
 

@@ -15,7 +15,7 @@ The implementation is split across repos:
   `_mobile_notification_*` modules are internal implementation details.
 - `sase.integrations.mobile_agents` and `sase.integrations.mobile_helpers` are the
   fixed-operation bridge facades used by the Rust gateway to list/launch/kill/retry/fork
-  agents and to expose Patch, xprompt, bead, and update helpers. The sibling
+  agents and to expose Patch, macro, bead, and update helpers. The sibling
   `_mobile_agent_*` and `_mobile_helper_*` modules are internal implementation details.
 - `../sase-core/crates/sase_gateway` owns the Rust HTTP server, wire records,
   pairing/token storage, audit log, SSE event stream, and committed API contract
@@ -139,7 +139,7 @@ Helper bridge operations:
 | Command                                     | Purpose                                                            |
 | ------------------------------------------- | ------------------------------------------------------------------ |
 | `sase mobile helper-bridge changespec-tags` | List active Patch prompt tags; the operation name is legacy-stable |
-| `sase mobile helper-bridge xprompt-catalog` | Return the mobile-safe structured xprompt catalog                  |
+| `sase mobile helper-bridge macro-catalog`   | Return the mobile-safe structured macro catalog                    |
 | `sase mobile helper-bridge beads-list`      | List every non-closed bead, snoozed ones included                  |
 | `sase mobile helper-bridge beads-show`      | Inspect one bead by ID                                             |
 | `sase mobile helper-bridge update-start`    | Start the configured SASE update worker                            |
@@ -437,7 +437,7 @@ actionable gate kind projects the same verified `branches` model. A branch conta
 input fields, each with `id`, `label`, `type` (`word`, `line`, `text`, `path`, `agent`,
 `int`, `bool`, `float`, or `enum`), `required`, `default`, `choices`, `placeholder`,
 `help`, `secret`, and `repeatable`, mirroring the fields sase's TUI typed input form
-already renders for xprompt launches. Group branches also include `submit` metadata with
+already renders for macro launches. Group branches also include `submit` metadata with
 the button label and optional icon. Mobile clients keep selection state locally and
 submit option IDs from one branch, feedback, and each selected option's own input value
 through the host bridge — never a command, path, cwd, or environment value. Download
@@ -597,9 +597,9 @@ context, and host-bridge follow-up actions; they should not construct paths them
 Select a known SASE project context by passing the project name, not a path. The bridge
 resolves only `<sase_home>/projects/<project>/<project>.sase` (falling back to legacy
 `.gp`) and uses that file's `WORKSPACE_DIR` as the cwd for project-local prompt and
-xprompt resolution. This context does not select a launch workspace by itself, so
-include the normal workspace ref (a `+<project>` [project tag](xprompt.md#project-tags)
-for a known project) in the prompt when you want the agent to run in that project:
+macro resolution. This context does not select a launch workspace by itself, so include
+the normal workspace ref (a `+<project>` [project tag](macros.md#project-tags) for a
+known project) in the prompt when you want the agent to run in that project:
 
 ```bash
 curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \
@@ -685,20 +685,20 @@ curl -sS "$BASE_URL/api/v1/changespec-tags?project=sase&limit=25" \
   -H "$AUTH_HEADER"
 ```
 
-Fetch the structured xprompt catalog for a native picker. Optional PDF generation is
+Fetch the structured macro catalog for a native picker. Optional PDF generation is
 best-effort and requested explicitly:
 
 ```bash
-curl -sS "$BASE_URL/api/v1/xprompts/catalog?project=sase&tag=changespec&limit=50" \
+curl -sS "$BASE_URL/api/v1/macros/catalog?project=sase&tag=changespec&limit=50" \
   -H "$AUTH_HEADER"
 
-curl -sS "$BASE_URL/api/v1/xprompts/catalog?project=sase&include_pdf=true" \
+curl -sS "$BASE_URL/api/v1/macros/catalog?project=sase&include_pdf=true" \
   -H "$AUTH_HEADER"
 ```
 
-Each xprompt catalog entry includes the display-only `input_signature` plus mobile
-editor metadata: `insertion`, `reference_prefix`, `kind`, `definition_path` when a real
-source file can be resolved, and an `inputs` array of
+Each macro catalog entry includes the display-only `input_signature` plus mobile editor
+metadata: `insertion`, `reference_prefix`, `kind`, `definition_path` when a real source
+file can be resolved, and an `inputs` array of
 `{name, type, required, default_display, position, repeatable, description}` records.
 `repeatable` is a boolean and `description` is a string or null. String defaults are not
 included: `default_display` is null for every string default, including `""`, and is
@@ -817,5 +817,5 @@ route or record shape changes.
   It does not expose arbitrary host directory selection, and clients must use SASE
   prompt syntax for VCS refs rather than sending raw repo paths.
 - Workflow helper routes are native helper APIs, not generic command execution. Patch,
-  xprompt, and bead helpers are read-only; xprompt PDF generation is optional; and
-  update completion events are opportunistic while status polling remains authoritative.
+  macro, and bead helpers are read-only; macro PDF generation is optional; and update
+  completion events are opportunistic while status polling remains authoritative.

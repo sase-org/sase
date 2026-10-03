@@ -38,8 +38,8 @@ sections, environment variables, and CLI flags.
   - [plugins](#plugins)
   - [mentor_profiles](#mentor_profiles)
   - [metahooks](#metahooks)
-  - [xprompts](#xprompts)
-  - [xprompt_aliases](#xprompt_aliases)
+  - [macros](#macros)
+  - [macro_aliases](#macro_aliases)
   - [use_chezmoi](#use_chezmoi)
   - [commit_hooks](#commit_hooks)
   - [gate](#gate)
@@ -123,8 +123,8 @@ only a selector. It contains one machine name and is deliberately not portable
 configuration; it is not the owner identity and cannot supply a missing username. SASE
 discovers machine overlays by nested `id.machine_name` first, with deprecated top-level
 `machine_name` accepted only as migration input. Foreign machine overlays do not
-contribute runtime settings, Config inventory layers, or config-defined xprompts.
-Ordinary overlays still participate.
+contribute runtime settings, Config inventory layers, or config-defined macros. Ordinary
+overlays still participate.
 
 Only the selected raw machine overlay can own provenance. An `id` value in bundled
 defaults, plugins, `~/.config/sase/sase.yml`, ordinary overlays, or project-local config
@@ -175,8 +175,8 @@ starts on its lightweight home page, where the working sections—**Config**, **
 **Machines**, **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced
 without loading their data. Config's nested catalog is alphabetized. With the default-on
 `admin_center_flags` sunset flag it is **All**, **Flags**, **Holds**, **Launch**,
-**Memory**, **Snippets**, and **XPrompts**, labeled `01` through `07`. Disabling that
-flag omits Flags and numbers the remaining six children `01` through `06`. While home is
+**Memory**, **Snippets**, and **Macros**, labeled `01` through `07`. Disabling that flag
+omits Flags and numbers the remaining six children `01` through `06`. While home is
 visible, press `#` again to resume the last section that was successfully active in this
 sase's TUI process. Before the first section visit, the repeated key leaves home
 unchanged and constructs no pane. Press `1`–`7` or click the numbered tab strip to enter
@@ -194,17 +194,17 @@ jump target (or explains that none exists yet) and is itself clickable.
 
 Each pane is constructed only on first entry and is then reused until the Admin Center
 closes, preserving filters, selection, and scroll state while avoiding unrelated config,
-project, machine, log, statistics, proc, update, and xprompt work on open. Direct
-commands such as **Open logs panel**, **Open procs panel**, **Open statistics**, and
-update actions still open their requested pane immediately and make that successfully
-mounted section the next resume target. Closing and reopening with one `#` still returns
-to home; only a second press while home is visible resumes. The top-level resume target
-and alternate are persisted machine-locally and survive sase's TUI process restarts.
-Entry bookmarks for Config, Logs, Machines, Projects, Procs, and Updates last only for
-the current sase's TUI process. They restore by stable identity, along with minimal
-scope or sub-tab context when needed, but reset when sase's TUI restarts. Filters,
-marks, scroll positions, loaded data, pane instances, Statistics controls, and other
-pane-local state are never carried between modal lifetimes.
+project, machine, log, statistics, proc, update, and macro work on open. Direct commands
+such as **Open logs panel**, **Open procs panel**, **Open statistics**, and update
+actions still open their requested pane immediately and make that successfully mounted
+section the next resume target. Closing and reopening with one `#` still returns to
+home; only a second press while home is visible resumes. The top-level resume target and
+alternate are persisted machine-locally and survive sase's TUI process restarts. Entry
+bookmarks for Config, Logs, Machines, Projects, Procs, and Updates last only for the
+current sase's TUI process. They restore by stable identity, along with minimal scope or
+sub-tab context when needed, but reset when sase's TUI restarts. Filters, marks, scroll
+positions, loaded data, pane instances, Statistics controls, and other pane-local state
+are never carried between modal lifetimes.
 
 ### Config tab
 
@@ -213,13 +213,12 @@ The Config tab answers four questions for every field — what value is effectiv
 
 The nested Config catalog is alphabetized. When `admin_center_flags` is on (the
 default), it is **01 All**, **02 Flags**, **03 Holds**, **04 Launch**, **05 Memory**,
-**06 Snippets**, and **07 XPrompts**. With the bundled prefix, press `0` and then
-`1`-`7` to open those children. When the flag is off, the catalog runs from **01 All**
-and **02 Holds** through **06 XPrompts**, and `0` then `1`-`6` selects them. Remap the
-prefix with `ace.keymaps.config.select_subtab` without changing the visible default
-badges.
+**06 Snippets**, and **07 Macros**. With the bundled prefix, press `0` and then `1`-`7`
+to open those children. When the flag is off, the catalog runs from **01 All** and **02
+Holds** through **06 Macros**, and `0` then `1`-`6` selects them. Remap the prefix with
+`ace.keymaps.config.select_subtab` without changing the visible default badges.
 
-**Holds** lists the active [agent holds](xprompt.md#hold-directive) with their selectors
+**Holds** lists the active [agent holds](macros.md#hold-directive) with their selectors
 and expiry. `j` / `k` move, `d` releases the highlighted hold immediately, and `r`
 reloads the list. See [agent hold limits](#agent-hold-limits) for the TTL settings.
 
@@ -342,35 +341,35 @@ and `R` refreshes the off-thread cached inventory.
 
 The Statistics tab aggregates durable agent run and activity records over a selectable
 time range. Its eight numbered views are **01 Overview**, **02 Runners**, **03
-Projects**, **04 Providers**, **05 Activity**, **06 XPrompts**, **07 Plans &
-Questions**, and **08 Perf**. The Runners view uses today's effective global
-limit—including a temporary override—as present-day context, never as historical
-configuration. The Projects view can group by project, by Patch, or as a
-project-to-Patch drilldown. XPrompts can group by usage, model, project, or co-usage.
-Perf combines TUI startup and responsiveness logs with telemetry latency and
-reliability; its grouping cycles through subsystem, provider, and workflow. A pane-wide
-project filter lets you apply the same scope to the run-backed views, but Perf is global
-and marks the project chip **not applied**.
+Projects**, **04 Providers**, **05 Activity**, **06 Macros**, **07 Plans & Questions**,
+and **08 Perf**. The Runners view uses today's effective global limit—including a
+temporary override—as present-day context, never as historical configuration. The
+Projects view can group by project, by Patch, or as a project-to-Patch drilldown. Macros
+can group by usage, model, project, or co-usage. Perf combines TUI startup and
+responsiveness logs with telemetry latency and reliability; its grouping cycles through
+subsystem, provider, and workflow. A pane-wide project filter lets you apply the same
+scope to the run-backed views, but Perf is global and marks the project chip **not
+applied**.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries
 off the UI thread. Use `[` / `]` to change views or press `0` followed by `1`–`8` to
 select the view displayed as `01` through `08`. Use `t`/`T` or `c` to choose a preset or
-custom range, `g` to change the Projects, XPrompts, or Perf grouping, `p`/`P` to cycle
-the project filter forward or backward, and `r` to refresh immediately. Keyed scope
-chips keep the effective range, grouping, and project visible; the **Group** chip
-appears only in those three groupable views and names the selected dimension there.
-Project scopes use configured display names while retaining canonical keys internally.
-First open seeds the current project when `ace.current_project.seed_filters` is on; `p`
-/ `P` can always cycle away from that seed. The cycle order is **All projects**,
-followed by projects ranked by run count in the most recently loaded unfiltered result,
-and then wraps: `p` moves forward and `P` backward. Return to **All** after changing the
-range to rebuild that list for the new range. If a selected project produces an empty
-result, either project-cycle key clears directly to **All projects**. Every populated
-view includes a compact metric legend, `?` opens the complete glossary and current
-scope, and empty/error states show the effective keys for widening, clearing, or
-retrying. The Overview Agents Run, Success Rate, and Commits tiles open Projects, while
-Plans Proposed and Questions open Plans & Questions. The plan and question tiles remain
-all-project values even when a project is selected; see
+custom range, `g` to change the Projects, Macros, or Perf grouping, `p`/`P` to cycle the
+project filter forward or backward, and `r` to refresh immediately. Keyed scope chips
+keep the effective range, grouping, and project visible; the **Group** chip appears only
+in those three groupable views and names the selected dimension there. Project scopes
+use configured display names while retaining canonical keys internally. First open seeds
+the current project when `ace.current_project.seed_filters` is on; `p` / `P` can always
+cycle away from that seed. The cycle order is **All projects**, followed by projects
+ranked by run count in the most recently loaded unfiltered result, and then wraps: `p`
+moves forward and `P` backward. Return to **All** after changing the range to rebuild
+that list for the new range. If a selected project produces an empty result, either
+project-cycle key clears directly to **All projects**. Every populated view includes a
+compact metric legend, `?` opens the complete glossary and current scope, and
+empty/error states show the effective keys for widening, clearing, or retrying. The
+Overview Agents Run, Success Rate, and Commits tiles open Projects, while Plans Proposed
+and Questions open Plans & Questions. The plan and question tiles remain all-project
+values even when a project is selected; see
 [Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for
 the view contents, range syntax, and project-filter caveats, and
 [Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
@@ -845,11 +844,11 @@ ace:
 | `notification_tabs`                 | dict         | see below | Per-tab colors, icons, priorities, and grouping for notification tabs.                                                                                       |
 | `page_size`                         | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.            |
 | `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                   |
-| `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                   |
+| `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and macro-save conversion.                                                                     |
 | `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                           |
 | `prompt_stash`                      | dict         | see below | Stash Trash recovery settings for sase's TUI Prompts overlay.                                                                                                |
 | `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab.                                                                                   |
-| `agent_header`                      | dict         | see below | Collapsed Agents-tab header panel XPROMPT preview budget.                                                                                                    |
+| `agent_header`                      | dict         | see below | Collapsed Agents-tab header panel MACRO preview budget.                                                                                                      |
 | `agent_tabs`                        | dict         | see below | Agent tab machine mode and per-tab styling for the Agents tab.                                                                                               |
 | `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                    |
 | `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`).   |
@@ -941,7 +940,7 @@ Patches sub-tab.
 
 #### `ace.current_project`
 
-The current project is derived from the head of the VCS xprompt MRU store — the project
+The current project is derived from the head of the VCS macro MRU store — the project
 you last launched an agent on. `sase project set-current` and the Projects tab perform
 the same MRU promotion without a launch.
 
@@ -987,8 +986,8 @@ only while that panel remains live in the current sase's TUI session. On restart
 when a tribe panel disappears and later returns, `initially_expanded` is applied again.
 
 SASE bundles display config only for the tribes its own source assigns (`default`,
-`epic`, `job`, `pinned`, `review`); a tribe your own xprompts assign with
-`%id(tribe=...)`, `%clan(..., tribe=...)`, or the `#tribe` xprompt has no bundled entry,
+`epic`, `job`, `pinned`, `review`); a tribe your own macros assign with
+`%id(tribe=...)`, `%clan(..., tribe=...)`, or the `#tribe` macro has no bundled entry,
 renders with sase's TUI gold fallback and no icon until you configure it under
 `ace.tribes`, and — once configured — requires a `description` like any other entry.
 
@@ -1166,11 +1165,11 @@ focused. The available actions are:
 | `cycle_range`                  | `t`                    | Cycle to the next statistics time range.                              |
 | `cycle_range_reverse`          | `T`                    | Cycle to the previous statistics time range.                          |
 | `custom_range`                 | `c`                    | Enter a custom statistics time range.                                 |
-| `cycle_group`                  | `g`                    | Cycle grouping in the Projects, XPrompts, or Perf view.               |
+| `cycle_group`                  | `g`                    | Cycle grouping in the Projects, Macros, or Perf view.                 |
 | `cycle_project_filter`         | `p`                    | Cycle forward through All and the latest unfiltered project ranking.  |
 | `cycle_project_filter_reverse` | `P`                    | Cycle backward through All and the latest unfiltered project ranking. |
-| `focus_xprompt`                | `x`                    | Focus one XPrompt in the XPrompts Statistics view.                    |
-| `clear_xprompt_focus`          | `X`                    | Return the XPrompts Statistics view to all XPrompts.                  |
+| `focus_macro`                  | `x`                    | Focus one Macro in the Macros Statistics view.                        |
+| `clear_macro_focus`            | `X`                    | Return the Macros Statistics view to all Macros.                      |
 | `scroll_down`                  | `ctrl+d`               | Scroll the Statistics body down by half a page.                       |
 | `scroll_up`                    | `ctrl+u`               | Scroll the Statistics body up by half a page.                         |
 | `refresh`                      | `r`                    | Refresh the active view from its durable data sources.                |
@@ -1265,7 +1264,7 @@ commas:
 | `next_project`         | `p`             | Cycle forward through the enabled-project ring.                     |
 | `prev_project`         | `P`             | Cycle backward through the enabled-project ring.                    |
 | `add_snippet`          | `a`             | Open the add-snippet form.                                          |
-| `edit_snippet`         | `e`             | Edit the selected config snippet, or open xprompt source.           |
+| `edit_snippet`         | `e`             | Edit the selected config snippet, or open macro source.             |
 | `delete_snippet`       | `d`             | Confirm and delete the selected writable snippet.                   |
 | `open_source`          | `o`             | Open the source in `$EDITOR`.                                       |
 | `open_viewer`          | `Z`             | Hand the source file to the artifact viewer.                        |
@@ -1395,7 +1394,7 @@ when more than one target applies. The older direct Patch jump remains as
 chord) is ignored with a warning pointing at `act_on_agent`.
 
 `start_agent_from_patch`, default `space`, prefills the prompt with the most recently
-launched VCS xprompt, or opens a blank home-workspace prompt when there is none. The
+launched VCS macro, or opens a blank home-workspace prompt when there is none. The
 former `start_agent_home` action is removed; a leftover override for it is ignored as an
 unknown action. The leader `,h` chord still opens a home-context prompt.
 
@@ -1589,7 +1588,7 @@ ace:
 See
 [docs/ace.md — Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
 
-Source: `src/sase/xprompt/snippet_targets.py`
+Source: `src/sase/macro/snippet_targets.py`
 
 #### `ace.snippets`
 
@@ -1621,7 +1620,7 @@ back into config. See [docs/ace.md — Capitalized aliases](ace.md#capitalized-a
 for the full rule.
 
 See [docs/ace.md — Snippets](ace.md#snippets) for usage details and
-[docs/xprompt.md — Snippet CLI](xprompt.md#snippet-cli) for `sase snippet list`, `show`,
+[docs/macros.md — Snippet CLI](macros.md#snippet-cli) for `sase snippet list`, `show`,
 `add`, and `delete`.
 
 Source: `src/sase/ace/tui/widgets/prompt_text_area.py`
@@ -1640,7 +1639,7 @@ ace:
     auto: soft
     debounce_ms: 90
     auto_file_paths: false
-    auto_xprompt_menu: true
+    auto_macro_menu: true
     auto_directive_menu: true
     auto_artifact_menu: true
     auto_jinja_menu: true
@@ -1663,7 +1662,7 @@ ace:
 | `auto`                        | bool/string | `soft`      | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.                                                                                                                                 |
 | `debounce_ms`                 | int         | `90`        | Delay before computing a live suggestion after text or cursor changes.                                                                                                                                                                    |
 | `auto_file_paths`             | bool        | `false`     | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.                                                                                                                              |
-| `auto_xprompt_menu`           | bool        | `true`      | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.                                                                                                                         |
+| `auto_macro_menu`             | bool        | `true`      | Automatically open the macro/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.                                                                                                                           |
 | `auto_directive_menu`         | bool        | `true`      | Automatically open directive completion while typing `%` tokens, fixed values such as `%model:`, `=alias`, and `==model` shortcuts.                                                                                                       |
 | `auto_artifact_menu`          | bool        | `true`      | Automatically open the grouped `@` reference menu from bare `@`, narrowed path/kind queries, or `@kind:` payloads.                                                                                                                        |
 | `auto_jinja_menu`             | bool        | `true`      | Automatically open the Jinja variable completion menu while typing inside a `{{ }}` or `{% %}` tag. Manual `Ctrl+T` still works when off.                                                                                                 |
@@ -1712,7 +1711,7 @@ Existing overrides must rename the key to keep controlling word completion.
 
 The `+query` project/Patch picker uses the same completion panel and opens when the plus
 is at the start of the prompt or directly follows whitespace, `{`, or `|`. It is not
-disabled by `auto_xprompt_menu`. Manual `Ctrl+T` project/Patch completion uses the same
+disabled by `auto_macro_menu`. Manual `Ctrl+T` project/Patch completion uses the same
 token rule and works regardless of these automatic-completion settings.
 
 `@` reference completion uses a project-scoped artifact catalog and warm prompt path
@@ -1741,7 +1740,7 @@ The old `*alias` and `**model` forms remain ordinary prompt text. `Ctrl+T` remai
 available for both shortcut menus when automatic directive menus are disabled.
 
 File-path completion roots relative lookups in the prompt-selected workspace. A
-`+<project>` [project tag](xprompt.md#project-tags), registered workspace-provider refs,
+`+<project>` [project tag](macros.md#project-tags), registered workspace-provider refs,
 and known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup
 in that project checkout. If no prompt workspace ref resolves, lookups fall back to the
 TUI process directory. These root rules are shared by live path suggestions, manual
@@ -1845,7 +1844,7 @@ Source: `src/sase/ace/tui/agent_decks_settings.py`
 
 #### `ace.agent_header`
 
-Controls how many rows of the agent's `AGENT XPROMPT` the collapsed Agents-tab header
+Controls how many rows of the agent's `AGENT MACRO` the collapsed Agents-tab header
 panel previews below its two chip rows. The preview shows at most
 `collapsed_preview_max_rows` rows, and fewer when `collapsed_max_share` leaves less room
 on a short column.
@@ -1857,10 +1856,10 @@ ace:
     collapsed_preview_max_rows: 3
 ```
 
-| Field                        | Type    | Default | Description                                                                                                                                                                                        |
-| ---------------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `collapsed_max_share`        | number  | `0.35`  | Share of the detail-column height the collapsed header may take (0 to 0.6). The preview gets that cap minus the border, chip rows, and XPROMPT tab row, at least 1 row. `0` turns the preview off. |
-| `collapsed_preview_max_rows` | integer | `3`     | Most xprompt preview rows the collapsed header shows (at least 1). The `collapsed_max_share` budget can lower it on short columns. `d` expands to the full prompt.                                 |
+| Field                        | Type    | Default | Description                                                                                                                                                                                      |
+| ---------------------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `collapsed_max_share`        | number  | `0.35`  | Share of the detail-column height the collapsed header may take (0 to 0.6). The preview gets that cap minus the border, chip rows, and MACRO tab row, at least 1 row. `0` turns the preview off. |
+| `collapsed_preview_max_rows` | integer | `3`     | Most macro preview rows the collapsed header shows (at least 1). The `collapsed_max_share` budget can lower it on short columns. `d` expands to the full prompt.                                 |
 
 Source: `src/sase/ace/tui/agent_header_settings.py`
 
@@ -1922,30 +1921,30 @@ Source: `src/sase/ace/tui/prompt_submission_settings.py`,
 #### `ace.prompt_inputs`
 
 Controls how sase's TUI treats raw `<placeholder>` tags when a prompt is submitted or
-saved as an xprompt.
+saved as a macro.
 
 ```yaml
 ace:
   prompt_inputs:
     collect_raw_placeholders: true
-    xprompt_placeholder_args: true
+    macro_placeholder_args: true
 ```
 
 | Field                      | Type | Default | Current behavior                                                                                                                                                                           |
 | -------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `collect_raw_placeholders` | bool | `true`  | When true, submitting an sase's TUI prompt opens **Fill in this prompt** for each live raw placeholder. When false, raw tags launch unchanged; declared `input:` collection still works.   |
-| `xprompt_placeholder_args` | bool | `true`  | When false, `gX`, `gL`, and fresh `gx` extraction keep live raw tags as literal text and mint no placeholder-derived `text` inputs. Jinja-variable input inference for `gL` is unaffected. |
+| `macro_placeholder_args`   | bool | `true`  | When false, `gX`, `gL`, and fresh `gx` extraction keep live raw tags as literal text and mint no placeholder-derived `text` inputs. Jinja-variable input inference for `gL` is unaffected. |
 
 Raw placeholders in YAML frontmatter, inline code, fenced code, or
-`%xprompts_enabled:false` regions are never collected. See
-[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the submit panel,
-literal-tag control, and xprompt conversion workflow.
+`%macros_enabled:false` regions are never collected. See
+[Raw Prompt Placeholders](macros.md#raw-prompt-placeholders) for the submit panel,
+literal-tag control, and macro conversion workflow.
 
 Source: `src/sase/agent/prompt_placeholder_inputs.py`,
 `src/sase/ace/tui/actions/agent_workflow/_launch_start.py`,
-`src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt.py`,
-`src/sase/ace/tui/widgets/_prompt_input_bar_local_xprompt_actions.py`,
-`src/sase/ace/tui/widgets/_local_xprompt_conversion.py`
+`src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_macro.py`,
+`src/sase/ace/tui/widgets/_prompt_input_bar_local_macro_actions.py`,
+`src/sase/ace/tui/widgets/_local_macro_conversion.py`
 
 ### artifacts
 
@@ -2123,11 +2122,11 @@ llm_provider:
 | `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
 | `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only sase's TUI Launch Control bucket descriptions.                                                                                                                                                              |
 
-Model aliases are resolved when an agent launches, so reusable xprompts can point at
-names such as `%model:@medium` or `%model:@blogger` while each user's `sase.yml`
-controls the concrete provider/model. Alias config keys stay bare; the `@` marker is
-only used in `%model`/`%m` directive values. Alias values may reference another alias
-with `@<alias>`; the reference may carry a trailing effort such as `@medium@high`, which
+Model aliases are resolved when an agent launches, so reusable macros can point at names
+such as `%model:@medium` or `%model:@blogger` while each user's `sase.yml` controls the
+concrete provider/model. Alias config keys stay bare; the `@` marker is only used in
+`%model`/`%m` directive values. Alias values may reference another alias with
+`@<alias>`; the reference may carry a trailing effort such as `@medium@high`, which
 overrides the referenced alias's effort (chains are followed with cycle/depth
 protection). Unknown non-alias model values keep the existing fallback behavior and run
 on the default provider. Use `model_aliases.builtin` to override one of the five
@@ -2921,8 +2920,8 @@ an unavailable provider or omits its plugin prefix, the role's reference policy 
 disabled and `sase doctor -C config.repos` reports how to fix it. Authors may omit `use`
 and provide the inline fields in the table instead.
 
-`ref.xprompt` is retired and invalid. `ref.filters.path_globs` remains a deprecated
-alias that warns and maps to `ref.inventory.globs`; new configuration must use
+`ref.macro` is retired and invalid. `ref.filters.path_globs` remains a deprecated alias
+that warns and maps to `ref.inventory.globs`; new configuration must use
 `inventory.globs`. The `beads` and `agents` sidecars are entity-backed rather than
 document inventories, so document filters do not apply to them. See
 [Artifact References](artifact_references.md) for canonical prompt forms and
@@ -3106,7 +3105,7 @@ workspace-provider hooks, so provider-specific authentication and network requir
 belong to the installed plugin. For GitHub, the `sase-github` plugin uses the `gh` CLI
 and can return private repositories visible to the authenticated user.
 
-Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_repo_completion.py`
+Source: `src/sase/default_config.yml`, `src/sase/macro/vcs_repo_completion.py`
 
 ### vcs_ref_completion
 
@@ -3118,16 +3117,16 @@ vcs_ref_completion:
   enabled: true
 ```
 
-| Field                        | Type | Default | Description                                                                    |
-| ---------------------------- | ---- | ------- | ------------------------------------------------------------------------------ |
-| `vcs_ref_completion.enabled` | bool | `true`  | Enable sase's TUI and xprompt LSP completion at the root of VCS workflow refs. |
+| Field                        | Type | Default | Description                                                                  |
+| ---------------------------- | ---- | ------- | ---------------------------------------------------------------------------- |
+| `vcs_ref_completion.enabled` | bool | `true`  | Enable sase's TUI and macro LSP completion at the root of VCS workflow refs. |
 
 When disabled, sase's TUI does not detect VCS ref-root completion triggers and the
-materialized xprompt LSP VCS catalog omits namespace rows. Project and Patch candidates
+materialized macro LSP VCS catalog omits namespace rows. Project and Patch candidates
 come from local ProjectSpecs; provider namespace rows come from fast local
 workspace-provider hooks.
 
-Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_ref_completion.py`
+Source: `src/sase/default_config.yml`, `src/sase/macro/vcs_ref_completion.py`
 
 ### axe
 
@@ -3562,7 +3561,7 @@ environment, and artifact-reference aliases.
 All jobs are scripts. Exact-name resolution checks `job_script_dirs`, then the running
 interpreter's bin directory, then `$PATH`. Invalid fields, duplicate identities,
 non-positive intervals, and invalid durations fail config loading with a dotted config
-path and source-layer diagnostic. `agent:` and `xprompt:` are rejected with a migration
+path and source-layer diagnostic. `agent:` and `macro:` are rejected with a migration
 message.
 
 Environment values resolve at dispatch time. Use a literal for non-secret data or
@@ -3943,14 +3942,14 @@ metahooks:
 
 Source: `src/sase/config/metahook.py`
 
-### xprompts
+### macros
 
 Defines reusable prompt snippets that can be referenced with `#name` syntax in any
 prompt. Supports both simple string content and structured definitions with typed inputs
 and Jinja2 templates.
 
 ```yaml
-xprompts:
+macros:
   # Simple string format
   greeting: "Hello, please review this code."
 
@@ -3967,64 +3966,64 @@ xprompts:
     tags: [crs]
 ```
 
-Xprompts use the shared first-wins content-layout order:
+Macros use the shared first-wins content-layout order:
 
-1. Project `sase/xprompts/`, then legacy project `.xprompts/` and `xprompts/`
-2. Home `~/sase/xprompts/`, then legacy home `~/.xprompts/` and `~/xprompts/`
-3. `~/sase/xprompts/{project}/`, then legacy `~/.config/sase/xprompts/{project}/`
+1. Project `sase/macros/`, then legacy project `.macros/` and `macros/`
+2. Home `~/sase/macros/`, then legacy home `~/.macros/` and `~/macros/`
+3. `~/sase/macros/{project}/`, then legacy `~/.config/sase/macros/{project}/`
 4. Project `sase/sase.yml` (root `sase.yml` is an exclusive legacy fallback)
 5. User `sase_*.yml` overlays, then `~/.config/sase/sase.yml`
 6. Plugin config and package default config
-7. Plugin xprompt resources
-8. `<sase_package>/default_xprompts/*.md`, then `<sase_package>/xprompts/*.md`
+7. Plugin macro resources
+8. `<sase_package>/default_macros/*.md`, then `<sase_package>/macros/*.md`
 
 Earlier sources win on name conflicts. Project and home canonical directories are the
 only writable filesystem destinations; legacy directories remain read-compatible but are
-not offered for new saves. File-based xprompts use YAML front matter for metadata and
-the file body for content. The [XPrompt discovery table](xprompt.md#discovery-order)
-lists every source separately.
+not offered for new saves. File-based macros use YAML front matter for metadata and the
+file body for content. The [Macro discovery table](macros.md#discovery-order) lists
+every source separately.
 
-Source: `src/sase/xprompt/loader.py`
+Source: `src/sase/macro/loader.py`
 
-### xprompt_aliases
+### macro_aliases
 
-Defines raw text-level alias substitutions that are applied _before_ any xprompt
+Defines raw text-level alias substitutions that are applied _before_ any macro
 processing. This is useful for creating shorthand references where the alias must be
 present in the raw text for other processing logic (such as VCS directory-switching) to
 work correctly.
 
 ```yaml
-xprompt_aliases:
+macro_aliases:
   c: commit # #c → #commit
   p: propose # #p → #propose
   deploy_notes: "release-notes" # #deploy_notes → #release-notes
   gh_foo: "gh:foo/bar" # #gh_foo → #gh:foo/bar
 ```
 
-| Field             | Type         | Default                   | Description                                                  |
-| ----------------- | ------------ | ------------------------- | ------------------------------------------------------------ |
-| `xprompt_aliases` | dict[string] | `{c: commit, p: propose}` | Mapping of alias name → target. Applied as text substitution |
+| Field           | Type         | Default                   | Description                                                  |
+| --------------- | ------------ | ------------------------- | ------------------------------------------------------------ |
+| `macro_aliases` | dict[string] | `{c: commit, p: propose}` | Mapping of alias name → target. Applied as text substitution |
 
 The built-in defaults provide `#c` as a shorthand for `#commit` and `#p` for `#propose`.
 Additional aliases can be added in user config files.
 
 Each entry maps an alias name to a target string. When the processor encounters
-`#alias_name` in a prompt, it replaces it with `#target` before any other xprompt
+`#alias_name` in a prompt, it replaces it with `#target` before any other macro
 resolution occurs. Only `#`-prefixed references are substituted; the alias name must
 match `[a-zA-Z_][a-zA-Z0-9_]*`.
 
-Source: `src/sase/xprompt/processor.py`
+Source: `src/sase/macro/processor.py`
 
 ### use_chezmoi
 
 Enables chezmoi-aware home-file writes. When set to `true`, SASE writes generated home
-instructions, memory, skills, and home-directory xprompt paths through the chezmoi
-source tree under `~/.local/share/chezmoi/home/` instead of writing the live home files
-directly. Canonical `~/sase/xprompts/` and `~/sase/memory/` map to source paths
-`home/sase/xprompts/` and `home/sase/memory/`. The unchanged global config still maps to
+instructions, memory, skills, and home-directory macro paths through the chezmoi source
+tree under `~/.local/share/chezmoi/home/` instead of writing the live home files
+directly. Canonical `~/sase/macros/` and `~/sase/memory/` map to source paths
+`home/sase/macros/` and `home/sase/memory/`. The unchanged global config still maps to
 `home/dot_config/sase/sase.yml`.
 
-This affects initialization workflow as well as xprompt editing. `sase memory init`
+This affects initialization workflow as well as macro editing. `sase memory init`
 targets the chezmoi home source root when it needs to initialize home-level `AGENTS.md`,
 writes home memory there, and may run the configured chezmoi deploy path;
 `sase skill init` writes provider skill files there before optional commit, push, and
@@ -4237,13 +4236,13 @@ configuration errors do propagate: a bad value here must never strand a runner.
 Bounded deference is not priority aging and not preemption. A running agent is never
 stopped to make room, and a deferred waiter's own priority does not improve while it
 waits. See [Agent waiting for a runner slot](troubleshooting/runner-slots.md) for
-diagnosis, and [`%queue(priority=N)`](xprompt.md#supported-directives) for the directive
+diagnosis, and [`%queue(priority=N)`](macros.md#supported-directives) for the directive
 itself.
 
 ### agent hold limits
 
 Three top-level keys bound agent holds armed by the `sase agent hold create` / `run`
-commands and the [`%hold` directive](xprompt.md#hold-directive).
+commands and the [`%hold` directive](macros.md#hold-directive).
 
 ```yaml
 agent_hold_default_ttl: 2h
@@ -4660,7 +4659,7 @@ telegram:
 | `telegram.commands.<name>.timeout`     | string | `60s`     | Integer duration ending in `s`, `m`, or `h`.                                   |
 
 Command names must contain 1–32 lowercase letters, digits, or underscores. The built-in
-names `bead`, `beads`, `changes`, `fork`, `kill`, `list`, `update`, and `xprompts` are
+names `bead`, `beads`, `changes`, `fork`, `kill`, `list`, `update`, and `macros` are
 reserved. The integration parses `run` as an argument vector and never invokes a shell.
 Text following `/name` is appended as one final argument, and the process runs from an
 isolated temporary directory, so use absolute paths or commands available on `PATH`
@@ -4851,7 +4850,7 @@ legacy single-sidecar shape continues to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during
 first-use `#git:<project>` initialization (target existing projects with their
-`+<project>` [project tag](xprompt.md#project-tags)), existing bare-repo registration,
+`+<project>` [project tag](macros.md#project-tags)), existing bare-repo registration,
 `#git`/workspace materialization, and the first in-tree SDD write. Setup/materialization
 flows commit and push only those generated init paths with an `Initialize SDD` init
 commit when needed.
@@ -5081,7 +5080,7 @@ batch creation. Agent-initiated launches still freeze the typed plan for LaunchA
 after approval, the same admission coordinator resolves waits, evaluates `%if::`
 predicates, and dispatches eligible units — agent units through the established agent
 launch path, and `%proc` units through native stand-alone named-proc dispatch; see
-[Experimental typed launch units](xprompt.md#experimental-typed-launch-units).
+[Experimental typed launch units](macros.md#experimental-typed-launch-units).
 
 #### Saved machine preferences
 
@@ -5552,8 +5551,8 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | Variable                            | Description                                                              |
 | ----------------------------------- | ------------------------------------------------------------------------ |
 | `SASE_DISABLE_PLUGINS`              | Disable plugin resources and third-party artifact-provider entry points. |
-| `SASE_DISABLE_PLUGIN_XPROMPTS`      | Disable plugin-provided xprompt and workflow files.                      |
-| `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin-provided `default_config.yml` files and config xprompts.  |
+| `SASE_DISABLE_PLUGIN_MACROS`        | Disable plugin-provided macro and workflow files.                        |
+| `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin-provided `default_config.yml` files and config macros.    |
 | `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable plugin-provided artifact-reference specifications.               |
 | `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable plugin-provided file-hook templates.                             |
 | `SASE_DISABLE_PLUGIN_TASK_TYPES`    | Disable plugin-provided task-type specifications.                        |
@@ -5577,7 +5576,7 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                                                                                                                                                                                                                                                                                                  |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                                                                                                                                                                                                                                                                                           |
 | `SASE_FEATURE_FLAGS`                  | Strict JSON object of booleans carrying the resolved feature-flag snapshot for this process and its children. Outranks config layers and a saved machine preference. Root `-f/--enable-feature` and `-F/--disable-feature` merge into this variable so launched processes inherit those CLI overrides.                                                                                                                                |
-| `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                                                                                                                                                                                                                                                                                                                                        |
+| `SASE_MACRO_LSP_CMD`                  | Override the command used by `sase lsp` to launch the macro language server.                                                                                                                                                                                                                                                                                                                                                          |
 | `SASE_CORE_DIR`                       | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.                                                                                                                                                                                                                                                                                                                            |
 | `SASE_RUST_DEV_PROFILE`               | Cargo profile for the `just` Rust dev-install recipes and editable `sase-core` update prebuilds (default: `dev-update`); set `release` to force the published release profile. See [Rust Backend](rust_backend.md).                                                                                                                                                                                                                   |
 | `SASE_FORMAT_VENV_DIR`                | Virtualenv the `just` formatting recipes install their narrow formatter tool set into (default: `.venv-format`).                                                                                                                                                                                                                                                                                                                      |
@@ -5912,16 +5911,16 @@ means `enabled`.
 | ------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------ |
 | `sase project list`                        | `-s, --state enabled\|disabled\|sibling\|all` | List records in one state; default is true enabled projects.                   |
 | `sase project list`                        | `-j, --json`                                  | Emit machine-readable lifecycle and derived project/VCS fields.                |
-| `sase project current`                     | `-j, --json`                                  | Show the current project derived from the VCS xprompt MRU.                     |
-| `sase project set-current <project>`       | `-j, --json`                                  | Promote a project to the VCS xprompt MRU head without launching an agent.      |
+| `sase project current`                     | `-j, --json`                                  | Show the current project derived from the VCS macro MRU.                       |
+| `sase project set-current <project>`       | `-j, --json`                                  | Promote a project to the VCS macro MRU head without launching an agent.        |
 | `sase project show <project>`              | `-j, --json`                                  | Show state, source, project/archive files, workspace, launchability, warnings. |
 | `sase project set-state <project> <state>` | `-f, --force`                                 | Set `enabled`, `disabled`, or internal backing marker `sibling`.               |
 | `sase project enable <project>`            | `-f, --force`                                 | Enable a project; `--force` has no effect when enabling.                       |
 | `sase project disable <project>`           | `-f, --force`                                 | Disable a project after live-work safety checks.                               |
 
-`sase project set-current` promotes an enabled project to the VCS xprompt MRU head
-without launching an agent. That is display and filter-seed context, not a lifecycle
-state; see [Current project](project_spec.md#current-project).
+`sase project set-current` promotes an enabled project to the VCS macro MRU head without
+launching an agent. That is display and filter-seed context, not a lifecycle state; see
+[Current project](project_spec.md#current-project).
 
 Disabling refuses projects with live `RUNNING` claims or live artifact markers
 (`running.json`, `waiting.json`, or `pending_question.json`) unless `--force` is passed.
@@ -6041,7 +6040,7 @@ background agents, and multi-prompt queries (containing `---` separators) are la
 as sequential detached background agents.
 
 From an interactive terminal outside an agent or durable proc, a prompt whose
-[`%hold`](xprompt.md#hold-directive) preview combines `future` with `scope=host` prints
+[`%hold`](macros.md#hold-directive) preview combines `future` with `scope=host` prints
 the preview and asks `Arm this hold? [y/N]`. An over-threshold `pending` capture also
 asks when the preview can resolve project context; typed launch plans can do so, while a
 plain project-scoped `sase run` prompt currently cannot and skips this confirmation.
@@ -6074,18 +6073,18 @@ Use the in-TUI `,B` capture when a transient row-list bug has just happened in a
 sase's TUI session. The CLI capture path is out-of-band: it loads current filesystem
 state and cannot reconstruct refreshes that already passed through the running TUI.
 
-### `sase xprompt`
+### `sase macro`
 
-With no subcommand, `sase xprompt` defaults to `sase xprompt list`.
+With no subcommand, `sase macro` defaults to `sase macro list`.
 
-### `sase xprompt expand`
+### `sase macro expand`
 
 | Flag          | Values | Default | Description                                                  |
 | ------------- | ------ | ------- | ------------------------------------------------------------ |
 | `[prompt]`    | string | stdin   | Prompt text to expand (reads from stdin if omitted).         |
 | `-t, --trace` | flag   | -       | Print expansion trace to stderr showing resolved references. |
 
-### `sase xprompt explain`
+### `sase macro explain`
 
 | Flag            | Values | Default    | Description                                 |
 | --------------- | ------ | ---------- | ------------------------------------------- |
@@ -6093,32 +6092,32 @@ With no subcommand, `sase xprompt` defaults to `sase xprompt list`.
 | `[args]`        | string | -          | Positional arguments for the workflow.      |
 | `-a, --arg`     | string | -          | Named argument as `KEY=VALUE` (repeatable). |
 
-### `sase xprompt list`
+### `sase macro list`
 
-No flags. Outputs a JSON array of all available xprompts with name, type, source,
-inputs, tags, `is_skill`, and preview. Clients that insert references should prefer
+No flags. Outputs a JSON array of all available macros with name, type, source, inputs,
+tags, `is_skill`, and preview. Clients that insert references should prefer
 `kind`/`insertion` metadata when present so standalone workflows are inserted as
-`#!name` and inline-capable entries, including markdown xprompt swarms, are inserted as
+`#!name` and inline-capable entries, including markdown macro swarms, are inserted as
 `#name`. Slash skill completion clients should filter to entries where `is_skill` is
 `true`.
 
-### `sase xprompt show`
+### `sase macro show`
 
-| Flag            | Values                  | Default    | Description                                                                   |
-| --------------- | ----------------------- | ---------- | ----------------------------------------------------------------------------- |
-| `NAME`          | string                  | (required) | XPrompt or workflow name; copied markers and argument suffixes are tolerated. |
-| `-c, --color`   | `auto`,`always`,`never` | `auto`     | Color mode for rendered output.                                               |
-| `-f, --format`  | `full`,`json`,`raw`     | `full`     | Rendered detail view, stable JSON record, or exact definition source bytes.   |
-| `-p, --project` | string                  | auto       | Resolve within a specific project namespace instead of the detected project.  |
+| Flag            | Values                  | Default    | Description                                                                  |
+| --------------- | ----------------------- | ---------- | ---------------------------------------------------------------------------- |
+| `NAME`          | string                  | (required) | Macro or workflow name; copied markers and argument suffixes are tolerated.  |
+| `-c, --color`   | `auto`,`always`,`never` | `auto`     | Color mode for rendered output.                                              |
+| `-f, --format`  | `full`,`json`,`raw`     | `full`     | Rendered detail view, stable JSON record, or exact definition source bytes.  |
+| `-p, --project` | string                  | auto       | Resolve within a specific project namespace instead of the detected project. |
 
-### `sase xprompt graph`
+### `sase macro graph`
 
 | Flag              | Values           | Default   | Description                                             |
 | ----------------- | ---------------- | --------- | ------------------------------------------------------- |
 | `[workflow_name]` | string           | -         | Workflow name to graph. Lists all workflows if omitted. |
 | `-f, --format`    | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
 
-### `sase xprompt catalog`
+### `sase macro catalog`
 
 | Flag        | Values | Default | Description                                       |
 | ----------- | ------ | ------- | ------------------------------------------------- |
@@ -6299,13 +6298,13 @@ the missing remote and defers its creation.
 
 With no subcommand, `sase skill` defaults to the read-only `sase skill list` dashboard.
 It reports loaded skill sources, provider targets, and deployed-file drift without
-writing files. `sase skill init` generates and deploys agent skill files from xprompt
+writing files. `sase skill init` generates and deploys agent skill files from macro
 sources marked with the `skill` field. Generated skill files begin with a
 `sase skill use` directive so agent-side skill use can be audited and later summarized
 with `sase skill log`, unless the source sets `log_skill_use: false`. See
-[xprompt.md — Skill Field](xprompt.md#skill-field) for the skill-source contract and
+[macros.md — Skill Field](macros.md#skill-field) for the skill-source contract and
 provider targets. Existing files are skipped in non-interactive runs unless `--force` is
-passed; interactive runs prompt before overwriting. Commit and land xprompt template
+passed; interactive runs prompt before overwriting. Commit and land macro template
 changes before deploying: writing chezmoi deploys are refused from dirty or unmerged
 sources, and refused when they would move the destination off the source commit recorded
 in the provenance manifest — see
@@ -6317,7 +6316,7 @@ compatibility alias for `sase skill init`.
 | `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                                                                                  |
 | `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                                                                              |
 | `sase skill init`  | `-f, --force`                                                           | Overwrite deployed skill files without confirmation; bypass the provenance manifest guard.                                                               |
-| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.                                                               |
+| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged macro sources; can revert other agents' deployments.                                                                 |
 | `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                                                                                        |
 | `sase skill init`  | `-c, --check`; `-d, --diff`                                             | Report or diff generated skill-file drift without writing files.                                                                                         |
 | `sase skill init`  | `-p, --provider <name>`                                                 | Deploy only for one registered provider (`claude`, `agy`, `codex`, `grok`, `muse`, `opencode`, `qwen`).                                                  |
@@ -6657,7 +6656,7 @@ edges that would cross bead stores before writing.
 | --------------------- | ------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
 | `targets`             | bead IDs or plan paths                | (required) | One or more epic/task beads or validated epic plan files, processed in order until the first error |
 | `-a, --artifacts-dir` | directory                             | -          | Back-fill planner artifacts after each approved epic; plan-file targets only                       |
-| `-c, --capacity`      | positive integer                      | omitted    | Epic-only per-launch capacity budget; `1` runs alone; a heavier xprompt weight floors that segment |
+| `-c, --capacity`      | positive integer                      | omitted    | Epic-only per-launch capacity budget; `1` runs alone; a heavier macro weight floors that segment   |
 | `-C, --cl-name`       | Patch name                            | -          | Approved epic Patch name applied per plan-file target                                              |
 | `-n, --dry-run`       | flag                                  | -          | Preview the epic wave plan or task prompt without mutating files, beads, or agents                 |
 | `-j, --json`          | flag                                  | -          | Print one result object per processed target as JSON Lines and imply `--yes-to-all`                |
@@ -6734,11 +6733,11 @@ Use `sase doctor -L` to list targeted check IDs. Useful focused checks include
 `runtime`, `llm.default`, `plugins.required`, `plugins.resources`, `beads.task_types`,
 `project.junk_directories`, `project.primary_sidecar_link_dirt`,
 `workspace.missing_checkouts`, `workspace.occupancy_conflicts`, and
-`config.model_xprompts`, `config.xprompt_definitions`, and `config.xprompt_directives`.
-The two inventory checks report telemetry-only directories without ProjectSpecs and
+`config.model_macros`, `config.macro_definitions`, and `config.macro_directives`. The
+two inventory checks report telemetry-only directories without ProjectSpecs and
 registered workspace paths missing from disk; both are read-only and provide
 cleanup/repair guidance. `workspace.occupancy_conflicts` reports RUNNING-field and
-occupant-record collisions and never auto-repairs. `config.xprompt_directives` locates
+occupant-record collisions and never auto-repairs. `config.macro_directives` locates
 definition files that still use retired directive syntax. `agent_holds.stale` warns
 about [agent holds](cli.md#sase-agent-hold) whose armer died or whose TTL passed; it
 reconciles the hold store the same way `sase agent hold list` does, so the stale records
@@ -6826,7 +6825,7 @@ with `sase var set`, which merges named JSON-shaped values into the current run'
 `OUTPUT VARIABLES` metadata panel, Telegram agent-completion messages, indexed agent
 history, and downstream `%wait` prompt contexts. Later agents that wait on a producer
 load that producer's stored values when they start and can render them through the
-`agents` Jinja dictionary in prompts and xprompt workflows.
+`agents` Jinja dictionary in prompts and macro workflows.
 
 With no subcommand, `sase var` prints a delegation notice and runs `sase var list`.
 
@@ -6966,7 +6965,7 @@ slots, which finalize as successful skipped slots. `null`, `false`, numeric zero
 strings, empty lists, and empty maps are not-stop; string values `0`, `false`, `no`, and
 `off` are also not-stop case-insensitively after trimming. Any other value stops the
 chain. `STOP` affects only repeat-chain continuation; ordinary `%wait` consumers read it
-as a normal variable. See [Repeat Directive](xprompt.md#repeat-directive) in the xprompt
+as a normal variable. See [Repeat Directive](macros.md#repeat-directive) in the macro
 reference for the full cascade semantics.
 
 ### `sase telemetry`
@@ -7007,13 +7006,13 @@ records from the previous generation.
 `sase editor` exposes JSON-over-stdin helper operations for editor integrations. It is
 intentionally a fixed-operation bridge rather than a generic shell or filesystem API.
 
-| Form                                          | Input                | Description                                                                                                      |
-| --------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `sase editor helper-bridge agent-catalog`     | JSON object on stdin | Return active/recent agents and derived session, clan, and tribe prompt targets.                                 |
-| `sase editor helper-bridge finalizer-catalog` | JSON object on stdin | Return configured `%final` completion rows from effective finalizer config without loading providers.            |
-| `sase editor helper-bridge xprompt-catalog`   | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
-| `sase editor helper-bridge snippet-catalog`   | JSON object on stdin | Return the composed sase's TUI snippet registry used by `sase lsp` and editor completion clients.                |
-| `sase editor helper-bridge vcs-repo-catalog`  | JSON object on stdin | Return repository completion candidates for a VCS workflow and namespace.                                        |
+| Form                                          | Input                | Description                                                                                                  |
+| --------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `sase editor helper-bridge agent-catalog`     | JSON object on stdin | Return active/recent agents and derived session, clan, and tribe prompt targets.                             |
+| `sase editor helper-bridge finalizer-catalog` | JSON object on stdin | Return configured `%final` completion rows from effective finalizer config without loading providers.        |
+| `sase editor helper-bridge macro-catalog`     | JSON object on stdin | Return the structured macro catalog; accepts the same schema as the mobile `macro-catalog` helper operation. |
+| `sase editor helper-bridge snippet-catalog`   | JSON object on stdin | Return the composed sase's TUI snippet registry used by `sase lsp` and editor completion clients.            |
+| `sase editor helper-bridge vcs-repo-catalog`  | JSON object on stdin | Return repository completion candidates for a VCS workflow and namespace.                                    |
 
 The `finalizer-catalog` request is `{"schema_version":1}` with an optional `project`
 hint; unknown fields are ignored. The response is a compact `status`/`message`/`entries`
@@ -7031,11 +7030,11 @@ Markdown `documentation` carrying the goal, phase list, or parent/task context p
 session status footer. Unresolved or older sessions keep the plain member-count detail,
 and enrichment failure never removes ordinary rows; see
 [Editor Integration: Helper Bridge](editor.md#helper-bridge) for the exact fallback
-ladder. The structured xprompt catalog includes insertion metadata (`insertion`,
+ladder. The structured macro catalog includes insertion metadata (`insertion`,
 `reference_prefix`, `kind`), typed argument metadata, display/source fields, and
 `definition_path` when SASE can resolve a real file to jump to.
 
-The snippet catalog uses the same source ordering as sase's TUI: xprompts marked with
+The snippet catalog uses the same source ordering as sase's TUI: macros marked with
 `snippet` front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on
 trigger collisions. It also includes the generated initial-capital aliases (`foo` →
 `Foo`), so editor completion and the native fallback expose exactly the same
@@ -7455,7 +7454,7 @@ with `--dry-run`.
 `sase migrate` is a temporary, offline kit for the canonical-only local-state cutover.
 It never runs automatically, no other SASE surface invokes it, and the whole command
 group is deleted once the cutover completes. Reach for it only when you are deliberately
-retiring legacy residue under `~/.sase` and `~/.xprompts`; nothing here is part of
+retiring legacy residue under `~/.sase` and `~/.macros`; nothing here is part of
 day-to-day operation.
 
 Every subcommand accepts `-j`/`--json` for a machine-readable object. Bare
@@ -7492,12 +7491,12 @@ run id.
 The catalog is fixed — `sase migrate list` reports it along with whether each declared
 root is present on this machine.
 
-| Operation       | What it does                                                                                                                                | Backup required | Apply supported | Declared roots                                                                                               |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
-| `import-purge`  | Wraps `sase agent names purge-local-state` behind a verified backup, then re-runs the import-state preview to verify.                       | yes             | yes             | `~/.sase/agents_sync`, `~/.sase/artifacts`, `~/.sase/chats`, `~/.sase/dismissed_bundles`, `~/.sase/projects` |
-| `lock-residue`  | Classifies code-swap lock files and refuses to archive any lock the current code still writes.                                              | no              | no (read-only)  | `~/.sase/locks`                                                                                              |
-| `procs-residue` | Parses residual `~/.sase/tasks` rows, reconciles them with canonical procs, and archives only a fully matched legacy tree.                  | yes             | yes             | `~/.sase/tasks`, `~/.sase/procs`                                                                             |
-| `state-residue` | Archives the legacy agent tribe file, `user_question`, `plan_approval`, and legacy `~/.xprompts` residue once canonical counterparts exist. | yes             | yes             | `~/.sase/agent_tags.json`, `~/.sase/plan_approval`, `~/.sase/user_question`, `~/.xprompts`                   |
+| Operation       | What it does                                                                                                                              | Backup required | Apply supported | Declared roots                                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
+| `import-purge`  | Wraps `sase agent names purge-local-state` behind a verified backup, then re-runs the import-state preview to verify.                     | yes             | yes             | `~/.sase/agents_sync`, `~/.sase/artifacts`, `~/.sase/chats`, `~/.sase/dismissed_bundles`, `~/.sase/projects` |
+| `lock-residue`  | Classifies code-swap lock files and refuses to archive any lock the current code still writes.                                            | no              | no (read-only)  | `~/.sase/locks`                                                                                              |
+| `procs-residue` | Parses residual `~/.sase/tasks` rows, reconciles them with canonical procs, and archives only a fully matched legacy tree.                | yes             | yes             | `~/.sase/tasks`, `~/.sase/procs`                                                                             |
+| `state-residue` | Archives the legacy agent tribe file, `user_question`, `plan_approval`, and legacy `~/.macros` residue once canonical counterparts exist. | yes             | yes             | `~/.sase/agent_tags.json`, `~/.sase/plan_approval`, `~/.sase/user_question`, `~/.macros`                     |
 
 Each operation declares its own preconditions and rollback unit; `list --json` prints
 them verbatim. `lock-residue` reports a classification and never mutates anything, so it

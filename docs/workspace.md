@@ -10,7 +10,7 @@ workspace directory management.
 A **workspace reference** is a prompt prefix such as `+sase`, `#git:sase`, `#gh:sase`,
 or a ref registered by another workspace provider. It tells SASE which project and
 workspace should be used before the rest of the prompt or workflow runs. The
-`+<project>` [project tag](xprompt.md#project-tags) is the default spelling for a known
+`+<project>` [project tag](macros.md#project-tags) is the default spelling for a known
 project; the `#` forms remain for Patches, `owner/repo`, `@agent`, paren forms, and
 creating new projects.
 
@@ -180,7 +180,7 @@ The bundled bare-git provider resolves `#git:<ref>` in four modes:
    the matching ProjectSpec with that bare path and the default `~/projects/git/<name>/`
    primary checkout path.
 
-The missing-project shorthand is intended for first use from an xprompt or prompt bar:
+The missing-project shorthand is intended for first use from a macro or prompt bar:
 `#git:new_tool #!workflow` creates the bare-git project on demand.
 
 An existing ProjectSpec is never treated as a missing bare-git project merely because
@@ -223,9 +223,9 @@ Known projects are discovered from `~/.sase/projects/*/*.sase` (with legacy
 `~/.sase/projects/*/*.gp` accepted as a fallback) by reading each `WORKSPACE_DIR:`
 entry. For example, if the `sase` project is registered, `+sase #!some/workflow`,
 `#gh:sase #!some/workflow`, and the underscore shorthand `#gh_sase #!some/workflow` are
-treated as VCS workspace launches rather than ordinary xprompt references.
+treated as VCS workspace launches rather than ordinary macro references.
 
-Known-project fallback is lifecycle-aware. Launch pickers and broad xprompt/catalog
+Known-project fallback is lifecycle-aware. Launch pickers and broad macro/catalog
 discovery include enabled projects only. Legacy `inactive`, `archived`, and `closed`
 values normalize to disabled. An explicitly typed ref to a registered disabled project
 is treated as intent to resume work: launch preparation writes `PROJECT_STATE: enabled`

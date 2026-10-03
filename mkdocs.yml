@@ -25,7 +25,7 @@ nav:
       - Scheduler and Service Host: axe.md
       - Spec-Driven Development: sdd.md
       - SDD Storage: sdd_storage.md
-      - XPrompts: xprompt.md
+      - Macros: macros.md
       - Artifact References: artifact_references.md
       - Artifact Links: artifact_links.md
       - SASE Pager: pager.md
@@ -113,6 +113,9 @@ extra_css:
 
 plugins:
   - search
+  - redirects:
+      redirect_maps:
+        'xprompt.md': 'macros.md'
   - blog:
       post_url_format: "posts/{slug}"
       archive: false

@@ -50,7 +50,7 @@ of the middle column and a single Telegram chat mock-up occupies the right colum
   Plan Approval card with two buttons. The integration actually delivers eight
   notification types (Plan Approval, HITL Request, User Question, Workflow Complete,
   Agent Launched, Agent Killed, Error Digest, Image Generated) and supports slash
-  commands (`/list`, `/kill`, `/resume`, `/changes`, `/xprompts`, `/bead`, `/update`). A
+  commands (`/list`, `/kill`, `/resume`, `/changes`, `/macros`, `/bead`, `/update`). A
   new user would not realise from this diagram that they can launch agents, run slash
   commands, or receive richer notification kinds. A small badge cluster ("Plan Approval
   · HITL · Question · Workflow Complete · Agent Launched · …") next to the chat mock
@@ -115,7 +115,7 @@ The grounding sources for accuracy are `../sase-telegram/README.md`,
   notification type)".
 - **Inbound dispatch outcomes are missing one branch.** Inbound writes a response file
   _or_ launches an agent _or_ runs a slash command (`/list`, `/kill`, `/resume`,
-  `/changes`, `/xprompts`, `/bead`, `/update`). The diagram only shows "Write response
+  `/changes`, `/macros`, `/bead`, `/update`). The diagram only shows "Write response
   JSON or launch agent". Add a "slash-command dispatch" branch.
 - **`SASE_TELEGRAM_LAUNCH_AGENTS_DISABLED` is invisible.** This env-var-gated mode
   (callbacks/feedback/slash-commands still process, but free-form text/photo messages no

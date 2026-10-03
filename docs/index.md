@@ -110,10 +110,10 @@ title: Structured Agentic Software Engineering
   <h3>I want reusable agent workflows</h3>
 
   <p>
-    Use XPrompts for reusable prompt templates and workflow specs for repeatable multi-step automation.
+    Use Macros for reusable prompt templates and workflow specs for repeatable multi-step automation.
   </p>
 
-<a href="xprompt/">Build with XPrompts</a>
+<a href="macro/">Build with Macros</a>
 
   </article>
 
@@ -133,7 +133,7 @@ title: Structured Agentic Software Engineering
   <h3>I want editor completions</h3>
 
   <p>
-    Use the xprompt LSP and editor helper bridge for prompt completion, snippets, hover, diagnostics, and
+    Use the macro LSP and editor helper bridge for prompt completion, snippets, hover, diagnostics, and
     jump-to-definition.
   </p>
 
@@ -161,7 +161,7 @@ title: Structured Agentic Software Engineering
     <li><strong>ProjectSpecs and Patches</strong> track project lifecycle, PR-sized work, commits, review state, comments, mentors, and lifecycle transitions.</li>
     <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
     <li><strong>Goals</strong> record outcomes a person creates and settles, with a status and a timeline, independently of beads and plans. Agents can read and cite them.</li>
-    <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
+    <li><strong>Macros</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>sase's TUI</strong> is the interactive control surface for daily work.</li>
     <li><strong>Scheduler and Service Host</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
     <li><strong>Provider and workspace abstractions</strong> route agent launches, VCS operations, and workspace setup through plugin-backed boundaries.</li>

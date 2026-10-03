@@ -122,8 +122,8 @@ project expose a primary user-facing name without renaming its project directory
 such as `#gh:bob`, `#gh_bob`, and `#gh(bob)` behave like refs to the `gh_bbugyi200__bob`
 directory-key project.
 
-The same names drive [project tags](xprompt.md#project-tags): `+bob` (or `+Bob`, an
-alias such as `+bobby`, or the directory key `+gh_bbugyi200__bob`) expands at launch to
+The same names drive [project tags](macros.md#project-tags): `+bob` (or `+Bob`, an alias
+such as `+bobby`, or the directory key `+gh_bbugyi200__bob`) expands at launch to
 `#gh:gh_bbugyi200__bob`, the provider and directory key SASE already knows for that
 project. The tag SASE offers in completion and shows in its TUI is `+<PROJECT_NAME>` (or
 `+<directory key>` when `PROJECT_NAME` is unset), so a project only gets one when that
@@ -146,9 +146,9 @@ instead of migrating or renaming it. Existing auto-aliased GitHub projects also 
 their aliases; no automatic migration from `PROJECT_ALIASES` to `PROJECT_NAME` is
 performed.
 
-`PROJECT_NAME` and aliases are resolved at the launch/xprompt boundary before workspace
-resolution, xprompt expansion, prompt history writes, and agent artifact writes. These
-friendly refs should not persist in `submitted_xprompt.md`, `raw_xprompt.md`,
+`PROJECT_NAME` and aliases are resolved at the launch/macro boundary before workspace
+resolution, macro expansion, prompt history writes, and agent artifact writes. These
+friendly refs should not persist in `submitted_macros.md`, `raw_macros.md`,
 `agent_meta.json`, prompt history, history sort keys, or VCS refs. Storage paths and
 metadata keep using the directory key, while display surfaces prefer `PROJECT_NAME` when
 present. Display-only helpers also humanize filename-safe project stems in some
@@ -157,7 +157,7 @@ ProjectSpec display name; the underlying files are not renamed.
 
 Patch `project:` queries use `PROJECT_NAME` as their sole project identity when it is
 configured; the directory key is not an additional query alias. `PROJECT_ALIASES` remain
-launch/xprompt aliases and do not participate in this filter. Non-terminal and archived
+launch/macro aliases and do not participate in this filter. Non-terminal and archived
 Patches share the name configured in the main ProjectSpec.
 
 Validation rules:
@@ -209,8 +209,8 @@ operations remain lifecycle-only.
 
 The **current project** is not a ProjectSpec field and not a lifecycle state. It is the
 enabled project SASE treats as working context — in practice, the one you most recently
-launched an agent on. Mechanically it is the first entry in the shared VCS xprompt MRU
-store (`~/.sase/vcs_xprompt_mru.json`) that maps to an enabled project. A Patch entry in
+launched an agent on. Mechanically it is the first entry in the shared VCS macro MRU
+store (`~/.sase/vcs_macro_mru.json`) that maps to an enabled project. A Patch entry in
 that store yields its owning project.
 
 Launching an agent on a project — or on a Patch owned by that project — promotes it to
@@ -245,7 +245,7 @@ Legacy `PROJECT_STATE: active` files normalize to enabled. Legacy `inactive`,
 linked-repository bookkeeping.
 
 Broad project discovery is enabled-only. That includes launch and completion pickers,
-`sase patch search`, project-local xprompt catalogs, broad mobile helper catalogs, and
+`sase patch search`, project-local macro catalogs, broad mobile helper catalogs, and
 all-known bead helper reads. Disabled records are intentionally hidden from those
 surfaces. An explicitly typed known-project VCS ref such as `#gh:sase` is the exception:
 launch preparation treats it as intent to resume work and writes

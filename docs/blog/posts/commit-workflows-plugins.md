@@ -20,9 +20,9 @@ links:
 
 # [05] Commit Workflows — The Pluggable Path From Diff to PR
 
-Every agent eventually has to land code somewhere. SASE's commit XPrompt workflows are
-the small, runtime-uniform layer that turns an agent's diff into a commit, a proposal,
-or a pull request — without the agent caring which VCS is underneath.
+Every agent eventually has to land code somewhere. SASE's commit Macro workflows are the
+small, runtime-uniform layer that turns an agent's diff into a commit, a proposal, or a
+pull request — without the agent caring which VCS is underneath.
 
 <!-- more -->
 
@@ -33,11 +33,11 @@ providers.
 
 ## One CLI, Three Outcomes
 
-The `sase stitch create` command drives three XPrompt workflows. They share the same
+The `sase stitch create` command drives three Macro workflows. They share the same
 orchestrator, the same pre-stages, and the same result format; they differ only in what
 the dispatch step produces.
 
-| Workflow    | XPrompt    | Dispatch hook         | What it produces             | Tracking       |
+| Workflow    | Macro      | Dispatch hook         | What it produces             | Tracking       |
 | ----------- | ---------- | --------------------- | ---------------------------- | -------------- |
 | **Commit**  | `#commit`  | `create_commit`       | Git commit on current branch | STITCHES entry |
 | **Propose** | `#propose` | `create_proposal`     | Saved diff file              | STITCHES entry |
@@ -163,9 +163,9 @@ it after a STITCHES append succeeds.
 
 The marker also dual-writes the legacy Patch aliases `changespec_name` and
 `commit_changespec_name`, the stitch aliases `entry_id` and `commit_entry_id`, plus
-`commit_result` and `commit_diff_path`. Built-in XPrompt post-steps still expose the
-Patch as `meta_changespec`; completed agent-run projection adds canonical `meta_patch`
-and retains `meta_changespec` for compatibility.
+`commit_result` and `commit_diff_path`. Built-in Macro post-steps still expose the Patch
+as `meta_changespec`; completed agent-run projection adds canonical `meta_patch` and
+retains `meta_changespec` for compatibility.
 
 ## The Public Plugin API
 
@@ -174,16 +174,16 @@ Two entry-point groups are the public extension surface:
 - **`sase_vcs`** — provider classes that implement `create_commit`, `create_proposal`,
   `create_pull_request`, plus resume and classification hooks. `sase-github` is the
   canonical out-of-tree implementation.
-- **`sase_xprompts`** — packages whose `xprompts/` directories contribute reusable
-  XPrompts and workflows, including overrides for the built-in commit XPrompts.
+- **`sase_macros`** — packages whose `macros/` directories contribute reusable Macros
+  and workflows, including overrides for the built-in commit Macros.
 
 Plugin resource loading can be disabled via environment variables for debugging:
 
-| Variable                       | Effect                                                    |
-| ------------------------------ | --------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`         | Disable resource plugin loading for config and xprompts   |
-| `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable xprompt/workflow resource plugins only            |
-| `SASE_DISABLE_PLUGIN_CONFIG`   | Disable plugin `default_config.yml` resource loading only |
+| Variable                     | Effect                                                    |
+| ---------------------------- | --------------------------------------------------------- |
+| `SASE_DISABLE_PLUGINS`       | Disable resource plugin loading for config and macros     |
+| `SASE_DISABLE_PLUGIN_MACROS` | Disable macro/workflow resource plugins only              |
+| `SASE_DISABLE_PLUGIN_CONFIG` | Disable plugin `default_config.yml` resource loading only |
 
 The VCS, workspace, and LLM provider registries load entry points directly and do not
 consult these disable switches; those are about which configuration and prompt files
@@ -194,7 +194,7 @@ contribute to the resolver, not which providers exist.
 - [Commit workflows](../../commit_workflows.md) — full pipeline, CLI flag table, result
   schema, resume protocol, environment variables, design principles.
 - [Plugins](../../plugins.md) — entry-point groups, discovery, writing new VCS /
-  workspace / LLM / xprompt / config plugins.
+  workspace / LLM / macro / config plugins.
 - [VCS providers](../../vcs.md) — provider selection tiers, per-command VCS usage,
   provider-specific details.
 - [\[06\] Patches in Practice — Review State Outside the Chat](changespecs-in-practice.md)

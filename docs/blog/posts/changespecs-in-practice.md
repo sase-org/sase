@@ -101,8 +101,8 @@ registered in that stitch's MENTORS entry with `[0/N]` counts. AXE's `mentor_che
 chop then waits for all non-skipped hooks on that commit to become ready and launches
 one background mentor agent per mentor in the profile.
 
-Each mentor runs the `#mentor` xprompt workflow with its role and focus areas, parses
-the LLM response as structured JSON, and saves the output under `~/.sase/mentors/`. Each
+Each mentor runs the `#mentor` macro workflow with its role and focus areas, parses the
+LLM response as structured JSON, and saves the output under `~/.sase/mentors/`. Each
 comment carries `focus_name`, `file_path`, `line_number`, `description`, and one of
 three severities (`error`, `warning`, `suggestion`).
 
@@ -123,11 +123,11 @@ reviews don't haunt the PR.
 
 ## `fix_hook` and `crs`
 
-Two XPrompt workflows live next to mentors:
+Two Macro workflows live next to mentors:
 
 - **`fix_hook`** — hook-failure remediation. When a hook fails, `fix_hook` launches an
   agent to fix it. Pluggable via tag override, so a project-local or plugin-defined
-  `fix_hook` XPrompt overrides the built-in.
+  `fix_hook` Macro overrides the built-in.
 - **`crs`** — code-review surfacing. Polls for new review comments and produces critique
   agents that surface what the reviewer flagged. Same tag-override story.
 

@@ -11,10 +11,10 @@ pdf: false
 
 This is a historical critique of a diagram that predated the provider-neutral commit
 finalizer. After a local relabel, the committed PNG still shows the old left-to-right
-shape (xprompt inputs → stop hook → commit skill → `sase stitch create` →
-`CommitWorkflow` → three output branches). The current runtime behavior is xprompt
-inputs → commit finalizer → commit skill → `sase stitch create` → `CommitWorkflow` →
-three output branches.
+shape (macro inputs → stop hook → commit skill → `sase stitch create` → `CommitWorkflow`
+→ three output branches). The current runtime behavior is macro inputs → commit
+finalizer → commit skill → `sase stitch create` → `CommitWorkflow` → three output
+branches.
 
 The main problems are with the central `CommitWorkflow` band: it omits two stages, drops
 one of the canonical labels in favor of an off-spec synonym, and renders the stages in
@@ -44,10 +44,10 @@ Reading the committed `commit-workflow-infographic.png` directly:
 
 ## Clarity issues a new user would hit
 
-1. **xprompt inputs are not labeled as xprompts.** The three location-pin icons on the
-   left are labeled only with `#commit` / `#propose` / `#pr`. A reader who has never
-   seen an xprompt has no cue that these are xprompt triggers — they look like tags or
-   hashtags. A small caption ("xprompts") above the stack would land the concept.
+1. **macro inputs are not labeled as macros.** The three location-pin icons on the left
+   are labeled only with `#commit` / `#propose` / `#pr`. A reader who has never seen a
+   macro has no cue that these are macro triggers — they look like tags or hashtags. A
+   small caption ("macros") above the stack would land the concept.
 2. **Order inside the `CommitWorkflow` band is ambiguous.** The chips sit in a single
    horizontal row inside the band with no internal arrows or numbering. The eye reads
    them left-to-right, but several of them are not actually in left-to-right execution
@@ -140,7 +140,7 @@ For the next phase (`sase-2s.12 — Regenerate diagram: commit-workflow`):
    manual resolve), then continue through `Result marker` and `Tracking`. Drawing the
    loop as an explicit arc between those two chips, instead of a floating side card,
    makes the resume model legible.
-6. **Label the input stack as `xprompts`** so `#commit` / `#propose` / `#pr` read as a
+6. **Label the input stack as `macros`** so `#commit` / `#propose` / `#pr` read as a
    category, not as floating tags.
 7. **Keep** the right-side three-card output branches and the "VCS providers: Git,
    GitHub, Mercurial" note — both are accurate and readable as-is.

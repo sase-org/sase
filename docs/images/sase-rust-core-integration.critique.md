@@ -142,9 +142,9 @@ by the "embedding doc still renders" check the plan calls for.
 
 9. **Python App Layer chips are slightly off-target.** "Patch workflows", "agent scans",
    "status + git helpers" are all real, but the diagram chooses three areas that happen
-   to all be Rust-backed, omitting the purely-host areas (TUI rendering, xprompt
+   to all be Rust-backed, omitting the purely-host areas (TUI rendering, macro
    expansion, workflow orchestration, VCS plugin dispatch). That makes the façade look
-   like it sits under _all_ Python work, when in fact most of `sase` (TUI, axe, xprompt)
+   like it sits under _all_ Python work, when in fact most of `sase` (TUI, axe, macro)
    bypasses it entirely. `docs/rust_backend.md` lines 31–58 enumerate the host-owned
    surfaces that never cross the boundary; the diagram should at least name them as a
    sibling box.
@@ -166,8 +166,8 @@ rebalance content so accuracy matches the docs. Specific edits:
   "stable wire records (`*_wire.py`, `*_wire_conversion.py`) — Python ↔ Rust
   serialization contract".
 - **Add a sibling "Host-owned (never crosses boundary)" box** in the App Layer with
-  chips like "TUI rendering", "xprompt expansion", "workflow orchestration",
-  "subprocess + signalling", "plugin dispatch". This sets the scope honestly.
+  chips like "TUI rendering", "macro expansion", "workflow orchestration", "subprocess +
+  signalling", "plugin dispatch". This sets the scope honestly.
 - **Rust column**: keep the `sase_core_rs` ↔ `../sase-core` pairing but relabel the
   arrow "built from" (not "Python ↔ Rust boundary"). Add a "required runtime dependency"
   annotation on the wheel chip; if fallback behavior is mentioned, preserve the current

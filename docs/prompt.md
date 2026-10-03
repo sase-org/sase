@@ -52,7 +52,7 @@ the same prompt in a later month still shows one newest entry even if older shar
 remain on disk. New launch recordings only touch the current-month shard. Maintenance
 commands such as `delete` and `prune` remove every stored copy of the selected exact
 prompt text. Replay commands (`run`, `edit`, `select`) route through the same launch
-machinery as `sase run`, so multi-prompt, multi-model, and xprompt behavior stay
+machinery as `sase run`, so multi-prompt, multi-model, and macro behavior stay
 identical.
 
 ## Selectors
@@ -83,7 +83,7 @@ asks for a longer selector. Adding newer prompts never changes an existing promp
 | `sase prompt doctor`        | Read-only health report for the store (parseability, duplicates, oversized, …).                        |
 | `sase prompt delete`        | Remove exactly one prompt by selector.                                                                 |
 | `sase prompt prune`         | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`, `--generated`, `--legacy`). |
-| `sase prompt save`          | Save a prompt as a reusable [xprompt](xprompt.md) markdown file.                                       |
+| `sase prompt save`          | Save a prompt as a reusable [macro](macros.md) markdown file.                                          |
 | `sase prompt export`        | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.                    |
 | `sase prompt stash-archive` | List, show, and restore drafts archived from Stash or Trash.                                           |
 
@@ -157,7 +157,7 @@ from an agent run or just ran once last month."
   planner runs in the agents sidecar under `prompts/<YYYYMM>/`. Search resolves the
   current project's archive the same way `sase agent prompts` does, reads each entry's
   primary body, and ranks these curated records first. For a commit publication that
-  body is the pre-expansion XPrompt; for an approved planner publication it is the
+  body is the pre-expansion Macro; for an approved planner publication it is the
   dry-expanded plan snapshot.
 - **Local prompt history** — the machine-wide `~/.sase/prompt_history/` shard store:
   every prompt ever submitted on this machine, across all repos.
@@ -216,7 +216,7 @@ archive body with the match highlighted.
   the `YYYYMM` path segment, then the file mtime; local prompts use their last-used
   time.
 - `-t|--tag` keeps prompts carrying a matching tag — archived `prompt_tags` frontmatter
-  plus the embedded `#xprompt` chips parsed from the prompt body. Low-signal
+  plus the embedded `#macro` chips parsed from the prompt body. Low-signal
   runner-control `%` directives (`%model`, `%id`, `%wait`, …) are execution mechanics,
   not content tags, so they are deliberately excluded. Repeats OR together
   (`-t review -t auth` matches either).
@@ -231,8 +231,8 @@ An empty or whitespace-only query is a usage error (exit `2`). A query that matc
 nothing is **not** an error (exit `0`): `compact`/`full` print
 `No prompts match "<query>".` and `json` returns an envelope with `count: 0`. When
 `-s all` finds the same authored prompt in both stores after normalizing whitespace and
-canonical-archive xprompt links, the local copy collapses into the archive hit,
-annotated `also in local history`.
+canonical-archive macro links, the local copy collapses into the archive hit, annotated
+`also in local history`.
 
 ## Common Workflows
 
@@ -249,7 +249,7 @@ sase prompt list -j               # stable JSON for scripts and editor integrati
 ```
 
 The table shows the prompt ID, last-used time, status, character count,
-project/xprompt/directive hint chips, and a one-line preview — never the full text.
+project/macro/directive hint chips, and a one-line preview — never the full text.
 
 Inside [sase's TUI](ace.md), the same history is one keystroke away: press `Ctrl+K` in
 the prompt bar (or `,.` from any tab) to open the
@@ -293,7 +293,7 @@ sase prompt run ph_8f3a9c0d12ab -P "+bob-cli"        # a project tag works as th
 
 `--prefix` replaces `#` workspace refs that start a line (after optional `%directive`
 tokens). When it finds none, it prepends the new prefix instead. Launched prompts are
-stored with any [project tags](xprompt.md#project-tags) already expanded to their
+stored with any [project tags](macros.md#project-tags) already expanded to their
 `#<workflow>:<directory-key>` form, so `--prefix` finds and replaces them. A cancelled
 prompt, or one rejected by tag validation, keeps the `+<project>` tags you typed.
 `--prefix` does not replace those tags; it prepends the new prefix, so the replay fails
@@ -374,30 +374,30 @@ sase prompt prune --generated --legacy --dry-run  # preview counts per tier + sa
 sase prompt prune --generated --legacy --yes      # back up, then remove
 ```
 
-### Save a prompt as a reusable xprompt
+### Save a prompt as a reusable macro
 
-Bridge a useful one-off prompt into a durable [xprompt](xprompt.md) so you can trigger
-it with `#name`:
+Bridge a useful one-off prompt into a durable [macro](macros.md) so you can trigger it
+with `#name`:
 
 ```bash
 sase prompt save ph_8f3a9c0d12ab -n fix-auth-review -t review
 sase run "#fix-auth-review"               # the existing loader resolves it
 
-sase prompt save ph_8f3a9c0d12ab -g       # write to ~/sase/xprompts/ instead of project sase/xprompts/
-sase prompt save ph_8f3a9c0d12ab -p bob   # namespace under ~/sase/xprompts/bob/
+sase prompt save ph_8f3a9c0d12ab -g       # write to ~/sase/macros/ instead of project sase/macros/
+sase prompt save ph_8f3a9c0d12ab -p bob   # namespace under ~/sase/macros/bob/
 ```
 
 With no `--name`, `save` derives a deterministic slug from the prompt preview. It never
-overwrites an existing xprompt file unless you pass `--force`.
+overwrites an existing macro file unless you pass `--force`.
 
 For drafts that have not been submitted to prompt history yet, sase's TUI prompt bar can
-save directly to xprompt storage. Use `gX` in prompt NORMAL mode, or use `Ctrl+G X` in
-INSERT or NORMAL mode. The unified save panel starts in xprompt mode; press `Ctrl+X`
-there to switch to snippet mode and choose which config file should hold the new
+save directly to macro storage. Use `gX` in prompt NORMAL mode, or use `Ctrl+G X` in
+INSERT or NORMAL mode. The unified save panel starts in macro mode; press `Ctrl+X` there
+to switch to snippet mode and choose which config file should hold the new
 `ace.snippets` entry. Prompt-input `Ctrl+T` remains completion. If the prompt bar
-contains a stack, sase's TUI saves the non-empty panes as one `---`-separated xprompt
+contains a stack, sase's TUI saves the non-empty panes as one `---`-separated macro
 body, while snippet mode saves only the active pane. When you want to author or retarget
-exactly one simple xprompt in a focused prompt pane, use `gx`, `Ctrl+G x`, or
+exactly one simple macro in a focused prompt pane, use `gx`, `Ctrl+G x`, or
 `Ctrl+G Ctrl+X`. When you already know you're authoring a snippet trigger,
 `gt`/`Ctrl+G t`/`Ctrl+G Ctrl+T` opens a faster, dedicated snippet pane instead of this
 general save panel — it starts on a location picker, then the trigger-name panel — see

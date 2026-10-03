@@ -1205,9 +1205,9 @@ boundaries, and docs/tests:
 | `src/sase/agent/`              | Agent launch, detached spawn, prompt fan-out, running-agent metadata, artifact lookup, and naming.     |
 | `src/sase/axe/`                | Axe orchestrator, routines, job execution, scheduled jobs, maintenance mode, and automation state.     |
 | `src/sase/jobs/`               | Public `sase.jobs` SDK for axe job scripts (`src/sase/chops/` keeps the legacy chop-named facade).     |
-| `src/sase/xprompt/`            | XPrompt expansion, directives, workflow loading, execution, tracing, explaining, and graphing.         |
-| `src/sase/xprompts/`           | Bundled xprompt templates, workflows, and schemas shipped with the package.                            |
-| `src/sase/xprompts/skills/`    | Bundled agent skill sources and the generated `SKILL.md` frame.                                        |
+| `src/sase/macro/`              | Macro expansion, directives, workflow loading, execution, tracing, explaining, and graphing.           |
+| `src/sase/macros/`             | Bundled macro templates, workflows, and schemas shipped with the package.                              |
+| `src/sase/macros/skills/`      | Bundled agent skill sources and the generated `SKILL.md` frame.                                        |
 | `src/sase/skills/`             | `sase skill` CLI helpers, inventory, and use-log implementation.                                       |
 | `src/sase/workflows/`          | Change lifecycle workflows for commit, mentor, CRS, accept, and rewind operations.                     |
 | `src/sase/memory/`             | Memory inventory, audited read logs, selectors, links, mutation validation, and memory-web operations. |
@@ -1231,7 +1231,7 @@ boundaries, and docs/tests:
 | `docs/`                        | MkDocs Material site source.                                                                           |
 | `sase/sase.yml`                | Repository-local SASE configuration.                                                                   |
 | `sase/task_types.json`         | Committed task-type catalog snapshot written by `sase memory init`.                                    |
-| `sase/xprompts/`               | Repository-local xprompts and workflows for SASE maintenance agents.                                   |
+| `sase/macros/`                 | Repository-local macros and workflows for SASE maintenance agents.                                     |
 | `sase/memory/`                 | SASE memory files used by repository agents, including generated `task_types.md`.                      |
 | `sase/repos/`                  | Runtime-only linked, sidecar, and external repository checkouts.                                       |
 | `tools/`                       | Development scripts used by `just` targets and CI checks.                                              |
@@ -1239,10 +1239,10 @@ boundaries, and docs/tests:
 Detailed subsystem pages often include narrower source-layout tables. Use this page for
 initial orientation, then jump to the specific reference for the area you are changing.
 
-## Repository XPrompts
+## Repository Macros
 
-The checkout's `sase/xprompts/` directory is project-local to the `sase` repository.
-When SASE resolves prompts from this project checkout, those entries are namespaced as
+The checkout's `sase/macros/` directory is project-local to the `sase` repository. When
+SASE resolves prompts from this project checkout, those entries are namespaced as
 `sase/<name>` so they do not collide with user or packaged prompts. Use the catalog's
 `insertion` value to know whether an entry should be invoked with `#` or `#!`.
 
@@ -1284,8 +1284,8 @@ default query:
 Some repository workflows are marked `hidden: true` because they are automation helpers,
 such as docs refresh, recent bug/improvement audits, and Python line-limit splitting.
 That flag hides workflow run rows in sase's TUI; it does not mean the workflow is
-unavailable. Use `sase xprompt list` or sase's TUI xprompt browser from a source
-checkout when you need the exact current catalog.
+unavailable. Use `sase macro list` or sase's TUI macro browser from a source checkout
+when you need the exact current catalog.
 
 ## Documentation Workflow
 

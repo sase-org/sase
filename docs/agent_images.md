@@ -17,7 +17,7 @@ previews for notification and file-panel attachments, and the separate `a` artif
 viewer for opening completed agent artifacts.
 
 sase's TUI can also surface media files referenced in saved prompt artifacts
-(`raw_xprompt.md` and `*_prompt.md`) even when the media itself was not part of the
+(`raw_macros.md` and `*_prompt.md`) even when the media itself was not part of the
 agent's git diff. For current successful runs, those prompt-referenced media files are
 persisted alongside the other default generated-media artifacts — as byte copies or as
 byte-free version-control references, per
@@ -74,7 +74,7 @@ Source: `src/sase/axe/image_attachments.py`
 Default artifact persistence also scans the saved prompt files in the agent artifacts
 directory:
 
-- `raw_xprompt.md`
+- `raw_macros.md`
 - every sibling `*_prompt.md` file
 
 Any path-like token ending in a common image suffix or supported video suffix is

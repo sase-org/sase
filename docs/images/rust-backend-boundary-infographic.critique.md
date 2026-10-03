@@ -42,7 +42,7 @@ width.
    layer.
 2. **Left-side annotations are dense and partially garbled.** The vertical column of
    left-side labels reads (top to bottom) "file-path APIs", "VCS / workspace plugins",
-   "xprompt resolution", and a phrase that renders as "user prompts
+   "macro resolution", and a phrase that renders as "user prompts
    process,checkout/orchestration TUI + query → API". The last label is hard to parse —
    it appears to collide with a neighbouring annotation or wrap awkwardly, and the
    comma-without-space hints at a label-composition bug rather than an intentional

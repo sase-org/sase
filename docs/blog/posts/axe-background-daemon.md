@@ -12,7 +12,7 @@ slug: axe-background-daemon
 links:
   - AXE Automation: axe.md
   - Notifications: notifications.md
-  - "[02] XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
+  - "[02] Macros in Depth — From One File to Full Workflows": blog/posts/macros-in-depth.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
@@ -58,7 +58,7 @@ in the background, for every agent in the project.
 
 ## The Waits Chop Resolves `%wait` Dependencies
 
-[\[02\]](xprompts-in-depth.md) showed how `%wait:agent_name` in a directive declares a
+[\[02\]](macros-in-depth.md) showed how `%wait:agent_name` in a directive declares a
 dependency. The `waits` lumberjack is what unblocks it. Every two seconds, `wait_checks`
 looks at every parked agent and asks: did the newest matching dependency produce a
 `done.json` with outcome `completed`? Only then does it write `ready.json` and let the

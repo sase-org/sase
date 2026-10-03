@@ -3,7 +3,7 @@ keyword: Sase Project
 ---
 
 A sase project is a named unit of work registered with SASE. A project is created only
-when a new VCS xprompt argument resolves to a valid project: `#git:<name>` accepts any
+when a new VCS macro argument resolves to a valid project: `#git:<name>` accepts any
 valid project name, while `#gh:<org>/<repo>` requires an existing GitHub repository. Its
 ProjectSpec is `~/.sase/projects/<key>/<key>.sase`, where the directory key `<key>` is
 `<name>` for `#git` projects but `gh_<org>__<repo>` for `#gh` projects (ex:

@@ -181,7 +181,7 @@ or `--yes` flag: unless you pass `--check`, it applies the service plan immediat
 | `sase skill init --check`               | Report generated skill-file drift without writing files.                                                            |
 | `sase skill init --diff`                | Show full generated skill-file diffs without writing files.                                                         |
 | `sase skill init --force`               | Overwrite deployed skill files without confirmation and bypass the provenance manifest guard.                       |
-| `sase skill init --allow-dirty`         | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.                          |
+| `sase skill init --allow-dirty`         | Deploy from uncommitted or unmerged macro sources; can revert other agents' deployments.                            |
 | `sase skill init -p <provider>`         | Deploy only one provider's generated skill files.                                                                   |
 | `sase skill log`                        | Summarize or inspect audited generated skill-use events.                                                            |
 | `sase skill use <name>`                 | Agent-side audit event recording that a generated skill was used.                                                   |
@@ -602,10 +602,10 @@ attempts to store the workspace `HEAD` and an instruction-file inventory in
 `agent_meta.json`, without blocking launch on capture failure. See
 [Audited Reads](memory.md#audited-reads) for the hash and snapshot details.
 
-This audited path is distinct from `#memory/<stem>` xprompt inclusion: an explicitly
+This audited path is distinct from `#memory/<stem>` macro inclusion: an explicitly
 authored `#memory/<stem>` reference in a prompt expands the same note body at launch
 time, for both `type: core` and `type: reference` notes, without writing an audit event.
-See [Memory Field](xprompt.md#memory-field).
+See [Memory Field](macros.md#memory-field).
 
 Every read must include a non-empty reason via `-r` or `--reason`. The command also
 requires agent attribution from `SASE_AGENT_NAME`, `SASE_AGENT`, or
@@ -747,7 +747,7 @@ SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in
 ## Skill Initialization
 
 Generated skills start as Markdown sources in a canonical `skills/` directory that set a
-truthy `skill` frontmatter field — see [Skill Field](xprompt.md#skill-field).
+truthy `skill` frontmatter field — see [Skill Field](macros.md#skill-field).
 `sase skill list` is the read-only inventory: it shows loaded skill sources, the
 providers they target, and whether generated `SKILL.md` files are current, stale, or
 missing. It also reports misplaced sources in a "Misplaced Sources" panel. Bare
@@ -755,7 +755,7 @@ missing. It also reports misplaced sources in a "Misplaced Sources" panel. Bare
 
 `sase skill init` renders those sources into provider-specific `SKILL.md` files, and
 exits non-zero without writing anything while any placement violation remains. Sources
-include the bundled `src/sase/xprompts/skills/` templates plus project, home, and plugin
+include the bundled `src/sase/macros/skills/` templates plus project, home, and plugin
 skill directories. By default, generated skill files include a first-step
 `sase skill use <name> --reason ...` directive so agent skill usage is attributable in
 the same project audit surface as memory reads; `sase skill log` summarizes and inspects
@@ -786,11 +786,11 @@ landed sase revision and can revert another agent's deployment. Two guards enfor
 and they apply only to writing chezmoi deploys — `--check`, `--diff`, `--dry-run`, and
 non-chezmoi targets are unaffected:
 
-- **Source integrity.** The deploy is refused when `src/sase/xprompts/` has uncommitted
+- **Source integrity.** The deploy is refused when `src/sase/macros/` has uncommitted
   changes, or when the invoking workspace's `HEAD` is not an ancestor of the canonical
   branch. The error names the offending files or the unmerged commits.
-- **Provenance manifest.** Each deploy records the source commit and an xprompt-set hash
-  in `.sase-skills-manifest.json` under the chezmoi source root. A deploy whose source
+- **Provenance manifest.** Each deploy records the source commit and a macro-set hash in
+  `.sase-skills-manifest.json` under the chezmoi source root. A deploy whose source
   commit differs from the recorded one is refused rather than allowed to move the
   destination backwards. A missing or unparsable manifest bootstraps cleanly.
 
@@ -815,5 +815,5 @@ manifest guard. Both are deliberate escape hatches that can revert other agents'
 deployments; reach for them only when you know the destination is stale. `--force` still
 records the new manifest entry.
 
-See [XPrompt Skill Field](xprompt.md#skill-field) for the skill-source contract and
-bundled skill list.
+See [Macro Skill Field](macros.md#skill-field) for the skill-source contract and bundled
+skill list.

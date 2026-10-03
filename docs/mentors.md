@@ -150,8 +150,7 @@ Each mentor runs as a background process:
 
 1. The mentor is marked STARTING (prevents race conditions).
 2. A background subprocess is spawned with its own session.
-3. The `#mentor` xprompt workflow renders the prompt with the mentor role and focus
-   areas.
+3. The `#mentor` macro workflow renders the prompt with the mentor role and focus areas.
 4. The project's registered workspace workflow (for example, `#git` or `#gh`) provides
    the workspace context.
 5. The LLM response is parsed as structured JSON and saved to `~/.sase/mentors/`.
@@ -233,9 +232,9 @@ suggestions.
 
 There are two ways to apply accepted mentor comments:
 
-- **`a`** — Launches the `make_mentor_changes` workflow with the `propose` xprompt
+- **`a`** — Launches the `make_mentor_changes` workflow with the `propose` macro
   appended, so the agent proposes its changes as an amend.
-- **`A`** — Launches the `make_mentor_changes` workflow with the `commit` xprompt
+- **`A`** — Launches the `make_mentor_changes` workflow with the `commit` macro
   appended, so the agent commits directly.
 
 Both modes save the accepted comments as an artifact under `~/.sase/mentors/` before

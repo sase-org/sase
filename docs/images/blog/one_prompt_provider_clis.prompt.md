@@ -32,7 +32,7 @@ terminal screenshots, no clouds labeled as direct model APIs, and no decorative
 gradients.
 
 Composition: left side has one prompt card with small visual layers for workspace
-reference, directives, XPrompt expansion, and prompt text. Center has a larger SASE
+reference, directives, Macro expansion, and prompt text. Center has a larger SASE
 operating-layer panel with durable state cards around it: agent record, transcript,
 status, artifacts, notifications, and approval gates. Right side has six equal
 subprocess lanes, each represented as a small CLI terminal tile with a distinct accent

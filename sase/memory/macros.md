@@ -2,15 +2,15 @@
 type: reference
 parent: AGENTS.md
 description:
-  Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow
+  Read before macros, prompt directives, or launching agents with git/gh VCS workflow
   blocks.
 ---
 
-# XPrompts, Directives, and Launch VCS
+# Macros, Directives, and Launch VCS
 
 ## Invoke
 
-- `#name` expands inline xprompts/workflows with `prompt_part`; `#!name` launches
+- `#name` expands inline macros/workflows with `prompt_part`; `#!name` launches
   standalone YAML workflows. Marker starts the string or follows whitespace/`([{"'`;
   `# Heading` is ignored.
 - Args: `#name(a, b)`, `#name(k=v)` (positional first), quoted comma/special values,
@@ -24,19 +24,18 @@ description:
   `[[...]]`, so commas, `]]`, `+`, and unbalanced parens in prose stay literal. `+`
   means a space only in the bare unquoted `#name:a,b` colon form.
 - Names: `#ns/name`; `__` -> `/`; aliases `#c` -> `#commit`, `#p` -> `#propose`.
-- Literal zones: fenced code and `%xprompts_enabled:false ... :true`. `$(cmd)` in args
+- Literal zones: fenced code and `%macros_enabled:false ... :true`. `$(cmd)` in args
   runs shell substitution. Bodies recurse.
 - Memory: every flat, non-README `sase/memory/<stem>.md` (or home equivalent) with
   `type: core|reference` auto-expands as `#memory/<stem>` (no opt-in, no bare-name
   alias); project shadows home. Legacy `type: short|long` still parse as
   `core|reference`. No args, frontmatter stripped, no `## Children`, no
-  `sase memory read` audit event. Ordinary xprompts/config/workflows cannot claim
+  `sase memory read` audit event. Ordinary macros/config/workflows cannot claim
   `memory/`.
 
 ## Directives
 
-`%` directives are stripped before the model sees the prompt and use xprompt arg
-grammar.
+`%` directives are stripped before the model sees the prompt and use macro arg grammar.
 
 | Directive                 | Alias  | Effect                                                                                                                              |
 | ------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -90,7 +89,7 @@ TTL expiry; a broken hold store fails open so admission never strands a waiter. 
 `%hold` is a directive error (a hold needs at least one selector); there is no `%h`
 alias (`%h` stays `%hide`), and `%hold` cannot combine with `%repeat` or `%dispatch`.
 Imperative form: `sase agent hold create|run|list|show|release`. Full contract:
-`docs/xprompt.md` Hold Directive and `docs/cli.md`.
+`docs/macros.md` Hold Directive and `docs/cli.md`.
 
 Beta `%proc` units (`%proc("cmd")`, `%proc(...)::` code form) dispatch natively without
 an agent runner slot. `%queue`/`%q` fields on a proc gate _dispatch_ only: the unit
@@ -113,17 +112,17 @@ Assign a tribe with `%id(tribe=<tribe>)` or `#tribe:<tribe>` for an auto-named a
 ## Define
 
 - **`.md`:** one `prompt_part`; frontmatter
-  `name/description/input/tags/snippet/skill/xprompts` (`_` local helpers). Body is
-  Jinja2 or `{0}`; `@{{ file }}` inlines a file.
+  `name/description/input/tags/snippet/skill/macros` (`_` local helpers). Body is Jinja2
+  or `{0}`; `@{{ file }}` inlines a file.
 - **Inputs:** `word/line/text/path/int/bool/float`; defaultless means required.
 - **`.yml`:** workflow `steps`: `prompt_part/python/bash/agent/use: shared/...`;
   supports `input/output/environment/if/repeat/finally/hidden/tags`.
-- **Discovery, first wins:** project `sase/xprompts/` -> legacy project `.xprompts/`,
-  `xprompts/` -> home `~/sase/xprompts/` -> legacy home `~/.xprompts/`, `~/xprompts/` ->
-  project-specific home `~/sase/xprompts/<project>/` -> legacy
+- **Discovery, first wins:** project `sase/macros/` -> legacy project `.xprompts/`,
+  `xprompts/` -> home `~/sase/macros/` -> legacy home `~/.xprompts/`, `~/xprompts/` ->
+  project-specific home `~/sase/macros/<project>/` -> legacy
   `~/.config/sase/xprompts/<project>/` -> project/user config -> plugins -> package
   defaults/built-ins. Writers use canonical `sase/` paths only; config/memory collisions
-  error while xprompt duplicates shadow lower-priority definitions.
+  error while macro duplicates shadow lower-priority definitions.
 - **Swarm:** top-level `---` outside fences fans out one agent per segment; use `#name`
   for markdown swarms. Embedded swarms put the first segment at the call site, append
   the rest, and inherit leading workspace refs.
@@ -139,10 +138,10 @@ prompts normalize to `#git:home`.
 | `#gh:<ref>`  | GitHub project, Patch, `owner/repo`, or `@agent` |
 | `#git:<ref>` | Bare-git workspace                               |
 
-Append a rollover xprompt for code-changing tasks; each sets `SASE_COMMIT_METHOD` and
+Append a rollover macro for code-changing tasks; each sets `SASE_COMMIT_METHOD` and
 injects the no-direct-commit rule.
 
-| XPrompt      | Result                                                   |
+| Macro        | Result                                                   |
 | ------------ | -------------------------------------------------------- |
 | `#commit`    | Commit on current branch and push; tracked as STITCHES   |
 | `#propose`   | Saved diff under `~/.sase/diffs/`, workspace cleaned     |

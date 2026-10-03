@@ -2,21 +2,21 @@
 pdf: false
 ---
 
-# XPrompt Resolution Infographic Prompt
+# Macro Resolution Infographic Prompt
 
 ## Target
 
-- Document: `docs/xprompt.md`
+- Document: `docs/macros.md`
 - Insertion point: after the introductory use-case list and before the authoritative
   text pipeline.
-- Final asset path: `docs/images/xprompt-resolution-infographic.png`
+- Final asset path: `docs/images/macro-resolution-infographic.png`
 - Final size: 1672×941 PNG, sRGB.
 - Status: regenerated, edited to remove legacy paths, deterministically labeled,
   reviewed, and embedded.
 
 ## Intended Alt Text
 
-SASE xprompt inputs flowing through workspace dispatch, first-wins discovery, iterative
+SASE macro inputs flowing through workspace dispatch, first-wins discovery, iterative
 expansion, and directive extraction into runtime outcomes.
 
 ## Initial GPT Image Prompt
@@ -65,24 +65,24 @@ magick "$ORIGINAL_PNG" "$EDIT_RESIZED_PNG" "$EDIT_MASK_PNG" \
   -composite "$UNLABELED_PNG"
 magick -background none "$LABELS_SVG" "$LABELS_PNG"
 magick "$UNLABELED_PNG" "$LABELS_PNG" -compose over -composite \
-  -strip -colorspace sRGB docs/images/xprompt-resolution-infographic.png
+  -strip -colorspace sRGB docs/images/macro-resolution-infographic.png
 ```
 
 The deterministic label groups are:
 
 - Inputs: `#name / #name(args)`, `#!name`, `%directives`, and `#cd / #gh / #git refs`;
   the obsolete keyword-trigger and dynamic-memory rows are absent.
-- Launch setup: workspace dispatch occurs before xprompt expansion; bare prompts default
+- Launch setup: workspace dispatch occurs before macro expansion; bare prompts default
   to `#git:home`.
 - Expansion: alias substitution → protected-text masking → iterative parse, lookup,
   argument/`$(cmd)` processing, typed-input validation, and Jinja2/legacy rendering →
   unmask → directive extraction → expanded prompt text.
 - Discovery: the 11 canonical project, home, config, plugin, and package sources from
-  `docs/xprompt.md`, retaining their relative first-wins order while omitting all legacy
+  `docs/macros.md`, retaining their relative first-wins order while omitting all legacy
   compatibility paths.
 - Outcomes: inline expansion, standalone workflow launch, depth-capped multi-agent
-  fan-out, and a visually separate developer-tools card for `sase xprompt graph` /
-  `sase xprompt explain`.
+  fan-out, and a visually separate developer-tools card for `sase macro graph` /
+  `sase macro explain`.
 
 ## Final Review
 
@@ -92,5 +92,5 @@ The deterministic label groups are:
   downward with a loop-back arrow, and developer tooling is visually separate from
   runtime outcomes.
 - Every technical label was compared with the launch/expansion pipelines and canonical
-  entries in the discovery table in `docs/xprompt.md`.
+  entries in the discovery table in `docs/macros.md`.
 - Final SHA-256: `2c162d3c7f44f703fb8fc2e2a33cf75bd28ae5a32e8693ffd1c1a6e13fb8d002`.

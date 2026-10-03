@@ -11,19 +11,19 @@ For editor setup and user-facing behavior, start with the
 [editor integration guide](editor.md). This page focuses on the integration-facing
 Python and bridge contracts.
 
-## Patch XPrompt Tags
+## Patch Macro Tags
 
-`sase.integrations.changespec_tags.list_changespec_xprompt_tags()` is the legacy-named
-helper that returns copyable VCS xprompt references for active Patches. A Patch is
-SASE's stored record for a change list or pull request, and an xprompt tag is the
+`sase.integrations.changespec_tags.list_changespec_macro_tags()` is the legacy-named
+helper that returns copyable VCS macro references for active Patches. A Patch is SASE's
+stored record for a change list or pull request, and a macro tag is the
 `#workflow:target` reference that launches an agent in that workspace. This helper is
 intended for plugins and editors that need to show a picker of targets such as
 `#gh:my_change` or `#git:local_branch`.
 
 ```python
-from sase.integrations.changespec_tags import list_changespec_xprompt_tags
+from sase.integrations.changespec_tags import list_changespec_macro_tags
 
-listing = list_changespec_xprompt_tags(project="sase")
+listing = list_changespec_macro_tags(project="sase")
 for entry in listing.entries:
     print(entry.project, entry.name, entry.status, entry.workflow_type, entry.tag)
 
@@ -49,7 +49,7 @@ Each entry in `listing.entries` has:
 | `name`          | Patch `NAME`                                                       |
 | `status`        | Normalized non-terminal status                                     |
 | `workflow_type` | Detected registered workspace workflow type, such as `git` or `gh` |
-| `tag`           | Copyable xprompt target in `#{workflow_type}:{name}` form          |
+| `tag`           | Copyable macro target in `#{workflow_type}:{name}` form            |
 
 If workspace workflow detection fails for an entry, that Patch is omitted and a
 human-readable message is appended to `listing.skipped`. This lets callers still show
@@ -366,9 +366,9 @@ must not send host paths. Image launches store uploads under SASE-owned gateway 
 then inject the saved path into the agent prompt. Launch, kill, retry, upload, and
 per-device project context metadata lives under `<sase_home>/mobile_gateway/`.
 
-Helper bridge operations cover legacy-stable `changespec-tags`, `xprompt-catalog`,
-`beads-list`, `beads-show`, `update-start`, and `update-status`. Patch, xprompt, and
-bead helpers are read-only. The only mutating helper operation is `update-start`, which
+Helper bridge operations cover legacy-stable `changespec-tags`, `macro-catalog`,
+`beads-list`, `beads-show`, `update-start`, and `update-status`. Patch, macro, and bead
+helpers are read-only. The only mutating helper operation is `update-start`, which
 starts the built-in SASE update worker and reports status through structured polling.
 Bead helper reads are project-scoped rather than active-checkout-scoped: for each
 requested project they read one canonical store, `sdd/beads/` in in-tree mode, the
@@ -377,7 +377,7 @@ root of the primary `--beads` clone for schema-3 split storage. Schema-2 split r
 retain `beads/` in the primary `--plans` clone. Normal `sase bead` commands launched
 from a numbered workspace can still write that workspace's own sidecar clone.
 `events/**` is canonical and `issues.jsonl` is a compatibility projection; helper reads
-do not merge numbered sibling workspaces or legacy bead stores. The structured xprompt
+do not merge numbered sibling workspaces or legacy bead stores. The structured macro
 catalog includes `definition_path` when the source can be resolved to a real file, so
 mobile and editor clients can offer jump-to-definition without reverse-engineering
 display paths.
@@ -387,9 +387,9 @@ Both `beads-list` and `beads-show` payloads expose canonical `patch_name` and
 compatibility. New clients should prefer the Patch-named fields.
 
 All-known helper reads are lifecycle-aware and enumerate enabled projects by default.
-Disabled projects are left out of broad Patch tag, xprompt catalog, and bead lists.
-Explicit Patch tag and xprompt catalog requests for an disabled project report warnings
-in the structured `result.warnings` / `result.skipped` fields where the bridge can still
+Disabled projects are left out of broad Patch tag, macro catalog, and bead lists.
+Explicit Patch tag and macro catalog requests for an disabled project report warnings in
+the structured `result.warnings` / `result.skipped` fields where the bridge can still
 return a partial result. Explicit bead requests resolve the requested project's
 canonical bead store directly; the lifecycle filter only applies to the all-known bead
 list.
@@ -415,7 +415,7 @@ Source: `src/sase/integrations/mobile_agents.py`,
 JSON catalog operations. The current surface is:
 
 ```bash
-printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog
+printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge macro-catalog
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge snippet-catalog
 printf '{"schema_version":1}\n' | sase editor helper-bridge agent-catalog
 printf '{"schema_version":1}\n' | sase editor helper-bridge finalizer-catalog
@@ -423,19 +423,19 @@ printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
   | sase editor helper-bridge vcs-repo-catalog
 ```
 
-The `xprompt-catalog` operation returns the structured xprompt catalog, including
-insertion metadata, typed inputs, source display fields, and `definition_path` for
-entries backed by a resolvable file. The `snippet-catalog` operation returns the
-composed sase's TUI snippet registry from xprompt snippets plus user snippets configured
-under `ace.snippets`, including the generated initial-capital aliases (`foo` → `Foo`) so
-the registry matches sase's TUI, editor completion, and the native LSP fallback. The
-`agent-catalog` operation returns cross-project active/recent agent rows, de-duplicated
-by name, and additive `session`, `clan`, and `tribe` rows derived from the same artifact
-snapshot. Ordinary rows carry `kind: agent`, except monitors, which use `kind: monitor`.
-Group rows include member counts, while clan rows also include `status`, which follows
-the Agents-tab clan rule (a lone running member's status, otherwise the aggregate). The
-20 most recently active session rows are enriched, when resolvable, with associated plan
-or bead kind, structure, and title in `detail`, plus Markdown `documentation` for goal,
+The `macro-catalog` operation returns the structured macro catalog, including insertion
+metadata, typed inputs, source display fields, and `definition_path` for entries backed
+by a resolvable file. The `snippet-catalog` operation returns the composed sase's TUI
+snippet registry from macro snippets plus user snippets configured under `ace.snippets`,
+including the generated initial-capital aliases (`foo` → `Foo`) so the registry matches
+sase's TUI, editor completion, and the native LSP fallback. The `agent-catalog`
+operation returns cross-project active/recent agent rows, de-duplicated by name, and
+additive `session`, `clan`, and `tribe` rows derived from the same artifact snapshot.
+Ordinary rows carry `kind: agent`, except monitors, which use `kind: monitor`. Group
+rows include member counts, while clan rows also include `status`, which follows the
+Agents-tab clan rule (a lone running member's status, otherwise the aggregate). The 20
+most recently active session rows are enriched, when resolvable, with associated plan or
+bead kind, structure, and title in `detail`, plus Markdown `documentation` for goal,
 phase, or task context. Older and unresolved sessions retain their member-count detail,
 and enrichment failures degrade safely; see
 [Editor Integration: Helper Bridge](editor.md#helper-bridge) for the full fallback
@@ -450,7 +450,7 @@ of importing private catalog modules directly.
 Source: `src/sase/integrations/editor_helpers.py`,
 `src/sase/integrations/_editor_helper_agents.py`,
 `src/sase/integrations/_editor_helper_finalizers.py`,
-`src/sase/integrations/xprompt_lsp.py`, `src/sase/xprompt/vcs_repo_completion.py`
+`src/sase/integrations/macro_lsp.py`, `src/sase/macro/vcs_repo_completion.py`
 
 ## Chat Update Worker
 

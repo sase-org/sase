@@ -45,11 +45,11 @@ membership. Every other member uses `clan=`. That form joins an existing clan or
 it implicitly without a tribe, takes exactly one member id, allows dotted ids, and
 accepts a leading `!` for forced reuse. Static names and templates such as
 `%id(cld, clan=research.{@1})` work; the derived `research.{@1}.cld` name flows through
-normal template allocation. In xprompt swarms, prefer keyed markers like `{@1}` so every
+normal template allocation. In macro swarms, prefer keyed markers like `{@1}` so every
 clan member, wait, fork/resume target, and prose reference is substituted in the parent
 dispatch before any member starts. Bare templates such as `research.@` still work, but
 their references use latest-wins lookup and are unsafe for late-starting swarm members.
-See [XPrompt template directives](xprompt.md#directives) for `{@<id>}` and `{@<id>!}`.
+See [Macro template directives](macros.md#directives) for `{@<id>}` and `{@<id>!}`.
 
 ### Launch-time clan summaries
 
@@ -69,7 +69,7 @@ immediately below the declaration:
 Review the security boundary.
 ```
 
-The text-block shorthand ends when the next top-level directive or xprompt reference
+The text-block shorthand ends when the next top-level directive or macro reference
 begins:
 
 ```text
@@ -102,7 +102,7 @@ when that argument is omitted, it reads `SASE_EPIC_PLAN_REF` instead.
 `summary=` accepts the usual directive values: a bare token, a quoted string for text
 containing spaces or special characters, or a multiline `[[...]]` text block. The `::`
 shorthand requires a following space or end of line and captures everything until the
-next top-level line that starts a directive (`%`) or xprompt reference (`#`). That
+next top-level line that starts a directive (`%`) or macro reference (`#`). That
 captured text becomes only the summary, so use `summary=` when ordinary work
 instructions follow the declaration directly. `summary=` and `summary_script=` are
 mutually exclusive, and both belong only on the create-only `%clan` declaration;
@@ -463,8 +463,8 @@ relative slow-time rank beneath each call.
 `AGENT PROMPT` and the consolidated `AGENT REPLY` are always shown in full at both
 session levels, without fold glyphs or section overrides. They remain navigation anchors
 for `Ctrl+J`/`Ctrl+K`; `za` and `zA` skip them without changing the override registry.
-The session's `AGENT XPROMPT` renders in the sticky header panel above the data deck (a
-collapsed preview, or in full after `d`) rather than in the body. Absent xprompt and
+The session's `AGENT MACRO` renders in the sticky header panel above the data deck (a
+collapsed preview, or in full after `d`) rather than in the body. Absent macro and
 prompt sections are omitted, while reply rows for members that have not responded yet
 remain visible with their pending state.
 
@@ -527,7 +527,7 @@ scale — they read the same at level 1 and level 2. A session that projects to 
 two concrete members, and every ordinary single agent, keeps the original one-line
 `Model:` field.
 
-Two bundled xprompts help assemble common follow-up prompt bodies. They build text only;
+Two bundled macros help assemble common follow-up prompt bodies. They build text only;
 `%i` performs the attachment:
 
 ```text
@@ -536,7 +536,7 @@ Two bundled xprompts help assemble common follow-up prompt bodies. They build te
 ```
 
 The full directive grammar is documented under
-[XPrompt directives](xprompt.md#supported-directives).
+[Macro directives](macros.md#supported-directives).
 
 ### Attaching within a multi-agent prompt
 

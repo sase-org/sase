@@ -25,9 +25,9 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   `rebuild_agent_artifact_index`, `upsert_agent_artifact_index_row`,
   `delete_agent_artifact_index_row`, `query_agent_artifact_index`, and dismissed
   projection replacement for hiding dismissed identities in indexed visible-inbox
-  queries. Scan records project each run's launch-boundary `xprompts.json`, the index
+  queries. Scan records project each run's launch-boundary `macros.json`, the index
   signs that marker so late writes refresh the row, and the run statistics query rolls
-  the projection up by xprompt, model, project, co-usage, and optional focused detail.
+  the projection up by macro, model, project, co-usage, and optional focused detail.
 - Status and status-transition helpers: `read_status_from_lines`, `apply_status_update`,
   and `plan_status_transition`
 - Git query parsers: `parse_git_name_status_z`, `parse_git_branch_name`,
@@ -127,7 +127,7 @@ The intentionally Python-owned host surfaces include:
   entry points stay on the host by design.
 - Agent launch host responsibilities stay in Python: provider/workspace plugin calls,
   VCS preallocation env mapping, project-file locking, workspace-directory cleanup, TUI
-  notifications, xprompt catalog expansion, history writes, job registry recording, and
+  notifications, macro catalog expansion, history writes, job registry recording, and
   user-facing launch callbacks. Rust owns deterministic launch planning/preparation and
   the low-level detached spawn binding.
 - LLM provider registration, selector policy, temporary alias-override precedence,
@@ -147,7 +147,7 @@ The intentionally Python-owned host surfaces include:
   preserve non-SASE entries.
 - Bead host responsibilities stay in Python where they touch the surrounding
   application: storage-location discovery, SASE workspace/project lookup, VCS prompt
-  context for `sase bead work`, xprompt resolution, user confirmation, agent launch,
+  context for `sase bead work`, macro resolution, user confirmation, agent launch,
   rollback of already-spawned children, and telemetry increments. Rust owns the bead
   data model, storage/query engine, JSONL codecs, mutation transactions, single-store ID
   allocation, deterministic work-plan DAG, and CLI output planning.
@@ -512,7 +512,7 @@ compatibility projection, and `beads.db` is a compatibility cache. Event reducti
 JSONL/config parsing, cache refresh, mutations, single-store ID allocation,
 deterministic epic work planning, and common CLI output planning all live in `sase-core`
 and are exposed through `sase_core_rs`. Python remains the host layer for path
-discovery, VCS context, xprompt lookup, confirmation prompts, launch/rollback, and
+discovery, VCS context, macro lookup, confirmation prompts, launch/rollback, and
 telemetry side effects.
 
 Golden contract fixtures live under `tests/test_bead/golden/`:
@@ -683,7 +683,7 @@ stored back in the cache with bounded LRU pruning. Explicit `SASE_CORE_WHEEL` in
 still take precedence over the cache.
 
 After the wheel step, `rust-install` chains `just rust-lsp-install` for the same venv.
-Both artifacts come from one checkout, so `sase-xprompt-lsp` can never lag the directive
+Both artifacts come from one checkout, so `sase-macro-lsp` can never lag the directive
 contract compiled into `sase_core_rs`; a stale binary would otherwise fail sase's
 TUI/LSP parity tests with a confusing completion diff. Re-running the target after a
 `../sase-core` update is the supported way to refresh an existing source install.
@@ -701,7 +701,7 @@ for its Git and uv steps; the same deadline applies when the update runs from sa
 Updates panel.
 
 A measured feature-unified
-`cargo build --release -p sase_core_py -p sase_xprompt_lsp --features sase_core_py/extension-module`
+`cargo build --release -p sase_core_py -p sase_macro_lsp --features sase_core_py/extension-module`
 (sase-core has since removed that crate feature in 1d129cd; wheel builds now pass
 `pyo3/extension-module` through maturin's `features`, so do not copy this command) still
 left `maturin develop --release` rebuilding the PyO3 crate through maturin's
@@ -716,14 +716,14 @@ CARGO_INCREMENTAL=0 \
 CARGO_INCREMENTAL=0 \
   CARGO_TARGET_DIR=../sase-core/target/uv-tool-lsp \
   CARGO_BUILD_BUILD_DIR=../sase-core/target/uv-tool-lsp/build \
-  cargo build --profile ${SASE_RUST_DEV_PROFILE:-dev-update} -p sase_xprompt_lsp
+  cargo build --profile ${SASE_RUST_DEV_PROFILE:-dev-update} -p sase_macro_lsp
 ```
 
 This does not deduplicate the first compile after `cargo clean`, but it prevents the two
 dev-update builds from invalidating each other's cached units on later runs. After each
 build the recipe deletes that target's `incremental/` directory. The LSP artifact is
 copied from the selected profile directory, for example
-`target/uv-tool-lsp/dev-update/sase-xprompt-lsp`. The recipe copies that binary into the
+`target/uv-tool-lsp/dev-update/sase-macro-lsp`. The recipe copies that binary into the
 uv-tool venv with the same atomic temp-file install used by `just rust-lsp-install`,
 which builds the LSP the same way (dev-update profile, isolated `uv-tool-lsp` target).
 The separate `rust-install*` targets remain available for direct maintenance and
@@ -746,9 +746,9 @@ legacy `build-targets` children no live process holds after the grace, reporting
 `disabled`); while that observer is usable, pressure never removes a held entry and an
 unheld entry needs only the dead-launch grace rather than the pressure minimum age. The
 repo-owned exceptions are the two Justfile roots above: `../sase-core/target/uv-tool-py`
-for `sase_core_rs` and `../sase-core/target/uv-tool-lsp` for `sase-xprompt-lsp`. Those
-are shared across workspaces on purpose, visible to disk tooling, and safe to prune at
-the `incremental/` layer while preserving `deps/`. Each isolated target also sets
+for `sase_core_rs` and `../sase-core/target/uv-tool-lsp` for `sase-macro-lsp`. Those are
+shared across workspaces on purpose, visible to disk tooling, and safe to prune at the
+`incremental/` layer while preserving `deps/`. Each isolated target also sets
 `CARGO_BUILD_BUILD_DIR` beside it so a host `build.build-dir` default cannot merge those
 recipe caches; that setting relocates cargo's intermediate output (`incremental/`,
 `deps/`, `.fingerprint/`) from `<target>/<profile>/` to `<target>/build/<profile>/`,
@@ -831,27 +831,27 @@ visible.
 Each target prints a friendly skip message when `../sase-core` is absent and exits 0, so
 contributors without the sibling checkout are never blocked.
 
-| Target                          | Description                                                                                                                 |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `just rust-install`             | Install `sase_core_rs` from the host wheel cache or build via `maturin develop --release` on cache miss                     |
-| `just rust-install-uv-tool`     | Same as `rust-install` but targets `$(uv tool dir)/sase` for users who installed sase via `uv tool install`                 |
-| `just rust-dev-install`         | Build and install `sase_core_rs` and `sase-xprompt-lsp` into a venv using the `dev-update` profile and isolated target dirs |
-| `just rust-dev-install-uv-tool` | Same as `rust-dev-install` but targets `$(uv tool dir)/sase`; this is the Rust reconcile step used by editable dev update   |
-| `just rust-lsp-install`         | Build `sase-xprompt-lsp` (dev-update profile, isolated target) and atomically copy only that binary into a venv             |
-| `just rust-lsp-install-uv-tool` | Same as `rust-lsp-install` but targets `$(uv tool dir)/sase`                                                                |
-| `just rust-test`                | `cargo test --workspace` in `../sase-core`                                                                                  |
-| `just rust-fmt`                 | Auto-format Rust sources with `cargo fmt --all`                                                                             |
-| `just rust-fmt-check`           | CI-mode formatting verification (`cargo fmt --all -- --check`)                                                              |
-| `just rust-clippy`              | `cargo clippy --workspace --all-targets -- -D warnings`                                                                     |
-| `just rust-check`               | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                                                         |
-| `just rust-bench`               | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)                                          |
-| `just bench-core`               | Python `parse_project_bytes` benchmark (Rust-direct + facade rows)                                                          |
-| `just bead-perf-smoke`          | Tiny `sase bead` shell/facade/work-plan benchmark used as the CI smoke artifact                                             |
-| `just bench-agent-scan`         | Python agent-artifact scan benchmark vs current direct loaders                                                              |
-| `just bench-agent-launch`       | Fake-spawn launch benchmark through the Rust preparation binding                                                            |
-| `just bench-epic-launch`        | Isolated `sase bead work` history-scale benchmark (generated SASE_HOME, fake spawn)                                         |
-| `just launch-perf-check`        | CI-friendly launch regression check against the Phase 1 fan-out baseline                                                    |
-| `just phase7-perf-check`        | Run the Phase 7 regression-floor checker against the recorded Rust ceilings                                                 |
+| Target                          | Description                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `just rust-install`             | Install `sase_core_rs` from the host wheel cache or build via `maturin develop --release` on cache miss                   |
+| `just rust-install-uv-tool`     | Same as `rust-install` but targets `$(uv tool dir)/sase` for users who installed sase via `uv tool install`               |
+| `just rust-dev-install`         | Build and install `sase_core_rs` and `sase-macro-lsp` into a venv using the `dev-update` profile and isolated target dirs |
+| `just rust-dev-install-uv-tool` | Same as `rust-dev-install` but targets `$(uv tool dir)/sase`; this is the Rust reconcile step used by editable dev update |
+| `just rust-lsp-install`         | Build `sase-macro-lsp` (dev-update profile, isolated target) and atomically copy only that binary into a venv             |
+| `just rust-lsp-install-uv-tool` | Same as `rust-lsp-install` but targets `$(uv tool dir)/sase`                                                              |
+| `just rust-test`                | `cargo test --workspace` in `../sase-core`                                                                                |
+| `just rust-fmt`                 | Auto-format Rust sources with `cargo fmt --all`                                                                           |
+| `just rust-fmt-check`           | CI-mode formatting verification (`cargo fmt --all -- --check`)                                                            |
+| `just rust-clippy`              | `cargo clippy --workspace --all-targets -- -D warnings`                                                                   |
+| `just rust-check`               | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                                                       |
+| `just rust-bench`               | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)                                        |
+| `just bench-core`               | Python `parse_project_bytes` benchmark (Rust-direct + facade rows)                                                        |
+| `just bead-perf-smoke`          | Tiny `sase bead` shell/facade/work-plan benchmark used as the CI smoke artifact                                           |
+| `just bench-agent-scan`         | Python agent-artifact scan benchmark vs current direct loaders                                                            |
+| `just bench-agent-launch`       | Fake-spawn launch benchmark through the Rust preparation binding                                                          |
+| `just bench-epic-launch`        | Isolated `sase bead work` history-scale benchmark (generated SASE_HOME, fake spawn)                                       |
+| `just launch-perf-check`        | CI-friendly launch regression check against the Phase 1 fan-out baseline                                                  |
+| `just phase7-perf-check`        | Run the Phase 7 regression-floor checker against the recorded Rust ceilings                                               |
 
 ## Performance
 

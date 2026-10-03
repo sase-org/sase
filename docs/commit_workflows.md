@@ -7,7 +7,7 @@ provider abstraction, but differ in what they produce and how they track the res
 
 ## Overview
 
-| Workflow    | XPrompt    | Method                | What it produces             | Tracking       |
+| Workflow    | Macro      | Method                | What it produces             | Tracking       |
 | ----------- | ---------- | --------------------- | ---------------------------- | -------------- |
 | **Commit**  | `#commit`  | `create_commit`       | Git commit on current branch | STITCHES entry |
 | **Propose** | `#propose` | `create_proposal`     | Saved diff file              | STITCHES entry |
@@ -33,7 +33,7 @@ the same `sase stitch create` command directly or through the `/sase_git_commit`
 
 ### 1. Agent makes code changes
 
-The agent receives an xprompt (`#commit`, `#propose`, or `#pr`) which sets the
+The agent receives a macro (`#commit`, `#propose`, or `#pr`) which sets the
 `SASE_COMMIT_METHOD` environment variable and injects an instruction telling the agent
 **not** to create commits directly.
 
@@ -65,8 +65,7 @@ itself. For example, if the only enforced dirty file is a tracked markdown file 
 Outside that host path — a human at a shell, or an agent explicitly told to commit — the
 generated `/sase_git_commit` skill runs an observable wrapper, `sase_git_commit`, which
 records skill invocation evidence and then delegates to `sase stitch create`. A typical
-Git skill invocation omits `--type` because the xprompt already set
-`SASE_COMMIT_METHOD`:
+Git skill invocation omits `--type` because the macro already set `SASE_COMMIT_METHOD`:
 
 ```bash
 sase_git_commit -M .sase/commit_message.md
@@ -195,8 +194,8 @@ Explicit bead close (honor `-B close` for the assigned bead)        [commit/PR o
 The marker is deliberately written before publication and STITCHES tracking so a
 successful dispatch has a durable hand-off before retryable post-dispatch work begins.
 When a commit or proposal is appended to a Patch, SASE rewrites the marker so the final
-copy includes `stitch_id`. A normal CLI invocation outside an agent or xprompt run may
-not set `SASE_ARTIFACTS_DIR`; in that case no result-marker files are written.
+copy includes `stitch_id`. A normal CLI invocation outside an agent or macro run may not
+set `SASE_ARTIFACTS_DIR`; in that case no result-marker files are written.
 
 The **subject gate** runs first, immediately after payload-shape validation and before
 bead lifecycle handling, plan staging, and the before hook. If the first line of the
@@ -274,9 +273,9 @@ skipped, so the resume retries only what is left, including the close. See
 [Standalone Task Workflow](beads.md#standalone-task-workflow) for how this fits into the
 broader task-bead lifecycle.
 
-### 4. XPrompt reads the result
+### 4. Macro reads the result
 
-The built-in xprompt post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and
+The built-in macro post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and
 emit metadata outputs such as `meta_new_commit` and `meta_commit_message`. Their Patch
 output is still named `meta_changespec` for workflow compatibility. When SASE projects
 the completed agent run into agent metadata, it adds canonical `meta_patch` and retains
@@ -373,7 +372,7 @@ historical and `SASE_`-prefixed spellings.
 
 **Commit origin invariant:** Every commit SASE creates carries a `SASE_TYPE=` footer
 tag. Commits created through the tracked workflow carry `SASE_TYPE=stitch`; automatic
-commits from other SASE commands carry another type such as `sdd`, `init`, or `xprompt`.
+commits from other SASE commands carry another type such as `sdd`, `init`, or `macro`.
 The Stitches pane and `sase stitch list` classify those commits as `stitch` or `auto`. A
 commit with no SASE provenance footer is `manual`. For older history, a commit that has
 `SASE_AGENT=`, `SASE_BEAD=`, or `SASE_PLAN=` but no type is treated as `stitch` so
@@ -662,7 +661,7 @@ or overwritten.
 
 | Variable                            | Purpose                                                                                                                                                                                 |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_COMMIT_METHOD`                | Dispatch method (set by xprompt `environment:` section)                                                                                                                                 |
+| `SASE_COMMIT_METHOD`                | Dispatch method (set by macro `environment:` section)                                                                                                                                   |
 | `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD`                                                                                                                        |
 | `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts                                                                                                                                  |
 | `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                                                                                                             |
@@ -670,7 +669,7 @@ or overwritten.
 | `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag; ignored once the plan is done or archived, and not inherited by nested agent launches |
 | `SASE_AGENT_PROJECT_FILE`           | Project file for Patch/STITCHES tracking                                                                                                                                                |
 | `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                                                                                                                   |
-| `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                                                                                                                                                    |
+| `SASE_PR_NAME`                      | PR name (set by `#pr` macro input)                                                                                                                                                      |
 | `SASE_PR_STATUS`                    | Initial PR Patch status (`draft`, `wip`, `ready`)                                                                                                                                       |
 | `SASE_BUG_ID`                       | Bug ID for PR metadata                                                                                                                                                                  |
 | `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))                                                                                                                                  |
@@ -1002,13 +1001,13 @@ Diffs can be re-applied to a workspace with `apply_diff_to_workspace()` from
 
 ## Design Principles
 
-- **Fail-fast:** If `commit_result.json` is missing when the xprompt post-steps run, the
+- **Fail-fast:** If `commit_result.json` is missing when the macro post-steps run, the
   workflow fails explicitly rather than silently retrying. The finalizer and commit
   skills are the sanctioned path to commit creation.
 - **Single responsibility:** `CommitWorkflow` owns all orchestration (commit hooks,
-  beads, plans, VCS dispatch, tracking). XPrompt steps only read and report results.
+  beads, plans, VCS dispatch, tracking). Macro steps only read and report results.
 - **Proper proposal semantics:** Proposals save diffs and clean the workspace without
   creating commits. Bead lifecycle and plan handling are skipped because proposals don't
   represent landed changes.
-- **VCS agnostic:** The same `CommitWorkflow` and xprompt definitions work across Git,
+- **VCS agnostic:** The same `CommitWorkflow` and macro definitions work across Git,
   GitHub, and Mercurial backends. Only the VCS plugin implementation differs.

@@ -108,10 +108,10 @@ same header-block grammar as plans:
 
 The default, primary body depends on how the entry was published:
 
-- A normal commit publication uses `raw_xprompt.md`: SASE has resolved project and
-  configured xprompt aliases, but has not expanded the xprompts. Reusable `#...`
-  references therefore remain visible.
-- An approved planner publication uses the plan snapshot: xprompts and workflow
+- A normal commit publication uses `raw_macros.md`: SASE has resolved project and
+  configured macro aliases, but has not expanded the macros. Reusable `#...` references
+  therefore remain visible.
+- An approved planner publication uses the plan snapshot: macros and workflow
   `prompt_part` content are dry-expanded and prompt directives are removed, without
   running workflow pre- or post-steps.
 

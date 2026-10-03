@@ -12,7 +12,7 @@ categories:
 slug: prompt-widget-and-nvim
 links:
   - sase's TUI: ace.md
-  - XPrompts: xprompt.md
+  - Macros: macros.md
   - Plugins: plugins.md
   - "[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
   - View on GitHub: https://github.com/sase-org/sase-nvim
@@ -21,18 +21,18 @@ links:
 # [08] Where You Type — The Prompt Input Widget and sase-nvim
 
 Every agent run starts as a few characters typed into a box.
-[\[02\]](xprompts-in-depth.md) covered the prompt _language_; this post covers the
-surface you type that language into: sase's TUI prompt input widget, and the
-**sase-nvim** plugin that lets the same language live inside Neovim with syntax
-highlighting, completion, and go-to-definition.
+[\[02\]](macros-in-depth.md) covered the prompt _language_; this post covers the surface
+you type that language into: sase's TUI prompt input widget, and the **sase-nvim**
+plugin that lets the same language live inside Neovim with syntax highlighting,
+completion, and go-to-definition.
 
 <!-- more -->
 
 [\[07\]](telegram-mobile-agents.md) moved the operator off the keyboard and into a chat
 window. This post moves in the other direction — into the editor itself. Most agent
 launches still happen at the keyboard, and most of the affordances that make those
-launches fast (xprompt expansion, snippets, vim motions, an `EDITOR` handoff) live in
-the prompt input widget.
+launches fast (macro expansion, snippets, vim motions, an `EDITOR` handoff) live in the
+prompt input widget.
 
 ## What The Widget Actually Is
 
@@ -67,8 +67,8 @@ cursor:
 
 | Cursor on…                              | Completion shows…                                                           |
 | --------------------------------------- | --------------------------------------------------------------------------- |
-| `#name` / `#!name` (xprompt reference)  | Matching xprompts with kind labels and visible typed inputs                 |
-| `/skill` (slash skill)                  | The same catalog filtered to xprompts marked `skill: true`                  |
+| `#name` / `#!name` (macro reference)    | Matching macros with kind labels and visible typed inputs                   |
+| `/skill` (slash skill)                  | The same catalog filtered to macros marked `skill: true`                    |
 | `%directive` (e.g. `%m`)                | Directive list with aliases — `%m` accepts into `%model`, `%w` into `%wait` |
 | Path-like token (`./`, `~/`, `/`, `@…`) | Filesystem entries; directories drill down on accept                        |
 | Whitespace / empty prompt               | Recent-file history from `~/.sase/file_reference_history.json`              |
@@ -81,25 +81,25 @@ finder. A path token like `src/alp` uses `src/` as the root and `alp` as the ini
 fuzzy query; when the `Ctrl+T` panel is already open on a file/path candidate, the
 highlighted entry seeds the recursive root.
 
-Inside a known xprompt argument position, `Ctrl+T` flips to argument completion: `path`
+Inside a known macro argument position, `Ctrl+T` flips to argument completion: `path`
 inputs delegate to file completion, `bool` inputs offer `true` / `false`, and inside
 `name(arg=…)` syntax the panel completes _missing_ named arguments so you can't
-double-bind one. A separate `xprompt args` hint panel appears when an accepted xprompt
-has required inputs — press `:` to switch to colon syntax, or `(` to expand a
-named-argument snippet whose fields you tab through.
+double-bind one. A separate `macro args` hint panel appears when an accepted macro has
+required inputs — press `:` to switch to colon syntax, or `(` to expand a named-argument
+snippet whose fields you tab through.
 
 The same catalog drives the `#@` picker: type `#`, then `@`, and you get a modal browser
-over every xprompt the project knows about. Inline xprompts insert as `#name`;
-standalone workflows insert as `#!name`. Picker and `Ctrl+T` share insertion rules, so
-the canonical form is the same whether you typed or browsed.
+over every macro the project knows about. Inline macros insert as `#name`; standalone
+workflows insert as `#!name`. Picker and `Ctrl+T` share insertion rules, so the
+canonical form is the same whether you typed or browsed.
 
 ## Snippets, History, And The MRU Cycle
 
-Beyond xprompts, the input bar supports plain text snippets configured in `ace.snippets`
+Beyond macros, the input bar supports plain text snippets configured in `ace.snippets`
 in `sase.yml`. Type a trigger word, press `Tab`, and the trigger is replaced with the
 template. Templates support `$1`, `$2` tabstops with `Tab` advancing through fields.
 Snippets are intentionally lightweight — they are for boilerplate you keep retyping, not
-for anything xprompts already do better.
+for anything macros already do better.
 
 Prompt history is the third reuse path. Press `Ctrl+K` from the input bar to open the
 prompt history modal when the current prompt is a single line; that text pre-fills the
@@ -128,8 +128,8 @@ and launches `$EDITOR` (defaulting to `nvim`). For nvim, the widget passes
 was on. When the editor exits, the file content is read back into the widget. If any
 line of the result ends with a ` @` review marker, the widget strips the marker and
 reloads it for a second editing pass; otherwise a single prompt submits immediately. If
-`Ctrl+G` is used from an existing prompt stack, the whole stack is edited as
-xprompt-style Markdown and returned to the bar instead of launching directly.
+`Ctrl+G` is used from an existing prompt stack, the whole stack is edited as macro-style
+Markdown and returned to the bar instead of launching directly.
 
 That handoff is why the next half of this post is about Neovim. The prompt input widget
 is intentionally TUI-shaped — mode badge, single border, no syntax server, no
@@ -148,36 +148,35 @@ language a proper editor surface. It ships three things:
    inline process states (RUNNING/PASSED/FAILED/DEAD/KILLED), timestamps, URLs, file
    paths, and the suffix badges sase's TUI uses for errors and running agents.
 2. **A `<C-t>` completion dispatcher** that mirrors the widget's `Ctrl+T`: on `#token`
-   it completes xprompts, on `/skill` it completes skills, on `%directive` it completes
+   it completes macros, on `/skill` it completes skills, on `%directive` it completes
    directives, on a path-like token it completes files, and on empty input it falls back
    to recent files. The keymap is opt-in —
    `require("sase").setup({ complete = { keymap = true } })` — so the plugin doesn't
    shadow your existing `<C-t>` binding unless you ask.
 3. **A YAML language-server registration** that points `yamlls` at SASE's schemas for
-   `sase.yml` and xprompt workflow files, so config edits get inline validation and
-   hover help.
+   `sase.yml` and macro workflow files, so config edits get inline validation and hover
+   help.
 
-The completion backend has two modes. When the SASE xprompt LSP is reachable —
-`sase lsp` or `sase-xprompt-lsp` — the plugin attaches an LSP client and gets
-server-driven completion, go-to-definition on `#foo` references, and snippet completion
-sourced from the same registry sase's TUI widget uses (so xprompts marked
-`snippet: true` and `ace.snippets` entries appear in both places). When the LSP isn't
-available, the plugin falls back to legacy pickers backed by `sase xprompt list` and a
-local file-history reader. The behavior the user sees stays the same; only the source of
-truth shifts.
+The completion backend has two modes. When the SASE macro LSP is reachable — `sase lsp`
+or `sase-macro-lsp` — the plugin attaches an LSP client and gets server-driven
+completion, go-to-definition on `#foo` references, and snippet completion sourced from
+the same registry sase's TUI widget uses (so macros marked `snippet: true` and
+`ace.snippets` entries appear in both places). When the LSP isn't available, the plugin
+falls back to legacy pickers backed by `sase macro list` and a local file-history
+reader. The behavior the user sees stays the same; only the source of truth shifts.
 
 The `#@` insert-mode trigger from sase's TUI widget is mirrored too. Typing `#` then `@`
-in a Neovim buffer opens an xprompt picker modal driven by the same catalog; the
-`:SaseXPrompts` command opens it manually. `<C-d>` in the recent-files picker removes
-the highlighted entry from `~/.sase/file_reference_history.json` — the same on-disk
-store the widget uses, edited from the other side.
+in a Neovim buffer opens a macro picker modal driven by the same catalog; the
+`:SaseMacros` command opens it manually. `<C-d>` in the recent-files picker removes the
+highlighted entry from `~/.sase/file_reference_history.json` — the same on-disk store
+the widget uses, edited from the other side.
 
 ## Two Surfaces, One Language
 
 The throughline is that the prompt language is the contract, and the editing surface is
 interchangeable. sase's TUI input widget is optimized for short, fast, in-TUI launches;
 sase-nvim is optimized for long prompts, multi-file context, and the muscle memory of an
-editor you already use for code. Both speak the same xprompt names, the same directive
+editor you already use for code. Both speak the same macro names, the same directive
 aliases, the same slash-skill catalog, the same recent-files store. A prompt drafted in
 nvim and saved is the prompt that hits the agent; a prompt typed in the widget and sent
 via `Ctrl+G` to nvim and back is the same prompt either way.
@@ -192,6 +191,6 @@ catalog make them the same input system from two different front doors.
   table, completion semantics, and the snippet expansion grammar.
 - [sase-nvim on GitHub](https://github.com/sase-org/sase-nvim) — installation, the full
   `<C-t>` dispatcher table, LSP configuration, and the YAML schema registration.
-- [XPrompts reference](../../xprompt.md) — the language the widget and the plugin both
+- [Macros reference](../../macros.md) — the language the widget and the plugin both
   speak.
 - [sase's TUI guide](../../ace.md) — the rest of the TUI the prompt widget sits inside.

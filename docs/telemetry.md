@@ -188,7 +188,7 @@ place.
 
 The scope header makes the current controls explicit: **Range** shows a friendly summary
 and, when space permits, its absolute span; **Group** appears only in the Projects,
-XPrompts, and Perf views and names the active dimension; and **Project** shows **All
+Macros, and Perf views and names the active dimension; and **Project** shows **All
 projects** or the selected project's display name (falling back to its canonical key),
 preceded by a categorical color swatch. A custom range is labeled **Custom**, and narrow
 terminals compact the chips without changing the selection. Project keys remain
@@ -210,7 +210,7 @@ The eight numbered views answer different questions:
 | 03  | **Projects**          | Project and Patch run counts, success, commits, wall time, and last activity; `g` cycles project, Patch, and project-to-Patch groupings. A bounded Patch list closes with `N additional Patch rows not shown.` |
 | 04  | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                                                                                      |
 | 05  | **Activity**          | Skill, memory, and workspace use; the three panels are titled **Top …** because each is truncated to the highest-volume rows.                                                                                  |
-| 06  | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                                                                                           |
+| 06  | **Macros**            | Macro use by frequency, model, project, and co-usage, with an optional focused Macro drill-down.                                                                                                               |
 | 07  | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                            |
 | 08  | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                 |
 
@@ -239,7 +239,7 @@ entirely run-derived, so they report "No agent runs recorded in …". Activity a
 Questions are timestamped by when their skill/memory/plan/question events happened
 rather than by when the producing agent launched, so they report their own emptiness
 ("No skill or memory activity recorded", "No plans or questions recorded") and still
-render data in a window that contains no launches. Runners, XPrompts, and Perf render
+render data in a window that contains no launches. Runners, Macros, and Perf render
 their own empty states inside the view.
 
 The default focused-pane keys are:
@@ -251,10 +251,10 @@ The default focused-pane keys are:
 | `'`                 | Arm the same numbered-view selection as `0`.                                             |
 | `t`/`T`             | Cycle Today, 24h, 7d, 30d, 90d, and All forward / backward.                              |
 | `c`                 | Enter a custom absolute or relative time range.                                          |
-| `g`                 | Cycle grouping in Projects, XPrompts, or Perf.                                           |
+| `g`                 | Cycle grouping in Projects, Macros, or Perf.                                             |
 | `p`                 | Cycle All → each project from the latest unfiltered ranking → All.                       |
 | `P`                 | Cycle the same project order backward, wrapping in either direction.                     |
-| `x` / `X`           | Focus one XPrompt / return to all XPrompts in the XPrompts view.                         |
+| `x` / `X`           | Focus one Macro / return to all Macros in the Macros view.                               |
 | `Ctrl+D` / `Ctrl+U` | Scroll the statistics body down / up by half a page when the range input is not focused. |
 | `r`                 | Refresh immediately.                                                                     |
 | `?`                 | Open contextual help; press the configured help key again to close.                      |
@@ -308,8 +308,8 @@ ace:
       cycle_group: "g"
       cycle_project_filter: "p"
       cycle_project_filter_reverse: "P"
-      focus_xprompt: "x"
-      clear_xprompt_focus: "X"
+      focus_macro: "x"
+      clear_macro_focus: "X"
       scroll_down: "ctrl+d"
       scroll_up: "ctrl+u"
       refresh: "r"

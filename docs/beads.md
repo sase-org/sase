@@ -518,7 +518,7 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    failure, or a dispatch failure before any worker is spawned, restores the task's
    prior status and assignee. A partial dispatch failure terminates the partial launch
    but preserves the `in_progress` assignment for recovery. The worker receives the task
-   ID, description, and notes through the `work_task_bead` xprompt and is instructed to
+   ID, description, and notes through the `work_task_bead` macro and is instructed to
    close the task with verification evidence. A successful `sase stitch create` commit
    or PR from the task worker's primary-repo workspace can close the assigned bead only
    when invoked with `-B close`; intermediate commits use `-B keep` — see
@@ -2566,18 +2566,18 @@ multi-target JSON run is newline-delimited JSON, one object per line, including 
 first failing target's error object when the command stops.
 
 `-c/--capacity N` is an epic-only invocation control: every selected phase and land
-segment emits `%queue(capacity=N)`, except that a segment whose xprompt claims more
-weight gets a budget equal to that weight (`ceil(weight)`). `N` is that launch's own
-admission budget and must be at least 1; `1` means run alone. Omission preserves default
-queue behavior. The option applies to epic bead IDs and epic Markdown plan targets. An
+segment emits `%queue(capacity=N)`, except that a segment whose macro claims more weight
+gets a budget equal to that weight (`ceil(weight)`). `N` is that launch's own admission
+budget and must be at least 1; `1` means run alone. Omission preserves default queue
+behavior. The option applies to epic bead IDs and epic Markdown plan targets. An
 explicit capacity on a standalone task target is an actionable error: earlier successful
 targets stand and processing stops. When a segment is raised above `N`, the work-plan
 summary prints `Capacity: requested N · <agent> raised to M (queue weight W)`. The raise
 follows the `queue_capacity_budget` flag, which is on by default; with the flag off,
 every segment gets plain `N`. Before it marks the epic ready, preclaims beads, or spawns
-anything, SASE expands each phase and land xprompt to check the combined queue fields:
-an xprompt that sets its own `%queue(capacity=...)` conflicts with `--capacity`, and
-that target fails (under `--dry-run` too) without changing any bead or agent state.
+anything, SASE expands each phase and land macro to check the combined queue fields: a
+macro that sets its own `%queue(capacity=...)` conflicts with `--capacity`, and that
+target fails (under `--dry-run` too) without changing any bead or agent state.
 `-C/--cl-name NAME` retains the existing completion-notification behavior and plan-file
 restriction.
 
@@ -2587,15 +2587,15 @@ restriction.
 any bead or file mutation. The option applies to plan-file targets and existing epic
 beads. Extra waits are appended only to segments whose intra-epic `waits_on` is empty —
 the current root wave, and the land segment when it does not wait on phases — after
-those segments' existing wait lines and before their `#<xprompt>` line. Dependent
-segments inherit the wait transitively and do not repeat it. A `bead=<id>` entry may
-name a full ID from another enabled project; the waiting segment stays parked until that
-bead's owning store shows it closed, including while the ID is ambiguous or its store is
+those segments' existing wait lines and before their `#<macro>` line. Dependent segments
+inherit the wait transitively and do not repeat it. A `bead=<id>` entry may name a full
+ID from another enabled project; the waiting segment stays parked until that bead's
+owning store shows it closed, including while the ID is ambiguous or its store is
 unavailable. Shorthand `bead=` entries keep the launching project's scope.
 
 A full epic or task bead ID from another enabled project launches in that project's
 context: SASE reads and checkpoints the owner's bead store, resolves the owner project's
-bead-work xprompts, and prefixes each segment with the owner's VCS workflow and project
+bead-work macros, and prefixes each segment with the owner's VCS workflow and project
 name. `--dry-run` reads the owner's store without materializing it. In plan-file mode, a
 `parent_bead` or `--parent` that belongs to another enabled project archives the plan
 into that project's SDD store and creates the epic in its bead store.
@@ -2717,10 +2717,10 @@ Once an epic bead exists, the shared launch path:
    later phases combine their suffix, `clan=<epic-id>`, and `bead=<phase-id>`, and the
    land agent combines `land`, the clan, and `bead=<epic-id>`.
 6. Renders a single `---`-separated multi-prompt. Each per-phase agent is named
-   `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags)
-   xprompt; a final land agent named `<epic_id>.land` references the
-   [`land_epic`](xprompt.md#available-tags) xprompt. Every segment joins clan
-   `<epic_id>` and assigns that whole clan to tribe `@epic` with the single
+   `<epic_id>.<N>` and references the [`work_phase_bead`](macros.md#available-tags)
+   macro; a final land agent named `<epic_id>.land` references the
+   [`land_epic`](macros.md#available-tags) macro. Every segment joins clan `<epic_id>`
+   and assigns that whole clan to tribe `@epic` with the single
    `%clan(<epic_id>, tribe=epic)` directive. Each phase dependency becomes both a `%w`
    wait on the blocker phase-agent name and a `%w(bead=<blocker-phase-id>)` closure
    wait. The land agent likewise waits on every launched phase agent and on every
@@ -2773,18 +2773,18 @@ delegated phase. The land agent now genuinely requires every phase bead to close
 phase crashes before closure, retry or close that phase explicitly rather than expecting
 landing to sweep it up.
 
-| Flag                  | Description                                                                                                                                     |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch; plan-file targets only                                                  |
-| `-c, --capacity`      | Epic-only per-launch capacity budget (at least 1); a heavier xprompt weight floors the segment; omit for default queue behavior; `1` runs alone |
-| `-C, --cl-name`       | Patch name for the approved epic completion notification; plan-file targets only                                                                |
-| `-n, --dry-run`       | Preview the epic graph or task prompt, model routing, and cleanup without mutation                                                              |
-| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                                                                           |
-| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                                                           |
-| `-p, --parent`        | Override a plan file's `parent_bead`; use `top-level` for an unparented epic; plan-file targets only                                            |
-| `-y, --yes`           | Skip only the launch confirmation prompt                                                                                                        |
-| `-w, --wait`          | Comma-separated agent names and `bead=<id>` entries the launched epic phases wait for; plan-file targets and epic beads                         |
-| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                                                               |
+| Flag                  | Description                                                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch; plan-file targets only                                                |
+| `-c, --capacity`      | Epic-only per-launch capacity budget (at least 1); a heavier macro weight floors the segment; omit for default queue behavior; `1` runs alone |
+| `-C, --cl-name`       | Patch name for the approved epic completion notification; plan-file targets only                                                              |
+| `-n, --dry-run`       | Preview the epic graph or task prompt, model routing, and cleanup without mutation                                                            |
+| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                                                                         |
+| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                                                         |
+| `-p, --parent`        | Override a plan file's `parent_bead`; use `top-level` for an unparented epic; plan-file targets only                                          |
+| `-y, --yes`           | Skip only the launch confirmation prompt                                                                                                      |
+| `-w, --wait`          | Comma-separated agent names and `bead=<id>` entries the launched epic phases wait for; plan-file targets and epic beads                       |
+| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                                                             |
 
 Progress, timing, and admission are separate from the dependency schedule. Kahn waves
 and `%w` waits decide _order_; they do not wait for an LLM or a runner slot merely to
@@ -2804,8 +2804,8 @@ agent launches). Durable stage and summary events also append to
 `~/.sase/logs/tui_launch_timing.jsonl` (overridable with `SASE_TUI_LAUNCH_TIMING_PATH`).
 `--dry-run` does not create reservations or mutate agent/bead state.
 
-The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or
-user-defined `work_phase_bead`, `work_task_bead`, or `land_epic` xprompt overrides the
+The work macros are resolved by `MacroTag` (tag-based lookup), so a project-local or
+user-defined `work_phase_bead`, `work_task_bead`, or `land_epic` macro overrides the
 built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so
 spawned agents can auto-approve submitted tale or epic plans and follow the path
 selected by the authored `tier`, without a human-in-the-loop checkpoint between
@@ -2816,7 +2816,7 @@ or `--bug-id`), `sase bead work` preserves the current project's VCS context in 
 generated prompt. The first phase segment targets the project reference and adds a `#pr`
 reference for the Patch, while later phase and land segments target the Patch ref
 directly. For non-Patch epics launched from a known SASE workspace, each segment is
-still prefixed with the project's [project tag](xprompt.md#project-tags) (for example
+still prefixed with the project's [project tag](macros.md#project-tags) (for example
 `+sase`, which expands to `#gh:gh_sase-org__sase`); a bead routed to another enabled
 project uses that project's tag. If the current directory is not associated with a SASE
 project, the prompts are left unprefixed and run in the caller's normal launch context.
@@ -2855,7 +2855,7 @@ The bead data model, event reducer, JSONL/config codecs, compatibility-cache ref
 mutation transactions, ID allocation, deterministic work-plan DAG, and common CLI output
 planning are implemented in `sase-core` and exposed through `sase_core_rs`. Python keeps
 the host logic that belongs in the application layer: locating the active bead store,
-relativizing plan paths, resolving VCS context and xprompts for `sase bead work`,
+relativizing plan paths, resolving VCS context and macros for `sase bead work`,
 prompting the user, launching agents, rolling back failed launches, and incrementing
 telemetry counters.
 

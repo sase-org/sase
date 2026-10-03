@@ -20,7 +20,7 @@ armer) or shell exits, or at TTL expiry — and a settled armer's `future` rule 
 with its record, never blocking later arrivals vacuously. Running work is immune by
 construction, since both enforcement points (runner-slot admission for agents,
 eligibility transition for undispatched procs) are pre-run. Directive summary in
-[[xprompts.md]]; full contract in `docs/xprompt.md` and `plan:202609/hold_directive.md`.
+[[macros.md]]; full contract in `docs/macros.md` and `plan:202609/hold_directive.md`.
 
 **Why.** Prompt text is replayed (`#fork`, history, pipes), so a barrier written into
 another launch's `waiting.json`/`ready.json` would outlive its armer and misfire on

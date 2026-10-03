@@ -613,7 +613,6 @@ _STRING_PAIRS: set[tuple[str, str]] = {
         "tests/main/test_init_skills_plan.py",
         '"refusing chezmoi skill deploy because xprompt sources have "',
     ),
-    ("tests/main/test_init_skills_sources.py", '"docs/xprompt.md"'),
     ("tests/main/test_lsp_handler.py", '"/path/bin/sase-xprompt-lsp"'),
     ("tests/main/test_lsp_handler.py", '"cargo run -p sase_xprompt_lsp --"'),
     ("tests/main/test_lsp_handler.py", '"expected XPromptLspLaunchError"'),
@@ -677,5 +676,4 @@ _STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/main/test_snippet_cli_list.py", '"xprompts/review.md"'),
     ("tests/main/test_snippet_cli_show.py", '"xprompt"'),
     ("tests/main/test_snippet_cli_show.py", '"xprompts/review.md"'),
-    ("tests/memory/test_memory_links.py", '"sase/memory/xprompts.md"'),
 }

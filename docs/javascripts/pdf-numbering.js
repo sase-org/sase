@@ -6,7 +6,7 @@
     "/ace/": 4,
     "/axe/": 5,
     "/sdd/": 6,
-    "/xprompt/": 7,
+    "/macro/": 7,
     "/change_spec/": 8,
     "/beads/": 9,
     "/workflow_spec/": 10,

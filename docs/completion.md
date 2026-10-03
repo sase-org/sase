@@ -3,7 +3,7 @@
 `sase completion` supports native shell completion for `zsh`, `bash`, and `fish` from
 the live `sase` argparse tree, so pressing `<TAB>` anywhere in the command line offers
 the right commands, options, static choices, and live values — bead ids with titles,
-project display names, xprompt names, and more — with no perceptible latency.
+project display names, macro names, and more — with no perceptible latency.
 
 Installed completion uses a small shell-native loader plus a SASE-owned runtime grammar
 cache. A fresh shell loads the portable loader, the loader asks the active `sase`
@@ -160,7 +160,7 @@ kinds this build can actually answer, so `sase completion candidates <TAB>` is t
 authoritative list; today that is `agent`, `artifact`, `artifact_ref`,
 `artifact_relation`, `bead`, `directive`, `flag`, `memory`, `model`, `monitor`, `patch`,
 `pending_plan`, `plan`, `plugin`, `proc`, `project`, `project_tag`, `provider`, `repo`,
-`skill`, `snippet`, `tag`, `workspace`, and `xprompt`. Path and directory slots are
+`skill`, `snippet`, `tag`, `workspace`, and `macro`. Path and directory slots are
 deliberately not kinds — the shell completes those natively.
 
 Two flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
@@ -201,10 +201,10 @@ All three pass the **full** candidate set to the shell's own filtering rather th
 typed prefix, so one cached fetch serves the whole word, not just one keystroke.
 
 `sase run`'s `PROMPT` argument is a special case: rather than a single value kind, it
-completes native file paths (for editor-drafted prompt files) _and_ stored xprompt names
-together. Inside quoted or spaced prompt text, `#` completes xprompt names, `%`
-completes prompt directive names, `@` completes canonical artifact references such as
-`file:explicit:...`, and `+` completes [project tags](xprompt.md#project-tags) such as
+completes native file paths (for editor-drafted prompt files) _and_ stored macro names
+together. Inside quoted or spaced prompt text, `#` completes macro names, `%` completes
+prompt directive names, `@` completes canonical artifact references such as
+`file:explicit:...`, and `+` completes [project tags](macros.md#project-tags) such as
 `+sase`; the inserted value keeps the marker and only replaces the active embedded
 fragment. Project-tag candidates (`sase completion candidates project_tag`) are the
 enabled, launchable projects whose `PROJECT_NAME` fits the tag syntax, sorted

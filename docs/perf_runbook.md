@@ -670,7 +670,7 @@ sharing that dotted prefix:
 
 ```text
 widget.prompt_panel.build_detail_header_summary                 (parent)
-  .xprompts_used
+  .macros_used
   .bead_display
   .plan_enrichment
   .slow_tool_sources
@@ -1245,7 +1245,7 @@ every trace span and key-to-paint action observed during that scenario.
 ### View-hints scenarios and committed baseline
 
 The Agents-tab `v` keypath has its own scenario set, run separately because it needs
-disk-backed fixtures — the hint render reads `raw_xprompt.md`, `*_prompt.md`, and
+disk-backed fixtures — the hint render reads `raw_macros.md`, `*_prompt.md`, and
 `live_reply.md` from a real artifacts dir:
 
 ```text
@@ -1312,7 +1312,7 @@ conversation sections became fold-inert.
   lands in `activate()` (reveal or fresh mount) when the bar focuses, and paint lands on
   the next refresh.
 - `prompt_cycle_ctrl_p` / `prompt_cycle_ctrl_n` — begin when the key reaches
-  `_handle_vcs_mru_cycle_key` (after xprompt arg-name completion declines it); the model
+  `_handle_vcs_mru_cycle_key` (after macro arg-name completion declines it); the model
   timestamp lands once the cycle edit applies, and paint lands on the next refresh.
 
 Samples append to `~/.sase/perf/tui_jk.jsonl` (`SASE_TUI_PERF_PATH` overrides); the
@@ -1542,7 +1542,7 @@ methods:
 
 Perf counts come from the telemetry store and the TUI logs, never from the
 agent-artifact index, so they are not comparable with the run counts on Overview,
-Projects, or XPrompts.
+Projects, or Macros.
 
 Every range except **All time** also loads the immediately preceding window of the same
 length; that second load is what the Startup and Agent p95 tiles compare against to show

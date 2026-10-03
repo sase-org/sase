@@ -31,7 +31,7 @@ visual language, and semantic guardrails stay aligned.
 
 | Doc                        | Final image                                         | Insertion point / status                                                                                | Rationale                                                                                                                     |
 | -------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `docs/xprompt.md`          | `docs/images/xprompt-resolution-infographic.png`    | Embedded after the introductory use-case list and before the authoritative text pipeline.               | Readers need the reference-resolution model before entering CLI and syntax reference sections.                                |
+| `docs/macros.md`           | `docs/images/macro-resolution-infographic.png`      | Embedded after the introductory use-case list and before the authoritative text pipeline.               | Readers need the reference-resolution model before entering CLI and syntax reference sections.                                |
 | `docs/workflow_spec.md`    | `docs/images/workflow-execution-infographic.png`    | After the opening paragraph and before `## Table of Contents`.                                          | The doc immediately becomes a format reference; the diagram should establish the execution model first.                       |
 | `docs/commit_workflows.md` | `docs/images/commit-workflow-infographic.png`       | Candidate insertion after the `## Overview` table and before `## How It Works`; currently not embedded. | The table defines the three outputs; the diagram should bridge from that summary into orchestration details once regenerated. |
 | `docs/beads.md`            | `docs/images/bead-epic-work-infographic.png`        | Retired; retained as a historical asset but no longer embedded.                                         | The image predates task beads and the task-only `ready` status, so it no longer represents the current model.                 |
@@ -45,14 +45,14 @@ Rust-backend image are all 16:9 PNGs.
 
 ## Per-Doc Guardrails
 
-### `docs/xprompt.md`
+### `docs/macros.md`
 
 - Show a user prompt containing `#name`, `#!workflow`, directives, and workspace
   references.
 - Include the key resolution stages: protected/disabled-region masking, reference
   parsing, discovery order, aliases, typed input validation, Jinja2 rendering, and
   multi-agent fan-out.
-- Keep the distinction clear: `#name` expands inline-capable xprompts or workflows with
+- Keep the distinction clear: `#name` expands inline-capable macros or workflows with
   `prompt_part`; `#!name` launches standalone workflows.
 - Do not imply a strict one-level fan-out rule; multi-agent fan-out is bounded by the
   documented recursion depth cap.
@@ -108,7 +108,7 @@ Rust-backend image are all 16:9 PNGs.
   and sibling `../sase-core` Rust workspace.
 - Distinguish Rust-owned operation groups from Python-owned host responsibilities. Rust
   owns data/query/planning cores; Python owns file-path APIs, VCS/workspace plugins,
-  xprompt resolution, user prompts, process orchestration, TUI rendering, and
+  macro resolution, user prompts, process orchestration, TUI rendering, and
   side-effecting transitions.
 - Include `sase core health`, golden fixtures, and focused Python/Rust tests as a
   secondary contract loop.

@@ -3,14 +3,14 @@ title: "[00] The Missing Operating Layer for Coding Agents"
 date: 2026-05-08
 draft: true
 description: >-
-  SASE's first principles: XPrompts, SDD, Beads, sase's TUI, AXE, plugins, and the
-  durable operating layer around coding-agent CLIs.
+  SASE's first principles: Macros, SDD, Beads, sase's TUI, AXE, plugins, and the durable
+  operating layer around coding-agent CLIs.
 categories:
   - Agentic Software Engineering
 slug: why-coding-agents-need-orchestration
 links:
   - Getting Started: getting_started.md
-  - XPrompts: xprompt.md
+  - Macros: macros.md
   - Spec-Driven Development: sdd.md
   - sase's TUI: ace.md
   - View on GitHub: https://github.com/sase-org/sase
@@ -33,7 +33,7 @@ steer without becoming a full-time air-traffic controller.
 
 Borrowing the name from the research paper discussed later, SASE calls that layer
 **Structured Agentic Software Engineering**. This post is the map of the fundamentals:
-XPrompts, SDD, Beads, sase's TUI, AXE, plugins, and why SASE wraps coding-agent CLIs
+Macros, SDD, Beads, sase's TUI, AXE, plugins, and why SASE wraps coding-agent CLIs
 instead of raw model APIs.
 
 <!-- more -->
@@ -60,11 +60,11 @@ The repo split is intentionally boring:
 
 | Repo                                                         | What it does                                                                                                                                                  |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`sase`](https://github.com/sase-org/sase)                   | The Python host package: CLI, sase's TUI, AXE daemon, XPrompt expansion, SDD, Beads integration, config, and built-in providers.                              |
-| [`sase-core`](https://github.com/sase-org/sase-core)         | Shared Rust core for deterministic data operations and cross-frontend APIs. It also houses the mobile gateway and XPrompt LSP crates.                         |
-| [`sase-github`](https://github.com/sase-org/sase-github)     | GitHub VCS/workspace provider plugin. It uses `gh` for PR operations and ships GitHub-focused xprompts such as `#gh`, `#new_pr_desc`, and `#prdd`.            |
+| [`sase`](https://github.com/sase-org/sase)                   | The Python host package: CLI, sase's TUI, AXE daemon, Macro expansion, SDD, Beads integration, config, and built-in providers.                                |
+| [`sase-core`](https://github.com/sase-org/sase-core)         | Shared Rust core for deterministic data operations and cross-frontend APIs. It also houses the mobile gateway and Macro LSP crates.                           |
+| [`sase-github`](https://github.com/sase-org/sase-github)     | GitHub VCS/workspace provider plugin. It uses `gh` for PR operations and ships GitHub-focused macros such as `#gh`, `#new_pr_desc`, and `#prdd`.              |
 | [`sase-telegram`](https://github.com/sase-org/sase-telegram) | Telegram integration package. It runs as inbound/outbound AXE chops so you can receive notifications, answer approvals, and launch or steer agents from chat. |
-| [`sase-nvim`](https://github.com/sase-org/sase-nvim)         | Neovim integration for SASE syntax, xprompt completion, hover, diagnostics, and the XPrompt LSP.                                                              |
+| [`sase-nvim`](https://github.com/sase-org/sase-nvim)         | Neovim integration for SASE syntax, macro completion, hover, diagnostics, and the Macro LSP.                                                                  |
 
 The short version: `sase` owns the cockpit, `sase-core` owns shared engine-room logic,
 and the plugins add providers or frontends without forcing the core workflow to become
@@ -74,12 +74,12 @@ GitHub-only, Telegram-only, or Neovim-only.
 ARCHITECTURE DIAGRAM BRIEF 1 - place here after the repo table.
 Title: "SASE as the operating layer"
 Shape: horizontal layered architecture diagram.
-Top layer: "Human surfaces" with sase's TUI, Telegram, Neovim/XPrompt LSP, future Web UI, future Mobile app.
-Middle layer: "SASE Python host" with XPrompts, agent launcher, AXE daemon, Patches, SDD, Beads, VCS/workspace plugins.
+Top layer: "Human surfaces" with sase's TUI, Telegram, Neovim/Macro LSP, future Web UI, future Mobile app.
+Middle layer: "SASE Python host" with Macros, agent launcher, AXE daemon, Patches, SDD, Beads, VCS/workspace plugins.
 Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Antigravity (agy), Qwen, OpenCode, and Muse Code. Draw them as replaceable
 execution engines rather than the center of the system.
 Show Muse Code as explicitly selected by provider/model directive, not auto-detected.
-Bottom layer: "sase-core Rust" with state/indexing, mobile gateway, xprompt LSP core, deterministic file/query helpers.
+Bottom layer: "sase-core Rust" with state/indexing, mobile gateway, macro LSP core, deterministic file/query helpers.
 Persistent storage under everything: ~/.sase plus the resolved SDD store.
 Make the visual point that SASE is not another model wrapper; it is the state/control plane around several CLIs.
 -->
@@ -178,7 +178,7 @@ others. I have made peace with this, mostly.
 
 Here is the SASE loop:
 
-1. You type a prompt, usually with one or more XPrompt references.
+1. You type a prompt, usually with one or more Macro references.
 2. SASE expands the prompt, strips directives, resolves workspace references, and
    launches one or more agents.
 3. Each agent runs in a managed workspace and writes prompt, transcript, status, and
@@ -188,41 +188,41 @@ Here is the SASE loop:
 5. sase's TUI shows the live state. AXE watches the background state. Plugins translate
    VCS and notification operations.
 
-The docs that matter most at first are [XPrompts](../../xprompt.md),
-[SDD](../../sdd.md), [Beads](../../beads.md), [sase's TUI](../../ace.md),
-[AXE](../../axe.md), [VCS providers](../../vcs.md), and [plugins](../../plugins.md).
+The docs that matter most at first are [Macros](../../macros.md), [SDD](../../sdd.md),
+[Beads](../../beads.md), [sase's TUI](../../ace.md), [AXE](../../axe.md),
+[VCS providers](../../vcs.md), and [plugins](../../plugins.md).
 
 <!--
 FUNNY DIAGRAM BRIEF 1 - place here after "The Fundamental Loop".
 Title: "The prompt burrito"
 Shape: silly cutaway diagram of a burrito labeled in layers.
 Center: "tiny user prompt: fix the thing".
-Layers outward: config xprompt, markdown xprompt, multi-agent segments, directives, workspace ref, SDD/Beads metadata.
+Layers outward: config macro, markdown macro, multi-agent segments, directives, workspace ref, SDD/Beads metadata.
 Final arrow: "several agents with actual names instead of mystery chat tabs".
 Visual joke: a tiny warning label on the YAML wrapper reading "use only when structurally necessary".
 Keep it funny, but make the hierarchy legible.
 -->
 
-## XPrompts Are The Smallest Load-Bearing Idea
+## Macros Are The Smallest Load-Bearing Idea
 
-An [XPrompt](../../xprompt.md) is a reusable prompt reference. You write `#foo`, SASE
+An [Macro](../../macros.md) is a reusable prompt reference. You write `#foo`, SASE
 expands `foo`, and the agent sees the rendered text. It sounds small. It is not small.
-XPrompts are how SASE keeps prompts composable enough to reuse and structured enough to
+Macros are how SASE keeps prompts composable enough to reuse and structured enough to
 orchestrate.
 
 The hierarchy runs from tiny to large:
 
-| Level                             | Where it lives                                                                  | Use it for                                                                                                                                          |
-| --------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Config xprompt                    | `xprompts:` in `sase/sase.yml`                                                  | Aliases and tiny reusable phrases. Example: `x: "xprompt"` or `xw: "xprompt workflow"`.                                                             |
-| Structured config xprompt         | `sase/sase.yml` with `content`, `description`, `input`                          | Small templates with typed inputs.                                                                                                                  |
-| Markdown xprompt                  | Project/home `sase/xprompts/`, compatibility dirs, plugins, or built-ins        | Normal reusable prompt bodies. This is the sweet spot.                                                                                              |
-| Markdown xprompt with frontmatter | Same as above                                                                   | Inputs, snippets, skill metadata, and local helper xprompts.                                                                                        |
-| Xprompt swarm                     | Markdown file with top-level `---` segment separators                           | Fan-out or sequenced multi-agent work without needing a YAML workflow. Prefer this for most multi-agent work.                                       |
-| YAML xprompt workflow             | `.yml` workflow file launched with `#!name` or embedded through a `prompt_part` | Real control flow: `agent`, `bash`, `python`, `parallel`, approvals, step outputs, artifact passing. Use it only when the structure earns its keep. |
+| Level                           | Where it lives                                                                  | Use it for                                                                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Config macro                    | `macros:` in `sase/sase.yml`                                                    | Aliases and tiny reusable phrases. Example: `x: "macro"` or `xw: "macro workflow"`.                                                                 |
+| Structured config macro         | `sase/sase.yml` with `content`, `description`, `input`                          | Small templates with typed inputs.                                                                                                                  |
+| Markdown macro                  | Project/home `sase/macros/`, compatibility dirs, plugins, or built-ins          | Normal reusable prompt bodies. This is the sweet spot.                                                                                              |
+| Markdown macro with frontmatter | Same as above                                                                   | Inputs, snippets, skill metadata, and local helper macros.                                                                                          |
+| Macro swarm                     | Markdown file with top-level `---` segment separators                           | Fan-out or sequenced multi-agent work without needing a YAML workflow. Prefer this for most multi-agent work.                                       |
+| YAML macro workflow             | `.yml` workflow file launched with `#!name` or embedded through a `prompt_part` | Real control flow: `agent`, `bash`, `python`, `parallel`, approvals, step outputs, artifact passing. Use it only when the structure earns its keep. |
 
-My recommendation is simple: prefer markdown xprompts, including xprompt swarms, until
-you genuinely need a YAML workflow. YAML workflows are powerful, but power is how a
+My recommendation is simple: prefer markdown macros, including macro swarms, until you
+genuinely need a YAML workflow. YAML workflows are powerful, but power is how a
 three-line prompt becomes a small enterprise resource-planning system wearing a fake
 mustache.
 
@@ -233,9 +233,9 @@ Cases where YAML workflows really are necessary:
 - Bead epic creation workflows, because they write SDD plans, initialize beads, and
   launch follow-up work.
 
-The key distinction: an xprompt swarm is excellent when the structure is "run these
-prompt segments, maybe with `%wait` ordering." A YAML workflow is for "run code, branch,
-gather outputs, call agents, validate, and continue."
+The key distinction: a macro swarm is excellent when the structure is "run these prompt
+segments, maybe with `%wait` ordering." A YAML workflow is for "run code, branch, gather
+outputs, call agents, validate, and continue."
 
 ```text
 ---
@@ -257,21 +257,21 @@ Implement the approved safe change for {{ target }}.
 Review the diff and call out risks.
 ```
 
-That is an xprompt swarm. It is readable. It does not need a workflow engine. It can sit
-happily in `sase/xprompts/three_phase.md` until the day it needs Bash, Python, or step
+That is a macro swarm. It is readable. It does not need a workflow engine. It can sit
+happily in `sase/macros/three_phase.md` until the day it needs Bash, Python, or step
 outputs.
 
-> **Friction note:** XPrompt discovery is intentionally flexible: repo-local,
-> user-local, config-defined, plugin-shipped, and built-in sources all participate. That
-> is powerful, but the mental model can get slippery. Use `sase xprompt list`,
-> `sase xprompt explain`, and sase's TUI XPrompt Browser when you are not sure which
+> **Friction note:** Macro discovery is intentionally flexible: repo-local, user-local,
+> config-defined, plugin-shipped, and built-in sources all participate. That is
+> powerful, but the mental model can get slippery. Use `sase macro list`,
+> `sase macro explain`, and sase's TUI Macro Browser when you are not sure which
 > `#thing` wins.
 
-## XPrompt Directives, In One Place
+## Macro Directives, In One Place
 
 Directives are `%` tags that change launch behavior. They are extracted from the prompt
 before the agent sees it. The full reference is in
-[XPrompts: Directives](../../xprompt.md#directives); this is the practical tour.
+[Macros: Directives](../../macros.md#directives); this is the practical tour.
 
 | Directive | Alias | What it does                                                                                                                     | Example                                                            |
 | --------- | ----- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -340,7 +340,7 @@ The core logical roots are:
 - `<plans-root>/<YYYYMM>/`: approved implementation plans, classified by
   `tier: tale|epic`. Tales are focused plans; epics are executable multi-phase plans
   that can be turned into Beads and driven by `sase bead work`.
-- `<agents-sidecar>/prompts/<YYYYMM>/`: canonical committed run prompts. XPrompts are
+- `<agents-sidecar>/prompts/<YYYYMM>/`: canonical committed run prompts. Macros are
   resolved, directives are stripped, and prompt-linked artifacts are made clickable.
 - `<agents-sidecar>/files/objects/sha256/<hex-prefix>/<sha256>`: copied prompt-linked
   bytes; clean tracked files link to hosted source blobs instead of being duplicated.
@@ -417,8 +417,8 @@ input completion."
 sase's TUI is fun because it treats agents as work records, not mystical chat bubbles.
 You can fork an agent, wait on one, retry a failed run, inspect its artifacts, view its
 changed files, jump to the workspace, or hide background noise until you care about it.
-You can also open the XPrompt Browser, insert snippets, complete directives, complete
-file paths, and compose multi-agent prompts directly in the prompt input widget.
+You can also open the Macro Browser, insert snippets, complete directives, complete file
+paths, and compose multi-agent prompts directly in the prompt input widget.
 
 The VCS support is the part that makes sase's TUI feel like engineering software instead
 of a prettier terminal. SASE's VCS providers are pluggy-based. Bare Git support ships
@@ -520,34 +520,34 @@ Telegram is not meant to replace sase's TUI. It is the thing you use when an age
 a yes/no question while you are away from the keyboard and your laptop is, unreasonably,
 not strapped to your face.
 
-## Neovim, The XPrompt LSP, And The Prompt Widget
+## Neovim, The Macro LSP, And The Prompt Widget
 
 [`sase-nvim`](https://github.com/sase-org/sase-nvim) is the canonical editor
 integration. The important idea is not "Neovim gets a plugin," although it does. The
-important idea is that SASE exposes an XPrompt language server.
+important idea is that SASE exposes an Macro language server.
 
-The XPrompt LSP can provide:
+The Macro LSP can provide:
 
-- completion for `#xprompt`, `#!workflow`, slash skills, directives, arguments, and file
+- completion for `#macro`, `#!workflow`, slash skills, directives, arguments, and file
   paths;
-- hover text for xprompt definitions and inputs;
+- hover text for macro definitions and inputs;
 - diagnostics for malformed references or arguments;
-- go-to-definition for xprompt files;
-- snippets and skeleton insertion for typed xprompt inputs;
+- go-to-definition for macro files;
+- snippets and skeleton insertion for typed macro inputs;
 - YAML schema help for workflow files.
 
 sase's TUI prompt input widget overlaps with that on purpose. It uses the same catalog
-and helper machinery for directive completion, xprompt insertion, slash-skill insertion,
+and helper machinery for directive completion, macro insertion, slash-skill insertion,
 argument hints, snippets, file completion, and prompt history.
 
 The division of labor is ergonomic: sase's TUI is fastest for launching and steering
 work in the cockpit; Neovim is better for writing longer prompt files, editing workflow
-YAML, navigating xprompt definitions, and using editor-native muscle memory. The same
+YAML, navigating macro definitions, and using editor-native muscle memory. The same
 prompt system should feel familiar in both places.
 
 > **Friction note:** The editor story should not be Neovim-only forever. `sase-nvim` is
 > the reference client because I live there, but the LSP exists so other editors can use
-> the same xprompt intelligence without copying SASE internals.
+> the same macro intelligence without copying SASE internals.
 
 ## Scarcity Is Coming For Our Robot Budgets
 
@@ -599,18 +599,18 @@ These are the commands I reach for most:
 | `sase doctor`                                            | Read-only install, config, provider, project, and state diagnostics. |
 | `sase version`                                           | Exact SASE, Rust core, and plugin package inventory.                 |
 | `sase tui`                                               | Open the TUI cockpit.                                                |
-| `sase run "..."`                                         | Launch an agent, xprompt, or workflow.                               |
+| `sase run "..."`                                         | Launch an agent, macro, or workflow.                                 |
 | `sase agent list`                                        | See active and recent agent runs from the terminal.                  |
-| `sase xprompt list`                                      | See available xprompts and workflows.                                |
-| `sase xprompt explain "#foo"`                            | Inspect how a prompt reference resolves.                             |
-| `sase xprompt graph "#!workflow"`                        | Visualize workflow structure.                                        |
+| `sase macro list`                                        | See available macros and workflows.                                  |
+| `sase macro explain "#foo"`                              | Inspect how a prompt reference resolves.                             |
+| `sase macro graph "#!workflow"`                          | Visualize workflow structure.                                        |
 | `sase plan`                                              | Review, approve, and manage submitted plans.                         |
 | `sase plan search` / `sase plan links validate`          | Inspect and validate SDD artifacts.                                  |
 | `sase bead ready` / `sase bead work`                     | Triage unblocked ready tasks, or execute a task or epic.             |
 | `sase axe lumberjack status`                             | Check scheduled background automation.                               |
 | `sase axe chop doctor`                                   | Verify configured chops, scripts, and Telegram chop setup.           |
 | `sase workspace open -p <linked_repo> -r "<reason>" <n>` | Open a configured linked repo's matching numbered workspace.         |
-| `sase lsp`                                               | Start the XPrompt language server for editor integrations.           |
+| `sase lsp`                                               | Start the Macro language server for editor integrations.             |
 | `sase mobile gateway start`                              | Start the workstation-hosted mobile gateway.                         |
 
 The [CLI reference](../../cli.md) is the full inventory.
@@ -633,7 +633,7 @@ SASE is also inspired by IBM's
 [Prompt Declaration Language](https://github.com/IBM/prompt-declaration-language) and
 the [PDL paper](https://arxiv.org/abs/2410.19135). PDL argues for declarative,
 composable prompt programs that keep prompts visible rather than burying them in
-framework code. SASE's YAML xprompt workflows borrow that idea, then specialize it for
+framework code. SASE's YAML macro workflows borrow that idea, then specialize it for
 local software-engineering work: agent steps, Bash/Python steps, workspace references,
 SDD files, Beads, and VCS state.
 
@@ -655,7 +655,7 @@ SASE assumes that premise is true, then asks a narrower product question: what i
 right local interface for one developer supervising many coding agents across real
 repos, real diffs, real plans, and real PRs?
 
-One concrete difference is xprompt workflows. SASE YAML workflows can intersperse agent
+One concrete difference is macro workflows. SASE YAML workflows can intersperse agent
 calls with Python and Bash steps, pass outputs, branch, parallelize, and validate. I did
 not find an equivalent control surface in the public Gas Town docs; Gas Town's public
 model is more role/rig/dispatch oriented. That does not make one approach universally
@@ -668,7 +668,7 @@ Title: "Mayor vs cockpit"
 Shape: split-panel cartoon.
 Left panel: Gas Town as city hall. A Mayor at a desk dispatches beads to rigs, with polecats in hard hats running to
 worktrees. Label it "autonomous town experiments".
-Right panel: SASE as a terminal cockpit. A developer sits at sase's TUI with levers labeled XPrompts, Beads, AXE, VCS, and
+Right panel: SASE as a terminal cockpit. A developer sits at sase's TUI with levers labeled Macros, Beads, AXE, VCS, and
 model_aliases; several agent planes are queued on a runway.
 Caption: "Both believe agents can do work. SASE obsesses over the control surface."
 Keep it affectionate and clearly respectful of Gas Town/Beads.

@@ -71,7 +71,7 @@ def test_published_docs_do_not_restore_var_show() -> None:
     for relative in (
         "docs/configuration.md",
         "docs/cli.md",
-        "docs/xprompt.md",
+        "docs/macros.md",
         "src/sase/macros/skills/sase_var.md",
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")

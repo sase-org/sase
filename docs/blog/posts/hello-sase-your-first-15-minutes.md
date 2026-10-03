@@ -158,11 +158,11 @@ other workspace references, such as `#gh:<owner>/<repo>` for GitHub. The
 **What you just did.** Moved from a read-only run to a small editable task after
 confirming where SASE records agent state.
 
-## Step 6 — Reuse the prompt as an XPrompt (≈3 minutes)
+## Step 6 — Reuse the prompt as an Macro (≈3 minutes)
 
 A one-off prompt is fine once. The second time you find yourself reaching for it, wrap
-it as an **XPrompt** so you're not retyping the same paragraph forever. Create
-`sase/xprompts/til.md` in the directory where you run `sase`:
+it as an **Macro** so you're not retyping the same paragraph forever. Create
+`sase/macros/til.md` in the directory where you run `sase`:
 
 ```markdown
 Append one Today-I-Learned entry to `til.md` about something useful in this workspace.
@@ -175,15 +175,15 @@ Now the same agent run is one tag:
 sase run "#til"
 ```
 
-That is the smallest XPrompt shape — a single Markdown file becomes a reusable prompt
+That is the smallest Macro shape — a single Markdown file becomes a reusable prompt
 part. Because this prompt has no workspace reference, the same `#git:home` default kicks
-in at launch. XPrompts also support YAML files with typed inputs, multi-step workflows
+in at launch. Macros also support YAML files with typed inputs, multi-step workflows
 (prompt parts, Python, bash, parallel fan-out, approvals), and `---` separators for
-multi-agent dispatch. The [XPrompts guide](../../xprompt.md) covers the full surface,
-and the [workflow spec reference](../../workflow_spec.md) documents the YAML form.
+multi-agent dispatch. The [Macros guide](../../macros.md) covers the full surface, and
+the [workflow spec reference](../../workflow_spec.md) documents the YAML form.
 
-**What you just did.** Turned a one-off prompt into a reusable XPrompt, the smallest
-unit of repeatable agent work in SASE.
+**What you just did.** Turned a one-off prompt into a reusable Macro, the smallest unit
+of repeatable agent work in SASE.
 
 ## Step 7 — Plan bigger work with SDD and Beads (≈3 minutes)
 
@@ -235,7 +235,7 @@ The names you'll keep bumping into, in one place:
   lifecycle, commits, hooks, comments, mentors.
 - **[Beads](../../beads.md)** — dependency-aware, git-portable work units. Powers epic
   execution.
-- **[XPrompts](../../xprompt.md)** — reusable prompt templates and YAML workflows with
+- **[Macros](../../macros.md)** — reusable prompt templates and YAML workflows with
   typed inputs and multi-agent fan-out. See also
   [workflow specs](../../workflow_spec.md).
 - **[SDD](../../sdd.md)** — Spec-Driven Development. Plans and epics as first-class

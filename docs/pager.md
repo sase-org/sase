@@ -128,7 +128,7 @@ Permanent configuration is `pager.syntax: auto | never` (default `auto`). CLI `-
 overrides it. Files that exceed the syntax caps stay fully visible and searchable, just
 without highlighting. Unknown types can still be forced with an explicit lexer.
 
-Markdown sections also color resolved [`+<project>` tags](xprompt.md#project-tags) in
+Markdown sections also color resolved [`+<project>` tags](macros.md#project-tags) in
 top-level prose: a dim `+` and a bold name in the project's accent color, or neutral for
 accent-less projects. Unknown tags stay plain text, and fenced code and frontmatter stay
 tag-free. The overlay reads the already-loaded project catalog and never builds it, so
@@ -289,7 +289,7 @@ a leading `@`, a decoded path (quotes and prompt sigils stripped), a URL, or a
 caller-attached object. Painting uses the original character span; `@` and quoting are
 syntax, not path bytes.
 
-Xprompt skill sources are followable without expanding or invoking the skill.
+Macro skill sources are followable without expanding or invoking the skill.
 `#skill/sase_plan`, `#project/skill/name`, and the `__` namespace shorthand such as
 `#skill__sase_plan` open the canonical Markdown source. Markdown links use their
 destination, so `[plan](#skill/sase_plan)` follows the skill while
@@ -324,8 +324,8 @@ Git search to build a toast.
 ## Live refresh
 
 In the Agents tab, `V` opens the selected agent's metadata and conversation together.
-After the metadata, **AGENT XPROMPT** shows the original input, **AGENT PROMPT** shows
-the expanded prompt, and **AGENT REPLY** shows the available conversation. Each is a
+After the metadata, **AGENT MACRO** shows the original input, **AGENT PROMPT** shows the
+expanded prompt, and **AGENT REPLY** shows the available conversation. Each is a
 separate section with line numbers, Markdown syntax colors, searchable text, and
 followable links. Use `Ctrl+N` / `Ctrl+P` to move between sections. Session and clan
 conversations identify each member in the section title and preserve member order.

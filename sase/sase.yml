@@ -37,7 +37,7 @@ repos:
       path: ../sase-research-artifacts
       description: >-
         Installable artifact-reference plugin that provides the `@research` document
-        provider, `research-highlights` file-hook template, and `#research*` xprompts.
+        provider, `research-highlights` file-hook template, and `#research*` macros.
     - name: sase-listen
       path: ../sase-listen
       description: >-

@@ -192,7 +192,7 @@ labels but they are not big enough at thumbnail scale.
 ### C7. No bridge to the rest of the SASE doc set's visual language
 
 Sister infographics (`sase-component-communication`, `commit-workflow`,
-`xprompt-resolution`, `workflow-execution`, `bead-epic-work`, `rust-backend-boundary`)
+`macro-resolution`, `workflow-execution`, `bead-epic-work`, `rust-backend-boundary`)
 share a common look: rounded blocks, consistent palette, named flow edges, small
 captions. The Zorg vision image uses a similar palette but a noticeably different layout
 grammar (icon pills + mini graph + bottom strip), so it does not visually slot in next

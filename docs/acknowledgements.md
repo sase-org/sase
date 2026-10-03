@@ -22,7 +22,7 @@ infrastructure:
 - **Patches instead of mental bookkeeping** -- Each unit of work gets a tracked
   lifecycle with status, metadata, and history, replacing the cognitive load of
   remembering what's happening in each tmux tab.
-- **XPrompts instead of ad-hoc prompts** -- Reusable, composable prompt templates with
+- **Macros instead of ad-hoc prompts** -- Reusable, composable prompt templates with
   YAML front matter replace the prompt fragments scattered across shell history and
   scratch files.
 - **True SDD instead of plan mode** -- Plan mode produces ephemeral plans that vanish
@@ -103,8 +103,8 @@ This project was heavily influenced by two research papers:
 
 - **[PDL: A Declarative Prompt Programming Language](https://arxiv.org/abs/2410.19135)**
   (Vaziri et al., 2024) -- PDL's approach to declarative, YAML-based prompt programming
-  influenced the design of xprompt workflows, sase's YAML-defined multi-step pipelines
-  for orchestrating LLM calls and tool execution.
+  influenced the design of macro workflows, sase's YAML-defined multi-step pipelines for
+  orchestrating LLM calls and tool execution.
 
   ![Visual overview of the PDL paper](images/pdl_paper.png){ width="800" }
 

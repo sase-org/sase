@@ -150,7 +150,7 @@ The accuracy bar is whether the diagram matches today's
     against the "one control plane" framing.
 14. **No prompt sidecar exists for this image.** Peer infographics
     (`commit-workflow-infographic`, `rust-backend-boundary-infographic`,
-    `workflow-execution-infographic`, `xprompt-resolution-infographic`, `sase_overview`)
+    `workflow-execution-infographic`, `macro-resolution-infographic`, `sase_overview`)
     all have a `.prompt.md` sidecar; this one does not. The regen phase (`sase-2s.17`)
     will need to _create_ `docs/images/sase_tui_tabs_infographic.prompt.md` from
     scratch, not merely revise it.

@@ -859,7 +859,7 @@ pypi-smoke-clean:
 # This target installs only docs tooling, because the docs build does not
 # import the Python package and should not need the Rust core checkout.
 docs-check: _venv
-    uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2"
+    uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-redirects>=1.2,<2" "mkdocs-rss-plugin>=1.18,<2"
     {{ venv_bin }}/mkdocs build --strict
 
 # Build and validate the downloadable PDF handbook. This target installs only
@@ -867,7 +867,7 @@ docs-check: _venv
 # core package required by editable `sase` installs. Keep versions in sync with
 # the `docs-pdf` optional dependency group in pyproject.toml.
 docs-pdf-check: _venv
-    uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2" "mkdocs-exporter>=6.2,<7" "pillow" "pypdf>=5,<7"
+    uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-redirects>=1.2,<2" "mkdocs-rss-plugin>=1.18,<2" "mkdocs-exporter>=6.2,<7" "pillow" "pypdf>=5,<7"
     @if [ "${CI:-}" = "true" ]; then \
         {{ venv_bin }}/python -m playwright install --with-deps chromium; \
     else \
@@ -896,7 +896,7 @@ docs-deploy-artifact-check:
     test ! -d site/blog/posts/why-coding-agents-need-orchestration
     test ! -d site/series/agentic-software-engineering
     @set -e; \
-    draft_slugs='xprompts-in-depth axe-background-daemon beads-and-sdd commit-workflows-plugins changespecs-in-practice telegram-mobile-agents prompt-widget-and-nvim whats-next-memory-mobile-web'; \
+    draft_slugs='macros-in-depth axe-background-daemon beads-and-sdd commit-workflows-plugins changespecs-in-practice telegram-mobile-agents prompt-widget-and-nvim whats-next-memory-mobile-web'; \
     for slug in $draft_slugs; do \
         test ! -d "site/blog/posts/$slug"; \
         ! grep -R -F -q "/blog/posts/$slug/" site; \

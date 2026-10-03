@@ -79,7 +79,7 @@ lock.
 ## Launching Agents From The Chat
 
 Any text message that isn't a slash command, a feedback reply, or a callback is treated
-as a prompt for a new agent. The inbound script expands xprompt references the same way
+as a prompt for a new agent. The inbound script expands macro references the same way
 the local CLI does, so `#mentor reorder` from your phone launches with the same template
 you use in the terminal. Model fan-out works too:
 `%{%m:opus | %m:sonnet} draft tests for X` launches the same prompt across both models
@@ -140,7 +140,7 @@ Telegram's `set_my_commands` API so they show up in the chat input UI:
 | `/kill [<name>]`     | Kills a specific agent or, with no argument, picks one from a button list         |
 | `/resume`            | Sends a copy-text button to re-enter the most recent conversation                 |
 | `/changes [project]` | Lists active Patches with a copy-text button for the bare workflow tag            |
-| `/xprompts`          | Exports the xprompt catalog so you can see what `#foo` will expand to             |
+| `/macros`            | Exports the macro catalog so you can see what `#foo` will expand to               |
 | `/bead [<id>]`       | Without an ID, lists active beads as picker buttons; with one, shows bead details |
 | `/update`            | Starts the shared SASE chat update worker in a detached process                   |
 

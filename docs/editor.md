@@ -1,6 +1,6 @@
 # Editor Integration
 
-SASE exposes two editor-facing surfaces for prompt and xprompt editing:
+SASE exposes two editor-facing surfaces for prompt and macro editing:
 
 - `sase lsp` is the interactive editor path. Configure your editor to launch it as a
   stdio language server when you want completions, snippets, hover, diagnostics, code
@@ -11,9 +11,9 @@ SASE exposes two editor-facing surfaces for prompt and xprompt editing:
 
 ## Language Server
 
-`sase lsp` starts the SASE xprompt language server over stdio. Run `--version` or
-`--help` in a terminal to verify the wrapper, then point your editor's LSP configuration
-at `sase lsp`:
+`sase lsp` starts the SASE macro language server over stdio. Run `--version` or `--help`
+in a terminal to verify the wrapper, then point your editor's LSP configuration at
+`sase lsp`:
 
 ```bash
 sase lsp --version
@@ -24,33 +24,33 @@ In editor configuration terms, the command is `sase` and the argument list is `[
 
 The wrapper resolves the server command in this order:
 
-1. `SASE_XPROMPT_LSP_CMD`, parsed as a shell-style command for development.
-2. A `sase-xprompt-lsp` binary in the current Python environment's `bin/` directory.
-3. `sase-xprompt-lsp` on `PATH`.
-4. The newer debug or release `sase-xprompt-lsp` binary under a sibling `../sase-core`
+1. `SASE_MACRO_LSP_CMD`, parsed as a shell-style command for development.
+2. A `sase-macro-lsp` binary in the current Python environment's `bin/` directory.
+3. `sase-macro-lsp` on `PATH`.
+4. The newer debug or release `sase-macro-lsp` binary under a sibling `../sase-core`
    checkout.
-5. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when
-   `cargo` is available and the sibling checkout has a `Cargo.toml`.
+5. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_macro_lsp --` when `cargo`
+   is available and the sibling checkout has a `Cargo.toml`.
 
-Use `SASE_XPROMPT_LSP_CMD` when you need to point the editor wrapper at a different
-source checkout or command, including a custom binary that should beat the managed venv
-copy. Full editable-install SASE updates reinstall the server into the uv-tool venv when
+Use `SASE_MACRO_LSP_CMD` when you need to point the editor wrapper at a different source
+checkout or command, including a custom binary that should beat the managed venv copy.
+Full editable-install SASE updates reinstall the server into the uv-tool venv when
 pulled `sase-core` commits change. The `Justfile` uses `SASE_CORE_DIR` and
 `SASE_LINKED_REPO_SASE_CORE_DIR` (with the legacy `SASE_SIBLING_REPO_*` variables as
 fallbacks) for local `sase-core` build/install targets, but `sase lsp` itself does not
 read those variables.
 
-The xprompt LSP binary is built and installed from the local `sase-core` checkout
+The macro LSP binary is built and installed from the local `sase-core` checkout
 (`just rust-lsp-install` for development/editor validation). It is separate from the
 `sase-core-rs` Python wheel; installing or rebuilding that wheel alone does not install
 the language server.
 
-The wrapper also exports installed package xprompt locations, bundled default config,
-plugin xprompt directories, and plugin config paths to the Rust server. It also
-materializes a local artifact-reference catalog under `~/.sase/xprompt_lsp/` by default.
-The server refreshes its xprompt catalog when the LSP session starts, keeps a short
-cache for completion requests, and exposes a `sase.xpromptLsp.refreshCatalog` command
-for clients that surface LSP commands. Artifact-reference diagnostics and semantic
+The wrapper also exports installed package macro locations, bundled default config,
+plugin macro directories, and plugin config paths to the Rust server. It also
+materializes a local artifact-reference catalog under `~/.sase/macro_lsp/` by default.
+The server refreshes its macro catalog when the LSP session starts, keeps a short cache
+for completion requests, and exposes a `sase.macroLsp.refreshCatalog` command for
+clients that surface LSP commands. Artifact-reference diagnostics and semantic
 highlighting re-read their catalog on each request, so a launcher refresh or external
 rewrite is visible on the next editor pass; artifact-reference completion reads the same
 catalog through a short-lived cache keyed by the catalog file's signature (see
@@ -58,25 +58,25 @@ catalog through a short-lived cache keyed by the catalog file's signature (see
 
 ## LSP Features
 
-The xprompt language server is focused on prompt and xprompt editing:
+The macro language server is focused on prompt and macro editing:
 
-| Feature               | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| XPrompt completion    | Completes `#name`, `#!workflow`, namespaced references, and slash-skill references from the structured catalog. Skills complete as `#skill/<name>` after `#` and as `/<name>` after a slash. [Memory notes](xprompt.md#memory-field) complete as `#memory/<stem>` and never appear in slash completion.                                                                                                                                                                                                                                                                                                                                                                            |
-| Project/Patch tags    | Completes `+query` at the start of the prompt or after whitespace, `{`, or `\|` from enabled projects and active Patches. Project rows insert the `+<project>` tag (or `#<workflow>:<name>` when the name is not tag-shaped); Patch rows insert `#<workflow>:<patch>`. Accepting a row also removes the other project tags, and any line-leading `#` workspace refs, in the same `---` segment. Tags also get hover, diagnostics, quick fixes, and a `#<workflow>:<name>` to `+<project>` rewrite action. See [Project Tags](xprompt.md#project-tags).                                                                                                                             |
-| VCS ref roots         | Completes `#gh:`, `#git:`, and other registered VCS workflow ref roots from project, Patch, and namespace catalog rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| VCS repositories      | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Argument assistance   | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Directive completion  | Completes the shared [directive matrix](xprompt.md#directive-completion-matrix): directive names and aliases, fixed values, `%model:` catalog rows and provider drill-down, parenthesized `%model(..., alias=...)` keys, and `%id` / `%clan` / `%wait(...)` / `%queue(...)` / `%hold(...)` keyword rows and values. Static `%if(should_run=...)` and `%hold` assistance is always available; `%if::`, `%proc`, and `type: code` assistance appear only when the `typed_launch_units` beta flag is enabled. See [Feature flags](#feature-flags).                                                                                                                                    |
-| Model shortcuts       | Completes `=alias` and `==model` at prompt/line start or after an ASCII space into canonical `%m:` values, using the same shared Rust filters and edit plans as sase's TUI. `=` is an LSP trigger character; manual completion also works inside a valid equals token. See [Equals model shortcuts](#equals-model-shortcuts).                                                                                                                                                                                                                                                                                                                                                      |
-| Artifact references   | Fuzzy-completes bare `@` and `@query` tokens as canonical artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:`, including local stitch references.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| File completion       | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths appear automatically when no artifact kind prefix-matches, or on manual invocation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Jinja completion      | Inside `{{ }}` and `{% %}`, completes variables (declared `input:` properties first, then template locals, sase run-time names, positional/provider vars, and Jinja globals), filters after `\|`, tests after `is`, members after `wait.`/`loop.`, and statement keywords (open-block closers first) inside `{% %}`. Uses the same Rust engine as the TUI prompt menu. `{` and `\|` are LSP trigger characters; outside tags they stay silent so literal braces and alternation pipes never pop a menu. `gitcommit` documents get no Jinja completion.                                                                                                                             |
-| Hover                 | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints. Memory entries also show kind `memory` and the current UI's `tier` label (`core`/`reference`), which is the note's memory type. Inside Jinja tags, hover shows the engine's markdown for the variable, member, filter, or test under the cursor, including availability reasons for out-of-scope builtins.                                                                                                                                                                                                                                                                     |
-| Diagnostics           | Reports xprompt/directive issues, xprompt call arguments that are unknown (`unknown_xprompt_arg`), repeated (`duplicate_xprompt_arg`), or the wrong type for the declared input (`invalid_xprompt_arg_type`), malformed or unresolved filesystem-backed artifact references outside prompt literal zones, and project-tag issues: a disabled `+<project>` tag warns with `` `+<name>` is disabled — `sase project enable <name>` `` (`disabled_project_tag`), an anchored unknown tag warns (`unknown_project_tag`; unanchored unknown tags are plain text), an ambiguous tag errors (`ambiguous_project_tag`), and a tag with no VCS provider warns (`providerless_project_tag`). |
-| Semantic highlighting | Highlights xprompt reference names, directive names, and their argument lists, plus the kind, payload, and supported fragment of known artifact references, glossary phrases, and `+<project>` project tags, outside prompt literal zones using LSP semantic tokens. See [Semantic token legend](#semantic-token-legend).                                                                                                                                                                                                                                                                                                                                                          |
-| Definition            | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path, including the backing note for `#memory/<stem>`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Feature               | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Macro completion      | Completes `#name`, `#!workflow`, namespaced references, and slash-skill references from the structured catalog. Skills complete as `#skill/<name>` after `#` and as `/<name>` after a slash. [Memory notes](macros.md#memory-field) complete as `#memory/<stem>` and never appear in slash completion.                                                                                                                                                                                                                                                                                                                                                                   |
+| Project/Patch tags    | Completes `+query` at the start of the prompt or after whitespace, `{`, or `\|` from enabled projects and active Patches. Project rows insert the `+<project>` tag (or `#<workflow>:<name>` when the name is not tag-shaped); Patch rows insert `#<workflow>:<patch>`. Accepting a row also removes the other project tags, and any line-leading `#` workspace refs, in the same `---` segment. Tags also get hover, diagnostics, quick fixes, and a `#<workflow>:<name>` to `+<project>` rewrite action. See [Project Tags](macros.md#project-tags).                                                                                                                    |
+| VCS ref roots         | Completes `#gh:`, `#git:`, and other registered VCS workflow ref roots from project, Patch, and namespace catalog rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| VCS repositories      | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Argument assistance   | Completes named arguments, path inputs, and bool values for typed macro inputs where the catalog exposes input metadata.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Directive completion  | Completes the shared [directive matrix](macros.md#directive-completion-matrix): directive names and aliases, fixed values, `%model:` catalog rows and provider drill-down, parenthesized `%model(..., alias=...)` keys, and `%id` / `%clan` / `%wait(...)` / `%queue(...)` / `%hold(...)` keyword rows and values. Static `%if(should_run=...)` and `%hold` assistance is always available; `%if::`, `%proc`, and `type: code` assistance appear only when the `typed_launch_units` beta flag is enabled. See [Feature flags](#feature-flags).                                                                                                                           |
+| Model shortcuts       | Completes `=alias` and `==model` at prompt/line start or after an ASCII space into canonical `%m:` values, using the same shared Rust filters and edit plans as sase's TUI. `=` is an LSP trigger character; manual completion also works inside a valid equals token. See [Equals model shortcuts](#equals-model-shortcuts).                                                                                                                                                                                                                                                                                                                                            |
+| Artifact references   | Fuzzy-completes bare `@` and `@query` tokens as canonical artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:`, including local stitch references.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| File completion       | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths appear automatically when no artifact kind prefix-matches, or on manual invocation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Jinja completion      | Inside `{{ }}` and `{% %}`, completes variables (declared `input:` properties first, then template locals, sase run-time names, positional/provider vars, and Jinja globals), filters after `\|`, tests after `is`, members after `wait.`/`loop.`, and statement keywords (open-block closers first) inside `{% %}`. Uses the same Rust engine as the TUI prompt menu. `{` and `\|` are LSP trigger characters; outside tags they stay silent so literal braces and alternation pipes never pop a menu. `gitcommit` documents get no Jinja completion.                                                                                                                   |
+| Hover                 | Shows macro metadata, descriptions, previews, source display paths, tags, and active input hints. Memory entries also show kind `memory` and the current UI's `tier` label (`core`/`reference`), which is the note's memory type. Inside Jinja tags, hover shows the engine's markdown for the variable, member, filter, or test under the cursor, including availability reasons for out-of-scope builtins.                                                                                                                                                                                                                                                             |
+| Diagnostics           | Reports macro/directive issues, macro call arguments that are unknown (`unknown_macro_arg`), repeated (`duplicate_macro_arg`), or the wrong type for the declared input (`invalid_macro_arg_type`), malformed or unresolved filesystem-backed artifact references outside prompt literal zones, and project-tag issues: a disabled `+<project>` tag warns with `` `+<name>` is disabled — `sase project enable <name>` `` (`disabled_project_tag`), an anchored unknown tag warns (`unknown_project_tag`; unanchored unknown tags are plain text), an ambiguous tag errors (`ambiguous_project_tag`), and a tag with no VCS provider warns (`providerless_project_tag`). |
+| Semantic highlighting | Highlights macro reference names, directive names, and their argument lists, plus the kind, payload, and supported fragment of known artifact references, glossary phrases, and `+<project>` project tags, outside prompt literal zones using LSP semantic tokens. See [Semantic token legend](#semantic-token-legend).                                                                                                                                                                                                                                                                                                                                                  |
+| Definition            | Jumps from macro and slash-skill references to real source files when the catalog provides a resolvable path, including the backing note for `#memory/<stem>`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 When a client enables LSP on-type formatting for `(`, the server shares the prompt
 input's argument shorthand edits. Typing `(` after an argument-opening `:` removes that
@@ -85,10 +85,10 @@ delimiter and leaves the caret inside the pair, for example `#review:: body` bec
 `#review():: body`. The edits preserve authored spacing and suffix text, and the
 syntax/literal-region exclusions match the TUI prompt input.
 
-Snippet completions come from the same registry sase's TUI uses: xprompts with `snippet`
+Snippet completions come from the same registry sase's TUI uses: macros with `snippet`
 front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger
 collisions. The server asks the host helper bridge for that authoritative registry and
-falls back to native Rust loading only for simple xprompt snippets and configured
+falls back to native Rust loading only for simple macro snippets and configured
 `ace.snippets` when the helper is unavailable. In sase's TUI, that shared registry
 expands into nested snippet sessions: expanding a trigger while another snippet's
 tabstops are live visits the inner tabstops first, then returns to the remaining outer
@@ -152,7 +152,7 @@ completion also works while the caret is in a valid equals token.
 `ace.prompt_completion.auto_directive_menu` remains a setting for the prompt bar in
 sase's TUI and does not govern an editor client's trigger policy. The TUI prompt input
 uses these same shortcuts; see [Prompt Input](ace.md#prompt-input-widget) and
-[Equals model shortcuts](xprompt.md#equals-model-shortcuts).
+[Equals model shortcuts](macros.md#equals-model-shortcuts).
 
 Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local
 file rows whenever the query prefix-matches an artifact kind (including bare `@`), and
@@ -211,7 +211,7 @@ bound bites, the count of payloads left out is appended to every item's `detail`
 Because the walk is query-independent, the enumerated and titled inventory is cached
 in-process per project and per catalog signature (path, mtime, size) with a two-second
 TTL, so a keystroke re-ranks a warm corpus instead of re-walking the filesystem. A
-watched catalog write or the `sase.xpromptLsp.refreshCatalog` command invalidates it
+watched catalog write or the `sase.macroLsp.refreshCatalog` command invalidates it
 immediately.
 
 Keeping server-ranked rows alive in the client is an explicit contract. Every
@@ -242,7 +242,7 @@ normal semantic-token theme. The exception is project tags, which use the custom
 
 | Prompt element                                  | Token type       | Modifiers                                            |
 | ----------------------------------------------- | ---------------- | ---------------------------------------------------- |
-| XPrompt reference name (`#name`)                | `function`       | —                                                    |
+| Macro reference name (`#name`)                  | `function`       | —                                                    |
 | Directive name (`%queue`, `%if`, ...)           | `macro`          | —                                                    |
 | Argument delimiters and `=`                     | `operator`       | —                                                    |
 | Argument key (`count=`)                         | `parameter`      | —                                                    |
@@ -266,7 +266,7 @@ server also advertises the catalog's accent palette at
 
 Argument spans come from the same `sase-core` argument parser that colors arguments in
 sase's TUI prompt input, so both surfaces agree on roles. Argument tokens that belong to
-a key the xprompt does not declare carry the `deprecated` modifier; type mismatches and
+a key the macro does not declare carry the `deprecated` modifier; type mismatches and
 duplicate keys are reported only through diagnostics. A call that is still being typed
 (no closing parenthesis yet) gets structural tokens without validity markers. Multi-line
 `[[...]]` values are tokenized line by line with UTF-16 positions, and an artifact
@@ -281,7 +281,7 @@ Editor integrations that do not need live LSP behavior can call fixed helper ope
 directly:
 
 ```bash
-printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog
+printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge macro-catalog
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge snippet-catalog
 printf '{"schema_version":1}\n' | sase editor helper-bridge agent-catalog
 printf '{"schema_version":1}\n' | sase editor helper-bridge finalizer-catalog
@@ -289,16 +289,16 @@ printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
   | sase editor helper-bridge vcs-repo-catalog
 ```
 
-`xprompt-catalog` returns the structured xprompt catalog used by mobile/editor clients,
+`macro-catalog` returns the structured macro catalog used by mobile/editor clients,
 including insertion text, reference prefix, kind, tags, typed inputs, display/source
 fields, and `definition_path` when SASE can resolve a real file.
 
 `snippet-catalog` returns the composed snippet registry:
 
-- XPrompt-derived snippets from markdown files with `snippet` front matter.
+- Macro-derived snippets from markdown files with `snippet` front matter.
 - User snippets from `ace.snippets` in merged SASE config.
-- Valid trigger words only; user snippets override xprompt snippets on collision.
-- `#[trigger]` snippet references resolved after the xprompt/user merge.
+- Valid trigger words only; user snippets override macro snippets on collision.
+- `#[trigger]` snippet references resolved after the macro/user merge.
 - Generated initial-capital aliases (`foo` → `Foo`, uppercasing only the first character
   of the trigger and template) composed after that merge, so the registry matches sase's
   TUI. Explicit `Foo` definitions are never overwritten.
@@ -366,7 +366,7 @@ ace:
     review: "Review this code for correctness, performance, and style.\n$0"
 ```
 
-Use xprompt front matter when a reusable prompt should also appear as a snippet:
+Use macro front matter when a reusable prompt should also appear as a snippet:
 
 ```markdown
 ---
@@ -379,8 +379,8 @@ input:
 Review {{ path }} for correctness, tests, and maintainability.
 ```
 
-Required xprompt inputs become snippet tabstops. Optional inputs are pre-filled from
-defaults. XPrompts with complex Jinja control flow are skipped by snippet conversion so
+Required macro inputs become snippet tabstops. Optional inputs are pre-filled from
+defaults. Macros with complex Jinja control flow are skipped by snippet conversion so
 the generated editor template stays predictable.
 
 Snippet templates can reuse other snippets by trigger with `#[trigger]`. Positional
@@ -401,7 +401,7 @@ remaining outer stops.
 
 | Symptom                        | Check                                                                                                                                |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `sase lsp` cannot start        | Run `sase lsp --version`; run a full editable SASE update, build `../sase-core`, or set `SASE_XPROMPT_LSP_CMD`.                      |
+| `sase lsp` cannot start        | Run `sase lsp --version`; run a full editable SASE update, build `../sase-core`, or set `SASE_MACRO_LSP_CMD`.                        |
 | Snippets do not appear         | Confirm the editor advertises LSP `completionItem.snippetSupport`; inspect `sase editor helper-bridge snippet-catalog`.              |
 | Completion catalog looks stale | Restart the LSP session after changing installed plugin resources; for rewritten artifact catalogs, retry completion or diagnostics. |
 | `%proc` rows are missing       | Enable the `typed_launch_units` beta flag, then restart the LSP session so the server sees the new flag snapshot.                    |
@@ -410,7 +410,7 @@ remaining outer stops.
 
 ## Related Pages
 
-- [XPrompt reference](xprompt.md) for xprompt syntax, discovery order, typed inputs,
+- [Macro reference](macros.md) for macro syntax, discovery order, typed inputs,
   snippets, and workflows.
 - [Integration APIs](integrations.md#editor-helper-bridge) for the Python helper facade.
 - [Configuration](configuration.md#sase-editor) for CLI flag and environment-variable

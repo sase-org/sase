@@ -60,7 +60,7 @@ cleanup concept entirely, and label step outputs with awkward composite strings 
    **calling/containing prompt** at the `#name(args)` reference site — not necessarily
    into any agent step within the same workflow. A new reader walks away thinking
    `prompt_part` is a way to prepend text to a downstream `agent` step in this workflow,
-   missing the load-bearing case where a `.md` xprompt is _implicitly_ a single
+   missing the load-bearing case where a `.md` macro is _implicitly_ a single
    `prompt_part` step expanded at the user's call site.
 4. **HITL pause does not name the user's actions.** The HITL row's annotation reads
    "Pause for review and approval" but the spec defines three distinct user actions on
@@ -130,7 +130,7 @@ These are checked against `docs/workflow_spec.md` (the embedding doc) and the sh
 4. **`prompt_part` injection target is wrong.** The spec: "When a workflow is referenced
    via `#name(args)`, the `prompt_part` content is expanded inline into the calling
    prompt." The arrow in the image goes from `prompt_part` into the _workflow's own_
-   `agent` row, which mis-locates the injection. The standalone case (a `.md` xprompt is
+   `agent` row, which mis-locates the injection. The standalone case (a `.md` macro is
    internally a single `prompt_part` step expanded into the user's prompt) is not
    depictable from the current arrow.
 5. **`artifact: stdout` is conflated with `output`.** The spec separates two output

@@ -10,7 +10,7 @@ pdf: false
 - Candidate insertion point: after the `## Overview` workflow table and before
   `## How It Works`
 - Candidate image: `docs/images/commit-workflow-infographic.png`
-- Alt text: "Shared commit workflow showing xprompt inputs flowing through the commit
+- Alt text: "Shared commit workflow showing macro inputs flowing through the commit
   finalizer, commit skill, CommitWorkflow stages, VCS dispatch outputs, and conflict
   resume checkpoint"
 
@@ -39,7 +39,7 @@ Exact visible labels to include, spelled exactly:
 - Side loop label: Conflict checkpoint + resume
 - Provider note label: VCS providers: Git, GitHub, Mercurial
 
-Composition: left-to-right flow. Put the three input xprompts in a compact stack on the
+Composition: left-to-right flow. Put the three input macros in a compact stack on the
 left feeding Agent changes. Then Commit finalizer and Commit skill feed into
 `sase stitch create` and a large central CommitWorkflow band. Inside the band, reserve
 room for eleven ordered stage chips. Put bead lifecycle and plan handling before the
@@ -85,7 +85,7 @@ The target PNG size is 1672x941. Regenerate with GPT image generation as a mostl
 text-free architecture foundation, then post-process locally with exact labels and
 readable stage chips. The overlay should fix the prior critique items by:
 
-- labeling the left stack as `xprompts`;
+- labeling the left stack as `macros`;
 - ordering the central stages as bead lifecycle, plan handling, before hook, PR tags,
   parent detection, diff capture, checkpoint, VCS dispatch, after hook, result marker,
   tracking;

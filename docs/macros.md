@@ -1,32 +1,32 @@
-# XPrompt Template Reference
+# Macro Template Reference
 
-XPrompts are reusable prompt templates with optional typed inputs and Jinja2 support.
-They let you define a prompt fragment once and reference it by name anywhere a prompt is
+Macros are reusable prompt templates with optional typed inputs and Jinja2 support. They
+let you define a prompt fragment once and reference it by name anywhere a prompt is
 composed, keeping prompts DRY and consistent across projects. Inline prompt fragments
 use `#name`; standalone workflows use `#!name` when they are launched as workflows.
 
-Use xprompts when you want to:
+Use macros when you want to:
 
 - Share common instructions across multiple prompts (e.g., output format rules, role
   definitions).
 - Parameterize prompts with typed, validated arguments.
 - Compose prompts from smaller building blocks using `#name(args)` syntax.
 
-![SASE xprompt inputs flowing through workspace dispatch, first-wins discovery, iterative expansion, and directive
-extraction into runtime outcomes](images/xprompt-resolution-infographic.png)
+![SASE macro inputs flowing through workspace dispatch, first-wins discovery, iterative expansion, and directive
+extraction into runtime outcomes](images/macro-resolution-infographic.png)
 
 There are two related paths to keep separate:
 
 ```text
 launch setup:
   project tag validation and expansion (+sase -> #gh:gh_sase-org__sase)
-  -> xprompt swarm fan-out check
+  -> macro swarm fan-out check
   -> default workspace ref insertion when needed (#git:home)
   -> project name/alias canonicalization (#gh:bob -> #gh_bbugyi200__bob)
   -> workspace ref resolution (#git/#gh, plugin-provided refs, and known-project fallbacks)
   -> prompt/workflow execution
 
-xprompt expansion inside a prompt or prompt_part:
+macro expansion inside a prompt or prompt_part:
   alias substitution
   -> fenced-block and disabled-region protection
   -> iterative reference expansion (parse -> lookup -> args -> render -> substitute)
@@ -34,19 +34,21 @@ xprompt expansion inside a prompt or prompt_part:
 ```
 
 The checked-in infographic prompt in
-`docs/images/xprompt-resolution-infographic.prompt.md` tracks the intended visual
-version of this model; the text model above is the authoritative current reference for
-resolver order.
+`docs/images/macro-resolution-infographic.prompt.md` tracks the intended visual version
+of this model; the text model above is the authoritative current reference for resolver
+order.
 
 ## Table of Contents
 
+- [Renamed from xprompts](#renamed-from-xprompts)
+
 - [CLI Subcommands](#cli-subcommands)
-  - [sase xprompt expand](#sase-xprompt-expand)
-  - [sase xprompt explain](#sase-xprompt-explain)
-  - [sase xprompt list](#sase-xprompt-list)
-  - [sase xprompt show](#sase-xprompt-show)
-  - [sase xprompt graph](#sase-xprompt-graph)
-  - [sase xprompt catalog](#sase-xprompt-catalog)
+  - [sase macro expand](#sase-macro-expand)
+  - [sase macro explain](#sase-macro-explain)
+  - [sase macro list](#sase-macro-list)
+  - [sase macro show](#sase-macro-show)
+  - [sase macro graph](#sase-macro-graph)
+  - [sase macro catalog](#sase-macro-catalog)
 - [Editor LSP](#editor-lsp)
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
@@ -69,8 +71,8 @@ resolver order.
   - [Source, Reference, and Provider Names](#source-reference-and-provider-names)
   - [Bundled Skills](#bundled-skills)
 - [Memory Field](#memory-field)
-- [Built-in XPrompts](#built-in-xprompts)
-- [Config-Based XPrompts](#config-based-xprompts)
+- [Built-in Macros](#built-in-macros)
+- [Config-Based Macros](#config-based-macros)
 - [Local Configuration Files](#local-configuration-files)
 - [Directives](#directives)
   - [Static Conditional Segments](#static-conditional-segments)
@@ -80,27 +82,53 @@ resolver order.
   - [Hold Directive](#hold-directive)
 - [Command Substitution](#command-substitution)
 - [Protected Content](#protected-content)
-- [XPrompt Aliases](#xprompt-aliases)
+- [Macro Aliases](#macro-aliases)
 - [Recursive Expansion](#recursive-expansion)
 - [Multi-Agent Prompts](#multi-agent-prompts)
-  - [Xprompt Swarms (Library-Defined Fan-Out)](#xprompt-swarms-library-defined-fan-out)
+  - [Macro Swarms (Library-Defined Fan-Out)](#macro-swarms-library-defined-fan-out)
 - [Relationship to Workflows](#relationship-to-workflows)
+
+## Renamed from xprompts
+
+SASE's reusable prompt definitions were called **xprompts** before this release and are
+now called **macros**. Every retired spelling below keeps working behind the
+`legacy_xprompt_syntax` sunset flag while callers migrate; help, completion, examples,
+and output show only the macro spelling. `%xprompts_enabled` regions stay accepted
+permanently as an alias of `%macros_enabled`.
+
+| Retired spelling                                                                                                                      | Replacement                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `sase xprompt …`, `sase path xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `xprompt-catalog`                        | `sase macro …`, `sase path macros-dir`, `macros-schema`, `macros-collection-schema`, `macro-catalog`               |
+| `%xprompts_enabled`                                                                                                                   | `%macros_enabled`                                                                                                  |
+| `sase/xprompts/`, `~/sase/xprompts/`, `~/.xprompts/`, `~/xprompts/`                                                                   | `sase/macros/`, `~/sase/macros/`, `~/.macros/`, `~/macros/`                                                        |
+| package `sase.xprompt`, `src/sase/xprompts/`, `src/sase/default_xprompts/`                                                            | `sase.macro`, `src/sase/macros/`, `src/sase/default_macros/`                                                       |
+| config `xprompts:`, `xprompt_aliases:`, `auto_xprompt_menu`, `xprompt_placeholder_args`, `mentors[].xprompt`; frontmatter `xprompts:` | `macros:`, `macro_aliases:`, `auto_macro_menu`, `macro_placeholder_args`, `mentors[].macro`; frontmatter `macros:` |
+| keymap actions `focus_xprompt`, `clear_xprompt_focus`, `start_last_vcs_xprompt_in_editor`                                             | `focus_macro`, `clear_macro_focus`, `start_last_vcs_macro_in_editor`                                               |
+| entry-point group `sase_xprompts`; env `SASE_XPROMPT_*`, `SASE_*_XPROMPTS`                                                            | `sase_macros`; `SASE_MACRO_*`, `SASE_*_MACROS`                                                                     |
+| `sase-xprompt-lsp`, crate `sase_xprompt_lsp`, `sase.xpromptLsp.*`                                                                     | `sase-macro-lsp`, `sase_macro_lsp`, `sase.macroLsp.*`                                                              |
+| `~/.sase/vcs_xprompt_mru.json`, `~/.sase/xprompt_save_state.json` (key `xprompt`), `~/.sase/xprompt_lsp/`                             | `vcs_macro_mru.json`, `macro_save_state.json` (key `macro`), `macro_lsp/`                                          |
+| agent artifacts `xprompts.json`, `xprompts_<step>.json`, `raw_xprompt.md`, `submitted_xprompt.md`                                     | `macros.json`, `macros_<step>.json`, `raw_prompt.md`, `submitted_prompt.md`                                        |
+| doctor ids `config.model_xprompts`, `config.xprompt_definitions`, `config.xprompt_directives`, `tools.xprompt_lsp`                    | `config.model_macros`, `config.macro_definitions`, `config.macro_directives`, `tools.macro_lsp`                    |
+| Telegram `/xprompts`; mobile route `/api/v1/xprompts/catalog`                                                                         | `/macros`; `/api/v1/macros/catalog`                                                                                |
+| `%proc` origin `xprompt-proc` / field `xprompt_proc`                                                                                  | `prompt-proc` / `prompt_proc`                                                                                      |
+
+The old page `sase.sh/xprompt/` redirects here.
 
 ## CLI Subcommands
 
-The `sase xprompt` command provides six subcommands for working with xprompts. With no
-subcommand, it defaults to `sase xprompt list`. Flags belong to the explicit subcommand,
-so use forms like `sase xprompt expand --trace '#plan'` rather than putting `--trace` on
-bare `sase xprompt`.
+The `sase macro` command provides six subcommands for working with macros. With no
+subcommand, it defaults to `sase macro list`. Flags belong to the explicit subcommand,
+so use forms like `sase macro expand --trace '#plan'` rather than putting `--trace` on
+bare `sase macro`.
 
-### `sase xprompt expand`
+### `sase macro expand`
 
-Expands xprompt references in a prompt. Reads from a positional argument or stdin.
+Expands macro references in a prompt. Reads from a positional argument or stdin.
 
 ```bash
-sase xprompt expand '#greet(Alice)'         # Expand from argument
-echo '#greet(Alice)' | sase xprompt expand  # Expand from stdin
-sase xprompt expand --trace '#plan'         # Show expansion trace on stderr
+sase macro expand '#greet(Alice)'         # Expand from argument
+echo '#greet(Alice)' | sase macro expand  # Expand from stdin
+sase macro expand --trace '#plan'         # Show expansion trace on stderr
 ```
 
 The `--trace` flag prints a detailed expansion trace to stderr showing each resolved
@@ -108,7 +136,7 @@ reference, its source file, arguments, and expanded content. This is useful for
 debugging reference resolution order and understanding how a complex prompt is
 assembled.
 
-### `sase xprompt explain`
+### `sase macro explain`
 
 Shows a dry-run visualization of a workflow's execution plan without actually running
 it. Displays workflow metadata, input requirements, resolved arguments, and the full
@@ -116,41 +144,41 @@ step-by-step execution plan with types, control flow annotations, rendered step 
 and output schemas.
 
 ```bash
-sase xprompt explain my_workflow                    # Explain with no args
-sase xprompt explain my_workflow arg1 arg2          # With positional args
-sase xprompt explain my_workflow --arg key=value    # With named args
+sase macro explain my_workflow                    # Explain with no args
+sase macro explain my_workflow arg1 arg2          # With positional args
+sase macro explain my_workflow --arg key=value    # With named args
 ```
 
-### `sase xprompt list`
+### `sase macro list`
 
-Lists all available xprompts and workflows as a JSON array. Each entry includes the
-name, type (`"xprompt"` or `"workflow"`), kind, reference prefix, insertion text,
-`is_skill`, source file path, user-facing input definitions, tags, and a content
-preview. Clients should treat `insertion` as the authoritative reference text. Most
-`xprompt` and `embeddable_workflow` entries insert as `#name`, including markdown
-xprompt swarms; standalone workflows insert as `#!name`. `is_skill` is `true` only for
-xprompt catalog entries marked as skills; workflows report `false`. Step inputs are
-omitted from the JSON `inputs` array because they are supplied by workflow execution
-rather than typed by a user.
+Lists all available macros and workflows as a JSON array. Each entry includes the name,
+type (`"macro"` or `"workflow"`), kind, reference prefix, insertion text, `is_skill`,
+source file path, user-facing input definitions, tags, and a content preview. Clients
+should treat `insertion` as the authoritative reference text. Most `macro` and
+`embeddable_workflow` entries insert as `#name`, including markdown macro swarms;
+standalone workflows insert as `#!name`. `is_skill` is `true` only for macro catalog
+entries marked as skills; workflows report `false`. Step inputs are omitted from the
+JSON `inputs` array because they are supplied by workflow execution rather than typed by
+a user.
 
 ```bash
-sase xprompt list                   # JSON array to stdout
-sase xprompt list | jq '.[].name'  # Extract just names
+sase macro list                   # JSON array to stdout
+sase macro list | jq '.[].name'  # Extract just names
 ```
 
-### `sase xprompt show`
+### `sase macro show`
 
-Shows one xprompt or workflow definition with its properties, typed inputs, local helper
-xprompts, provenance, references, and highlighted body. The `NAME` argument accepts a
-bare name or a copied reference such as `#name`, `#!name`, or `/name`; copied arguments
-like `#name(a, b)`, `#name:arg`, and `#name+` are ignored with a warning.
+Shows one macro or workflow definition with its properties, typed inputs, local helper
+macros, provenance, references, and highlighted body. The `NAME` argument accepts a bare
+name or a copied reference such as `#name`, `#!name`, or `/name`; copied arguments like
+`#name(a, b)`, `#name:arg`, and `#name+` are ignored with a warning.
 
 ```bash
-sase xprompt show sase/reads                  # Render a readable definition view
-sase xprompt show '#!sync'                    # Show a standalone workflow
-sase xprompt show plan --format json | jq .inputs
-sase xprompt show coder --format raw > coder.md
-sase xprompt show t --color always | less -R
+sase macro show sase/reads                  # Render a readable definition view
+sase macro show '#!sync'                    # Show a standalone workflow
+sase macro show plan --format json | jq .inputs
+sase macro show coder --format raw > coder.md
+sase macro show t --color always | less -R
 ```
 
 `--format full` is the default Rich detail view. `--format json` emits the stable
@@ -159,69 +187,69 @@ bytes without adding a trailing newline. `--color auto|always|never` controls AN
 output for the rendered view, and `--project PROJECT` resolves within a specific project
 namespace.
 
-### `sase xprompt graph`
+### `sase macro graph`
 
 Generates a directed acyclic graph (DAG) visualization of a workflow. Without a workflow
 name, lists all available multi-step workflows with their step counts and source paths.
 
 ```bash
-sase xprompt graph                        # List all workflows
-sase xprompt graph my_workflow            # Mermaid DAG (default)
-sase xprompt graph my_workflow --format text  # Plain-text summary
+sase macro graph                        # List all workflows
+sase macro graph my_workflow            # Mermaid DAG (default)
+sase macro graph my_workflow --format text  # Plain-text summary
 ```
 
 The Mermaid output can be pasted into any Mermaid-compatible renderer. Parallel
 sub-steps are shown as subgraphs, and nodes include type indicators and control flow
 annotations.
 
-### `sase xprompt catalog`
+### `sase macro catalog`
 
-Renders every visible xprompt to a formatted PDF catalog for browsing and sharing.
+Renders every visible macro to a formatted PDF catalog for browsing and sharing.
 
 ```bash
-sase xprompt catalog                # Write the PDF to a tempdir and print its path
-sase xprompt catalog --out /tmp/out # Write the PDF to the specified directory
+sase macro catalog                # Write the PDF to a tempdir and print its path
+sase macro catalog --out /tmp/out # Write the PDF to the specified directory
 ```
 
-The command collects all visible xprompt templates, renders each into an HTML section,
-and produces a single PDF using the bundled `catalog_template.html.j2` and
+The command collects all visible macro templates, renders each into an HTML section, and
+produces a single PDF using the bundled `catalog_template.html.j2` and
 `catalog_style.css`. The mobile helper's structured catalog uses the same collection and
 classification, and returns JSON metadata instead of requiring a PDF renderer. That JSON
 omits string input defaults: `default_display` is null for strings, including an empty
 string, and also null when the default itself is null. Numbers and booleans are still
 shown (`3`, `true`, `false`). `required` is true only when the input declares no
-default. `sase xprompt show` still prints string defaults, and sase's TUI argument
-assist may show them locally. The mobile catalog does not.
+default. `sase macro show` still prints string defaults, and sase's TUI argument assist
+may show them locally. The mobile catalog does not.
 
 ## Editor LSP
 
-`sase lsp` starts the SASE xprompt language server over stdio for editor integrations.
-It resolves the server command in this order:
+`sase lsp` starts the SASE macro language server over stdio for editor integrations. It
+resolves the server command in this order:
 
-1. `SASE_XPROMPT_LSP_CMD`, parsed as a shell-style command for development.
-2. A `sase-xprompt-lsp` binary in the current Python environment's `bin/` directory.
-3. `sase-xprompt-lsp` on `PATH`.
-4. The newer debug or release `sase-xprompt-lsp` binary under a sibling `../sase-core`
+1. `SASE_MACRO_LSP_CMD`, parsed as a shell-style command for development.
+2. A `sase-macro-lsp` binary in the current Python environment's `bin/` directory.
+3. `sase-macro-lsp` on `PATH`.
+4. The newer debug or release `sase-macro-lsp` binary under a sibling `../sase-core`
    checkout.
-5. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when
-   `cargo` is available and the sibling checkout has a `Cargo.toml`.
+5. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_macro_lsp --` when `cargo`
+   is available and the sibling checkout has a `Cargo.toml`.
 
 Examples:
 
 ```bash
 sase lsp
 sase lsp --version
-SASE_XPROMPT_LSP_CMD='cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --' sase lsp
+SASE_MACRO_LSP_CMD='cargo run --manifest-path ../sase-core/Cargo.toml -p sase_macro_lsp --' sase lsp
 ```
 
-Use `SASE_XPROMPT_LSP_CMD` for any non-default LSP command, including a custom binary
-that should beat the managed venv copy. Full editable-install SASE updates reinstall the
+Use `SASE_MACRO_LSP_CMD` for any non-default LSP command, including a custom binary that
+should beat the managed venv copy. Full editable-install SASE updates reinstall the
 server into the uv-tool venv when pulled `sase-core` commits change. `SASE_CORE_DIR` is
 a `Justfile` build/install override, not part of `sase lsp` command resolution.
 
-The LSP loads the supported xprompt catalog sources directly in Rust for completion,
+The LSP loads the supported macro catalog sources directly in Rust for completion,
 hover, diagnostics, and definition requests. `sase lsp` exports the installed package
-xprompt paths to the server so built-in Markdown prompts, YAML workflows, default config
+macro paths to the server so built-in Markdown prompts, YAML workflows, default config
 prompts, project-local prompts, user config prompts, and memory prompts do not require a
 Python helper subprocess on the completion path. The Python helper bridge remains stable
 for mobile clients and as a compatibility fallback for sources the Rust loader cannot
@@ -230,18 +258,18 @@ discover.
 When the editor advertises LSP `completionItem.snippetSupport`, the server also returns
 SASE snippets as ordinary `CompletionItemKind.Snippet` entries after bare trigger words
 such as `fix` or `review`. Snippet entries are loaded from the same registry as sase's
-TUI: xprompts with `snippet` front matter plus user-defined `ace.snippets`, with
+TUI: macros with `snippet` front matter plus user-defined `ace.snippets`, with
 `ace.snippets` winning on trigger collisions. The registry also includes the generated
 initial-capital aliases (`foo` → `Foo`), so a completion for `Foo` appears wherever
 `foo` does. The editor does not need to shell out or parse SASE config to discover
 snippets.
 
 The Python helper operation `sase editor helper-bridge snippet-catalog` is the
-authoritative snippet registry because it matches sase's TUI xprompt composition
-behavior. The Rust server also has a native fallback for simple xprompt snippets and
-`ace.snippets` so completion can degrade gracefully if the helper is unavailable. That
-fallback intentionally skips xprompts that require complex Jinja or composition it
-cannot mirror exactly; when the helper is available, its response is preferred.
+authoritative snippet registry because it matches sase's TUI macro composition behavior.
+The Rust server also has a native fallback for simple macro snippets and `ace.snippets`
+so completion can degrade gracefully if the helper is unavailable. That fallback
+intentionally skips macros that require complex Jinja or composition it cannot mirror
+exactly; when the helper is available, its response is preferred.
 
 The LSP also consumes the project's `glossary` memory web, authored as strand files
 under `sase/memory/glossary/`; see [Memory Webs](memory.md#memory-webs). A leading VCS
@@ -253,7 +281,7 @@ per line. Derived plurals of terms and aliases are matched like configured alias
 `sase-nvim` underlines those tokens by default through an overridable `SaseGlossaryTerm`
 highlight group. Hover returns Markdown for the canonical term, aliases, project, and
 source context, and go-to-definition targets the glossary strand file's definition
-range. Explicit xprompt and artifact references keep precedence over glossary matches.
+range. Explicit macro and artifact references keep precedence over glossary matches.
 When the selected project is disabled, unknown, home, unreadable, or has an invalid
 glossary, the server suppresses glossary semantics for that context instead of falling
 back to another project's terms.
@@ -263,29 +291,29 @@ usage, and troubleshooting.
 
 ## Discovery Order
 
-Markdown xprompts and YAML workflows are loaded from multiple locations. When two
-locations define an xprompt or workflow with the same name, the higher-priority source
-wins (first-wins).
+Markdown macros and YAML workflows are loaded from multiple locations. When two
+locations define a macro or workflow with the same name, the higher-priority source wins
+(first-wins).
 
-| Priority | Location                               | Role                                                        |
-| -------- | -------------------------------------- | ----------------------------------------------------------- |
-| 1        | `<project>/sase/xprompts/`             | Canonical project files; writable                           |
-| 2        | `<project>/.xprompts/`                 | Legacy hidden project files; read-only compatibility        |
-| 3        | `<project>/xprompts/`                  | Legacy visible project files; read-only compatibility       |
-| 4        | `~/sase/xprompts/`                     | Canonical user-wide files; writable                         |
-| 5        | `~/.xprompts/`                         | Legacy hidden home files; read-only compatibility           |
-| 6        | `~/xprompts/`                          | Legacy visible home files; read-only compatibility          |
-| 7        | `~/sase/xprompts/{project}/`           | Canonical project-specific home files; writable             |
-| 8        | `~/.config/sase/xprompts/{project}/`   | Legacy project-specific home files; read-only compatibility |
-| 9        | `<project>/sase/sase.yml`              | Canonical project config definitions; writable              |
-| 10       | `<project>/sase.yml`                   | Exclusive legacy project-config fallback                    |
-| 11       | `~/.config/sase/sase_*.yml`            | User overlays; reverse lexical winner order                 |
-| 12       | `~/.config/sase/sase.yml`              | User base config                                            |
-| 13       | Plugin `default_config.yml` resources  | Installed plugin config definitions                         |
-| 14       | Package `default_config.yml`           | Built-in config definitions                                 |
-| 15       | Plugin packages (`sase_xprompts` EPs)  | Installed plugin files                                      |
-| 16       | `<sase_package>/default_xprompts/*.md` | Built-in default Markdown files                             |
-| 17       | `<sase_package>/xprompts/`             | Built-in Markdown, YAML, and shared steps                   |
+| Priority | Location                              | Role                                                        |
+| -------- | ------------------------------------- | ----------------------------------------------------------- |
+| 1        | `<project>/sase/macros/`              | Canonical project files; writable                           |
+| 2        | `<project>/.macros/`                  | Legacy hidden project files; read-only compatibility        |
+| 3        | `<project>/macros/`                   | Legacy visible project files; read-only compatibility       |
+| 4        | `~/sase/macros/`                      | Canonical user-wide files; writable                         |
+| 5        | `~/.macros/`                          | Legacy hidden home files; read-only compatibility           |
+| 6        | `~/macros/`                           | Legacy visible home files; read-only compatibility          |
+| 7        | `~/sase/macros/{project}/`            | Canonical project-specific home files; writable             |
+| 8        | `~/.config/sase/macros/{project}/`    | Legacy project-specific home files; read-only compatibility |
+| 9        | `<project>/sase/sase.yml`             | Canonical project config definitions; writable              |
+| 10       | `<project>/sase.yml`                  | Exclusive legacy project-config fallback                    |
+| 11       | `~/.config/sase/sase_*.yml`           | User overlays; reverse lexical winner order                 |
+| 12       | `~/.config/sase/sase.yml`             | User base config                                            |
+| 13       | Plugin `default_config.yml` resources | Installed plugin config definitions                         |
+| 14       | Package `default_config.yml`          | Built-in config definitions                                 |
+| 15       | Plugin packages (`sase_macros` EPs)   | Installed plugin files                                      |
+| 16       | `<sase_package>/default_macros/*.md`  | Built-in default Markdown files                             |
+| 17       | `<sase_package>/macros/`              | Built-in Markdown, YAML, and shared steps                   |
 
 Skills are discovered separately, from canonical `skills/` directories only, and take
 `skills/`-namespaced reference names. See
@@ -295,7 +323,7 @@ table above can define a skill.
 Memory notes are also discovered separately, from canonical (and legacy-compatible)
 `sase/memory/` directories only, and take `memory/`-namespaced reference names. See
 [Memory Field](#memory-field) and [Memory Order](content_layout.md#memory-order); no
-location in the table above can define a memory xprompt.
+location in the table above can define a memory macro.
 
 Each directory-based source can contain individual `.md` files and, where supported,
 `.yml` or `.yaml` workflows plus a `steps/` directory. Project config is exclusive: if
@@ -306,36 +334,36 @@ writable canonical sources; legacy sources are displayed only for migration. See
 [Canonical SASE Content Layout](content_layout.md) for before/after paths and the
 compatibility timeline.
 
-For file-based xprompts, the xprompt name defaults to the filename stem (e.g.,
-`summarize.md` defines the xprompt `summarize`). The name can be overridden via the
-`name` field in the YAML front matter.
+For file-based macros, the macro name defaults to the filename stem (e.g.,
+`summarize.md` defines the macro `summarize`). The name can be overridden via the `name`
+field in the YAML front matter.
 
-Project-specific xprompts (priorities 7-8) are namespaced: a file `bar.md` in the `foo`
-project directory becomes `foo/bar`. Inline-capable project xprompts are referenced as
+Project-specific macros (priorities 7-8) are namespaced: a file `bar.md` in the `foo`
+project directory becomes `foo/bar`. Inline-capable project macros are referenced as
 `#foo/bar`; standalone project workflows are referenced as `#!foo/bar`.
 
-When a project is detected (via the workspace provider), project xprompts (priorities
-1-3) and local config xprompts are also auto-namespaced with the `{project}/` prefix.
-For example, if the project is `myapp` and `sase/xprompts/deploy.md` exists, it becomes
+When a project is detected (via the workspace provider), project macros (priorities 1-3)
+and local config macros are also auto-namespaced with the `{project}/` prefix. For
+example, if the project is `myapp` and `sase/macros/deploy.md` exists, it becomes
 `myapp/deploy` and is referenced as `#myapp/deploy`. A project workflow with no
 `prompt_part` would instead be launched as `#!myapp/deploy`. This prevents name
-collisions between project-local xprompts and global or built-in ones.
+collisions between project-local macros and global or built-in ones.
 
 An explicit namespaced reference also works when the caller is outside that project's
 checkout. For an enabled registered project, `#myapp/deploy` resolves checkout-backed
 files and local config from the project's primary workspace. Write the literal reference
-with the configured project name shown by the xprompt catalog or completion.
-Loader-facing project selection accepts the directory key or an alias too, but catalog
-entries are still exposed under the configured name; those alternate identifiers are not
-literal xprompt namespaces. If the caller is already inside another checkout of that
-same project, the current checkout wins over the registry copy so local edits are
-visible. Disabled projects are not loaded through this registry fallback. When one
-inline prompt mentions registered project namespaces, the first such namespace selects
-the checkout-backed project catalog for that prompt.
+with the configured project name shown by the macro catalog or completion. Loader-facing
+project selection accepts the directory key or an alias too, but catalog entries are
+still exposed under the configured name; those alternate identifiers are not literal
+macro namespaces. If the caller is already inside another checkout of that same project,
+the current checkout wins over the registry copy so local edits are visible. Disabled
+projects are not loaded through this registry fallback. When one inline prompt mentions
+registered project namespaces, the first such namespace selects the checkout-backed
+project catalog for that prompt.
 
 ## File Format
 
-An xprompt file is a Markdown file with optional YAML front matter delimited by `---`
+A macro file is a Markdown file with optional YAML front matter delimited by `---`
 lines. Everything after the closing `---` is the template body.
 
 ```markdown
@@ -355,35 +383,35 @@ Hello, {{ user_name }}! Welcome aboard.
 
 | Field         | Required | Description                                                                        |
 | ------------- | -------- | ---------------------------------------------------------------------------------- |
-| `name`        | No       | XPrompt name (defaults to filename stem)                                           |
+| `name`        | No       | Macro name (defaults to filename stem)                                             |
 | `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                    |
 | `snippet`     | No       | Opt-in to sase's TUI snippet expansion (see [Snippet Field](#snippet-field) below) |
-| `description` | No       | Human-readable one-line description of what the xprompt does                       |
-| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skill init` (see below)      |
-| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                         |
+| `description` | No       | Human-readable one-line description of what the macro does                         |
+| `skill`       | No       | Marks this macro as an agent skill source for `sase skill init` (see below)        |
+| `macros`      | No       | File-local helper macros whose names must start with `_`                           |
 
 If no front matter is present, the entire file content is the template body and the
 filename stem is the name.
 
-Markdown xprompt files can carry file-local helper xprompts under `xprompts:`. These
-helpers use the same structured format as config-based xprompts, including typed inputs
-and descriptions, and they can reference each other transitively. During expansion they
-inherit the containing xprompt's arguments and template scope, so a helper can use
-values such as `{{ topic }}` from the outer xprompt. They are visible only while
-expanding the containing xprompt and must use `_`-prefixed names such as
-`_review_rules`; they do not leak into the global catalog, completion catalog, or other
-xprompt files. This underscore rule also applies to local xprompts in ad hoc prompt
-front matter, while YAML workflow-local xprompts follow the workflow rules described in
+Markdown macro files can carry file-local helper macros under `macros:`. These helpers
+use the same structured format as config-based macros, including typed inputs and
+descriptions, and they can reference each other transitively. During expansion they
+inherit the containing macro's arguments and template scope, so a helper can use values
+such as `{{ topic }}` from the outer macro. They are visible only while expanding the
+containing macro and must use `_`-prefixed names such as `_review_rules`; they do not
+leak into the global catalog, completion catalog, or other macro files. This underscore
+rule also applies to local macros in ad hoc prompt front matter, while YAML
+workflow-local macros follow the workflow rules described in
 [workflow_spec.md](workflow_spec.md).
 
 ## Reference Syntax
 
-Reference inline-capable xprompts inside any prompt with the `#` prefix, including
-markdown-defined xprompt swarms whose body contains top-level `---` segment separators.
+Reference inline-capable macros inside any prompt with the `#` prefix, including
+markdown-defined macro swarms whose body contains top-level `---` segment separators.
 Use `#!` only for standalone YAML workflows that do not have a `prompt_part` step. The
 marker must appear at the start of the string, after whitespace, or after one of
-`([{"'`. For compatibility, `#!name` is still accepted for xprompt swarms, but new
-prompts should use `#name`.
+`([{"'`. For compatibility, `#!name` is still accepted for macro swarms, but new prompts
+should use `#name`.
 
 | Syntax                        | Description                                                    |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -404,33 +432,33 @@ colon-to-parentheses transition while typing: with the caret immediately after a
 argument-opening colon, typing `(` removes that colon. For example, `%q:` becomes `%q()`
 in sase's TUI, with the cursor between the parentheses, and `#review:` can become
 `#review()`. The rule is syntax-aware; ordinary prose colons, URLs, unknown directives,
-double-colon shorthand, fenced or inline code, disabled xprompt regions, prompt
+double-colon shorthand, fenced or inline code, disabled macro regions, prompt
 frontmatter, and Jinja tags are left alone.
 
-Accepting an xprompt entry with optional inputs from completion inserts the reference
-with a completion-owned trailing space (for example, `#optional ` with the caret after
-the space). Typing `(` immediately after that space deletes only the owned space and
-opens parenthesized arguments — `#optional()` with the caret between the parentheses —
+Accepting a macro entry with optional inputs from completion inserts the reference with
+a completion-owned trailing space (for example, `#optional ` with the caret after the
+space). Typing `(` immediately after that space deletes only the owned space and opens
+parenthesized arguments — `#optional()` with the caret between the parentheses —
 followed by the existing argument menu, including `topic=`; accepting that row produces
 `#optional(topic=)`. The rewrite applies only while the accepted reference and space are
 intact, the selection is empty, and the widget is in insert mode: any other key consumes
 eligibility, pasted or manually typed lookalike text never acquires it, and a zero-input
-xprompt keeps its space with ordinary pairing behavior. Suffix text and snippet
-placeholders are preserved, and the automatic argument menu respects
-`auto_xprompt_menu`; disabling that menu does not disable the space rewrite. In external
-editors over LSP, the same rewrite needs a client that executes completion-item
-commands, applies `(` on-type formatting, and requests completion on the advertised `(`
-trigger. Clients missing those facilities retain ordinary editing, and the server cannot
-reproduce the widget's exact move-away-and-back cancellation.
+macro keeps its space with ordinary pairing behavior. Suffix text and snippet
+placeholders are preserved, and the automatic argument menu respects `auto_macro_menu`;
+disabling that menu does not disable the space rewrite. In external editors over LSP,
+the same rewrite needs a client that executes completion-item commands, applies `(`
+on-type formatting, and requests completion on the advertised `(` trigger. Clients
+missing those facilities retain ordinary editing, and the server cannot reproduce the
+widget's exact move-away-and-back cancellation.
 
 For double-colon text shorthand, typing `(` immediately after the `::` and any ASCII
 spaces moves the delimiter after a new argument pair instead: `#review:: ` becomes
 `#review():: ` with the caret inside `()`, and `#review:: body` becomes
 `#review():: body`. The authored spaces and suffix text are preserved exactly, and tabs,
 newlines, nonbreaking spaces, existing argument lists, and literal regions keep ordinary
-insertion behavior. This pairing applies to xprompt references (including `#!name::`)
-and to the `%proc::` and `%clan::` / `%c::` directive forms; other directives followed
-by `::`, such as `%if::` or `%q::`, just insert `()`.
+insertion behavior. This pairing applies to macro references (including `#!name::`) and
+to the `%proc::` and `%clan::` / `%c::` directive forms; other directives followed by
+`::`, such as `%if::` or `%q::`, just insert `()`.
 
 Examples:
 
@@ -445,13 +473,13 @@ standalone workflows instead of passing literal `#sync` text to the model. Shell
 examples should use single quotes around `#!...` so `!` is not interpreted by
 interactive shells.
 
-A `#`-shaped token that matches no known xprompt, workspace ref, or plugin-provided
+A `#`-shaped token that matches no known macro, workspace ref, or plugin-provided
 reference is **not** an error: it is passed to the agent as literal text. Because a typo
 would otherwise be invisible, launching scans the prompt first and reports each
 unresolved name — `sase run` prints one warning per name (with a `did you mean '#…'?`
-suggestion when a close match exists, and a pointer to `sase xprompt list`), and sase's
+suggestion when a close match exists, and a pointer to `sase macro list`), and sase's
 TUI raises one aggregated toast,
-`Unknown xprompt reference(s): #foo - passed through as literal text`. The scan is a
+`Unknown macro reference(s): #foo - passed through as literal text`. The scan is a
 best-effort diagnostic: it never blocks or alters the launch, and references inside
 literal zones (inline code, fenced code, disabled regions) are ignored.
 
@@ -474,7 +502,7 @@ created by a prior agent using `@name` instead of hardcoding the branch name.
 
 ### VCS Workspace References
 
-Workspace-managing workflows use the same `#name:ref` reference syntax as xprompts, but
+Workspace-managing workflows use the same `#name:ref` reference syntax as macros, but
 they control where the agent runs before the rest of the prompt is executed. Built-in
 `#git` references are VCS-backed; provider plugins can add other workspace refs such as
 `#gh`.
@@ -506,7 +534,7 @@ embedded workflow body.
 
 Known projects may also declare `PROJECT_NAME` and `PROJECT_ALIASES` in their
 ProjectSpec. Friendly refs in VCS workspace tags are canonicalized before workspace
-resolution and xprompt expansion, so `#gh:bob #p` is processed as a ref to the
+resolution and macro expansion, so `#gh:bob #p` is processed as a ref to the
 directory-key project when that project declares `PROJECT_NAME: bob` or alias `bob`. The
 rewrite is exact and applies to colon, underscore, and parenthesized workspace-ref
 forms; it does not rewrite owner/repo paths such as `#gh:bbugyi200/bob`, partial project
@@ -538,7 +566,7 @@ A known project can also be targeted with its shorter `+<project>` tag, such as 
 which expands to the canonical workspace reference at launch; see
 [Project Tags](#project-tags), which also covers `+query` project/Patch completion.
 
-sase's TUI and the xprompt LSP also provide token-local completion at the root of
+sase's TUI and the macro LSP also provide token-local completion at the root of
 registered VCS workflow refs. Typing `:` or `(` after a workflow tag, such as `#gh:` or
 `#git(`, opens project and active PR-sized Patch rows scoped to that provider. Providers
 can add fast local namespace rows; the GitHub plugin derives organization rows from
@@ -547,7 +575,7 @@ the current token, for example `#gh:sase ` or `#gh(sase)`. Accepting a namespace
 a trailing slash such as `#gh:sase-org/` without closing the token, so repository
 completion can immediately take over.
 
-sase's TUI and the xprompt LSP also complete repositories inside provider refs after the
+sase's TUI and the macro LSP also complete repositories inside provider refs after the
 namespace slash. Typing `#gh:bbugyi200/` asks the registered GitHub workspace plugin for
 repositories owned by `bbugyi200`; typing `#gh:bbugyi200/sa` narrows the menu toward
 matching repository names. Accepting a row rewrites only the current ref value, so colon
@@ -557,22 +585,22 @@ nested namespaces such as `#gl:group/subgroup/` by implementing repository candi
 listing.
 
 Known-project discovery defaults to enabled ProjectSpecs. Disabled and sibling records
-are omitted from broad project-local xprompt catalogs and completion menus. An
-explicitly typed known-project `#` VCS ref is a launch-time exception: launch
-preparation writes `PROJECT_STATE: enabled` before claiming the workspace. This is a
-persistent state change, so use `sase project enable <project>` first when you prefer to
-make the transition separately. A `+<project>` tag for a disabled project is rejected
-instead of re-enabling it (see [Project Tags](#project-tags)). A checkout cwd or mobile
-`project` value is context rather than a workspace ref; a prompt without an explicit ref
-defaults to `#git:home`. Direct claims that bypass launch preparation remain blocked
-while the ProjectSpec is disabled. Management and history code paths that need hidden
-projects opt into an all-state scan explicitly.
+are omitted from broad project-local macro catalogs and completion menus. An explicitly
+typed known-project `#` VCS ref is a launch-time exception: launch preparation writes
+`PROJECT_STATE: enabled` before claiming the workspace. This is a persistent state
+change, so use `sase project enable <project>` first when you prefer to make the
+transition separately. A `+<project>` tag for a disabled project is rejected instead of
+re-enabling it (see [Project Tags](#project-tags)). A checkout cwd or mobile `project`
+value is context rather than a workspace ref; a prompt without an explicit ref defaults
+to `#git:home`. Direct claims that bypass launch preparation remain blocked while the
+ProjectSpec is disabled. Management and history code paths that need hidden projects opt
+into an all-state scan explicitly.
 
-Double underscores (`__`) in xprompt names are treated as forward slashes (`/`),
-enabling flat references to namespaced xprompts. For example, `#foo__bar` resolves to
-the xprompt registered as `foo/bar`, and `#a__b__c` resolves to `a/b/c`. Single
-underscores are not affected. This is useful when `/` is inconvenient in certain input
-contexts (e.g., shell completion or certain prompt editors).
+Double underscores (`__`) in macro names are treated as forward slashes (`/`), enabling
+flat references to namespaced macros. For example, `#foo__bar` resolves to the macro
+registered as `foo/bar`, and `#a__b__c` resolves to `a/b/c`. Single underscores are not
+affected. This is useful when `/` is inconvenient in certain input contexts (e.g., shell
+completion or certain prompt editors).
 
 Markdown headings like `# Heading` are not matched because a space after `#` prevents
 the pattern from firing.
@@ -598,7 +626,7 @@ continues with letters, digits, `_`, `.`, or `-`, without ending in `.` or `-`. 
 must sit at the start of the text or directly after whitespace, `{`, or `|`. The name
 must be followed by whitespace, `|`, `}`, or the end of the text. So `C++`, `a+b`,
 `(+sase)`, and `+sase,` are ordinary text. Tags inside fenced code, inline code,
-disabled xprompt regions, and the leading YAML frontmatter block are ignored.
+disabled macro regions, and the leading YAML frontmatter block are ignored.
 
 **Resolution.** A tag name matches a project's `PROJECT_NAME`, its directory key, or any
 of its `PROJECT_ALIASES`. An exact match wins first, then a case-insensitive one, so
@@ -646,7 +674,7 @@ you can recover and fix it. When sase's TUI already has its project catalog cach
 checks tags before the prompt editor closes: the error appears as a toast and the prompt
 stays in place for editing.
 
-**Completion.** sase's TUI and the xprompt LSP share one `+` project/Patch completion
+**Completion.** sase's TUI and the macro LSP share one `+` project/Patch completion
 helper. Typing `+query` wherever a tag may start opens a picker of enabled launchable
 projects and active PR-sized Patches in `WIP`, `Draft`, `Ready`, or `Mailed` status. A
 tag may start at the beginning of the prompt or after whitespace (including a newline or
@@ -666,7 +694,7 @@ disabled projects, sibling records, non-launchable projects, and projects with n
 detected VCS provider, even though `+home` and disabled-project tags still resolve when
 typed.
 
-The xprompt LSP also checks tags as you type. Hovering a tag shows its project. An
+The macro LSP also checks tags as you type. Hovering a tag shows its project. An
 anchored unknown tag gets a warning with `Use +<suggestion>` quick fixes, an ambiguous
 tag is an error, and a tag whose project has no detected provider gets a warning. A
 `refactor.rewrite` code action turns a plain project ref such as `#gh:sase` into
@@ -694,7 +722,7 @@ CLI views follow the same display rules: `sase agent show`, `sase prompt list`,
 show known-project refs as `+<project>` tags. The first three accent-color the tags on a
 color terminal; `sase prompt show -f markdown` writes them as plain text. Raw and JSON
 output (`sase prompt show`, `sase prompt list --json`, and `sase prompt search -f json`)
-keeps the exact stored text. `sase xprompt show` accent-colors tags in its highlighted
+keeps the exact stored text. `sase macro show` accent-colors tags in its highlighted
 body, and `sase project list` and `sase project show` print each project's tag. The
 [SASE Pager](pager.md#syntax-highlighting) colors resolved tags in Markdown prose with
 the same accent styling when the project catalog is already loaded (in practice, inside
@@ -702,10 +730,10 @@ sase's TUI).
 
 ### Artifact References
 
-Artifact references are prompt syntax, not xprompts. They use `@<kind>:<argument>` to
-cite a durable document, entity, revision, or file, and SASE resolves them late in
-prompt preprocessing after xprompt expansion. The retired `#ref/<kind>:<argument>`
-renderer syntax is not accepted.
+Artifact references are prompt syntax, not macros. They use `@<kind>:<argument>` to cite
+a durable document, entity, revision, or file, and SASE resolves them late in prompt
+preprocessing after macro expansion. The retired `#ref/<kind>:<argument>` renderer
+syntax is not accepted.
 
 See [Artifact References](artifact_references.md) for the grammar, live kinds,
 compatibility aliases, provider specs, publication links, and allow-listed `@file`
@@ -783,12 +811,12 @@ argument when a `]]` must be followed by `,`, `)`, `}`, or `|`, for example
 
 ### Argument Completion and Highlighting
 
-sase's TUI helps fill arguments in. Inside `#name(`, it offers the xprompt's missing
+sase's TUI helps fill arguments in. Inside `#name(`, it offers the macro's missing
 `name=` inputs in declaration order, each with its type, default, and description, and
 accepting a `bool`, `path`, or `agent` input opens that input's value menu next. sase's
-TUI and `sase xprompt show` color argument keys and values by type and underline
-unknown, repeated, or mistyped keywords; the xprompt LSP reports the same argument spans
-as [semantic tokens](editor.md#semantic-token-legend). See
+TUI and `sase macro show` color argument keys and values by type and underline unknown,
+repeated, or mistyped keywords; the macro LSP reports the same argument spans as
+[semantic tokens](editor.md#semantic-token-legend). See
 [sase's TUI completion](ace.md#completion) and the
 [Prompt Input Widget](ace.md#prompt-input-widget).
 
@@ -814,7 +842,7 @@ not rewrite the source into that form.
 
 ### Double-Colon Shorthand
 
-`#name:: text` captures text until the next line that starts with an xprompt reference
+`#name:: text` captures text until the next line that starts with a macro reference
 followed by `(`, `: `, `:: `, or `::` at end of line, or until the end of the string.
 `::` may end its line, in which case the payload starts on the next line. Blank lines do
 not terminate it, and neither do lines that start with a `%` directive, a bare `#name`,
@@ -850,7 +878,7 @@ the parentheses.
 
 ## Typed Inputs
 
-XPrompts can declare typed input parameters in the YAML front matter.
+Macros can declare typed input parameters in the YAML front matter.
 
 ### Longform Syntax
 
@@ -882,7 +910,7 @@ explain output, argument help, and editor documentation can use them as human-fa
 help text.
 
 sase's TUI can synthesize required `text` inputs from raw `<placeholder>` tags when
-saving a prompt-bar draft as a new global or frontmatter-local xprompt. See
+saving a prompt-bar draft as a new global or frontmatter-local macro. See
 [Raw Prompt Placeholders](#raw-prompt-placeholders) for the launch-time collection,
 save-time conversion, and literal-zone rules.
 
@@ -903,7 +931,7 @@ save-time conversion, and literal-zone rules.
 
 A `code` input is not a plain string with a convention. Binding yields a structured
 `CodeValue` (source, language, digest, preview). Unlabelled values default to Bash;
-sase's TUI and the xprompt LSP treat the field as code rather than a scalar. Completing
+sase's TUI and the macro LSP treat the field as code rather than a scalar. Completing
 the type as an input is gated with the `typed_launch_units` beta flag, same as `%if::`
 and `%proc`.
 
@@ -960,7 +988,7 @@ given. A `null` value cannot be combined with other values for the same input.
 
 ## Output Specification
 
-XPrompts used as agent steps in workflows can declare an output schema for structured
+Macros used as agent steps in workflows can declare an output schema for structured
 output validation. See the [Output Specification](workflow_spec.md#output-specification)
 section in the workflow spec for full details on the format.
 
@@ -1031,8 +1059,8 @@ Hello, {{ user }}.
 | `{{ provider_native_ask_tool }}`    | Name of the provider's native ask-user-question tool (skill frontmatter only)                              |
 | `{{ range(...) }}`                  | Jinja globals: `range`, `dict`, `lipsum`, `cycler`, `joiner`, `namespace`                                  |
 
-Named arguments and positional-to-name mappings take priority; if an xprompt is called
-within a workflow step, the workflow's execution scope is also available (xprompt args
+Named arguments and positional-to-name mappings take priority; if a macro is called
+within a workflow step, the workflow's execution scope is also available (macro args
 override scope values on conflict).
 
 The `wait` namespace is only populated while an agent run is rendering its executable
@@ -1041,7 +1069,7 @@ with metadata such as `wait_name`, `agent_name`, `ref`, `kind`, `label`, `path`,
 `source_path`, and nullable VCS provenance fields. Read artifact contents explicitly
 with `sase artifact read <ref> "<reason>"` when the prompt needs bytes.
 
-An xprompt that needs runtime-only names such as `wait.artifacts` defers them with
+A macro that needs runtime-only names such as `wait.artifacts` defers them with
 `{% raw %}...{% endraw %}`, and the deferred template renders in the launch-time
 top-level pass, where fenced and inline code are literal. A `{{ ... }}` inside backticks
 there is never substituted, while an enclosing `{% for %}` still repeats the literal
@@ -1050,10 +1078,10 @@ still go through literal-preserving prompt formatting, so `__` and `*` in paths 
 
 Availability: conditional names render only when their precondition holds — `n`/`N` need
 [%repeat](#repeat-directive), `agents`/`wait_chats` need `%wait`, and the `provider_*`
-names need truthy `skill` frontmatter in xprompt scope. A prompt that declares its own
+names need truthy `skill` frontmatter in macro scope. A prompt that declares its own
 `input:` frontmatter renders before any agent run exists, so the run-time names above
 (`wait`, `patch_name`, `workspace_num`, `cl_name`, `n`, `N`, `agents`, `wait_chats`) are
-unavailable there. Typing `{{` in the prompt input or an editor with the xprompt LSP
+unavailable there. Typing `{{` in the prompt input or an editor with the macro LSP
 offers exactly the names that render in the current scope; see
 [Editor LSP](#editor-lsp).
 
@@ -1106,13 +1134,13 @@ Raw placeholders are highlighted in prompt panes, participate in placeholder com
 and feed the saved common-placeholder history described in
 [sase's TUI completion](ace.md#completion). Repeated tags with the same exact,
 case-sensitive inner text are one logical placeholder. Tags inside inline code, fenced
-code blocks, or `%xprompts_enabled:false` regions stay literal and are excluded from
+code blocks, or `%macros_enabled:false` regions stay literal and are excluded from
 highlighting, completion history, launch-time collection, and conversion.
 
 Classification is syntactic rather than HTML-aware: `<div>`, `</div>`, and an
 angle-bracket link destination outside a code zone are placeholders too, and a preceding
 backslash does not escape them. Keep literal angle-bracket markup in an inline or fenced
-code zone, place it in a disabled xprompt region, or use the launch panel's keep-literal
+code zone, place it in a disabled macro region, or use the launch panel's keep-literal
 control.
 
 By default, submitting a prompt from sase's TUI opens **Fill in this prompt** whenever
@@ -1126,9 +1154,9 @@ collection and launch the tags unchanged; declared
 [`input:`](#frontmatter-declared-inputs) values are still collected. Non-interactive
 `sase run` does not collect raw placeholders.
 
-When an sase's TUI draft is saved through the whole-stack xprompt flow (`gX` or
-`Ctrl+G X` in xprompt mode), live raw placeholders are converted before the save preview
-into required `text` inputs:
+When an sase's TUI draft is saved through the whole-stack macro flow (`gX` or `Ctrl+G X`
+in macro mode), live raw placeholders are converted before the save preview into
+required `text` inputs:
 
 ```text
 Deploy <service> to <target file>
@@ -1147,49 +1175,49 @@ Deploy {{ service }} to {{ target_file }}
 ```
 
 The `gL` active-pane conversion applies the same rewrite when it creates a
-frontmatter-local xprompt. A fresh `gx` mini-xprompt extraction applies it to the copied
+frontmatter-local macro. A fresh `gx` mini-macro extraction applies it to the copied
 origin-pane body before the mini pane opens and seeds the mini definition's inferred
 inputs. Raw placeholders typed later in the mini pane are saved as edited; the mini save
 review does not run another conversion pass. Generated names are Jinja-safe slugs
-allocated in document order; collisions receive `_2`, `_3`, and so on. During xprompt
+allocated in document order; collisions receive `_2`, `_3`, and so on. During macro
 saves, a generated name that matches an authored input is reused instead of redeclared,
 preserving its type, default, and description. All conversion paths reuse a matching
 undeclared Jinja variable. Repeated occurrences are substituted together, tags in
 literal zones remain untouched, and inserted values are not scanned again for more
 placeholders. Saving the same draft as a snippet keeps the original active-pane body
-rather than applying this xprompt-only conversion. Writing an already bound xprompt with
+rather than applying this macro-only conversion. Writing an already bound macro with
 `gw` saves the body as edited and does not perform a new conversion pass.
 
-Set `ace.prompt_inputs.xprompt_placeholder_args: false` to keep live raw placeholders
+Set `ace.prompt_inputs.macro_placeholder_args: false` to keep live raw placeholders
 literal during `gX`, `gL`, and fresh `gx` extraction and mint no placeholder-derived
 `text` inputs. Undeclared Jinja variables still become required `gL` inputs.
 
 ## Tags
 
-XPrompts and workflows can be annotated with semantic role tags. Tags enable
+Macros and workflows can be annotated with semantic role tags. Tags enable
 lookup-by-role instead of lookup-by-name, making the system extensible: a plugin or user
-can override the CRS workflow by defining a higher-priority xprompt or workflow with
+can override the CRS workflow by defining a higher-priority macro or workflow with
 `tags: crs`.
 
 ### Available Tags
 
-| Tag                            | Description                                                                                                                               |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `vcs`                          | Workspace workflow xprompt (`#git`, `#gh`, or a plugin-provided ref) — wraps other embedded workflows, running setup/teardown around them |
-| `crs`                          | Code Review Summary workflow (singleton role)                                                                                             |
-| `fix_hook`                     | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                                    |
-| `rollover`                     | Marks workflows whose embedded references carry forward to follow-up agent steps                                                          |
-| `mentor`                       | Mentor review prompt workflow                                                                                                             |
-| `commit`                       | Commit workflow (appended by mentor review `A` key for direct commit)                                                                     |
-| `propose`                      | Propose workflow (appended by mentor review `a` key for propose-style amend)                                                              |
-| `make_mentor_changes`          | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                               |
-| `diff_file`                    | Injects the PR diff into the mentor prompt                                                                                                |
-| `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                                             |
-| `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                                       |
-| `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                                         |
-| `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                                        |
-| `work_task_bead`               | Task-agent prompt used by `sase bead work` (input: `bead_id`)                                                                             |
-| `land_epic`                    | Final land agent prompt used by `sase bead work`: verifies, integrates, and closes the epic                                               |
+| Tag                            | Description                                                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `vcs`                          | Workspace workflow macro (`#git`, `#gh`, or a plugin-provided ref) — wraps other embedded workflows, running setup/teardown around them |
+| `crs`                          | Code Review Summary workflow (singleton role)                                                                                           |
+| `fix_hook`                     | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                                  |
+| `rollover`                     | Marks workflows whose embedded references carry forward to follow-up agent steps                                                        |
+| `mentor`                       | Mentor review prompt workflow                                                                                                           |
+| `commit`                       | Commit workflow (appended by mentor review `A` key for direct commit)                                                                   |
+| `propose`                      | Propose workflow (appended by mentor review `a` key for propose-style amend)                                                            |
+| `make_mentor_changes`          | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                             |
+| `diff_file`                    | Injects the PR diff into the mentor prompt                                                                                              |
+| `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                                           |
+| `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                                     |
+| `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                                       |
+| `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                                      |
+| `work_task_bead`               | Task-agent prompt used by `sase bead work` (input: `bead_id`)                                                                           |
+| `land_epic`                    | Final land agent prompt used by `sase bead work`: verifies, integrates, and closes the epic                                             |
 
 ### Defining Tags
 
@@ -1214,10 +1242,10 @@ tags: fix_hook
 Fix the failing hook...
 ```
 
-**Config-based xprompts** (`sase.yml`):
+**Config-based macros** (`sase.yml`):
 
 ```yaml
-xprompts:
+macros:
   my_crs:
     content: "Review the code..."
     tags: [crs]
@@ -1225,17 +1253,17 @@ xprompts:
 
 ### Tag-Based Lookup
 
-The `get_by_tag()` function returns the highest-priority xprompt/workflow matching a
-tag, respecting the standard [discovery order](#discovery-order). This means
-higher-priority sources (e.g., project-local) can override built-in tagged xprompts,
-even when the override uses a different name. `get_by_tag_strict()` applies the same
-ranking and raises only when multiple matches remain at the highest discovery rank.
+The `get_by_tag()` function returns the highest-priority macro/workflow matching a tag,
+respecting the standard [discovery order](#discovery-order). This means higher-priority
+sources (e.g., project-local) can override built-in tagged macros, even when the
+override uses a different name. `get_by_tag_strict()` applies the same ranking and
+raises only when multiple matches remain at the highest discovery rank.
 
 ```python
-from sase.xprompt.tags import XPromptTag, get_by_tag
+from sase.macro.tags import MacroTag, get_by_tag
 
-crs_wf = get_by_tag(XPromptTag.crs)
-fh_wf = get_by_tag(XPromptTag.fix_hook)
+crs_wf = get_by_tag(MacroTag.crs)
+fh_wf = get_by_tag(MacroTag.fix_hook)
 ```
 
 ### Backward Compatibility
@@ -1243,12 +1271,12 @@ fh_wf = get_by_tag(XPromptTag.fix_hook)
 The legacy `wraps_all: true` field on workflows is still supported — it automatically
 adds the `vcs` tag. New workflows should use `tags: vcs` instead.
 
-Source: `src/sase/xprompt/tags.py`, `src/sase/xprompt/models.py`
+Source: `src/sase/macro/tags.py`, `src/sase/macro/models.py`
 
 ## Snippet Field
 
-XPrompts can opt-in to sase's TUI snippet expansion by setting the `snippet` field in
-their front matter. When set, the xprompt's content is converted into a snippet template
+Macros can opt-in to sase's TUI snippet expansion by setting the `snippet` field in
+their front matter. When set, the macro's content is converted into a snippet template
 and merged into sase's TUI snippet registry at startup, so users can expand it by typing
 the trigger word and pressing `Tab`.
 
@@ -1265,25 +1293,25 @@ Review this {{ language }} code for correctness and style.
 
 **Values:**
 
-| Value           | Behavior                                                     |
-| --------------- | ------------------------------------------------------------ |
-| `true`          | Use the xprompt's base name (part after last `/`) as trigger |
-| `"custom_name"` | Use the custom string as the trigger word                    |
+| Value           | Behavior                                                   |
+| --------------- | ---------------------------------------------------------- |
+| `true`          | Use the macro's base name (part after last `/`) as trigger |
+| `"custom_name"` | Use the custom string as the trigger word                  |
 
 **Conversion rules:**
 
-- Normal xprompt references in the content are expanded before conversion, so snippets
-  can compose reusable xprompts
+- Normal macro references in the content are expanded before conversion, so snippets can
+  compose reusable macros
 - `{{ input_name }}` placeholders for required inputs become snippet tabstops (`$1`,
   `$2`, etc.)
 - `{{ input_name }}` placeholders for inputs with defaults are pre-filled with the
   default value
 - Legacy `{N}` placeholders are also converted
-- XPrompts with complex Jinja2 control flow (`{% %}` or `{# #}`) are skipped
-- User-defined snippets in `ace.snippets` take precedence over xprompt-derived snippets
-  on name collision
+- Macros with complex Jinja2 control flow (`{% %}` or `{# #}`) are skipped
+- User-defined snippets in `ace.snippets` take precedence over macro-derived snippets on
+  name collision
 
-Snippet templates can reuse other snippets with `#[trigger]` after the xprompt snippets
+Snippet templates can reuse other snippets with `#[trigger]` after the macro snippets
 and `ace.snippets` entries are merged. The referenced snippet's `$1`, `$2`, ... tabstops
 are spliced into the caller and renumbered in document order:
 
@@ -1300,7 +1328,7 @@ referenced tabstops before the splice: `#[greet(World)]` or `#[greet:World]` exp
 
 After the merge, each effective snippet also gains a generated initial-capital alias —
 only the first character of the trigger and of the resolved template is uppercased. An
-xprompt-derived `foo` therefore expands as both `foo` and `Foo`, already-capitalized
+macro-derived `foo` therefore expands as both `foo` and `Foo`, already-capitalized
 triggers produce no extra entry, an explicitly authored `Foo` is never replaced, and
 both spellings can be referenced with `#[foo]` / `#[Foo]`. The aliases are runtime-only.
 See [docs/ace.md — Capitalized aliases](ace.md#capitalized-aliases) for the complete
@@ -1343,10 +1371,10 @@ sase snippet delete todo -a -f json
 
 Each effective explicit trigger appears once. Generated initial-capital aliases (`foo` →
 `Foo`) are metadata on that source entry, not extra rows; lookup still maps an alias or
-unique prefix back to the explicit trigger. Xprompt-derived entries are viewable and
+unique prefix back to the explicit trigger. Macro-derived entries are viewable and
 linkable, but they are source-edited: converting the generated template back into
-xprompt/Jinja source would be lossy. Add and delete write only `ace.snippets`
-contributions; deleting a read-only, plugin, or xprompt-derived entry is refused and the
+macro/Jinja source would be lossy. Add and delete write only `ace.snippets`
+contributions; deleting a read-only, plugin, or macro-derived entry is refused and the
 command points at its source. When a config overlay is removed, the command reports the
 definition that becomes effective next.
 
@@ -1372,18 +1400,18 @@ and cycle diagnostics.
 
 See [CLI Reference](cli.md#prompt-and-workflow-authoring).
 
-Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`,
+Source: `src/sase/macro/snippet_bridge.py`, `src/sase/macro/models.py`,
 `src/sase/snippet/`
 
 ## Skill Field
 
 A skill is a Markdown source that lives in a canonical `skills/` directory _and_ sets a
 truthy `skill` field in its front matter. Both halves are required, and the rule is
-two-way: a `skill:` declaration in an ordinary `xprompts/` directory or a config entry
-is rejected with a migration diagnostic, and a file in a `skills/` directory that
-declares no truthy `skill` value is rejected the same way. `sase skill list` shows the
-loaded skill catalog without writing files, and reports misplaced sources instead of
-silently dropping them.
+two-way: a `skill:` declaration in an ordinary `macros/` directory or a config entry is
+rejected with a migration diagnostic, and a file in a `skills/` directory that declares
+no truthy `skill` value is rejected the same way. `sase skill list` shows the loaded
+skill catalog without writing files, and reports misplaced sources instead of silently
+dropping them.
 
 `sase skill init` reads that catalog to determine which sources should be rendered into
 per-provider `SKILL.md` files and deployed to agent skill directories; it refuses to
@@ -1414,18 +1442,18 @@ Skill sources are discovered from these directories, first source wins:
 | Home           | `~/sase/skills/` (`home/sase/skills/` under chezmoi) | `#skill/<name>`           |
 | Project (home) | `~/sase/skills/<project>/`                           | `#<project>/skill/<name>` |
 | Plugin         | the plugin's `skills/` resource directory            | `#skill/<name>`           |
-| Package        | `src/sase/xprompts/skills/`                          | `#skill/<name>`           |
+| Package        | `src/sase/macros/skills/`                            | `#skill/<name>`           |
 
-Ordinary project and home xprompts, workflows, and shared `steps/` stay under
-`sase/xprompts/`; that tree never holds a skill. Bundled SASE skill Markdown is the
-package-source exception and lives in the nested `src/sase/xprompts/skills/` resource.
+Ordinary project and home macros, workflows, and shared `steps/` stay under
+`sase/macros/`; that tree never holds a skill. Bundled SASE skill Markdown is the
+package-source exception and lives in the nested `src/sase/macros/skills/` resource.
 
 ### Source, Reference, and Provider Names
 
 One skill source carries three distinct names, and they are not interchangeable:
 
 - The **source name** is the file stem (or the front matter `name`), e.g. `sase_plan`.
-- The **xprompt reference name** is namespaced with a `skill/` segment, so
+- The **macro reference name** is namespaced with a `skill/` segment, so
   `#skill/sase_plan` expands the source inline. A project-scoped source is qualified
   further: `#app/skill/foo`.
 - The **provider skill name** is the bare source name, so the installed agent skill is
@@ -1434,13 +1462,13 @@ One skill source carries three distinct names, and they are not interchangeable:
 
 This split was a hard cutover: there is no `#sase_plan` compatibility alias, no fallback
 from `#foo` to `#skill/foo`, and no read compatibility for the old bundled Markdown
-`src/sase/skills/` layout. `sase doctor`, `sase validate`, `sase xprompt show`,
+`src/sase/skills/` layout. `sase doctor`, `sase validate`, `sase macro show`,
 `sase skill list`, and `sase skill init` all name the offending source and the exact
 move required.
 
-Machine-readable surfaces carry both names: `sase xprompt list`, the structured catalog,
+Machine-readable surfaces carry both names: `sase macro list`, the structured catalog,
 and the mobile/editor helper bridges emit `name` as the `#` reference alongside
-`is_skill` and a `skill_name` field holding the `/` name. `sase xprompt show` prints the
+`is_skill` and a `skill_name` field holding the `/` name. `sase macro show` prints the
 reference, a `slash` row, and a `skill · /<name>` chip.
 
 **Values:**
@@ -1450,13 +1478,13 @@ reference, a `slash` row, and a `skill · /<name>` chip.
 | `true`              | Deploy to all registered providers  |
 | `["claude", "agy"]` | Deploy only to the listed providers |
 
-The `description` field provides a human-readable summary shown in `sase xprompt list`
-and `sase skill list` output. The structured catalog also marks these entries with
+The `description` field provides a human-readable summary shown in `sase macro list` and
+`sase skill list` output. The structured catalog also marks these entries with
 `is_skill: true`; sase's TUI and editor clients use that flag together with `skill_name`
-to offer slash-skill completions such as `/sase_plan` while keeping ordinary xprompts
-out of slash completion results. `#` completion inserts `#skill/sase_plan`, `/`
-completion inserts `/sase_plan`, and both resolve the same source definition for
-argument hints, hover, and definition navigation.
+to offer slash-skill completions such as `/sase_plan` while keeping ordinary macros out
+of slash completion results. `#` completion inserts `#skill/sase_plan`, `/` completion
+inserts `/sase_plan`, and both resolve the same source definition for argument hints,
+hover, and definition navigation.
 
 The optional `log_skill_use` boolean field controls the generated audit directive. It
 defaults to `true`, so generated skills instruct the agent to run
@@ -1465,17 +1493,17 @@ suppress that directive for skills that should not record their own use (the bun
 `/sase_plan` and `/sase_memory_read` skills set this). The field only affects sources
 that are also marked as skills.
 
-**Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or add a
-source to a project's `sase/skills/` or your `~/sase/skills/` directory. Saving a draft
-that declares `skill:` from sase's TUI only offers those canonical directories, and the
-ordinary xprompt and config writers refuse a request that would smuggle a skill
-definition into `sase/xprompts/`. Do not include the `sase skill use` directive
-yourself; the generator injects it unless `log_skill_use: false` is set. Then run
-`sase skill list` and `sase skill init --dry-run` (or `--diff`) to preview. Commit the
-source change and land it on the canonical branch before deploying, then run
-`sase skill init --force`: a chezmoi deploy is refused when `src/sase/xprompts/skills/`
-is dirty, when `HEAD` is not an ancestor of the canonical branch, or when it would move
-the destination off the source commit recorded in the provenance manifest — see
+**Workflow:** Edit packaged skill sources in `src/sase/macros/skills/`, or add a source
+to a project's `sase/skills/` or your `~/sase/skills/` directory. Saving a draft that
+declares `skill:` from sase's TUI only offers those canonical directories, and the
+ordinary macro and config writers refuse a request that would smuggle a skill definition
+into `sase/macros/`. Do not include the `sase skill use` directive yourself; the
+generator injects it unless `log_skill_use: false` is set. Then run `sase skill list`
+and `sase skill init --dry-run` (or `--diff`) to preview. Commit the source change and
+land it on the canonical branch before deploying, then run `sase skill init --force`: a
+chezmoi deploy is refused when `src/sase/macros/skills/` is dirty, when `HEAD` is not an
+ancestor of the canonical branch, or when it would move the destination off the source
+commit recorded in the provenance manifest — see
 [Commit Before Deploying](init.md#commit-before-deploying). The same manifest is also an
 ownership registry for generated source/live skill-file pairs. When a source is renamed,
 deleted, or no longer targets a provider, a full `sase skill init --force` deployment
@@ -1487,10 +1515,10 @@ commits, pushes, and applies the generated files unless passed `--no-commit`,
 for a later full deployment. Do not edit deployed `SKILL.md` files directly.
 `sase init skills` is a compatibility alias for `sase skill init`.
 
-Editing an existing skill source from sase's TUI targets it like any other xprompt
+Editing an existing skill source from sase's TUI targets it like any other macro
 definition, and saving it offers `sase skill init` in place of a bare commit/push, since
 that command already commits, pushes, and deploys for you — see
-[Editing an Existing XPrompt from the TUI](ace.md#editing-an-existing-xprompt-from-the-tui).
+[Editing an Existing Macro from the TUI](ace.md#editing-an-existing-macro-from-the-tui).
 
 Provider plugins declare where generated skills should be written. A source can target
 multiple providers, and a provider can have multiple filesystem targets. Built-in
@@ -1512,8 +1540,8 @@ remove.
 
 ### Bundled Skills
 
-The following skills ship in `src/sase/xprompts/skills/` and are deployed by
-`sase skill init`. They are packaged with sase, included in `sase xprompt list` as
+The following skills ship in `src/sase/macros/skills/` and are deployed by
+`sase skill init`. They are packaged with sase, included in `sase macro list` as
 `skill/<name>`, and available to prompt completion clients even when a checkout does not
 have local skill files. Coding agents invoke them by their provider names, such as
 `/sase_plan` or `/sase_repo`; expand one inline as `#skill/sase_plan`. Other scopes can
@@ -1547,9 +1575,9 @@ flag; see [Sudo Requests](sudo.md).
 ## Memory Field
 
 Every valid, flat, non-README [SASE memory note](memory.md) that declares `type: core`
-or `type: reference` frontmatter is automatically an xprompt — no opt-in field is
-required. A note's filename remains its identity: `sase/memory/sase_beads.md` (or the
-home equivalent) is invoked as `#memory/sase_beads`. Nested files such as
+or `type: reference` frontmatter is automatically a macro — no opt-in field is required.
+A note's filename remains its identity: `sase/memory/sase_beads.md` (or the home
+equivalent) is invoked as `#memory/sase_beads`. Nested files such as
 `sase/memory/assets/**` and `README.md` are never catalog entries. Type-free memory-web
 descriptors are not catalog entries either: their bodies are already loaded through the
 generated `## Memory Webs` instruction section, while strand bodies come from
@@ -1557,7 +1585,7 @@ generated `## Memory Webs` instruction section, while strand bodies come from
 
 The `memory/` reference segment is reserved. There is no bare `#sase_beads` alias for
 `#memory/sase_beads`, no `#memory/long/sase_beads` compatibility form, and an ordinary
-xprompt, workflow, config entry, plugin, or skill that claims the `memory/` namespace is
+macro, workflow, config entry, plugin, or skill that claims the `memory/` namespace is
 rejected with a load diagnostic rather than silently losing the collision.
 
 Resolution is contextual and first-wins: the selected project's note shadows a same-stem
@@ -1566,10 +1594,10 @@ workspace rather than merging in another project's notes. Canonical and legacy m
 coexistence inside either scope still uses the memory subsystem's existing exclusive
 collision policy. See [Memory Order](content_layout.md#memory-order).
 
-Expansion uses the ordinary simple-Markdown-xprompt rendering path after memory
+Expansion uses the ordinary simple-Markdown-macro rendering path after memory
 frontmatter is stripped: a `#memory/<stem>` reference takes no arguments and does not
 synthesize the `## Children` section that [`sase memory read`](memory.md#audited-reads)
-appends. Xprompt references already authored in the note body still expand recursively.
+appends. Macro references already authored in the note body still expand recursively.
 
 `#memory/<stem>` is a launch-time, explicitly authored inclusion, not an audited
 agent-side lookup: catalog discovery, previews, and expansion never append
@@ -1579,24 +1607,24 @@ access recorded. This is explicit prompt composition only — it does not restor
 retired dynamic-memory runtime, so there is no keyword matching, prompt scanning, or
 automatic context injection.
 
-Editing an existing note from sase's TUI targets it like any other xprompt definition,
-and saving it offers `sase memory init` in place of a bare commit/push, since that
-command already regenerates `AGENTS.md` and the provider instruction shims and commits
-and pushes for you — see
-[Editing an Existing XPrompt from the TUI](ace.md#editing-an-existing-xprompt-from-the-tui).
+Editing an existing note from sase's TUI targets it like any other macro definition, and
+saving it offers `sase memory init` in place of a bare commit/push, since that command
+already regenerates `AGENTS.md` and the provider instruction shims and commits and
+pushes for you — see
+[Editing an Existing Macro from the TUI](ace.md#editing-an-existing-macro-from-the-tui).
 With `use_chezmoi` enabled, the write itself redirects to the chezmoi source rather than
 the applied copy under `~/sase/memory/`; see
 [Paths That Did Not Move](content_layout.md#paths-that-did-not-move).
 
-Source: `src/sase/xprompt/loader_memory.py`, `src/sase/content_layout.py`.
+Source: `src/sase/macro/loader_memory.py`, `src/sase/content_layout.py`.
 
-## Built-in XPrompts
+## Built-in Macros
 
-Core xprompts ship in `src/sase/default_config.yml`, `src/sase/default_xprompts/*.md`,
-and `src/sase/xprompts/` (bundled skills ship in the nested `src/sase/xprompts/skills/`
+Core macros ship in `src/sase/default_config.yml`, `src/sase/default_macros/*.md`, and
+`src/sase/macros/` (bundled skills ship in the nested `src/sase/macros/skills/`
 resource). They are always available without needing a project- or user-level
 definition. They're at the built-in end of the [discovery order](#discovery-order), so
-any project, user, or config xprompt with the same name overrides the packaged defaults.
+any project, user, or config macro with the same name overrides the packaged defaults.
 Common entries include:
 
 | Reference             | Body summary                                                                                                |
@@ -1627,7 +1655,7 @@ Common entries include:
 
 When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the prior
 **user prompts** in that block are sanitized first: sase directives (`%id`, `%wait`,
-`%model`, ...), `#`/`#!` xprompt and workspace references, and any unrendered Jinja2
+`%model`, ...), `#`/`#!` macro and workspace references, and any unrendered Jinja2
 markers (`{{ }}`, `{% %}`, `{# #}`) are stripped so the forked agent sees clean
 natural-language text. Fenced code blocks and real markdown headings are preserved, and
 assistant responses are left untouched. Raw transcripts on disk are unchanged — the
@@ -1668,10 +1696,10 @@ choice when a proc name collides with an agent name. Like an agent source, an im
 `%wait` for a proc or monitor target releases on that target's terminal success or
 failure, not only on success.
 
-To see the exact body of any built-in inline xprompt, run
-`sase xprompt expand --trace '#<name>'` or browse the catalog with
-`sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain
-command takes the workflow name without a `#` or `#!` marker.
+To see the exact body of any built-in inline macro, run
+`sase macro expand --trace '#<name>'` or browse the catalog with `sase macro catalog`.
+Use `sase macro explain <name>` for workflows; the explain command takes the workflow
+name without a `#` or `#!` marker.
 
 Bundled task, phase, and lander workers do not author a priority wait or a non-default
 queue weight, so they use the runner's default priority (`10`) and the default `1.0`
@@ -1684,7 +1712,7 @@ epic inside that epic, and uses `/sase_new_task` only for distinct follow-ups. P
 workers remain prohibited from creating tasks and instead append `PROPOSED FOLLOW-UP:`
 notes for the lander.
 
-### Bundled Follow-Up XPrompts
+### Bundled Follow-Up Macros
 
 SASE ships two embeddable follow-up prompt workflows for manual session rounds:
 
@@ -1693,7 +1721,7 @@ SASE ships two embeddable follow-up prompt workflows for manual session rounds:
 | `#with_feedback` | `feedback`, optional `parent` | Append plan feedback using the same replan prompt renderer as the runner |
 | `#with_q_and_a`  | `prompt`, `qa_file`           | Append answered SASE questions using the same Q&A renderer as the runner |
 
-Both xprompts only assemble prompt text; `%i(suffix, session=parent)` is the launch
+Both macros only assemble prompt text; `%i(suffix, session=parent)` is the launch
 directive that attaches the new agent to the session. See
 [Agent Clans, Sessions, and Tribes](agent_sessions.md) for the full attachment and
 launch-approval model.
@@ -1714,7 +1742,7 @@ For Q&A, provide a JSON file containing one or more answered question rounds:
 
 The Q&A file should use the same structured request/response shape SASE writes for user
 questions: `questions` plus a `response`, or a top-level `rounds` list of those objects.
-Literal `#xprompt` text inside answers is protected so it does not expand accidentally.
+Literal `#macro` text inside answers is protected so it does not expand accidentally.
 
 Glossary note: this feature uses the runner's double-dash plan-chain session model —
 agents such as `foo--0`, `foo--plan`, and `foo--code` share the pure session container
@@ -1724,29 +1752,29 @@ for the full session model.
 
 ### Scheduled Work Uses Jobs
 
-Scheduled automation is no longer implemented by job-owned xprompt workflows. The former
+Scheduled automation is no longer implemented by job-owned macro workflows. The former
 `refresh_docs`, `audit_recent_bugs`, `audit_recent_improvements`, and `fix_just`
 workflows were retired. Axe now runs scripts that may emit structured launch proposals;
 shared triggers, guards, checkpoints, dedupe, and target fan-out stay in the runner.
-Proposal prompts may use inline `#xprompt` templates, but standalone `#!workflow`
+Proposal prompts may use inline `#macro` templates, but standalone `#!workflow`
 references are rejected. See [Axe](axe.md#structured-results-and-launch-proposals) for
 the script/result contract and the builtin documentation refresh job.
 
-## Config-Based XPrompts
+## Config-Based Macros
 
-XPrompts can be defined inline in `sase.yml` under the `xprompts:` key.
+Macros can be defined inline in `sase.yml` under the `macros:` key.
 
 ### Simple Format
 
 ```yaml
-xprompts:
+macros:
   propose: "Please propose your changes before applying them."
 ```
 
 ### Structured Format
 
 ```yaml
-xprompts:
+macros:
   greet:
     description: Greet a user a configurable number of times.
     input:
@@ -1760,28 +1788,28 @@ xprompts:
     content: "Hello {{ name }}, count is {{ count }}"
 ```
 
-Config-based xprompts follow project and home file sources and precede plugin/package
-file resources. Within config, project `sase/sase.yml` wins over user overlays and base
+Config-based macros follow project and home file sources and precede plugin/package file
+resources. Within config, project `sase/sase.yml` wins over user overlays and base
 config.
 
-Standalone workflows must be defined as YAML files in an `sase/xprompts/` directory
-(project or home), a compatibility `xprompts/` directory, a project plugin, or a
-built-in package. Top-level `workflows:` blocks in project `sase/sase.yml`, global
-`sase.yml`, or `sase_*.yml` overlays are no longer supported and will be ignored by the
-runtime; move any such definitions into `sase/xprompts/<name>.yml` files.
+Standalone workflows must be defined as YAML files in an `sase/macros/` directory
+(project or home), a compatibility `macros/` directory, a project plugin, or a built-in
+package. Top-level `workflows:` blocks in project `sase/sase.yml`, global `sase.yml`, or
+`sase_*.yml` overlays are no longer supported and will be ignored by the runtime; move
+any such definitions into `sase/macros/<name>.yml` files.
 
 ## Local Configuration Files
 
-You can define project-specific xprompts in `sase/sase.yml` at the detected project
-root. This is a full SASE config file that can override any configuration, including
-xprompts. It is the highest-priority config source in the
+You can define project-specific macros in `sase/sase.yml` at the detected project root.
+This is a full SASE config file that can override any configuration, including macros.
+It is the highest-priority config source in the
 [deep-merge system](configuration.md#deep-merge-system), overriding global `sase.yml`,
-overlay files, plugin configs, and built-in defaults. Individual `.md` files in xprompts
-directories still take precedence over config-defined xprompts. A root-level `sase.yml`
+overlay files, plugin configs, and built-in defaults. Individual `.md` files in macros
+directories still take precedence over config-defined macros. A root-level `sase.yml`
 remains an exclusive legacy fallback during the compatibility window.
 
 ```yaml
-xprompts:
+macros:
   # Simple format — value is the template body
   propose: "Please propose your changes before applying them."
 
@@ -1806,25 +1834,25 @@ are extracted and stripped from the prompt before further processing.
 
 ### Supported Directives
 
-| Directive           | Alias | Description                                                                       |
-| ------------------- | ----- | --------------------------------------------------------------------------------- |
-| `%model`            | `%m`  | Override the LLM model for this prompt                                            |
-| `%effort`           | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                             |
-| `%id`               | `%i`  | Assign an id, clan, session, or user-managed tribe                                |
-| `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                                 |
-| `%wait`             | `%w`  | Wait for agents, closed beads, and/or a time floor                                |
-| `%queue`            | `%q`  | Set per-launch capacity budget or multiplier, queue priority, and/or claim weight |
-| `%hold`             |       | Declare a pre-run admission hold on selected agents and procs                     |
-| `%dispatch`         |       | Launch on one enrolled remote machine                                             |
-| `%tab`              |       | Place this launch's presentation root on a named agent tab                        |
-| `%if`               |       | Statically omit a segment, or attach a beta admission predicate                   |
-| `%proc`             |       | Define and natively dispatch a beta stand-alone process unit                      |
-| `%final`            |       | Select configured finalizer instances for this launch                             |
-| `%hide`             | `%h`  | Hide the agent from the default Agents tab display                                |
-| `%auto`             | `%a`  | Request automatic gate resolution; an optional argument is gate-owned             |
-| `%repeat`           | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                                 |
-| `%alt`              | `%{}` | Split prompt into variants with different text (brace shorthand)                  |
-| `%xprompts_enabled` |       | Enable or disable xprompt expansion for a text region                             |
+| Directive         | Alias | Description                                                                       |
+| ----------------- | ----- | --------------------------------------------------------------------------------- |
+| `%model`          | `%m`  | Override the LLM model for this prompt                                            |
+| `%effort`         | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                             |
+| `%id`             | `%i`  | Assign an id, clan, session, or user-managed tribe                                |
+| `%clan`           | `%c`  | Declare a new named, rootless parallel agent clan                                 |
+| `%wait`           | `%w`  | Wait for agents, closed beads, and/or a time floor                                |
+| `%queue`          | `%q`  | Set per-launch capacity budget or multiplier, queue priority, and/or claim weight |
+| `%hold`           |       | Declare a pre-run admission hold on selected agents and procs                     |
+| `%dispatch`       |       | Launch on one enrolled remote machine                                             |
+| `%tab`            |       | Place this launch's presentation root on a named agent tab                        |
+| `%if`             |       | Statically omit a segment, or attach a beta admission predicate                   |
+| `%proc`           |       | Define and natively dispatch a beta stand-alone process unit                      |
+| `%final`          |       | Select configured finalizer instances for this launch                             |
+| `%hide`           | `%h`  | Hide the agent from the default Agents tab display                                |
+| `%auto`           | `%a`  | Request automatic gate resolution; an optional argument is gate-owned             |
+| `%repeat`         | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                                 |
+| `%alt`            | `%{}` | Split prompt into variants with different text (brace shorthand)                  |
+| `%macros_enabled` |       | Enable or disable macro expansion for a text region                               |
 
 Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt
 directives are not launch aliases. Using either as a top-level directive now raises a
@@ -1859,31 +1887,31 @@ model prompt; the raw prompt keeps it.
 
 ### Directive Completion Matrix
 
-sase's TUI and the xprompt LSP use the same Rust directive contract for names, aliases,
+sase's TUI and the macro LSP use the same Rust directive contract for names, aliases,
 argument syntax, keyword names, fixed values, full-form snippet recipes, and replacement
 ranges. Name completion advertises every enabled user-facing directive, including
 `%final` and the static `%if(should_run=...)` form. `%proc` and `%if::` code-form
 recipes appear only when the `typed_launch_units` beta flag is enabled. Retired `%name`
 / `%n` and `%tribe` / `%t` forms are not completed.
 
-| Directive           | Completed forms                                                                              | Completed argument rows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `%model` / `%m`     | `%model:...`, `%model(...)`                                                                  | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                                                                                                                                                                   |
-| `%effort` / `%e`    | `%effort:...`                                                                                | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `%final`            | Bare `%final`, `%final:...`, `%final(...)`                                                   | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                                                                                                                            |
-| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                                                            | `bead=`, `clan=`, `session=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, session, or tribe targets for those keyword values.                                                                                                                                                                                                                                                                                                                                                |
-| `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                                    | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                                                                                                                          |
-| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/session/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `hood=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, `hood=` completes current hood names, and `time=` suggests `5m` and `1430`.                                                                                                                                                                                                                      |
-| `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes positional capacity values, suggesting `1`, `100`, and `1.5x` (a multiplier of the effective `max_running_agents` budget). Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1` and `1.5x`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
-| `%hold`             | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows.                                                                                                                                                                                                                                  |
-| `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `%if`               | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes      | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                                                          |
-| `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                                                 | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                                                          |
-| `%hide` / `%h`      | Bare flag and plus form                                                                      | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `%auto` / `%a`      | Bare, plus, and `%auto:...`                                                                  | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `%repeat` / `%r`    | `%repeat:...`                                                                                | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `%alt`              | `%{...}` shorthand, `%alt(...)`, `%alt:...`                                                  | No structured argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `%xprompts_enabled` | `%xprompts_enabled:...`                                                                      | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Directive         | Completed forms                                                                              | Completed argument rows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `%model` / `%m`   | `%model:...`, `%model(...)`                                                                  | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                                                                                                                                                                   |
+| `%effort` / `%e`  | `%effort:...`                                                                                | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `%final`          | Bare `%final`, `%final:...`, `%final(...)`                                                   | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                                                                                                                            |
+| `%id` / `%i`      | Bare `%id`, `%id:...`, `%id(...)`                                                            | `bead=`, `clan=`, `session=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, session, or tribe targets for those keyword values.                                                                                                                                                                                                                                                                                                                                                |
+| `%clan` / `%c`    | `%clan:...`, `%clan(...)`                                                                    | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                                                                                                                          |
+| `%wait` / `%w`    | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/session/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `hood=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, `hood=` completes current hood names, and `time=` suggests `5m` and `1430`.                                                                                                                                                                                                                      |
+| `%queue` / `%q`   | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes positional capacity values, suggesting `1`, `100`, and `1.5x` (a multiplier of the effective `max_running_agents` budget). Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1` and `1.5x`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
+| `%hold`           | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows.                                                                                                                                                                                                                                  |
+| `%dispatch`       | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `%if`             | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes      | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                                                          |
+| `%proc`           | `%proc(...)`, `%proc::`; Bash/Python recipes                                                 | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                                                          |
+| `%hide` / `%h`    | Bare flag and plus form                                                                      | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `%auto` / `%a`    | Bare, plus, and `%auto:...`                                                                  | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `%repeat` / `%r`  | `%repeat:...`                                                                                | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `%alt`            | `%{...}` shorthand, `%alt(...)`, `%alt:...`                                                  | No structured argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `%macros_enabled` | `%macros_enabled:...`                                                                        | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 Keyword-name completion omits non-repeatable keywords that are already present and
 keywords that conflict with a selected keyword, but this is only a completion filter:
@@ -1897,14 +1925,14 @@ according to the surface.
 
 ### Static Conditional Segments
 
-`%if(should_run=true|false)` is a static xprompt and multi-prompt inclusion directive.
-It is not a typed-launch admission predicate and does not require a feature flag.
+`%if(should_run=true|false)` is a static macro and multi-prompt inclusion directive. It
+is not a typed-launch admission predicate and does not require a feature flag.
 
 ```text
 Always launch this segment.
 ---
 %if(should_run=false)
-This whole segment is omitted before nested xprompts, name allocation, waits, preview,
+This whole segment is omitted before nested macros, name allocation, waits, preview,
 approval, queue capacity, workspace selection, or dispatch see it.
 ---
 %if(should_run=true)
@@ -1925,11 +1953,11 @@ false first, middle, last, sole, or all-disabled batch is valid; an all-disabled
 launches nothing rather than falling back to a blank agent. Bare `%wait` binds to the
 previous surviving unit exactly as if the omitted block had never been written, and
 surviving named waits keep their normal resolution behavior. Static conditions inside
-inline code, fenced code, directive-owned code bodies, or `%xprompts_enabled:false`
+inline code, fenced code, directive-owned code bodies, or `%macros_enabled:false`
 regions are literal text.
 
-Inside an xprompt body, the condition is evaluated after that body's Jinja rendering, so
-a typed input can drive it:
+Inside a macro body, the condition is evaluated after that body's Jinja rendering, so a
+typed input can drive it:
 
 ```text
 Draft the report.
@@ -1958,10 +1986,10 @@ Always launch this segment.
 This segment pins an explicit grok model, so it is dropped only on a hard disable.
 ```
 
-In an [xprompt swarm](#xprompt-swarms-library-defined-fan-out), a disabled segment is
-dropped before any nested references in it expand. In an ordinary inline xprompt, a
-false `%if` removes only that xprompt's own expansion; the prompt segment that
-references it still launches with the rest of its text.
+In an [macro swarm](#macro-swarms-library-defined-fan-out), a disabled segment is
+dropped before any nested references in it expand. In an ordinary inline macro, a false
+`%if` removes only that macro's own expansion; the prompt segment that references it
+still launches with the rest of its text.
 
 `%if(should_run=...)` cannot be combined with script admission syntax. For example,
 `%if(should_run=false)::` and `%if("test -f pyproject.toml", should_run=false)` both
@@ -2026,10 +2054,10 @@ Execution depends on who initiated the launch:
   after approval, then the admission coordinator waits for prerequisites, evaluates
   script `%if::`, and dispatches eligible units — agent units through the established
   agent launch path, and `%proc` units as native `named-proc` records with origin
-  `xprompt-proc`. A direct user submission does not create a LaunchApproval
-  notification. If a wait remains unresolved, the `sase run` / sase's TUI launch proc
-  can finish while a detached coordinator continues waiting; the coordinator writes a
-  completion receipt and attempts a separate notification when admission settles.
+  `prompt-proc`. A direct user submission does not create a LaunchApproval notification.
+  If a wait remains unresolved, the `sase run` / sase's TUI launch proc can finish while
+  a detached coordinator continues waiting; the coordinator writes a completion receipt
+  and attempts a separate notification when admission settles.
 - Agent-initiated launches still require LaunchApproval. Approval freezes the typed plan
   and digest before the gate is shown. After approval, the same coordinator admits
   units.
@@ -2059,7 +2087,7 @@ cancel the dependent unit.
 An eligible `%proc` unit dispatches natively once its waits and `%if::` pass, no active
 [agent hold](#hold-directive) matches it, and any authored queue fields pass the
 runner-capacity check described below: the admission coordinator reserves a `named-proc`
-(lifecycle `named-proc`, origin `xprompt-proc`; sase-core builds from before the
+(lifecycle `named-proc`, origin `prompt-proc`; sase-core builds from before the
 turn/named-proc rename write the legacy lifecycle spelling `proc-shell`, and sase reads
 both) and starts its detached supervisor. The supervisor then acquires an operational
 workspace lease when `workspace` is true, materializes the approved source as a private
@@ -2124,7 +2152,7 @@ mixed local and remote units route independently.
 Keyed `{@<id>}` agent-name markers resolve once across the complete expanded typed batch
 before it is split into durable logical units. The concrete tokens are stored on the
 immutable plan, so a delayed or restarted coordinator never reallocates the same key
-independently per unit. Literal markers inside fenced code and xprompt-disabled regions
+independently per unit. Literal markers inside fenced code and macro-disabled regions
 stay unresolved, matching ordinary launch-time keyed-marker rules.
 
 Coordinator restarts replay the journal: a persisted terminal condition result is not
@@ -2147,7 +2175,7 @@ visible from the Procs pane.
 
 ### Syntax
 
-Directives use the same argument syntax as xprompt references:
+Directives use the same argument syntax as macro references:
 
 ```
 %model:claude-sonnet         # Colon syntax
@@ -2286,7 +2314,7 @@ remembered text) when no explicit values are given.
 The `%model` directive also supports automatic provider resolution: known model names
 (e.g., `opus`, `o3`, `qwen3.6-plus`, `muse-spark-1.3`) are automatically mapped to their
 provider. See [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for
-the full model-to-provider mapping. sase's TUI and the xprompt LSP complete `%model:` /
+the full model-to-provider mapping. sase's TUI and the macro LSP complete `%model:` /
 `%m:` values from the same model catalog used for provider resolution. The inserted
 value is a canonical model name, a configured alias, or a qualified `provider/model`
 value selected from a provider-scoped menu; provider short aliases are only
@@ -2305,9 +2333,9 @@ live override state.
 
 ### Equals model shortcuts
 
-sase's TUI and the xprompt LSP also complete leading `=alias` and `==model` tokens into
+sase's TUI and the macro LSP also complete leading `=alias` and `==model` tokens into
 canonical `%m:` expansions through shared Rust filters and edit plans. Typing `=` in an
-xprompt-aware editor is an LSP completion trigger; manual completion works in the same
+macro-aware editor is an LSP completion trigger; manual completion works in the same
 valid equals token. sase's TUI-only `ace.prompt_completion.auto_directive_menu` setting
 does not change an editor client's trigger policy.
 
@@ -2351,7 +2379,7 @@ The provider scope splits only on the first slash, so `%m:opencode/anthropic/` n
 OpenCode's nested `anthropic/...` model names. Hidden providers stay out of completion
 menus even though their explicit `provider/model` values remain routable.
 
-When the final `%model` value was written as `@<alias>` — including an xprompt-expanded
+When the final `%model` value was written as `@<alias>` — including a macro-expanded
 reference such as `%model:@#agy_flash` — SASE records the expanded bare alias name in
 `agent_meta.json` and renders it after the resolved model as `← @<alias>`. Concrete
 values such as `%model:claude/opus` and literal values such as ``%model:`@text``` do not
@@ -2372,16 +2400,16 @@ prompt must be non-empty.
 
 Project context must be reproducible on the target. A trusted launch integration can
 provide a Patch reference or explicit revision in the durable request payload; writing a
-Patch or xprompt reference in the prompt does not supply that source-side evidence.
+Patch or macro reference in the prompt does not supply that source-side evidence.
 Without payload evidence, including for an ordinary `sase run`, the source directory
 must be a clean Git checkout whose current branch has an upstream and whose `HEAD` is
 not ahead of it. Dispatch requests are durable and idempotent; if acceptance is
 uncertain, retrying the same request does not intentionally create a second remote
 launch.
 
-sase's TUI and the xprompt LSP complete configured machine aliases after `%dispatch:`.
-See the [Remote Dispatch Runbook](remote_dispatch.md) for gateway setup, enrollment,
-status, and remote-agent controls.
+sase's TUI and the macro LSP complete configured machine aliases after `%dispatch:`. See
+the [Remote Dispatch Runbook](remote_dispatch.md) for gateway setup, enrollment, status,
+and remote-agent controls.
 
 ### Launch-Scoped Model Alias Overrides
 
@@ -2416,7 +2444,7 @@ Legacy tasks without stored size metadata normalize to the `small` route at laun
 [Implicit role aliases](llms.md#implicit-role-aliases) for the current shipped defaults.
 
 Keys must be known builtin or custom alias names without `@`; values may be concrete
-models, `provider/model` targets, quoted targets, xprompt references, or another alias
+models, `provider/model` targets, quoted targets, macro references, or another alias
 with `@`. A trailing reasoning-effort suffix is supported on a single-target value,
 including an alias reference such as `@large@high`.
 
@@ -2476,23 +2504,22 @@ prose references such as `research.{@1}.cdx`. The same separator rule as bare te
 applies: with token `o`, `research.{@1!}` becomes `research.o`, `foo{@1!}` becomes
 `foo-o`, and a marker at the start of a line becomes `o`.
 
-Inside an xprompt swarm, unqualified keyed markers are implicitly qualified to
-`{@<xprompt>.<stamp>.<id>!}` while the swarm expands. That qualification gives each
-swarm invocation its own key space, even when the same swarm is invoked more than once
-in one dispatch. Keys are dispatch-scoped: a later `sase run` or TUI launch allocates
-fresh tokens rather than reusing a previous dispatch's table. A trailing `!` means
-"already qualified" and suppresses the implicit `<xprompt>.<stamp>.` prefix; use it only
-when a caller and a nested swarm must deliberately share one hood, for example
-`{@shared!}` in both bodies. Outside xprompt swarm expansion, an unqualified keyed
-marker in a literal prompt or plain inline xprompt resolves with its literal id, as if
-it had been written with `!`.
+Inside a macro swarm, unqualified keyed markers are implicitly qualified to
+`{@<macro>.<stamp>.<id>!}` while the swarm expands. That qualification gives each swarm
+invocation its own key space, even when the same swarm is invoked more than once in one
+dispatch. Keys are dispatch-scoped: a later `sase run` or TUI launch allocates fresh
+tokens rather than reusing a previous dispatch's table. A trailing `!` means "already
+qualified" and suppresses the implicit `<macro>.<stamp>.` prefix; use it only when a
+caller and a nested swarm must deliberately share one hood, for example `{@shared!}` in
+both bodies. Outside macro swarm expansion, an unqualified keyed marker in a literal
+prompt or plain inline macro resolves with its literal id, as if it had been written
+with `!`.
 
 The bare `@` marker remains supported and is not deprecated, but references to a bare
-template keep the historical latest-wins behavior. That is unsafe for xprompt swarms
-whose members can start late, because a later swarm launch can become the latest
-matching hood before a deferred member boots. Use keyed markers in xprompt swarms
-whenever several segments, waits, clan references, or prose references need the same
-generated name.
+template keep the historical latest-wins behavior. That is unsafe for macro swarms whose
+members can start late, because a later swarm launch can become the latest matching hood
+before a deferred member boots. Use keyed markers in macro swarms whenever several
+segments, waits, clan references, or prose references need the same generated name.
 
 Agent names are permanent IDs. A name that belongs to any existing agent state cannot be
 reused by a normal `%id:<name>` launch; SASE cancels the launch before spawning an
@@ -2606,7 +2633,7 @@ SASE can allocate a derived name before spawning the waiting agent: `<name>.w0`,
 `<name>.w1`, and so on, using the first free template token. After `<name>.w9`,
 letter-leading IDs gain a separator (`<name>.w-a`, `<name>.w-b`, and so on) to keep the
 name readable. Multi-value waits, tribe targets, bare `%wait`, and prompts whose name
-depends on unresolved xprompt expansion do not get a parent-side derived name. Repeat
+depends on unresolved macro expansion do not get a parent-side derived name. Repeat
 launches reuse this rule, then chain later repeat slots with
 `%wait:<previous-slot-name>`.
 
@@ -2827,7 +2854,7 @@ and must be answered explicitly.
 Fix the lint errors in the codebase.
 ```
 
-sase's TUI and the xprompt LSP suggest `plan`, `tale`, and `epic` as compatibility
+sase's TUI and the macro LSP suggest `plan`, `tale`, and `epic` as compatibility
 arguments for plan workflows; those suggestions are not a parser allowlist. `%auto:plan`
 explicitly selects normal approval for an authored tale plan, `%auto:tale` auto-approves
 and commits an authored tale, and `%auto:epic` follows the authored epic path. The plan
@@ -2967,7 +2994,7 @@ and the cleaned text is loaded back into the prompt input bar; the agent is not 
 until you press Enter there. The returned text loads with editor-file semantics: real
 multi-agent `---` segment separators (outside fenced blocks and leading YAML
 frontmatter) split sase's TUI prompt stack into one editable pane per agent segment, and
-any leading xprompt frontmatter is lifted into the prompt properties panel above the top
+any leading macro frontmatter is lifted into the prompt properties panel above the top
 pane. Because the strip runs before this parsing, a marked separator line such as
 `--- @` becomes a real `---` separator. See [Prompt Stacks](ace.md#prompt-stacks) in the
 sase's TUI docs for the full review flow.
@@ -2986,8 +3013,8 @@ and `%auto:epic` modes use the same pipeline but answer the plan decision synchr
 
 Once the plan is approved, sase launches a follow-up **coder** agent. That automated
 hand-off still inlines the approved plan with `@` and does not share a body with the
-`#coder` built-in xprompt (see
-[sase/xprompts/coder.md](https://github.com/sase-org/sase/blob/main/src/sase/xprompts/coder.md)).
+`#coder` built-in macro (see
+[sase/macros/coder.md](https://github.com/sase-org/sase/blob/main/src/sase/macros/coder.md)).
 `#coder` instead takes the approved plan file as its `plan_file` input, names it by its
 `YYYYmm/<name>.md` reference, and asks the agent to locate and read the plan itself (for
 example with `sase artifact read plan:<reference> "<reason>"`) rather than receiving it
@@ -3116,7 +3143,7 @@ Analyze the codebase.
 
 This produces three agents, each with "Analyze the codebase." but with `#review`,
 `#test`, or `#docs` substituted in place of the directive. Branches can be arbitrary
-text — xprompt references, directives, plain instructions, or `[[text blocks]]`. Because
+text — macro references, directives, plain instructions, or `[[text blocks]]`. Because
 branches split only on a top-level `|`, a comma is ordinary branch text:
 `%{foo, bar | baz}` is two branches (`foo, bar` and `baz`), not three. Nested `()`,
 `[]`, `{}`, and backtick-quoted spans are not split, and any `|` inside them is treated
@@ -3136,7 +3163,7 @@ line, after whitespace, mid-word (`foo%{bar | baz}qux` launches `foobarqux` and
 alternation's branch (`%{sase-%{core | github} | chezmoi}` launches `sase-core`,
 `sase-github`, and `chezmoi`). A nested group expands only when its branch is selected.
 The only way to write a literal `%{` is inside inline code, fenced blocks, or
-`%xprompts_enabled:false` regions.
+`%macros_enabled:false` regions.
 
 The long form `%alt(...)` and the legacy `%(...)` shorthand keep the old rule: they open
 only at a directive-valid position (start of line, or after whitespace, `(`, `[`, `{`,
@@ -3148,7 +3175,7 @@ non-empty branch starts with a `%` directive marker and the character before the
 is not a directive boundary, the renderer inserts one space before the branch, and
 likewise after a trailing `%name…` directive when the next character is a word
 character. So `Review:%{%m:opus | %m:sonnet}` launches `Review: %m:opus` with the opus
-model, and `foo %{%m:opus | %m:sonnet}bar` launches `foo %m:opus bar`. `#xprompt`
+model, and `foo %{%m:opus | %m:sonnet}bar` launches `foo %m:opus bar`. `#macro`
 references and `+tag`s in a glued branch are substituted verbatim, so put whitespace
 before the `%{` to keep them references.
 
@@ -3253,7 +3280,7 @@ prompts retain their plain `%id` value unchanged. When two models share a runtim
 `foo.cld-opus` and `foo.cld-sonnet`. Long model slugs are replaced with a short alias
 declared by the provider plugin, so a same-runtime agy fan-out can read as
 `foo.agy-flash36h` / `foo.agy-flash35h` rather than echoing the full model string. Model
-arguments used for naming are first resolved through xprompt shorthand expansion, while
+arguments used for naming are first resolved through macro shorthand expansion, while
 the launched prompt keeps the original `%model` value. For example,
 `%i:ag %{%m:#flash | %m:#pro}` can launch agents named `ag.agy-flash35h` and
 `ag.agy-flash36h`.
@@ -3281,8 +3308,8 @@ weighted load plus this launch's weight fits within its authored budget of 1.
 
 ## Command Substitution
 
-XPrompt arguments support shell command substitution using `$(cmd)` syntax. The command
-is executed via the shell and its output replaces the `$(cmd)` expression.
+Macro arguments support shell command substitution using `$(cmd)` syntax. The command is
+executed via the shell and its output replaces the `$(cmd)` expression.
 
 ```
 #bug:$(branch_bug)           # Use output of branch_bug command as the argument
@@ -3300,8 +3327,8 @@ redundant execution.
 
 ### Fenced Code Blocks
 
-Content inside triple-backtick fenced code blocks is automatically protected from
-xprompt expansion:
+Content inside triple-backtick fenced code blocks is automatically protected from macro
+expansion:
 
 ````
 Here's an example:
@@ -3321,42 +3348,42 @@ model prompt. See [Experimental typed launch units](#experimental-typed-launch-u
 
 ### Disabled Regions
 
-You can explicitly disable xprompt expansion for a region of text using the
-`%xprompts_enabled` directive:
+You can explicitly disable macro expansion for a region of text using the
+`%macros_enabled` directive:
 
 ```
-%xprompts_enabled:false
+%macros_enabled:false
 This content is passed through verbatim.
 #foo will NOT be expanded here.
-%xprompts_enabled:true
+%macros_enabled:true
 Normal expansion resumes here.
 #foo WILL be expanded.
 ```
 
-The markers are stripped from the final output. This is useful for embedding raw xprompt
+The markers are stripped from the final output. This is useful for embedding raw macro
 syntax in documentation or for passing literal `#name` patterns to downstream consumers.
 
-The closing `%xprompts_enabled:true` marker may appear either on its own line or
+The closing `%macros_enabled:true` marker may appear either on its own line or
 **inline** at the end of a content line. In both forms the marker (and any whitespace
 immediately preceding an inline marker) is stripped from the final output, so prompts
 authored as natural prose can re-enable expansion mid-line:
 
 ```
-%xprompts_enabled:false
-... raw content where #foo and @bar are passed through verbatim. %xprompts_enabled:true
+%macros_enabled:false
+... raw content where #foo and @bar are passed through verbatim. %macros_enabled:true
 And expansion resumes here.
 ```
 
-## XPrompt Aliases
+## Macro Aliases
 
-XPrompt aliases provide raw text-level substitution that runs _before_ any other xprompt
-processing. They are defined in the `xprompt_aliases` config field in `sase.yml`.
+Macro aliases provide raw text-level substitution that runs _before_ any other macro
+processing. They are defined in the `macro_aliases` config field in `sase.yml`.
 
-These are global shorthand aliases for xprompt names and raw refs. They are separate
-from ProjectSpec `PROJECT_NAME` and `PROJECT_ALIASES`, which map friendly project refs
-such as `bob` to canonical directory-key projects such as `gh_bbugyi200__bob` at the
-launch boundary. Project names and aliases are canonicalized before xprompt expansion so
-launch artifacts and history store the canonical directory-key project name.
+These are global shorthand aliases for macro names and raw refs. They are separate from
+ProjectSpec `PROJECT_NAME` and `PROJECT_ALIASES`, which map friendly project refs such
+as `bob` to canonical directory-key projects such as `gh_bbugyi200__bob` at the launch
+boundary. Project names and aliases are canonicalized before macro expansion so launch
+artifacts and history store the canonical directory-key project name.
 
 The built-in defaults provide two shorthand aliases:
 
@@ -3368,23 +3395,22 @@ The built-in defaults provide two shorthand aliases:
 Additional aliases can be added in user config files:
 
 ```yaml
-xprompt_aliases:
+macro_aliases:
   deploy_notes: "release-notes" # #deploy_notes → #release-notes
   gh_foo: "gh:foo/bar" # #gh_foo  → #gh:foo/bar
 ```
 
 When the processor encounters `#alias_name` in a prompt, it replaces the alias name
-portion with the target string before any xprompt resolution occurs. This is
-particularly useful when the target contains characters (like `:`) that must be present
-in the raw text for other processing logic — such as VCS directory-switching — to work
-correctly.
+portion with the target string before any macro resolution occurs. This is particularly
+useful when the target contains characters (like `:`) that must be present in the raw
+text for other processing logic — such as VCS directory-switching — to work correctly.
 
-See [Configuration Reference: xprompt_aliases](configuration.md#xprompt_aliases) for the
+See [Configuration Reference: macro_aliases](configuration.md#macro_aliases) for the
 full field specification.
 
 ## Recursive Expansion
 
-XPrompt bodies can reference other xprompts. Expansion is iterative: after each round of
+Macro bodies can reference other macros. Expansion is iterative: after each round of
 substitution, the result is scanned again for new `#name` references. This continues
 until no known references remain, up to a maximum of 100 iterations (to guard against
 circular references).
@@ -3394,17 +3420,16 @@ circular references).
 A single prompt can launch multiple agents by using YAML frontmatter and `---` segment
 separators. SASE plans the segments in document order, but agents do not wait for
 earlier segments unless you add a dependency such as `%wait:<name>` or bare `%wait`. The
-same `---`-separator convention also applies inside an xprompt body -- see
-[Xprompt Swarms (Library-Defined Fan-Out)](#xprompt-swarms-library-defined-fan-out)
-below.
+same `---`-separator convention also applies inside a macro body -- see
+[Macro Swarms (Library-Defined Fan-Out)](#macro-swarms-library-defined-fan-out) below.
 
 Within one multi-agent launch, bare `%wait` / `%w` in any segment after the first means
 "wait for the previous launched segment." Empty or whitespace-only parentheses
-(`%wait()`, `%wait( )`) count as bare, including when the wait is introduced by xprompt
+(`%wait()`, `%wait( )`) count as bare, including when the wait is introduced by macro
 expansion. If the previous segment fans out, the dependency targets that segment's last
 launched child; siblings in the current segment all inherit the same previous-segment
 dependency. Explicit waits such as `%wait:agent`, bead/time waits, `%queue`, and waits
-inside fenced code or disabled xprompt regions keep their normal meanings. If the
+inside fenced code or disabled macro regions keep their normal meanings. If the
 predecessor name is not known yet, SASE records the predecessor artifact identity and
 waits on that agent or session completion instead of resolving bare `%wait` against the
 global latest agent.
@@ -3412,9 +3437,9 @@ global latest agent.
 ### Frontmatter Panel (sase's TUI)
 
 In the `sase tui` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter
-Panel** above the prompt stack, with the same field set an xprompt `.md` file supports
-(`name`, `description`, `tags`, `input`, `xprompts`, `skill`, `snippet`). Open or focus
-it with the prompt NORMAL-mode `g=` keymap; in the panel's rows mode, `g=` runs the
+Panel** above the prompt stack, with the same field set a macro `.md` file supports
+(`name`, `description`, `tags`, `input`, `macros`, `skill`, `snippet`). Open or focus it
+with the prompt NORMAL-mode `g=` keymap; in the panel's rows mode, `g=` runs the
 deactivate/apply path. `q` or `Esc` in rows mode—or from NORMAL mode inside any panel
 sub-editor—returns focus to the prompt pane you entered from; an invalid raw-YAML buffer
 remains open so it cannot be discarded accidentally. In rows mode, `gj` jumps directly
@@ -3431,46 +3456,46 @@ live-validated raw-YAML escape hatch. In raw mode, `Ctrl+C` explicitly discards 
 unparseable buffer. Unknown frontmatter keys remain visible as raw-only rows and survive
 structured round trips.
 
-The structured `input` and `xprompts` fields render as foldable sub-trees (`h`/`l`):
+The structured `input` and `macros` fields render as foldable sub-trees (`h`/`l`):
 navigate into them with `j`/`k`, use `o`/`A` to insert a ghost row, `e`/`enter` to edit
 an item in place, `d` to delete, and `J`/`K` to reorder. Cell editing uses
 `Tab`/`Shift+Tab`; `Enter` commits while remaining in the panel. Input types cycle
 through the core type catalog and defaults are live-coerced. Local-helper content uses a
 bounded multiline editor in the panel. A `#_helper` declared here lights up
 `<ctrl+t>`/`<ctrl+l>` completion and argument hints in every prompt pane exactly like a
-global xprompt — define a helper in the panel and it is instantly usable below.
+global macro — define a helper in the panel and it is instantly usable below.
 
-sase's TUI can also author existing definitions without `$EDITOR`. In the XPrompt
-Browser, `Enter` loads a simple Markdown or config-backed definition as raw body plus
-structured frontmatter; `E` keeps the external-editor path, and YAML workflow graphs
-remain editor-only. A loaded definition is bound to its source: the prompt title shows
-the source and a dirty dot, `gw` writes it atomically, and an external-change conflict
+sase's TUI can also author existing definitions without `$EDITOR`. In the Macro Browser,
+`Enter` loads a simple Markdown or config-backed definition as raw body plus structured
+frontmatter; `E` keeps the external-editor path, and YAML workflow graphs remain
+editor-only. A loaded definition is bound to its source: the prompt title shows the
+source and a dirty dot, `gw` writes it atomically, and an external-change conflict
 offers overwrite, reload, or save-as. `gd` on a `#name` reference loads that definition
 after stashing the current draft. `gX` is a one-screen save-as view with name, location,
 resolved path, and a live collision/overwrite preview.
 
-### Frontmatter-Defined Local XPrompts
+### Frontmatter-Defined Local Macros
 
-YAML frontmatter at the start of a prompt can define local xprompts under the
-`xprompts:` key. These are defined once in the frontmatter and each segment receives
-only the local xprompts it actually references (including transitive dependencies).
-Local xprompt names **must** start with `_` to distinguish them from global xprompts.
+YAML frontmatter at the start of a prompt can define local macros under the `macros:`
+key. These are defined once in the frontmatter and each segment receives only the local
+macros it actually references (including transitive dependencies). Local macro names
+**must** start with `_` to distinguish them from global macros.
 
 ```
 ---
-xprompts:
+macros:
   _review_rules: "Always check for error handling and edge cases."
 ---
 #_review_rules
 Review the authentication module.
 ```
 
-Local xprompts support the same structured format as config-based xprompts (typed
-inputs, Jinja2 content):
+Local macros support the same structured format as config-based macros (typed inputs,
+Jinja2 content):
 
 ```
 ---
-xprompts:
+macros:
   _template:
     input: { target: word }
     content: "Review the {{ target }} module."
@@ -3481,7 +3506,7 @@ xprompts:
 ### Frontmatter-Declared Inputs
 
 Prompt frontmatter can also declare `input:` arguments using the same typed shorthand as
-xprompt files (see [Typed Inputs](#typed-inputs)). The declared values are substituted
+macro files (see [Typed Inputs](#typed-inputs)). The declared values are substituted
 into every segment's `{{ name }}` placeholders before the agents fan out:
 
 ```
@@ -3516,7 +3541,7 @@ segment separators. Each segment launches as a separate agent:
 
 ```
 ---
-xprompts:
+macros:
   _common: "Follow the project coding conventions."
 ---
 %id:step1
@@ -3531,7 +3556,7 @@ Write tests for the new feature.
 
 This launches two agents. `step2` starts after `step1` succeeds because the second
 segment includes `%wait:step1`; if that line were omitted, both agents would be eligible
-to run independently. Both agents share the `_common` local xprompt.
+to run independently. Both agents share the `_common` local macro.
 
 ### Cross-Agent Output Variables
 
@@ -3631,7 +3656,7 @@ alongside it.
 
 sase's TUI renders loaded literal `---` multi-agent prompts as a prompt stack: each
 top-level segment becomes an editable pane, while prompt-level frontmatter and
-fenced-code separators keep the same parsing rules described below. A `#name` xprompt
+fenced-code separators keep the same parsing rules described below. A `#name` macro
 swarm invocation remains a single pane until launch. During live editing, typed `---`
 lines are ordinary prompt text; add panes explicitly from the prompt-stack controls.
 Stash restore and marked-agent kill-and-edit can also seed multiple panes, but those
@@ -3650,7 +3675,7 @@ the default active-pane behavior.
 - After frontmatter is consumed, all subsequent `---` lines are segment separators.
 - If there is no frontmatter, ALL `---` lines are segment separators.
 - A prompt with frontmatter but only one segment is a single-agent prompt with local
-  xprompts (not multi-agent).
+  macros (not multi-agent).
 - `---` inside fenced code blocks is not treated as a separator.
 - When a multi-agent prompt a user submitted is saved to prompt history, each individual
   segment is also saved as a separate entry. This allows segments to appear
@@ -3658,18 +3683,18 @@ the default active-pane behavior.
   to user-submitted multi-prompts: machine-originated launches write no history rows at
   all.
 
-### Xprompt Swarms (Library-Defined Fan-Out)
+### Macro Swarms (Library-Defined Fan-Out)
 
-An xprompt itself can be an xprompt swarm: its body contains `---` separators (outside
-fenced blocks), and referencing it as the sole content of a user-prompt segment fans the
-call out into one agent per body segment. The spawned agents share the same input
-arguments -- each segment is rendered with the same `(args)` substituted in. The
-catalog, TUI picker, and completion UI display markdown-defined xprompt swarms with the
-inline marker (`#name`). The older `#!name` form is still recognized for xprompt swarms
-for compatibility, but new prompts should use `#name`.
+A macro itself can be a macro swarm: its body contains `---` separators (outside fenced
+blocks), and referencing it as the sole content of a user-prompt segment fans the call
+out into one agent per body segment. The spawned agents share the same input arguments
+-- each segment is rendered with the same `(args)` substituted in. The catalog, TUI
+picker, and completion UI display markdown-defined macro swarms with the inline marker
+(`#name`). The older `#!name` form is still recognized for macro swarms for
+compatibility, but new prompts should use `#name`.
 
 ```
-# sase/xprompts/three_phase.md
+# sase/macros/three_phase.md
 ---
 input:
   target: word
@@ -3712,16 +3737,16 @@ Summarize both reports.
 ```
 
 During swarm expansion, each unqualified `{@1}` is rewritten to an invocation-specific
-qualified key before dispatch, so overlapping launches of the same xprompt cannot steal
+qualified key before dispatch, so overlapping launches of the same macro cannot steal
 each other's clan or hood. Use `{@shared!}` only when a nested swarm should
 intentionally share a key with its caller. See [Directives](#directives) for the
 complete keyed-marker grammar and dispatch-scoping rules.
 
 Detection happens at dispatch time (after standard `parse_multi_prompt`), in
-`src/sase/agent/xprompt_swarm.py`, and applies at every dispatch site (`sase run`, the
-TUI agent launcher, the query handler).
+`src/sase/agent/macro_swarm.py`, and applies at every dispatch site (`sase run`, the TUI
+agent launcher, the query handler).
 
-Xprompt swarms can also be embedded inside a larger prompt. In that case, the first
+Macro swarms can also be embedded inside a larger prompt. In that case, the first
 rendered body segment is embedded at the reference location and the remaining rendered
 body segments become follow-up agent prompts:
 
@@ -3739,33 +3764,33 @@ segment and prefixes `+sase` onto follow-ups.
 
 #### Rules and Limitations
 
-- A sole xprompt swarm reference replaces the whole segment with its generated segments.
-  An embedded xprompt swarm reference replaces only that reference with the first
+- A sole macro swarm reference replaces the whole segment with its generated segments.
+  An embedded macro swarm reference replaces only that reference with the first
   generated segment, then appends the remaining generated segments as follow-ups.
-- A user-prompt segment can contain multiple xprompt swarm references. They expand fully
+- A user-prompt segment can contain multiple macro swarm references. They expand fully
   in document order. Text before the first reference attaches to the first generated
   segment only; text between references and after the last reference is discarded.
-- Ordinary inline xprompt references inside an xprompt swarm body remain inline xprompt
+- Ordinary inline macro references inside a macro swarm body remain inline macro
   references; the agent runner expands them later as normal prompt text.
-- `---` inside fenced code blocks in the xprompt body is not treated as a separator.
-- Recursive fan-out (an xprompt swarm body whose own segments reference more xprompt
-  swarms) is bounded by a depth cap and will raise if exceeded.
+- `---` inside fenced code blocks in the macro body is not treated as a separator.
+- Recursive fan-out (a macro swarm body whose own segments reference more macro swarms)
+  is bounded by a depth cap and will raise if exceeded.
 
 ## Relationship to Workflows
 
-XPrompts and [workflows](workflow_spec.md) share the same argument grammar, but the
-marker communicates how the reference is allowed to participate in a prompt:
+Macros and [workflows](workflow_spec.md) share the same argument grammar, but the marker
+communicates how the reference is allowed to participate in a prompt:
 
-- `#name(args)` expands inline-capable xprompts and workflows with a `prompt_part` step,
-  including markdown-defined xprompt swarms that fan out into multiple prompt segments.
+- `#name(args)` expands inline-capable macros and workflows with a `prompt_part` step,
+  including markdown-defined macro swarms that fan out into multiple prompt segments.
 - `#!name(args)` launches standalone YAML workflows that have no `prompt_part` step.
 
-Simple markdown xprompts are converted internally to single-step workflows with a
+Simple markdown macros are converted internally to single-step workflows with a
 `prompt_part` step, so they remain inline-capable and continue to use `#name`, even when
 their body contains top-level `---` segment separators.
 
 YAML workflow files can set a top-level `description` and use the same input-description
-forms as markdown or config-defined xprompts:
+forms as markdown or config-defined macros:
 
 ```yaml
 description: Refresh generated docs and report drift.
@@ -3778,7 +3803,7 @@ steps:
     bash: just docs
 ```
 
-Workflow agent steps can embed xprompt references inline:
+Workflow agent steps can embed macro references inline:
 
 ```yaml
 steps:
@@ -3794,32 +3819,32 @@ workflows, control flow, parallel execution, and human-in-the-loop approval.
 
 If a launch prompt contains an unknown `#name` reference, SASE warns before launch and
 passes the text through literally. This is non-blocking so prose hashtags can still be
-used, but typos such as `#reviewww` are visible at `sase run`, `sase xprompt expand`,
-and from the `sase tui` prompt bar.
+used, but typos such as `#reviewww` are visible at `sase run`, `sase macro expand`, and
+from the `sase tui` prompt bar.
 
 If a definition file is malformed, run:
 
 ```bash
-sase xprompt list
-sase doctor -C config.xprompt_definitions
+sase macro list
+sase doctor -C config.macro_definitions
 ```
 
-Both commands report `skipped: <file>: <error>` lines for xprompt or workflow
-definitions that could not be loaded.
+Both commands report `skipped: <file>: <error>` lines for macro or workflow definitions
+that could not be loaded.
 
 If a launch fails with a directive migration error such as
 `%wait(priority=...) has moved to %queue`, run:
 
 ```bash
-sase doctor -C config.xprompt_directives
+sase doctor -C config.macro_directives
 ```
 
 The check locates the definition file that still uses retired directive syntax. It scans
-every loaded xprompt body and each workflow's `prompt_part` text for `%name` / `%n`,
+every loaded macro body and each workflow's `prompt_part` text for `%name` / `%n`,
 `%tribe` / `%t`, `%time`, `%edit`, and `%wait(...)` / `%w(...)` calls that pass
 `runners=`, `capacity=`, `priority=`, or `p=`, and prints each hit as
 `<name> (<source>):<line>: <directive> — <migration hint>`. Code spans, fenced blocks,
 and disabled regions are skipped. Findings are a `WARN`, so `sase doctor` still exits
-`0` unless you add `-s/--strict`. Remember that a personal `~/sase/xprompts/<name>.md`
-or project `sase/xprompts/` copy shadows a plugin or package xprompt of the same name,
-and `sase xprompt show <name>` reveals which definition wins.
+`0` unless you add `-s/--strict`. Remember that a personal `~/sase/macros/<name>.md` or
+project `sase/macros/` copy shadows a plugin or package macro of the same name, and
+`sase macro show <name>` reveals which definition wins.

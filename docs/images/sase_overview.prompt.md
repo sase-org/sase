@@ -48,7 +48,7 @@ The deterministic labels are:
 
 - Header: `SASE` and `Structured Agentic Software Engineering`
 - Operator controls: `You`, `sase's TUI` / `interactive`, and `AXE` / `scheduled`
-- Input: `ONE PROMPT`, `Prompt`, `XPrompt`, and `Workflow`
+- Input: `ONE PROMPT`, `Prompt`, `Macro`, and `Workflow`
 - Fan-out: `PARALLEL AGENTS`; `Workspace 1` / `Claude Code`; `Workspace 2` / `Codex`;
   and `Workspace 3` / `Antigravity CLI`
 - Durable state: `Patches`, `Beads`, `Commits`, and `Artifacts`

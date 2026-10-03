@@ -61,8 +61,8 @@ Required exact labels, keep them large and readable:
   `attachments: images/, commands_registered_ts, project_context.json`
 - Telegram badges: `Plan Approval`, `HITL`, `Question`, `Workflow Complete`,
   `Agent Launched`, `Agent Killed`, `Error Digest`, `Image Generated`
-- Telegram command badges: `/list`, `/kill`, `/resume`, `/changes`, `/xprompts`,
-  `/bead`, `/update`
+- Telegram command badges: `/list`, `/kill`, `/resume`, `/changes`, `/macros`, `/bead`,
+  `/update`
 - Plan approval buttons: `Tale`, `Approve`, `Epic`, `Reject`, `Feedback`
 - Footnote near launch arrow:
   `Launch disabled when SASE_TELEGRAM_LAUNCH_AGENTS_DISABLED is set`

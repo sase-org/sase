@@ -36,13 +36,13 @@ def test_installed_core_glossary_line_break_matching() -> None:
     module = importlib.import_module("sase_core_rs")
 
     assert tool.validate_line_break_matching(module) == {
-        "term": "Xprompt Memory",
-        "matched_text": "xprompt\n  memory",
+        "term": "Macro Memory",
+        "matched_text": "macro\n  memory",
         "segment_count": 2,
         "segment_ranges": [
             {
                 "start": {"line": 0, "character": 4},
-                "end": {"line": 0, "character": 11},
+                "end": {"line": 0, "character": 9},
             },
             {
                 "start": {"line": 1, "character": 2},
