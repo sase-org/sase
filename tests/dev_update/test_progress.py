@@ -595,7 +595,7 @@ def test_reconcile_step_titles_and_merge_details() -> None:
         "rust_dev_install": "Rebuild Rust core into uv-tool venv",
         "rust_install_uv_tool": "Rebuild Rust core into uv-tool venv",
         "rust_health_check": "Verify sase-core-rs imports",
-        "rust_lsp_install": "Install xprompt LSP",
+        "rust_lsp_install": "Install macro LSP",
     }
     for kind, title in kinds.items():
         step = DevReconcileStep(kind=kind, label="original label", command=("x",))  # type: ignore[arg-type]

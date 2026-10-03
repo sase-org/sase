@@ -29,7 +29,7 @@ def test_compose_followup_prompt_completed_includes_fork_prefix_and_exit_code() 
     assert "```text\njust check-full\n```" in prompt
     assert "sase monitor show m4kqm4kqm4kq --all-lines" in prompt
     assert _COMMON["next_action"] in prompt
-    assert prompt.rstrip().endswith("%xprompts_enabled:true")
+    assert prompt.rstrip().endswith("%macros_enabled:true")
 
 
 def test_compose_followup_prompt_default_auto_completed_omits_raw_tail() -> None:
@@ -101,5 +101,5 @@ def test_compose_followup_prompt_omits_fork_prefix_when_starter_did_not_settle()
     )
 
     assert "#fork:" not in prompt
-    assert prompt.startswith("%xprompts_enabled:false\n")
+    assert prompt.startswith("%macros_enabled:false\n")
     assert "# Monitored command finished" in prompt

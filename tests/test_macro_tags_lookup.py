@@ -251,7 +251,7 @@ def test_get_by_tag_strict_multiple_raises() -> None:
     )
     mock_prompts = {"mentor1": wf1, "mentor2": wf2}
     with patch("sase.macro.loader.get_all_prompts", return_value=mock_prompts):
-        with pytest.raises(ValueError, match="Multiple xprompts found with tag"):
+        with pytest.raises(ValueError, match="Multiple macros found with tag"):
             get_by_tag_strict(MacroTag.mentor)
 
 

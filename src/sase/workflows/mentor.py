@@ -74,7 +74,7 @@ def _build_mentor_prompt(
     mentor_wf = get_by_tag_strict(MacroTag.mentor, project=project)
     if mentor_wf is None:
         raise RuntimeError(
-            "No xprompt with tag 'mentor' found. "
+            "No macro with tag 'mentor' found. "
             "Ensure src/sase/macros/mentor.yml is installed."
         )
 
@@ -106,7 +106,7 @@ def _build_mentor_prompt(
     prompt_part_content = mentor_wf.get_prompt_part_content()
     if not prompt_part_content:
         raise RuntimeError(
-            "The #mentor xprompt has no prompt_part step. "
+            "The #mentor macro has no prompt_part step. "
             "Check src/sase/macros/mentor.yml."
         )
     return render_template(prompt_part_content, context)

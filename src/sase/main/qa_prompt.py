@@ -34,7 +34,7 @@ def build_qa_round(
 def merge_qa_for_prompt(rounds: list[QARound]) -> str:
     """Render accumulated Q&A rounds as a single prompt-bound section."""
     body = build_merged_qa_markdown(rounds)
-    return f"%xprompts_enabled:false\n{body}\n%xprompts_enabled:true"
+    return f"%macros_enabled:false\n{body}\n%macros_enabled:true"
 
 
 def assemble_question_followup_prompt(

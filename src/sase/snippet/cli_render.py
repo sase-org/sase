@@ -192,7 +192,7 @@ def show_markdown(entry: SnippetEntry, *, project_name: str) -> str:
         writable = "writable" if item.writable else "read-only"
         lines.append(f"- {item.kind} (`{path}`) · {writable} · {marker}")
         if item.macro_name:
-            lines.append(f"  - xprompt: {item.macro_name}")
+            lines.append(f"  - macro: {item.macro_name}")
     if entry.diagnostics:
         lines.extend(["", "## Diagnostics", ""])
         for diagnostic in entry.diagnostics:
@@ -226,7 +226,7 @@ def _field_rows(entry: SnippetEntry) -> list[RenderableType]:
         _kv("Origin", f"{entry.origin.kind}  {origin_path}"),
     ]
     if entry.origin.macro_name:
-        rows.append(_kv("Xprompt", entry.origin.macro_name))
+        rows.append(_kv("Macro", entry.origin.macro_name))
     return rows
 
 

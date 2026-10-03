@@ -53,7 +53,7 @@ _SASE_PACKAGE_MACROS_RESOURCE = ("macros",)
 _SASE_PACKAGE_SKILLS_RESOURCE = ("macros", "skills")
 
 SKILL_PLACEMENT_ISSUE_KIND = "skill_placement"
-"""``XPromptLoadIssue.kind`` for definitions the placement rules rejected."""
+"""``MacroLoadIssue.kind`` for definitions the placement rules rejected."""
 
 _PLUGIN_XPROMPT_DESTINATION = "the plugin's macros/ resource directory"
 _PLUGIN_SKILL_DESTINATION = "the plugin's skills/ resource directory"

@@ -253,7 +253,7 @@ def write_error_report(
             lines.extend(
                 [
                     "",
-                    "## Submitted XPrompt",
+                    "## Submitted Prompt",
                     "",
                     format_markdown_fenced_block(submitted_prompt, "markdown"),
                 ]

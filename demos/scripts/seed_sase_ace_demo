@@ -80,7 +80,7 @@ llm_provider:
         model: agy/gemini-3.1-pro-high
         description: Antigravity Gemini 3.1 Pro model used by the multi-model fan-out demo.
 
-xprompts:
+macros:
   add_tests:
     description: Add focused tests for a source file.
     input:
@@ -238,7 +238,7 @@ TEXT
 cat >"$workspace/docs/prompt_input_notes.md" <<'MARKDOWN'
 # Prompt Input Notes
 
-- `#add_tests` demonstrates xprompt completion with a path input.
+- `#add_tests` demonstrates macro completion with a path input.
 - `@src/nova/parser.py` demonstrates file completion rooted in the fake workspace.
 MARKDOWN
 
@@ -614,7 +614,7 @@ EOF
   "output_path": "$dir/output.log"
 }
 EOF
-  cat >"$dir/raw_xprompt.md" <<EOF
+  cat >"$dir/raw_prompt.md" <<EOF
 %id $name
 
 $summary

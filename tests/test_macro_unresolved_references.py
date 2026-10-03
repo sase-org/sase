@@ -181,7 +181,7 @@ def test_process_macro_references_raise_on_error_skips_print_and_exit(
 
     print_status.assert_not_called()
     message = str(exc_info.value)
-    assert "XPrompt '#typed' argument error:" in message
+    assert "Macro '#typed' argument error:" in message
     assert "received 4 positional arguments but declares 3 inputs" in message
     assert "surplus positional 2 bound to 'wait'" in message
 
@@ -201,5 +201,5 @@ def test_process_macro_references_default_still_prints_and_exits(
 
     print_status.assert_called_once()
     printed = print_status.call_args.args[0]
-    assert "XPrompt '#typed' argument error:" in printed
+    assert "Macro '#typed' argument error:" in printed
     assert "surplus positional 2 bound to 'wait'" in printed

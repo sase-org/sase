@@ -28,8 +28,8 @@ before the tape setup commands run.
 
 `demos/scripts/seed_sase_ace_demo` creates the fake HOME, SASE_HOME, local bare-git
 project, hosted-looking GitHub project, GitHub SDD sidecar, terminal agent artifacts,
-and curated xprompts used by the tapes. A local SSH shim serves the fictional
-`acme/nova` repositories, so the GitHub workspace path never reaches the network.
+and curated macros used by the tapes. A local SSH shim serves the fictional `acme/nova`
+repositories, so the GitHub workspace path never reaches the network.
 
 Run:
 

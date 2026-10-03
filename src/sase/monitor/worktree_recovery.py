@@ -65,11 +65,11 @@ def append_worktree_recovery_hint(prompt: str, snapshot_path: str | None) -> str
         "failed. A best-effort recovery diff was saved here:\n\n"
         f"```text\n{snapshot_path}\n```\n"
     )
-    marker = "%xprompts_enabled:true"
     stripped = prompt.rstrip()
-    if stripped.endswith(marker):
-        prefix = stripped[: -len(marker)].rstrip()
-        return f"{prefix}{hint}\n{marker}"
+    for marker in ("%macros_enabled:true", "%xprompts_enabled:true"):
+        if stripped.endswith(marker):
+            prefix = stripped[: -len(marker)].rstrip()
+            return f"{prefix}{hint}\n{marker}"
     return f"{stripped}{hint}"
 
 

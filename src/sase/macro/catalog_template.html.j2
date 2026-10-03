@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>xprompts Catalog</title>
+<title>macros Catalog</title>
 <style>
 {{ css_text | safe }}
 </style>
@@ -13,7 +13,7 @@
      Cover page
      ====================================================================== -->
 <section class="cover">
-  <h1 class="cover-title">xprompts Catalog</h1>
+  <h1 class="cover-title">macros Catalog</h1>
   <p class="cover-subtitle">A complete reference for this sase environment</p>
 
   <div class="cover-counts">
@@ -35,7 +35,7 @@
 
   <div class="cover-accent-block">
     <div class="cover-footer">
-      <span>sase · xprompts catalog</span>
+      <span>sase · macros catalog</span>
       <span>Generated {{ generated_date }}</span>
     </div>
   </div>
@@ -115,7 +115,7 @@
             </div>
           {% endfor %}
         {% else %}
-          <p class="empty-line">No project-local xprompts.</p>
+          <p class="empty-line">No project-local macros.</p>
         {% endif %}
       </div>
 
@@ -148,7 +148,7 @@
   {% set ns = namespace(count=0) %}
   {% for _, entries in groups %}{% set ns.count = ns.count + entries | length %}{% endfor %}
   <section class="section-divider">
-    <h2>{{ bucket | bucket_label }} xprompts</h2>
+    <h2>{{ bucket | bucket_label }} macros</h2>
     <div class="section-count">
       {{ ns.count }} prompts
     </div>

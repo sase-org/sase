@@ -30,7 +30,7 @@ The automated check covers:
 - `sase version -j` discovery of `sase-github` and `sase-telegram` plugin packages, plus
   `sase axe job list -j` and `sase axe job doctor -j` for `sase-telegram` job scripts.
 - `sase doctor -j` with warnings tolerated and hard errors rejected.
-- A scratch git repository using provider-independent CLI flows: help, xprompt list,
+- A scratch git repository using provider-independent CLI flows: help, macro list,
   config dump, and beads.
 - A second fresh `uv venv` plus `uv pip install` flow that repeats the version, Rust
   import, and plugin checks.

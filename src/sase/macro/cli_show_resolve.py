@@ -420,7 +420,7 @@ def _hosted_url_for_definition(
     revision_result = run_git(
         primary_root,
         ["rev-parse", "HEAD"],
-        op="xprompt_show.revision",
+        op="macro_show.revision",
     )
     primary_revision = revision_result.stdout.strip()
     if revision_result.returncode != 0 or not primary_revision:

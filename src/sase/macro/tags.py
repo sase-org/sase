@@ -50,9 +50,7 @@ def parse_tags(raw: str | list[str] | None) -> frozenset[MacroTag]:
     tags: list[MacroTag] = []
     for name in names:
         if name not in valid:
-            raise ValueError(
-                f"Unknown xprompt tag {name!r}. Valid tags: {sorted(valid)}"
-            )
+            raise ValueError(f"Unknown macro tag {name!r}. Valid tags: {sorted(valid)}")
         tags.append(MacroTag(name))
     return frozenset(tags)
 
@@ -147,7 +145,7 @@ def get_by_tag_strict(tag: MacroTag, project: str | None = None) -> Workflow | N
     if len(winners) > 1:
         names = [m.name for m in winners]
         raise ValueError(
-            f"Multiple xprompts found with tag {tag.value!r}: {names}. "
+            f"Multiple macros found with tag {tag.value!r}: {names}. "
             "Only one highest-priority match is allowed."
         )
     return winners[0]

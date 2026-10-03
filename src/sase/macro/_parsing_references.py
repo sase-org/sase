@@ -13,7 +13,7 @@ from ._parsing_shorthand import find_double_colon_text_end, find_shorthand_text_
 
 
 MACRO_REFERENCE_LEADING_CONTEXT = r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-"""Regex fragment for positions where an xprompt reference may start."""
+"""Regex fragment for positions where a macro reference may start."""
 
 MACRO_REFERENCE_MARKER_FRAGMENT = r"(?P<marker>#!|#)"
 """Regex fragment for inline (``#``) and standalone (``#!``) markers."""
@@ -21,7 +21,7 @@ MACRO_REFERENCE_MARKER_FRAGMENT = r"(?P<marker>#!|#)"
 MACRO_REFERENCE_NAME_FRAGMENT = (
     r"(?P<name>[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
 )
-"""Regex fragment for an xprompt/workflow name."""
+"""Regex fragment for a macro/workflow name."""
 
 MACRO_REFERENCE_HITL_SUFFIX_FRAGMENT = r"(?P<hitl>!!|\?\?)?"
 """Regex fragment for an optional HITL override suffix."""
@@ -41,7 +41,7 @@ MACRO_REFERENCE_PATTERN = re.compile(
     + MACRO_REFERENCE_ARGUMENT_FRAGMENT,
     re.MULTILINE,
 )
-"""Shared lexical matcher for xprompt and standalone workflow references."""
+"""Shared lexical matcher for macro and standalone workflow references."""
 
 
 class MacroReferenceMarker(Enum):

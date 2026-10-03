@@ -28,8 +28,8 @@ def _resolve_bead_macro(tag: MacroTag, project: str | None = None) -> Workflow:
     wf = get_by_tag_strict(tag, project=project)
     if wf is None:
         raise BeadMacroNotFoundError(
-            f"No xprompt is tagged with {tag.value!r}. Tag a built-in or "
-            f"custom xprompt with `tags: {tag.value}` to enable this role."
+            f"No macro is tagged with {tag.value!r}. Tag a built-in or "
+            f"custom macro with `tags: {tag.value}` to enable this role."
         )
     return wf
 

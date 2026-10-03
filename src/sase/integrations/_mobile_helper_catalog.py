@@ -169,5 +169,5 @@ def _patch_tags_message(count: int, skipped_count: int) -> str:
 
 def _macro_catalog_message(count: int, skipped_count: int) -> str:
     if skipped_count:
-        return f"loaded {count} xprompt(s), skipped {skipped_count}"
-    return f"loaded {count} xprompt(s)"
+        return f"loaded {count} macro(s), skipped {skipped_count}"
+    return f"loaded {count} macro(s)"

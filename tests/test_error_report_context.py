@@ -24,7 +24,7 @@ def test_write_error_report_includes_submitted_prompt(tmp_path: Path) -> None:
 
     text = _write_report(tmp_path, submitted_prompt=prompt)
 
-    assert "## Submitted XPrompt" in text
+    assert "## Submitted Prompt" in text
     assert prompt in text
     assert "```markdown" in text
 
@@ -56,7 +56,7 @@ def test_write_error_report_falls_back_to_raw_macro(tmp_path: Path) -> None:
 
     text = _write_report(tmp_path)
 
-    assert "## Submitted XPrompt" in text
+    assert "## Submitted Prompt" in text
     assert "#raw\n" in text
 
 

@@ -191,7 +191,7 @@ def test_validate_and_convert_args_extra_positional() -> None:
     with pytest.raises(MacroArgumentError) as exc_info:
         validate_and_convert_args(xp, ["a", "extra"], {})
     message = str(exc_info.value)
-    assert "XPrompt '#test' argument error:" in message
+    assert "Macro '#test' argument error:" in message
     assert "received 2 positional arguments but declares 1 input" in message
     assert "surplus positional 2 has no declaration" in message
 
@@ -213,7 +213,7 @@ def test_validate_and_convert_args_surplus_type_error_names_call() -> None:
             {},
         )
     message = str(exc_info.value)
-    assert "XPrompt '#research_swarm' argument error:" in message
+    assert "Macro '#research_swarm' argument error:" in message
     assert "received 4 positional arguments but declares 3 inputs" in message
     assert "surplus positional 2 bound to 'wait'" in message
 

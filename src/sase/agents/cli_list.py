@@ -127,7 +127,7 @@ def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
             Panel(
                 Text.from_markup(
                     "[dim]No running agents.[/dim]\n"
-                    "Start one with [bold]sase run <xprompt>[/bold] or"
+                    "Start one with [bold]sase run <macro>[/bold] or"
                     " [bold]sase tui[/bold]."
                 ),
                 title=title,

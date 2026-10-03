@@ -92,7 +92,7 @@ class MacroTargetResolver:
 
 
 def _git_revision(root: Path, git_runner: GitRunner) -> str | None:
-    result = git_runner(root, ["rev-parse", "HEAD"], op="xprompt_links.revision")
+    result = git_runner(root, ["rev-parse", "HEAD"], op="macro_links.revision")
     return result.stdout.strip() if result.returncode == 0 else None
 
 

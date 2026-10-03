@@ -1,4 +1,4 @@
-/* xprompts Catalog — print stylesheet */
+/* macros Catalog — print stylesheet */
 
 @page {
   size: A4;
@@ -284,7 +284,7 @@ h3 { font-size: 12pt; font-weight: 600; }
   page-break-after: avoid;
 }
 
-/* -- xprompt card -- */
+/* -- macro card -- */
 .card {
   break-inside: avoid;
   page-break-inside: avoid;

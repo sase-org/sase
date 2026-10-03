@@ -21,7 +21,7 @@ def test_compose_followup_prompt_prefixes_model_and_effort_directives() -> None:
     )
 
     assert prompt.startswith("#fork:acme--0\n%model:claude-sonnet-5\n%effort:high\n\n")
-    assert prompt.splitlines()[4] == "%xprompts_enabled:false"
+    assert prompt.splitlines()[4] == "%macros_enabled:false"
 
     _, directives = extract_prompt_directives(prompt)
     assert directives.model == "claude-sonnet-5"

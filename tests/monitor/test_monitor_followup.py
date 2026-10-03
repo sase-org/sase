@@ -306,7 +306,7 @@ def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(
     persisted_prompt = prompt_path.read_text(encoding="utf-8")
     assert "Report that it finished." in persisted_prompt
     assert "Worktree recovery diff" in persisted_prompt
-    assert persisted_prompt.endswith("%xprompts_enabled:true")
+    assert persisted_prompt.endswith("%macros_enabled:true")
     snapshot_path = Path(meta["monitor_worktree_recovery_diff_path"])
     snapshot = snapshot_path.read_text(encoding="utf-8")
     assert "dirty tracked" in snapshot

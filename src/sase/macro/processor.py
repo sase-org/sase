@@ -664,7 +664,7 @@ def process_macro_references_with_catalog(
             msg = format_circular_ref_diagnostic(trace, _MAX_EXPANSION_ITERATIONS)
         else:
             msg = (
-                f"Maximum xprompt expansion depth ({_MAX_EXPANSION_ITERATIONS}) "
+                f"Maximum macro expansion depth ({_MAX_EXPANSION_ITERATIONS}) "
                 "exceeded. Check for circular references."
             )
         _abort_expansion(MacroError(msg), raise_on_error=raise_on_error)

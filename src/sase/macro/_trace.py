@@ -71,7 +71,7 @@ def format_trace(trace: ExpansionTrace) -> str:
     iteration, with source file, arguments, and truncated output.
     """
     if not trace.records:
-        return "No xprompt references were expanded."
+        return "No macro references were expanded."
 
     lines: list[str] = []
     lines.append(
@@ -112,7 +112,7 @@ def format_circular_ref_diagnostic(trace: ExpansionTrace, max_iter: int) -> str:
     recent_iters = sorted(iter_names.keys())[-10:]
     if len(recent_iters) < 2:
         return (
-            f"Maximum xprompt expansion depth ({max_iter}) exceeded. "
+            f"Maximum macro expansion depth ({max_iter}) exceeded. "
             "Check for circular references."
         )
 
@@ -125,7 +125,7 @@ def format_circular_ref_diagnostic(trace: ExpansionTrace, max_iter: int) -> str:
     cycle_candidates = {name for name, count in name_counts.items() if count >= 2}
 
     lines: list[str] = [
-        f"Maximum xprompt expansion depth ({max_iter}) exceeded.",
+        f"Maximum macro expansion depth ({max_iter}) exceeded.",
     ]
 
     if cycle_candidates:

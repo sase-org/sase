@@ -192,7 +192,7 @@ def get_sase_package_macros_dir() -> Path:
         return candidate
 
     log.warning(
-        "Internal xprompts directory not found via importlib.resources('sase/macros')",
+        "Internal macros directory not found via importlib.resources('sase/macros')",
     )
     return candidate
 
@@ -209,7 +209,7 @@ def get_sase_package_default_macros_dir() -> Path:
         return candidate
 
     log.warning(
-        "Default xprompts directory not found via "
+        "Default macros directory not found via "
         "importlib.resources('sase/default_macros')",
     )
     return candidate

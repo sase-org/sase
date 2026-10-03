@@ -158,7 +158,7 @@ def refresh_runner_code_after_wait(
                 restore_local_macros_path(os.environ, previous_local_macros)
             print(
                 "Warning: Skipping sase runner code refresh because local "
-                f"xprompts could not be re-materialized: {exc}",
+                f"macros could not be re-materialized: {exc}",
                 file=sys.stderr,
                 flush=True,
             )

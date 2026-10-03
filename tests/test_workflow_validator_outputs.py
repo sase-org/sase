@@ -404,7 +404,7 @@ def test_cross_step_macro_content_validated() -> None:
     errors = validate_cross_step_field_refs(workflow)
     assert len(errors) == 1
     assert "pth" in errors[0]
-    assert "Xprompt '_helper'" in errors[0]
+    assert "Macro '_helper'" in errors[0]
 
 
 def test_cross_step_hitl_bash_approved_field() -> None:

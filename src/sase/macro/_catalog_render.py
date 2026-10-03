@@ -47,7 +47,7 @@ def build_macros_catalog(output_dir: Path | None = None) -> CatalogArtifact:
     """
     entries = gather_entries()
     if not entries:
-        raise NoMacrosFound("no xprompts visible to the sase runtime")
+        raise NoMacrosFound("no macros visible to the sase runtime")
 
     stats = compute_stats(entries)
     document = build_document(entries, stats)
@@ -229,7 +229,7 @@ def render_pdf(html: str, pdf_path: Path) -> None:
                 str(pdf_path),
                 pdf_engine,
                 "--metadata",
-                "title=xprompts Catalog",
+                "title=macros Catalog",
             ]
             try:
                 subprocess.run(cmd, check=True, capture_output=True)

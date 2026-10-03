@@ -266,7 +266,7 @@ def test_duplicate_tag_raises() -> None:
         "sase.macro.loader.get_all_prompts",
         return_value={a.name: a, b.name: b},
     ):
-        with pytest.raises(ValueError, match="Multiple xprompts"):
+        with pytest.raises(ValueError, match="Multiple macros"):
             resolve_land_epic_macro()
 
 

@@ -481,7 +481,7 @@ def parse_macro_entries(entries: dict[str, Any], source_path: str) -> dict[str, 
 
             record_load_issue(
                 source_path,
-                f"skipped xprompt entry with non-string name: {name!r}",
+                f"skipped macro entry with non-string name: {name!r}",
                 kind="config",
             )
             continue
@@ -504,7 +504,7 @@ def parse_macro_entries(entries: dict[str, Any], source_path: str) -> dict[str, 
 
                 record_load_issue(
                     source_path,
-                    f"skipped xprompt entry {name!r}: content must be a string",
+                    f"skipped macro entry {name!r}: content must be a string",
                     kind="config",
                 )
                 continue
@@ -527,7 +527,7 @@ def parse_macro_entries(entries: dict[str, Any], source_path: str) -> dict[str, 
 
             record_load_issue(
                 source_path,
-                f"skipped xprompt entry {name!r}: value must be a string or mapping",
+                f"skipped macro entry {name!r}: value must be a string or mapping",
                 kind="config",
             )
             continue

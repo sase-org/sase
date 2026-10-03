@@ -154,5 +154,5 @@ def test_launch_query_warns_on_unresolved_macro_and_still_launches(
     assert exc_info.value.code == 0
     assert warnings
     assert warnings[0][1] == "warning"
-    assert "unknown xprompt reference '#reviewww'" in warnings[0][0]
+    assert "unknown macro reference '#reviewww'" in warnings[0][0]
     assert capsys.readouterr().out == "Agent started (PID 1234)\n"

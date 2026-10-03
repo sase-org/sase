@@ -155,7 +155,7 @@ def test_build_qa_markdown_direct_matches_prompt_qa_section_body() -> None:
         questions, {"answers": answers, "global_note": "note"}
     )
     # The prompt-bound formatter wraps the body in disabled-region markers.
-    assert via_response == f"%xprompts_enabled:false\n{direct}\n%xprompts_enabled:true"
+    assert via_response == f"%macros_enabled:false\n{direct}\n%macros_enabled:true"
 
 
 def test_length_mismatch_falls_back_to_text_match() -> None:
@@ -208,14 +208,14 @@ def test_tui_modal_preview_matches_prompt_section_body() -> None:
             "global_note": "note",
         },
     )
-    assert prompt_out == f"%xprompts_enabled:false\n{tui_out}\n%xprompts_enabled:true"
+    assert prompt_out == f"%macros_enabled:false\n{tui_out}\n%macros_enabled:true"
 
 
 def test_prompt_qa_section_is_wrapped_in_disabled_region_markers() -> None:
     q = _q("Pick", [("A", "alpha")])
     out = prompt_qa_section([q], {"answers": [{"selected": ["A"]}], "global_note": ""})
-    assert out.startswith("%xprompts_enabled:false\n")
-    assert out.endswith("\n%xprompts_enabled:true")
+    assert out.startswith("%macros_enabled:false\n")
+    assert out.endswith("\n%macros_enabled:true")
 
 
 def test_qa_macro_token_in_question_survives_expansion_pipeline() -> None:
@@ -284,10 +284,10 @@ def test_merge_qa_for_prompt_single_wrapper_pair() -> None:
         global_note=None,
     )
     out = merge_qa_for_prompt([r, r, r])
-    assert out.count("%xprompts_enabled:false") == 1
-    assert out.count("%xprompts_enabled:true") == 1
-    assert out.startswith("%xprompts_enabled:false\n")
-    assert out.endswith("\n%xprompts_enabled:true")
+    assert out.count("%macros_enabled:false") == 1
+    assert out.count("%macros_enabled:true") == 1
+    assert out.startswith("%macros_enabled:false\n")
+    assert out.endswith("\n%macros_enabled:true")
 
 
 def test_merged_global_note_last_wins() -> None:

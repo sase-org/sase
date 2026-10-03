@@ -151,11 +151,11 @@
           },
           "agent": {
             "type": "string",
-            "description": "Agent prompt template for agent steps (supports Jinja2 and xprompt refs). Mutually exclusive with prompt/bash/python/prompt_part/parallel."
+            "description": "Agent prompt template for agent steps (supports Jinja2 and macro refs). Mutually exclusive with prompt/bash/python/prompt_part/parallel."
           },
           "prompt": {
             "type": "string",
-            "description": "Prompt template for prompt steps (supports Jinja2 and xprompt refs). Mutually exclusive with bash/python/prompt_part/parallel."
+            "description": "Prompt template for prompt steps (supports Jinja2 and macro refs). Mutually exclusive with bash/python/prompt_part/parallel."
           },
           "bash": {
             "type": "string",

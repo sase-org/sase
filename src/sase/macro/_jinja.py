@@ -98,7 +98,7 @@ def validate_and_convert_args(
         bound = bind_input_args(macro_def.inputs, positional_args, named_args)
     except InputBindingError as exc:
         raise MacroArgumentError(
-            f"XPrompt '#{macro_def.name}' argument error: {exc}"
+            f"Macro '#{macro_def.name}' argument error: {exc}"
         ) from exc
     return bound.positional, bound.values
 
@@ -143,7 +143,7 @@ def _render_jinja2_template(
         template = env.from_string(content)
         return template.render(**context)
     except TemplateError as e:
-        raise MacroArgumentError(f"XPrompt '#{macro_name}' template error: {e}") from e
+        raise MacroArgumentError(f"Macro '#{macro_name}' template error: {e}") from e
 
 
 def render_toplevel_jinja2(content: str) -> str:
@@ -206,7 +206,7 @@ def _substitute_legacy_placeholders(
             return default
         else:
             raise MacroArgumentError(
-                f"XPrompt '#{macro_name}' requires argument {{{index + 1}}} "
+                f"Macro '#{macro_name}' requires argument {{{index + 1}}} "
                 f"but only {len(args)} argument(s) provided"
             )
 

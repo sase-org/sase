@@ -89,7 +89,7 @@ def test_question_followup_prompt_golden_snapshot() -> None:
 
     assert assemble_question_followup_prompt("Base prompt", rounds) == (
         "Base prompt\n\n"
-        "%xprompts_enabled:false\n"
+        "%macros_enabled:false\n"
         "### Questions and Answers\n\n"
         "#### Q1: API\n\n"
         "> Which API?\n\n"
@@ -105,7 +105,7 @@ def test_question_followup_prompt_golden_snapshot() -> None:
         "- [x] **Staging**\n\n"
         "---\n\n"
         "> **Global Note:** Final note wins.\n\n"
-        "%xprompts_enabled:true"
+        "%macros_enabled:true"
     )
 
 
@@ -201,7 +201,7 @@ def test_feedback_replan_prompt_golden_snapshot() -> None:
         rounds,
     ) == (
         "Original prompt\n\n"
-        "%xprompts_enabled:false\n"
+        "%macros_enabled:false\n"
         "### Questions and Answers\n\n"
         "#### Q1: Storage\n\n"
         "> Need DB?\n\n"
@@ -209,7 +209,7 @@ def test_feedback_replan_prompt_golden_snapshot() -> None:
         "- [ ] **Postgres**\n\n"
         "---\n\n"
         "> **Global Note:** Keep dependencies small.\n\n"
-        "%xprompts_enabled:true\n\n"
+        "%macros_enabled:true\n\n"
         "### Additional Requirements\n\n"
         "- Add failure handling\n"
         "- Add retries"

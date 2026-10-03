@@ -66,7 +66,7 @@ def _expand_embedded_macro_swarm_reference(
 ) -> list[_ExpandedMacroSwarmSegment]:
     if max_depth <= 0:
         raise _MacroSwarmDepthError(
-            f"xprompt swarm expansion exceeded max depth at "
+            f"macro swarm expansion exceeded max depth at "
             f"#{ref.name} (possible self-reference)"
         )
 
@@ -121,7 +121,7 @@ def _expand_multiple_embedded_macro_swarm_references(
     """
     if max_depth <= 0:
         raise _MacroSwarmDepthError(
-            f"xprompt swarm expansion exceeded max depth at "
+            f"macro swarm expansion exceeded max depth at "
             f"#{refs[0].name} (possible self-reference)"
         )
 
@@ -249,7 +249,7 @@ def _expand_macro_swarms_with_metadata(
         if call is not None and call.name in swarm_names:
             if max_depth <= 0:
                 raise _MacroSwarmDepthError(
-                    f"xprompt swarm expansion exceeded max depth at "
+                    f"macro swarm expansion exceeded max depth at "
                     f"#{call.name} (possible self-reference)"
                 )
             group = template_group or _next_template_group(call.name, group_counter)

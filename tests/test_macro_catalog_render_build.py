@@ -28,12 +28,12 @@ def test_render_html_contains_sections() -> None:
     document = _build_document(entries, stats)
     html = _render_html(document)
 
-    assert "xprompts Catalog" in html
+    assert "macros Catalog" in html
     assert "</span>a\n" in html
     assert "</span>b\n" in html
     assert "</span>c\n" in html
     assert "alpha" in html
-    assert "Built-in xprompts" in html
+    assert "Built-in macros" in html
 
 
 def test_render_html_contains_input_descriptions() -> None:

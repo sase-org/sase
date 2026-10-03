@@ -18,7 +18,7 @@ class MacroLoadIssue:
 
 
 _ISSUES: ContextVar[list[MacroLoadIssue] | None] = ContextVar(
-    "xprompt_load_issues",
+    "macro_load_issues",
     default=None,
 )
 

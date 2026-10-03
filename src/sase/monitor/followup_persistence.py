@@ -32,12 +32,12 @@ _FOLLOWUP_PERSISTENCE = FollowupPersistence(
 
 def recovery_prompt(error: str) -> str:
     return (
-        "%xprompts_enabled:false\n"
+        "%macros_enabled:false\n"
         "# Monitor continuation recovery required\n\n"
         "The versioned monitor continuation context could not be loaded. "
         "Do not reconstruct the monitored result from mutable metadata.\n\n"
         f"```text\n{error}\n```\n"
-        "%xprompts_enabled:true"
+        "%macros_enabled:true"
     )
 
 

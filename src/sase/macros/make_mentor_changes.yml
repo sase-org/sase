@@ -25,9 +25,9 @@ steps:
           for i, c in enumerate(comments)
       )
       rendered_changes = (
-          "%xprompts_enabled:false\n"
+          "%macros_enabled:false\n"
           f"{formatted}\n"
-          "%xprompts_enabled:true"
+          "%macros_enabled:true"
       )
       print(json.dumps({"rendered_changes": rendered_changes}))
     output: { rendered_changes: text }

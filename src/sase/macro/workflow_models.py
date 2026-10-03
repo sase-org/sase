@@ -26,7 +26,7 @@ class StepStatus(Enum):
 class WorkflowKind(Enum):
     """How a workflow participates in macro reference syntax."""
 
-    SIMPLE_MACRO = "simple_xprompt"
+    SIMPLE_MACRO = "simple_macro"
     EMBEDDABLE_WORKFLOW = "embeddable_workflow"
     STANDALONE_WORKFLOW = "standalone_workflow"
 

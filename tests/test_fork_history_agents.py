@@ -23,7 +23,7 @@ def test_successful_multi_agent_history_is_unchanged(tmp_path: Path) -> None:
     )
 
     assert rendered == (
-        "%xprompts_enabled:false\n"
+        "%macros_enabled:false\n"
         "# Previous Conversations\n\n"
         "You are forking from 2 prior agent conversations. Each Conversation "
         "section is an independent parent transcript, not a continuation of the "
@@ -43,7 +43,7 @@ def test_successful_multi_agent_history_is_unchanged(tmp_path: Path) -> None:
         "**Assistant:**\n\n"
         "Reply B\n\n"
         "---\n\n"
-        "%xprompts_enabled:true\n"
+        "%macros_enabled:true\n"
         "# New Query"
     )
 

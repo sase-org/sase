@@ -9,7 +9,7 @@ from typing import Any
 
 
 _RUNTIME_TEMPLATE_VARS: ContextVar[Mapping[str, Any] | None] = ContextVar(
-    "sase_xprompt_runtime_template_vars",
+    "sase_macro_runtime_template_vars",
     default=None,
 )
 

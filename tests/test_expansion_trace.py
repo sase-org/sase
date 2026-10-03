@@ -85,7 +85,7 @@ class TestFormatTrace:
     def test_empty_trace(self) -> None:
         trace = ExpansionTrace()
         result = format_trace(trace)
-        assert "No xprompt references" in result
+        assert "No macro references" in result
 
     def test_format_single_record(self) -> None:
         trace = ExpansionTrace()

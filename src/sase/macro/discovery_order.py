@@ -1,4 +1,4 @@
-"""Helpers for preserving xprompt discovery precedence in ordered catalogs."""
+"""Helpers for preserving macro discovery precedence in ordered catalogs."""
 
 from __future__ import annotations
 

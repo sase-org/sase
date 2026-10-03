@@ -154,7 +154,7 @@ def test_macro_expand_warns_on_unresolved_reference_on_stderr(
     captured = capsys.readouterr()
     assert exc_info.value.code == 0
     assert captured.out == "#reviewww"
-    assert "unknown xprompt reference '#reviewww'" in captured.err
+    assert "unknown macro reference '#reviewww'" in captured.err
 
 
 def test_macro_list_marks_only_skill_macros(

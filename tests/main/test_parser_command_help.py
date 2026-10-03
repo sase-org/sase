@@ -147,7 +147,7 @@ def test_project_current_help_documents_resolution_and_json() -> None:
     assert "current" in help_subcommand_rows(project_parser.format_help(), expected)
     assert "-j, --json" in current_help
     assert "current project" in current_help
-    assert "VCS xprompt MRU" in current_help
+    assert "VCS macro MRU" in current_help
     assert "Launch an agent" in current_help
     assert "sase project set-current" in current_help
     assert "no separate set command" not in current_help
@@ -158,7 +158,7 @@ def test_project_set_current_help_documents_project_and_json() -> None:
     set_help = flat_help(parser_for(("sase", "project", "set-current")).format_help())
 
     assert "-j, --json" in set_help
-    assert "VCS xprompt MRU" in set_help
+    assert "VCS macro MRU" in set_help
     assert "sase project set-current sase --json" in set_help
     assert "enabled and launchable" in set_help
 

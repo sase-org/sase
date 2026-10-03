@@ -530,7 +530,7 @@ def test_literal_disabled_regions_survive_hydration(tmp_path: Path) -> None:
     )
     assert rendered.count("# New Query") >= 2
     assert "%model:do-not-route" in rendered
-    assert rendered.strip().startswith("%xprompts_enabled:false")
+    assert rendered.strip().startswith("%macros_enabled:false")
     assert "% xprompts_enabled:false" in rendered
 
 

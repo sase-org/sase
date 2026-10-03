@@ -305,7 +305,7 @@ def validate_cross_step_field_refs(workflow: Workflow) -> list[str]:
     for xp_name, xp in workflow.macros.items():
         _check_refs(
             extract_template_refs(xp.content),
-            f"Xprompt '{xp_name}'",
+            f"Macro '{xp_name}'",
             set(),
         )
 
@@ -350,7 +350,7 @@ def detect_unused_macros(workflow: Workflow, macros: dict[str, Macro]) -> list[s
     for name, used in macro_usage.items():
         if not used:
             errors.append(
-                f"Workflow-local xprompt '{name}' is defined but never referenced"
+                f"Workflow-local macro '{name}' is defined but never referenced"
             )
     return errors
 
@@ -381,7 +381,7 @@ def detect_unused_macro_inputs(workflow: Workflow) -> list[str]:
         for inp in xp.inputs:
             if inp.name not in used_vars:
                 errors.append(
-                    f"Xprompt '{name}' input '{inp.name}' "
+                    f"Macro '{name}' input '{inp.name}' "
                     f"is defined but never referenced in its content"
                 )
 
@@ -401,7 +401,7 @@ def validate_macro_names(workflow: Workflow) -> list[str]:
     for name in workflow.macros:
         if not name.startswith("_"):
             errors.append(
-                f"Workflow-local xprompt '{name}' must start with '_' (e.g. '_{name}')"
+                f"Workflow-local macro '{name}' must start with '_' (e.g. '_{name}')"
             )
     return errors
 

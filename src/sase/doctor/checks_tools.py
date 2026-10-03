@@ -35,7 +35,7 @@ _OPTIONAL_TOOLS: tuple[_ToolRequirement, ...] = (
     _ToolRequirement(
         "pdf_engine",
         ("wkhtmltopdf", "xelatex", "pdflatex"),
-        "PDF rendering from Markdown and xprompt catalogs",
+        "PDF rendering from Markdown and macro catalogs",
         any_of=True,
     ),
     _ToolRequirement(

@@ -525,7 +525,7 @@ def test_refresh_serialization_failure_skips_refresh(
     execv.assert_not_called()
     assert RUNNER_CODE_REFRESHED_ENV not in os.environ
     assert LOCAL_XPROMPTS_ENV not in os.environ
-    assert "local xprompts could not be re-materialized" in capsys.readouterr().err
+    assert "local macros could not be re-materialized" in capsys.readouterr().err
 
 
 def test_refresh_local_macros_boundary_replay(

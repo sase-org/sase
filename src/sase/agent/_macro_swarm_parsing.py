@@ -363,6 +363,6 @@ def first_invalid_standalone_macro_reference(
 def invalid_explicit_macro_message(ref: MacroReference) -> str:
     return (
         "Only standalone workflows use `#!`; "
-        f"`{ref.raw}` resolves to an embeddable xprompt. "
+        f"`{ref.raw}` resolves to an embeddable macro. "
         f"Use `#{ref.name}` for inline expansion."
     )

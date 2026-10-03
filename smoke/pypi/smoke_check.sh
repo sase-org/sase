@@ -232,7 +232,7 @@ print(
 PY
 }
 
-assert_xprompt_catalog() {
+assert_macro_catalog() {
     local json_path="$1"
 
     python - "$json_path" <<'PY'
@@ -243,11 +243,11 @@ with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
 
 if not isinstance(payload, list) or not payload:
-    raise SystemExit("xprompt catalog is empty or not a JSON array")
+    raise SystemExit("macro catalog is empty or not a JSON array")
 if not any(item.get("name") for item in payload if isinstance(item, dict)):
-    raise SystemExit("xprompt catalog has no named entries")
+    raise SystemExit("macro catalog has no named entries")
 
-print(f"xprompt catalog assertions passed ({len(payload)} entries)")
+print(f"macro catalog assertions passed ({len(payload)} entries)")
 PY
 }
 
@@ -259,7 +259,7 @@ import sys
 from pathlib import Path
 
 text = Path(sys.argv[1]).read_text(encoding="utf-8")
-required = ("llm_provider:", "axe:", "xprompts:")
+required = ("llm_provider:", "axe:", "macros:")
 missing = [item for item in required if item not in text]
 if missing:
     raise SystemExit(f"config dump missing expected keys: {', '.join(missing)}")
@@ -335,8 +335,8 @@ run sase config show
 CONFIG_DUMP="$TMP_DIR/config.yml"
 run bash -c 'sase config show > "$1"' _ "$CONFIG_DUMP"
 assert_config_dump "$CONFIG_DUMP"
-capture_json "xprompt-list.json" sase xprompt list
-assert_xprompt_catalog "$LAST_JSON"
+capture_json "macro-list.json" sase macro list
+assert_macro_catalog "$LAST_JSON"
 
 SCRATCH_REPO="$TMP_DIR/scratch-repo"
 run mkdir -p "$SCRATCH_REPO"

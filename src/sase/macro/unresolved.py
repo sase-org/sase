@@ -92,20 +92,20 @@ def format_unresolved_reference_warning(
     suggestion = _closest_name(name, names)
     if suggestion:
         return (
-            f"unknown xprompt reference '#{name}' will be passed to the agent "
+            f"unknown macro reference '#{name}' will be passed to the agent "
             f"as literal text (did you mean '#{suggestion}'? run "
-            "'sase xprompt list' to see available names)"
+            "'sase macro list' to see available names)"
         )
     return (
-        f"unknown xprompt reference '#{name}' will be passed to the agent "
-        "as literal text (run 'sase xprompt list' to see available names)"
+        f"unknown macro reference '#{name}' will be passed to the agent "
+        "as literal text (run 'sase macro list' to see available names)"
     )
 
 
 def format_unresolved_references_toast(names: tuple[str, ...]) -> str:
     """Return an aggregated TUI warning message."""
     refs = ", ".join(f"#{name}" for name in names)
-    return f"Unknown xprompt reference(s): {refs} - passed through as literal text"
+    return f"Unknown macro reference(s): {refs} - passed through as literal text"
 
 
 def _known_reference_names(

@@ -36,7 +36,7 @@ def test_parse_tags_list() -> None:
 def test_parse_tags_invalid_raises() -> None:
     import pytest
 
-    with pytest.raises(ValueError, match="Unknown xprompt tag 'bogus'"):
+    with pytest.raises(ValueError, match="Unknown macro tag 'bogus'"):
         parse_tags("bogus")
 
 

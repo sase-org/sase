@@ -68,7 +68,7 @@ def preprocess_prompt_macros(
             swarm_macros=swarm_macros,
         )
     except Exception as e:
-        print(f"Warning: Failed to write xprompt metadata: {e}", file=sys.stderr)
+        print(f"Warning: Failed to write macro metadata: {e}", file=sys.stderr)
 
     # Archive launch-boundary prompt files outside the live artifacts dir so
     # later chop/cleanup cannot orphan publication. Best-effort: capture must

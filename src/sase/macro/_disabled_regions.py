@@ -2,15 +2,15 @@
 
 Provides utilities to extract regions enclosed by
 ``%macros_enabled:false`` / ``%macros_enabled:true`` marker pairs (or the
-pre-rename ``%macros_enabled:…`` spellings, which stay accepted
+pre-rename ``%xprompts_enabled:…`` spellings, which stay accepted
 permanently) from text before macro expansion and restore them afterward,
 preventing content inside disabled regions from being processed.
 """
 
 import re
 
-# Both directive spellings are accepted by readers; writers keep emitting the
-# legacy spelling until the ``sase-syntax`` phase switches them.
+# Both directive spellings are accepted by readers; writers emit only the
+# canonical spelling.
 _ENABLED_DIRECTIVE = r"(?:xprompts|macros)_enabled"
 _DISABLED_REGION_RE = re.compile(
     rf"^[ \t]*%{_ENABLED_DIRECTIVE}:false[ \t]*\n([\s\S]*?)(?:^[ \t]*|[ \t]+)%{_ENABLED_DIRECTIVE}:true[ \t]*\n?",
@@ -48,7 +48,7 @@ def _escape_disabled_region_markers(text: str) -> str:
 def wrap_disabled_region(text: str) -> str:
     """Return *text* enclosed in a disabled region, marker-escaped first."""
     escaped = _escape_disabled_region_markers(text)
-    return f"%xprompts_enabled:false\n{escaped}\n%xprompts_enabled:true"
+    return f"%macros_enabled:false\n{escaped}\n%macros_enabled:true"
 
 
 def protect_disabled_regions(text: str, regions: list[str]) -> str:

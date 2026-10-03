@@ -81,7 +81,7 @@ def register_bead_work_parser(
         help=(
             "Epic targets only: per-launch weighted-load capacity budget. "
             "Omit for default queue behavior; use 1 to run alone. "
-            "A segment whose xprompt claims more weight gets a budget "
+            "A segment whose macro claims more weight gets a budget "
             "equal to that weight. N must be at least 1."
         ),
     )

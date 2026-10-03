@@ -117,24 +117,40 @@ def write_sdd_files(
 
 def strip_qa_block(text: str) -> str:
     """Remove existing ``### Questions and Answers`` block(s) from ``text``."""
-    end_marker = "%xprompts_enabled:true"
-    start_marker = "%xprompts_enabled:false"
+    # Readers accept both spellings: canonical blocks written after the
+    # macro-syntax cutover and legacy blocks stored before it.
+    end_markers = ("%macros_enabled:true", "%xprompts_enabled:true")
+    start_markers = ("%macros_enabled:false", "%xprompts_enabled:false")
     while _QA_HEADER in text:
         idx = text.find(_QA_HEADER)
-        wrapper_start = text.rfind(start_marker, 0, idx)
+        wrapper_start = -1
+        wrapper_marker_len = 0
+        for candidate in start_markers:
+            found = text.rfind(candidate, 0, idx)
+            if found != -1 and (
+                wrapper_start == -1
+                or found + len(candidate) > wrapper_start + wrapper_marker_len
+            ):
+                wrapper_start = found
+                wrapper_marker_len = len(candidate)
         wrapper_end = -1
+        end_marker_len = 0
         if wrapper_start != -1:
-            between = text[wrapper_start + len(start_marker) : idx]
+            between = text[wrapper_start + wrapper_marker_len : idx]
             if between.strip() != "":
                 wrapper_start = -1
             else:
-                wrapper_end = text.find(end_marker, idx)
+                for candidate in end_markers:
+                    found = text.find(candidate, idx)
+                    if found != -1 and (wrapper_end == -1 or found < wrapper_end):
+                        wrapper_end = found
+                        end_marker_len = len(candidate)
                 if wrapper_end == -1:
                     wrapper_start = -1
 
         if wrapper_start != -1:
             block_start = wrapper_start
-            block_end = wrapper_end + len(end_marker)
+            block_end = wrapper_end + end_marker_len
         else:
             block_start = idx
             block_end = len(text)

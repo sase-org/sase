@@ -84,7 +84,7 @@ _DEPRECATED_DIRECTIVE_MESSAGES: dict[str, str] = {
     ),
     "tribe": (
         "The '%tribe'/'%t' directive has been removed; use "
-        "%id(tribe=<tribe>) or the #tribe xprompt for an auto-named agent, "
+        "%id(tribe=<tribe>) or the #tribe macro for an auto-named agent, "
         "%id(<id>, tribe=<tribe>) for an explicitly named agent, or "
         "%clan(<clan>, tribe=<tribe>) for a clan."
     ),

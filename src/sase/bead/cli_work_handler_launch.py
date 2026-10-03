@@ -112,7 +112,7 @@ def launch_epic_bead_work(
         resolve_work_phase_macro,
     )
 
-    with timer.stage("xprompt_lookup"):
+    with timer.stage("macro_lookup"):
         try:
             macro_project = (
                 bead_context.project_key

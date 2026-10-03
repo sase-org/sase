@@ -184,7 +184,7 @@ def _check_plugins_resources() -> DiagnosticCheck:
         summary = "Resource plugin loading is disabled by environment variables."
         details = disabled_env
         next_steps = (
-            "Unset the listed variables before starting SASE if plugin configs or xprompts should load.",
+            "Unset the listed variables before starting SASE if plugin configs or macros should load.",
         )
     else:
         status = "OK"

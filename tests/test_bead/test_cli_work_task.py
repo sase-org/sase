@@ -373,7 +373,7 @@ def test_task_work_persists_durable_stage_timing(
         "project_open",
         "initial_show",
         "plan_launch_lock",
-        "xprompt_lookup",
+        "macro_lookup",
         "vcs_context",
         "prompt_render",
     } <= stage_names

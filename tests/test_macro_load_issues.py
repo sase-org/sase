@@ -84,6 +84,6 @@ def test_skipped_config_entries_record_issues() -> None:
 
     assert parsed == {}
     assert [issue.error for issue in issues] == [
-        "skipped xprompt entry 'bad_content': content must be a string",
-        "skipped xprompt entry 'bad_value': value must be a string or mapping",
+        "skipped macro entry 'bad_content': content must be a string",
+        "skipped macro entry 'bad_value': value must be a string or mapping",
     ]

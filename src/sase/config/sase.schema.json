@@ -1747,7 +1747,7 @@
         },
         "current_project": {
           "type": "object",
-          "description": "Current-project indicator and session seed settings. The current project is derived from the VCS xprompt MRU store; launching an agent is what moves it.",
+          "description": "Current-project indicator and session seed settings. The current project is derived from the VCS macro MRU store; launching an agent is what moves it.",
           "additionalProperties": false,
           "properties": {
             "indicator": {
@@ -5492,7 +5492,7 @@
     },
     "use_chezmoi": {
       "type": "boolean",
-      "description": "Remap home xprompt paths to chezmoi-managed equivalents under ~/.local/share/chezmoi/home/",
+      "description": "Remap home macro paths to chezmoi-managed equivalents under ~/.local/share/chezmoi/home/",
       "default": false
     },
     "macros": {

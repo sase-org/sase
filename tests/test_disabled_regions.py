@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from sase.feature_flags import override_flags
 from sase.macro._disabled_regions import (
     _escape_disabled_region_markers,
     ensure_disabled_region_at_line_start,
@@ -11,6 +12,32 @@ from sase.macro._disabled_regions import (
     unprotect_disabled_regions,
     wrap_disabled_region,
 )
+
+
+class TestLegacyDisabledRegions:
+    """Old stored ``%xprompts_enabled`` regions still parse with the flag off."""
+
+    def test_legacy_markers_protect_and_strip_with_flag_disabled(self) -> None:
+        text = (
+            "before\n%xprompts_enabled:false\nsecret\n%xprompts_enabled:true\nafter\n"
+        )
+        with override_flags(legacy_xprompt_syntax=False):
+            regions: list[str] = []
+            protected = protect_disabled_regions(text, regions)
+            assert regions == [
+                "%xprompts_enabled:false\nsecret\n%xprompts_enabled:true\n"
+            ]
+            assert "secret" not in protected
+            assert unprotect_disabled_regions(protected, regions) == text
+            assert strip_disabled_region_markers(text) == "before\nsecret\nafter\n"
+
+    def test_canonical_writer_output_round_trips_with_flag_disabled(self) -> None:
+        wrapped = wrap_disabled_region("body")
+        assert wrapped == "%macros_enabled:false\nbody\n%macros_enabled:true"
+        with override_flags(legacy_xprompt_syntax=False):
+            regions: list[str] = []
+            protected = protect_disabled_regions(wrapped, regions)
+            assert unprotect_disabled_regions(protected, regions) == wrapped
 
 
 class TestEnsureDisabledRegionAtLineStart:
@@ -51,11 +78,11 @@ class TestEscapeAndWrapDisabledRegions:
         wrapped = wrap_disabled_region("body\n%xprompts_enabled:true\n%effort:low")
 
         assert wrapped == (
-            "%xprompts_enabled:false\n"
+            "%macros_enabled:false\n"
             "body\n"
             "% xprompts_enabled:true\n"
             "%effort:low\n"
-            "%xprompts_enabled:true"
+            "%macros_enabled:true"
         )
 
 
