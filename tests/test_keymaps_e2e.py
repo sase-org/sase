@@ -235,6 +235,12 @@ async def test_leader_space_dispatches_current_selection_and_h_dispatches_home()
 
             page.app._show_prompt_input_bar_for_home = _record_agent_home  # type: ignore[method-assign]
             page.app._start_agent_from_patch_quick = _record_quick_agent  # type: ignore[method-assign]
+            # Phase ``space-hot-spare``: plain ``<space>`` reveals the idle
+            # spare instead of calling ``_show``. Disable the reveal here so
+            # this dispatch test observes routing via ``_show`` (no prompt
+            # mounts); the reveal path itself is covered by
+            # ``test_prompt_bar_hot_spare.py``.
+            page.app._try_reveal_prompt_bar_spare = lambda *a, **k: False  # type: ignore[method-assign]
 
             await page.press("space")
             assert home_calls == [True]

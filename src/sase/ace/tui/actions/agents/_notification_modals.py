@@ -208,6 +208,13 @@ def handle_plan_approval(
                 plan_file=plan_file,
                 notification=notification,
             )
+            # Phase ``space-hot-spare``: feedback keeps a fresh mount.
+            try:
+                discard = getattr(app, "_discard_prompt_bar_spare", None)
+                if callable(discard):
+                    discard()
+            except Exception:  # noqa: BLE001 - spare discard is best-effort.
+                pass
             app.mount(PromptInputBar(mode="feedback", id="prompt-input-bar"))  # type: ignore[attr-defined]
             return
 
@@ -228,6 +235,13 @@ def handle_plan_approval(
                 capacity=result.capacity,
                 choice=result.choice,
             )
+            # Phase ``space-hot-spare``: approve keeps a fresh mount.
+            try:
+                discard = getattr(app, "_discard_prompt_bar_spare", None)
+                if callable(discard):
+                    discard()
+            except Exception:  # noqa: BLE001 - spare discard is best-effort.
+                pass
             app.mount(  # type: ignore[attr-defined]
                 PromptInputBar(
                     initial_value=result.coder_prompt or "",

@@ -87,9 +87,29 @@ class EntryCustomMixin:
             drop_pending_space_prefill(self)
             resolved = resolve_vcs_xprompt_mru_head(pairs)
             if resolved is None:
+                # Phase ``space-hot-spare``: plain home reveal, else fresh.
+                try:
+                    reveal = getattr(self, "_try_reveal_prompt_bar_spare", None)
+                    if callable(reveal) and bool(reveal()):
+                        return
+                except Exception:  # noqa: BLE001 - reveal falls back to fresh.
+                    pass
                 self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
                 return
             initial_text, display_name, history_sort_key = resolved
+            # Phase ``space-hot-spare``: plain home reveal, else fresh.
+            try:
+                reveal = getattr(self, "_try_reveal_prompt_bar_spare", None)
+                if callable(reveal) and bool(
+                    reveal(
+                        initial_text,
+                        display_name,
+                        history_sort_key,
+                    )
+                ):
+                    return
+            except Exception:  # noqa: BLE001 - reveal falls back to fresh.
+                pass
             self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                 initial_text=initial_text,
                 display_name=display_name,
@@ -102,6 +122,22 @@ class EntryCustomMixin:
             # session when the next snapshot publishes. Request a build
             # best-effort (single-flight coalesces) so the prefill arrives
             # even when no build is currently in flight.
+            # Phase ``space-hot-spare``: reveal the spare as the blank bar
+            # when ready, then record the pending prefill from the
+            # post-activate cursor. Late apply prefers ``_active_prompt_bar``.
+            try:
+                reveal = getattr(self, "_try_reveal_prompt_bar_spare", None)
+                if callable(reveal) and bool(reveal()):
+                    record_pending_space_prefill(self)
+                    try:
+                        request = getattr(self, "request_launchable_mru_refresh", None)
+                        if callable(request):
+                            request(reason="space-cold")
+                    except Exception:  # noqa: BLE001 - the next tick retries.
+                        pass
+                    return
+            except Exception:  # noqa: BLE001 - reveal falls back to fresh.
+                pass
             self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
             record_pending_space_prefill(self)
             try:
@@ -117,9 +153,23 @@ class EntryCustomMixin:
             load_launchable_vcs_macro_mru_pairs(prune=False)
         )
         if resolved is None:
+            try:
+                reveal = getattr(self, "_try_reveal_prompt_bar_spare", None)
+                if callable(reveal) and bool(reveal()):
+                    return
+            except Exception:  # noqa: BLE001 - reveal falls back to fresh.
+                pass
             self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
             return
         initial_text, display_name, history_sort_key = resolved
+        try:
+            reveal = getattr(self, "_try_reveal_prompt_bar_spare", None)
+            if callable(reveal) and bool(
+                reveal(initial_text, display_name, history_sort_key)
+            ):
+                return
+        except Exception:  # noqa: BLE001 - reveal falls back to fresh.
+            pass
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=initial_text,
             display_name=display_name,

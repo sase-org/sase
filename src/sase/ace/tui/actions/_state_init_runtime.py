@@ -269,6 +269,10 @@ def init_runtime_state(
     # every prompt mode and withdrawn by ``_detach_prompt_bar`` /
     # ``on_unmount``. ``None`` while no prompt surface is mounted.
     self._active_prompt_bar = None
+    # Phase ``space-hot-spare``: one idle-mounted inert hidden bar revealed
+    # by plain ``<space>``. ``None`` while no spare is mounted.
+    self._prompt_bar_spare = None
+    self._prompt_bar_spare_timer = None
     self._last_agents_load_mono = 0.0
     # Per-in-flight-agent marker (mtime_ns, size) cache used by the
     # countdown-tick status-transition poll. Each tuple slot is ``None``

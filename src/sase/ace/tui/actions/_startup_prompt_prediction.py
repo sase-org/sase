@@ -31,6 +31,22 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+
+def _is_inert_spare_area(area: object) -> bool:
+    """Return whether *area* sits inside an inert hidden prompt spare."""
+    try:
+        node = getattr(area, "_parent", None)
+        while node is not None:
+            if type(node).__name__ == "PromptInputBar" and bool(
+                getattr(node, "_is_prompt_spare", False)
+            ):
+                return True
+            node = getattr(node, "_parent", None)
+    except Exception:  # noqa: BLE001 - spare check is best-effort.
+        return False
+    return False
+
+
 _SESSION_TEXT_LIMIT: Final = 50
 
 
@@ -319,6 +335,8 @@ class StartupPromptPredictionMixin:
         for text_area in text_areas:
             try:
                 if not getattr(text_area, "is_mounted", False):
+                    continue
+                if _is_inert_spare_area(text_area):
                     continue
                 refresh = getattr(text_area, "_refresh_visible_next_word_surface", None)
                 if callable(refresh):

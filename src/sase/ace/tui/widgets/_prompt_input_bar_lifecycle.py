@@ -77,6 +77,42 @@ class PromptInputBarLifecycleMixin(_MixinBase):
 
     def on_mount(self) -> None:
         """Focus the active pane on mount and position its cursor at end."""
+        # Phase ``space-hot-spare``: a spare mounts inert. It does not
+        # publish ``_active_prompt_bar`` and does not call ``activate()``.
+        # It does not focus, watch the theme, schedule the xprompt
+        # stale-check worker, or run deferred warm-ups.
+        try:
+            if bool(getattr(self, "_is_prompt_spare", False)):
+                return
+        except Exception:  # noqa: BLE001 - spare check is best-effort.
+            pass
+        # A direct non-spare mount must not leave two bars: drop any
+        # leftover spare first (visual PNG helpers mount this way).
+        try:
+            discard = getattr(self.app, "_discard_prompt_bar_spare", None)
+            if callable(discard):
+                discard()
+        except Exception:  # noqa: BLE001 - spare discard is best-effort.
+            pass
+        self.activate()
+
+    def activate(self) -> None:
+        """Publish, focus, and warm this bar; idempotent after the first call.
+
+        Phase ``space-hot-spare``: fresh non-spare bars call this from
+        ``on_mount``; a revealed spare calls it after seeding and reveal.
+        A second call does not double-watch the theme or double-schedule
+        warm-ups.
+        """
+        try:
+            if bool(getattr(self, "_prompt_activated", False)):
+                return
+        except Exception:  # noqa: BLE001 - activation guard is best-effort.
+            pass
+        try:
+            self._prompt_activated = True  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - activation guard is best-effort.
+            pass
         # Phase ``tick-compare-skip``: publish the mounted bar so
         # ``_prompt_input_active`` stays O(1). Every prompt mode (prompt,
         # home, feedback, approve) mounts through this widget.
@@ -96,9 +132,10 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         else:
             self._cursor_to_end(text_area)
 
-        # Complete a `<space>` key-to-paint sample: the bar is now mounted
-        # and focused (the model update); the paint lands on the next
-        # refresh. Other mounts leave foreign samples alone.
+        # Complete a `<space>` key-to-paint sample: the bar is now active
+        # (reveal or fresh mount) and focused (the model update); the paint
+        # lands on the next refresh. Other mounts leave foreign samples
+        # alone.
         perf = getattr(self.app, "_jk_perf", None)
         if perf is not None and perf.inflight_action == "prompt_space":
             perf.mark_model_updated()

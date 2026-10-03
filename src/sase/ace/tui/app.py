@@ -163,6 +163,11 @@ class AceApp(
 
     BINDINGS = DEFAULT_BINDINGS
 
+    # Phase ``space-hot-spare``: only ``AceApp`` schedules the idle spare.
+    # Harnesses composing ``PromptBarMountMixin`` without this flag stay
+    # spare-free.
+    _prompt_bar_spare_enabled = True
+
     def get_driver_class(self) -> type:
         base = super().get_driver_class()
         try:

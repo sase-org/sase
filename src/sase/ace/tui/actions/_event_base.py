@@ -64,6 +64,9 @@ class EventHandlersBase:
     _last_completed_surface_tokens: dict[str, object]
     _prompt_editor_suspended: bool
     _active_prompt_bar: PromptInputBar | None
+    _prompt_bar_spare: PromptInputBar | None
+    _prompt_bar_spare_enabled: bool
+    _prompt_bar_spare_timer: object | None
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.

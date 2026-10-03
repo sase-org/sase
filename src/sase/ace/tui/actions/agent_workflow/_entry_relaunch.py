@@ -564,6 +564,11 @@ class EntryRelaunchMixin:
 
         # Remove any existing prompt bar before mounting a new one.
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
+        # Phase ``space-hot-spare``: a fresh relaunch mount never reuses it.
+        try:
+            self._discard_prompt_bar_spare()  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - spare discard is best-effort.
+            pass
 
         # Set up prompt context for home mode.
         begin_prompt_session(

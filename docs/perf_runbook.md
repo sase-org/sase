@@ -1309,7 +1309,7 @@ conversation sections became fold-inert.
 `tab=current_tab`:
 
 - `prompt_space` — begins at `action_start_agent_from_patch` entry; the model timestamp
-  lands when the bar mounts and focuses (from the bar's mount path), and paint lands on
+  lands in `activate()` (reveal or fresh mount) when the bar focuses, and paint lands on
   the next refresh.
 - `prompt_cycle_ctrl_p` / `prompt_cycle_ctrl_n` — begin when the key reaches
   `_handle_vcs_mru_cycle_key` (after xprompt arg-name completion declines it); the model

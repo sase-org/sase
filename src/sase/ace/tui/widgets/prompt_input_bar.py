@@ -137,6 +137,11 @@ class PromptInputBar(
         self._initial_value = initial_value
         self._mode = mode
         self._initial_cursor = initial_cursor
+        # Phase ``space-hot-spare``: inert hidden spare marker plus
+        # ``activate()`` idempotency. ``display=False`` alone is not the
+        # marker. Cleared only when this instance is revealed.
+        self._is_prompt_spare = False
+        self._prompt_activated = False
         self._completion_visible = False
         self._completion_line_count = 0
         self._completion_panel_kind: str | None = None

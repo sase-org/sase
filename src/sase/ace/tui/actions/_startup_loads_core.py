@@ -161,6 +161,14 @@ class StartupLoadsCoreMixin:
         if not getattr(self, "_mount_deferred_state_load_done", False):
             return
         self._mount_state_loads_done = True
+        # Phase ``space-hot-spare``: startup loads are done; schedule one
+        # idle spare attempt. The attempt re-arms until every gate holds.
+        try:
+            schedule = getattr(self, "_schedule_prompt_bar_spare", None)
+            if callable(schedule):
+                schedule(reason="loads-done")
+        except Exception:  # noqa: BLE001 - spare scheduling is best-effort.
+            pass
 
     def _start_startup_agents_surface(self: Any) -> bool:
         """Start the Agents first meaningful load through its existing worker."""
