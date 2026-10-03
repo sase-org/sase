@@ -75,7 +75,7 @@ class _PagerViewHost(Protocol):
         ...
 
     def focus_other_view(self, source: PagerView) -> None:
-        """Focus the pane that is not *source* (a no-op when single)."""
+        """Focus the armed (else MRU) other pane (a no-op when single)."""
         ...
 
     def show_in_other_view(
@@ -85,7 +85,7 @@ class _PagerViewHost(Protocol):
         line: int | None,
         end_line: int | None = None,
     ) -> None:
-        """Open *document* in the pane that is not *source*.
+        """Open *document* in the captured ``ctrl+w`` target pane.
 
         With one pane this opens a split (stacked when it fits, else side
         by side); focus never moves.
@@ -180,6 +180,7 @@ class PagerView(  # type: ignore[misc]
         self._footer_status: str | None = None
         self._pane_framed = False
         self._pane_focused = True
+        self._pane_preview = False
         self._split_anchor: ReadingAnchor | None = None
         self._chrome_signature: object | None = None
         self._init_goto_state()
@@ -211,21 +212,31 @@ class PagerView(  # type: ignore[misc]
         except Exception:
             return max(int(self.size.height), 1)
 
-    def set_pane_role(self, *, framed: bool, focused: bool) -> None:
+    def set_pane_role(
+        self, *, framed: bool, focused: bool, preview: bool = False
+    ) -> None:
         """Apply the host's split role to this pane.
 
         Unfocused panes drop their label badges (like
         ``links_enabled=False``) and cancel transient input; refocused
         panes rebuild their labels. Called for every layout change, so it
-        is idempotent and safe before mount.
+        is idempotent and safe before mount. ``preview`` lifts an
+        unfocused pane's frame while ``ctrl+w`` is armed; every layout
+        change passes the default and clears it.
         """
         framed = bool(framed)
         focused = bool(focused)
-        if framed == self._pane_framed and focused == self._pane_focused:
+        preview = bool(preview)
+        if (
+            framed == self._pane_framed
+            and focused == self._pane_focused
+            and preview == self._pane_preview
+        ):
             return
         was_focused = self._pane_focused
         self._pane_framed = framed
         self._pane_focused = focused
+        self._pane_preview = preview
         if framed and not focused and was_focused:
             self._cancel_transient_input()
         try:
@@ -266,6 +277,30 @@ class PagerView(  # type: ignore[misc]
         try:
             self._update_trail()
             self._update_footer()
+            self._update_subject()
+        except Exception:
+            pass
+
+    def set_pane_preview(self, preview: bool) -> None:
+        """Lift (or drop) this pane's frame for an armed ``ctrl+w`` target.
+
+        A light path beside :meth:`set_pane_role`: badges, trails, and
+        transient input are untouched, only the frame border repaints at
+        preview strength. Safe before mount.
+        """
+        preview = bool(preview)
+        if preview == getattr(self, "_pane_preview", False):
+            return
+        self._pane_preview = preview
+        if not getattr(self, "_pane_framed", False):
+            return
+        try:
+            if not self.is_mounted:
+                return
+        except Exception:
+            return
+        self._chrome_signature = None
+        try:
             self._update_subject()
         except Exception:
             pass

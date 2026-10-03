@@ -26,6 +26,23 @@ from sase.ace.tui.util.pane_grid import (
 
 RATIO_STEPS: tuple[int, ...] = (30, 50, 70)
 
+
+def three_pane_splits_enabled() -> bool:
+    """Return whether the ``three_pane_splits`` beta flag is enabled.
+
+    Resolved at the use site on every call, never at module import time,
+    so cold-path import-weight tests stay green.
+    """
+    try:
+        from sase.feature_flags import FeatureFlag, current_flags
+    except Exception:
+        return False
+    try:
+        return bool(current_flags().enabled(FeatureFlag.three_pane_splits))
+    except Exception:
+        return False
+
+
 #: Minimum framed pane extent at any ratio step. Stacked panes split height,
 #: side-by-side panes split width; the frame plus five body rows needs seven
 #: rows, and a readable beside split needs about 32 columns per pane.
@@ -45,9 +62,10 @@ class PagerSplitLayout(StrEnum):
 class PagerSplitState:
     """One immutable split arrangement.
 
-    ``focused`` is the index of the pane that receives keys (0 or 1; always
-    0 when single). ``ratio`` is the first pane's share in percent, drawn
-    from :data:`RATIO_STEPS`.
+    ``focused`` is the reading-order slot of the pane that receives keys
+    (always 0 when single). ``ratio`` is the first pane's share in
+    percent, drawn from :data:`RATIO_STEPS`. Three-pane grids read as
+    their outer shape here; the pair geometry lives on the grid.
     """
 
     layout: PagerSplitLayout = PagerSplitLayout.SINGLE
@@ -100,12 +118,20 @@ def _grid_for_state(state: PagerSplitState) -> PaneGrid:
 
 
 def state_for_grid(grid: PaneGrid) -> PagerSplitState:
-    """Map a one- or two-pane :class:`PaneGrid` back to pager state.
+    """Map a :class:`PaneGrid` back to pager state.
 
-    Three-pane grids never occur while the flag-off branch holds; one is
-    read as its outer two-pane shape would be misleading, so callers must
-    only pass grids with at most two panes.
+    Three-pane grids read as their outer two-pane shape: the layout names
+    the outer axis, ``focused`` is the reading-order slot, and ``ratio``
+    is the outer ratio. The pair geometry lives on the grid itself.
     """
+    if len(grid.panes) == 3 and grid.axis is not None:
+        try:
+            focused = grid.panes.index(grid.focused)
+        except ValueError:
+            focused = 0
+        return PagerSplitState(
+            layout=layout_for_axis(grid.axis), focused=focused, ratio=grid.ratio
+        )
     if len(grid.panes) != 2 or grid.axis is None:
         return PagerSplitState(layout=PagerSplitLayout.SINGLE, focused=0, ratio=50)
     try:
@@ -200,11 +226,17 @@ def pager_grid_fits(grid: PaneGrid, width: int, height: int) -> bool:
     Stacked panes need ``MIN_STACKED_PANE_HEIGHT`` rows each and
     side-by-side panes ``MIN_BESIDE_PANE_WIDTH`` columns each, measured
     with the shared ``pane_rects`` floor rule so it agrees exactly with
-    :func:`split_fits` on one- and two-pane grids.
+    :func:`split_fits` on one- and two-pane grids. A new three-pane
+    geometry needs both minimums in every pane.
     """
     if len(grid.panes) <= 1 or grid.axis is None:
         return True
     rects = pane_rects(grid, width, height)
+    if len(grid.panes) == 3:
+        return all(
+            w >= MIN_BESIDE_PANE_WIDTH and h >= MIN_STACKED_PANE_HEIGHT
+            for (_, _, w, h) in rects.values()
+        )
     if grid.axis is Axis.ROWS:
         return all(h >= MIN_STACKED_PANE_HEIGHT for (_, _, _, h) in rects.values())
     return all(w >= MIN_BESIDE_PANE_WIDTH for (_, _, w, _) in rects.values())
@@ -224,6 +256,7 @@ __all__ = [
     "state_for_grid",
     "step_ratio",
     "swap_focused",
+    "three_pane_splits_enabled",
     "toggle_focus",
     "toggle_split",
 ]

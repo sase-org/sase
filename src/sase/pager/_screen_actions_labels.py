@@ -82,6 +82,10 @@ class PagerActionLabelsMixin:
         if self._label_pending_prefix or armed:
             self._label_pending_prefix = ""
             self._pending_action = "follow"
+            try:
+                self.pager_host._clear_other_preview()
+            except Exception:
+                pass
             self._repaint_label_state()
             self.notify("No link label matches that key.", severity="information")
             return True
@@ -96,9 +100,12 @@ class PagerActionLabelsMixin:
     def action_arm_other(self: Any) -> None:
         """Arm an other-pane follow (``ctrl+w``).
 
-        A doubled ``ctrl+w`` (pressed while already armed, with no label
-        prefix pending) focuses the other pane instead — the vim alias of
-        ``ctrl+f`` — and is a no-op when single. Either way the arm clears.
+        Arming captures the most recently focused other pane and lifts its
+        frame to preview strength until the label lands or the arm is
+        canceled. A doubled ``ctrl+w`` (pressed while already armed, with
+        no label prefix pending) focuses the captured pane instead — with
+        two panes this equals ``ctrl+f`` — and is a no-op when single.
+        Either way the arm clears.
         """
         if self._pending_action == "other":
             self._pending_action = "follow"
@@ -111,6 +118,10 @@ class PagerActionLabelsMixin:
             return
         self._pending_action = "other"
         self._label_pending_prefix = ""
+        try:
+            self.pager_host._arm_other_preview(self)
+        except Exception:
+            pass
         self._repaint_label_state()
 
     def _arm_pending_action(self: Any, action: Literal["copy", "edit"]) -> None:

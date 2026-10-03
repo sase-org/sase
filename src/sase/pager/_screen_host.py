@@ -186,6 +186,10 @@ class PagerScreenHostMixin:
             )
         ]
         self._views_by_id: dict[int, PagerView] = {0: self._views[0]}
+        # Armed ``ctrl+w`` capture: ``(pane_id, view)`` of the MRU other
+        # pane, taken when the arm lands. Validated on use (never
+        # redirected); cleared by landing, doubled press, or a fresh arm.
+        self._armed_other_target: tuple[int, PagerView] | None = None
 
     @property
     def views(self: Any) -> tuple[PagerView, ...]:

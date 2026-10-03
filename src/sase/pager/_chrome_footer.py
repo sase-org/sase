@@ -24,6 +24,8 @@ def footer_legend(
     history_pinned: bool = False,
     time_verbs: Sequence[tuple[str, str]] | None = None,
     split: bool = False,
+    pane_count: int | None = None,
+    other_target_label: str | None = None,
 ) -> Text:
     """Build the availability-driven footer legend.
 
@@ -37,8 +39,12 @@ def footer_legend(
     ``= diff``/``= read``, ``@ timeline``).
 
     ``split`` adds the ``^F`` pane verb and names ``q`` "close pane",
-    since it closes only the focused pane while split.
+    since it closes only the focused pane while split. ``pane_count``
+    overrides ``split``: with three panes the verb reads ``^F/^B pane``.
+    ``other_target_label`` names an armed ``ctrl+w`` target with its
+    position glyph (for example ``"◲ bottom-right"``).
     """
+    panes = pane_count if pane_count is not None else (2 if split else 1)
     verbs: list[tuple[str, str]] = []
     if status is not None:
         verbs.append(("…", status))
@@ -55,6 +61,8 @@ def footer_legend(
     action_key = {"copy": "y", "edit": "E", "other": "^W"}.get(pending_action)
     if action_key is not None:
         action_label = "other pane" if pending_action == "other" else pending_action
+        if pending_action == "other" and other_target_label:
+            action_label = f"{action_label} {other_target_label}"
         verbs.append((f"{action_key}{pending_prefix}…", action_label))
     elif pending_prefix:
         verbs.append((f"{pending_prefix}…", "link"))
@@ -69,7 +77,9 @@ def footer_legend(
         verbs.append(("^I", "forward"))
     if section_total > 1:
         verbs.append(("^N/^P", "entity"))
-    if split:
+    if panes >= 3:
+        verbs.append(("^F/^B", "pane"))
+    elif panes == 2:
         verbs.append(("^F", "pane"))
     verbs.append(("/", "search"))
     help_label = "trail/keys" if trail_back_count or trail_forward_count else "keys"

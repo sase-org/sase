@@ -154,15 +154,15 @@ catalog, so tags there stay uncolored.
 | `E<label>`                                     | Open a painted file-backed target in `$EDITOR`                                                                                                                                                                                                     |
 | `EE`                                           | Open the current section in `$EDITOR` when it is file-backed                                                                                                                                                                                       |
 | `q` / `Esc`                                    | Close the focused pane, or the pager when single                                                                                                                                                                                                   |
-| `\`                                            | Split below; again keeps only the focused pane (rotates to stacked when side by side)                                                                                                                                                              |
-| `\|`                                           | Split beside; again keeps only the focused pane (rotates to side by side when stacked)                                                                                                                                                             |
-| `Ctrl+F`                                       | Focus the other pane                                                                                                                                                                                                                               |
-| `Ctrl+B`                                       | Focus the previous pane (with two panes, same as `Ctrl+F`)                                                                                                                                                                                         |
+| `\`                                            | Split below through the focused pane; again erases the stacked divider; with three panes turns the layout                                                                                                                                          |
+| `\|`                                           | Split beside through the focused pane; again erases the side-by-side divider; with three panes turns the layout                                                                                                                                    |
+| `Ctrl+F`                                       | Focus the next pane in reading order                                                                                                                                                                                                               |
+| `Ctrl+B`                                       | Focus the previous pane in reading order (with two panes, same as `Ctrl+F`)                                                                                                                                                                        |
 | `Ctrl+Shift+F` / `Ctrl+Shift+B` (or `>` / `<`) | Swap the focused pane with the next / previous pane; focus follows the content                                                                                                                                                                     |
 | `Ctrl+Shift+D` (or `Ctrl+X`)                   | Close the focused pane                                                                                                                                                                                                                             |
-| `Ctrl+T`                                       | Turn the split (stacked ↔ side by side), keeping focus, ratio, and both panes                                                                                                                                                                      |
+| `Ctrl+T`                                       | Turn the split (stacked ↔ side by side), keeping focus, ratio, and every pane                                                                                                                                                                      |
 | `+` / `-`                                      | Grow / shrink the focused pane                                                                                                                                                                                                                     |
-| `Ctrl+W <label>`                               | Follow a painted link in the other pane (opens a split when single); `Ctrl+W Ctrl+W` focuses the other pane                                                                                                                                        |
+| `Ctrl+W <label>`                               | Follow a painted link in the most recently used pane (opens a split when single); `Ctrl+W Ctrl+W` focuses that pane                                                                                                                                |
 | `?`                                            | Show help                                                                                                                                                                                                                                          |
 | `(`, `)`, `{`, `}`, `=`, `@`, `[`, `]`         | Memory history time axis: step between versions, jump to first/now, switch read/diff views, open the timeline picker, move by change — the footer names each key's destination (`( v21 · ) now · } now`) — see [Memory History](memory_history.md) |
 
@@ -213,22 +213,57 @@ label keystroke is never ambiguous. A clone of a memory note also keeps its vers
 view, but each pane then steps its own [history](memory_history.md), so you can read a
 past version in one pane against now in the other.
 
+One rule governs the split keys: `\` draws a stacked divider and `|` a side-by-side
+divider. If that kind of divider already spans the whole area, the key erases it and the
+side you are on grows to fill the space. Otherwise, with fewer than three panes, the key
+draws the divider through the focused pane — the unfocused pane becomes the full-span
+main pane without moving or resizing. With three panes, the key turns the layout
+instead. From a single pane or a two-pane split the keys never create more than the
+documented panes; `Ctrl+W` never creates a third pane.
+
+The pager shows seven geometries: single, two two-pane splits, and four three-pane T
+shapes with a full-span main pane:
+
+```
+ single     stacked      side by side
+┌──────┐    ┌──────┐       ┌───┬───┐
+│  A   │    │  A   │       │ A │ B │
+│      │    ├──────┤       │   │   │
+└──────┘    │  B   │       └───┴───┘
+            └──────┘
+ main-top    main-bottom   main-left    main-right
+┌──────┐     ┌───┬───┐     ┌───┬───┐    ┌───┬───┐
+│  A   │     │ B │ C │     │   │ B │    │ B │   │
+├───┬──┤     ├───┴───┤     │ A ├───┤    ├───┤ A │
+│ B │C │     │   A   │     │   │ C │    │ C │   │
+└───┴──┘     └───────┘     └───┴───┘    └───┴───┘
+```
+
 Each pane is framed in its section's accent color at full strength when focused and
 dimmed when not. The subject line moves into the frame: the title half becomes the
 border title, and the position half becomes the border subtitle. One shared footer sits
-at the bottom; in split mode it shows `^F pane` and `q close pane`.
+at the bottom; in split mode it shows `^F pane` (two panes) or `^F/^B pane` (three
+panes) and `q close pane`.
 
-The same split key keeps only the focused pane, the other split key rotates the
-arrangement, and `q` / `Esc` (or an exhausted `Backspace`) closes the focused pane.
-`Ctrl+F` focuses the other pane, `+` / `-` grows or shrinks it in steps, and clicking a
-pane focuses it. `Ctrl+W` followed by a label opens that link in the other pane —
-opening a split when single — while focus stays put; doubled `Ctrl+W` focuses the other
-pane instead. Losing focus cancels a pane's transient input (label prefix, `y` / `E` /
-`Ctrl+W` arms, goto prompt, search typing) while committed highlights stay.
+The same split key keeps only the focused pane, erasing to the pair when focus is in the
+pair and to the main pane alone when focus is on it. `Ctrl+T` turns any split, `q` /
+`Esc` (or an exhausted `Backspace`) closes the focused pane, and closing any of the
+three panes keeps a live survivor — the most recently focused one — with its workers,
+reading anchor, and scroll position. `Ctrl+F` / `Ctrl+B` move to the next / previous
+pane in reading order, `+` / `-` grows or shrinks the focused pane in steps, and
+clicking a pane focuses it. `Ctrl+W` followed by a label opens that link in the most
+recently used pane — opening a split when single — while focus stays put; doubled
+`Ctrl+W` focuses that pane instead. While armed, the target pane's frame lifts to
+preview strength and the footer names it with its position glyph. If a structural change
+removes the target before the link lands, the follow cancels with a short message
+instead of redirecting. Losing focus cancels a pane's transient input (label prefix, `y`
+/ `E` / `Ctrl+W` arms, goto prompt, search typing) while committed highlights stay.
 
-A split opens only when both panes keep a usable size; otherwise the pager names the
-orientation that would fit. Splitting, rotating, resizing, closing a pane, and walking
-the trail all keep the logical line at the top of the viewport.
+A split opens only when every pane keeps at least 7 rows by 32 columns; otherwise the
+pager refuses with a toast naming the orientation that would fit. Three-pane resize
+steps clamp silently, and shrinking the terminal never closes a pane. Splitting,
+rotating, resizing, closing a pane, and walking the trail all keep the logical line at
+the top of the viewport.
 
 ## Resolution
 

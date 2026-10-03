@@ -190,6 +190,31 @@ class PagerChromeMixin:
             return None
         return None if endpoints is None else endpoints[0]
 
+    def _armed_other_target_label(self: Any) -> str | None:
+        """Name the armed ``ctrl+w`` target with its position glyph, if any."""
+        try:
+            if self._pending_action != "other":
+                return None
+            host = self.pager_host
+            slot = getattr(host, "_armed_other_target", None)
+            grid = getattr(host, "_grid", None)
+            if slot is None or grid is None:
+                return None
+            try:
+                pane_id, _view = slot
+            except (TypeError, ValueError):
+                return None
+            if pane_id not in grid.panes:
+                return None
+            from sase.ace.tui.util.pane_grid import position_glyph, position_name
+
+            glyph = position_glyph(grid, pane_id)
+            name = position_name(grid, pane_id)
+            labeled = f"{glyph} {name}".strip()
+            return labeled or None
+        except Exception:
+            return None
+
     def _update_footer(self: Any) -> None:
         _available, pinned, history_state = self._history_chrome_state()
         time_verbs = None
@@ -198,6 +223,11 @@ class PagerChromeMixin:
             if isinstance(raw_verbs, list):
                 time_verbs = raw_verbs
         split = bool(getattr(self, "_pane_framed", False))
+        pane_count: int | None = None
+        try:
+            pane_count = len(self.pager_host._grid.panes)
+        except Exception:
+            pane_count = None
         legend = footer_legend(
             section_total=len(self.document.sections),
             label_count=self._visible_label_count(),
@@ -209,6 +239,8 @@ class PagerChromeMixin:
             history_pinned=pinned,
             time_verbs=time_verbs,
             split=split,
+            pane_count=pane_count,
+            other_target_label=self._armed_other_target_label(),
         )
         # The footer is host-owned: only the focused view may paint it.
         self.pager_host.paint_footer(self, legend)
@@ -271,7 +303,13 @@ class PagerChromeMixin:
                 left.stylize("dim")
                 right = right.copy()
                 right.stylize("dim")
-            self._apply_framed_chrome(left, right, kind=section.kind, focused=focused)
+            self._apply_framed_chrome(
+                left,
+                right,
+                kind=section.kind,
+                focused=focused,
+                preview=bool(getattr(self, "_pane_preview", False)),
+            )
             try:
                 subject_widget.add_class("hidden")
                 self.query_one("#pager-chrome-rule", Static).add_class("hidden")
@@ -308,17 +346,28 @@ class PagerChromeMixin:
         )
 
     def _apply_framed_chrome(
-        self: Any, left: Text, right: Text, *, kind: str, focused: bool
+        self: Any,
+        left: Text,
+        right: Text,
+        *,
+        kind: str,
+        focused: bool,
+        preview: bool = False,
     ) -> None:
-        """Paint the pane frame border and title/subtitle when split."""
+        """Paint the pane frame border and title/subtitle when split.
+
+        An armed ``ctrl+w`` target (unfocused with ``preview``) lifts to
+        about 70% strength; other unfocused panes stay at 35%.
+        """
         accent = section_accent(kind or "")
         if focused:
             border_color: object = accent
         else:
+            alpha = 0.7 if preview else 0.35
             try:
                 from textual.color import Color
 
-                border_color = Color.parse(accent).with_alpha(0.35)
+                border_color = Color.parse(accent).with_alpha(alpha)
             except Exception:
                 border_color = accent
         signature = (
@@ -327,6 +376,7 @@ class PagerChromeMixin:
             tuple((span.start, span.end, span.style) for span in left.spans),
             right.plain,
             focused,
+            preview,
         )
         if getattr(self, "_chrome_signature", None) == signature:
             return

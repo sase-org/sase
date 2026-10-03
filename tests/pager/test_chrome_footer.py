@@ -126,6 +126,36 @@ def test_goto_command_line_truncates_title_before_dropping_the_range() -> None:
     assert "…" in line.plain
 
 
+def test_footer_legend_names_focus_both_with_three_panes() -> None:
+    two = footer_legend(section_total=1, split=True)
+
+    assert "^F pane" in two.plain
+    assert "^F/^B pane" not in two.plain
+
+    three = footer_legend(section_total=1, split=True, pane_count=3)
+
+    assert "^F/^B pane" in three.plain
+    assert "q close pane" in three.plain
+
+
+def test_footer_legend_names_armed_target_with_glyph() -> None:
+    line = footer_legend(
+        section_total=1,
+        label_count=3,
+        pending_action="other",
+        split=True,
+        pane_count=3,
+        other_target_label="◲ bottom-right",
+    )
+
+    assert "^W… other pane ◲ bottom-right" in line.plain
+
+    unlabeled = footer_legend(section_total=1, label_count=3, pending_action="other")
+
+    assert "^W… other pane" in unlabeled.plain
+    assert "◲" not in unlabeled.plain
+
+
 def test_footer_shows_a_single_edit_verb() -> None:
     verbs = [("( v23", ""), (") v25", ""), ("@", "timeline"), ("=", "diff")]
     pinned = footer_legend(

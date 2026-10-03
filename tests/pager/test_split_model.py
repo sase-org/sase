@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.util.pane_grid import Axis, PaneGrid
+from sase.ace.tui.util.pane_grid import Axis, PaneGrid, Pair, press_split
+from sase.feature_flags import override_flags
 from sase.pager.split import (
     PagerSplitLayout,
     PagerSplitState,
@@ -15,6 +16,7 @@ from sase.pager.split import (
     state_for_grid,
     step_ratio,
     swap_focused,
+    three_pane_splits_enabled,
     toggle_focus,
     toggle_split,
 )
@@ -156,6 +158,53 @@ def test_pager_grid_fits_matches_split_fits() -> None:
             assert pager_grid_fits(grid, width, height) == split_fits(
                 state.layout, state.ratio, width, height
             )
+
+
+def test_state_for_grid_reads_three_pane_outer_shape() -> None:
+    grid = PaneGrid(
+        panes=(0, 1, 2),
+        focused=2,
+        axis=Axis.ROWS,
+        ratio=70,
+        pair=Pair(region=1, ratio=50),
+        recent=(2, 1, 0),
+    )
+    assert state_for_grid(grid) == PagerSplitState(
+        layout=PagerSplitLayout.BELOW, focused=2, ratio=70
+    )
+    turned = PaneGrid(
+        panes=(0, 1, 2),
+        focused=0,
+        axis=Axis.COLS,
+        ratio=50,
+        pair=Pair(region=0, ratio=50),
+        recent=(0, 2, 1),
+    )
+    assert state_for_grid(turned) == PagerSplitState(
+        layout=PagerSplitLayout.BESIDE, focused=0, ratio=50
+    )
+
+
+def test_pager_grid_fits_needs_both_minimums_in_every_third_pane() -> None:
+    grid = press_split(
+        PaneGrid(panes=(0, 1), focused=1, axis=Axis.ROWS, ratio=50, recent=(1, 0)),
+        Axis.COLS,
+        2,
+        nest=True,
+    )
+    assert len(grid.panes) == 3
+    assert pager_grid_fits(grid, 120, 40) is True
+    # The pair splits the width: below 64 columns a pair pane starves.
+    assert pager_grid_fits(grid, 60, 40) is False
+    # The outer split needs seven rows per region: below 14 rows starves.
+    assert pager_grid_fits(grid, 120, 10) is False
+
+
+def test_three_pane_splits_flag_defaults_off() -> None:
+    assert three_pane_splits_enabled() is False
+    with override_flags(three_pane_splits=True):
+        assert three_pane_splits_enabled() is True
+    assert three_pane_splits_enabled() is False
 
 
 def test_two_pane_swap_helper() -> None:

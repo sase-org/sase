@@ -197,9 +197,9 @@ def _binding_rows(
             ("E..., EE", "Edit a link in $EDITOR / this section"),
             (
                 "ctrl+w...",
-                "Follow a painted link in the other pane; opens a split when single",
+                "Follow a painted link in the most recently used pane; opens a split when single",
             ),
-            ("ctrl+w ctrl+w", "Focus the other pane"),
+            ("ctrl+w ctrl+w", "Focus the most recently used pane"),
         ]
     rows.extend(
         [
@@ -210,9 +210,15 @@ def _binding_rows(
             ("?", "Show trail and keys"),
             ("", ""),
             ("Panes", ""),
-            ("\\", "Split below / keep this pane / rotate to stacked"),
-            ("|", "Split beside / keep this pane / rotate to side by side"),
-            ("ctrl+f / ctrl+b", "Focus the next / previous pane"),
+            (
+                "\\",
+                "Split below through the focused pane / erase the stacked divider / turn three panes",
+            ),
+            (
+                "|",
+                "Split beside through the focused pane / erase the side-by-side divider / turn three panes",
+            ),
+            ("ctrl+f / ctrl+b", "Focus the next / previous pane in reading order"),
             (
                 "ctrl+shift+f / ctrl+shift+b (or > / <)",
                 "Swap with the next / previous pane",

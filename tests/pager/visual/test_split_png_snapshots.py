@@ -11,6 +11,8 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui.util.pane_grid import Geometry, geometry
+from sase.feature_flags import override_flags
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.resolve import LinkTarget, LinkTargetKind
@@ -174,3 +176,119 @@ async def test_other_pane_armed_footer_png_snapshot(
             "split_other_pane_armed_120x40",
             title="SasePager: ctrl+w armed footer",
         )
+
+
+async def _goto_three_panes(
+    pilot: Any, app: SasePager, first: str, second: str
+) -> PagerScreen:
+    """Drive two split keys to a three-pane T layout; return the screen."""
+    await pilot.press(first)
+    await pilot.pause()
+    await pilot.pause()
+    await pilot.press(second)
+    await pilot.pause()
+    await pilot.pause()
+    screen = _pager_screen(app)
+    assert len(screen.views) == 3
+    return screen
+
+
+async def test_three_pane_main_top_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+) -> None:
+    with override_flags(three_pane_splits=True):
+        app = SasePager(_source_document())
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = await _goto_three_panes(pilot, app, "\\", "|")
+            assert geometry(screen._grid) is Geometry.R3_MAIN_TOP
+            pager_png_visual.assert_page_png(
+                _SvgExport(app),
+                "split_three_pane_main_top_120x40",
+                title="SasePager: three panes, main on top",
+            )
+
+
+async def test_three_pane_main_bottom_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+) -> None:
+    with override_flags(three_pane_splits=True):
+        app = SasePager(_source_document())
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press("\\")
+            await pilot.pause()
+            await pilot.pause()
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+            await pilot.press("|")
+            await pilot.pause()
+            await pilot.pause()
+            screen = _pager_screen(app)
+            assert len(screen.views) == 3
+            assert geometry(screen._grid) is Geometry.R3_MAIN_BOTTOM
+            pager_png_visual.assert_page_png(
+                _SvgExport(app),
+                "split_three_pane_main_bottom_120x40",
+                title="SasePager: three panes, main on the bottom",
+            )
+
+
+async def test_three_pane_main_left_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+) -> None:
+    with override_flags(three_pane_splits=True):
+        app = SasePager(_source_document())
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = await _goto_three_panes(pilot, app, "|", "\\")
+            assert geometry(screen._grid) is Geometry.C3_MAIN_LEFT
+            pager_png_visual.assert_page_png(
+                _SvgExport(app),
+                "split_three_pane_main_left_120x40",
+                title="SasePager: three panes, main on the left",
+            )
+
+
+async def test_three_pane_main_right_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+) -> None:
+    with override_flags(three_pane_splits=True):
+        app = SasePager(_source_document())
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press("|")
+            await pilot.pause()
+            await pilot.pause()
+            await pilot.press("ctrl+f")
+            await pilot.pause()
+            await pilot.press("\\")
+            await pilot.pause()
+            await pilot.pause()
+            screen = _pager_screen(app)
+            assert len(screen.views) == 3
+            assert geometry(screen._grid) is Geometry.C3_MAIN_RIGHT
+            pager_png_visual.assert_page_png(
+                _SvgExport(app),
+                "split_three_pane_main_right_120x40",
+                title="SasePager: three panes, main on the right",
+            )
+
+
+async def test_three_pane_armed_preview_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+) -> None:
+    with override_flags(three_pane_splits=True):
+        app = SasePager(_source_document())
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = await _goto_three_panes(pilot, app, "\\", "|")
+            assert geometry(screen._grid) is Geometry.R3_MAIN_TOP
+            await pilot.press("ctrl+w")
+            await pilot.pause()
+            assert screen._armed_other_target is not None
+            pager_png_visual.assert_page_png(
+                _SvgExport(app),
+                "split_three_pane_armed_preview_120x40",
+                title="SasePager: three panes with armed ctrl+w preview",
+            )
