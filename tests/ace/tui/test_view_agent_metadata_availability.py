@@ -10,10 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sase.ace.tui._app_action_availability import (
-    _LOCAL_AGENT_ROW_ACTIONS,
-    check_app_action,
-)
+from sase.ace.tui._app_action_availability import check_app_action
+from sase.ace.tui._app_action_availability_agents import _LOCAL_AGENT_ROW_ACTIONS
 from tests.ace.agent_artifact_startup_fixtures import make_agent
 
 
