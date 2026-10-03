@@ -1346,6 +1346,29 @@ with prompt_key_io_probe() as probe:
 probe.assert_quiet()
 ```
 
+## Pager bench
+
+The pager benchmark (epic `sase-1es`) measures open, keystroke, search, memory, leak,
+and cold-start cost against a deterministic synthetic corpus over the 500 / 2k / 20k /
+100k line ladder. Each case runs in a fresh subprocess with a per-case timeout
+(`TIMEOUT` is reported, never hung), plus a trivial-app floor so CPU numbers read both
+raw and above the floor:
+
+```bash
+just bench-pager
+just bench-pager --cases code-sparse,log-dense --max-lines 2000 --no-cold
+just bench-pager --cases markdown --ladder 500,2000 --output /tmp/pager-bench.json
+```
+
+The corpus generator is `tests/perf/_pager_bench_corpus.py`; the harness is
+`tests/perf/bench_pager.py` (slow). `test_pager_bench_smoke.py` is the fast non-slow
+smoke test that runs the smallest case end to end. Baseline numbers are not committed:
+shared-host timing is noisy, so record before/after tables in bead notes instead.
+
+The committed tripwires are the regular tests, not the bench: dismissed-view release in
+`tests/pager/test_view_leak.py`, and the strip-cache bound plus the 20k-line
+`tracemalloc` ceiling in `tests/pager/test_perf_gates.py`.
+
 ## Targets per phase gate
 
 The targets below come from `sdd/research/202604/sase_perf_research.md` and are restated

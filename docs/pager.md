@@ -136,6 +136,19 @@ in practice it appears only when the pager runs inside sase's TUI; a standalone
 `sase pager notes.md` (including one launched as a subprocess) does not load the
 catalog, so tags there stay uncolored.
 
+## Performance
+
+The body is a virtualized row model. Layout is computed once per document width as cheap
+integer arrays, and only the visible rows are styled and rendered on demand through a
+bounded strip cache (about four viewports, minimum 512 rows). Scrolling, label-prefix
+keys, syntax publish, and search typing therefore cost O(viewport), independent of
+document size. The work that still scales with the document is the one-time layout pass,
+the link scan, and — for source files — the syntax overlay, which publishes after first
+paint. All caches are per view, dropped on document swap and unmount, and closing a
+pager releases its document, so nothing accumulates across opens. The syntax caps are
+unchanged: files that exceed them stay fully visible and searchable, just without
+highlighting.
+
 ## Keys
 
 | Key                                            | Action                                                                                                                                                                                                                                             |
