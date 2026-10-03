@@ -49,6 +49,7 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
         changed_paths = self._filter_expected_self_deletion_paths(changed_paths)
         if changed_paths is not None and not changed_paths:
             return
+        self._route_live_reply_artifact_paths(changed_paths)
         targets = self._dirty_surfaces_for_paths(changed_paths)
         if not targets:
             return
@@ -94,6 +95,26 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
             )
             if callable(schedule_changespecs):  # legacy compatibility alias
                 schedule_changespecs()  # legacy compatibility alias
+
+    def _route_live_reply_artifact_paths(
+        self, changed_paths: tuple[Path, ...] | None
+    ) -> None:
+        """Send selected reply-file events to the prompt panel's local follower."""
+        if not changed_paths or not any(
+            path.name in {"live_reply.md", "live_reply_timestamps.jsonl"}
+            for path in changed_paths
+        ):
+            return
+        get_panel = getattr(self, "_deck_source_panel", None)
+        if not callable(get_panel):
+            return
+        try:
+            panel = get_panel()
+        except Exception:
+            return
+        handler = getattr(panel, "on_live_reply_artifact_change", None)
+        if callable(handler):
+            handler(changed_paths)
 
     def _dirty_surfaces_for_paths(
         self, changed_paths: tuple[Path, ...] | None

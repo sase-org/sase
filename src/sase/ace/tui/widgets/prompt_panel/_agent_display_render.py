@@ -57,6 +57,7 @@ from ._agent_display_header_summary import (
     publish_opened_workspaces_cache,
 )
 from ._agent_display_hints import clear_agent_hint_render_cache
+from ._live_reply_follow import is_live_reply_agent, live_reply_region
 from ._agent_display_step_render import AgentStepDisplayMixin
 from ._agent_display_xprompt import (
     attach_xprompt_to_identity,
@@ -492,8 +493,16 @@ class AgentDisplayRenderMixin(
                             phase.run_start_time or phase.start_time,
                             block_id=block_id,
                         ),
-                        *render_agent_reply_content(phase, self._render_markdown),
                     ]
+                    reply_renderables = render_agent_reply_content(
+                        phase, self._render_markdown
+                    )
+                    if is_live_reply_agent(phase):
+                        legacy_parts.append(
+                            live_reply_region(phase.identity, reply_renderables)
+                        )
+                    else:
+                        legacy_parts.extend(reply_renderables)
                     append_finalizer_receipt(legacy_parts, phase)
                     return legacy_parts
 
@@ -589,37 +598,36 @@ class AgentDisplayRenderMixin(
                 live_reply = agent.get_live_reply_content()
                 chunks = agent.get_timestamped_reply_chunks()
                 merge_history = should_render_merged(agent, self.attempt_view_mode)
-                if chunks:
-                    reply_parts.append(reply_header)
-                    if merge_history:
-                        reply_parts.extend(
-                            render_merged_attempt_history(
-                                agent,
-                                self._render_markdown,
-                            )
+                reply_parts.append(reply_header)
+                if merge_history:
+                    reply_parts.extend(
+                        render_merged_attempt_history(
+                            agent,
+                            self._render_markdown,
                         )
+                    )
+                current_reply_parts: list[Any] = []
+                if chunks:
                     for ts, chunk_text in chunks:
-                        reply_parts.append(render_timestamp_divider(ts))
+                        current_reply_parts.append(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
-                            reply_parts.append(self._render_markdown(content))
+                            current_reply_parts.append(self._render_markdown(content))
                 elif live_reply:
-                    reply_syntax = self._render_markdown(live_reply)
-                    reply_parts.append(reply_header)
-                    if merge_history:
-                        reply_parts.extend(
-                            render_merged_attempt_history(
-                                agent,
-                                self._render_markdown,
-                            )
-                        )
-                    reply_parts.append(reply_syntax)
+                    current_reply_parts.append(self._render_markdown(live_reply))
                 else:
-                    reply_header.append(
-                        "Waiting for agent response...\n",
-                        style="dim italic",
+                    current_reply_parts.append(
+                        Text(
+                            "Waiting for agent response...\n",
+                            style="dim italic",
+                        )
                     )
-                    reply_parts.append(reply_header)
+                if is_live_reply_agent(agent):
+                    reply_parts.append(
+                        live_reply_region(agent.identity, current_reply_parts)
+                    )
+                else:
+                    reply_parts.extend(current_reply_parts)
 
                 append_finalizer_receipt(reply_parts, agent)
                 self.update(  # type: ignore[attr-defined]

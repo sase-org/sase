@@ -24,6 +24,7 @@ from ._identity_header import (
     find_member_jump_map,
     find_member_roster,
 )
+from ._live_reply_follow import LiveReplyFollowMixin
 from ...util.renderable_digest import (
     renderable_cheap_token,
     renderable_content_digest,
@@ -36,7 +37,11 @@ _SLOW_TOOL_RENDER_TICK_SECONDS = 5.0
 
 
 class AgentPromptPanel(
-    SectionViewMixin, AgentDisplayMixin, AgentHintsDisplayMixin, WorkflowDisplayMixin
+    LiveReplyFollowMixin,
+    SectionViewMixin,
+    AgentDisplayMixin,
+    AgentHintsDisplayMixin,
+    WorkflowDisplayMixin,
 ):
     """Top panel showing agent details and the input prompt."""
 
@@ -147,6 +152,22 @@ class AgentPromptPanel(
             super().update_header_only(agent)
         finally:
             self._main_document_partial = False
+
+    def update_display(self, agent: Agent) -> None:
+        """Render the normal detail, then follow its selected live Reply source."""
+        self.cancel_live_reply_follow()
+        super().update_display(agent)  # type: ignore[misc]
+        self.configure_live_reply_follow(agent)
+
+    def update_display_with_hints(self, agent: Agent) -> Any:
+        """Hint documents are snapshots and never run the live Reply follower."""
+        self.cancel_live_reply_follow()
+        return super().update_display_with_hints(agent)  # type: ignore[misc]
+
+    def update_tribe_display(self, *args: Any, **kwargs: Any) -> None:
+        """Summary-only tribe documents keep their established refresh route."""
+        self.cancel_live_reply_follow()
+        super().update_tribe_display(*args, **kwargs)  # type: ignore[misc]
 
     def update(self, content: Any = "", *, layout: bool = True) -> None:
         """Update content while invalidating only the cached rendered anchors."""
@@ -304,6 +325,7 @@ class AgentPromptPanel(
             pass
 
     def on_unmount(self) -> None:
+        self.cancel_live_reply_follow()
         self._cancel_slow_tool_render_tick()
 
 

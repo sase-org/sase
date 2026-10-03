@@ -38,6 +38,7 @@ from ._agent_xprompt_highlighting import (
     agent_prompt_highlight_context,
     apply_authored_prompt_overlays,
 )
+from ._live_reply_follow import is_live_reply_agent, live_reply_region
 from ._container_hint_text import container_text_with_file_hints
 from ._file_path_hints import (
     has_file_path,
@@ -196,24 +197,26 @@ class AgentSessionDisplayMixin:
                     return parts
                 if phase.is_gate:
                     return build_gate_phase(phase, block_id=block_id)
+                reply_renderables = render_agent_reply_content(
+                    phase,
+                    self._render_markdown,
+                ) or [
+                    Text(
+                        "No response content yet.\n",
+                        style="dim italic",
+                    )
+                ]
+                if is_live_reply_agent(phase):
+                    reply_renderables = [
+                        live_reply_region(phase.identity, reply_renderables)
+                    ]
                 parts = [
                     render_phase_divider(
                         get_phase_label(phase),
                         phase.run_start_time or phase.start_time,
                         block_id=block_id,
                     ),
-                    *(
-                        render_agent_reply_content(
-                            phase,
-                            self._render_markdown,
-                        )
-                        or [
-                            Text(
-                                "No response content yet.\n",
-                                style="dim italic",
-                            )
-                        ]
-                    ),
+                    *reply_renderables,
                 ]
                 append_finalizer_receipt(parts, phase)
                 return parts

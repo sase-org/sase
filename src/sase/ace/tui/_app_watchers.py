@@ -17,9 +17,24 @@ if TYPE_CHECKING:
 class AppWatchersMixin:
     """Respond to top-level selection and tab state changes."""
 
+    def _cancel_selected_live_reply_follow(self: Any) -> None:
+        """Invalidate the hidden prompt source on selection or tab changes."""
+        get_panel = getattr(self, "_deck_source_panel", None)
+        if not callable(get_panel):
+            return
+        try:
+            panel = get_panel()
+        except Exception:
+            return
+        cancel = getattr(panel, "cancel_live_reply_follow", None)
+        if callable(cancel):
+            cancel()
+
     def watch_current_idx(self: Any, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
         if old_idx != new_idx:
+            if self.current_tab == "agents":
+                self._cancel_selected_live_reply_follow()
             clear_link_trail = getattr(self, "_clear_link_trail_if_unguarded", None)
             if callable(clear_link_trail):
                 clear_link_trail()
@@ -46,6 +61,9 @@ class AppWatchersMixin:
         """React to tab changes by showing/hiding views."""
         if old_tab == new_tab:
             return
+
+        if old_tab == "agents":
+            self._cancel_selected_live_reply_follow()
 
         clear_link_trail = getattr(self, "_clear_link_trail_if_unguarded", None)
         if callable(clear_link_trail):
@@ -178,6 +196,20 @@ class AppWatchersMixin:
             self._refresh_axe_display()
             if not startup_surface_started:
                 self._schedule_axe_async_refresh()
+
+        if new_tab == "agents" and not self._mounting:
+            get_panel = getattr(self, "_deck_source_panel", None)
+            get_selected = getattr(self, "_get_selected_agent", None)
+            if callable(get_panel) and callable(get_selected):
+                try:
+                    configure = getattr(
+                        get_panel(), "configure_live_reply_follow", None
+                    )
+                    selected = get_selected()
+                    if callable(configure) and selected is not None:
+                        configure(selected)
+                except Exception:
+                    pass
 
         # Refresh an open tab-scoped help panel with the new context.
         from .modals import HelpModal
