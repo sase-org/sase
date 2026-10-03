@@ -16,9 +16,15 @@ from sase.agents_sync.v2_models import (
     V2OwnerHoodEntry,
     V2OwnerManifest,
     V2RunRecord,
-    is_session_container,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.core.agent_session_manifest import (
+    SESSION_MANIFEST_CLASS_CURRENT,
+    SESSION_MANIFEST_CLASS_SUPPORTED_LEGACY,
+    canonical_session_manifest_files,
+    classify_session_manifest_files,
+)
+from sase.feature_flags import FeatureFlag, current_flags
 
 
 def previous_snapshot(
@@ -94,11 +100,7 @@ def load_validated_publication(
                     f"snapshot identity mismatch for {'.'.join(key)!r}"
                 )
             if entry.files is not None:
-                expected = hood_file_set(snapshot)
-                if expected != entry.files:
-                    raise AgentsSyncFormatError(
-                        f"manifest file set mismatch for {'.'.join(key)!r}"
-                    )
+                _check_explicit_file_set(snapshot, entry, key)
             if not scoped_verification or key in overrides:
                 for run in snapshot.runs:
                     verify_run_files(repo_root, run, payload)
@@ -141,30 +143,61 @@ def _payload_bytes(repo_root: Path, payload: dict[str, bytes], path: str) -> byt
         raise AgentsSyncFormatError(f"could not read referenced file {path!r}") from exc
 
 
+def _check_explicit_file_set(
+    snapshot: V2HoodSnapshot,
+    entry: V2OwnerHoodEntry,
+    key: tuple[str, str, str],
+) -> None:
+    """Enforce the explicit manifest file-set policy through the Rust core."""
+    assert entry.files is not None
+    if not current_flags().enabled(FeatureFlag.agents_session_manifest_compat):
+        expected = hood_file_set(snapshot)
+        if expected != entry.files:
+            raise AgentsSyncFormatError(
+                f"manifest file set mismatch for {'.'.join(key)!r}"
+            )
+        return
+    decision = classify_session_manifest_files(
+        owner_username=snapshot.owner.username,
+        owner_machine=snapshot.owner.machine_name,
+        local_hood=snapshot.local_hood,
+        run_global_names=tuple(run.global_name for run in snapshot.runs),
+        run_file_paths=tuple(
+            reference.path for run in snapshot.runs for _kind, reference in run.files
+        ),
+        containers=tuple(
+            (container.kind, container.global_name) for container in snapshot.containers
+        ),
+        explicit_files=entry.files,
+    )
+    if decision.classification not in {
+        SESSION_MANIFEST_CLASS_CURRENT,
+        SESSION_MANIFEST_CLASS_SUPPORTED_LEGACY,
+    }:
+        raise AgentsSyncFormatError(
+            f"manifest file set mismatch for {'.'.join(key)!r}: "
+            f"{decision.classification}: {decision.reason}"
+        )
+
+
 def hood_file_set(snapshot: V2HoodSnapshot) -> tuple[str, ...]:
-    files = {
-        snapshot_path(snapshot.owner, snapshot.local_hood),
-        _hood_readme_path(snapshot.owner, snapshot.local_hood),
-    }
-    for run in snapshot.runs:
-        files.update(reference.path for _kind, reference in run.files)
-        files.add(f"agents/{run.global_name}/README.md")
-    for container in snapshot.containers:
-        if not is_session_container(container.kind):
-            continue
-        files.add(f"sessions/{container.global_name}.md")
-        files.add(f"families/{container.global_name}.md")
-    return tuple(sorted(files))
+    """Derive the current canonical explicit file set through the Rust core."""
+    return canonical_session_manifest_files(
+        owner_username=snapshot.owner.username,
+        owner_machine=snapshot.owner.machine_name,
+        local_hood=snapshot.local_hood,
+        run_global_names=tuple(run.global_name for run in snapshot.runs),
+        run_file_paths=tuple(
+            reference.path for run in snapshot.runs for _kind, reference in run.files
+        ),
+        containers=tuple(
+            (container.kind, container.global_name) for container in snapshot.containers
+        ),
+    )
 
 
 def snapshot_path(owner: AgentOwnerIdentity, hood: str) -> str:
     return (
         f"users/{owner.username}/machines/{owner.machine_name}/"
         f"hoods/{hood}/snapshot.json"
-    )
-
-
-def _hood_readme_path(owner: AgentOwnerIdentity, hood: str) -> str:
-    return (
-        f"users/{owner.username}/machines/{owner.machine_name}/hoods/{hood}/README.md"
     )

@@ -37,6 +37,7 @@ class FeatureFlag(StrEnum):
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
+    agents_session_manifest_compat = "agents_session_manifest_compat"
     typed_launch_units = "typed_launch_units"
 
 
@@ -206,6 +207,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "caps with lenient old-reader skip for the omitted-files shape."
         ),
         bead="sase-11p",
+    ),
+    FeatureFlag.agents_session_manifest_compat: FeatureFlagDefinition(
+        key=FeatureFlag.agents_session_manifest_compat,
+        kind="sunset",
+        description=(
+            "Accepts the exact supported legacy family-only explicit file "
+            "set beside the current canonical set."
+        ),
+        bead="sase-1ft",
     ),
     FeatureFlag.typed_launch_units: FeatureFlagDefinition(
         key=FeatureFlag.typed_launch_units,

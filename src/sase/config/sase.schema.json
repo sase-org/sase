@@ -5738,6 +5738,12 @@
           "description": "Gate the typed sudo request workflow while the runner, TUI modal, skill guard, and SSH relay phases land.",
           "default": false
         },
+        "agents_session_manifest_compat": {
+          "type": "boolean",
+          "description": "Accepts the exact supported legacy family-only explicit file set beside the current canonical set.",
+          "default": true,
+          "deprecated": true
+        },
         "agents_unified_query": {
           "type": "boolean",
           "description": "The Agents tab parses, evaluates, and edits its filter with the shared agents-live boolean query profile through the Rust corpus engine and the FilterBar chrome.",
