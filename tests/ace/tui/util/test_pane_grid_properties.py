@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from hypothesis import assume, given
+from hypothesis import given
 from hypothesis import strategies as st
 
 from sase.ace.tui.util.pane_grid import (
@@ -91,17 +91,13 @@ _OPS = [
 ]
 
 
-def _apply(g: PaneGrid, op: str, nest: bool = True) -> PaneGrid:
+def _apply(g: PaneGrid, op: str) -> PaneGrid:
     if op == "split-rows":
         new_id = free_pane_id(g)
-        return press_split(
-            g, Axis.ROWS, new_id if new_id is not None else -1, nest=nest
-        )
+        return press_split(g, Axis.ROWS, new_id if new_id is not None else -1)
     if op == "split-cols":
         new_id = free_pane_id(g)
-        return press_split(
-            g, Axis.COLS, new_id if new_id is not None else -1, nest=nest
-        )
+        return press_split(g, Axis.COLS, new_id if new_id is not None else -1)
     if op == "close":
         return close_focused(g)
     if op == "focus+":
@@ -129,16 +125,6 @@ def test_outputs_stay_valid(g: PaneGrid) -> None:
         after = _apply(g, op)
         _assert_valid(after)
         assert len(after.panes) <= MAX_PANES
-
-
-@given(grids)
-def test_nest_off_never_yields_three_panes(g: PaneGrid) -> None:
-    """With nest=False no result from one/two panes ever has three panes."""
-    assume(len(g.panes) <= 2)
-    for op in _OPS:
-        after = _apply(g, op, nest=False)
-        _assert_valid(after)
-        assert len(after.panes) <= 2
 
 
 @given(grids)

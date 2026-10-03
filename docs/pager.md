@@ -262,7 +262,7 @@ instead of redirecting. Losing focus cancels a pane's transient input (label pre
 A split opens only when every pane keeps at least 7 rows by 32 columns; otherwise the
 pager refuses with a toast naming the orientation that would fit. Three-pane resize
 steps clamp silently, and shrinking the terminal never closes a pane. Splitting,
-rotating, resizing, closing a pane, and walking the trail all keep the logical line at
+turning, resizing, closing a pane, and walking the trail all keep the logical line at
 the top of the viewport.
 
 ## Resolution

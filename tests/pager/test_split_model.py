@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from sase.ace.tui.util.pane_grid import Axis, PaneGrid, Pair, press_split
-from sase.feature_flags import override_flags
 from sase.pager.split import (
     PagerSplitLayout,
     PagerSplitState,
@@ -16,7 +15,6 @@ from sase.pager.split import (
     state_for_grid,
     step_ratio,
     swap_focused,
-    three_pane_splits_enabled,
     toggle_focus,
     toggle_split,
 )
@@ -43,12 +41,12 @@ def test_same_key_keeps_focused_pane_as_single() -> None:
     assert closed.focused == 0
 
 
-def test_other_key_rotates_keeping_focus_and_ratio() -> None:
+def test_other_key_nests_third_pane_keeping_outer_shape() -> None:
     opened = PagerSplitState(layout=PagerSplitLayout.BELOW, focused=1, ratio=30)
-    rotated = toggle_split(opened, PagerSplitLayout.BESIDE)
-    assert rotated.layout is PagerSplitLayout.BESIDE
-    assert rotated.focused == 1
-    assert rotated.ratio == 30
+    nested = toggle_split(opened, PagerSplitLayout.BESIDE)
+    assert nested.layout is PagerSplitLayout.BELOW
+    assert nested.ratio == 30
+    assert nested.focused == 2
 
 
 def test_toggle_focus_swaps_panes() -> None:
@@ -190,7 +188,6 @@ def test_pager_grid_fits_needs_both_minimums_in_every_third_pane() -> None:
         PaneGrid(panes=(0, 1), focused=1, axis=Axis.ROWS, ratio=50, recent=(1, 0)),
         Axis.COLS,
         2,
-        nest=True,
     )
     assert len(grid.panes) == 3
     assert pager_grid_fits(grid, 120, 40) is True
@@ -198,13 +195,6 @@ def test_pager_grid_fits_needs_both_minimums_in_every_third_pane() -> None:
     assert pager_grid_fits(grid, 60, 40) is False
     # The outer split needs seven rows per region: below 14 rows starves.
     assert pager_grid_fits(grid, 120, 10) is False
-
-
-def test_three_pane_splits_flag_defaults_off() -> None:
-    assert three_pane_splits_enabled() is False
-    with override_flags(three_pane_splits=True):
-        assert three_pane_splits_enabled() is True
-    assert three_pane_splits_enabled() is False
 
 
 def test_two_pane_swap_helper() -> None:

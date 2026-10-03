@@ -224,7 +224,7 @@ def other_target(g: PaneGrid) -> int | None:
 
 
 def _erase(g: PaneGrid) -> PaneGrid:
-    """Collapse a three-pane grid along its outer divider (nest-off path)."""
+    """Collapse a three-pane grid along its outer divider."""
     main = main_pane(g)
     members = _pair_members(g)
     if main is None or members is None or g.pair is None or g.axis is None:
@@ -241,7 +241,7 @@ def _erase(g: PaneGrid) -> PaneGrid:
     )
 
 
-def press_split(g: PaneGrid, axis: Axis, new_id: int, *, nest: bool = True) -> PaneGrid:
+def press_split(g: PaneGrid, axis: Axis, new_id: int) -> PaneGrid:
     """Apply the one split-key rule for a divider of kind *axis*.
 
     From a single pane, draw the divider through the focused pane: the new
@@ -249,12 +249,10 @@ def press_split(g: PaneGrid, axis: Axis, new_id: int, *, nest: bool = True) -> P
     50/50. From a two-pane split, the same-axis key erases the divider and
     keeps the focused pane; the other-axis key nests a third pane (the
     focused pane splits, the new pane takes focus, the unfocused pane
-    becomes main without moving or resizing) or, with ``nest=False``,
-    turns the split. From three panes, the outer-axis key erases the
-    full-span divider (focus in the pair keeps the pair; focus on main
-    keeps main) and the other key turns the layout.
+    becomes main without moving or resizing). From three panes, the
+    outer-axis key erases the full-span divider (focus in the pair keeps
+    the pair; focus on main keeps main) and the other key turns the layout.
 
-    ``nest=False`` is the flag-off branch and never yields three panes.
     Paths that create no pane ignore *new_id*; the others need an unused ID
     in ``range(MAX_PANES)``.
     """
@@ -274,8 +272,6 @@ def press_split(g: PaneGrid, axis: Axis, new_id: int, *, nest: bool = True) -> P
     if n == 2:
         if axis == g.axis:
             return PaneGrid(panes=(g.focused,), focused=g.focused, recent=(g.focused,))
-        if not nest:
-            return turn(g)
         if new_id in g.panes or not 0 <= new_id < MAX_PANES:
             return g
         index = g.panes.index(g.focused)
@@ -292,7 +288,7 @@ def press_split(g: PaneGrid, axis: Axis, new_id: int, *, nest: bool = True) -> P
             pair=Pair(region=index, ratio=50),
             recent=(new_id, *g.recent),
         )
-    if axis == g.axis or not nest:
+    if axis == g.axis:
         return _erase(g)
     return turn(g)
 

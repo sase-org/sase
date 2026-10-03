@@ -97,26 +97,15 @@ class AgentDeckPersistenceMixin:
         self._start_agents_deck_state_save_writer()
 
     def _apply_agents_deck_snapshot(self, snapshot: AgentsDeckStateSnapshot) -> bool:
-        """Install ``snapshot`` into the deck area; False when not ready.
-
-        While ``three_pane_splits`` is off, a three-panel snapshot loads
-        truncated to two panels, exactly as an old reader would.
-        """
+        """Install ``snapshot`` into the deck area; False when not ready."""
         try:
             from ...models.agent_deck_persistence import area_state_from_snapshot
-            from ...models.agent_deck_persistence import truncate_snapshot_to_two
             from ...widgets import AgentDetail
-            from ...widgets.decks.layout import three_pane_splits_enabled
 
             detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             area = detail.deck_area
         except Exception:
             return False
-        try:
-            if not three_pane_splits_enabled():
-                snapshot = truncate_snapshot_to_two(snapshot)
-        except Exception:
-            pass
         try:
             state = area_state_from_snapshot(snapshot)
             area.apply_state(state)

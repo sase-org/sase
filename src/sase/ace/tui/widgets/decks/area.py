@@ -43,9 +43,9 @@ class DeckArea(Vertical):
     def compose(self) -> ComposeResult:
         """Compose all three panels; panels 1 and 2 start hidden.
 
-        The third panel is composed eagerly (hidden) so a nest behind the
-        ``three_pane_splits`` flag never mounts during a key handler: every
-        structural key keeps widget identity with no mount or unmount.
+        The third panel is composed eagerly (hidden) so a nest never mounts
+        during a key handler: every structural key keeps widget identity
+        with no mount or unmount.
         """
         yield DeckPanel(0, id="agent-deck-panel-0", classes="deck-panel")
         yield DeckPanel(1, id="agent-deck-panel-1", classes="deck-panel hidden")

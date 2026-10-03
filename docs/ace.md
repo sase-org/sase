@@ -1367,7 +1367,7 @@ field (exact match, or `main` for the default tab).
 ### Navigation
 
 | Key                       | Action                                                                                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead          |
 | `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                    |
 | `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                      |
@@ -1388,13 +1388,13 @@ field (exact match, or `main` for the default tab).
 | `Ctrl+D` / `Ctrl+U`       | Scroll the expanded jump panel when its content overflows, else the expanded header panel when its content overflows, else the focused deck panel (half page)        |
 | `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools → FINAL, wraps)                                                                                      |
 | `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL; `M`/`F`/`T`/`N` show it in the other panel (opening one below if needed); `pp`/`Esc` close |
-| `\` / `                   | `                                                                                                                                                                    | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |
+| `\` / `                   | `                                                                                                                                                                    | Split deck panels stacked / side by side; the same key erases its divider, the other key nests a third panel or turns three panels |
 | `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                            |
 | `Ctrl+F` / `Ctrl+B`       | Focus the next / previous deck panel in reading order, wrapping (split layouts only)                                                                                 |
 | `Ctrl+Shift+F` / `>`      | Swap the focused panel's session with the next panel in reading order, wrapping; geometry and ratios stay with the slots and focus follows the content (split only)  |
 | `Ctrl+Shift+B` / `<`      | Swap the focused panel's session with the previous panel in reading order, wrapping (split layouts only)                                                             |
 | `Ctrl+Shift+D` / `Ctrl+X` | Close the focused deck panel; focus goes to the most recently focused survivor (split layouts only)                                                                  |
-| `Ctrl+T`                  | Turn the deck layout: transpose a stacked split to side by side and back (split layouts only)                                                                        |
+| `Ctrl+T`                  | Turn the deck layout: transpose a two-pane split, or a three-pane T layout (split layouts only)                                                                      |
 | `Ctrl+S`                  | Toggle the node rail (persisted preference); while zoomed, restore the snapshot like `Z`                                                                             |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
@@ -5614,7 +5614,7 @@ focused-panel meaning. The palette offers the same jumps as
 
 ### Agent Data Decks and Cards
 
-The Agents tab detail column shows one or two deck panels between the sticky header
+The Agents tab detail column shows one to three deck panels between the sticky header
 panel and the jump panel. Each deck panel shows one agent data deck, a named ordered set
 of agent data cards about the selected node. `Ctrl+N` / `Ctrl+P` cycle the focused panel
 through the Main, Files, Tools, and FINAL decks (wrapping, nothing skipped), and `p`
@@ -5747,15 +5747,28 @@ not blocks. If your terminal delivers them distinctly, bind them yourself as a p
 override of `prev_card_block` / `next_card_block` (see
 [configuration](configuration.md#aceagent_decks) and the keymap settings).
 
-`\` opens a second panel below the first (top-bottom) and `|` opens one to its right
-(left-right); the new panel takes focus and shows the next deck with content, or a
-duplicate deck when every other deck is empty or already shown. Pressing the same split
-key again closes the second panel; pressing the other split key rotates the layout. `p`
-plus a capital deck letter (`M` / `F` / `T` / `N`) opens or fills the other panel with a
+`\` opens a second panel below the first (stacked) and `|` opens one to its right (side
+by side); the new panel takes focus and shows the next deck with content, or a duplicate
+deck when every other deck is empty or already shown. One rule governs the split keys:
+`\` draws a stacked divider and `|` a side-by-side divider. If that kind of divider
+already spans the whole area, the key erases it and the side you are on grows to fill
+the space. Otherwise, with fewer than three panels, the key draws the divider through
+the focused panel — the unfocused panel becomes the full-span main panel without moving
+or resizing. With three panels, the key turns the layout instead. There are seven
+geometries: single, two two-pane splits, and four three-pane T shapes with a full-span
+main panel. `Ctrl+T` turns any split, `Ctrl+Shift+D` (alias `Ctrl+X`) closes the focused
+panel, and `Ctrl+Shift+F` / `Ctrl+Shift+B` (aliases `>` / `<`) swap the focused panel's
+session with the next / previous panel in reading order. `p` plus a capital deck letter
+(`M` / `F` / `T` / `N`) opens or fills the most recently focused other panel with a
 chosen deck without moving focus (see the [deck picker](#agents-deck-picker)). `Ctrl+F`
-moves focus to the other panel (split layouts only) and every deck, card, scroll,
-search, and fold key acts on the focused panel. `}` / `{` grow / shrink the focused
-panel (split layouts only). `Ctrl+B` has no Agents behavior.
+/ `Ctrl+B` move focus to the next / previous panel in reading order (split layouts only)
+and every deck, card, scroll, search, and fold key acts on the focused panel. `}` / `{`
+grow / shrink the focused panel (split layouts only). A new three-pane geometry needs
+about 8 rows by 40 columns per panel or the key is refused with a toast; shrinking the
+terminal never closes a panel.
+
+The `Ctrl+Shift` chords arrive only through a CSI-u-capable chain (kitty plus tmux with
+extended keys); `>` / `<` / `Ctrl+X` always work.
 
 The layout, split ratio, focus, node-rail preference, and each panel's deck, preferred
 card, and deck views persist across restarts in `~/.sase/ace_agents_deck_state.json`.

@@ -1,4 +1,4 @@
-"""Flag-on deck panel pilot tests and flag-off regression tests."""
+"""Deck panel pilot tests: compose tree, dispatch helpers, and card cycling."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def _agent(**overrides: Any) -> Any:
     return make_agent(**base)
 
 
-async def test_flag_on_compose_tree() -> None:
+async def test_compose_tree() -> None:
     app = _DetailApp()
     pin_paged(app)
     async with app.run_test(size=(100, 30)) as pilot:
@@ -200,7 +200,7 @@ async def test_gates_with_decks_on_and_off() -> None:
         )
 
 
-def test_dispatch_and_helpers_flag_off() -> None:
+def test_dispatch_and_helpers() -> None:
     agent = _agent(status="DONE", extra_files=["/tmp/a.diff"])
     pages, default = desired_file_pages(agent)
     assert pages and default == pages[0]

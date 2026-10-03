@@ -5785,11 +5785,6 @@
           "default": true,
           "deprecated": true
         },
-        "three_pane_splits": {
-          "type": "boolean",
-          "description": "From a two-pane split, the other split key splits the focused pane into a three-pane T layout on the Agents deck and in the pager; with three panes the split keys erase or turn the layout.",
-          "default": false
-        },
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",

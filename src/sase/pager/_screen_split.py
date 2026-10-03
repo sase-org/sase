@@ -1,6 +1,6 @@
 """Split-pane state and layout for ``PagerScreen``.
 
-Owns two-pane open/rotate/unsplit, focus movement, ratio stepping, and
+Owns open/nest/erase/turn, focus movement, ratio stepping, and
 opening a document in the other pane, all computed on the shared
 :class:`PaneGrid` model and rendered through one flat ``#pager-panes``
 CSS grid. Panes are keyed by stable pane ID: widgets move cells on swap
@@ -39,7 +39,6 @@ from sase.pager.split import (
     split_axis,
     split_fits,
     state_for_grid,
-    three_pane_splits_enabled,
 )
 from sase.pager.view import PagerView, PagerViewSeed
 
@@ -284,7 +283,7 @@ class PagerScreenSplitMixin:
         other = Axis.COLS if axis is Axis.ROWS else Axis.ROWS
         new_id = free_pane_id(grid)
         if new_id is not None:
-            alternative = grid_press_split(grid, other, new_id, nest=True)
+            alternative = grid_press_split(grid, other, new_id)
             if len(alternative.panes) == 3 and pager_grid_fits(
                 alternative, width, height
             ):
@@ -309,11 +308,10 @@ class PagerScreenSplitMixin:
 
         From a single pane, open *target* with the new pane focused. From
         two panes, the same key keeps the focused pane (vim's ``ctrl-w o``)
-        while the other key nests a third pane behind the
-        ``three_pane_splits`` flag and rotates (turns) without it. From
-        three panes, the outer-axis key erases the full-span divider and
-        the other key turns the layout. Mounts are transactions: validate
-        fit, mount, revalidate after the await, then publish state.
+        while the other key nests a third pane. From three panes, the
+        outer-axis key erases the full-span divider and the other key turns
+        the layout. Mounts are transactions: validate fit, mount, revalidate
+        after the await, then publish state.
         """
         if self._split_in_flight:
             return
@@ -321,7 +319,6 @@ class PagerScreenSplitMixin:
         if axis is None:
             return
         grid = self._grid
-        nest = three_pane_splits_enabled()
         if len(grid.panes) <= 1:
             width, height = self._panes_size()
             if not split_fits(target, 50, width, height):
@@ -346,17 +343,17 @@ class PagerScreenSplitMixin:
                 new_view = self._new_split_view(source, seed)
                 await panes.mount(new_view)
                 self._views_by_id[new_id] = new_view
-                self._grid = grid_press_split(grid, axis, new_id, nest=nest)
+                self._grid = grid_press_split(grid, axis, new_id)
                 self._sync_split_compat()
                 self._apply_split_state()
             finally:
                 self._split_in_flight = False
             return
-        if len(grid.panes) == 2 and axis is not grid.axis and nest:
+        if len(grid.panes) == 2 and axis is not grid.axis:
             new_id = free_pane_id(grid)
             if new_id is None:
                 return
-            candidate = grid_press_split(grid, axis, new_id, nest=True)
+            candidate = grid_press_split(grid, axis, new_id)
             if len(candidate.panes) != 3:
                 return
             width, height = self._panes_size()
@@ -392,11 +389,11 @@ class PagerScreenSplitMixin:
             finally:
                 self._split_in_flight = False
             return
-        candidate = grid_press_split(grid, axis, grid.focused, nest=nest)
+        candidate = grid_press_split(grid, axis, grid.focused)
         if candidate == grid:
             return
         if len(candidate.panes) == len(grid.panes):
-            # Turn: a two-pane rotate or a three-pane transpose.
+            # Turn: a three-pane transpose.
             width, height = self._panes_size()
             if len(candidate.panes) == 3:
                 if not pager_grid_fits(candidate, width, height):

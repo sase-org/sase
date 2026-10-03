@@ -38,22 +38,6 @@ MIN_DECK_PANEL_HEIGHT = 8
 MIN_DECK_PANEL_WIDTH = 40
 
 
-def three_pane_splits_enabled() -> bool:
-    """Return whether the ``three_pane_splits`` beta flag is enabled.
-
-    Resolved at the use site on every call, never at module import time,
-    so cold-path import-weight tests stay green.
-    """
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-    except Exception:
-        return False
-    try:
-        return bool(current_flags().enabled(FeatureFlag.three_pane_splits))
-    except Exception:
-        return False
-
-
 def _axis_for_layout(target: DeckLayout) -> Axis:
     """Return the grid axis a split key for ``target`` draws."""
     if target is DeckLayout.LEFT_RIGHT:
@@ -145,16 +129,13 @@ def toggle_split(
     new_panel: DeckPanelState,
     *,
     focus_new: bool = True,
-    nest: bool = False,
 ) -> DeckAreaState:
     """Toggle a split layout for ``target``.
 
     From SINGLE open ``new_panel`` on a free pane ID with a 50/50 ratio.
-    The new pane takes focus unless ``focus_new`` is false (unsplit and
-    rotate ignore the flag). Pressing the same layout key again unsplits,
-    keeping the focused panel. Pressing the other layout key rotates when
-    ``nest`` is false, or nests ``new_panel`` into a three-pane T layout
-    when ``nest`` is true (the ``three_pane_splits`` beta flag). With
+    The new pane takes focus unless ``focus_new`` is false. Pressing the
+    same layout key again unsplits, keeping the focused panel. Pressing the
+    other layout key nests ``new_panel`` into a three-pane T layout. With
     three panes, the outer-axis key erases the full-span divider and the
     other key turns the layout. A layout key while zoomed only restores
     the snapshot, keeping panels edited while zoomed.
@@ -166,7 +147,7 @@ def toggle_split(
         new_id = free_pane_id(state.grid)
         if new_id is None:
             return state
-        pressed = press_split(state.grid, axis, new_id, nest=nest)
+        pressed = press_split(state.grid, axis, new_id)
         if len(pressed.panes) < 2:
             return state
         if not focus_new:
@@ -175,15 +156,14 @@ def toggle_split(
         panels[new_id] = new_panel
         return dataclasses.replace(state, grid=pressed, panels=panels)
     if (
-        nest
-        and len(state.grid.panes) == 2
+        len(state.grid.panes) == 2
         and state.grid.axis is not None
         and axis is not state.grid.axis
     ):
         new_id = free_pane_id(state.grid)
         if new_id is None:
             return state
-        pressed = press_split(state.grid, axis, new_id, nest=True)
+        pressed = press_split(state.grid, axis, new_id)
         if len(pressed.panes) != 3:
             return state
         if not focus_new:
@@ -191,7 +171,7 @@ def toggle_split(
         panels = dict(state.panels)
         panels[new_id] = new_panel
         return dataclasses.replace(state, grid=pressed, panels=panels)
-    pressed = press_split(state.grid, axis, state.grid.focused, nest=nest)
+    pressed = press_split(state.grid, axis, state.grid.focused)
     if len(pressed.panes) < 2:
         focused = pressed.focused
         return dataclasses.replace(
@@ -200,14 +180,12 @@ def toggle_split(
     return dataclasses.replace(state, grid=pressed)
 
 
-def _nest_or_turn_result(
-    state: DeckAreaState, target: DeckLayout, *, nest: bool
-) -> PaneGrid | None:
+def _nest_or_turn_result(state: DeckAreaState, target: DeckLayout) -> PaneGrid | None:
     """Return the grid a split key for ``target`` would commit, if guarded.
 
     Returns None when the key needs no fit guard: zoomed restores, single
-    opens an unguarded two-pane split, same-key unsplits, and flag-off
-    rotates only ever shrink to fewer panes.
+    opens an unguarded two-pane split, and same-key unsplits only ever
+    shrink to fewer panes.
     """
     if state.zoom_snapshot is not None:
         return None
@@ -216,14 +194,14 @@ def _nest_or_turn_result(
     if len(grid.panes) < 2:
         return None
     if len(grid.panes) == 2:
-        if axis == grid.axis or not nest:
+        if axis == grid.axis:
             return None
         new_id = free_pane_id(grid)
         if new_id is None:
             return None
-        nested = press_split(grid, axis, new_id, nest=True)
+        nested = press_split(grid, axis, new_id)
         return nested if len(nested.panes) == 3 else None
-    turned = press_split(grid, axis, grid.focused, nest=nest)
+    turned = press_split(grid, axis, grid.focused)
     return turned if len(turned.panes) == 3 else None
 
 
@@ -233,7 +211,6 @@ def refuse_three_pane_key(
     width: int,
     height: int,
     *,
-    nest: bool,
     collapsed_gain: int = 0,
 ) -> str | None:
     """Return a refusal toast when a split key must not commit, else None.
@@ -246,7 +223,7 @@ def refuse_three_pane_key(
     """
     if width <= 0 or height <= 0:
         return None
-    result = _nest_or_turn_result(state, target, nest=nest)
+    result = _nest_or_turn_result(state, target)
     if result is None:
         return None
     if fits(

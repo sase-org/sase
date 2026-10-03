@@ -16,7 +16,6 @@ from .decks.layout import (
     sidebar_mode,
     step_ratio,
     swap_deck_panel,
-    three_pane_splits_enabled,
     toggle_focus,
     toggle_focus_reverse,
     toggle_nodes_collapsed,
@@ -195,17 +194,12 @@ class AgentDetailDeckLayoutMixin:
             self._open_deck_split(target)
             return
         try:
-            nest = bool(three_pane_splits_enabled())
-        except Exception:
-            nest = False
-        try:
             width, height = self._deck_area_extent()
             refusal = refuse_three_pane_key(
                 state,
                 target,
                 width,
                 height,
-                nest=nest,
                 collapsed_gain=self._node_collapse_gain(),
             )
         except Exception:
@@ -218,7 +212,7 @@ class AgentDetailDeckLayoutMixin:
         except Exception:
             before = set()
         new_panel = None
-        if nest and len(state.grid.panes) == 2:
+        if len(state.grid.panes) == 2:
             new_panel = self._choose_nest_panel()
         if new_panel is None:
             try:
@@ -226,9 +220,7 @@ class AgentDetailDeckLayoutMixin:
             except Exception:
                 return
         try:
-            self._apply_deck_area_state(
-                toggle_split(state, target, new_panel, nest=nest)
-            )
+            self._apply_deck_area_state(toggle_split(state, target, new_panel))
         except Exception:
             return
         try:

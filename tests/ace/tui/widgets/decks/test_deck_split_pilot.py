@@ -95,7 +95,7 @@ async def test_unsplit_keeps_first_when_first_focused(tmp_path: Path) -> None:
 
 
 async def test_structural_keys_never_remount_survivors(tmp_path: Path) -> None:
-    """Split, unsplit, rotate, focus, resize and zoom keep widget identity."""
+    """Split, unsplit, turn, focus, resize and zoom keep widget identity."""
     app = _DetailApp()
     pin_paged(app)
     async with app.run_test(size=(100, 30)) as pilot:
@@ -122,7 +122,7 @@ async def test_structural_keys_never_remount_survivors(tmp_path: Path) -> None:
         await pilot.pause()
         assert area.panel(0) is widget0
         assert area.panel(1) is widget1
-        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        detail.turn_deck_layout()
         await pilot.pause()
         assert area.panel(0) is widget0
         assert area.panel(1) is widget1
@@ -136,13 +136,14 @@ async def test_structural_keys_never_remount_survivors(tmp_path: Path) -> None:
         assert area.panel(0).main_view is scroll0
         assert area.panel(0).main_view.active_card_id == card_before
         # Same-key unsplit keeps the focused panel's widget and scroll.
+        # The turn above left a LEFT_RIGHT outer axis, so that key unsplits.
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
         assert detail.deck_layout is DeckLayout.SINGLE
         assert area.focused_panel() is widget0
 
 
-async def test_rotate_keeps_widget_identities(tmp_path: Path) -> None:
+async def test_turn_keeps_widget_identities(tmp_path: Path) -> None:
     app = _DetailApp()
     pin_paged(app)
     async with app.run_test(size=(100, 30)) as pilot:
@@ -156,7 +157,7 @@ async def test_rotate_keeps_widget_identities(tmp_path: Path) -> None:
         panel0_before = detail.deck_area.panel(0)
         panel1_before = detail.deck_area.panel(1)
         main0_before = panel0_before.main_view
-        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        detail.turn_deck_layout()
         await pilot.pause()
         assert detail.deck_area.panel(0) is panel0_before
         assert detail.deck_area.panel(1) is panel1_before

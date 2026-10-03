@@ -4,8 +4,7 @@ The pager keeps its own two-pane peer vocabulary (``BELOW``/``BESIDE``,
 same key keeps the focused pane, ``+``/``-`` stepping) and its own fit
 minimums, but every transition is computed by
 :mod:`sase.ace.tui.util.pane_grid` so no second copy of the algebra exists.
-Two-pane behavior is the flag-off branch: the opposite key rotates (turns)
-and no result ever has three panes. No Textual imports.
+No Textual imports.
 """
 
 from __future__ import annotations
@@ -25,22 +24,6 @@ from sase.ace.tui.util.pane_grid import (
 )
 
 RATIO_STEPS: tuple[int, ...] = (30, 50, 70)
-
-
-def three_pane_splits_enabled() -> bool:
-    """Return whether the ``three_pane_splits`` beta flag is enabled.
-
-    Resolved at the use site on every call, never at module import time,
-    so cold-path import-weight tests stay green.
-    """
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-    except Exception:
-        return False
-    try:
-        return bool(current_flags().enabled(FeatureFlag.three_pane_splits))
-    except Exception:
-        return False
 
 
 #: Minimum framed pane extent at any ratio step. Stacked panes split height,
@@ -148,8 +131,9 @@ def toggle_split(state: PagerSplitState, target: PagerSplitLayout) -> PagerSplit
 
     From single, open *target* with the new pane focused at 50/50. Pressing
     the same key again closes the other pane and keeps the focused one (the
-    survivor becomes index 0). Pressing the other key rotates, keeping
-    focus and ratio. Computed on :class:`PaneGrid` with ``nest=False``.
+    survivor becomes index 0). Pressing the other key on a two-pane split
+    nests a third pane; the returned state names the outer shape and the
+    pair geometry lives on the grid. Computed on :class:`PaneGrid`.
     """
     grid = _grid_for_state(state)
     axis = split_axis(target)
@@ -159,8 +143,13 @@ def toggle_split(state: PagerSplitState, target: PagerSplitLayout) -> PagerSplit
         new_id = free_pane_id(grid)
         if new_id is None:
             return state
-        return state_for_grid(_grid_press_split(grid, axis, new_id, nest=False))
-    return state_for_grid(_grid_press_split(grid, axis, grid.focused, nest=False))
+        return state_for_grid(_grid_press_split(grid, axis, new_id))
+    if axis is not grid.axis:
+        new_id = free_pane_id(grid)
+        if new_id is None:
+            return state
+        return state_for_grid(_grid_press_split(grid, axis, new_id))
+    return state_for_grid(_grid_press_split(grid, axis, grid.focused))
 
 
 def toggle_focus(state: PagerSplitState) -> PagerSplitState:
@@ -256,7 +245,6 @@ __all__ = [
     "state_for_grid",
     "step_ratio",
     "swap_focused",
-    "three_pane_splits_enabled",
     "toggle_focus",
     "toggle_split",
 ]

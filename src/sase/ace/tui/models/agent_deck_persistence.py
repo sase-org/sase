@@ -365,28 +365,6 @@ def area_state_from_snapshot(snapshot: AgentsDeckStateSnapshot) -> DeckAreaState
     )
 
 
-def truncate_snapshot_to_two(
-    snapshot: AgentsDeckStateSnapshot,
-) -> AgentsDeckStateSnapshot:
-    """Return ``snapshot`` truncated to two panels, dropping ``pair``.
-
-    This is the old-reader view of a three-panel file (still a valid
-    two-pane split), and the flag-off load path while
-    ``three_pane_splits`` is disabled.
-    """
-    import dataclasses
-
-    if len(snapshot.panels) <= 2 and snapshot.pair_region is None:
-        return snapshot
-    panels = snapshot.panels[:2] or (_DeckPanelSnapshot(),)
-    focused = snapshot.focused
-    if focused < 0 or focused >= len(panels):
-        focused = 0
-    return dataclasses.replace(
-        snapshot, panels=panels, focused=focused, pair_region=None, pair_ratio=50
-    )
-
-
 def _serialize_agents_deck_state(snapshot: AgentsDeckStateSnapshot) -> str:
     decoded: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -494,5 +472,4 @@ __all__ = [
     "load_agents_deck_state",
     "save_agents_deck_state",
     "snapshot_from_area_state",
-    "truncate_snapshot_to_two",
 ]

@@ -57,7 +57,7 @@ async def test_open_beside_and_same_key_keeps_focused_pane() -> None:
         assert screen.views[0] is focused
 
 
-async def test_rotate_keeps_documents_focus_and_ratio() -> None:
+async def test_ctrl_t_turns_two_panes_keeping_documents_focus_and_ratio() -> None:
     app = SasePager(long_document())
     async with app.run_test(size=(120, 40)) as pilot:
         screen = pager_screen(app)
@@ -70,7 +70,7 @@ async def test_rotate_keeps_documents_focus_and_ratio() -> None:
         await pilot.pause()
         ratio = screen._split_state.ratio
         assert ratio != 50
-        await pilot.press("|")
+        await pilot.press("ctrl+t")
         await pilot.pause()
         await pilot.pause()
         assert screen._split_state.layout is PagerSplitLayout.BESIDE

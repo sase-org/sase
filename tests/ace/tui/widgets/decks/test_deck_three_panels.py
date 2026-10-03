@@ -1,4 +1,4 @@
-"""Deck three panels behind the ``three_pane_splits`` beta flag."""
+"""Deck three panels: nest, erase, turn, fit, persistence, and chrome."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from sase.ace.tui.models.agent_deck_persistence import (
     _serialize_agents_deck_state,
     area_state_from_snapshot,
     snapshot_from_area_state,
-    truncate_snapshot_to_two,
 )
 from sase.ace.tui.util.pane_grid import (
     Axis,
@@ -33,7 +32,6 @@ from sase.ace.tui.widgets.decks.layout import (
     close_deck_panel,
     refuse_three_pane_key,
     refuse_turn,
-    three_pane_splits_enabled,
     toggle_split,
     toggle_zoom,
 )
@@ -47,7 +45,21 @@ from sase.ace.tui.widgets.decks.picker import (
     deck_picker_other_hint,
     other_panel_target,
 )
-from sase.feature_flags import override_flags
+
+
+def _old_reader_view(snapshot: AgentsDeckStateSnapshot) -> AgentsDeckStateSnapshot:
+    """Simulate an old two-panel reader: keep two panels, drop ``pair``."""
+    panels = snapshot.panels[:2] or snapshot.panels[:1]
+    focused = snapshot.focused
+    if focused < 0 or focused >= len(panels):
+        focused = 0
+    return dataclasses.replace(
+        snapshot,
+        panels=tuple(panels),
+        focused=focused,
+        pair_region=None,
+        pair_ratio=50,
+    )
 
 
 def _two_panes(
@@ -68,14 +80,7 @@ def _two_panes(
 
 
 def _nest(state: DeckAreaState, target: DeckLayout) -> DeckAreaState:
-    return toggle_split(state, target, DeckPanelState(DeckId.TOOLS), nest=True)
-
-
-def test_flag_defaults_off_and_override_enables() -> None:
-    assert three_pane_splits_enabled() is False
-    with override_flags(three_pane_splits=True):
-        assert three_pane_splits_enabled() is True
-    assert three_pane_splits_enabled() is False
+    return toggle_split(state, target, DeckPanelState(DeckId.TOOLS))
 
 
 def test_nest_reaches_all_four_t_shapes() -> None:
@@ -104,15 +109,6 @@ def test_nest_new_pane_takes_focus_and_main_does_not_move() -> None:
     assert nested.grid.ratio == before.grid.ratio
 
 
-def test_nest_flag_off_rotates_and_never_shows_third() -> None:
-    state = _two_panes(Axis.ROWS, 0)
-    rotated = toggle_split(
-        state, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS), nest=False
-    )
-    assert len(rotated.grid.panes) == 2
-    assert geometry(rotated.grid) is Geometry.C2
-
-
 def test_erase_with_main_focused_keeps_main() -> None:
     nested = _nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT)
     main = main_pane(nested.grid)
@@ -121,7 +117,6 @@ def test_erase_with_main_focused_keeps_main() -> None:
         dataclasses.replace(nested, grid=focus_pane(nested.grid, main)),
         DeckLayout.TOP_BOTTOM,
         nested.panels[main],
-        nest=True,
     )
     assert len(erased.grid.panes) == 1
     assert erased.grid.focused == main
@@ -135,7 +130,6 @@ def test_erase_with_pair_focused_keeps_pair() -> None:
         dataclasses.replace(nested, grid=focus_pane(nested.grid, pair_focus)),
         DeckLayout.TOP_BOTTOM,
         nested.panels[pair_focus],
-        nest=True,
     )
     assert geometry(erased.grid) is Geometry.C2
     assert set(erased.grid.panes) == set(nested.grid.panes) - {main_pane(nested.grid)}
@@ -144,11 +138,11 @@ def test_erase_with_pair_focused_keeps_pair() -> None:
 def test_turn_both_ways_is_self_inverse() -> None:
     nested = _nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT)
     turned = toggle_split(
-        nested, DeckLayout.LEFT_RIGHT, nested.panels[nested.grid.focused], nest=True
+        nested, DeckLayout.LEFT_RIGHT, nested.panels[nested.grid.focused]
     )
     assert geometry(turned.grid) is Geometry.C3_MAIN_RIGHT
     back = toggle_split(
-        turned, DeckLayout.TOP_BOTTOM, turned.panels[turned.grid.focused], nest=True
+        turned, DeckLayout.TOP_BOTTOM, turned.panels[turned.grid.focused]
     )
     assert back.grid == nested.grid
 
@@ -168,7 +162,7 @@ def test_split_key_while_zoomed_only_restores() -> None:
     nested = _nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT)
     zoomed = toggle_zoom(nested)
     restored = toggle_split(
-        zoomed, DeckLayout.LEFT_RIGHT, zoomed.panels[zoomed.grid.focused], nest=True
+        zoomed, DeckLayout.LEFT_RIGHT, zoomed.panels[zoomed.grid.focused]
     )
     assert restored.grid == nested.grid
 
@@ -176,24 +170,23 @@ def test_split_key_while_zoomed_only_restores() -> None:
 def test_fit_refusal_toast_and_state_unchanged() -> None:
     nested = _nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT)
     message = refuse_three_pane_key(
-        _two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT, 60, 10, nest=True
+        _two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT, 60, 10
     )
     assert message is not None
     assert "third panel" in message
     assert "ctrl+s" not in message
     wide = refuse_three_pane_key(
-        _two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT, 200, 40, nest=True
+        _two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT, 200, 40
     )
     assert wide is None
     turn_message = refuse_turn(nested, 60, 10)
     assert turn_message is not None
     assert "turn" in turn_message
     assert refuse_turn(nested, 200, 40) is None
-    # Two-pane paths stay unguarded.
+    # Same-key unsplit from two panes stays unguarded; only a nest into
+    # three panes or a three-pane turn is ever refused.
     assert (
-        refuse_three_pane_key(
-            _two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT, 60, 10, nest=False
-        )
+        refuse_three_pane_key(_two_panes(Axis.ROWS, 0), DeckLayout.TOP_BOTTOM, 60, 10)
         is None
     )
     assert refuse_turn(_two_panes(Axis.ROWS, 0), 60, 10) is None
@@ -205,7 +198,6 @@ def test_fit_refusal_names_collapse_when_it_would_fit() -> None:
         DeckLayout.LEFT_RIGHT,
         100,
         40,
-        nest=True,
         collapsed_gain=38,
     )
     if message is not None:
@@ -270,7 +262,7 @@ def test_v1_file_without_pair_loads_as_two_panels() -> None:
 def test_old_reader_simulation_yields_valid_two_pane() -> None:
     nested = _nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT)
     snapshot = snapshot_from_area_state(nested)
-    old_view = truncate_snapshot_to_two(snapshot)
+    old_view = _old_reader_view(snapshot)
     assert len(old_view.panels) == 2
     assert old_view.pair_region is None
     rebuilt = area_state_from_snapshot(old_view)
@@ -337,9 +329,7 @@ def test_zoom_chrome_names_three_of_three() -> None:
 
 def test_close_focused_is_inverse_of_nest() -> None:
     two = _two_panes(Axis.ROWS, 0)
-    nested = toggle_split(
-        two, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS), nest=True
-    )
+    nested = toggle_split(two, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
     undone = dataclasses.replace(
         nested, grid=close_focused(focus_pane(nested.grid, nested.grid.focused))
     )
@@ -351,7 +341,7 @@ def test_press_split_and_turn_helpers_cover_three_panes() -> None:
     grid = _nest(_two_panes(Axis.COLS, 1), DeckLayout.TOP_BOTTOM).grid
     assert geometry(grid) is Geometry.C3_MAIN_LEFT
     assert turn(turn(grid)) == grid
-    assert press_split(grid, Axis.ROWS, grid.focused, nest=True) == turn(grid)
+    assert press_split(grid, Axis.ROWS, grid.focused) == turn(grid)
 
 
 def test_three_panel_footer_replaces_focus_entry() -> None:
@@ -407,9 +397,7 @@ async def test_nested_panels_keep_widget_identity() -> None:
         area.apply_state(two)
         await pilot.pause()
         assert len(area.visible_panels()) == 2
-        three = toggle_split(
-            two, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS), nest=True
-        )
+        three = toggle_split(two, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
         area.apply_state(three)
         await pilot.pause()
         assert len(area.visible_panels()) == 3

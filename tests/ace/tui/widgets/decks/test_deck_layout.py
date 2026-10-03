@@ -98,7 +98,7 @@ def test_left_right_pipe_unsplits_keeping_focused() -> None:
     assert updated.layout is DeckLayout.SINGLE
 
 
-def test_rotate_keeps_everything_but_layout() -> None:
+def test_other_key_nests_third_panel_keeping_outer_shape() -> None:
     state = _split(DeckId.MAIN, DeckId.FILES, focused=1, ratio=30)
     state = DeckAreaState(
         grid=state.grid,
@@ -107,14 +107,14 @@ def test_rotate_keeps_everything_but_layout() -> None:
             1: DeckPanelState(DeckId.FILES),
         },
     )
-    rotated = toggle_split(state, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
-    assert rotated.layout is DeckLayout.LEFT_RIGHT
-    assert rotated.panels == state.panels
-    assert rotated.focused == 1
-    assert rotated.ratio == 30
-    back = toggle_split(rotated, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.MAIN))
-    assert back.layout is DeckLayout.TOP_BOTTOM
-    assert back.panels == state.panels
+    nested = toggle_split(state, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
+    assert len(nested.grid.panes) == 3
+    assert nested.layout is DeckLayout.TOP_BOTTOM
+    assert nested.focused == 2
+    assert nested.grid.ratio == 30
+    assert nested.panels[2] == DeckPanelState(DeckId.TOOLS)
+    assert nested.panels[0] == state.panels[0]
+    assert nested.panels[1] == state.panels[1]
 
 
 def test_new_panel_skips_shown_with_content() -> None:
@@ -272,14 +272,17 @@ def test_toggle_split_focus_new_false_keeps_focus_on_first_panel() -> None:
     assert toggle_split(state, DeckLayout.TOP_BOTTOM, new_panel).focused == 1
 
 
-def test_toggle_split_focus_new_ignored_by_unsplit_and_rotate() -> None:
+def test_toggle_split_focus_new_ignored_by_unsplit_and_nest() -> None:
     split = _split(DeckId.MAIN, DeckId.FILES, focused=1, ratio=30)
     other = DeckPanelState(DeckId.TOOLS)
     for flag in (True, False):
-        rotated = toggle_split(split, DeckLayout.LEFT_RIGHT, other, focus_new=flag)
-        assert rotated.layout is DeckLayout.LEFT_RIGHT
-        assert rotated.focused == 1
-        assert rotated.ratio == 30
+        nested = toggle_split(split, DeckLayout.LEFT_RIGHT, other, focus_new=flag)
+        assert len(nested.grid.panes) == 3
+        assert nested.grid.ratio == 30
+        if flag:
+            assert nested.focused == 2
+        else:
+            assert nested.focused == 1
         unsplit = toggle_split(split, DeckLayout.TOP_BOTTOM, other, focus_new=flag)
         assert unsplit.layout is DeckLayout.SINGLE
         assert unsplit.focused == 1

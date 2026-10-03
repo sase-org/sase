@@ -38,7 +38,6 @@ from sase.ace.tui.util.pane_grid import (
 )
 
 _GOLDEN = Path(__file__).with_name("pane_grid_golden.txt")
-_GOLDEN_NEST_OFF = Path(__file__).with_name("pane_grid_golden_nest_off.txt")
 _REGENERATE = os.environ.get("SASE_UPDATE_PANE_GRID_GOLDEN") == "1"
 
 _GEO_CODE = {
@@ -167,22 +166,6 @@ def _check_or_write(path: Path, rendered: str) -> None:
 def test_golden_transition_table() -> None:
     """Every (state, key) pair matches the checked-in transition table."""
     _check_or_write(_GOLDEN, _render_table(_states(), _KEYS))
-
-
-def test_golden_nest_off_never_nests() -> None:
-    """With nest=False the other-axis key turns and nothing gains a pane."""
-    lines = [
-        "# PaneGrid golden table with nest=False (flag-off branch).",
-        "# Regenerate with SASE_UPDATE_PANE_GRID_GOLDEN=1; the default run compares.",
-    ]
-    for state in _states():
-        before = _fmt_state(state)
-        for key in ("\\", "|"):
-            axis = Axis.ROWS if key == "\\" else Axis.COLS
-            after = press_split(state, axis, free_pane_id(state) or 0, nest=False)
-            assert len(after.panes) <= 2
-            lines.append(f"{before} {key} => {_fmt_state(after)}")
-    _check_or_write(_GOLDEN_NEST_OFF, "\n".join(lines) + "\n")
 
 
 def test_same_key_unsplit_keeps_focused_pane() -> None:
