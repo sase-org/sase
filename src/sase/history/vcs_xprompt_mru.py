@@ -1,8 +1,12 @@
 """MRU tracking for VCS xprompt workflow prefixes."""
 
+from __future__ import annotations
+
 import json
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.legacy_xprompt_names import (
@@ -11,10 +15,61 @@ from sase.legacy_xprompt_names import (
     read_json_new_first,
 )
 
+if TYPE_CHECKING:
+    from sase.ace.tui.modals.project_discovery import DetectCache
+    from sase.core.project_lifecycle_wire import ProjectRecordWire
+    from sase.project_display_names import ProjectDisplaySnapshot
+
 log = logging.getLogger(__name__)
 
 _MRU_FILE: Path | None = None
 _MAX_ENTRIES = 100
+
+
+@dataclass
+class _MruBuildState:
+    """Per-call memo state for one launchable-MRU build.
+
+    Owned by a single :func:`load_launchable_vcs_xprompt_mru_pairs` (or
+    :func:`record_vcs_xprompt_usage`) call and never shared across calls:
+    no process-global cache. The project inventory is listed once up front;
+    aliases and display labels derive from that list, and provider detection
+    memoizes by project-file path for the duration of the call.
+    """
+
+    projects_base: Path
+    records: list[ProjectRecordWire] | None = None
+    alias_map: dict[str, str] = field(default_factory=dict)
+    display_snapshot: ProjectDisplaySnapshot | None = None
+    detect_cache: DetectCache = field(default_factory=dict)
+
+
+def _mru_build_state(projects_dir: Path | None) -> _MruBuildState:
+    """List project records once and derive the alias/display projections."""
+    from sase.core.project_lifecycle_facade import list_project_records
+
+    projects_base = projects_dir if projects_dir is not None else sase_projects_dir()
+    state = _MruBuildState(projects_base=projects_base)
+    try:
+        state.records = list_project_records(projects_base, "all", include_home=True)
+    except Exception:
+        log.debug("VCS MRU project records unavailable", exc_info=True)
+        return state
+    try:
+        from sase.project_alias_records import project_alias_map_from_records
+
+        state.alias_map = project_alias_map_from_records(state.records, strict=False)
+    except Exception:
+        log.debug("VCS MRU alias map unavailable", exc_info=True)
+        state.alias_map = {}
+    try:
+        from sase.project_display_names import ProjectDisplaySnapshot
+
+        state.display_snapshot = ProjectDisplaySnapshot.from_records(state.records)
+    except Exception:
+        log.debug("VCS MRU display snapshot unavailable", exc_info=True)
+        state.display_snapshot = None
+    return state
 
 
 def vcs_xprompt_mru_path() -> Path:
@@ -112,34 +167,49 @@ def load_launchable_vcs_xprompt_mru_pairs(
     if not entries:
         return []
 
+    # One inventory read per build; aliases, display labels, and provider
+    # detection all derive from it below, so the per-keystroke ``<ctrl+p>``
+    # path never re-reads project records per entry.
+    state = _mru_build_state(projects_dir)
     # An explicit projects root is usually a test or alternate state root.
     # The global ref index is built from the default SASE home and can
     # confidently prune refs only for that default context.
-    resolvable_refs = None if projects_dir is not None else _resolvable_vcs_ref_index()
+    resolvable_refs = (
+        None
+        if projects_dir is not None
+        else _resolvable_vcs_ref_index(
+            alias_map=state.alias_map if state.records is not None else None
+        )
+    )
     # Resolve alias/display-form prefixes to their canonical project before
     # pruning so they are judged by the real project rather than wrongly
     # dropped. Built once per call (reusing the index's map when available) so
     # the per-keystroke ``<ctrl+p>`` path never re-reads project records per
     # entry.
-    alias_map = (
-        resolvable_refs[2]
-        if resolvable_refs is not None
-        else _project_alias_map_or_empty(projects_dir)
-    )
+    if resolvable_refs is not None:
+        alias_map = resolvable_refs[2]
+    elif state.records is None:
+        alias_map = _project_alias_map_or_empty(projects_dir)
+    else:
+        alias_map = state.alias_map
     filtered = [
         entry
         for entry in entries
         if not _is_default_vcs_xprompt_prefix(entry)
-        and not _is_stale_known_project_prefix(entry, projects_dir, alias_map=alias_map)
+        and not _is_stale_known_project_prefix(
+            entry, projects_dir, alias_map=alias_map, state=state
+        )
         and not _vcs_prefix_ref_is_gone(entry, resolvable_refs)
-        and not _vcs_prefix_provider_mismatched(entry, resolvable_refs)
+        and not _vcs_prefix_provider_mismatched(
+            entry, resolvable_refs, detect_cache=state.detect_cache
+        )
     ]
     if prune and filtered != entries:
         _save_vcs_xprompt_mru(filtered)
     # Disk stays canonical (written above); the returned pairs' display half
     # is humanized to the configured project name and deduped in MRU order so
     # callers that render/cycle them never surface directory keys.
-    return _dedupe_mru_pairs(filtered, projects_dir)
+    return _dedupe_mru_pairs(filtered, projects_dir, snapshot=state.display_snapshot)
 
 
 def record_vcs_xprompt_usage(prefix: str) -> None:
@@ -168,12 +238,19 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
         if filtered != entries:
             _save_vcs_xprompt_mru(filtered)
         return
-    if _is_stale_known_project_prefix(prefix):
+    state = _mru_build_state(None)
+    if _is_stale_known_project_prefix(prefix, state=state):
         filtered = [e for e in entries if e != prefix]
         if filtered != entries:
             _save_vcs_xprompt_mru(filtered)
         return
-    if _vcs_prefix_provider_mismatched(prefix, _resolvable_vcs_ref_index()):
+    if _vcs_prefix_provider_mismatched(
+        prefix,
+        _resolvable_vcs_ref_index(
+            alias_map=state.alias_map if state.records is not None else None
+        ),
+        detect_cache=state.detect_cache,
+    ):
         filtered = [e for e in entries if e != prefix]
         if filtered != entries:
             _save_vcs_xprompt_mru(filtered)
@@ -218,18 +295,27 @@ def _project_alias_map_or_empty(projects_dir: Path | None) -> dict[str, str]:
 
 
 def _dedupe_mru_pairs(
-    entries: list[str], projects_dir: Path | None
+    entries: list[str],
+    projects_dir: Path | None,
+    *,
+    snapshot: ProjectDisplaySnapshot | None = None,
 ) -> list[tuple[str, str]]:
     """Pair each canonical entry with its humanized display form.
 
-    Deduped on the display form, first-wins, in MRU order.
+    Deduped on the display form, first-wins, in MRU order. A caller-supplied
+    *snapshot* (built once per MRU build from the same inventory read as the
+    prune checks) keeps humanization off the project-records read; without
+    one each entry falls back to the shared cached snapshot.
     """
     from sase.project_display_names import humanize_vcs_refs_in_text
 
     seen: set[str] = set()
     pairs: list[tuple[str, str]] = []
     for entry in entries:
-        display = humanize_vcs_refs_in_text(entry, projects_dir)
+        if snapshot is None:
+            display = humanize_vcs_refs_in_text(entry, projects_dir)
+        else:
+            display = humanize_vcs_refs_in_text(entry, projects_dir, snapshot=snapshot)
         if display not in seen:
             seen.add(display)
             pairs.append((entry, display))
@@ -285,6 +371,7 @@ def _is_stale_known_project_prefix(
     projects_dir: Path | None = None,
     *,
     alias_map: dict[str, str] | None = None,
+    state: _MruBuildState | None = None,
 ) -> bool:
     project_name = _project_name_from_vcs_prefix(prefix)
     if project_name is None:
@@ -295,7 +382,11 @@ def _is_stale_known_project_prefix(
     # key so the spec-path and launchability checks below judge the real
     # project instead of short-circuiting on a nonexistent ``widgets/`` dir.
     if alias_map is None:
-        alias_map = _project_alias_map_or_empty(projects_base)
+        alias_map = (
+            state.alias_map
+            if state is not None and state.records is not None
+            else _project_alias_map_or_empty(projects_base)
+        )
     project_name = alias_map.get(project_name, project_name)
 
     from sase.ace.patch.project_spec_path import preferred_project_spec_path
@@ -305,6 +396,18 @@ def _is_stale_known_project_prefix(
     )
     if not project_file.is_file():
         return False
+
+    if state is not None and state.records is not None:
+        from sase.ace.tui.modals.project_discovery import (
+            is_launchable_project_with_records,
+        )
+
+        return not is_launchable_project_with_records(
+            project_name,
+            state.records,
+            alias_map=alias_map,
+            detect_cache=state.detect_cache,
+        )
 
     from sase.ace.tui.modals.project_discovery import is_launchable_project
 
@@ -317,9 +420,10 @@ def _project_name_from_vcs_prefix(prefix: str) -> str | None:
     return extract_project_from_vcs_tag(prefix)
 
 
-def _resolvable_vcs_ref_index() -> (
-    tuple[dict[str, Path], set[str], dict[str, str]] | None
-):
+def _resolvable_vcs_ref_index(
+    *,
+    alias_map: dict[str, str] | None = None,
+) -> tuple[dict[str, Path], set[str], dict[str, str]] | None:
     """Snapshot the offline data needed to judge ref resolvability.
 
     Returns ``(known_projects, active_patch_names, alias_map)`` computed
@@ -327,7 +431,9 @@ def _resolvable_vcs_ref_index() -> (
     be built — in which case callers keep every entry rather than risk nuking
     the MRU on a transient error. ``alias_map`` maps alias/``PROJECT_NAME`` refs
     to their directory key so display-form entries resolve without a per-entry
-    project-records read.
+    project-records read. A caller-supplied *alias_map* (built once per MRU
+    build from the same inventory read as the other prune checks) is reused
+    instead of re-listing project records.
     """
     try:
         from sase.ace.patch.cache import find_all_patches_cached
@@ -335,7 +441,8 @@ def _resolvable_vcs_ref_index() -> (
 
         known_projects = get_known_project_workspaces()
         patch_names = {patch.name for patch in find_all_patches_cached()}
-        alias_map = _project_alias_map_or_empty(None)
+        if alias_map is None:
+            alias_map = _project_alias_map_or_empty(None)
         return known_projects, patch_names, alias_map
     except Exception:
         log.debug("VCS MRU resolvability index unavailable", exc_info=True)
@@ -408,6 +515,8 @@ def _vcs_prefix_ref_is_gone(
 def _vcs_prefix_provider_mismatched(
     prefix: str,
     index: tuple[dict[str, Path], set[str], dict[str, str]] | None,
+    *,
+    detect_cache: DetectCache | None = None,
 ) -> bool:
     """Return whether *prefix*'s workflow tag mismatches its project's real provider.
 
@@ -415,7 +524,9 @@ def _vcs_prefix_provider_mismatched(
     reads the resolved project's spec file to detect its actual provider via
     :func:`~sase.workspace_provider.detect_workflow_type` instead of calling
     ``resolve_ref``, so cycling or recording an MRU entry never creates or
-    mutates a project.
+    mutates a project. Detection memoizes into *detect_cache* by project-file
+    path so one MRU build detects each project once; the cache is per-call
+    state owned by the caller, never process-global.
 
     Returns ``True`` only when a provider is confidently detected and differs
     from the tag's workflow type. Structural, unresolvable, unregistered, or
@@ -442,15 +553,22 @@ def _vcs_prefix_provider_mismatched(
             return False
 
         from sase.ace.patch.project_spec_path import preferred_project_spec_path
-        from sase.workspace_provider import detect_workflow_type
+        from sase.ace.tui.modals.project_discovery import detected_workflow_type
+        from sase.workspace_provider import (
+            detect_workflow_type as _detect_workflow_type,
+        )
 
         project_dir = sase_projects_dir() / project_name
         project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
         if not project_file.is_file():
             return False
 
-        actual_workflow_type = detect_workflow_type(str(project_file))
-        return actual_workflow_type != workflow_type
+        actual_workflow_type = detected_workflow_type(
+            project_file, detect_cache, detect_fn=_detect_workflow_type
+        )
+        return (
+            actual_workflow_type is not None and actual_workflow_type != workflow_type
+        )
     except Exception:
         log.debug(
             "VCS MRU provider-mismatch check failed for %r", prefix, exc_info=True
