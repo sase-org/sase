@@ -371,12 +371,17 @@ class StartupPromptCatalogMixin:
             refresh(render_immediate=False)
 
     def _ensure_prompt_catalog_project(self: Any, project: str | None) -> None:
-        """Track requested project catalogs and expand watches when needed."""
+        """Track requested project catalogs; watches grow off the pump.
+
+        Only set bookkeeping happens here so catalog getters stay pure and
+        never stop, start, or join a watcher on the event loop. New watch
+        paths resolve and install in one coalesced worker, which schedules
+        a single ``watch_growth`` catalog reconcile when it installs.
+        """
         if project in self._prompt_catalog_projects:
             return
         self._prompt_catalog_projects.add(project)
-        if self._prompt_source_watcher is not None:
-            self._restart_prompt_source_watcher()
+        self._schedule_prompt_source_watch_growth()
 
     def _schedule_prompt_catalog_token_fallback_check(self: Any) -> None:
         """Schedule a throttled token check when no watcher is active."""

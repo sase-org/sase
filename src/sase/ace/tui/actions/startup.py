@@ -208,6 +208,8 @@ class StartupMixin(
     _prompt_source_watcher: ArtifactWatcher | None
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]
+    _prompt_source_watch_growth_in_flight: bool
+    _prompt_source_watch_growth_pending: bool
     _prompt_source_debounce_timer: Timer | None
     _prompt_source_debounce_config_dirty: bool
     _prompt_completion_settings: PromptCompletionSettings

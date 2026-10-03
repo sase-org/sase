@@ -509,3 +509,26 @@ def test_prune_agent_dir_watches_removes_named_agent_dirs_only(
         assert agent_dir not in watched
     finally:
         watcher.stop()
+
+
+@_LINUX_ONLY
+def test_idle_stop_returns_promptly_via_self_pipe(tmp_path: Path) -> None:
+    """An idle ``stop()`` wakes the worker instead of waiting out select."""
+    watcher = ArtifactWatcher(
+        [tmp_path],
+        on_change=lambda: None,
+        schedule_callback=_schedule_inline,
+    )
+    assert watcher.start() is True
+    try:
+        assert watcher._wake_r >= 0  # noqa: SLF001
+        assert watcher._wake_w >= 0  # noqa: SLF001
+        started = time.monotonic()
+        watcher.stop()
+        # The 0.5 s idle select must not be waited out.
+        assert time.monotonic() - started < 0.25
+        assert watcher._fd == -1  # noqa: SLF001
+        assert watcher._wake_r == -1  # noqa: SLF001
+        assert watcher._wake_w == -1  # noqa: SLF001
+    finally:
+        watcher.stop()

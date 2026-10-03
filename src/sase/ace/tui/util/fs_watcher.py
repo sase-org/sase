@@ -152,6 +152,10 @@ class ArtifactWatcher:
         self._wd_by_path: dict[str, int] = {}
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        # Self-pipe ends used to wake the worker's ``select()`` on stop.
+        # Created in :meth:`start`; ``-1`` when unavailable or stopped.
+        self._wake_r: int = -1
+        self._wake_w: int = -1
         self._last_event_mono: float = 0.0
         self._pending_paths: set[Path] = set()
         self._lock = threading.Lock()
@@ -186,6 +190,19 @@ class ArtifactWatcher:
             log.debug("no artifact dirs watchable; falling back to polling")
             return False
         self._fd = fd
+        try:
+            wake_r, wake_w = os.pipe()
+        except OSError:
+            log.debug("self-pipe unavailable; watcher stop may wait out select")
+            wake_r, wake_w = -1, -1
+        else:
+            try:
+                os.set_blocking(wake_r, False)
+                os.set_blocking(wake_w, False)
+            except OSError:
+                pass
+        self._wake_r = wake_r
+        self._wake_w = wake_w
         self._thread = threading.Thread(
             target=self._loop,
             name="ace-fs-watcher",
@@ -198,17 +215,33 @@ class ArtifactWatcher:
     def stop(self) -> None:
         """Stop the watcher and release the inotify fd."""
         self._stop_event.set()
-        # Closing the fd unblocks the select() in the worker.
+        # Wake the worker's ``select()`` at once: closing the inotify fd
+        # does not wake ``select()`` on Linux, so the fd stays valid until
+        # the thread has been joined and is closed only afterward.
+        wake_w = self._wake_w
+        if wake_w >= 0:
+            try:
+                os.write(wake_w, b"\x00")
+            except OSError:
+                pass
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout=1.0)
+            self._thread = None
         if self._fd >= 0:
             try:
                 os.close(self._fd)
             except OSError:
                 pass
             self._fd = -1
-        thread = self._thread
-        if thread is not None:
-            thread.join(timeout=1.0)
-            self._thread = None
+        for attr in ("_wake_r", "_wake_w"):
+            pipe_fd = getattr(self, attr)
+            if pipe_fd >= 0:
+                try:
+                    os.close(pipe_fd)
+                except OSError:
+                    pass
+                setattr(self, attr, -1)
         with self._watch_lock:
             self._watch_paths_by_wd.clear()
             self._wd_by_path.clear()
@@ -266,17 +299,27 @@ class ArtifactWatcher:
             fd = self._fd
             if fd < 0:
                 return
+            wake_r = self._wake_r
             # If a pending event is waiting to be flushed, shorten the
             # select timeout so the dispatch runs within the coalesce
             # window once the event burst quiesces.
             with self._lock:
                 pending = self._last_event_mono != 0.0
             timeout = self._coalesce_s if pending else idle_timeout
+            read_fds = [fd] if wake_r < 0 else [fd, wake_r]
             try:
-                ready, _, _ = select.select([fd], [], [], timeout)
+                ready, _, _ = select.select(read_fds, [], [], timeout)
             except (OSError, ValueError):
                 # fd was closed under us — shutdown path.
                 return
+            if wake_r >= 0 and wake_r in ready:
+                try:
+                    os.read(wake_r, 1024)
+                except OSError:
+                    pass
+                ready = [ready_fd for ready_fd in ready if ready_fd != wake_r]
+                if self._stop_event.is_set():
+                    return
             if not ready:
                 self._maybe_flush()
                 continue

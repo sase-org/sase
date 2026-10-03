@@ -330,6 +330,8 @@ def init_late_startup_state(
     self._prompt_source_watcher = None
     self._prompt_source_watcher_active = False
     self._prompt_source_watched_projects = set()
+    self._prompt_source_watch_growth_in_flight = False
+    self._prompt_source_watch_growth_pending = False
     self._prompt_source_debounce_timer = None
     self._prompt_source_debounce_config_dirty = False
 

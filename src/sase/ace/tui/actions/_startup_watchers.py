@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sase.core.paths import sase_projects_dir, sase_subdir
 
@@ -24,6 +24,8 @@ class StartupWatchersMixin:
     _prompt_source_watcher: ArtifactWatcher | None
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]
+    _prompt_source_watch_growth_in_flight: bool
+    _prompt_source_watch_growth_pending: bool
     _prompt_source_debounce_timer: Timer | None
     _prompt_source_debounce_config_dirty: bool
 
@@ -103,10 +105,73 @@ class StartupWatchersMixin:
         else:
             self._prompt_source_watcher_active = False
 
-    def _restart_prompt_source_watcher(self: Any) -> None:
-        """Restart prompt watcher after the requested project set grows."""
-        self._stop_prompt_source_watcher()
-        self._start_prompt_source_watcher()
+    def _schedule_prompt_source_watch_growth(self: Any) -> None:
+        """Grow prompt-source watches off the pump for new projects.
+
+        Bookkeeping already happened on the caller (the requested project
+        is in ``_prompt_catalog_projects``). Path discovery stats the
+        filesystem and the ``ensure_watches`` installs touch inotify, so
+        both run in one coalesced worker: catalog getters never stop,
+        start, or join a watcher on the event loop.
+        """
+        watcher = self._prompt_source_watcher
+        if watcher is None:
+            return
+        if self._prompt_source_watch_growth_in_flight:
+            self._prompt_source_watch_growth_pending = True
+            return
+        self._prompt_source_watch_growth_in_flight = True
+        self._prompt_source_watch_growth_pending = False
+        projects = frozenset(self._prompt_catalog_projects)
+
+        async def run_growth() -> None:
+            await self._run_prompt_source_watch_growth(watcher, projects)
+
+        try:
+            self.run_worker(
+                cast(Any, run_growth),
+                name=f"prompt-source-watches:{self._prompt_catalog_generation}",
+                group="prompt-source-watches",
+                exclusive=False,
+            )
+        except Exception:
+            self._prompt_source_watch_growth_in_flight = False
+            log.exception("Failed to schedule prompt-source watch growth")
+
+    async def _run_prompt_source_watch_growth(
+        self: Any,
+        watcher: ArtifactWatcher,
+        projects: frozenset[str | None],
+    ) -> None:
+        """Install watches for *projects* and reconcile the catalog once."""
+        import asyncio
+
+        from ..prompt_catalog import prompt_source_watch_paths
+
+        try:
+            paths = await asyncio.to_thread(prompt_source_watch_paths, projects)
+        except Exception:
+            log.exception("Prompt-source watch growth path discovery failed")
+            paths = []
+        try:
+            if self._prompt_source_watcher is not watcher:
+                # Stopped or replaced while paths resolved — discard.
+                return
+            try:
+                installed = await asyncio.to_thread(watcher.ensure_watches, paths)
+            except Exception:
+                log.exception("Prompt-source watch growth install failed")
+                return
+            if self._prompt_source_watcher is not watcher:
+                return
+            self._prompt_source_watched_projects = set(projects)
+            if installed:
+                self._schedule_prompt_catalog_rebuild(reason="watch_growth")
+        finally:
+            self._prompt_source_watch_growth_in_flight = False
+            if self._prompt_source_watch_growth_pending:
+                self._prompt_source_watch_growth_pending = False
+                self._schedule_prompt_source_watch_growth()
 
     def _stop_prompt_source_watcher(self: Any) -> None:
         """Tear down the prompt-source inotify watcher on quit."""
@@ -119,6 +184,8 @@ class StartupWatchersMixin:
         self._prompt_source_watcher = None
         self._prompt_source_watcher_active = False
         self._prompt_source_watched_projects = set()
+        self._prompt_source_watch_growth_in_flight = False
+        self._prompt_source_watch_growth_pending = False
         if watcher is None:
             return
         try:
