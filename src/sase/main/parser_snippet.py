@@ -15,7 +15,7 @@ def register_snippet_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Inspect or update the effective snippet catalog for a project. "
-            "Xprompt-derived entries are viewable; writable `ace.snippets` "
+            "Macro-derived entries are viewable; writable `ace.snippets` "
             "definitions can be added or deleted. Running `sase snippet` "
             "defaults to `sase snippet list`."
         ),
@@ -95,7 +95,7 @@ def register_snippet_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Remove the winning writable `ace.snippets` contribution for "
             "TRIGGER after exact, alias, then unique-prefix lookup. Refuses "
-            "to pretend a read-only, plugin, or xprompt-derived entry was "
+            "to pretend a read-only, plugin, or macro-derived entry was "
             "deleted and points at its source instead. Prints the restore "
             "command and any newly revealed definition. `-a/--all` removes "
             "every writable config-layer contribution."
@@ -178,7 +178,7 @@ def register_snippet_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Resolve TRIGGER through exact, alias, then unique-prefix lookup "
             "and print the raw template, composed expansion, source stack, "
-            "aliases, calls, backlinks, and diagnostics. Xprompt-derived "
+            "aliases, calls, backlinks, and diagnostics. Macro-derived "
             "entries are viewable and linkable but are source-edited."
         ),
         epilog=(

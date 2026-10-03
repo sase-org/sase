@@ -37,7 +37,7 @@ def register_editor_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Read one JSON request from stdin and write one compact JSON "
             "finalizer completion catalog to stdout. sase's TUI and the "
-            "xprompt LSP use this catalog to complete %%final selectors from "
+            "macro LSP use this catalog to complete %%final selectors from "
             "effective trusted configuration without loading provider code."
         ),
         epilog=(
@@ -59,6 +59,10 @@ def register_editor_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     helper_bridge_subparsers.add_parser(
         "vcs-repo-catalog",
+        help=argparse.SUPPRESS,
+    )
+    helper_bridge_subparsers.add_parser(
+        "macro-catalog",
         help=argparse.SUPPRESS,
     )
     helper_bridge_subparsers.add_parser(

@@ -18,6 +18,14 @@ from sase.macro.models import Macro
 
 
 def test_parser_accepts_editor_helper_bridge_macro_catalog() -> None:
+    args = create_parser().parse_args(["editor", "helper-bridge", "macro-catalog"])
+
+    assert args.command == "editor"
+    assert args.editor_subcommand == "helper-bridge"
+    assert args.editor_helper_bridge_subcommand == "macro-catalog"
+
+
+def test_parser_accepts_legacy_editor_helper_bridge_catalog() -> None:
     args = create_parser().parse_args(["editor", "helper-bridge", "xprompt-catalog"])
 
     assert args.command == "editor"

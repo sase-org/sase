@@ -22,7 +22,7 @@ class ValueKind(StrEnum):
     ARTIFACT_REF = "artifact_ref"
     ARTIFACT_RELATION = "artifact_relation"
     DIRECTIVE = "directive"
-    MACRO = "xprompt"
+    MACRO = "macro"
     SKILL = "skill"
     MEMORY = "memory"
     PROC = "proc"
@@ -213,6 +213,7 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("snippet", "delete"), "trigger"): ValueKind.SNIPPET,
         (("snippet", "show"), "trigger"): ValueKind.SNIPPET,
         (("stitch", "list"), "repos"): ValueKind.REPO,
+        (("macro", "show"), "name"): ValueKind.MACRO,
         (("xprompt", "show"), "name"): ValueKind.MACRO,
     }
     for slot in _BEAD_ID_SLOTS:

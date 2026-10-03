@@ -56,7 +56,9 @@ def snippet_candidates(project: str | None) -> list[Candidate]:
 
 def _snippet_description(item: Mapping[str, object]) -> str:
     source = item.get("source")
-    macro_name = item.get("xprompt_name")
+    # The pinned core still emits ``xprompt_name``; prefer the canonical key
+    # once the core flip lands, without asserting a shape it cannot emit.
+    macro_name = item.get("macro_name", item.get("xprompt_name"))
     source_path = item.get("source_path_display")
     parts = [
         part

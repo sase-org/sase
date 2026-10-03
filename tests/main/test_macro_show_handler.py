@@ -22,7 +22,7 @@ def _record(**overrides: object) -> MacroShowRecord:
         name="demo",
         reference="#demo",
         prefix="#",
-        kind="xprompt",
+        kind="macro",
         is_skill=False,
         skill_name=None,
         is_swarm=False,
@@ -95,7 +95,7 @@ def test_show_miss_exits_one_with_suggestions(
 
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "unknown xprompt: syn" in captured.err
+    assert "unknown macro: syn" in captured.err
     assert "#!sync" in captured.err
 
 

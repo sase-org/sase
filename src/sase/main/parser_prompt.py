@@ -238,7 +238,7 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase prompt save
     save_parser = prompt_sub.add_parser(
         "save",
-        help="Save a prompt as a reusable xprompt markdown file",
+        help="Save a prompt as a reusable macro markdown file",
     )
     save_parser.add_argument(
         "id",
@@ -249,33 +249,33 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "--description",
         default=None,
         metavar="TEXT",
-        help="Override the auto-generated xprompt description",
+        help="Override the auto-generated macro description",
     )
     save_parser.add_argument(
         "-F",
         "--force",
         action="store_true",
-        help="Overwrite the xprompt file if it already exists",
+        help="Overwrite the macro file if it already exists",
     )
     save_parser.add_argument(
         "-g",
         "--global",
         dest="global_",
         action="store_true",
-        help="Save to ~/sase/xprompts/ instead of the project sase/xprompts/",
+        help="Save to ~/sase/macros/ instead of the project sase/macros/",
     )
     save_parser.add_argument(
         "-n",
         "--name",
         default=None,
-        help="xprompt name (defaults to a slug derived from the prompt)",
+        help="Macro name (defaults to a slug derived from the prompt)",
     )
     save_parser.add_argument(
         "-p",
         "--project",
         default=None,
         metavar="PROJECT",
-        help="Save to ~/sase/xprompts/PROJECT/ for a project namespace",
+        help="Save to ~/sase/macros/PROJECT/ for a project namespace",
     )
     save_parser.add_argument(
         "-t",
@@ -283,7 +283,7 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         action="append",
         default=None,
         metavar="TAG",
-        help="Tag recorded in xprompt frontmatter (repeatable)",
+        help="Tag recorded in macro frontmatter (repeatable)",
     )
 
     # sase prompt search

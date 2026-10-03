@@ -248,7 +248,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "tools.tmux",
         "tools.clipboard",
         "tools.fzf",
-        "config.xprompt_directives",
+        "config.macro_directives",
     } <= ids
     assert {
         "config.skills.applied",
@@ -259,7 +259,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "ops.telemetry_health",
         "ops.axe",
         "providers.cli_version",
-        "tools.xprompt_lsp",
+        "tools.macro_lsp",
         "terminal.kitty_graphics",
         "tools.tmux_version",
         "terminal.truecolor",

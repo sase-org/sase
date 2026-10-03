@@ -266,7 +266,7 @@ def test_run_prompt_positional_combines_files_and_macros() -> None:
     assert "'1::PROMPT:__sase_run_prompt'" in script
     assert "__sase_run_prompt() {" in script
     assert "__sase_run_prompt_fragment() {" in script
-    assert "'xprompts:xprompt name:__sase_candidates xprompt'" in script
+    assert "'macros:macro name:__sase_candidates macro'" in script
     assert "'files:file:_files'" in script
     assert "kind='directive'" in script
     assert "kind='artifact_ref'" in script

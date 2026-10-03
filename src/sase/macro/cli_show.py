@@ -52,7 +52,7 @@ def handle_show(args: argparse.Namespace) -> int:
 
 
 def _print_lookup_miss(miss: ShowLookupMiss) -> None:
-    print(f"unknown xprompt: {miss.name}", file=sys.stderr)
+    print(f"unknown macro: {miss.name}", file=sys.stderr)
     if not miss.suggestions:
         return
     print("suggestions:", file=sys.stderr)

@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SASE Macro Collection",
+  "description": "Schema for a file holding a named collection of sase macro definitions (the target printed by `sase path macros-collection-schema`)",
+  "type": "object",
+  "additionalProperties": {
+    "description": "One macro definition: either a plain string body or a workflow mapping",
+    "oneOf": [
+      { "type": "string" },
+      { "type": "object" }
+    ]
+  }
+}

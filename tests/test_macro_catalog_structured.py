@@ -81,7 +81,7 @@ def test_structured_catalog_projects_filters_and_caps_preview(
     assert entry.project == "sase"
     assert entry.insertion == "#local_fix"
     assert entry.reference_prefix == "#"
-    assert entry.kind == "xprompt"
+    assert entry.kind == "macro"
     assert entry.input_signature == "(path: path)"
     assert [inp.name for inp in entry.inputs] == ["path"]
     assert entry.inputs[0].type == "path"
@@ -591,7 +591,7 @@ def test_structured_catalog_uses_canonical_standalone_insertion() -> None:
     assert by_name["ship"].kind == "standalone_workflow"
     assert by_name["ship"].reference_prefix == "#!"
     assert by_name["ship"].insertion == "#!ship"
-    assert by_name["swarm"].kind == "xprompt"
+    assert by_name["swarm"].kind == "macro"
     assert by_name["swarm"].reference_prefix == "#"
     assert by_name["swarm"].insertion == "#swarm"
 
@@ -612,7 +612,7 @@ def test_structured_catalog_pdf_engine_warning_does_not_block_records(
     assert projection.stats.pdf_requested is True
     assert projection.catalog_attachment is None
     assert projection.warnings == ["PDF catalog was not generated"]
-    assert projection.skipped[0].target == "xprompt-catalog.pdf"
+    assert projection.skipped[0].target == "macro-catalog.pdf"
 
 
 def test_structured_catalog_include_string_defaults_opts_in() -> None:

@@ -110,7 +110,7 @@ __sase_run_prompt_fragment() {
 
   for (( index=${#text}; index >= 1; --index )); do
     case ${text[index]} in
-      '#') marker='#'; kind='xprompt'; break ;;
+      '#') marker='#'; kind='macro'; break ;;
       '%') marker='%'; kind='directive'; break ;;
       '@') marker='@'; kind='artifact_ref'; break ;;
       '+') marker='+'; kind='project_tag'; break ;;
@@ -150,17 +150,17 @@ __sase_run_prompt_embedded() {
   compadd -Q -P "$base$marker" -- $values
 }
 
-# `sase run`'s PROMPT positional: native file completion plus stored xprompt
+# `sase run`'s PROMPT positional: native file completion plus stored macro
 # names, since `sase run` accepts either a free-form prompt (often a path an
-# editor buffer was drafted in), `#name`-style xprompt references, and
-# embedded `#xprompt`, `%directive`, `@artifact-reference`, or `+project-tag`
+# editor buffer was drafted in), `#name`-style macro references, and
+# embedded `#macro`, `%directive`, `@artifact-reference`, or `+project-tag`
 # fragments.
 __sase_run_prompt() {
   if __sase_run_prompt_fragment; then
     __sase_run_prompt_embedded $reply && return
   fi
   _alternative \\
-    'xprompts:xprompt name:__sase_candidates xprompt' \\
+    'macros:macro name:__sase_candidates macro' \\
     'files:file:_files'
 }
 """

@@ -8,7 +8,11 @@ from sase.macro.models import UNSET, InputArg
 
 def handle_macro_command(args: argparse.Namespace) -> None:
     """Handle the 'sase macro' command."""
-    subcommand = getattr(args, "xprompt_subcommand", None)
+    subcommand = getattr(args, "macro_subcommand", None)
+    if subcommand is None:
+        # Narrowed-parser compat: ``create_parser(only="xprompt")`` still
+        # parses into the retired dest.
+        subcommand = getattr(args, "xprompt_subcommand", None)
 
     if subcommand == "expand":
         _handle_expand(args)
@@ -23,7 +27,7 @@ def handle_macro_command(args: argparse.Namespace) -> None:
     elif subcommand == "catalog":
         _handle_catalog(args)
     else:
-        print("Usage: sase xprompt {catalog,expand,explain,graph,list,show}")
+        print("Usage: sase macro {catalog,expand,explain,graph,list,show}")
         sys.exit(1)
 
 
@@ -148,7 +152,7 @@ def _handle_list() -> None:
         items.append(
             {
                 "name": name,
-                "type": "xprompt" if is_simple else "workflow",
+                "type": "macro" if is_simple else "workflow",
                 "kind": workflow_kind_value(wf),
                 "prefix": workflow_reference_prefix(wf),
                 "insertion": workflow_reference_insertion(name, wf),

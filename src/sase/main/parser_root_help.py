@@ -37,7 +37,7 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
     ),
     CompactRootCommand(
         "run",
-        "Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history.",
+        "Launch or resume a coding-agent run from a prompt, macro, workflow, or history.",
     ),
     CompactRootCommand(
         "screenshot",

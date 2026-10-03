@@ -3,19 +3,33 @@
 import argparse
 import textwrap
 
+from sase.completion.compat import set_completion_compat_aliases
+
 
 def register_macro_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'macro' subcommand parser."""
+    """Register the canonical 'macro' subcommand parser.
+
+    The retired ``xprompt`` spelling remains accepted as a hidden
+    compatibility alias; completion generation omits it. Flag gating
+    (retirement error when ``legacy_xprompt_syntax`` is off) happens at
+    dispatch in :mod:`sase.main.entry`, not here, so both full and narrowed
+    parser construction keep working.
+    """
     macro_parser = subparsers.add_parser(
-        "xprompt",
-        help="Expand and visualize xprompt workflows",
+        "macro",
+        aliases=["xprompt"],
+        help="Expand and visualize macro workflows",
     )
-    macro_subparsers = macro_parser.add_subparsers(dest="xprompt_subcommand")
+    set_completion_compat_aliases(macro_parser, "xprompt")
+    macro_subparsers = macro_parser.add_subparsers(dest="macro_subcommand")
+    # Narrowed-parser compat: ``create_parser(only="xprompt")`` still parses
+    # into the old dest, so the handler reads both.
+    macro_parser.set_defaults(xprompt_subcommand=None)
 
     # macro catalog
     catalog_parser = macro_subparsers.add_parser(
         "catalog",
-        help="Render every visible xprompt to a beautifully-formatted PDF",
+        help="Render every visible macro to a beautifully-formatted PDF",
     )
     catalog_parser.add_argument(
         "-o",
@@ -86,16 +100,16 @@ def register_macro_parser(subparsers: argparse._SubParsersAction) -> None:
     # macro list
     macro_subparsers.add_parser(
         "list",
-        help="List all available xprompts and workflows as JSON",
+        help="List all available macros and workflows as JSON",
     )
 
     # macro show
     show_parser = macro_subparsers.add_parser(
         "show",
-        help="Show one xprompt definition with syntax highlighting",
+        help="Show one macro definition with syntax highlighting",
         description=(
-            "Show one xprompt or workflow definition: its declared properties, "
-            "typed inputs, local helper xprompts, highlighted body, provenance, "
+            "Show one macro or workflow definition: its declared properties, "
+            "typed inputs, local helper macros, highlighted body, provenance, "
             "and the references it makes. The NAME argument accepts a bare name "
             "or a copied reference (#name, #!name, /name); arguments such as "
             "#name(a, b) are ignored with a note. --format json emits a "
@@ -105,11 +119,11 @@ def register_macro_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=textwrap.dedent(
             """\
             examples:
-              sase xprompt show sase/reads
-              sase xprompt show '#!sync'
-              sase xprompt show plan --format json | jq .inputs
-              sase xprompt show coder --format raw > coder.md
-              sase xprompt show t --color always | less -R
+              sase macro show sase/reads
+              sase macro show '#!sync'
+              sase macro show plan --format json | jq .inputs
+              sase macro show coder --format raw > coder.md
+              sase macro show t --color always | less -R
             """
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -137,5 +151,5 @@ def register_macro_parser(subparsers: argparse._SubParsersAction) -> None:
     show_parser.add_argument(
         "name",
         metavar="NAME",
-        help="XPrompt or workflow name, with optional copied reference marker.",
+        help="Macro or workflow name, with optional copied reference marker.",
     )

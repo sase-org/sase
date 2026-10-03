@@ -199,9 +199,9 @@ def register_lsp_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'lsp' subcommand parser."""
     lsp_parser = subparsers.add_parser(
         "lsp",
-        help="Start the SASE xprompt language server",
+        help="Start the SASE macro language server",
         description=(
-            "Start the SASE xprompt language server. Set SASE_XPROMPT_LSP_CMD "
+            "Start the SASE macro language server. Set SASE_MACRO_LSP_CMD "
             "to override the server command during development."
         ),
     )
@@ -209,7 +209,7 @@ def register_lsp_parser(subparsers: argparse._SubParsersAction) -> None:
         "-V",
         "--version",
         action="store_true",
-        help="Print the xprompt LSP server version and exit",
+        help="Print the macro LSP server version and exit",
     )
     lsp_parser.add_argument(
         "lsp_args",
@@ -442,19 +442,30 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def register_path_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'path' subcommand parser."""
+    from sase.completion.compat import set_completion_compat_choices
+
     path_parser = subparsers.add_parser(
         "path",
         help="Print well-known sase paths (for editor integration)",
     )
-    path_parser.add_argument(
+    name_action = path_parser.add_argument(
         "name",
         choices=[
             "config-schema",
+            "macros-dir",
+            "macros-schema",
+            "macros-collection-schema",
             "xprompts-dir",
             "xprompts-schema",
             "xprompts-collection-schema",
         ],
         help="Which path to print",
+    )
+    set_completion_compat_choices(
+        name_action,
+        "xprompts-dir",
+        "xprompts-schema",
+        "xprompts-collection-schema",
     )
 
 
@@ -477,7 +488,7 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Launch a detached background agent from a prompt or workflow",
         description=(
             "Launch a detached background coding-agent run from a prompt, "
-            "xprompt, or workflow. Runs use the same launch machinery as "
+            "macro, or workflow. Runs use the same launch machinery as "
             "sase's TUI and appear in the Agents tab there."
         ),
         epilog=(
@@ -493,11 +504,9 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
         "prompt",
         nargs="?",
         metavar="PROMPT",
-        help="Prompt, xprompt reference, workflow reference, or '.' for prompt history.",
+        help="Prompt, macro reference, workflow reference, or '.' for prompt history.",
     )
-    set_completion_summary(
-        prompt_positional, "Prompt text, xprompt/workflow ref, or '.'"
-    )
+    set_completion_summary(prompt_positional, "Prompt text, macro/workflow ref, or '.'")
     from sase.ops.cli import add_operation_io_flags
 
     add_operation_io_flags(run_parser)

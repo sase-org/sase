@@ -303,6 +303,14 @@ def test_parser_accepts_mobile_helper_bridge_patch_tags() -> None:
 
 
 def test_parser_accepts_mobile_helper_bridge_macro_catalog() -> None:
+    args = create_parser().parse_args(["mobile", "helper-bridge", "macro-catalog"])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "helper-bridge"
+    assert args.mobile_helper_bridge_subcommand == "macro-catalog"
+
+
+def test_parser_accepts_legacy_mobile_helper_bridge_catalog() -> None:
     args = create_parser().parse_args(["mobile", "helper-bridge", "xprompt-catalog"])
 
     assert args.command == "mobile"

@@ -79,13 +79,13 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
 
     current_parser = project_sub.add_parser(
         "current",
-        help="Show the current project derived from the VCS xprompt MRU",
+        help="Show the current project derived from the VCS macro MRU",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Print the current project: the first VCS xprompt MRU entry that "
+            "Print the current project: the first VCS macro MRU entry that "
             "resolves to an enabled SASE project.\n\n"
-            "The current project is a pure read of the VCS xprompt MRU store "
-            "(~/.sase/vcs_xprompt_mru.json). Launch an agent on a project, or "
+            "The current project is a pure read of the VCS macro MRU store "
+            "(~/.sase/vcs_macro_mru.json). Launch an agent on a project, or "
             "on a Patch owned by that project, to make it current. "
             "`sase project set-current` performs the same MRU promotion "
             "without a launch, and the Projects tab in sase's TUI binds "
@@ -140,11 +140,11 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
 
     set_current_parser = project_sub.add_parser(
         "set-current",
-        help="Set the current project by promoting it in the VCS xprompt MRU",
+        help="Set the current project by promoting it in the VCS macro MRU",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Make PROJECT the current project by promoting it to the head of "
-            "the VCS xprompt MRU store (~/.sase/vcs_xprompt_mru.json).\n\n"
+            "the VCS macro MRU store (~/.sase/vcs_macro_mru.json).\n\n"
             "This is the same write a launch on that project performs. The "
             "project must be enabled and launchable. The Projects tab in "
             "sase's TUI binds the same operation.\n\n"

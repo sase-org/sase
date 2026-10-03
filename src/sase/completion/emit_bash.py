@@ -78,7 +78,7 @@ __SASE_VOLATILE_TTL_CASES__
 }
 
 # Detect an embedded run-prompt reference in the current word. The marker
-# contract is intentionally small: # completes xprompts, % completes prompt
+# contract is intentionally small: # completes macros, % completes prompt
 # directives, @ completes canonical artifact references, and + completes
 # project tags.
 __sase_run_prompt_fragment() {
@@ -92,7 +92,7 @@ __sase_run_prompt_fragment() {
   for (( i=${#text} - 1; i >= 0; i-- )); do
     ch=${text:i:1}
     case "${ch}" in
-      '#') __sase_prompt_marker='#'; __sase_prompt_kind=xprompt; break ;;
+      '#') __sase_prompt_marker='#'; __sase_prompt_kind=macro; break ;;
       '%') __sase_prompt_marker='%'; __sase_prompt_kind=directive; break ;;
       '@') __sase_prompt_marker='@'; __sase_prompt_kind=artifact_ref; break ;;
       '+') __sase_prompt_marker='+'; __sase_prompt_kind=project_tag; break ;;
@@ -113,10 +113,10 @@ __sase_run_prompt_fragment() {
   __sase_prompt_base=${text:0:i}
 }
 
-# `sase run`'s PROMPT positional: native filenames plus stored xprompt
+# `sase run`'s PROMPT positional: native filenames plus stored macro
 # names, since `sase run` accepts either a free-form prompt or a `#name`
-# xprompt reference. Inside prompt text, #, %, @, and + complete the active
-# embedded xprompt, directive, artifact-reference, or project-tag fragment.
+# macro reference. Inside prompt text, #, %, @, and + complete the active
+# embedded macro, directive, artifact-reference, or project-tag fragment.
 __sase_run_prompt() {
   local cur=$1 prefix=$2
   if __sase_run_prompt_fragment "${cur}"; then
@@ -126,7 +126,7 @@ __sase_run_prompt() {
       "${prefix}${__sase_prompt_base}${__sase_prompt_marker}"
     return
   fi
-  __sase_candidates xprompt "${cur}" "${prefix}"
+  __sase_candidates macro "${cur}" "${prefix}"
   local -a files
   files=($(compgen -f -- "${cur}"))
   COMPREPLY+=("${files[@]}")

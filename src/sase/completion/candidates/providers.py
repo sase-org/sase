@@ -23,6 +23,14 @@ from sase.completion.kinds import VOLATILE_KIND_TTL_SECONDS, ValueKind
 _Fetch = Callable[[str | None], list[Candidate]]
 _SourcePath = Callable[[str | None], "Path | None"]
 
+#: Internal kind spellings accepted from shell scripts installed by an older
+#: sase. Completion reinstall refreshes the scripts to the canonical kind;
+#: this map keeps stale scripts returning candidates until then. Never add
+#: user-authored command or choice spellings here.
+_LEGACY_KIND_ALIASES: dict[str, ValueKind] = {
+    "xprompt": ValueKind.MACRO,
+}
+
 
 def candidates_for(
     kind: str,
@@ -46,7 +54,10 @@ def candidates_for(
     try:
         value_kind = ValueKind(kind)
     except ValueError:
-        return []
+        legacy = _LEGACY_KIND_ALIASES.get(kind)
+        if legacy is None:
+            return []
+        value_kind = legacy
     provider = _PROVIDERS.get(value_kind)
     if provider is None:
         return []

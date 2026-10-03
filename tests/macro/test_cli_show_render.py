@@ -24,7 +24,7 @@ def _record(**overrides: object) -> MacroShowRecord:
         name="demo",
         reference="#demo",
         prefix="#",
-        kind="xprompt",
+        kind="macro",
         is_skill=False,
         skill_name=None,
         is_swarm=False,
@@ -111,18 +111,18 @@ def test_plain_layout_covers_every_macro_section() -> None:
     rendered = _rstrip_lines(_render(record, color=False))
 
     assert "#demo" in rendered
-    assert "xprompt · swarm · 2 segments" in rendered
+    assert "macro · swarm · 2 segments" in rendered
     assert "A literal [bold]description[/bold]." in rendered
     assert "PROPERTIES" in rendered
     assert "INPUTS  #demo(topic: text)" in rendered
     assert "default: first line …" in rendered
-    assert "LOCAL XPROMPTS" in rendered
+    assert "LOCAL MACROS" in rendered
     assert " 45 │ %model(test)" in rendered
     assert "REFERENCES" in rendered
     assert "#missing  unknown" in rendered
     assert "✗" in rendered
     assert "WARNINGS\n  hosted URL unavailable" in rendered
-    assert "sase xprompt expand '#demo'   preview the expansion" in rendered
+    assert "sase macro expand '#demo'   preview the expansion" in rendered
     assert "\x1b" not in rendered
 
 
@@ -163,7 +163,7 @@ def test_empty_sections_are_omitted() -> None:
     rendered = _render(_record(), color=False)
 
     assert "INPUTS" not in rendered
-    assert "LOCAL XPROMPTS" not in rendered
+    assert "LOCAL MACROS" not in rendered
     assert "WORKFLOW STEPS" not in rendered
     assert "DEFINITION" not in rendered
     assert "REFERENCES" not in rendered
@@ -200,7 +200,7 @@ def test_workflow_steps_render_bodies_and_explicit_elision() -> None:
     assert "print(20)" not in rendered
     assert "… (3 more lines)" in rendered
     assert "DEFINITION" in rendered
-    assert "sase xprompt explain flow" in rendered
+    assert "sase macro explain flow" in rendered
 
 
 def test_definition_unknown_is_explicit_placeholder() -> None:

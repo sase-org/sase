@@ -61,7 +61,14 @@ def handle_mobile_helper_bridge(
         operation = getattr(args, "mobile_helper_bridge_subcommand", None)
         if operation == "changespec-tags":
             response = patch_tags_response(request)
-        elif operation == "xprompt-catalog":
+        elif operation in {"macro-catalog", "xprompt-catalog"}:
+            if operation == "xprompt-catalog":
+                from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
+                if not legacy_xprompt_syntax_enabled():
+                    raise _MobileHelperBridgeError(
+                        "xprompt-catalog is retired; use macro-catalog"
+                    )
             response = macro_catalog_response(request)
         elif operation == "beads-list":
             response = beads_list_response(request)

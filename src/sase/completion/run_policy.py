@@ -136,6 +136,7 @@ _STDIN_PATHS: Final[frozenset[tuple[str, ...]]] = frozenset(
         ("sudo", "request"),
         ("pager",),
         ("var", "set"),
+        ("macro", "expand"),
         ("xprompt", "expand"),
     }
 )

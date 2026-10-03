@@ -55,7 +55,7 @@ def gather_entries() -> list[CatalogEntry]:
             }
         except Exception:
             log.debug(
-                "Failed to load project-local xprompts for %s",
+                "Failed to load project-local macros for %s",
                 project,
                 exc_info=True,
             )
@@ -98,7 +98,7 @@ def gather_structured_entries() -> list[StructuredCatalogSource]:
             }
         except Exception:
             log.debug(
-                "Failed to load project-local xprompts for %s",
+                "Failed to load project-local macros for %s",
                 project,
                 exc_info=True,
             )

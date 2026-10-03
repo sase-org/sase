@@ -63,6 +63,10 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         help=argparse.SUPPRESS,
     )
     helper_bridge_subparsers.add_parser(
+        "macro-catalog",
+        help=argparse.SUPPRESS,
+    )
+    helper_bridge_subparsers.add_parser(
         "xprompt-catalog",
         help=argparse.SUPPRESS,
     )

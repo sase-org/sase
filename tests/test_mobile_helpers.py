@@ -65,7 +65,7 @@ def test_macro_catalog_bridge_returns_structured_projection(
             warnings=["PDF catalog was not generated"],
             skipped=[
                 StructuredCatalogSkipped(
-                    target="xprompt-catalog.pdf",
+                    target="macro-catalog.pdf",
                     reason="No PDF engine available.",
                 )
             ],

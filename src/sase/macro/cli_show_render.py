@@ -53,7 +53,7 @@ def render_show(record: MacroShowRecord, *, console: Console) -> None:
     if record.local_macros:
         _print_section(
             console,
-            _section_title("LOCAL XPROMPTS", styles_enabled=styles_enabled),
+            _section_title("LOCAL MACROS", styles_enabled=styles_enabled),
             _local_macros(record, styles_enabled=styles_enabled),
             styles_enabled=styles_enabled,
         )
@@ -409,11 +409,11 @@ def _references(
 
 
 def _hint(record: MacroShowRecord, *, styles_enabled: bool) -> Text:
-    if record.kind in {"xprompt", "memory"}:
-        command = f"sase xprompt expand '{record.reference}'"
+    if record.kind in {"macro", "memory"}:
+        command = f"sase macro expand '{record.reference}'"
         explanation = "preview the expansion"
     else:
-        command = f"sase xprompt explain {record.name}"
+        command = f"sase macro explain {record.name}"
         explanation = "preview the workflow"
     style = _style("dim", styles_enabled=styles_enabled)
     hint = Text("  ", style=style)

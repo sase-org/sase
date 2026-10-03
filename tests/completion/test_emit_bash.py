@@ -112,7 +112,7 @@ def test_candidates_helper_gives_volatile_kinds_a_shorter_window() -> None:
 def test_run_prompt_helper_detects_embedded_markers() -> None:
     script = emit_bash(_spec())
     assert "__sase_run_prompt_fragment()" in script
-    assert "__sase_prompt_kind=xprompt" in script
+    assert "__sase_prompt_kind=macro" in script
     assert "__sase_prompt_kind=directive" in script
     assert "__sase_prompt_kind=artifact_ref" in script
     assert "__sase_prompt_kind=project_tag" in script

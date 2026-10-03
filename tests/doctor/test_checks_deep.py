@@ -410,7 +410,7 @@ def test_macro_lsp_ok_when_env_override_resolves(monkeypatch, tmp_path: Path) ->
     )
 
     assert check.status == "OK"
-    assert check.summary == "xprompt LSP server resolves via SASE_XPROMPT_LSP_CMD"
+    assert check.summary == "macro LSP server resolves via SASE_XPROMPT_LSP_CMD"
     assert check.data["command"] == ("/opt/sase/bin/sase-xprompt-lsp",)
 
 
@@ -428,7 +428,7 @@ def test_macro_lsp_warns_when_resolver_fails(monkeypatch, tmp_path: Path) -> Non
     assert check.status == "WARN"
     assert "does not resolve" in check.summary
     assert check.data["resolved"] is False
-    assert "SASE_XPROMPT_LSP_CMD" in check.next_steps[0]
+    assert "SASE_MACRO_LSP_CMD" in check.next_steps[0]
 
 
 def test_macro_lsp_warns_on_cargo_fallback(monkeypatch, tmp_path: Path) -> None:

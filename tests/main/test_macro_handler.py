@@ -64,22 +64,22 @@ def test_macro_list_includes_kind_and_insertion(
     assert exc_info.value.code == 0
     rows = {row["name"]: row for row in json.loads(capsys.readouterr().out)}
 
-    assert rows["commit"]["type"] == "xprompt"
-    assert rows["commit"]["kind"] == "xprompt"
+    assert rows["commit"]["type"] == "macro"
+    assert rows["commit"]["kind"] == "macro"
     assert rows["commit"]["prefix"] == "#"
     assert rows["commit"]["insertion"] == "#commit"
     assert rows["commit"]["is_skill"] is False
     assert rows["commit"]["memory_type"] is None
 
-    assert rows["memory/glossary"]["type"] == "xprompt"
+    assert rows["memory/glossary"]["type"] == "macro"
     assert rows["memory/glossary"]["kind"] == "memory"
     assert rows["memory/glossary"]["prefix"] == "#"
     assert rows["memory/glossary"]["insertion"] == "#memory/glossary"
     assert rows["memory/glossary"]["memory_type"] == "reference"
     assert rows["memory/glossary"]["source"] == "/tmp/sase/memory/glossary.md"
 
-    assert rows["multi"]["type"] == "xprompt"
-    assert rows["multi"]["kind"] == "xprompt"
+    assert rows["multi"]["type"] == "macro"
+    assert rows["multi"]["kind"] == "macro"
     assert rows["multi"]["prefix"] == "#"
     assert rows["multi"]["insertion"] == "#multi"
 

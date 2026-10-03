@@ -49,7 +49,7 @@ def test_macro_directives_warns_with_name_source_and_line(
     check = check_config_macro_directives(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
-    assert check.summary == "1 xprompt definition(s) use retired directive syntax"
+    assert check.summary == "1 macro definition(s) use retired directive syntax"
     assert "research_swarm" in check.details[0]
     assert str(source) in check.details[0]
     assert ":2: %wait(priority=20) — %wait(priority=...) has moved" in check.details[0]
@@ -79,5 +79,5 @@ def test_macro_directives_check_is_registered() -> None:
     specs = checks_config.config_check_specs(default_doctor_context())
     spec_by_id = {spec.id: spec for spec in specs}
 
-    assert "config.xprompt_directives" in spec_by_id
-    assert spec_by_id["config.xprompt_directives"].group == "config"
+    assert "config.macro_directives" in spec_by_id
+    assert spec_by_id["config.macro_directives"].group == "config"

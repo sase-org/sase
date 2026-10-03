@@ -82,12 +82,12 @@ def build_structured_macros_catalog(
         except NoMacrosFound as exc:
             warnings.append("PDF catalog was not generated")
             skipped.append(
-                StructuredCatalogSkipped(target="xprompt-catalog.pdf", reason=str(exc))
+                StructuredCatalogSkipped(target="macro-catalog.pdf", reason=str(exc))
             )
         except PdfEngineUnavailable as exc:
             warnings.append("PDF catalog was not generated")
             skipped.append(
-                StructuredCatalogSkipped(target="xprompt-catalog.pdf", reason=str(exc))
+                StructuredCatalogSkipped(target="macro-catalog.pdf", reason=str(exc))
             )
         else:
             attachment = StructuredCatalogAttachment(

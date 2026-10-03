@@ -54,7 +54,7 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
         for error in scan.errors:
             problems.append(
                 {
-                    "xprompt": name,
+                    "macro": name,
                     "token": "",
                     "message": f"{name}: {error}",
                 }
@@ -64,7 +64,7 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
                 guidance = REMOVED_IMPLICIT_ALIAS_GUIDANCE[token]
                 problems.append(
                     {
-                        "xprompt": name,
+                        "macro": name,
                         "token": token,
                         "message": (
                             f"{name} -> %model:@{token} uses the retired "
@@ -77,7 +77,7 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
                 continue
             problems.append(
                 {
-                    "xprompt": name,
+                    "macro": name,
                     "token": token,
                     "message": (
                         f"{name} -> {token} does not resolve to a provider; "
@@ -90,7 +90,7 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
                 continue
             problems.append(
                 {
-                    "xprompt": name,
+                    "macro": name,
                     "token": token,
                     "message": (
                         f"{name} -> %model({alias}={token}) does not resolve "
@@ -103,25 +103,25 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
     status: CheckStatus = "WARN" if problems else "OK"
     details = tuple(row["message"] for row in problems[:MAX_DETAIL_ROWS])
     summary = (
-        f"{scanned} model preset xprompt(s) route to a provider"
+        f"{scanned} model preset macro(s) route to a provider"
         if not problems
         else f"{len(problems)} model preset token(s) fall back to the default provider"
     )
     next_steps = (
         (
             "Add the unresolved token(s) to `llm_provider.model_aliases.custom`, "
-            "or point the xprompt at an explicit `provider/model` target, then "
-            "rerun `sase doctor -C config.model_xprompts`.",
+            "or point the macro at an explicit `provider/model` target, then "
+            "rerun `sase doctor -C config.model_macros`.",
         )
         if problems
         else ()
     )
 
     return DiagnosticCheck(
-        id="config.model_xprompts",
+        id="config.model_macros",
         group="config",
         status=status,
-        title="Model xprompt routing",
+        title="Model macro routing",
         summary=summary,
         details=details,
         next_steps=next_steps,
@@ -150,11 +150,11 @@ def check_config_macro_definitions(context: DoctorContext) -> DiagnosticCheck:
     if not rows:
         loaded = len(prompts) + len(project_local_prompts)
         return DiagnosticCheck(
-            id="config.xprompt_definitions",
+            id="config.macro_definitions",
             group="config",
             status="OK",
-            title="XPrompt definitions",
-            summary=f"{loaded} xprompt/workflow definition(s) loaded cleanly",
+            title="Macro definitions",
+            summary=f"{loaded} macro/workflow definition(s) loaded cleanly",
             data={"loaded_count": loaded, "issues": []},
         )
 
@@ -162,15 +162,15 @@ def check_config_macro_definitions(context: DoctorContext) -> DiagnosticCheck:
         f"skipped: {row['source']}: {row['error']}" for row in rows[:MAX_DETAIL_ROWS]
     )
     return DiagnosticCheck(
-        id="config.xprompt_definitions",
+        id="config.macro_definitions",
         group="config",
         status="WARN",
-        title="XPrompt definitions",
-        summary=f"{len(rows)} xprompt definition file(s) skipped or degraded",
+        title="Macro definitions",
+        summary=f"{len(rows)} macro definition file(s) skipped or degraded",
         details=details,
         next_steps=(
-            "Fix the reported xprompt/workflow definition files, then rerun "
-            "`sase doctor -C config.xprompt_definitions`.",
+            "Fix the reported macro/workflow definition files, then rerun "
+            "`sase doctor -C config.macro_definitions`.",
         ),
         data={
             "loaded_count": len(prompts) + len(project_local_prompts),
@@ -218,27 +218,27 @@ def check_config_macro_directives(context: DoctorContext) -> DiagnosticCheck:
     status: CheckStatus = "WARN" if rows else "OK"
     details = tuple(str(row["message"]) for row in rows[:MAX_DETAIL_ROWS])
     summary = (
-        f"{len(rows)} xprompt definition(s) use retired directive syntax"
+        f"{len(rows)} macro definition(s) use retired directive syntax"
         if rows
-        else "No retired xprompt directive syntax found"
+        else "No retired macro directive syntax found"
     )
     next_steps = (
         (
             "Update the listed definition to the suggested replacement, or delete it "
             "if it is a stale personal or project copy shadowing a plugin or package "
-            "xprompt of the same name. `sase xprompt show <name>` shows which "
+            "macro of the same name. `sase macro show <name>` shows which "
             "definition wins. Then rerun `sase doctor -C "
-            "config.xprompt_directives`.",
+            "config.macro_directives`.",
         )
         if rows
         else ()
     )
 
     return DiagnosticCheck(
-        id="config.xprompt_directives",
+        id="config.macro_directives",
         group="config",
         status=status,
-        title="Retired xprompt directives",
+        title="Retired macro directives",
         summary=summary,
         details=details,
         next_steps=next_steps,

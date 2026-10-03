@@ -132,7 +132,7 @@ def tag_source_path(_project: str | None) -> Path | None:
 
 def tag_candidates(_project: str | None) -> list[Candidate]:
     """Return the built-in macro tags."""
-    return [Candidate(tag, "xprompt tag") for tag in _MACRO_TAGS]
+    return [Candidate(tag, "macro tag") for tag in _MACRO_TAGS]
 
 
 __all__ = [

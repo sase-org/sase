@@ -53,7 +53,7 @@ function __sase_run_prompt_fragment
         switch $char
             case '#'
                 set marker '#'
-                set kind xprompt
+                set kind macro
                 break
             case '%'
                 set marker '%'
@@ -119,7 +119,7 @@ function __sase_run_prompt_candidates
         end
         return
     end
-    __sase_candidates xprompt
+    __sase_candidates macro
 end
 
 function __sase_cmd

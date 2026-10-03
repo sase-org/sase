@@ -110,7 +110,7 @@ def resolve_show_record(
         if macro_def is not None:
             shadowed = source_path_display(classify(macro_def, project=project))
             warnings.append(
-                f"workflow {name!r} shadows xprompt from "
+                f"workflow {name!r} shadows macro from "
                 f"{shadowed or macro_def.source_path or '(unknown source)'}"
             )
     else:
@@ -371,7 +371,7 @@ def _show_reference_kind(
     if isinstance(item, Macro) and item.skill:
         return "skill"
     if kind == "part":
-        return "xprompt"
+        return "macro"
     return kind
 
 

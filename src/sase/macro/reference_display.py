@@ -16,7 +16,7 @@ def workflow_kind_value(workflow: Workflow) -> str:
         return "memory"
     kind = workflow.prompt_kind()
     if kind is WorkflowKind.SIMPLE_MACRO:
-        return "xprompt"
+        return "macro"
     return kind.value
 
 

@@ -199,11 +199,18 @@ def test_tag_candidates_come_from_the_macro_tag_enum() -> None:
 
 
 def test_macro_and_skill_candidates_include_packaged_names() -> None:
-    macros = candidates_for("xprompt", "", project=None, limit=200)
+    macros = candidates_for("macro", "", project=None, limit=200)
     skills = candidates_for("skill", "", project=None, limit=200)
 
     assert any(candidate.value == "coder" for candidate in macros)
     assert any(candidate.value == "sase_repo" for candidate in skills)
+
+
+def test_legacy_xprompt_kind_still_resolves_macro_candidates() -> None:
+    """Shell scripts installed by an older sase request kind ``xprompt``."""
+    macros = candidates_for("xprompt", "", project=None, limit=200)
+
+    assert any(candidate.value == "coder" for candidate in macros)
 
 
 def test_provider_errors_return_an_empty_list(

@@ -52,9 +52,9 @@ def deep_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             deep=True,
         ),
         CheckSpec(
-            id="tools.xprompt_lsp",
+            id="tools.macro_lsp",
             group="tools",
-            title="xprompt LSP command",
+            title="macro LSP command",
             runner=lambda: check_macro_lsp(context),
             deep=True,
         ),

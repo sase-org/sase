@@ -52,7 +52,7 @@ def test_model_macros_warns_when_prefixed_alias_is_unknown(
 
     assert check.status == "WARN"
     assert any(
-        row["xprompt"] == "m_agy_flash"
+        row["macro"] == "m_agy_flash"
         and "'@agy_flash' is not a known model alias" in row["message"]
         for row in check.data["problems"]
     )
@@ -118,7 +118,7 @@ def test_model_macros_flags_bare_alias_with_migration_hint(
 
     assert check.status == "WARN"
     assert any(
-        row["xprompt"] == "m_agy_flash" and "did you mean @agy_flash" in row["message"]
+        row["macro"] == "m_agy_flash" and "did you mean @agy_flash" in row["message"]
         for row in check.data["problems"]
     )
     assert "did you mean @agy_flash" in check.details[0]
@@ -193,7 +193,7 @@ def test_model_macros_flags_retired_worker_alias(
 
     assert check.status == "WARN"
     assert any(
-        row["xprompt"] == "m_worker"
+        row["macro"] == "m_worker"
         and "@worker" in row["message"]
         and "not a known model alias" in row["message"]
         for row in check.data["problems"]

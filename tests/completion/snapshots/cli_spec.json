@@ -13101,6 +13101,7 @@
                   "directive",
                   "flag",
                   "gate",
+                  "macro",
                   "memory",
                   "model",
                   "monitor",
@@ -13118,8 +13119,7 @@
                   "tag",
                   "task_type",
                   "tool_run",
-                  "workspace",
-                  "xprompt"
+                  "workspace"
                 ],
                 "dest": "kind",
                 "is_remainder": false,
@@ -19078,7 +19078,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "d9d244ff52fd2672",
+        "description_digest": "a61fdf6ec1116cb4",
         "hidden": false,
         "mutex_groups": [],
         "name": "lsp",
@@ -20742,6 +20742,428 @@
                 "nargs": "*",
                 "required": false,
                 "value_hint": "text"
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          }
+        ],
+        "writes": false
+      },
+      {
+        "aliases": [],
+        "default_child": "list",
+        "description_digest": "2971e1bf8aae0733",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "macro",
+        "options": [
+          {
+            "choices": null,
+            "default": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "metavar": null,
+            "repeatable": false,
+            "required": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false,
+            "value_hint": null
+          }
+        ],
+        "path": [
+          "macro"
+        ],
+        "positionals": [],
+        "run_policy": [],
+        "stdin": false,
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "a2ee04fdd3425517",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "catalog",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "out_dir",
+                "hidden": false,
+                "kind": "dir",
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-o",
+                  "--out"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              }
+            ],
+            "path": [
+              "macro",
+              "catalog"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "a4f489c54a36c0be",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "expand",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "trace",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-t",
+                  "--trace"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "macro",
+              "expand"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "prompt",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "prompt",
+                "nargs": "?",
+                "required": false,
+                "value_hint": "text"
+              }
+            ],
+            "run_policy": [],
+            "stdin": true,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "e69f842a09d1f68a",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "explain",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "named_args",
+                "hidden": false,
+                "kind": null,
+                "metavar": "KEY=VALUE",
+                "repeatable": true,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--arg"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "macro",
+              "explain"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "workflow_name",
+                "is_remainder": false,
+                "kind": "macro",
+                "metavar": "workflow_name",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "dest": "args",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "args",
+                "nargs": "*",
+                "required": false,
+                "value_hint": "text"
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "6218d6bf0b221c68",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "graph",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "mermaid",
+                  "text"
+                ],
+                "default": "mermaid",
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "macro",
+              "graph"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "workflow_name",
+                "is_remainder": false,
+                "kind": "macro",
+                "metavar": "workflow_name",
+                "nargs": "?",
+                "required": false,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "e302503a40db03c0",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "macro",
+              "list"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "fa78ef9a08e8f2ea",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "auto",
+                  "always",
+                  "never"
+                ],
+                "default": "auto",
+                "dest": "color",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-c",
+                  "--color"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "full",
+                  "json",
+                  "raw"
+                ],
+                "default": "full",
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "macro",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "name",
+                "is_remainder": false,
+                "kind": "macro",
+                "metavar": "NAME",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
               }
             ],
             "run_policy": [],
@@ -26668,6 +27090,9 @@
           {
             "choices": [
               "config-schema",
+              "macros-dir",
+              "macros-schema",
+              "macros-collection-schema",
               "xprompts-dir",
               "xprompts-schema",
               "xprompts-collection-schema"
@@ -29610,7 +30035,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b8c7fcfd95632a40",
+            "description_digest": "b37100450aee7ec2",
             "hidden": false,
             "mutex_groups": [],
             "name": "current",
@@ -29852,7 +30277,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9b20b3ed5df4ce62",
+            "description_digest": "1866bc1f4ad16d1e",
             "hidden": false,
             "mutex_groups": [],
             "name": "set-current",
@@ -30766,7 +31191,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "92e4018bc97d51c5",
+            "description_digest": "b68150801ce5e3bb",
             "hidden": false,
             "mutex_groups": [],
             "name": "save",
@@ -32688,7 +33113,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "8e81df2a31e3ce63",
+        "description_digest": "7c206038e9818762",
         "hidden": false,
         "mutex_groups": [],
         "name": "run",
@@ -39992,428 +40417,6 @@
               "repair"
             ],
             "positionals": [],
-            "run_policy": [],
-            "stdin": false,
-            "subcommands": [],
-            "writes": false
-          }
-        ],
-        "writes": false
-      },
-      {
-        "aliases": [],
-        "default_child": "list",
-        "description_digest": "db5e0d689c55f907",
-        "hidden": false,
-        "mutex_groups": [],
-        "name": "xprompt",
-        "options": [
-          {
-            "choices": null,
-            "default": null,
-            "dest": "help",
-            "hidden": false,
-            "kind": null,
-            "metavar": null,
-            "repeatable": false,
-            "required": false,
-            "strings": [
-              "-h",
-              "--help"
-            ],
-            "takes_value": false,
-            "value_hint": null
-          }
-        ],
-        "path": [
-          "xprompt"
-        ],
-        "positionals": [],
-        "run_policy": [],
-        "stdin": false,
-        "subcommands": [
-          {
-            "aliases": [],
-            "default_child": null,
-            "description_digest": "9c39e5590cb042ab",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "catalog",
-            "options": [
-              {
-                "choices": null,
-                "default": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false,
-                "value_hint": null
-              },
-              {
-                "choices": null,
-                "default": null,
-                "dest": "out_dir",
-                "hidden": false,
-                "kind": "dir",
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-o",
-                  "--out"
-                ],
-                "takes_value": true,
-                "value_hint": "path"
-              }
-            ],
-            "path": [
-              "xprompt",
-              "catalog"
-            ],
-            "positionals": [],
-            "run_policy": [],
-            "stdin": false,
-            "subcommands": [],
-            "writes": false
-          },
-          {
-            "aliases": [],
-            "default_child": null,
-            "description_digest": "a4f489c54a36c0be",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "expand",
-            "options": [
-              {
-                "choices": null,
-                "default": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false,
-                "value_hint": null
-              },
-              {
-                "choices": null,
-                "default": "False",
-                "dest": "trace",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-t",
-                  "--trace"
-                ],
-                "takes_value": false,
-                "value_hint": null
-              }
-            ],
-            "path": [
-              "xprompt",
-              "expand"
-            ],
-            "positionals": [
-              {
-                "choices": null,
-                "dest": "prompt",
-                "is_remainder": false,
-                "kind": null,
-                "metavar": "prompt",
-                "nargs": "?",
-                "required": false,
-                "value_hint": "text"
-              }
-            ],
-            "run_policy": [],
-            "stdin": true,
-            "subcommands": [],
-            "writes": false
-          },
-          {
-            "aliases": [],
-            "default_child": null,
-            "description_digest": "e69f842a09d1f68a",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "explain",
-            "options": [
-              {
-                "choices": null,
-                "default": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false,
-                "value_hint": null
-              },
-              {
-                "choices": null,
-                "default": null,
-                "dest": "named_args",
-                "hidden": false,
-                "kind": null,
-                "metavar": "KEY=VALUE",
-                "repeatable": true,
-                "required": false,
-                "strings": [
-                  "-a",
-                  "--arg"
-                ],
-                "takes_value": true,
-                "value_hint": "text"
-              }
-            ],
-            "path": [
-              "xprompt",
-              "explain"
-            ],
-            "positionals": [
-              {
-                "choices": null,
-                "dest": "workflow_name",
-                "is_remainder": false,
-                "kind": "xprompt",
-                "metavar": "workflow_name",
-                "nargs": null,
-                "required": true,
-                "value_hint": null
-              },
-              {
-                "choices": null,
-                "dest": "args",
-                "is_remainder": false,
-                "kind": null,
-                "metavar": "args",
-                "nargs": "*",
-                "required": false,
-                "value_hint": "text"
-              }
-            ],
-            "run_policy": [],
-            "stdin": false,
-            "subcommands": [],
-            "writes": false
-          },
-          {
-            "aliases": [],
-            "default_child": null,
-            "description_digest": "6218d6bf0b221c68",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "graph",
-            "options": [
-              {
-                "choices": null,
-                "default": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false,
-                "value_hint": null
-              },
-              {
-                "choices": [
-                  "mermaid",
-                  "text"
-                ],
-                "default": "mermaid",
-                "dest": "format",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-f",
-                  "--format"
-                ],
-                "takes_value": true,
-                "value_hint": null
-              }
-            ],
-            "path": [
-              "xprompt",
-              "graph"
-            ],
-            "positionals": [
-              {
-                "choices": null,
-                "dest": "workflow_name",
-                "is_remainder": false,
-                "kind": "xprompt",
-                "metavar": "workflow_name",
-                "nargs": "?",
-                "required": false,
-                "value_hint": null
-              }
-            ],
-            "run_policy": [],
-            "stdin": false,
-            "subcommands": [],
-            "writes": false
-          },
-          {
-            "aliases": [],
-            "default_child": null,
-            "description_digest": "309696ea2a9da945",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "list",
-            "options": [
-              {
-                "choices": null,
-                "default": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false,
-                "value_hint": null
-              }
-            ],
-            "path": [
-              "xprompt",
-              "list"
-            ],
-            "positionals": [],
-            "run_policy": [],
-            "stdin": false,
-            "subcommands": [],
-            "writes": false
-          },
-          {
-            "aliases": [],
-            "default_child": null,
-            "description_digest": "1c9fe97c3ae1c6d7",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "show",
-            "options": [
-              {
-                "choices": null,
-                "default": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false,
-                "value_hint": null
-              },
-              {
-                "choices": [
-                  "auto",
-                  "always",
-                  "never"
-                ],
-                "default": "auto",
-                "dest": "color",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-c",
-                  "--color"
-                ],
-                "takes_value": true,
-                "value_hint": null
-              },
-              {
-                "choices": [
-                  "full",
-                  "json",
-                  "raw"
-                ],
-                "default": "full",
-                "dest": "format",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-f",
-                  "--format"
-                ],
-                "takes_value": true,
-                "value_hint": null
-              },
-              {
-                "choices": null,
-                "default": null,
-                "dest": "project",
-                "hidden": false,
-                "kind": "project",
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-p",
-                  "--project"
-                ],
-                "takes_value": true,
-                "value_hint": null
-              }
-            ],
-            "path": [
-              "xprompt",
-              "show"
-            ],
-            "positionals": [
-              {
-                "choices": null,
-                "dest": "name",
-                "is_remainder": false,
-                "kind": "xprompt",
-                "metavar": "NAME",
-                "nargs": null,
-                "required": true,
-                "value_hint": null
-              }
-            ],
             "run_policy": [],
             "stdin": false,
             "subcommands": [],

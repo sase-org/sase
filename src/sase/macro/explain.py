@@ -343,7 +343,7 @@ def explain_workflow(
     if workflow.macros:
         console.print()
         line = Text()
-        line.append("Local xprompts: ", style="bold underline")
+        line.append("Local macros: ", style="bold underline")
         line.append(", ".join(sorted(workflow.macros)), style="magenta")
         console.print(line)
 

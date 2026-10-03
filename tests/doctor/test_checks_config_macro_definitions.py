@@ -29,7 +29,7 @@ def test_macro_definitions_ok_when_no_load_issues(
     check = check_config_macro_definitions(_doctor_context(tmp_path))
 
     assert check.status == "OK"
-    assert "1 xprompt/workflow definition(s) loaded cleanly" == check.summary
+    assert "1 macro/workflow definition(s) loaded cleanly" == check.summary
     assert check.data["issues"] == ()
 
 
@@ -53,7 +53,7 @@ def test_macro_definitions_warns_with_skipped_detail(
     check = check_config_macro_definitions(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
-    assert check.summary == "1 xprompt definition file(s) skipped or degraded"
+    assert check.summary == "1 macro definition file(s) skipped or degraded"
     assert check.details == ("skipped: /tmp/bad.yml: mapping values are not allowed",)
     assert [dict(row) for row in check.data["issues"]] == [
         {

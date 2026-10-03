@@ -25,25 +25,25 @@ def check_macro_lsp(context: DoctorContext) -> DiagnosticCheck:
         )
     except macro_lsp.MacroLspLaunchError as exc:
         return DiagnosticCheck(
-            id="tools.xprompt_lsp",
+            id="tools.macro_lsp",
             group="tools",
             status="WARN",
-            title="xprompt LSP command",
-            summary="xprompt LSP server command does not resolve",
+            title="macro LSP command",
+            summary="macro LSP server command does not resolve",
             details=(
                 str(exc),
-                "Editor xprompt completions and diagnostics require this server.",
+                "Editor macro completions and diagnostics require this server.",
             ),
             next_steps=(
-                "Install `sase-xprompt-lsp` into the current venv or PATH, build the sibling `sase-core` LSP binary, or set $SASE_XPROMPT_LSP_CMD.",
+                "Install `sase-macro-lsp` into the current venv or PATH, build the sibling `sase-core` LSP binary, or set $SASE_MACRO_LSP_CMD.",
             ),
             data={
                 "resolved": False,
                 "command": [],
                 "source": None,
-                "env_var": macro_lsp.SASE_XPROMPT_LSP_CMD_ENV,
+                "env_var": macro_lsp.SASE_MACRO_LSP_CMD_ENV,
                 "env_override_set": bool(
-                    context.env.get(macro_lsp.SASE_XPROMPT_LSP_CMD_ENV, "").strip()
+                    context.env.get(macro_lsp.SASE_MACRO_LSP_CMD_ENV, "").strip()
                 ),
                 "cargo_fallback": False,
                 "error": str(exc),
@@ -54,44 +54,44 @@ def check_macro_lsp(context: DoctorContext) -> DiagnosticCheck:
     cargo_fallback = _is_macro_lsp_cargo_run(command)
     if cargo_fallback:
         return DiagnosticCheck(
-            id="tools.xprompt_lsp",
+            id="tools.macro_lsp",
             group="tools",
             status="WARN",
-            title="xprompt LSP command",
-            summary="xprompt LSP resolves through the slow cargo fallback",
+            title="macro LSP command",
+            summary="macro LSP resolves through the slow cargo fallback",
             details=(
                 f"Command: {_format_command(command)}",
                 "Editor startup can be slow because Cargo must check or build the Rust LSP package before serving requests.",
             ),
             next_steps=(
-                "Install `sase-xprompt-lsp` into the current venv or PATH, or build the sibling `sase-core` LSP binary once.",
+                "Install `sase-macro-lsp` into the current venv or PATH, or build the sibling `sase-core` LSP binary once.",
             ),
             data={
                 "resolved": True,
                 "command": list(command),
                 "source": source,
-                "env_var": macro_lsp.SASE_XPROMPT_LSP_CMD_ENV,
+                "env_var": macro_lsp.SASE_MACRO_LSP_CMD_ENV,
                 "env_override_set": bool(
-                    context.env.get(macro_lsp.SASE_XPROMPT_LSP_CMD_ENV, "").strip()
+                    context.env.get(macro_lsp.SASE_MACRO_LSP_CMD_ENV, "").strip()
                 ),
                 "cargo_fallback": True,
             },
         )
 
     return DiagnosticCheck(
-        id="tools.xprompt_lsp",
+        id="tools.macro_lsp",
         group="tools",
         status="OK",
-        title="xprompt LSP command",
-        summary=f"xprompt LSP server resolves via {source}",
+        title="macro LSP command",
+        summary=f"macro LSP server resolves via {source}",
         details=(f"Command: {_format_command(command)}",),
         data={
             "resolved": True,
             "command": list(command),
             "source": source,
-            "env_var": macro_lsp.SASE_XPROMPT_LSP_CMD_ENV,
+            "env_var": macro_lsp.SASE_MACRO_LSP_CMD_ENV,
             "env_override_set": bool(
-                context.env.get(macro_lsp.SASE_XPROMPT_LSP_CMD_ENV, "").strip()
+                context.env.get(macro_lsp.SASE_MACRO_LSP_CMD_ENV, "").strip()
             ),
             "cargo_fallback": False,
         },
@@ -102,6 +102,8 @@ def _macro_lsp_command_source(
     command: tuple[str, ...],
     env: dict[str, str],
 ) -> str:
+    if env.get(macro_lsp.SASE_MACRO_LSP_CMD_ENV, "").strip():
+        return "SASE_MACRO_LSP_CMD"
     if env.get(macro_lsp.SASE_XPROMPT_LSP_CMD_ENV, "").strip():
         return "SASE_XPROMPT_LSP_CMD"
     if _is_macro_lsp_cargo_run(command):

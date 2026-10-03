@@ -200,7 +200,7 @@ def handle_prompt_save(args: argparse.Namespace) -> None:
     _write_file_or_exit(dest, content, force=force, prog=prog)
 
     run_ref = f"{project}/{name}" if project else name
-    print(f'Saved xprompt {name!r} to {dest}. Run it with: sase run "#{run_ref}"')
+    print(f'Saved macro {name!r} to {dest}. Run it with: sase run "#{run_ref}"')
 
 
 def _save_target_dir(*, project: str | None, use_global: bool, prog: str) -> Path:

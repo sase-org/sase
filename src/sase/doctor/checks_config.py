@@ -30,6 +30,7 @@ from sase.doctor.checks_config_macros import (
     check_config_macro_definitions,
     check_config_macro_directives,
 )
+from sase.doctor.checks_config_retired import check_config_retired_xprompt_names
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
@@ -129,22 +130,28 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=check_config_notification_rules,
         ),
         CheckSpec(
-            id="config.model_xprompts",
+            id="config.model_macros",
             group="config",
-            title="Model xprompt routing",
+            title="Model macro routing",
             runner=lambda: check_config_model_macros(context),
         ),
         CheckSpec(
-            id="config.xprompt_definitions",
+            id="config.macro_definitions",
             group="config",
-            title="XPrompt definitions",
+            title="Macro definitions",
             runner=lambda: check_config_macro_definitions(context),
         ),
         CheckSpec(
-            id="config.xprompt_directives",
+            id="config.macro_directives",
             group="config",
-            title="Retired xprompt directives",
+            title="Retired macro directives",
             runner=lambda: check_config_macro_directives(context),
+        ),
+        CheckSpec(
+            id="config.retired_xprompt_names",
+            group="config",
+            title="Retired xprompt names",
+            runner=lambda: check_config_retired_xprompt_names(context),
         ),
         CheckSpec(
             id="config.skills.applied",
@@ -174,6 +181,7 @@ _check_config_tribes = check_config_tribes
 _check_config_model_macros = check_config_model_macros
 _check_config_macro_definitions = check_config_macro_definitions
 _check_config_macro_directives = check_config_macro_directives
+_check_config_retired_xprompt_names = check_config_retired_xprompt_names
 _check_config_skills_applied = check_config_skills_applied
 
 

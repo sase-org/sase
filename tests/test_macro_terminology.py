@@ -115,6 +115,23 @@ _MACRO_NAME_ALLOWLIST = {
     ("src/sase/core/agent_alias_history_wire.py", "used_xprompts"),
     ("src/sase/core/agent_scan_wire_conversion.py", "used_xprompts"),
     ("tests/test_core_agent_scan_wire_macros.py", "used_xprompts"),
+    # The doctor's required legacy id and retired-name table (cli-doctor
+    # phase sase-1eq.4.1.4, permanent by parent plan 202610/macro_syntax_cutover.md).
+    ("src/sase/doctor/checks_config_retired.py", "RETIRED_XPROMPT_NAMES_CHECK_ID"),
+    (
+        "src/sase/doctor/checks_config_retired.py",
+        "check_config_retired_xprompt_names",
+    ),
+    (
+        "tests/doctor/test_checks_config_retired.py",
+        "RETIRED_XPROMPT_NAMES_CHECK_ID",
+    ),
+    (
+        "tests/doctor/test_checks_config_retired.py",
+        "check_config_retired_xprompt_names",
+    ),
+    ("src/sase/doctor/checks_config.py", "check_config_retired_xprompt_names"),
+    ("src/sase/doctor/checks_config.py", "_check_config_retired_xprompt_names"),
     # TUI-local widget surfaces followed by macro-parity tests.
     ("tests/macro/test_argument_surface_parity.py", "XPromptSyntaxHighlightMixin"),
     ("tests/macro/test_argument_surface_parity.py", "XPromptAssistEntry"),

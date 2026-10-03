@@ -298,7 +298,7 @@ def test_fish_completes_run_prompt_embedded_markers(
         "#!/usr/bin/env bash\n"
         'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
         '  case "$3" in\n'
-        "    xprompt) printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n' ;;\n"
+        "    macro) printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n' ;;\n"
         "    directive) printf 'model\\tOverride the LLM model\\n' ;;\n"
         "    artifact_ref) printf 'file:explicit:abc123\\tScreenshot\\n' ;;\n"
         "    project_tag) printf 'zzz-fixture-project\\tGitHub project\\n' ;;\n"
