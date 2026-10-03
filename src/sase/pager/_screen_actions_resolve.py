@@ -262,6 +262,11 @@ class PagerActionResolveMixin:
                     self._dangling_ref_key(cache_identity or ref, context)
                 ] = message
             self.notify(message, severity="warning")
+            if other_pane:
+                try:
+                    self.pager_host._disarm_other()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             if resolution.retryable:
                 self._repaint_label_state()
             else:
@@ -275,6 +280,11 @@ class PagerActionResolveMixin:
             return
         if target.kind is LinkTargetKind.MEDIA:
             self._show_media(target)
+            if other_pane:
+                try:
+                    self.pager_host._disarm_other()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             return
         if target.document is not None:
             if other_pane:

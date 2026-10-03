@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.util.pane_grid import Geometry, geometry
+from sase.ace.tui.util.pane_grid import _Geometry, _geometry
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.resolve import LinkTarget, LinkTargetKind
@@ -199,7 +199,7 @@ async def test_three_pane_main_top_png_snapshot(
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         screen = await _goto_three_panes(pilot, app, "\\", "|")
-        assert geometry(screen._grid) is Geometry.R3_MAIN_TOP
+        assert _geometry(screen._grid) is _Geometry.R3_MAIN_TOP
         pager_png_visual.assert_page_png(
             _SvgExport(app),
             "split_three_pane_main_top_120x40",
@@ -223,7 +223,7 @@ async def test_three_pane_main_bottom_png_snapshot(
         await pilot.pause()
         screen = _pager_screen(app)
         assert len(screen.views) == 3
-        assert geometry(screen._grid) is Geometry.R3_MAIN_BOTTOM
+        assert _geometry(screen._grid) is _Geometry.R3_MAIN_BOTTOM
         pager_png_visual.assert_page_png(
             _SvgExport(app),
             "split_three_pane_main_bottom_120x40",
@@ -238,7 +238,7 @@ async def test_three_pane_main_left_png_snapshot(
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         screen = await _goto_three_panes(pilot, app, "|", "\\")
-        assert geometry(screen._grid) is Geometry.C3_MAIN_LEFT
+        assert _geometry(screen._grid) is _Geometry.C3_MAIN_LEFT
         pager_png_visual.assert_page_png(
             _SvgExport(app),
             "split_three_pane_main_left_120x40",
@@ -262,7 +262,7 @@ async def test_three_pane_main_right_png_snapshot(
         await pilot.pause()
         screen = _pager_screen(app)
         assert len(screen.views) == 3
-        assert geometry(screen._grid) is Geometry.C3_MAIN_RIGHT
+        assert _geometry(screen._grid) is _Geometry.C3_MAIN_RIGHT
         pager_png_visual.assert_page_png(
             _SvgExport(app),
             "split_three_pane_main_right_120x40",
@@ -277,7 +277,7 @@ async def test_three_pane_armed_preview_png_snapshot(
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         screen = await _goto_three_panes(pilot, app, "\\", "|")
-        assert geometry(screen._grid) is Geometry.R3_MAIN_TOP
+        assert _geometry(screen._grid) is _Geometry.R3_MAIN_TOP
         await pilot.press("ctrl+w")
         await pilot.pause()
         assert screen._armed_other_target is not None

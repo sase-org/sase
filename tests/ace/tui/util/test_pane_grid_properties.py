@@ -15,7 +15,7 @@ from sase.ace.tui.util.pane_grid import (
     cycle_focus,
     focus_pane,
     free_pane_id,
-    geometry,
+    _geometry,
     grid_spec,
     pane_rects,
     press_split,
@@ -217,7 +217,7 @@ def test_random_sequences_never_raise(ops: list[str]) -> None:
     for op in ops:
         g = _apply(g, op)
         _assert_valid(g)
-    assert geometry(g).value in {
+    assert _geometry(g).value in {
         "single",
         "R2",
         "C2",

@@ -24,9 +24,9 @@ from sase.ace.tui.util.pane_grid import (
     fits,
     focus_pane,
     free_pane_id,
-    geometry,
+    _geometry,
     grid_spec,
-    main_pane,
+    _main_pane,
     other_target,
     pane_rects,
     position_glyph,
@@ -53,7 +53,7 @@ _GEO_CODE = {
 
 def _fmt_state(g: PaneGrid) -> str:
     panes = " ".join(f"{p}*" if p == g.focused else str(p) for p in g.panes)
-    text = f"{_GEO_CODE[geometry(g).value]}[{panes}]o{g.ratio}"
+    text = f"{_GEO_CODE[_geometry(g).value]}[{panes}]o{g.ratio}"
     if g.pair is not None:
         text += f"i{g.pair.ratio}"
     text += f"m{''.join(str(p) for p in g.recent)}"
@@ -180,21 +180,21 @@ def test_nest_keeps_unfocused_pane_in_place() -> None:
     """Nesting splits the focused pane; the unfocused pane becomes main."""
     top_focused = _two_panes(Axis.ROWS, 0, 50)
     nested = press_split(top_focused, Axis.COLS, 2)
-    assert geometry(nested).value == "R3-main-bottom"
+    assert _geometry(nested).value == "R3-main-bottom"
     assert nested.panes == (0, 2, 1)
-    assert main_pane(nested) == 1
+    assert _main_pane(nested) == 1
     bottom_focused = _two_panes(Axis.ROWS, 1, 50)
     nested = press_split(bottom_focused, Axis.COLS, 2)
-    assert geometry(nested).value == "R3-main-top"
+    assert _geometry(nested).value == "R3-main-top"
     assert nested.panes == (0, 1, 2)
-    assert main_pane(nested) == 0
+    assert _main_pane(nested) == 0
 
 
 def test_erase_keeps_side_and_pair_ratio() -> None:
     """Erasing keeps the side in focus and the pair ratio (decision A2)."""
     state = _three_panes(Axis.ROWS, 1, 2, 70, 30)
     erased = press_split(state, Axis.ROWS, 2)
-    assert geometry(erased).value == "C2"
+    assert _geometry(erased).value == "C2"
     assert erased.panes == (1, 2)
     assert erased.ratio == 30
     main_focused = _three_panes(Axis.ROWS, 1, 0, 70, 30)

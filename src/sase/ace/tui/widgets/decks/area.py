@@ -9,7 +9,7 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.containers import Vertical
 
-from sase.ace.tui.util.pane_grid import grid_spec
+from sase.ace.tui.util.pane_grid import GridSpec, grid_spec
 from sase.ace.tui.util.pane_grid import focus_pane as _grid_focus_pane
 
 from .layout import is_zoomed
@@ -34,6 +34,7 @@ class DeckArea(Vertical):
         """Initialize the deck area."""
         super().__init__(**kwargs)
         self._state: DeckAreaState = DeckAreaState()
+        self._panel_map: dict[int, DeckPanel] = {}
 
     @property
     def state(self) -> DeckAreaState:
@@ -51,30 +52,62 @@ class DeckArea(Vertical):
         yield DeckPanel(1, id="agent-deck-panel-1", classes="deck-panel hidden")
         yield DeckPanel(2, id="agent-deck-panel-2", classes="deck-panel hidden")
 
+    def on_mount(self) -> None:
+        """Index the composed panels by pane ID without remounting."""
+        try:
+            self._panel_map = {
+                panel.panel_index: panel for panel in self.query(DeckPanel)
+            }
+        except Exception:
+            pass
+
     def panel(self, pane_id: int) -> DeckPanel:
         """Return the panel for ``pane_id`` through the explicit ID map."""
         try:
-            found = self.query_one(f"#agent-deck-panel-{pane_id}", DeckPanel)
+            return self._panel_map[pane_id]
+        except (KeyError, AttributeError, TypeError):
+            pass
+        try:
+            for panel in self.query(DeckPanel):
+                try:
+                    if panel.panel_index == pane_id:
+                        try:
+                            self._panel_map[pane_id] = panel
+                        except Exception:
+                            pass
+                        return panel
+                except Exception:
+                    continue
         except Exception:
-            raise IndexError(pane_id) from None
-        return found
+            pass
+        raise IndexError(pane_id)
 
     def _panels_by_id(self) -> dict[int, DeckPanel]:
         """Return the mounted panels keyed by pane ID (never raises)."""
+        try:
+            if self._panel_map:
+                return dict(self._panel_map)
+        except Exception:
+            pass
         found: dict[int, DeckPanel] = {}
-        for pane_id in (0, 1, 2):
-            try:
-                found[pane_id] = self.query_one(
-                    f"#agent-deck-panel-{pane_id}", DeckPanel
-                )
-            except Exception:
-                continue
+        try:
+            for panel in self.query(DeckPanel):
+                try:
+                    found[panel.panel_index] = panel
+                except Exception:
+                    continue
+        except Exception:
+            return found
+        try:
+            self._panel_map = dict(found)
+        except Exception:
+            pass
         return found
 
     def _apply_grid_spec(self, new_state: DeckAreaState) -> None:
         """Apply the grid tracks, spans and DOM order (never raises)."""
         try:
-            spec = grid_spec(new_state.grid)
+            spec: GridSpec = grid_spec(new_state.grid)
         except Exception:
             return
         try:

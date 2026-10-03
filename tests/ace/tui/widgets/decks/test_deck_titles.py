@@ -354,7 +354,17 @@ def _zoomed_subtitle(width: int, zoom: ZoomChrome, status: Text | None = None) -
 
 
 def _split_zoom(index: int, layout: DeckLayout = DeckLayout.LEFT_RIGHT) -> ZoomChrome:
-    return ZoomChrome(layout, index, 2, zoom_key="Z")
+    from sase.ace.tui.util.pane_grid import Axis, PaneGrid, position_glyph
+
+    axis = Axis.COLS if layout is DeckLayout.LEFT_RIGHT else Axis.ROWS
+    grid = PaneGrid(
+        panes=(0, 1),
+        focused=index,
+        axis=axis,
+        ratio=50,
+        recent=(index, 1 - index),
+    )
+    return ZoomChrome(layout, index, 2, zoom_key="Z", glyph=position_glyph(grid, index))
 
 
 def test_zoom_subtitle_glyph_per_half() -> None:
@@ -377,7 +387,10 @@ def test_zoom_subtitle_omits_key_when_unbound() -> None:
     assert _zoomed_subtitle(80, ZoomChrome(DeckLayout.SINGLE, 0, 1)).startswith(
         "restore"
     )
-    split = _zoomed_subtitle(80, ZoomChrome(DeckLayout.LEFT_RIGHT, 0, 2, zoom_key=""))
+    from dataclasses import replace
+
+    unbound = replace(_split_zoom(0, DeckLayout.LEFT_RIGHT), zoom_key="")
+    split = _zoomed_subtitle(80, unbound)
     assert split.startswith("◧ 1 of 2 · restore")
 
 

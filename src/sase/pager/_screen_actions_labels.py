@@ -149,11 +149,21 @@ class PagerActionLabelsMixin:
             # The internal ``"other"`` arm never reaches attached handlers;
             # they see the public ``"follow"`` contract value instead.
             handler(target, action if action != "other" else "follow")
+            if other_pane:
+                try:
+                    self.pager_host._disarm_other()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             return
 
         origin = self._origin_for_section_index(label.section_index)
         if target.kind == LinkSpanKind.URL.value or action == "copy":
             self._copy_target(target, context=context, origin=origin)
+            if other_pane:
+                try:
+                    self.pager_host._disarm_other()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             return
         if action == "edit":
             self._edit_target(target, context=context, origin=origin)

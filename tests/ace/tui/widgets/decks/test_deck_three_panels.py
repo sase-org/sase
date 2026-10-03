@@ -14,13 +14,13 @@ from sase.ace.tui.models.agent_deck_persistence import (
 )
 from sase.ace.tui.util.pane_grid import (
     Axis,
-    Geometry,
+    _Geometry,
     PaneGrid,
     close_focused,
     cycle_focus,
     focus_pane,
-    geometry,
-    main_pane,
+    _geometry,
+    _main_pane,
     press_split,
     turn,
 )
@@ -84,17 +84,17 @@ def _nest(state: DeckAreaState, target: DeckLayout) -> DeckAreaState:
 
 
 def test_nest_reaches_all_four_t_shapes() -> None:
-    assert geometry(_nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT).grid) is (
-        Geometry.R3_MAIN_BOTTOM
+    assert _geometry(_nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT).grid) is (
+        _Geometry.R3_MAIN_BOTTOM
     )
-    assert geometry(_nest(_two_panes(Axis.ROWS, 1), DeckLayout.LEFT_RIGHT).grid) is (
-        Geometry.R3_MAIN_TOP
+    assert _geometry(_nest(_two_panes(Axis.ROWS, 1), DeckLayout.LEFT_RIGHT).grid) is (
+        _Geometry.R3_MAIN_TOP
     )
-    assert geometry(_nest(_two_panes(Axis.COLS, 0), DeckLayout.TOP_BOTTOM).grid) is (
-        Geometry.C3_MAIN_RIGHT
+    assert _geometry(_nest(_two_panes(Axis.COLS, 0), DeckLayout.TOP_BOTTOM).grid) is (
+        _Geometry.C3_MAIN_RIGHT
     )
-    assert geometry(_nest(_two_panes(Axis.COLS, 1), DeckLayout.TOP_BOTTOM).grid) is (
-        Geometry.C3_MAIN_LEFT
+    assert _geometry(_nest(_two_panes(Axis.COLS, 1), DeckLayout.TOP_BOTTOM).grid) is (
+        _Geometry.C3_MAIN_LEFT
     )
 
 
@@ -105,13 +105,13 @@ def test_nest_new_pane_takes_focus_and_main_does_not_move() -> None:
     assert nested.grid.focused == 2
     assert nested.panels[2].deck is DeckId.TOOLS
     # The unfocused pane becomes main without moving or resizing.
-    assert main_pane(nested.grid) == 1
+    assert _main_pane(nested.grid) == 1
     assert nested.grid.ratio == before.grid.ratio
 
 
 def test_erase_with_main_focused_keeps_main() -> None:
     nested = _nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT)
-    main = main_pane(nested.grid)
+    main = _main_pane(nested.grid)
     assert main is not None
     erased = toggle_split(
         dataclasses.replace(nested, grid=focus_pane(nested.grid, main)),
@@ -125,14 +125,14 @@ def test_erase_with_main_focused_keeps_main() -> None:
 def test_erase_with_pair_focused_keeps_pair() -> None:
     nested = _nest(_two_panes(Axis.ROWS, 0), DeckLayout.LEFT_RIGHT)
     pair_focus = nested.grid.panes[1]
-    assert pair_focus != main_pane(nested.grid)
+    assert pair_focus != _main_pane(nested.grid)
     erased = toggle_split(
         dataclasses.replace(nested, grid=focus_pane(nested.grid, pair_focus)),
         DeckLayout.TOP_BOTTOM,
         nested.panels[pair_focus],
     )
-    assert geometry(erased.grid) is Geometry.C2
-    assert set(erased.grid.panes) == set(nested.grid.panes) - {main_pane(nested.grid)}
+    assert _geometry(erased.grid) is _Geometry.C2
+    assert set(erased.grid.panes) == set(nested.grid.panes) - {_main_pane(nested.grid)}
 
 
 def test_turn_both_ways_is_self_inverse() -> None:
@@ -140,7 +140,7 @@ def test_turn_both_ways_is_self_inverse() -> None:
     turned = toggle_split(
         nested, DeckLayout.LEFT_RIGHT, nested.panels[nested.grid.focused]
     )
-    assert geometry(turned.grid) is Geometry.C3_MAIN_RIGHT
+    assert _geometry(turned.grid) is _Geometry.C3_MAIN_RIGHT
     back = toggle_split(
         turned, DeckLayout.TOP_BOTTOM, turned.panels[turned.grid.focused]
     )
@@ -233,7 +233,7 @@ def test_three_panel_state_round_trips_with_pair() -> None:
     # Pane IDs are reassigned in reading order on load, so the round trip
     # preserves geometry, reading-order decks, focus position and pair.
     rebuilt = area_state_from_snapshot(snapshot)
-    assert geometry(rebuilt.grid) is geometry(nested.grid)
+    assert _geometry(rebuilt.grid) is _geometry(nested.grid)
     assert [rebuilt.panels[pid].deck for pid in rebuilt.grid.panes] == [
         nested.panels[pid].deck for pid in nested.grid.panes
     ]
@@ -266,7 +266,7 @@ def test_old_reader_simulation_yields_valid_two_pane() -> None:
     assert len(old_view.panels) == 2
     assert old_view.pair_region is None
     rebuilt = area_state_from_snapshot(old_view)
-    assert geometry(rebuilt.grid) in (Geometry.R2, Geometry.C2)
+    assert _geometry(rebuilt.grid) in (_Geometry.R2, _Geometry.C2)
 
 
 def test_malformed_pair_recovers_to_two_panels() -> None:
@@ -339,7 +339,7 @@ def test_close_focused_is_inverse_of_nest() -> None:
 
 def test_press_split_and_turn_helpers_cover_three_panes() -> None:
     grid = _nest(_two_panes(Axis.COLS, 1), DeckLayout.TOP_BOTTOM).grid
-    assert geometry(grid) is Geometry.C3_MAIN_LEFT
+    assert _geometry(grid) is _Geometry.C3_MAIN_LEFT
     assert turn(turn(grid)) == grid
     assert press_split(grid, Axis.ROWS, grid.focused) == turn(grid)
 

@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.ace.tui.util.pane_grid import Axis, PaneGrid, position_glyph
-
 from .model import DeckId, DeckLayout
 from .spec import DECK_SPECS, active_deck_cycle
 
@@ -38,26 +36,6 @@ _SEPARATOR = "#444444"
 ZOOM_CHIP_TEXT = "ZOOM"
 ZOOM_CHIP_STYLE = "bold #1a1a1a on #FFD700"
 ZOOM_CHIP_WIDTH = 5  # "ZOOM" plus one trailing space.
-
-_ZOOM_HALF_AXIS: dict[DeckLayout, Axis] = {
-    DeckLayout.LEFT_RIGHT: Axis.COLS,
-    DeckLayout.TOP_BOTTOM: Axis.ROWS,
-}
-
-
-def _zoom_half_glyph(from_layout: DeckLayout, panel_index: int) -> str:
-    """Return the one-cell position glyph for a zoomed two-pane half."""
-    axis = _ZOOM_HALF_AXIS.get(from_layout)
-    if axis is None or panel_index not in (0, 1):
-        return ""
-    grid = PaneGrid(
-        panes=(0, 1),
-        focused=panel_index,
-        axis=axis,
-        ratio=50,
-        recent=(panel_index, 1 - panel_index),
-    )
-    return position_glyph(grid, panel_index)
 
 
 @dataclass(frozen=True)
@@ -461,7 +439,7 @@ def _zoom_restore_text(zoom: ZoomChrome, *, accent: str, short: bool) -> Text:
     """
     restore = Text()
     if not short and zoom.from_layout is not DeckLayout.SINGLE:
-        glyph = zoom.glyph or _zoom_half_glyph(zoom.from_layout, zoom.panel_index)
+        glyph = zoom.glyph
         if glyph:
             restore.append(
                 f"{glyph} {zoom.panel_index + 1} of {zoom.panel_count} ", style="dim"

@@ -278,6 +278,10 @@ steps clamp silently, and shrinking the terminal never closes a pane. Splitting,
 turning, resizing, closing a pane, and walking the trail all keep the logical line at
 the top of the viewport.
 
+The `Ctrl+Shift` chords need the kitty → tmux CSI-u chain (kitty plus tmux with
+`extended-keys-format csi-u`, and SASE requesting modifyOtherKeys mode 2 inside tmux);
+`>` / `<` / `Ctrl+X` always work.
+
 ## Resolution
 
 Follow, copy, and edit use the same semantic target: a typed artifact reference without

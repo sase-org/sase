@@ -6,7 +6,7 @@ grow unbounded over a long ACE session. Both surfaces:
 
 * a periodic snapshot fired from the existing auto-refresh tick — so
   we don't add a new timer; and
-* a one-shot keybind (``ctrl+shift+d``) that dumps the same data
+* a one-shot keybind (``f12``) that dumps the same data
   synchronously and surfaces the headline counts as a Textual
   notification.
 

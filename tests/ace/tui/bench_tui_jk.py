@@ -62,6 +62,63 @@ from tests.ace.tui.bench_tui_jk_unread import (
 pytestmark = pytest.mark.slow
 
 
+async def test_bench_deck_jk_two_vs_three_panels(tmp_path) -> None:
+    """Agents j/k wall-clock with two vs three deck panels (16 ms budget)."""
+    import statistics
+    import time
+
+    from textual.app import App, ComposeResult
+
+    from sase.ace.tui.widgets.agent_detail import AgentDetail
+    from sase.ace.tui.widgets.decks.model import DeckLayout
+    from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
+    from tests.ace.tui.widgets.decks._deck_spread_test_helpers import pin_paged
+
+    _ROOT = Path(__file__).resolve().parents[3]
+
+    class _BenchDetailApp(App[None]):
+        CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
+
+        def compose(self) -> ComposeResult:
+            yield AgentDetail(id="agent-detail-panel")
+
+    async def _measure(panels: int, tag: str) -> tuple[float, float]:
+        app = _BenchDetailApp()
+        pin_paged(app)
+        async with app.run_test(size=(130, 40)) as pilot:
+            await pilot.pause()
+            detail = app.query_one("#agent-detail-panel", AgentDetail)
+            subdir = tmp_path / tag
+            subdir.mkdir(parents=True, exist_ok=True)
+            detail.update_display(make_artifact_agent(subdir, status="DONE"))
+            await pilot.pause()
+            if panels >= 2:
+                detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+                await pilot.pause()
+            if panels >= 3:
+                detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+                await pilot.pause()
+            assert len(detail.deck_area.state.grid.panes) == panels
+            samples: list[float] = []
+            for key in ("j", "k"):
+                for _ in range(15):
+                    start = time.perf_counter()
+                    await pilot.press(key)
+                    await pilot.pause()
+                    samples.append((time.perf_counter() - start) * 1000.0)
+            ordered = sorted(samples)
+            p50 = statistics.median(ordered)
+            idx = min(len(ordered) - 1, int(0.95 * len(ordered)))
+            return p50, ordered[idx]
+
+    p50_two, p95_two = await _measure(2, "two")
+    p50_three, p95_three = await _measure(3, "three")
+    print(
+        f"\ndeck j/k wall-clock ms: 2 panels p50={p50_two:.2f} p95={p95_two:.2f} | "
+        f"3 panels p50={p50_three:.2f} p95={p95_three:.2f} (budget 16 ms)"
+    )
+
+
 def main() -> int:
     """Print a single combined table from an existing benchmark JSONL log."""
     log = Path(

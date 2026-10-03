@@ -559,3 +559,21 @@ def test_quotation_mark_glyph_canonicalizes_to_key_name() -> None:
     """The raw ``"`` spelling normalizes to Textual's key name."""
     assert canonicalize_key_binding('"') == "quotation_mark"
     assert canonicalize_key_binding("quotation_mark") == "quotation_mark"
+
+
+def test_swap_next_raw_greater_than_override_is_accepted() -> None:
+    """A raw ``>`` swap override is accepted, not reverted with a warning."""
+    reg = load_keymap_registry({"keymaps": {"app": {"swap_deck_panel_next": ">"}}})
+    assert reg.app.swap_deck_panel_next == "greater_than_sign"
+
+
+def test_swap_pair_is_tab_disjoint() -> None:
+    """The swap/ancestor-child pairs share keys across disjoint tabs."""
+    from sase.ace.tui.keymaps.registry_app import _CONTEXTUAL_APP_DUPLICATES
+
+    assert frozenset({"swap_deck_panel_prev", "start_ancestor_mode"}) in (
+        _CONTEXTUAL_APP_DUPLICATES
+    )
+    assert frozenset({"swap_deck_panel_next", "start_child_mode"}) in (
+        _CONTEXTUAL_APP_DUPLICATES
+    )

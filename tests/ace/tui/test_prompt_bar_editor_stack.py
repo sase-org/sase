@@ -113,6 +113,9 @@ class _EditorHarness(PromptBarRequestsMixin):
             raise RuntimeError("no prompt bar")
         return self._bar
 
+    def _mounted_prompt_bar(self) -> Any:
+        return self._bar
+
     def _open_editor_for_agent_prompt(
         self, content: str = "", cursor_row: int = 0, cursor_col: int = 0
     ) -> str | None:

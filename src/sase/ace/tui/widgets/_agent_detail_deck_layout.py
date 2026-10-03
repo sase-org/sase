@@ -4,30 +4,24 @@ from __future__ import annotations
 
 from typing import Any
 
+from ._agent_detail_deck_pane_keys import AgentDetailDeckPaneKeysMixin
 from .decks.layout import (
     SidebarMode,
     choose_new_panel,
-    close_deck_panel,
     exit_zoom_keeping_panels,
     is_zoomed,
     new_panel_for_deck,
     refuse_three_pane_key,
-    refuse_turn,
     sidebar_mode,
-    step_ratio,
-    swap_deck_panel,
-    toggle_focus,
-    toggle_focus_reverse,
     toggle_nodes_collapsed,
     toggle_split,
     toggle_zoom,
-    turn_deck_layout,
 )
 from .decks.model import DeckAreaState, DeckId, DeckLayout
 from .decks.picker import other_panel_target
 
 
-class AgentDetailDeckLayoutMixin:
+class AgentDetailDeckLayoutMixin(AgentDetailDeckPaneKeysMixin):
     """Mixin providing deck split, focus and ratio actions."""
 
     _main_deck_document: Any
@@ -402,78 +396,6 @@ class AgentDetailDeckLayoutMixin:
             return ended_zoom
         return True
 
-    def toggle_deck_focus(self) -> None:
-        """Move logical focus to the next panel in a split."""
-        try:
-            area = self.deck_area  # type: ignore[attr-defined]
-            self._apply_deck_area_state(toggle_focus(area.state))
-        except Exception:
-            return
-        self._notify_deck_state_changed()
-
-    def toggle_deck_focus_reverse(self) -> None:
-        """Move logical focus to the previous panel in a split."""
-        try:
-            area = self.deck_area  # type: ignore[attr-defined]
-            self._apply_deck_area_state(toggle_focus_reverse(area.state))
-        except Exception:
-            return
-        self._notify_deck_state_changed()
-
-    def swap_deck_panel(self, direction: int) -> None:
-        """Swap the focused panel's session with its neighbour (split only)."""
-        try:
-            area = self.deck_area  # type: ignore[attr-defined]
-            self._apply_deck_area_state(swap_deck_panel(area.state, direction))
-        except Exception:
-            return
-        self._notify_deck_state_changed()
-
-    def close_deck_panel(self) -> None:
-        """Close the focused panel, keeping the MRU survivor (split only)."""
-        try:
-            area = self.deck_area  # type: ignore[attr-defined]
-            self._apply_deck_area_state(close_deck_panel(area.state))
-        except Exception:
-            return
-        try:
-            area.focused_panel().refresh_chrome()
-        except Exception:
-            pass
-        self._notify_deck_state_changed()
-
-    def turn_deck_layout(self) -> None:
-        """Transpose the split layout (stacked/side-by-side).
-
-        A three-pane turn is refused with a toast when the transposed
-        grid would starve a panel; the layout is left unchanged.
-        """
-        try:
-            area = self.deck_area  # type: ignore[attr-defined]
-            state = area.state
-        except Exception:
-            return
-        try:
-            width, height = self._deck_area_extent()
-            if self._refuse_deck_key(refuse_turn(state, width, height)):
-                return
-        except Exception:
-            pass
-        try:
-            self._apply_deck_area_state(turn_deck_layout(state))
-        except Exception:
-            return
-        self._notify_deck_state_changed()
-
-    def step_deck_ratio(self, grow: bool) -> None:
-        """Grow or shrink the focused panel one ratio step."""
-        try:
-            area = self.deck_area  # type: ignore[attr-defined]
-            self._apply_deck_area_state(step_ratio(area.state, grow))
-        except Exception:
-            return
-        self._notify_deck_state_changed()
-
     @property
     def is_nodes_collapsed(self) -> bool:
         """Return whether the node-rail preference is set in deck mode."""
@@ -660,40 +582,6 @@ class AgentDetailDeckLayoutMixin:
             settle = getattr(app, "_settle_agent_list_container_width", None)
             if callable(settle):
                 settle(container, widgets)
-        except Exception:
-            pass
-
-    def _move_focus_off_hidden_list(self) -> None:
-        """Move Textual focus off the hidden node list when it holds it."""
-        try:
-            app = self.app  # type: ignore[attr-defined]
-            focused = app.focused
-            container = app.query_one("#agent-list-container")
-        except Exception:
-            return
-        if focused is None:
-            return
-        node: Any = focused
-        inside = False
-        while node is not None:
-            if node is container:
-                inside = True
-                break
-            node = getattr(node, "parent", None)
-        if not inside:
-            return
-        try:
-            from textual.containers import VerticalScroll
-
-            area = self.deck_area  # type: ignore[attr-defined]
-            scrolls = area.focused_panel().query(VerticalScroll)
-            for scroll in scrolls:
-                try:
-                    if scroll.has_class("-shown"):
-                        scroll.focus()
-                        return
-                except Exception:
-                    continue
         except Exception:
             pass
 

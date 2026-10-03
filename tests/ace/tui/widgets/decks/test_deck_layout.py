@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.util.pane_grid import Axis, PaneGrid
+from sase.ace.tui.util.pane_grid import Axis, PaneGrid, fits, focus_pane, press_split
 from sase.ace.tui.widgets.decks.layout import (
+    MIN_DECK_PANEL_HEIGHT,
+    MIN_DECK_PANEL_WIDTH,
     RATIO_STEPS,
     choose_new_panel,
     close_deck_panel,
@@ -408,6 +410,16 @@ def test_close_deck_panel_single_is_noop() -> None:
     assert close_deck_panel(state) is state
 
 
+def test_erase_prunes_erased_session() -> None:
+    two = _split(DeckId.MAIN, DeckId.FILES, focused=1, ratio=50)
+    three = toggle_split(two, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
+    assert len(three.grid.panes) == 3
+    assert set(three.panels) == set(three.grid.panes)
+    erased = toggle_split(three, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES))
+    assert len(erased.grid.panes) == 2
+    assert set(erased.panels) == set(erased.grid.panes)
+
+
 def test_close_deck_panel_is_inverse_of_split() -> None:
     single = _single(DeckId.MAIN)
     opened = toggle_split(single, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES))
@@ -444,3 +456,34 @@ def test_pane_keys_disabled_while_zoomed() -> None:
     assert close_deck_panel(zoomed) is zoomed
     assert turn_deck_layout(zoomed) is zoomed
     assert step_ratio(zoomed, True) is zoomed
+
+
+def test_three_panel_step_that_breaks_minimums_fails_fit() -> None:
+    base = PaneGrid(panes=(0, 1), focused=0, axis=Axis.COLS, ratio=50, recent=(0, 1))
+    nested = press_split(base, Axis.ROWS, 2)
+    assert len(nested.panes) == 3
+    main_state = DeckAreaState(
+        grid=focus_pane(nested, 1),
+        panels={
+            0: DeckPanelState(DeckId.MAIN),
+            1: DeckPanelState(DeckId.FILES),
+            2: DeckPanelState(DeckId.TOOLS),
+        },
+    )
+    assert main_state.focused == 1
+    assert fits(
+        main_state.grid,
+        100,
+        34,
+        min_width=MIN_DECK_PANEL_WIDTH,
+        min_height=MIN_DECK_PANEL_HEIGHT,
+    )
+    for grow in (True, False):
+        candidate = step_ratio(main_state, grow)
+        assert not fits(
+            candidate.grid,
+            100,
+            34,
+            min_width=MIN_DECK_PANEL_WIDTH,
+            min_height=MIN_DECK_PANEL_HEIGHT,
+        )

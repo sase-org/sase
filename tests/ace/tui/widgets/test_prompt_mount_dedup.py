@@ -39,6 +39,7 @@ _EXPECTED_MOUNT_HOOK_ORDER = [
 
 #: Classes owning an unmount-hook body, most-derived first (invocation order).
 _EXPECTED_UNMOUNT_HOOK_ORDER = [
+    "JinjaDiagnosticsMixin",
     "ArtifactRefSyncMixin",
     "PromptSoftCompletionMixin",
     "LineRenderingMixin",
@@ -155,6 +156,7 @@ async def test_unmount_bodies_run_once() -> None:
             setattr(cls, _UNMOUNT_HOOK, originals[cls.__name__])
 
     assert counts == {
+        "JinjaDiagnosticsMixin": 1,
         "ArtifactRefSyncMixin": 1,
         "PromptSoftCompletionMixin": 1,
     }

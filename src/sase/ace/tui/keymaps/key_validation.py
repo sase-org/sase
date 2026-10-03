@@ -82,6 +82,10 @@ _KEY_ALIASES: dict[str, str] = {
     # accept the raw glyphs as friendly config spellings for them.
     "\\": "backslash",
     "|": "vertical_line",
+    # The deck swap aliases and the ancestor/child modes use `<` / `>`;
+    # accept the raw glyphs as friendly config spellings for them.
+    "<": "less_than_sign",
+    ">": "greater_than_sign",
 }
 
 

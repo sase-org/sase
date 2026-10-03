@@ -79,6 +79,15 @@ class SasePager(App[PagerExit]):
         self._resolve_ref_fn = resolve_ref_fn
         self._refresh_document_fn = refresh_document_fn
 
+    def get_driver_class(self) -> type:
+        base = super().get_driver_class()
+        try:
+            from sase.tmux_driver import maybe_tmux_driver_class
+
+            return maybe_tmux_driver_class(base)
+        except Exception:
+            return base
+
     def on_mount(self) -> None:
         from sase.pager.screen import PagerScreen
 

@@ -86,3 +86,68 @@ async def test_files_and_tools_corpus_paths(tmp_path: Path) -> None:
         panel.set_deck(DeckId.TOOLS)
         await pilot.pause()
         assert isinstance(deck_search_corpus(panel), str)
+
+
+def test_structural_exit_keys_include_new_deck_actions() -> None:
+    from types import SimpleNamespace
+
+    from sase.ace.tui.actions.agents._deck_search_host import deck_structural_exit_keys
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    reg = load_keymap_registry({})
+    keys = deck_structural_exit_keys(SimpleNamespace(_keymap_registry=reg))
+    assert "ctrl+b" in keys
+    assert "ctrl+shift+f" in keys
+    assert "greater_than_sign" in keys
+    assert "ctrl+shift+b" in keys
+    assert "less_than_sign" in keys
+    assert "ctrl+shift+d" in keys
+    assert "ctrl+x" in keys
+    assert "ctrl+t" in keys
+
+
+def test_committed_search_exits_through_close_passthrough() -> None:
+    from sase.ace.tui.widgets.vim_search_controller import VimSearchController
+
+    class _Host:
+        def __init__(self) -> None:
+            self.notified: list[str] = []
+
+        def vim_search_notify(self, message: str) -> None:
+            self.notified.append(message)
+
+        def vim_search_hide_overlay(self) -> None:
+            return None
+
+        def vim_search_exited(self, refresh: bool = True) -> None:
+            return None
+
+        def vim_search_focus_native(self) -> None:
+            return None
+
+        def _current_origin(self) -> int:
+            return 0
+
+        def _cached_matches(self, query: str) -> tuple:
+            return ()
+
+        def _render_overlay(self) -> None:
+            return None
+
+        def _render_command_line(self) -> None:
+            return None
+
+    from types import SimpleNamespace
+
+    from sase.ace.tui.actions.agents._deck_search_host import deck_structural_exit_keys
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    reg = load_keymap_registry({})
+    passthrough = deck_structural_exit_keys(SimpleNamespace(_keymap_registry=reg))
+    host = _Host()
+    controller = VimSearchController(host)  # type: ignore[arg-type]
+    controller.mode = "committed"  # type: ignore[attr-defined]
+    assert controller.handle_key("ctrl+x", None, passthrough_exit_keys=passthrough) == (
+        "passthrough"
+    )
+    assert controller.mode == "off"

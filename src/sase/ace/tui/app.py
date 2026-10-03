@@ -163,6 +163,15 @@ class AceApp(
 
     BINDINGS = DEFAULT_BINDINGS
 
+    def get_driver_class(self) -> type:
+        base = super().get_driver_class()
+        try:
+            from sase.tmux_driver import maybe_tmux_driver_class
+
+            return maybe_tmux_driver_class(base)
+        except Exception:
+            return base
+
     patches: reactive[list[Patch]] = reactive([], recompose=False)
     hooks_collapsed: reactive[FoldLevel] = reactive(
         FoldLevel.COLLAPSED, recompose=False

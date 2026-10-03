@@ -115,7 +115,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(a.toggle_deck_split_below)} / {d(a.toggle_deck_split_right)}",
-                    "Split deck panels (decks)",
+                    "`\\` / `|` erase a full-span divider, else draw one through the focused pane, else turn a three-pane layout (decks)",
                 ),
                 (
                     f"{d(a.toggle_deck_focus)} / {d(a.toggle_deck_focus_reverse)}",

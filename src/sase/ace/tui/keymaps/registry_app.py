@@ -141,6 +141,10 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # sub-tab cycle on different main tabs.
         frozenset({"next_agents_tab", "cycle_artifacts_subtab"}),
         frozenset({"prev_agents_tab", "cycle_artifacts_subtab_reverse"}),
+        # Tab-disjoint: Agents deck swap shares < / > with the Artifacts
+        # ancestor / child modes on different main tabs.
+        frozenset({"swap_deck_panel_prev", "start_ancestor_mode"}),
+        frozenset({"swap_deck_panel_next", "start_child_mode"}),
     }
 )
 

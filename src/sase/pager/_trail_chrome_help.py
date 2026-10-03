@@ -211,6 +211,10 @@ def _binding_rows(
             ("", ""),
             ("Panes", ""),
             (
+                "\\ / |",
+                "`\\` / `|` erase a full-span divider, else draw one through the focused pane, else turn a three-pane layout",
+            ),
+            (
                 "\\",
                 "Split below through the focused pane / erase the stacked divider / turn three panes",
             ),

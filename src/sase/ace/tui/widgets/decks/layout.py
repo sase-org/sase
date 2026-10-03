@@ -177,6 +177,12 @@ def toggle_split(
         return dataclasses.replace(
             state, grid=pressed, panels={focused: panel_state(state, focused)}
         )
+    if len(pressed.panes) < len(state.grid.panes):
+        panels = {
+            pid: state.panels[pid] for pid in pressed.panes if pid in state.panels
+        }
+        if panels:
+            return dataclasses.replace(state, grid=pressed, panels=panels)
     return dataclasses.replace(state, grid=pressed)
 
 

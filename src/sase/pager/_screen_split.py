@@ -19,20 +19,20 @@ from textual.widgets import Static
 
 from sase.ace.tui.util.pane_grid import (
     Axis,
+    GridSpec,
     PaneGrid,
     close_focused as grid_close_focused,
     cycle_focus as grid_cycle_focus,
     focus_pane as grid_focus_pane,
     free_pane_id,
     grid_spec,
-    other_target as grid_other_target,
     press_split as grid_press_split,
     step_ratio as grid_step_ratio,
     swap_focused as grid_swap_focused,
     turn as grid_turn,
 )
+from sase.pager._screen_split_arm import PagerScreenSplitArmMixin
 from sase.pager.app import PagerExit
-from sase.pager.document import PagerDocument
 from sase.pager.split import (
     PagerSplitLayout,
     layout_for_axis,
@@ -46,7 +46,7 @@ from sase.pager.view import PagerView, PagerViewSeed
 __all__ = ["PagerScreenSplitMixin"]
 
 
-class PagerScreenSplitMixin:
+class PagerScreenSplitMixin(PagerScreenSplitArmMixin):
     """Own split layout, focus, and other-pane navigation."""
 
     def _pane_id_of(self: Any, view: PagerView) -> int | None:
@@ -97,73 +97,10 @@ class PagerScreenSplitMixin:
             return
         if pane_id == grid.focused:
             return
+        self._disarm_if_armed()
         self._grid = grid_focus_pane(grid, pane_id)
         self._sync_split_compat()
         self._apply_split_state()
-
-    def _clear_other_preview(self: Any) -> None:
-        """Drop an armed ``ctrl+w`` capture and every lifted frame."""
-        try:
-            self._armed_other_target = None
-        except Exception:
-            pass
-        try:
-            by_id = self._views_by_id
-        except AttributeError:
-            return
-        for view in list(by_id.values()):
-            try:
-                view.set_pane_preview(False)
-            except Exception:
-                pass
-
-    def _arm_other_preview(self: Any, source: PagerView) -> None:
-        """Capture the MRU other pane and lift its frame while armed."""
-        self._clear_other_preview()
-        try:
-            grid = self._grid
-            source_id = self._pane_id_of(source)
-            if source_id is None or source_id not in grid.panes:
-                return
-            target = grid_other_target(grid_focus_pane(grid, source_id))
-            if target is None:
-                return
-            view = self._views_by_id.get(target)
-            if view is None:
-                return
-            self._armed_other_target = (target, view)
-            view.set_pane_preview(True)
-        except Exception:
-            try:
-                self._armed_other_target = None
-            except Exception:
-                pass
-
-    def _take_armed_target(self: Any) -> Any | None:
-        """Consume the armed ``ctrl+w`` target, clearing its preview.
-
-        Returns the captured view only when it still hosts the captured
-        pane ID — the result is never redirected to a substitute pane.
-        """
-        try:
-            slot = self._armed_other_target
-        except AttributeError:
-            slot = None
-        self._clear_other_preview()
-        if slot is None:
-            return None
-        try:
-            pane_id, view = slot
-        except (TypeError, ValueError):
-            return None
-        try:
-            grid = self._grid
-            by_id = self._views_by_id
-        except AttributeError:
-            return None
-        if pane_id not in grid.panes or by_id.get(pane_id) is not view:
-            return None
-        return view
 
     def close_view(
         self: Any, view: PagerView, *, trail_exhausted: bool = False
@@ -184,6 +121,7 @@ class PagerScreenSplitMixin:
             return
         if self._split_in_flight:
             return
+        self._disarm_if_armed()
         self._split_in_flight = True
 
         async def _remove() -> None:
@@ -319,6 +257,7 @@ class PagerScreenSplitMixin:
         axis = split_axis(target)
         if axis is None:
             return
+        self._disarm_if_armed()
         grid = self._grid
         if len(grid.panes) <= 1:
             width, height = self._panes_size()
@@ -488,7 +427,7 @@ class PagerScreenSplitMixin:
         except Exception:
             pass
         try:
-            spec = grid_spec(grid)
+            spec: GridSpec = grid_spec(grid)
             panes.styles.grid_size_columns = len(spec.columns)
             panes.styles.grid_size_rows = len(spec.rows)
             panes.styles.grid_columns = " ".join(f"{w}fr" for w in spec.columns)
@@ -580,6 +519,7 @@ class PagerScreenSplitMixin:
     def action_focus_other(self: Any) -> None:
         if len(self._grid.panes) < 2:
             return
+        self._disarm_if_armed()
         self._grid = grid_cycle_focus(self._grid, 1)
         self._sync_split_compat()
         self._apply_split_state()
@@ -588,6 +528,7 @@ class PagerScreenSplitMixin:
         """Focus the previous pane in reading order, wrapping."""
         if len(self._grid.panes) < 2:
             return
+        self._disarm_if_armed()
         self._grid = grid_cycle_focus(self._grid, -1)
         self._sync_split_compat()
         self._apply_split_state()
@@ -596,6 +537,7 @@ class PagerScreenSplitMixin:
         """Swap the focused pane with the next pane; focus follows content."""
         if len(self._grid.panes) < 2:
             return
+        self._disarm_if_armed()
         self._grid = grid_swap_focused(self._grid, 1)
         self._sync_split_compat()
         self._apply_split_state()
@@ -604,6 +546,7 @@ class PagerScreenSplitMixin:
         """Swap the focused pane with the previous pane; focus follows."""
         if len(self._grid.panes) < 2:
             return
+        self._disarm_if_armed()
         self._grid = grid_swap_focused(self._grid, -1)
         self._sync_split_compat()
         self._apply_split_state()
@@ -621,6 +564,7 @@ class PagerScreenSplitMixin:
         """Transpose the split (stacked ↔ side by side); widgets stay put."""
         if len(self._grid.panes) < 2:
             return
+        self._disarm_if_armed()
         candidate = grid_turn(self._grid)
         if len(candidate.panes) == 3:
             width, height = self._panes_size()
@@ -632,148 +576,6 @@ class PagerScreenSplitMixin:
         self._grid = candidate
         self._sync_split_compat()
         self._apply_split_state()
-
-    def focus_other_view(self: Any, source: PagerView) -> None:
-        """Focus the armed (else MRU) other pane; a no-op when single.
-
-        Doubled ``ctrl+w`` lands on the pane the arm captured; any other
-        caller lands on the most recently focused other pane.
-        """
-        if len(self._grid.panes) < 2:
-            return
-        target = self._take_armed_target()
-        if target is None:
-            grid = self._grid
-            source_id = self._pane_id_of(source)
-            if source_id in grid.panes:
-                grid = grid_focus_pane(grid, source_id)
-            pane_id = grid_other_target(grid)
-            target = self._views_by_id.get(pane_id) if pane_id is not None else None
-        if target is None:
-            return
-        self.focus_view(target)
-
-    def show_in_other_view(
-        self: Any,
-        source: PagerView,
-        document: PagerDocument,
-        line: int | None,
-        end_line: int | None = None,
-    ) -> None:
-        """Open *document* in the captured ``ctrl+w`` target pane.
-
-        With two or more panes the captured target pushes a trail entry
-        and navigates; when the captured pane vanished before an async
-        result landed the action cancels with a short message and never
-        redirects to a substitute. With one pane this opens a split
-        clone of the source — stacked when it fits, else side by side —
-        and the new pane then pushes its current view onto its trail and
-        navigates, so backspace in it returns to the source document. When
-        neither orientation fits, the source follows in place with an
-        information toast. Focus never moves.
-        """
-        try:
-            split = len(self._grid.panes) > 1
-        except AttributeError:
-            try:
-                split = self._split_state.layout is not PagerSplitLayout.SINGLE
-            except Exception:
-                split = len(getattr(self, "_views", ())) > 1
-        if split:
-            target = self._take_armed_target()
-            if target is None:
-                try:
-                    source.notify(
-                        "The other pane closed before the link landed.",
-                        severity="information",
-                    )
-                except Exception:
-                    pass
-                try:
-                    self.focused_view._update_footer()
-                except Exception:
-                    pass
-                return
-            try:
-                target._bump_history_generation()
-                target._push_trail_entry()
-                target._navigate_to_document(document, line=line, end_line=end_line)
-            except Exception:
-                pass
-            return
-        if self._split_in_flight:
-            return
-        width, height = self._panes_size()
-        if split_fits(PagerSplitLayout.BELOW, 50, width, height):
-            layout = PagerSplitLayout.BELOW
-        elif split_fits(PagerSplitLayout.BESIDE, 50, width, height):
-            layout = PagerSplitLayout.BESIDE
-        else:
-            try:
-                source._bump_history_generation()
-                source._push_trail_entry()
-                source._navigate_to_document(document, line=line, end_line=end_line)
-            except Exception:
-                pass
-            self.notify("No room for a split — opened here.", severity="information")
-            return
-        try:
-            source_id = self._pane_id_of(source)
-        except Exception:
-            source_id = None
-        if source_id is None:
-            try:
-                source = self.focused_view
-                source_id = self._pane_id_of(source)
-            except Exception:
-                return
-        if source_id is None:
-            return
-        self._split_in_flight = True
-
-        async def _open() -> None:
-            try:
-                grid = self._grid
-                if source_id not in grid.panes or len(grid.panes) > 1:
-                    return
-                seed: PagerViewSeed = source.split_seed()
-                try:
-                    panes = self.query_one("#pager-panes", Vertical)
-                except Exception:
-                    return
-                new_id = free_pane_id(grid)
-                if new_id is None:
-                    return
-                new_view = self._new_split_view(source, seed)
-                await panes.mount(new_view)
-                if source_id not in self._grid.panes or len(self._grid.panes) > 1:
-                    try:
-                        await new_view.remove()
-                    except Exception:
-                        pass
-                    return
-                self._views_by_id[new_id] = new_view
-                axis = split_axis(layout)
-                self._grid = PaneGrid(
-                    panes=(source_id, new_id),
-                    focused=source_id,
-                    axis=axis,
-                    ratio=50,
-                    recent=(source_id, new_id),
-                )
-                self._sync_split_compat()
-                self._apply_split_state()
-                try:
-                    new_view._push_trail_entry()
-                    new_view._navigate_to_document(
-                        document, line=line, end_line=end_line
-                    )
-                except Exception:
-                    pass
-            finally:
-                self._split_in_flight = False
-
-        self.run_worker(_open(), exclusive=True)
 
     def action_grow_pane(self: Any) -> None:
         self._step_pane_ratio(+1)
@@ -789,6 +591,7 @@ class PagerScreenSplitMixin:
             return
         if len(grid.panes) < 2:
             return
+        self._disarm_if_armed()
         candidate = grid_step_ratio(grid, grow=direction > 0)
         if candidate == grid:
             return

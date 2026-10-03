@@ -174,11 +174,12 @@ def test_prompt_key_io_probe_counts_main_thread_calls(
 
     import sase.history.vcs_macro_mru as mru_module
     import sase.core.project_lifecycle_facade as facade_module
+    from sase.legacy_xprompt_names import VCS_MACRO_MRU_FILENAME
 
     with prompt_key_io_probe() as probe:
         assert mru_module._load_vcs_xprompt_mru() == []
         mru_module._save_vcs_xprompt_mru(["#git:foo"])
-        assert json.loads((home / "vcs_xprompt_mru.json").read_text()) == {
+        assert json.loads((home / VCS_MACRO_MRU_FILENAME).read_text()) == {
             "entries": ["#git:foo"]
         }
         assert mru_module._load_vcs_xprompt_mru() == ["#git:foo"]

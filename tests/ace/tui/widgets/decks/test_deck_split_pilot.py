@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 
+from sase.ace.tui.actions.agents._deck_layout_actions import AgentDeckLayoutActionsMixin
+from sase.ace.tui.bindings import DEFAULT_BINDINGS
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
 from tests.ace.tui.widgets.decks._deck_spread_test_helpers import pin_paged
@@ -13,6 +16,36 @@ from tests.ace.tui.widgets._agent_display_helpers import (
     make_agent,
     make_artifact_agent,
 )
+
+_DECK_KEY_ACTIONS = frozenset(
+    {
+        "toggle_deck_split_below",
+        "toggle_deck_split_right",
+        "toggle_deck_focus",
+        "toggle_deck_focus_reverse",
+        "swap_deck_panel_next",
+        "swap_deck_panel_prev",
+        "close_deck_panel",
+        "turn_deck_layout",
+    }
+)
+
+
+class _DeckKeyApp(AgentDeckLayoutActionsMixin, App[None]):
+    """Detail host with live deck key bindings for real key presses."""
+
+    CSS_PATH = Path(__file__).resolve().parents[5] / "src/sase/ace/tui/styles.tcss"
+    BINDINGS = [
+        binding
+        for binding in DEFAULT_BINDINGS
+        if isinstance(binding, Binding) and binding.action in _DECK_KEY_ACTIONS
+    ]
+
+    current_tab: str = "agents"
+
+    def compose(self) -> ComposeResult:
+        yield AgentDetail(id="agent-detail-panel")
+
 
 _ROOT = Path(__file__).resolve().parents[5]
 
@@ -339,3 +372,297 @@ async def test_duplicate_tools_single_fetch(tmp_path: Path) -> None:
                 if p.deck is DeckId.TOOLS
             ]
             assert sum(1 for r in running if r) <= 1
+
+
+async def test_three_panel_resize_clamps_to_minimums(tmp_path: Path) -> None:
+    from sase.ace.tui.util.pane_grid import _main_pane
+
+    app = _DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(130, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+        await pilot.pause()
+        area = detail.deck_area
+        assert len(area.state.grid.panes) == 3
+        main = _main_pane(area.state.grid)
+        assert main is not None
+        if area.state.focused != main:
+            detail.toggle_deck_focus()
+            await pilot.pause()
+        if detail.deck_area.state.focused != main:
+            detail.toggle_deck_focus()
+            await pilot.pause()
+        assert detail.deck_area.state.focused == main
+        before = detail.deck_area.state
+        detail._deck_area_extent = lambda: (100, 34)  # type: ignore[method-assign]
+        detail.step_deck_ratio(False)
+        await pilot.pause()
+        assert detail.deck_area.state == before
+        detail.step_deck_ratio(True)
+        await pilot.pause()
+        assert detail.deck_area.state == before
+
+
+async def test_close_each_of_three_panels_keeps_textual_focus(tmp_path: Path) -> None:
+    app = _DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(130, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        for target in (2, 1, 0):
+            detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+            await pilot.pause()
+            detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+            await pilot.pause()
+            area = detail.deck_area
+            assert len(area.state.grid.panes) == 3
+            if detail.deck_area.state.focused != target:
+                detail.toggle_deck_focus()
+                await pilot.pause()
+            if detail.deck_area.state.focused != target:
+                detail.toggle_deck_focus()
+                await pilot.pause()
+            if detail.deck_area.state.focused != target:
+                continue
+            detail.close_deck_panel()
+            await pilot.pause()
+            survivor = detail.deck_area.focused_panel()
+            focused = app.focused
+            assert focused is not None
+            node: object | None = focused
+            inside = False
+            while node is not None:
+                if node is survivor:
+                    inside = True
+                    break
+                node = getattr(node, "parent", None)
+            assert inside
+            # Reset to single for the next iteration.
+            while len(detail.deck_area.state.grid.panes) > 1:
+                detail.close_deck_panel()
+                await pilot.pause()
+
+
+async def test_real_deck_keys_reach_actions_on_two_and_three_panels(
+    tmp_path: Path,
+) -> None:
+    app = _DeckKeyApp()
+    pin_paged(app)
+    async with app.run_test(size=(130, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
+        await pilot.pause()
+        await pilot.press("backslash")
+        await pilot.pause()
+        assert len(detail.deck_area.state.grid.panes) == 2
+        # Focus ring both directions.
+        before = detail.deck_area.state.focused
+        await pilot.press("ctrl+f")
+        await pilot.pause()
+        assert detail.deck_area.state.focused != before
+        await pilot.press("ctrl+b")
+        await pilot.pause()
+        assert detail.deck_area.state.focused == before
+        # Swap both directions keep the panel set.
+        panels_before = set(detail.deck_area._panels_by_id())
+        await pilot.press("ctrl+shift+f")
+        await pilot.pause()
+        assert set(detail.deck_area._panels_by_id()) == panels_before
+        await pilot.press("greater_than_sign")
+        await pilot.pause()
+        assert set(detail.deck_area._panels_by_id()) == panels_before
+        await pilot.press("ctrl+shift+b")
+        await pilot.pause()
+        assert set(detail.deck_area._panels_by_id()) == panels_before
+        await pilot.press("less_than_sign")
+        await pilot.pause()
+        assert set(detail.deck_area._panels_by_id()) == panels_before
+        # Nest to three, then turn.
+        await pilot.press("vertical_line")
+        await pilot.pause()
+        assert len(detail.deck_area.state.grid.panes) == 3
+        grid_before = detail.deck_area.state.grid
+        await pilot.press("ctrl+t")
+        await pilot.pause()
+        assert len(detail.deck_area.state.grid.panes) == 3
+        assert detail.deck_area.state.grid != grid_before
+        # Close aliases each remove one panel.
+        await pilot.press("ctrl+x")
+        await pilot.pause()
+        assert len(detail.deck_area.state.grid.panes) == 2
+        await pilot.press("ctrl+shift+d")
+        await pilot.pause()
+        assert len(detail.deck_area.state.grid.panes) == 1
+
+
+async def test_deck_swap_keeps_identity_and_click_focuses_after_swap(
+    tmp_path: Path,
+) -> None:
+    app = _DeckKeyApp()
+    pin_paged(app)
+    async with app.run_test(size=(130, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
+        await pilot.pause()
+        await pilot.press("backslash")
+        await pilot.pause()
+        await pilot.press("vertical_line")
+        await pilot.pause()
+        assert len(detail.deck_area.state.grid.panes) == 3
+        widgets_before = {
+            pid: detail.deck_area.panel(pid)
+            for pid in detail.deck_area.state.grid.panes
+        }
+        grid_before = detail.deck_area.state.grid
+        await pilot.press("greater_than_sign")
+        await pilot.pause()
+        widgets_after = {
+            pid: detail.deck_area.panel(pid)
+            for pid in detail.deck_area.state.grid.panes
+        }
+        assert set(widgets_after.values()) == set(widgets_before.values())
+        assert detail.deck_area.state.grid != grid_before
+        # Click focus works after a swap.
+        target_id = detail.deck_area.state.grid.panes[0]
+        detail.deck_area.panel(target_id).on_click(object())
+        await pilot.pause()
+        assert detail.deck_area.state.focused == target_id
+
+
+async def test_deck_close_each_and_erase_through_keys(tmp_path: Path) -> None:
+    app = _DeckKeyApp()
+    pin_paged(app)
+    async with app.run_test(size=(130, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
+        await pilot.pause()
+        for target in (2, 1, 0):
+            await pilot.press("backslash")
+            await pilot.pause()
+            await pilot.press("vertical_line")
+            await pilot.pause()
+            assert len(detail.deck_area.state.grid.panes) == 3
+            if detail.deck_area.state.focused != target:
+                await pilot.press("ctrl+f")
+                await pilot.pause()
+            if detail.deck_area.state.focused != target:
+                await pilot.press("ctrl+f")
+                await pilot.pause()
+            if detail.deck_area.state.focused != target:
+                await pilot.press("ctrl+x")
+                await pilot.pause()
+                continue
+            await pilot.press("ctrl+x")
+            await pilot.pause()
+            assert len(detail.deck_area.state.grid.panes) == 2
+            await pilot.press("ctrl+x")
+            await pilot.pause()
+            assert len(detail.deck_area.state.grid.panes) == 1
+
+
+async def test_deck_erase_through_keys_with_main_and_pair_focused(
+    tmp_path: Path,
+) -> None:
+    from sase.ace.tui.util.pane_grid import _main_pane
+
+    app = _DeckKeyApp()
+    pin_paged(app)
+    async with app.run_test(size=(130, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
+        await pilot.pause()
+        for focus_main in (True, False):
+            await pilot.press("backslash")
+            await pilot.pause()
+            await pilot.press("vertical_line")
+            await pilot.pause()
+            assert len(detail.deck_area.state.grid.panes) == 3
+            main = _main_pane(detail.deck_area.state.grid)
+            assert main is not None
+            if focus_main:
+                if detail.deck_area.state.focused != main:
+                    await pilot.press("ctrl+f")
+                    await pilot.pause()
+                if detail.deck_area.state.focused != main:
+                    await pilot.press("ctrl+f")
+                    await pilot.pause()
+                assert detail.deck_area.state.focused == main
+                await pilot.press("backslash")
+                await pilot.pause()
+                assert len(detail.deck_area.state.grid.panes) == 1
+            else:
+                pair_id = next(
+                    pid for pid in detail.deck_area.state.grid.panes if pid != main
+                )
+                if detail.deck_area.state.focused != pair_id:
+                    await pilot.press("ctrl+f")
+                    await pilot.pause()
+                if detail.deck_area.state.focused != pair_id:
+                    await pilot.press("ctrl+f")
+                    await pilot.pause()
+                assert detail.deck_area.state.focused == pair_id
+                await pilot.press("backslash")
+                await pilot.pause()
+                assert len(detail.deck_area.state.grid.panes) == 2
+
+
+async def test_deck_rapid_keys_leave_valid_state(tmp_path: Path) -> None:
+    app = _DeckKeyApp()
+    pin_paged(app)
+    async with app.run_test(size=(130, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
+        await pilot.pause()
+        for key in (
+            "backslash",
+            "vertical_line",
+            "ctrl+t",
+            "ctrl+shift+f",
+            "ctrl+x",
+            "backslash",
+            "ctrl+t",
+        ):
+            await pilot.press(key)
+            await pilot.pause()
+        panes = detail.deck_area.state.grid.panes
+        assert 1 <= len(panes) <= 3
+        assert set(detail.deck_area.state.panels) == set(panes)
+
+
+def test_tab_disjoint_availability_for_swap_and_turn() -> None:
+    from sase.ace.tui._app_action_availability import check_app_action
+    from sase.ace.tui._app_action_availability_agents import _DECK_LAYOUT_ACTIONS
+    from sase.ace.tui._app_action_availability_artifacts import (
+        _ARTIFACT_RELATION_ACTIONS,
+    )
+
+    def _available(action: str, tab: str) -> bool | None:
+        class _TabApp:
+            current_tab = tab
+
+        return check_app_action(_TabApp(), action, (), lambda *args: None)
+
+    # Swap and turn live in the Agents-only deck layout set.
+    assert "swap_deck_panel_next" in _DECK_LAYOUT_ACTIONS
+    assert "swap_deck_panel_prev" in _DECK_LAYOUT_ACTIONS
+    assert "turn_deck_layout" in _DECK_LAYOUT_ACTIONS
+    # Ancestor/child tree modes are artifact-relation actions, off on Agents.
+    assert "start_child_mode" in _ARTIFACT_RELATION_ACTIONS
+    assert "start_ancestor_mode" in _ARTIFACT_RELATION_ACTIONS
+    assert _available("start_child_mode", "agents") is False
+    assert _available("start_ancestor_mode", "agents") is False

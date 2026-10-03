@@ -30,7 +30,7 @@ class Axis(StrEnum):
     COLS = "cols"  # side by side, drawn by `|`
 
 
-class Geometry(StrEnum):
+class _Geometry(StrEnum):
     """The seven closed geometries."""
 
     SINGLE = "single"
@@ -94,20 +94,20 @@ def _other_axis(axis: Axis) -> Axis:
     return Axis.COLS if axis is Axis.ROWS else Axis.ROWS
 
 
-def geometry(g: PaneGrid) -> Geometry:
+def _geometry(g: PaneGrid) -> _Geometry:
     """Return the closed geometry of *g* (lenient on malformed input)."""
     n = len(g.panes)
     if n <= 1:
-        return Geometry.SINGLE
+        return _Geometry.SINGLE
     if n == 2:
-        return Geometry.R2 if g.axis is Axis.ROWS else Geometry.C2
+        return _Geometry.R2 if g.axis is Axis.ROWS else _Geometry.C2
     region = g.pair.region if g.pair is not None else 1
     if g.axis is Axis.COLS:
-        return Geometry.C3_MAIN_LEFT if region == 1 else Geometry.C3_MAIN_RIGHT
-    return Geometry.R3_MAIN_TOP if region == 1 else Geometry.R3_MAIN_BOTTOM
+        return _Geometry.C3_MAIN_LEFT if region == 1 else _Geometry.C3_MAIN_RIGHT
+    return _Geometry.R3_MAIN_TOP if region == 1 else _Geometry.R3_MAIN_BOTTOM
 
 
-def main_pane(g: PaneGrid) -> int | None:
+def _main_pane(g: PaneGrid) -> int | None:
     """Return the full-span main pane ID, or ``None`` unless three panes."""
     if len(g.panes) != 3 or g.pair is None:
         return None
@@ -195,7 +195,7 @@ def step_ratio(g: PaneGrid, grow: bool) -> PaneGrid:
     if len(g.panes) < 2:
         return g
     members = _pair_members(g)
-    main = main_pane(g)
+    main = _main_pane(g)
     if members is not None and main is not None and g.pair is not None:
         if g.focused == main:
             main_region = 0 if g.pair.region == 1 else 1
@@ -225,7 +225,7 @@ def other_target(g: PaneGrid) -> int | None:
 
 def _erase(g: PaneGrid) -> PaneGrid:
     """Collapse a three-pane grid along its outer divider."""
-    main = main_pane(g)
+    main = _main_pane(g)
     members = _pair_members(g)
     if main is None or members is None or g.pair is None or g.axis is None:
         return g
@@ -307,7 +307,7 @@ def close_focused(g: PaneGrid) -> PaneGrid:
         return PaneGrid(panes=(survivor,), focused=survivor, recent=(survivor,))
     if len(g.panes) != 3 or g.pair is None or g.axis is None:
         return g
-    main = main_pane(g)
+    main = _main_pane(g)
     members = _pair_members(g)
     if main is None or members is None:
         return g
@@ -358,7 +358,7 @@ def pane_rects(g: PaneGrid, width: int, height: int) -> dict[int, PaneRect]:
             g.panes[1]: (first, 0, second, height),
         }
     members = _pair_members(g)
-    main = main_pane(g)
+    main = _main_pane(g)
     pair_ratio = g.pair.ratio if g.pair is not None else 50
     region = g.pair.region if g.pair is not None else 1
     if members is None or main is None:
@@ -402,23 +402,23 @@ def fits(
     return all(w >= min_width and h >= min_height for (_, _, w, h) in rects.values())
 
 
-_POSITION_TABLE: dict[tuple[Geometry, int], tuple[str, str]] = {
-    (Geometry.R2, 0): ("top", "\u2b12"),
-    (Geometry.R2, 1): ("bottom", "\u2b13"),
-    (Geometry.C2, 0): ("left", "\u25e7"),
-    (Geometry.C2, 1): ("right", "\u25e8"),
-    (Geometry.R3_MAIN_TOP, 0): ("top", "\u2b12"),
-    (Geometry.R3_MAIN_TOP, 1): ("bottom-left", "\u25f1"),
-    (Geometry.R3_MAIN_TOP, 2): ("bottom-right", "\u25f2"),
-    (Geometry.R3_MAIN_BOTTOM, 0): ("top-left", "\u25f0"),
-    (Geometry.R3_MAIN_BOTTOM, 1): ("top-right", "\u25f3"),
-    (Geometry.R3_MAIN_BOTTOM, 2): ("bottom", "\u2b13"),
-    (Geometry.C3_MAIN_LEFT, 0): ("left", "\u25e7"),
-    (Geometry.C3_MAIN_LEFT, 1): ("top-right", "\u25f3"),
-    (Geometry.C3_MAIN_LEFT, 2): ("bottom-right", "\u25f2"),
-    (Geometry.C3_MAIN_RIGHT, 0): ("top-left", "\u25f0"),
-    (Geometry.C3_MAIN_RIGHT, 1): ("bottom-left", "\u25f1"),
-    (Geometry.C3_MAIN_RIGHT, 2): ("right", "\u25e8"),
+_POSITION_TABLE: dict[tuple[_Geometry, int], tuple[str, str]] = {
+    (_Geometry.R2, 0): ("top", "\u2b12"),
+    (_Geometry.R2, 1): ("bottom", "\u2b13"),
+    (_Geometry.C2, 0): ("left", "\u25e7"),
+    (_Geometry.C2, 1): ("right", "\u25e8"),
+    (_Geometry.R3_MAIN_TOP, 0): ("top", "\u2b12"),
+    (_Geometry.R3_MAIN_TOP, 1): ("bottom-left", "\u25f1"),
+    (_Geometry.R3_MAIN_TOP, 2): ("bottom-right", "\u25f2"),
+    (_Geometry.R3_MAIN_BOTTOM, 0): ("top-left", "\u25f0"),
+    (_Geometry.R3_MAIN_BOTTOM, 1): ("top-right", "\u25f3"),
+    (_Geometry.R3_MAIN_BOTTOM, 2): ("bottom", "\u2b13"),
+    (_Geometry.C3_MAIN_LEFT, 0): ("left", "\u25e7"),
+    (_Geometry.C3_MAIN_LEFT, 1): ("top-right", "\u25f3"),
+    (_Geometry.C3_MAIN_LEFT, 2): ("bottom-right", "\u25f2"),
+    (_Geometry.C3_MAIN_RIGHT, 0): ("top-left", "\u25f0"),
+    (_Geometry.C3_MAIN_RIGHT, 1): ("bottom-left", "\u25f1"),
+    (_Geometry.C3_MAIN_RIGHT, 2): ("right", "\u25e8"),
 }
 
 
@@ -427,7 +427,7 @@ def _position_entry(g: PaneGrid, pane_id: int) -> tuple[str, str]:
         slot = g.panes.index(pane_id)
     except ValueError:
         return ("", "")
-    return _POSITION_TABLE.get((geometry(g), slot), ("", ""))
+    return _POSITION_TABLE.get((_geometry(g), slot), ("", ""))
 
 
 def position_name(g: PaneGrid, pane_id: int) -> str:
@@ -466,7 +466,7 @@ def grid_spec(g: PaneGrid) -> GridSpec:
             columns=(first, second), rows=(1,), cells=cells, dom_order=tuple(g.panes)
         )
     members = _pair_members(g)
-    main = main_pane(g)
+    main = _main_pane(g)
     pair_ratio = g.pair.ratio if g.pair is not None else 50
     region = g.pair.region if g.pair is not None else 1
     if members is None or main is None:
@@ -522,7 +522,7 @@ __all__ = [
     "MAX_PANES",
     "RATIO_STEPS",
     "Axis",
-    "Geometry",
+    "_Geometry",
     "GridCell",
     "GridSpec",
     "Pair",
@@ -533,9 +533,9 @@ __all__ = [
     "fits",
     "focus_pane",
     "free_pane_id",
-    "geometry",
+    "_geometry",
     "grid_spec",
-    "main_pane",
+    "_main_pane",
     "other_target",
     "pane_rects",
     "position_glyph",

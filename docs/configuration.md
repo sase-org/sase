@@ -1488,31 +1488,33 @@ A small allowlist of app actions intentionally shares a key because the two acti
 never be available on the same surface. Validation permits exactly these pairs and
 rejects every other duplicate app binding:
 
-| Shared key (default)  | Spelled in YAML as    | Pair                                                    | Disjoint because                                       |
-| --------------------- | --------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
-| `a`                   | `a`                   | `add_axe_item` / `open_artifact_files`                  | Services vs Artifacts                                  |
-| `d`                   | `d`                   | `show_diff` / `toggle_axe_description`                  | Patches vs Services                                    |
-| `d`                   | `d`                   | `toggle_agent_header` / `show_diff`                     | Agents vs Artifacts                                    |
-| `d`                   | `d`                   | `toggle_agent_header` / `toggle_axe_description`        | Agents vs Services                                     |
-| `d`                   | `d`                   | `toggle_agent_header` / `stitches_toggle_sdd`           | Agents vs Artifacts Stitches                           |
-| `E`                   | `E`                   | `beads_open_bug` / `files_open_external`                | Beads vs Files panes (the shared open-externally verb) |
-| `w`                   | `w`                   | `agents_revive` / `beads_launch_work`                   | Artifacts Agents pane vs Beads pane                    |
-| `w`                   | `w`                   | `agents_revive` / `reword`                              | Artifacts Agents pane vs Patches                       |
-| `.`                   | `full_stop`           | `toggle_relation_panel` / `toggle_hide_reverted`        | Artifacts vs Services                                  |
-| `.`                   | `full_stop`           | `toggle_relation_panel` / `toggle_agent_jump_panel`     | Artifacts vs Agents                                    |
-| `.`                   | `full_stop`           | `toggle_hide_reverted` / `toggle_agent_jump_panel`      | Services vs Agents                                     |
-| `X`                   | `X`                   | `open_agent_cleanup_panel` / `patches_toggle_reverted`  | Agents vs Patches                                      |
-| `D`                   | `D`                   | `toggle_attempt_view` / `cycle_artifacts_description`   | Agents vs Artifacts                                    |
-| `_`                   | `underscore` (or `_`) | `next_query` / `collapse_all_panel_folds`               | Artifacts query history vs Agents fold sweep           |
-| `r`                   | `r`                   | `agents_refresh` / `run_workflow`                       | Agents vs Patches/Services                             |
-| `R`                   | `R`                   | `agents_retry` / `refresh`                              | Agents vs every other tab                              |
-| `o`                   | `o`                   | `choose_agent_grouping` / `cycle_grouping_mode`         | Agents vs Artifacts                                    |
-| `p`                   | `p`                   | `pick_deck` / `pick_artifacts_project`                  | Agents vs Artifacts                                    |
-| `Ctrl+B`              | `ctrl+b`              | `toggle_deck_focus_reverse` / `scroll_prompt_up`        | Agents vs Services/Artifacts                           |
-| `Ctrl+T`              | `ctrl+t`              | `turn_deck_layout` / `beads_toggle_note_audience`       | Agents vs Artifacts Beads pane                         |
-| `Ctrl+X`              | `ctrl+x`              | `close_deck_panel` / `prev_chop_run`                    | Agents vs Services                                     |
-| configurable then `o` | varies                | `choose_agent_grouping` local panel-layout toggle       | Agents picker-local `o`; `oo` with defaults            |
-| configurable          | varies                | `choose_agent_grouping` / `cycle_grouping_mode_reverse` | Agents vs Artifacts                                    |
+| Shared key (default)      | Spelled in YAML as               | Pair                                                    | Disjoint because                                       |
+| ------------------------- | -------------------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
+| `a`                       | `a`                              | `add_axe_item` / `open_artifact_files`                  | Services vs Artifacts                                  |
+| `d`                       | `d`                              | `show_diff` / `toggle_axe_description`                  | Patches vs Services                                    |
+| `d`                       | `d`                              | `toggle_agent_header` / `show_diff`                     | Agents vs Artifacts                                    |
+| `d`                       | `d`                              | `toggle_agent_header` / `toggle_axe_description`        | Agents vs Services                                     |
+| `d`                       | `d`                              | `toggle_agent_header` / `stitches_toggle_sdd`           | Agents vs Artifacts Stitches                           |
+| `E`                       | `E`                              | `beads_open_bug` / `files_open_external`                | Beads vs Files panes (the shared open-externally verb) |
+| `w`                       | `w`                              | `agents_revive` / `beads_launch_work`                   | Artifacts Agents pane vs Beads pane                    |
+| `w`                       | `w`                              | `agents_revive` / `reword`                              | Artifacts Agents pane vs Patches                       |
+| `.`                       | `full_stop`                      | `toggle_relation_panel` / `toggle_hide_reverted`        | Artifacts vs Services                                  |
+| `.`                       | `full_stop`                      | `toggle_relation_panel` / `toggle_agent_jump_panel`     | Artifacts vs Agents                                    |
+| `.`                       | `full_stop`                      | `toggle_hide_reverted` / `toggle_agent_jump_panel`      | Services vs Agents                                     |
+| `X`                       | `X`                              | `open_agent_cleanup_panel` / `patches_toggle_reverted`  | Agents vs Patches                                      |
+| `D`                       | `D`                              | `toggle_attempt_view` / `cycle_artifacts_description`   | Agents vs Artifacts                                    |
+| `_`                       | `underscore` (or `_`)            | `next_query` / `collapse_all_panel_folds`               | Artifacts query history vs Agents fold sweep           |
+| `r`                       | `r`                              | `agents_refresh` / `run_workflow`                       | Agents vs Patches/Services                             |
+| `R`                       | `R`                              | `agents_retry` / `refresh`                              | Agents vs every other tab                              |
+| `o`                       | `o`                              | `choose_agent_grouping` / `cycle_grouping_mode`         | Agents vs Artifacts                                    |
+| `p`                       | `p`                              | `pick_deck` / `pick_artifacts_project`                  | Agents vs Artifacts                                    |
+| `Ctrl+B`                  | `ctrl+b`                         | `toggle_deck_focus_reverse` / `scroll_prompt_up`        | Agents vs Services/Artifacts                           |
+| `Ctrl+Shift+F` / `>`      | `ctrl+shift+f,greater_than_sign` | `swap_deck_panel_next` / `start_child_mode`             | Agents vs Artifacts                                    |
+| `Ctrl+Shift+B` / `<`      | `ctrl+shift+b,less_than_sign`    | `swap_deck_panel_prev` / `start_ancestor_mode`          | Agents vs Artifacts                                    |
+| `Ctrl+Shift+D` / `Ctrl+X` | `ctrl+shift+d,ctrl+x`            | `close_deck_panel` / `prev_chop_run`                    | Agents vs Services                                     |
+| `Ctrl+T`                  | `ctrl+t`                         | `turn_deck_layout` / `beads_toggle_note_audience`       | Agents vs Artifacts Beads pane                         |
+| configurable then `o`     | varies                           | `choose_agent_grouping` local panel-layout toggle       | Agents picker-local `o`; `oo` with defaults            |
+| configurable              | varies                           | `choose_agent_grouping` / `cycle_grouping_mode_reverse` | Agents vs Artifacts                                    |
 
 The first column is what the key looks like on your keyboard; the second is the name to
 write in `sase.yml`, matching how `src/sase/default_config.yml` spells it. Punctuation
