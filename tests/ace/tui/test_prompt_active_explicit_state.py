@@ -9,11 +9,18 @@ explicit state equals the DOM query at each step.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any
+
 import pytest
 from textual.app import ScreenStackError
 
 from sase.ace.testing import wait_for
+from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui.actions._event_base import EventHandlersBase
+from sase.ace.tui.actions.agent_workflow._prompt_bar_stash_store import (
+    mounted_prompt_bar,
+)
 from sase.ace.tui.widgets import PromptInputBar
 from tests.ace.tui._kill_and_edit_launch_barrier_helpers import (
     PromptLifecycleApp,
@@ -141,3 +148,69 @@ async def test_prompt_active_suspend_without_bar_stays_active() -> None:
         app._prompt_editor_suspended = False  # type: ignore[attr-defined]
         await pilot.pause()
         _assert_parity(app, False)
+
+
+def _raise_on_dom(*_args: Any, **_kwargs: Any) -> Any:
+    """Fail a test that reaches the widget DOM."""
+    raise AssertionError("must not query the DOM")
+
+
+def test_mounted_prompt_bar_prefers_explicit_state_without_dom() -> None:
+    """The accessor returns the explicit bar even when the DOM is unreadable."""
+    bar = SimpleNamespace(is_mounted=True)
+    host = SimpleNamespace(_active_prompt_bar=bar, query_one=_raise_on_dom)
+    assert mounted_prompt_bar(host) is bar
+
+
+def test_mounted_prompt_bar_stale_reference_falls_back_to_dom() -> None:
+    """A stale explicit reference (failed mount) reads as no bar.
+
+    A bar removed without the detach hook — or a mount that never landed —
+    leaves ``_active_prompt_bar`` pointing at an unmounted widget. The
+    accessor must ignore it (falling back to the DOM) and the explicit
+    active check must stay False, so ticks are never suppressed forever.
+    """
+    stale = SimpleNamespace(is_mounted=False)
+    host: Any = SimpleNamespace(
+        _prompt_editor_suspended=False,
+        _active_prompt_bar=stale,
+        query_one=_raise_on_dom,
+    )
+    assert mounted_prompt_bar(host) is None
+    assert EventHandlersBase._prompt_input_active(host) is False
+
+
+def test_mounted_prompt_bar_dom_fallback_without_explicit_state() -> None:
+    """Hosts without explicit state keep the legacy DOM lookup."""
+    bar = SimpleNamespace(is_mounted=True)
+    host = SimpleNamespace(query_one=lambda _s, _c: bar)
+    assert mounted_prompt_bar(host) is bar
+    assert mounted_prompt_bar(SimpleNamespace()) is None
+
+
+def _allow_all(_action: str, _parameters: tuple[object, ...]) -> bool:
+    return True
+
+
+def _dom_free_app(prompt_active: bool) -> SimpleNamespace:
+    """Return an availability host whose DOM queries fail the test."""
+    return SimpleNamespace(
+        current_tab="agents",
+        screen=object(),
+        query=_raise_on_dom,
+        query_one=_raise_on_dom,
+        _get_selected_agent=lambda: None,
+        _prompt_input_active=lambda: prompt_active,
+    )
+
+
+def test_prompt_gated_check_action_needs_no_dom_walk() -> None:
+    """Prompt-gated availability resolves without any DOM query."""
+    assert (
+        check_app_action(_dom_free_app(True), "restore_prompt_stash", (), _allow_all)
+        is False
+    )
+    assert (
+        check_app_action(_dom_free_app(False), "restore_prompt_stash", (), _allow_all)
+        is True
+    )

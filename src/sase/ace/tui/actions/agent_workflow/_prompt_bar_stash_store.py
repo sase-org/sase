@@ -23,17 +23,40 @@ class _PromptStashPresentationSnapshot:
     project_display_snapshot: ProjectDisplaySnapshot
 
 
+def mounted_prompt_bar(host: object) -> PromptInputBar | None:
+    """Return the mounted ``#prompt-input-bar`` widget for *host*, or ``None``.
+
+    Phase ``prompt-active-state``: the single prompt-bar accessor every
+    ``#prompt-input-bar`` / ``PromptInputBar`` lookup routes through. It
+    prefers the explicit ``host._active_prompt_bar`` reference published by
+    ``PromptInputBar.on_mount`` (withdrawn by ``_detach_prompt_bar`` /
+    ``on_unmount``) so steady-state lookups stay O(1), and falls back to the
+    DOM query for hosts without explicit state and bars mounted outside the
+    tracked paths. Never raises.
+    """
+    from ...widgets import PromptInputBar
+
+    try:
+        bar = getattr(host, "_active_prompt_bar", None)
+    except Exception:  # noqa: BLE001 - explicit state is best-effort.
+        bar = None
+    if bar is not None and bool(getattr(bar, "is_mounted", False)):
+        return bar
+    query_one = getattr(host, "query_one", None)
+    if not callable(query_one):
+        return None
+    try:
+        return query_one("#prompt-input-bar", PromptInputBar)
+    except Exception:  # noqa: BLE001 - no bar mounted.
+        return None
+
+
 class PromptBarStashStoreMixin:
     """Provide prompt-stash persistence reads and indicator synchronization."""
 
     def _mounted_prompt_bar(self) -> PromptInputBar | None:
         """Return the mounted ``#prompt-input-bar`` widget, or ``None``."""
-        from ...widgets import PromptInputBar
-
-        try:
-            return self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined,no-any-return]
-        except Exception:
-            return None
+        return mounted_prompt_bar(self)
 
     def _read_prompt_stash_entries(self) -> list[PromptStashEntryWire]:
         """Return the stashed entries on disk (empty on any read failure)."""

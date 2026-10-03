@@ -52,7 +52,7 @@ class _IsolationSnapshot:
             canonical_query=app.canonical_query_string,
             marked=tuple(sorted(app.marked_indices)),
             modal_depth=len(app.screen_stack),
-            prompt_bar=_has_widget(app, "#prompt-input-bar"),
+            prompt_bar=_has_prompt_bar(app),
             hint_bar=_has_widget(app, "#hint-input-bar"),
             notifications=len(app._notifications) if track_notifications else None,
             focus=_focus_identity(app),
@@ -298,6 +298,23 @@ def _has_widget(app: Any, selector: str) -> bool:
     except Exception:
         return False
     return True
+
+
+def _has_prompt_bar(app: Any) -> bool:
+    """Return whether a prompt bar is mounted, via the shared accessor.
+
+    Phase ``prompt-active-state``: the isolation snapshot routes its
+    ``#prompt-input-bar`` probe through ``mounted_prompt_bar`` (explicit
+    state first, DOM fallback) instead of a second inline DOM query.
+    """
+    from sase.ace.tui.actions.agent_workflow._prompt_bar_stash_store import (
+        mounted_prompt_bar,
+    )
+
+    try:
+        return mounted_prompt_bar(app) is not None
+    except Exception:
+        return False
 
 
 def _focus_identity(app: Any) -> tuple[str, str | None] | None:

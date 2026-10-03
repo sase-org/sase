@@ -210,11 +210,10 @@ class PromptBarMountMixin:
         the successful-submit path so the just-submitted prompt is not
         re-written to history as ``cancelled=True``.
         """
-        from ...widgets import PromptInputBar
+        from ._prompt_bar_stash_store import mounted_prompt_bar
 
-        try:
-            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-        except Exception:
+        bar = mounted_prompt_bar(self)
+        if bar is None:
             return ""  # Bar not present
 
         # Save any non-trivial text as cancelled before removing the bar.
@@ -238,11 +237,10 @@ class PromptBarMountMixin:
 
     def _unmount_prompt_bar_without_cancel_save(self) -> None:
         """Unmount the prompt input bar without the cancelled-history safety net."""
-        from ...widgets import PromptInputBar
+        from ._prompt_bar_stash_store import mounted_prompt_bar
 
-        try:
-            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-        except Exception:
+        bar = mounted_prompt_bar(self)
+        if bar is None:
             return  # Bar not present
 
         invalidate_prompt_session(self, clear_context=False)
@@ -414,10 +412,12 @@ class PromptBarMountMixin:
         ` @`-marker editor returns and whole-stack editor returns — never for
         ordinary history loads, which keep their verbatim single-pane contract.
         """
-        from ...widgets import PromptInputBar
+        from ._prompt_bar_stash_store import mounted_prompt_bar
 
+        bar = mounted_prompt_bar(self)
+        if bar is None:
+            return
         try:
-            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
             bar.load_stack_from_xprompt_markdown(markdown, preserve_target=True)
         except Exception:
             pass

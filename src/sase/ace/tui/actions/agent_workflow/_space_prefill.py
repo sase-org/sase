@@ -97,17 +97,11 @@ def record_pending_space_prefill(app: object) -> None:
     pane_index: int | None = None
     history_len: int = -1
     try:
+        # Phase ``prompt-active-state``: the shared ``_mounted_prompt_bar``
+        # accessor already prefers explicit state with a DOM fallback, so no
+        # second lookup lives here.
         accessor = getattr(app, "_mounted_prompt_bar", None)
         bar = accessor() if callable(accessor) else None
-        if bar is None:
-            query = getattr(app, "query_one", None)
-            if callable(query):
-                try:
-                    from sase.ace.tui.widgets import PromptInputBar
-
-                    bar = query("#prompt-input-bar", PromptInputBar)
-                except Exception:  # noqa: BLE001 - bar lookup is best-effort.
-                    bar = None
         if bar is not None:
             try:
                 area = bar.active_text_area()
@@ -172,18 +166,11 @@ def try_apply_pending_space_prefill(
     except Exception:  # noqa: BLE001 - a dead session drops the prefill.
         return False
     try:
+        # Phase ``prompt-active-state``: the shared ``_mounted_prompt_bar``
+        # accessor already prefers explicit state with a DOM fallback, so no
+        # second lookup lives here. A missing accessor reads as dismissed.
         accessor = getattr(app, "_mounted_prompt_bar", None)
         bar = accessor() if callable(accessor) else None
-        if bar is None:
-            query = getattr(app, "query_one", None)
-            if not callable(query):
-                return False
-            try:
-                from sase.ace.tui.widgets import PromptInputBar
-
-                bar = query("#prompt-input-bar", PromptInputBar)
-            except Exception:  # noqa: BLE001 - dismissal drops the prefill.
-                return False
         if bar is None or not bool(getattr(bar, "is_mounted", False)):
             return False
         if getattr(bar, "_mode", "prompt") != "prompt":

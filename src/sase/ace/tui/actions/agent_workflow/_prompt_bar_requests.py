@@ -79,9 +79,8 @@ class PromptBarRequestsMixin:
         if self._prompt_context is None:
             return
 
-        try:
-            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-        except Exception:
+        bar = self._mounted_prompt_bar()  # type: ignore[attr-defined]
+        if bar is None:
             return
 
         # The bar owns serializing its live panes + frontmatter to xprompt
@@ -113,11 +112,8 @@ class PromptBarRequestsMixin:
         pane of a stack (keep the bar, update that pane) versus the legacy
         single-pane behavior (load/launch the whole bar).
         """
-        from ...widgets import PromptInputBar
-
-        try:
-            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-        except Exception:
+        bar = self._mounted_prompt_bar()  # type: ignore[attr-defined]
+        if bar is None:
             return None
         return bar if bar.is_stacked() else None
 
@@ -168,11 +164,12 @@ class PromptBarRequestsMixin:
 
         def on_history_cancel() -> None:
             if event.preserve_prompt_bar:
-                try:
-                    bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-                    bar.active_text_area().focus()
-                except Exception:
-                    pass
+                bar = self._mounted_prompt_bar()  # type: ignore[attr-defined]
+                if bar is not None:
+                    try:
+                        bar.active_text_area().focus()
+                    except Exception:
+                        pass
                 return
             self.notify("No prompt from history - cancelled", severity="warning")  # type: ignore[attr-defined]
             invalidate_prompt_session(self, clear_context=False)
@@ -254,9 +251,8 @@ class PromptBarRequestsMixin:
             # Defensive fallback for a programmatic caller that carried no live
             # origin: target the mounted bar's active pane (an empty pane_id
             # lets ``_resolve_pane_target`` fall back to that text area).
-            try:
-                bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-            except Exception:
+            bar = self._mounted_prompt_bar()  # type: ignore[attr-defined]
+            if bar is None:
                 return
             target_text_area = bar.active_text_area()
             pane_id = ""

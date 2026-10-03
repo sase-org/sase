@@ -156,15 +156,15 @@ class PromptBarMemoryPanelMixin:
             return
 
     def _mounted_memory_prompt_bar(self) -> PromptInputBar | None:
-        """Return the mounted prompt bar, or ``None``."""
-        from ...widgets import PromptInputBar
+        """Return the mounted prompt bar, or ``None``.
 
+        Phase ``prompt-active-state``: delegates to the single shared
+        ``_mounted_prompt_bar`` accessor (explicit state first, DOM fallback).
+        """
         mounted = getattr(self, "_mounted_prompt_bar", None)
-        if callable(mounted):
-            bar = mounted()
-            if bar is not None:
-                return bar  # type: ignore[no-any-return]
+        if not callable(mounted):
+            return None
         try:
-            return self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined,no-any-return]
+            return mounted()  # type: ignore[no-any-return]
         except Exception:
             return None

@@ -287,18 +287,19 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
         If a bar is mounted, leave its context alone so the user's draft
         survives modal cancel and input-error paths.
         """
-        mounted_prompt_bar = getattr(self, "_mounted_prompt_bar", None)
-        if callable(mounted_prompt_bar):
-            if mounted_prompt_bar() is not None:
-                return
+        mounted = getattr(self, "_mounted_prompt_bar", None)
+        if callable(mounted):
+            bar = mounted()
         else:
-            query = getattr(self, "query", None)
-            if query is None:
+            # Host without the stash-store mixin: route through the same
+            # shared accessor rather than a second inline DOM query.
+            if getattr(self, "query", None) is None:
                 return
-            from ...widgets import PromptInputBar
+            from ._prompt_bar_stash_store import mounted_prompt_bar
 
-            if query(PromptInputBar):
-                return
+            bar = mounted_prompt_bar(self)
+        if bar is not None:
+            return
         self._prompt_context = None
 
 
