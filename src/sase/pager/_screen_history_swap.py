@@ -28,7 +28,6 @@ class PagerHistorySwapMixin:
 
     document: PagerDocument
     _body: Any | None
-    _body_width: int | None
     _label_layer: Any | None
     _history_states: dict[str, SectionTimeState]
     _history_generation: int
@@ -155,8 +154,7 @@ class PagerHistorySwapMixin:
 
     def _recompose_for_history_marks(self: Any) -> None:
         try:
-            self._body_width = None
-            self._ensure_body()
+            self._invalidate_body_paint()
             self._update_subject()
         except Exception:
             pass
@@ -259,9 +257,8 @@ class PagerHistorySwapMixin:
         sections[index] = replacement
         self.document = replace(self.document, sections=tuple(sections))
         self._body = None
-        self._body_width = None
         self._label_layer = None
-        self._ensure_body()
+        self._invalidate_body_layout()
         self._restore_history_anchor(index, replacement, anchor)
         if search_query:
             self._reapply_history_search(search_query, search_direction)

@@ -22,7 +22,6 @@ class PagerDiffFoldsMixin:
 
     document: Any
     _body: Any | None
-    _body_width: int | None
     _label_layer: Any | None
     _history_states: dict[str, Any]
 
@@ -88,9 +87,8 @@ class PagerDiffFoldsMixin:
         sections[section_index] = replacement
         self.document = replace(self.document, sections=tuple(sections))
         self._body = None
-        self._body_width = None
         self._label_layer = None
-        self._ensure_body()
+        self._invalidate_body_layout()
         self._restore_history_anchor(section_index, replacement, anchor)
         self._update_footer()
         self._update_subject()
@@ -127,9 +125,8 @@ class PagerDiffFoldsMixin:
         sections[section_index] = replacement
         self.document = replace(self.document, sections=tuple(sections))
         self._body = None
-        self._body_width = None
         self._label_layer = None
-        self._ensure_body()
+        self._invalidate_body_layout()
         self._restore_history_anchor(section_index, replacement, anchor)
         self._update_footer()
         self._update_subject()

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from textual.containers import VerticalScroll
+from sase.pager._screen_widgets import PagerBodyScroll
 from textual.widgets import Static
 
 from sase.pager._line_mark import LineMark, reading_scroll_y
@@ -55,8 +55,8 @@ def _pager_screen(app: SasePager) -> PagerScreen:
     return screen
 
 
-def _body_scroll(app: SasePager) -> VerticalScroll:
-    return _pager_screen(app).query_one("#pager-body-scroll", VerticalScroll)
+def _body_scroll(app: SasePager) -> PagerBodyScroll:
+    return _pager_screen(app).query_one("#pager-body-scroll", PagerBodyScroll)
 
 
 def _goto_command(app: SasePager) -> Static:
@@ -106,8 +106,7 @@ async def test_goto_line_enter_scrolls_to_the_marked_row() -> None:
         )
         assert int(scroll.scroll_y) == expected
         assert expected < start_row
-        rendered = list(screen._body.renderable.renderables)[0]
-        assert rendered.plain.split("\n")[41].startswith("42┃ ")
+        assert screen.row_text(41).plain.startswith("42┃ ")
         assert "hidden" in _goto_command(app).classes
 
 

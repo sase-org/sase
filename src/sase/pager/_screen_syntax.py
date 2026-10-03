@@ -16,12 +16,11 @@ from typing import Any, Final
 
 from rich.style import Style
 from rich.text import Text
-from textual.widgets import Static
 
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
 from sase.ace.tui.widgets.vim_search_controller import VimSearchController
+from sase.pager._body_layout import BodyLayout
 from sase.pager._labels import PagerLabelLayer
-from sase.pager._layout import ComposedBody, compose_body
 from sase.pager._syntax_cache import (
     ResultCacheKey,
     StyledCacheKey,
@@ -95,8 +94,7 @@ class PagerSyntaxMixin:
     """Own background syntax preparation, its caches, and theme invalidation."""
 
     document: PagerDocument
-    _body: ComposedBody | None
-    _body_width: int | None
+    _body: BodyLayout | None
     _label_layer: PagerLabelLayer | None
     _label_pending_prefix: str
     _search: VimSearchController
@@ -212,16 +210,9 @@ class PagerSyntaxMixin:
         except Exception:
             pass
         try:
-            width = getattr(self, "_body_width", None)
-            compose_fn = getattr(self, "_compose_body_at_width", None)
-            if width is not None and callable(compose_fn):
-                self._body = compose_fn(int(width))
-                try:
-                    from textual.widgets import Static
-
-                    self.query_one("#pager-body", Static).update(self._body.renderable)
-                except Exception:
-                    pass
+            repaint = getattr(self, "_invalidate_body_paint", None)
+            if callable(repaint):
+                repaint()
         except Exception:
             pass
         # Refresh the active search base so links keep the same target
@@ -428,45 +419,13 @@ class PagerSyntaxMixin:
                 return
         except Exception:
             pass
-        width = self._body_width
-        if width is None:
+        if self._body is None:
             return
-        try:
-            self._label_layer = self._build_label_layer(width)
-        except Exception:
-            return
-        compose_fn = getattr(self, "_compose_body_at_width", None)
-        if callable(compose_fn):
-            try:
-                self._body = compose_fn(width)
-            except Exception:
-                return
-        else:
-            mark = getattr(self, "_goto_mark", None)
-            accent_fn = getattr(self, "_goto_accent_for_mark", None)
-            marks_fn = getattr(self, "_history_marks_for_body", None)
-            change_marks = None
-            removal_anchors = None
-            if callable(marks_fn):
-                change_marks, removal_anchors = marks_fn()
-            self._body = compose_body(
-                self.document,
-                width,
-                label_layer=self._label_layer,
-                pending_prefix=self._label_pending_prefix,
-                prepared_sections=self._prepared_section_texts(),
-                line_mark=mark,
-                goto_accent=accent_fn()
-                if mark is not None and accent_fn is not None
-                else None,
-                change_marks=change_marks,
-                removal_anchors=removal_anchors,
-            )
         try:
             if self._search.is_active:
                 self._search.refresh_styled_base()
             else:
-                self.query_one("#pager-body", Static).update(self._body.renderable)
+                self._invalidate_body_paint()
             self._update_subject()
         except Exception:
             pass

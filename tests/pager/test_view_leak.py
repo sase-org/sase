@@ -12,12 +12,28 @@ import gc
 import weakref
 from typing import Any
 
+from sase.ace.testing.wait import wait_for
 from sase.pager.app import SasePager
 from sase.pager.screen import PagerScreen
 from sase.pager.view import PagerView
 from tests.pager._app_helpers import long_document, pager_screen
 
 _HOST_SIZE = (120, 40)
+
+
+async def _settle_released(
+    refs: list[weakref.ReferenceType[PagerView]], pilot: Any
+) -> None:
+    """Wait until every weakref dies; a pinned view times out instead."""
+
+    def _released() -> bool:
+        # Cycle collection is the observable end state here: teardown is
+        # async, so one pump is not always enough, and a permanently
+        # pinned view never releases and still exhausts the timeout.
+        gc.collect()
+        return all(ref() is None for ref in refs)
+
+    await wait_for(pilot, _released)
 
 
 async def _push_pop_views(
@@ -47,8 +63,7 @@ async def test_pushed_and_popped_screens_release_their_views() -> None:
     async with host.run_test(size=_HOST_SIZE) as pilot:
         await pilot.pause()
         refs = await _push_pop_views(host, pilot, 3)
-        gc.collect()
-        assert [ref() for ref in refs] == [None, None, None]
+        await _settle_released(refs, pilot)
 
 
 async def test_split_open_and_close_releases_both_panes() -> None:
@@ -74,11 +89,8 @@ async def test_split_open_and_close_releases_both_panes() -> None:
         subscriptions = host.theme_changed_signal._subscriptions  # noqa: SLF001
         assert removed_ref() not in subscriptions
         await host.pop_screen()
-        await pilot.pause()
         del pushed
-        gc.collect()
-        assert removed_ref() is None
-        assert survivor_ref() is None
+        await _settle_released([removed_ref, survivor_ref], pilot)
 
 
 async def test_exited_app_releases_its_views() -> None:

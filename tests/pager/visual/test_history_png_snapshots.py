@@ -413,8 +413,7 @@ def _inject_history_state(screen: PagerScreen, state: str) -> None:
     time_state.timeline_meta = {}
     screen._history_states[_IDENTITY] = time_state
     screen._history_supported[_IDENTITY] = True
-    screen._body_width = None
-    screen._ensure_body()
+    screen._invalidate_body_layout()
     screen._update_subject()
     screen._update_footer()
 

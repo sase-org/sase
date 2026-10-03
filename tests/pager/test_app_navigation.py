@@ -232,12 +232,10 @@ async def test_link_target_scroll_range_sets_mark_and_reading_position() -> None
             screen, start_line=12, end_line=20
         )
         assert screen._body is not None
-        rendered = list(screen._body.renderable.renderables)[0]
-        rows = rendered.plain.split("\n")
-        assert rows[10].startswith("11│ ")
-        assert rows[11].startswith("12┃ ")
-        assert rows[19].startswith("20┃ ")
-        assert rows[20].startswith("21│ ")
+        assert screen.row_text(10).plain.startswith("11│ ")
+        assert screen.row_text(11).plain.startswith("12┃ ")
+        assert screen.row_text(19).plain.startswith("20┃ ")
+        assert screen.row_text(20).plain.startswith("21│ ")
         assert screen._trail_snapshot().current.short_label == "resolve.py:12–20"
 
 

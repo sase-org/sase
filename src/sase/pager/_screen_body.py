@@ -1,12 +1,16 @@
-"""Body layout, scrolling, and section-position helpers for ``PagerScreen``."""
+"""Body layout, paint, scrolling, and section-position helpers."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
 
-from textual.widgets import Static
+from rich.text import Text
+from textual.geometry import Size
 
+from sase.pager._body_layout import BodyLayout, build_body_layout
+from sase.pager._body_lines import logical_line_end, logical_line_starts
+from sase.pager._body_rows import BodyPaintState, BodyRenderer
 from sase.pager._gutter import gutter_width, logical_line_count
 from sase.pager._labels import (
     LabelWindowScope,
@@ -16,8 +20,6 @@ from sase.pager._labels import (
     build_label_layer,
 )
 from sase.pager._layout import (
-    ComposedBody,
-    compose_body,
     current_section_index,
     reading_anchor_at_row,
     row_for_reading_anchor,
@@ -28,10 +30,11 @@ from sase.pager.document import PagerDocument, PagerSection
 
 
 class PagerBodyMixin:
-    """Own the width-cached composed body and scroll commands."""
+    """Own the virtual body layout, its paint epoch, and scroll commands."""
 
-    _body: ComposedBody | None
-    _body_width: int | None
+    _body: BodyLayout | None
+    _body_renderer: BodyRenderer | None
+    _body_paint_epoch: int
     _label_layer: PagerLabelLayer | None
     _label_window_scope: LabelWindowScope | None
     _label_pending_prefix: str
@@ -84,8 +87,7 @@ class PagerBodyMixin:
             self._dangling_refs.clear()
             self._resolve_generation += 1
             self._clear_goto_state()
-            self._body_width = None
-            self._ensure_body()
+            self._invalidate_body_layout(relabel=True)
             self._after_scroll()
             return
         if self._refresh_in_flight:
@@ -136,9 +138,8 @@ class PagerBodyMixin:
         self._pending_action = "follow"
         self._last_activated_label = None
         self._body = None
-        self._body_width = None
         self._label_layer = None
-        self._ensure_body()
+        self._invalidate_body_layout()
 
         target_row = 0
         body = self._body
@@ -179,51 +180,255 @@ class PagerBodyMixin:
     def _body_scroll(self: Any) -> PagerBodyScroll:
         return self.query_one("#pager-body-scroll", PagerBodyScroll)
 
-    def _ensure_body(self: Any) -> None:
-        """Rebuild the composed body only when the body's width changed.
+    def row_text(self: Any, row: int) -> Text:
+        """Return the row ``Text`` for absolute *row*.
 
-        Sections are frozen and already parsed once at document-construction
-        time (``PagerSection.__post_init__``); this only recomputes the
-        width-dependent layout - section row offsets and transition rules -
-        per ``tui_perf`` rule 8.
+        The overlay line while search is painted, else the model row from
+        the current paint epoch.
+        """
+        try:
+            widget = self._body_scroll()
+        except Exception:
+            widget = None
+        if widget is not None and widget.overlay_active:
+            return widget.overlay_line(row)
+        renderer = self._body_renderer
+        if renderer is None:
+            return Text("")
+        return renderer.render_row(row)
 
-        When the width really changed, the top logical line stays put: the
-        reading anchor at the current ``scroll_y`` is captured from the old
-        body and restored after layout (``max_scroll_y`` only reflects the
-        new height then). Same-width recomposes for label repaints never move
-        the scroll.
+    def row_plain_text(self: Any, row: int) -> str:
+        """Return the unstyled logical-line plain text for absolute *row*.
+
+        Bypasses the styled renderer, so a failing paint epoch still shows
+        the line itself.
+        """
+        try:
+            widget = self._body_scroll()
+        except Exception:
+            widget = None
+        if widget is not None and widget.overlay_active:
+            try:
+                return widget.overlay_line(row).plain
+            except Exception:
+                return ""
+        return self._model_plain_row(row)
+
+    def _model_plain_row(self: Any, row: int) -> str:
+        body = self._body
+        if body is None:
+            return ""
+        try:
+            location = body.locate(row)
+        except Exception:
+            return ""
+        states = body.section_states
+        if location.section_index >= len(states):
+            return ""
+        state = states[location.section_index]
+        if location.kind == "rule":
+            rule = state.rule
+            return rule.plain if rule is not None else ""
+        if location.kind == "custom":
+            if not state.prerendered:
+                return ""
+            slot = max(0, min(location.wrap_index, len(state.prerendered) - 1))
+            return state.prerendered[slot].plain
+        if location.kind != "line":
+            return ""
+        sections = body.bound_sections
+        if location.section_index >= len(sections):
+            return ""
+        plain = sections[location.section_index].plain_text
+        starts = logical_line_starts(plain)
+        if location.line < 1 or location.line > len(starts):
+            return ""
+        end = logical_line_end(starts, location.line - 1, plain)
+        return plain[starts[location.line - 1] : end]
+
+    def _current_paint_state(self: Any) -> BodyPaintState:
+        """Build the paint epoch state from the current marks and styles."""
+        mark = getattr(self, "_goto_mark", None)
+        accent = self._goto_accent_for_mark() if mark is not None else None
+        marks_fn = getattr(self, "_history_marks_for_body", None)
+        change_marks = None
+        if callable(marks_fn):
+            try:
+                change_marks, _removal_anchors = marks_fn()
+            except Exception:
+                change_marks = None
+        styles_fn = getattr(self, "_history_styles", None)
+        styles = styles_fn() if callable(styles_fn) else None
+        rail_styles = self._history_rail_styles(styles)
+        surface = None
+        try:
+            candidate = getattr(styles, "background", None)
+            if isinstance(candidate, str) and candidate:
+                surface = candidate
+        except Exception:
+            surface = None
+        if surface is None:
+            try:
+                palette = getattr(self, "_syntax_palette", None)
+                candidate = getattr(palette, "background", None)
+                if isinstance(candidate, str) and candidate:
+                    surface = candidate
+            except Exception:
+                surface = None
+        return BodyPaintState(
+            label_layer=self._label_layer,
+            pending_prefix=self._label_pending_prefix,
+            prepared_sections=self._prepared_section_texts(),
+            line_mark=mark,
+            goto_accent=accent,
+            change_marks=change_marks,
+            rail_styles=rail_styles,
+            history_styles=styles,
+            surface=surface,
+        )
+
+    def _invalidate_body_paint(self: Any) -> None:
+        """Repaint visible rows without relaying out the document.
+
+        Builds a new renderer on the current layout, bumps the paint
+        epoch, and refreshes without layout. Scroll position and
+        ``lines_laid_out`` never change here.
+        """
+        if self._body is None:
+            self._ensure_body_layout()
+            return
+        self._body_renderer = BodyRenderer(self._body, self._current_paint_state())
+        try:
+            self._body_paint_epoch = int(self._body_paint_epoch) + 1
+        except Exception:
+            self._body_paint_epoch = 1
+        try:
+            widget = self._body_scroll()
+        except Exception:
+            return
+        try:
+            widget.clear_strip_cache()
+        except Exception:
+            pass
+        try:
+            widget.refresh()
+        except Exception:
+            pass
+
+    def _invalidate_body_layout(self: Any, *, relabel: bool = False) -> None:
+        """Rebuild or relabel the integer layout, then repaint the widget.
+
+        A label-set change at the same width relabels in place and keeps
+        the scroll; anything else rebuilds from the document (a real width
+        change restores the reading anchor) and never scrolls otherwise.
         """
         width = self._body_paint_width()
-        if self._body is not None and width == self._body_width:
+        # At most two passes: pointing virtual_size at the fresh layout
+        # can show or hide the scrollbar, which moves the paint width
+        # (for example a transient scrollbar while mounting). The second
+        # pass converges on the settled width instead of stranding the
+        # layout one transient behind the paint.
+        for _pass in range(2):
+            old = self._body
+            new_layer = self._build_label_layer(width)
+            if relabel and old is not None and width == old.width:
+                try:
+                    new_body = old.relabel(new_layer)
+                except Exception:
+                    new_body = None
+                if new_body is not None:
+                    self._label_layer = new_layer
+                    self._body = new_body
+                    self._body_renderer = BodyRenderer(
+                        new_body, self._current_paint_state()
+                    )
+                    self._sync_body_widget()
+                    return
+            anchor = None
+            anchor_scroll_y = 0
+            if old is not None and width != old.width:
+                try:
+                    anchor_scroll_y = int(self._body_scroll().scroll_y)
+                except Exception:
+                    anchor_scroll_y = 0
+                try:
+                    anchor = reading_anchor_at_row(old, anchor_scroll_y)
+                except Exception:
+                    anchor = None
+            marks_fn = getattr(self, "_history_marks_for_body", None)
+            removal_anchors = None
+            if callable(marks_fn):
+                try:
+                    _change_marks, removal_anchors = marks_fn()
+                except Exception:
+                    removal_anchors = None
+            self._label_layer = new_layer
+            new_body = build_body_layout(
+                self.document,
+                width,
+                label_layer=new_layer,
+                prepared_sections=self._prepared_section_texts(),
+                removal_anchors=removal_anchors,
+            )
+            self._body = new_body
+            self._body_renderer = BodyRenderer(new_body, self._current_paint_state())
+            if anchor is not None:
+                self._restore_reading_anchor(anchor, scroll_y=anchor_scroll_y)
+            self._sync_body_widget()
+            try:
+                settled = self._body_paint_width()
+            except Exception:
+                return
+            if settled == width:
+                return
+            width = settled
+            relabel = False
+
+    def _ensure_body_layout(self: Any) -> None:
+        """Build the layout only when it is missing or the width changed."""
+        body = self._body
+        if body is not None and self._body_renderer is not None:
+            try:
+                if int(self._body_paint_width()) == int(body.width):
+                    return
+            except Exception:
+                pass
+        self._invalidate_body_layout()
+
+    def _sync_body_widget(self: Any) -> None:
+        """Point the scroll widget at the current layout and repaint it."""
+        try:
+            widget = self._body_scroll()
+        except Exception:
             return
-        old_body = self._body
-        old_width: int | None = getattr(self, "_last_composed_width", None)
-        if old_width is None:
-            old_width = self._body_width
-        anchor = None
-        anchor_scroll_y = 0
-        if old_body is not None and old_width is not None and width != old_width:
+        from sase.pager._screen_widgets import BODY_PAD_LEFT, BODY_PAD_RIGHT
+
+        pads = BODY_PAD_LEFT + BODY_PAD_RIGHT
+        width = self._body_paint_width()
+        body = self._body
+        total = 0
+        if body is not None:
             try:
-                anchor_scroll_y = int(self._body_scroll().scroll_y)
+                total = int(body.total_height)
             except Exception:
-                anchor_scroll_y = 0
-            try:
-                anchor = reading_anchor_at_row(old_body, anchor_scroll_y)
-            except Exception:
-                anchor = None
-        self._body_width = width
-        self._label_layer = self._build_label_layer(width)
-        body = self._compose_body_at_width(width)
-        self._body = body
-        self._last_composed_width = width
-        self.query_one("#pager-body", Static).update(body.renderable)
-        if getattr(self, "_goto_active", False):
-            self._update_goto_command()
-        if anchor is not None:
-            self._restore_reading_anchor(anchor, scroll_y=anchor_scroll_y)
+                total = 0
+        try:
+            # Virtual width is the full strip width (text plus baked side
+            # pads), matching the old inner Static's content width.
+            widget.virtual_size = Size(width + pads, max(total, 1))
+        except Exception:
+            pass
+        try:
+            widget.clear_strip_cache()
+        except Exception:
+            pass
+        try:
+            widget.refresh(layout=True)
+        except Exception:
+            pass
 
     def _restore_reading_anchor(self: Any, anchor: Any, *, scroll_y: int) -> None:
-        """Restore *anchor* after layout; a newer compose or scroll wins."""
+        """Restore *anchor* after layout; a newer layout or scroll wins."""
         composed = self._body
         if composed is None:
             return
@@ -266,14 +471,26 @@ class PagerBodyMixin:
         call_after_refresh(restore_after_layout)
 
     def _body_paint_width(self: Any) -> int:
-        """Return the width the body Static actually paints into."""
+        """Return the width the body rows actually paint into.
+
+        The one-cell side pads are baked into the strips (matching the
+        old inner Static's ``padding: 0 1``), so the text width is the
+        scrollable content width minus those pads.
+        """
+        from sase.pager._screen_widgets import BODY_PAD_LEFT, BODY_PAD_RIGHT
+
+        pads = BODY_PAD_LEFT + BODY_PAD_RIGHT
         scroll = self._body_scroll()
-        body = self.query_one("#pager-body", Static)
-        padding = body.styles.padding
-        horizontal = int(padding.left) + int(padding.right)
-        region_width = int(scroll.scrollable_content_region.width)
-        base = region_width if region_width > 0 else int(scroll.size.width)
-        return max(base - horizontal, 1)
+        try:
+            region_width = int(scroll.scrollable_content_region.width)
+        except Exception:
+            region_width = 0
+        if region_width > 0:
+            return max(region_width - pads, 1)
+        try:
+            return max(int(scroll.size.width) - pads, 1)
+        except Exception:
+            return 1
 
     def _gutter_content_width(self: Any, paint_width: int) -> int:
         max_count = max(
@@ -284,47 +501,6 @@ class PagerBodyMixin:
             default=0,
         )
         return max(paint_width - gutter_width(max_count), 1)
-
-    def _compose_body_at_width(self: Any, width: int) -> ComposedBody:
-        mark = getattr(self, "_goto_mark", None)
-        accent = self._goto_accent_for_mark() if mark is not None else None
-        marks_fn = getattr(self, "_history_marks_for_body", None)
-        change_marks = None
-        removal_anchors = None
-        if callable(marks_fn):
-            change_marks, removal_anchors = marks_fn()
-        styles_fn = getattr(self, "_history_styles", None)
-        styles = styles_fn() if callable(styles_fn) else None
-        rail_styles = self._history_rail_styles(styles)
-        surface = None
-        try:
-            candidate = getattr(styles, "background", None)
-            if isinstance(candidate, str) and candidate:
-                surface = candidate
-        except Exception:
-            surface = None
-        if surface is None:
-            try:
-                palette = getattr(self, "_syntax_palette", None)
-                candidate = getattr(palette, "background", None)
-                if isinstance(candidate, str) and candidate:
-                    surface = candidate
-            except Exception:
-                surface = None
-        return compose_body(
-            self.document,
-            width,
-            label_layer=self._label_layer,
-            pending_prefix=self._label_pending_prefix,
-            prepared_sections=self._prepared_section_texts(),
-            line_mark=mark,
-            goto_accent=accent,
-            change_marks=change_marks,
-            removal_anchors=removal_anchors,
-            rail_styles=rail_styles,
-            history_styles=styles,
-            surface=surface,
-        )
 
     def _history_rail_styles(self: Any, styles: Any) -> dict[int, str] | None:
         """Return per-section gutter rail styles from each section's moment.
@@ -416,8 +592,7 @@ class PagerBodyMixin:
         current_scope = self._label_window_scope
         if current_scope is self._current_label_window_scope():
             return
-        self._body_width = None
-        self._ensure_body()
+        self._invalidate_body_layout(relabel=True)
         self._update_footer()
 
     def _row_for_section_line(self: Any, section_index: int, line: int) -> int | None:

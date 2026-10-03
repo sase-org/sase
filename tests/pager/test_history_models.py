@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.pager._chrome import footer_legend, subject_line
-from sase.pager._gutter import apply_gutter
+from sase.pager._gutter import gutter_row, removal_anchor_row
 from sase.pager._screen_syntax import _syntax_key_for_section  # noqa: PLC2701
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.history.models import (
@@ -121,26 +121,21 @@ def test_syntax_keys_separate_blobs_sharing_identity() -> None:
 
 
 def test_gutter_change_marks_and_goto_priority() -> None:
-    text = Text("one\ntwo\nthree\n")
-    marked = apply_gutter(
-        text,
-        content_width=40,
-        number_width=2,
-        change_marks={2: "added"},
-        removal_anchors={3},
-    )
-    assert "▌" in marked.text.plain
-    assert "╴" in marked.text.plain
+    marked = gutter_row(Text("two"), number=2, number_width=2, change_kind="added")
+    assert "▌" in marked.plain
+    anchor = removal_anchor_row(2)
+    assert "╴" in anchor.plain
     # Goto rail wins when both coincide on line 2.
-    both = apply_gutter(
-        text,
-        content_width=40,
+    both = gutter_row(
+        Text("two"),
+        number=2,
         number_width=2,
-        emphasis_range=(2, 2),
+        rail=True,
+        emphasize=True,
         accent="#FFD75F",
-        change_marks={2: "added"},
+        change_kind="added",
     )
-    assert "┃" in both.text.plain
+    assert "┃" in both.plain
 
 
 def test_subject_chips_and_footer_verbs() -> None:

@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
+from sase.pager._body_layout import BodyLayout
+from sase.pager._body_rows import BodyRenderer
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
-from sase.pager._layout import ComposedBody
 from sase.pager.app import ViewPendingAction
 from sase.pager.document import (
     PagerDocument,
@@ -46,8 +47,8 @@ DanglingRefKey = tuple[
 class PagerActionResolveMixin:
     """Resolve link destinations and navigate to the results."""
 
-    _body: ComposedBody | None
-    _body_width: int | None
+    _body: BodyLayout | None
+    _body_renderer: BodyRenderer | None
     _label_layer: PagerLabelLayer | None
     _label_window_scope: LabelWindowScope | None
     _last_activated_label: PagerLabel | None
@@ -261,7 +262,13 @@ class PagerActionResolveMixin:
                     self._dangling_ref_key(cache_identity or ref, context)
                 ] = message
             self.notify(message, severity="warning")
-            self._repaint_label_state()
+            if resolution.retryable:
+                self._repaint_label_state()
+            else:
+                # A new dangling mark changes the label set, so relabel
+                # the layout instead of repainting the stale layer.
+                self._invalidate_body_layout(relabel=True)
+                self._update_footer()
             return
         if intent == "edit":
             self._launch_editor(target)
@@ -293,7 +300,7 @@ class PagerActionResolveMixin:
     ) -> None:
         self.document = document
         self._body = None
-        self._body_width = None
+        self._body_renderer = None
         self._label_layer = None
         self._label_pending_prefix = ""
         self._label_window_scope = None
@@ -302,14 +309,13 @@ class PagerActionResolveMixin:
         self._clear_goto_state()
         self._reset_search_state()
         self._reset_syntax_for_new_document()
-        self._ensure_body()
+        self._invalidate_body_layout()
         scroll = self._body_scroll()
         scroll.scroll_to(x=0, y=0, animate=False, immediate=True)
         mark = self._line_mark_for_landing(line=line, end_line=end_line)
         if mark is not None:
             self._goto_mark = mark
-            self._body_width = None
-            self._ensure_body()
+            self._invalidate_body_paint()
             self._scroll_to_line_mark(mark)
             call_after_refresh = getattr(self, "call_after_refresh", None)
             if callable(call_after_refresh):

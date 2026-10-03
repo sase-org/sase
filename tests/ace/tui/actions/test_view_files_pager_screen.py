@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from textual.containers import VerticalScroll
+from sase.pager._screen_widgets import PagerBodyScroll
 
 from sase.ace.tui.actions.hints._files import (
     _COMMIT_TARGET_KIND,
@@ -102,7 +102,7 @@ async def test_pager_screen_runs_inside_an_existing_textual_app() -> None:
 
         assert app.is_running
         assert app.screen is screen
-        scroll = screen.query_one("#pager-body-scroll", VerticalScroll)
+        scroll = screen.query_one("#pager-body-scroll", PagerBodyScroll)
 
         await pilot.press("j")
         await pilot.pause()

@@ -25,9 +25,10 @@ from textual.widgets import Static
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
 from sase.ace.tui.util.trace import tui_trace
 from sase.ace.tui.widgets.vim_search_controller import VimSearchController
+from sase.pager._body_layout import BodyLayout
+from sase.pager._body_rows import BodyRenderer
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
 from sase.pager._layout import (
-    ComposedBody,
     ReadingAnchor,
     reading_anchor_at_row,
     row_for_reading_anchor,
@@ -45,7 +46,7 @@ from sase.pager._screen_syntax import PagerSyntaxMixin
 from sase.pager._screen_time_band import PagerTimeBandMixin
 from sase.pager._screen_timeline import PagerTimelineMixin
 from sase.pager._screen_trail import PagerTrailMixin
-from sase.pager._screen_widgets import PagerBody, PagerBodyScroll
+from sase.pager._screen_widgets import PagerBodyScroll
 from sase.pager.app import (
     AttachedTargetHandler,
     ResolveRef,
@@ -162,9 +163,9 @@ class PagerView(  # type: ignore[misc]
         self._resolve_ref = resolve_ref
         self._refresh_document_fn = refresh_document_fn
         self._refresh_in_flight = False
-        self._body: ComposedBody | None = None
-        self._body_width: int | None = None
-        self._last_composed_width: int | None = None
+        self._body: BodyLayout | None = None
+        self._body_renderer: BodyRenderer | None = None
+        self._body_paint_epoch = 0
         self._body_generation = 0
         self._label_layer: PagerLabelLayer | None = None
         self._label_pending_prefix = ""
@@ -245,19 +246,11 @@ class PagerView(  # type: ignore[misc]
         except Exception:
             return
         if framed and not focused:
-            self._label_layer = PagerLabelLayer(
-                labels=(),
-                hint_to_label_index={},
-                labels_by_section=tuple(() for _section in self.document.sections),
-                target_count=0,
-                mode="document",
-            )
-            # Force a body recompose so the dropped badges leave the paint;
-            # without it the old badge spans stay visible until the next
-            # recompose even though the layer is already empty.
-            self._body_width = None
+            # Relabel through the suppressed (badgeless) layer so the
+            # dropped badges leave the paint; without it the old badge
+            # spans stay visible until the next relabel.
             try:
-                self._ensure_body()
+                self._invalidate_body_layout(relabel=True)
             except Exception:
                 pass
             self._chrome_signature = None
@@ -268,9 +261,8 @@ class PagerView(  # type: ignore[misc]
                 pass
             return
         # Focused (or single) panes repaint labels and chrome.
-        self._body_width = None
         try:
-            self._ensure_body()
+            self._invalidate_body_layout(relabel=True)
         except Exception:
             pass
         self._chrome_signature = None
@@ -450,7 +442,7 @@ class PagerView(  # type: ignore[misc]
             pass
         self._split_anchor = seed.reading_anchor
         self._body = None
-        self._body_width = None
+        self._body_renderer = None
         self._label_layer = None
 
     def _build_label_layer(self, width: int, hint_offset: int = 0) -> PagerLabelLayer:
@@ -511,15 +503,14 @@ class PagerView(  # type: ignore[misc]
         yield Static(id="pager-trail", classes="hidden")
         yield Static(id="pager-time", classes="hidden")
         yield Static(id="pager-chrome-rule")
-        with PagerBodyScroll(id="pager-body-scroll"):
-            yield PagerBody(id="pager-body")
+        yield PagerBodyScroll(id="pager-body-scroll")
         yield Static(id="pager-search-command", classes="hidden")
         yield Static(id="pager-goto-command", classes="hidden")
 
     def on_mount(self) -> None:
         with tui_trace("pager.open", sections=len(self.document.sections)):
             self.query_one("#pager-chrome-rule", Static).update(Rule(style="dim"))
-            self._ensure_body()
+            self._ensure_body_layout()
             self._update_trail()
             self._update_footer()
             self._update_subject()

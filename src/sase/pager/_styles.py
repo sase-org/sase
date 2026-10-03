@@ -83,11 +83,8 @@ PagerView #pager-chrome-rule {
 
 PagerView #pager-body-scroll {
     height: 1fr;
-}
-
-PagerView #pager-body {
-    width: 100%;
-    padding: 0 1;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 PagerView #pager-search-command {

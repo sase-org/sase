@@ -11,6 +11,7 @@ never imports that sibling.
 
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from textual.containers import Vertical
@@ -547,8 +548,26 @@ class PagerScreenSplitMixin:
         except Exception:
             pass
         try:
-            scroll = focused.query_one("#pager-body-scroll", Static)
-            self.call_after_refresh(scroll.focus)  # type: ignore[attr-defined]
+            from sase.pager._screen_widgets import PagerBodyScroll
+
+            scroll = focused.query_one("#pager-body-scroll", PagerBodyScroll)
+            scroll_ref = weakref.ref(scroll)
+
+            # Hold the scroll widget weakly: a strong bound method would
+            # pin the scroll, its view, and its screen when the callback
+            # outlives them, and focusing a pruned widget would leave the
+            # app pointed at a dead node.
+            def _focus_body_if_mounted() -> None:
+                target = scroll_ref()
+                if target is None:
+                    return
+                try:
+                    if target.is_mounted:
+                        target.focus()
+                except Exception:
+                    pass
+
+            self.call_after_refresh(_focus_body_if_mounted)  # type: ignore[attr-defined]
         except Exception:
             pass
 

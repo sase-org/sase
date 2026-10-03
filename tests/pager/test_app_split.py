@@ -317,7 +317,7 @@ async def test_q_close_keeps_survivor_mounted() -> None:
         panes = _panes_container(app)
         assert other.parent is panes
         assert _mounted_views(app) == [other]
-        assert len(other.query("#pager-body")) == 1
+        assert len(other.query("#pager-body-scroll")) == 1
         # The survivor still scrolls and owns the single-pane footer.
         await pilot.press("j")
         await pilot.pause()
@@ -344,7 +344,7 @@ async def test_same_key_unsplit_keeps_survivor_mounted() -> None:
         panes = _panes_container(app)
         assert focused.parent is panes
         assert _mounted_views(app) == [focused]
-        assert len(focused.query("#pager-body")) == 1
+        assert len(focused.query("#pager-body-scroll")) == 1
 
 
 async def test_ctrl_b_matches_ctrl_f_on_two_panes() -> None:

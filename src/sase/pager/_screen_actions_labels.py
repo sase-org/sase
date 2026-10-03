@@ -39,7 +39,6 @@ _PENDING_ACTION_KEYS: dict[ViewPendingAction, str] = {
 class PagerActionLabelsMixin:
     """Handle link labels and arm copy/edit/other-pane actions."""
 
-    _body_width: int | None
     _label_layer: PagerLabelLayer | None
     _last_activated_label: PagerLabel | None
     _pending_action: ViewPendingAction
@@ -164,6 +163,5 @@ class PagerActionLabelsMixin:
         )
 
     def _repaint_label_state(self: Any) -> None:
-        self._body_width = None
-        self._ensure_body()
+        self._invalidate_body_paint()
         self._update_footer()

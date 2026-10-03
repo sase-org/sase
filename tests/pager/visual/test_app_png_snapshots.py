@@ -7,7 +7,7 @@ scrolled so a transition rule sits mid-screen.
 from __future__ import annotations
 
 import pytest
-from textual.containers import VerticalScroll
+from sase.pager._screen_widgets import PagerBodyScroll
 
 from sase.pager._line_mark import LineMark
 from sase.pager.app import SasePager
@@ -125,7 +125,7 @@ async def test_three_section_document_mid_rule_png_snapshot(
         await pilot.pause()
         screen = _pager_screen(app)
         assert screen._body is not None
-        scroll = screen.query_one("#pager-body-scroll", VerticalScroll)
+        scroll = screen.query_one("#pager-body-scroll", PagerBodyScroll)
         target_row = max(screen._body.section_offsets[1] - size[1] // 2, 0)
         scroll.scroll_to(y=target_row, animate=False, immediate=True)
         screen._update_subject()
@@ -182,8 +182,7 @@ async def test_railed_range_png_snapshot(
         screen = _pager_screen(app)
         mark = LineMark(0, 5, 12)
         screen._goto_mark = mark
-        screen._body_width = None
-        screen._ensure_body()
+        screen._invalidate_body_paint()
         screen._scroll_to_line_mark(mark)
         screen._update_subject()
         await pilot.pause()

@@ -70,14 +70,16 @@ class PagerSearchMixin:
         self.query_one("#pager-search-command", Static).remove_class("hidden")
 
     def vim_search_hide_overlay(self: Any) -> None:
-        if self._body is not None:
-            self.query_one("#pager-body", Static).update(self._body.renderable)
+        try:
+            self._body_scroll().set_overlay(None)
+        except Exception:
+            pass
         command = self.query_one("#pager-search-command", Static)
         command.update("")
         command.add_class("hidden")
 
     def vim_search_paint_overlay(self: Any, content: Text) -> None:
-        self.query_one("#pager-body", Static).update(content)
+        self._body_scroll().set_overlay(content)
 
     def vim_search_command_width(self: Any) -> int:
         command = self.query_one("#pager-search-command", Static)

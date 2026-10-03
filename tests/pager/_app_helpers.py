@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from textual.containers import VerticalScroll
-
+from sase.pager._screen_widgets import PagerBodyScroll
 from sase.pager.app import SasePager
 from sase.pager.document import AttachedTarget, PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_context import LinkAnchor
@@ -121,5 +120,5 @@ def pager_view(app: SasePager) -> PagerView:
     return pager_screen(app).focused_view
 
 
-def body_scroll(app: SasePager) -> VerticalScroll:
-    return pager_screen(app).query_one("#pager-body-scroll", VerticalScroll)
+def body_scroll(app: SasePager) -> PagerBodyScroll:
+    return pager_screen(app).query_one("#pager-body-scroll", PagerBodyScroll)

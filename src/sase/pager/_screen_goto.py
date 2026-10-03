@@ -7,16 +7,15 @@ from typing import Any
 from textual.events import Key
 from textual.widgets import Static
 
+from sase.pager._body_layout import BodyLayout
 from sase.pager._chrome import goto_command_line, section_accent
-from sase.pager._layout import ComposedBody
 from sase.pager._line_mark import LineMark, reading_scroll_y
 
 
 class PagerGotoMixin:
     """Own the ``;`` / ``:`` prompt, its key handling, and the last-jump mark."""
 
-    _body: ComposedBody | None
-    _body_width: int | None
+    _body: BodyLayout | None
     _goto_active: bool
     _goto_digits: str
     _goto_mark: LineMark | None
@@ -79,8 +78,7 @@ class PagerGotoMixin:
         mark = LineMark(section_index, value, value)
         self._goto_mark = mark
         self._close_goto_prompt()
-        self._body_width = None
-        self._ensure_body()
+        self._invalidate_body_paint()
         self._scroll_to_line_mark(mark)
         self._after_scroll()
 
@@ -122,7 +120,7 @@ class PagerGotoMixin:
             return 0
         body = self._body
         if body is None:
-            self._ensure_body()
+            self._ensure_body_layout()
             body = self._body
         if body is None:
             return 0

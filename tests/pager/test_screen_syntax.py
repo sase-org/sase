@@ -16,6 +16,7 @@ import pytest
 from rich.text import Text
 
 from sase.pager import _screen_syntax as screen_syntax_mod
+from sase.pager._body_layout import build_body_layout
 from sase.pager._labels import PagerLabelLayer, build_label_layer
 from sase.pager._screen_syntax import MAX_DOCUMENT_SYNTAX_SPANS, PagerSyntaxMixin
 from sase.pager.document import (
@@ -24,14 +25,6 @@ from sase.pager.document import (
     PagerSection,
     RawSourceSpec,
 )
-
-
-class _FakeStatic:
-    def __init__(self) -> None:
-        self.updates: list[Any] = []
-
-    def update(self, content: Any) -> None:
-        self.updates.append(content)
 
 
 class _FakeSearch:
@@ -46,13 +39,12 @@ class _FakeSearch:
 class _FakeHost(PagerSyntaxMixin):
     def __init__(self, document: PagerDocument, *, width: int = 80) -> None:
         self.document = document
-        self._body = None
-        self._body_width = width
+        self._body = build_body_layout(document, width)
         self._label_layer: PagerLabelLayer | None = None
         self._label_pending_prefix = ""
         self._search = _FakeSearch()
         self._current_index = 0
-        self._pager_body = _FakeStatic()
+        self.paint_calls = 0
         self.subject_updates = 0
         self.scheduled: list[tuple[PagerDocument, int]] = []
         self.after_refresh_calls: list[Any] = []
@@ -67,9 +59,8 @@ class _FakeHost(PagerSyntaxMixin):
     def _current_section(self) -> PagerSection:
         return self.document.sections[self._current_index]
 
-    def query_one(self, selector: str, _cls: Any) -> Any:
-        assert selector == "#pager-body"
-        return self._pager_body
+    def _invalidate_body_paint(self) -> None:
+        self.paint_calls += 1
 
     def _update_subject(self) -> None:
         self.subject_updates += 1
@@ -404,7 +395,7 @@ async def test_run_syntax_preparation_processes_current_section_first_and_batche
     assert order_seen[0] == "b"
     assert set(order_seen) == {"a", "b", "c"}
     # one publish after the (current) first section, one more at the end.
-    assert len(host._pager_body.updates) == 2
+    assert host.paint_calls == 2
     assert host.subject_updates == 2
 
 
@@ -416,7 +407,7 @@ async def test_run_syntax_preparation_repaints_the_search_overlay_when_active() 
     await host._run_syntax_preparation(document, 0)
 
     assert host._search.refresh_calls >= 1
-    assert host._pager_body.updates == []  # overlay repainted, not the plain body
+    assert host.paint_calls == 0  # overlay repainted, not the plain body
 
 
 async def test_run_syntax_preparation_reorders_on_a_restart_request() -> None:

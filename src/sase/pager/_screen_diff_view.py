@@ -14,8 +14,8 @@ from dataclasses import replace
 from typing import Any
 
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
+from sase.pager._body_layout import BodyLayout
 from sase.pager._labels import PagerLabelLayer
-from sase.pager._layout import ComposedBody
 from sase.pager.document import PagerSection
 from sase.pager.history.diff import (
     build_diff_body,
@@ -35,8 +35,7 @@ class PagerDiffViewMixin:
     """Own the history diff view for one screen."""
 
     document: Any
-    _body: ComposedBody | None
-    _body_width: int | None
+    _body: BodyLayout | None
     _label_layer: PagerLabelLayer | None
     _history_states: dict[str, Any]
     _history_generation: int
@@ -391,9 +390,8 @@ class PagerDiffViewMixin:
         sections[index] = diff_section
         self.document = replace(self.document, sections=tuple(sections))
         self._body = None
-        self._body_width = None
         self._label_layer = None
-        self._ensure_body()
+        self._invalidate_body_layout()
         try:
             if self._search.is_active and self._search.query:
                 self._reapply_history_search(self._search.query, self._search.direction)

@@ -10,9 +10,10 @@ from sase.ace.tui.widgets.vim_search_controller import (
     VimSearchController,
     line_start_offsets,
 )
+from sase.pager._body_layout import BodyLayout
+from sase.pager._body_rows import BodyRenderer
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
 from sase.pager._layout import (
-    ComposedBody,
     reading_anchor_at_row,
     row_for_reading_anchor,
 )
@@ -29,8 +30,8 @@ from sase.pager.trail import PagerSearchState, PagerTrailEntry, append_bounded_t
 class PagerTrailMixin:
     """Own pager-owned back/forward history and search-state snapshots."""
 
-    _body: ComposedBody | None
-    _body_width: int | None
+    _body: BodyLayout | None
+    _body_renderer: BodyRenderer | None
     _footer_status: str | None
     _label_layer: PagerLabelLayer | None
     _label_pending_prefix: str
@@ -71,7 +72,7 @@ class PagerTrailMixin:
         if callable(rehydrate):
             rehydrate(state.version_pins)
         self._body = None
-        self._body_width = None
+        self._body_renderer = None
         self._label_layer = None
         self._label_pending_prefix = ""
         self._label_window_scope = state.label_anchor
@@ -81,7 +82,7 @@ class PagerTrailMixin:
         self._clear_goto_state()
         self._goto_mark = state.line_mark
         self._reset_syntax_for_new_document()
-        self._ensure_body()
+        self._invalidate_body_layout()
         self._restore_search_state(state.search)
         self._update_trail()
         self._update_footer()

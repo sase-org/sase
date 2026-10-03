@@ -97,10 +97,8 @@ async def test_plan_line_addressed_link_lands_at_reading_position_with_range_rai
             max_scroll_y=int(scroll.max_scroll_y),
         )
         assert screen._body is not None
-        rendered = list(screen._body.renderable.renderables)[0]
-        rows = rendered.plain.split("\n")
-        assert rows[11].startswith("12┃ ")
-        assert rows[13].startswith("14┃ ")
+        assert screen.row_text(11).plain.startswith("12┃ ")
+        assert screen.row_text(13).plain.startswith("14┃ ")
 
 
 async def test_same_text_in_two_projects_is_section_isolated(corpus) -> None:

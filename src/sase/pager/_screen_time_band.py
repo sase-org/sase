@@ -30,7 +30,6 @@ from sase.pager._time_band import (
 class PagerTimeBandMixin:
     """Own the time-band widget, its model, and its label targets."""
 
-    _body_width: int | None
     _time_band_labels: tuple[TimeBandTarget, ...]
     _time_band_hints: dict[str, int]
     _time_band_signature: object | None
@@ -308,9 +307,8 @@ class PagerTimeBandMixin:
                 labels = ()
         previous = getattr(self, "_time_band_labels", ())
         if len(labels) != len(previous) and getattr(self, "_body", None) is not None:
-            self._body_width = None
             try:
-                self._ensure_body()
+                self._invalidate_body_layout(relabel=True)
             except Exception:
                 pass
             hints = getattr(self, "_time_band_hints", None) or {}

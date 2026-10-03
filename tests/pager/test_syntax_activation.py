@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 
 import pytest
-from textual.containers import VerticalScroll
+from sase.pager._screen_widgets import PagerBodyScroll
 
 from sase.ace.testing.wait import wait_for
 from sase.pager.app import SasePager
@@ -171,7 +171,7 @@ async def test_first_paint_and_keys_work_before_slow_syntax(
             await pilot.pause()
             assert screen._body is not None
             await wait_for(pilot, entered.is_set)
-            scroll = screen.query_one("#pager-body-scroll", VerticalScroll)
+            scroll = screen.query_one("#pager-body-scroll", PagerBodyScroll)
             before = scroll.scroll_y
             await pilot.press("j")
             assert ("file:/tmp/demo.py", None) not in screen._syntax_prepared
