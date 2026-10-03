@@ -138,6 +138,31 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         if node is None or snapshot is None or scope is None:
             return
         if node.history_only:
+            try:
+                from .memory_pane_instructions import (
+                    INSTRUCTION_GROUP_TOAST,
+                    instruction_edit_refusal,
+                    is_instruction_group_row,
+                    is_instruction_subject_row,
+                )
+
+                if is_instruction_group_row(node):
+                    self.app.notify(INSTRUCTION_GROUP_TOAST, severity="warning")
+                    return
+                if is_instruction_subject_row(node):
+                    try:
+                        subject = self._instruction_subject_for_node(node)  # type: ignore[attr-defined]
+                    except Exception:
+                        subject = None
+                    if subject is not None and not subject.managed:
+                        self.action_open_source()
+                    else:
+                        self.app.notify(
+                            instruction_edit_refusal(subject), severity="warning"
+                        )
+                    return
+            except Exception:
+                pass
             from .memory_pane_rail_glance import history_only_refusal
 
             self.app.notify(history_only_refusal(), severity="warning")
@@ -191,6 +216,28 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         if node is None or snapshot is None:
             return
         if node.history_only:
+            try:
+                from .memory_pane_instructions import (
+                    INSTRUCTION_GROUP_TOAST,
+                    instruction_edit_refusal,
+                    is_instruction_group_row,
+                    is_instruction_subject_row,
+                )
+
+                if is_instruction_group_row(node):
+                    self.app.notify(INSTRUCTION_GROUP_TOAST, severity="warning")
+                    return
+                if is_instruction_subject_row(node):
+                    try:
+                        subject = self._instruction_subject_for_node(node)  # type: ignore[attr-defined]
+                    except Exception:
+                        subject = None
+                    self.app.notify(
+                        instruction_edit_refusal(subject), severity="warning"
+                    )
+                    return
+            except Exception:
+                pass
             from .memory_pane_rail_glance import history_only_refusal
 
             self.app.notify(history_only_refusal(), severity="warning")

@@ -129,6 +129,10 @@ class MemoryPanelStateMixin(_MixinBase):
         """Return DELETED rows matching *pattern*; ``()`` by default."""
         return ()
 
+    def _instruction_filter_matches(self, pattern: str) -> tuple[MemoryRailNode, ...]:
+        """Return INSTRUCTIONS rows matching *pattern*; ``()`` by default."""
+        return ()
+
     def _glance_column_width(self) -> int:
         """Return the widest glance suffix; ``0`` omits the column."""
         return 0
@@ -159,6 +163,10 @@ class MemoryPanelStateMixin(_MixinBase):
         )
         try:
             nodes = (*nodes, *self._deleted_filter_matches(pattern))
+        except Exception:
+            pass
+        try:
+            nodes = (*nodes, *self._instruction_filter_matches(pattern))
         except Exception:
             pass
         preferred = preferred_note if preferred_note is not None else self._current_note

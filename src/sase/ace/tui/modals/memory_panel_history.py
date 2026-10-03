@@ -105,6 +105,47 @@ def _core_selector_for(raw_selector: str, scope: Any, service: Any = None) -> st
         return raw_selector
 
 
+def _instruction_file_traits(
+    scope: Any, raw_selector: str
+) -> tuple[bool | None, bool | None]:
+    """Return ``(is_template, managed)`` for an instruction file selector.
+
+    Mirrors the pager provider's traits lookup so instruction cards
+    render the TEMPLATE chip and managed cause rows in the pager's own
+    words. ``(None, None)`` means "not an instruction file".
+    """
+    try:
+        normalized = str(raw_selector or "").replace("\\", "/").strip().lstrip("./")
+    except Exception:
+        return (None, None)
+    if not normalized:
+        return (None, None)
+    try:
+        files = getattr(scope, "instruction_files", ()) or ()
+    except Exception:
+        return (None, None)
+    candidates = [normalized, normalized.removesuffix(".tmpl")]
+    try:
+        for entry in files:
+            agents_path = str(getattr(entry, "agents_path", "") or "").lstrip("./")
+            try:
+                shim_paths = [
+                    str(path).lstrip("./")
+                    for path in (getattr(entry, "shim_paths", ()) or ())
+                ]
+            except Exception:
+                shim_paths = []
+            for candidate in candidates:
+                if candidate == agents_path or candidate in shim_paths:
+                    is_template = bool(getattr(entry, "template", False))
+                    if candidate != normalized:
+                        is_template = True
+                    return (is_template, bool(getattr(entry, "managed", False)))
+    except Exception:
+        return (None, None)
+    return (None, None)
+
+
 def fetch_history_summary(
     service: Any, scope: Any, raw_selector: str
 ) -> dict[str, Any] | None:
@@ -152,6 +193,20 @@ def fetch_history_summary(
             "total": len(versions),
             "dirty": dirty,
         }
+        try:
+            summary["subject_id"] = str(timeline.get("subject_id", "") or "")
+        except Exception:
+            pass
+        try:
+            is_template, managed = _instruction_file_traits(scope, core_selector)
+            if is_template is None:
+                is_template, managed = _instruction_file_traits(scope, raw_selector)
+            if is_template is not None:
+                summary["is_template"] = bool(is_template)
+            if managed is not None:
+                summary["managed"] = bool(managed)
+        except Exception:
+            pass
         return summary
     except Exception:
         return None

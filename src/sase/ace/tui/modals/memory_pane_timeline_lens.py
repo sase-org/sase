@@ -334,6 +334,17 @@ class MemoryPaneTimelineLensMixin(_MixinBase):
         node = self._selected_row()
         if node is None:
             return
+        try:
+            from .memory_pane_instructions import (
+                INSTRUCTION_GROUP_TOAST,
+                is_instruction_group_row,
+            )
+
+            if is_instruction_group_row(node):
+                self.notify(INSTRUCTION_GROUP_TOAST, severity="warning")
+                return
+        except Exception:
+            pass
         self._timeline_enter(node)
 
     def _timeline_enter(self, node: Any) -> None:

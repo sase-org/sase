@@ -77,6 +77,11 @@ class MemoryPaneHistoryMixin(_MixinBase):
         if node is None or not self._ring:
             return None
         try:
+            if bool(getattr(node, "instruction_group", False)):
+                return None
+        except Exception:
+            pass
+        try:
             from .memory_panel_history import selector_for_node
 
             selector = selector_for_node(node)
@@ -113,7 +118,14 @@ class MemoryPaneHistoryMixin(_MixinBase):
                     path_label = relative
         except Exception:
             path_label = str(selector)
-        subject_id = subject_id_for_selector(selector, is_strand=is_strand)
+        try:
+            wire_id = str(getattr(node, "instruction_subject", "") or "")
+        except Exception:
+            wire_id = ""
+        if wire_id:
+            subject_id = wire_id
+        else:
+            subject_id = subject_id_for_selector(selector, is_strand=is_strand)
         now_epoch = int(_time.time())
         cached = self._history_latest.get((scope_key, selector))
         failed = (scope_key, selector) in self._history_failed

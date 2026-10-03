@@ -308,6 +308,12 @@ class MemoryPaneTimeMixin(_MixinBase):
     def _time_subject_id(self, node: Any | None) -> str:
         """Return the band subject id for *node*."""
         try:
+            wire_id = str(getattr(node, "instruction_subject", "") or "")
+        except Exception:
+            wire_id = ""
+        if wire_id:
+            return wire_id
+        try:
             keyed = self._history_key_for_node(node)
             selector = keyed[1] if keyed is not None else ""
         except Exception:

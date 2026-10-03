@@ -420,9 +420,56 @@ class MemoryPanelViewMixin(_MixinBase):
             self._pinned_head_for_node(node, snapshot_scope=snapshot, past=overlay)
         )
         self._update_time_strip(node, strip_widget, past=overlay)
-        description_widget.update(build_rail_node_description(node))
+        try:
+            from .memory_pane_instructions import (
+                build_instruction_card_meta as _build_instruction_meta,
+            )
+            from .memory_pane_instructions import (
+                is_instruction_group_row as _is_instruction_group,
+            )
+            from .memory_pane_instructions import (
+                is_instruction_subject_row as _is_instruction_row,
+            )
+
+            _instruction_subject = None
+            _instruction_kind = (
+                "group"
+                if _is_instruction_group(node)
+                else ("row" if _is_instruction_row(node) else "")
+            )
+            if _instruction_kind == "row":
+                try:
+                    _instruction_subject = self._instruction_subject_for_node(node)  # type: ignore[attr-defined]
+                except Exception:
+                    _instruction_subject = None
+        except Exception:
+            _instruction_kind = ""
+            _instruction_subject = None
+        if _instruction_kind:
+            description_widget.update("")
+        else:
+            description_widget.update(build_rail_node_description(node))
         if not self._paint_card_text(body_widget, diff_widget, diff_text):
             _body(self._body_preview_for_node(node))
+        if _instruction_kind == "group":
+            try:
+                _group_count = len(self._instruction_order)  # type: ignore[attr-defined]
+            except Exception:
+                _group_count = 0
+            meta_widget.update(
+                Text(
+                    f"{_group_count} instruction files · space expands · collapses",
+                    style="dim",
+                )
+            )
+            self._update_footer()
+            return
+        if _instruction_kind == "row" and _instruction_subject is not None:
+            meta_widget.update(
+                _build_instruction_meta(_instruction_subject, accent=self._accent)
+            )
+            self._update_footer()
+            return
         parent = self._chip_notes[: self._chip_parent_count]
         children = self._chip_notes[self._chip_parent_count :]
         focused_link_number = (
@@ -478,7 +525,18 @@ class MemoryPanelViewMixin(_MixinBase):
             self._pinned_head_for_node(node, snapshot_scope=snapshot, past=chrome)
         )
         self._update_time_strip(node, strip_widget, past=chrome)
-        description_widget.update(build_rail_node_description(past_node))
+        try:
+            from .memory_pane_instructions import (
+                is_instruction_subject_row as _is_past_instruction,
+            )
+
+            _past_is_instruction = _is_past_instruction(node)
+        except Exception:
+            _past_is_instruction = False
+        if _past_is_instruction:
+            description_widget.update("")
+        else:
+            description_widget.update(build_rail_node_description(past_node))
         if self._paint_card_text(body_widget, diff_widget, diff_text):
             pass
         elif past_note is not None:
@@ -500,15 +558,30 @@ class MemoryPanelViewMixin(_MixinBase):
         focused_link_number = (
             self._chip_cursor + 1 if self._chip_cursor is not None else None
         )
-        meta = build_rail_node_card_meta(
-            snapshot,
-            past_node,
-            accent=self._accent,
-            parent=parent,
-            children=children,
-            focused_link_number=focused_link_number,
-            strand_read_state=None,
-        )
+        _past_instruction_subject = None
+        if _past_is_instruction:
+            try:
+                _past_instruction_subject = self._instruction_subject_for_node(node)  # type: ignore[attr-defined]
+            except Exception:
+                _past_instruction_subject = None
+        if _past_instruction_subject is not None:
+            from .memory_pane_instructions import (
+                build_instruction_card_meta as _build_past_instruction_meta,
+            )
+
+            meta = _build_past_instruction_meta(
+                _past_instruction_subject, accent=self._accent
+            )
+        else:
+            meta = build_rail_node_card_meta(
+                snapshot,
+                past_node,
+                accent=self._accent,
+                parent=parent,
+                children=children,
+                focused_link_number=focused_link_number,
+                strand_read_state=None,
+            )
         # Relation chips are computed from today's graph, so they read
         # under an explicit `links as of now` caption.
         if parent or children:
@@ -575,6 +648,48 @@ class MemoryPanelViewMixin(_MixinBase):
             scope_display_name=snapshot_scope.scope.display_name,
             accent=self._accent,
         )
+        try:
+            from .memory_pane_instructions import (
+                build_instruction_card_title,
+                build_instruction_group_card_title,
+                is_instruction_group_row,
+                is_instruction_subject_row,
+            )
+
+            if is_instruction_group_row(node):
+                try:
+                    group_count = len(self._instruction_order)  # type: ignore[attr-defined]
+                except Exception:
+                    group_count = 0
+                title_group = build_instruction_group_card_title(
+                    group_count,
+                    scope_display_name=snapshot_scope.scope.display_name,
+                    accent=self._accent,
+                )
+            elif is_instruction_subject_row(node):
+                display = ""
+                path_label = ""
+                try:
+                    subject = self._instruction_subject_for_node(node)  # type: ignore[attr-defined]
+                except Exception:
+                    subject = None
+                if subject is not None:
+                    display = str(subject.display or subject.path)
+                    path_label = str(subject.path)
+                if not display:
+                    try:
+                        display = str(node.note.path.stem)
+                        path_label = str(node.note.relative_path)
+                    except Exception:
+                        display, path_label = ("AGENTS.md", "AGENTS.md")
+                title_group = build_instruction_card_title(
+                    display,
+                    path_label,
+                    scope_display_name=snapshot_scope.scope.display_name,
+                    accent=self._accent,
+                )
+        except Exception:
+            pass
         title_row: RenderableType = title_group
         if isinstance(title_group, Group):
             parts = list(title_group.renderables)

@@ -388,18 +388,29 @@ def render_time_strip(
 
 
 def _newest_meaning_row(data: Any, *, width: int, styles: Any) -> Text:
-    """Return the dimmed newest-meaning row answering 'what changed last?'."""
+    """Return the dimmed newest-meaning row answering 'what changed last?'.
+
+    Instruction subjects answer with the kit cause row instead
+    (``⟳ rendered · sources: …``), as the pager does in the past.
+    """
     try:
         from dataclasses import replace
 
-        from sase.pager.history_kit import meaning_row, time_band_targets
+        from sase.pager.history_kit import (
+            cause_row,
+            meaning_row,
+            time_band_targets,
+        )
 
         newest = getattr(data, "newest", None)
         if newest is None:
             return Text("", no_wrap=True)
         proxy = replace(data, current=newest)  # type: ignore[arg-type]
         ordered = time_band_targets(data)
-        row = meaning_row(proxy, ordered, {}, int(width), styles)
+        if str(getattr(data, "subject_kind", "") or "") == "instructions":
+            row = cause_row(proxy, ordered, {}, int(width))
+        else:
+            row = meaning_row(proxy, ordered, {}, int(width), styles)
         if not row.plain:
             return Text("", no_wrap=True)
         # The whole row is dimmed: it answers, it does not announce.

@@ -58,6 +58,7 @@ from .memory_panel_state import (
 )
 from .memory_panel_travel import MemoryPanelTravelMixin
 from .memory_panel_view import MemoryPanelViewMixin
+from .memory_pane_instructions_rail import MemoryPaneInstructionsMixin
 from .memory_pane_changes_lens import MemoryPaneChangesLensMixin
 from .memory_pane_diff import MemoryPaneDiffMixin
 from .memory_pane_history import MemoryPaneHistoryMixin
@@ -140,7 +141,11 @@ class MemoryPane(
     SourceFileActionsMixin,
     # Lens mixins come first so their rail/selection/header/footer and
     # hand-off overrides win over the Notes paths they re-home; every
-    # fallback delegates explicitly to the owning mixin.
+    # fallback delegates explicitly to the owning mixin. The
+    # instructions mixin leads only because its space toggle must stay
+    # reachable: it delegates every non-instruction row (and the lens
+    # routing for them) back down this same chain.
+    MemoryPaneInstructionsMixin,
     MemoryPaneChangesLensMixin,
     MemoryPaneTimelineLensMixin,
     MemoryPaneLensMixin,
@@ -282,6 +287,16 @@ class MemoryPane(
         self._glance_worker: Worker[Any] | None = None
         self._show_deleted = False
         self._deleted_subjects: tuple[Any, ...] = ()
+        self._expanded_instructions = False
+        self._instruction_subjects: dict[str, Any] = {}
+        self._instruction_order: tuple[str, ...] = ()
+        self._instruction_scope_key: str | None = None
+        self._instruction_generation = 0
+        self._instruction_worker: Worker[Any] | None = None
+        self._instruction_bodies: dict[tuple[str, str], str] = {}
+        self._instruction_body_failed: set[tuple[str, str]] = set()
+        self._instruction_body_request: tuple[str, str] | None = None
+        self._instruction_body_worker: Worker[Any] | None = None
 
     def on_key(self, event: events.Key) -> None:
         from .config_hub_keys import handle_config_hub_subtab_select_key
@@ -499,6 +514,20 @@ class MemoryPane(
         if node is None or not self._ring:
             return None
         if node.history_only:
+            try:
+                from .memory_pane_instructions import is_instruction_subject_row
+
+                if is_instruction_subject_row(node):
+                    try:
+                        subject = self._instruction_subject_for_node(node)  # type: ignore[attr-defined]
+                    except Exception:
+                        subject = None
+                    if subject is not None and not subject.managed:
+                        return memory_note_source_path(
+                            self._ring[self._scope_index], node.note
+                        )
+            except Exception:
+                pass
             return None
         return memory_note_source_path(self._ring[self._scope_index], node.note)
 
@@ -508,6 +537,30 @@ class MemoryPane(
     def action_open_source(self) -> None:
         node = self._selected_row()
         if node is not None and node.history_only:
+            try:
+                from .memory_pane_instructions import (
+                    INSTRUCTION_GROUP_TOAST,
+                    instruction_edit_refusal,
+                    is_instruction_group_row,
+                    is_instruction_subject_row,
+                )
+
+                if is_instruction_group_row(node):
+                    self.notify(INSTRUCTION_GROUP_TOAST, severity="warning")
+                    return
+                if is_instruction_subject_row(node):
+                    try:
+                        subject = self._instruction_subject_for_node(node)  # type: ignore[attr-defined]
+                    except Exception:
+                        subject = None
+                    if subject is not None and not subject.managed:
+                        self.action_open_in_editor()
+                        self._start_restat(node.note)
+                        return
+                    self.notify(instruction_edit_refusal(subject), severity="warning")
+                    return
+            except Exception:
+                pass
             from .memory_pane_rail_glance import history_only_refusal
 
             self.notify(history_only_refusal(), severity="warning")
@@ -550,6 +603,27 @@ class MemoryPane(
         if node.is_strand and self._strand_read_status.get(node.identity) != "ok":
             self.notify("strand body is waiting on audited read", severity="warning")
             return
+        try:
+            from .memory_pane_instructions import is_instruction_subject_row
+
+            if is_instruction_subject_row(node):
+                try:
+                    key = self._time_key(node)
+                    shown = self._instruction_bodies.get(key) if key else None
+                except Exception:
+                    key, shown = None, None
+                if not shown:
+                    self.notify("rendered file is still loading", severity="warning")
+                    return
+                schedule_copy_delivery(
+                    self,
+                    shown.strip(),
+                    copied_label="instruction file body (now)",
+                    task_name="sase-memory-panel-copy-body",
+                )
+                return
+        except Exception:
+            pass
         schedule_copy_delivery(
             self,
             node.note.body.strip(),

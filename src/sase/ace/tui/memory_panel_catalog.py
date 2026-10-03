@@ -89,6 +89,14 @@ class MemoryRailNode:
     #: tombstone card pins to.
     history_only: bool = False
     deleted_ordinal: int = 0
+    #: Instruction rows (phase instructions-group INSTRUCTIONS group) are
+    #: also history-only: the synthetic note carries the instruction
+    #: file's repo-relative path so history selectors resolve. A
+    #: non-empty ``instruction_subject`` is the wire subject id
+    #: (``instructions:...``) of one instruction file row;
+    #: ``instruction_group`` marks the collapsible group header row.
+    instruction_subject: str = ""
+    instruction_group: bool = False
 
     @property
     def identity(self) -> str:
