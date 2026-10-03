@@ -13,7 +13,7 @@ from ._agent_display_content import (
 )
 from ._agent_display_header import build_header_text
 from ._agent_display_header_summary import (
-    _DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES,
+    DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES,
     DetailHeaderSummaryCacheEntry,
     build_detail_header_summary,
     cache_detail_header_summary,
@@ -34,6 +34,7 @@ from ._helpers import load_xprompts_used
 
 _DetailHeaderSummary = DetailHeaderSummary
 _DetailHeaderSummaryCacheEntry = DetailHeaderSummaryCacheEntry
+_DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES = DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES
 
 __all__ = [
     "ALL_DETAIL_CONTEXT_LANES",

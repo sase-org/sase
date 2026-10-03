@@ -16,7 +16,7 @@ import pytest
 
 from sase.ace.tui.widgets.prompt_panel import _agent_display_header_summary
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
-    _TRACE_SPAN_PREFIX,
+    DETAIL_HEADER_TRACE_SPAN_PREFIX,
     build_detail_header_summary,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -175,11 +175,11 @@ def test_enabled_emits_parent_and_child_spans(
     rows = _records(log)
     spans = {row["span"] for row in rows}
 
-    assert _TRACE_SPAN_PREFIX in spans
+    assert DETAIL_HEADER_TRACE_SPAN_PREFIX in spans
     for suffix in _CHILD_SPAN_SUFFIXES:
-        assert f"{_TRACE_SPAN_PREFIX}.{suffix}" in spans, suffix
+        assert f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.{suffix}" in spans, suffix
 
-    parent = next(row for row in rows if row["span"] == _TRACE_SPAN_PREFIX)
+    parent = next(row for row in rows if row["span"] == DETAIL_HEADER_TRACE_SPAN_PREFIX)
     assert parent["agent"] == agent.cl_name
     assert parent["cache_state"] == "cold"
     for row in rows:
@@ -201,5 +201,7 @@ def test_cache_state_is_cold_then_warm_per_agent_identity(
     other = make_agent(agent_name="agent-2", cl_name="other_cl", step_type="assistant")
     build_detail_header_summary(other)
 
-    parents = [row for row in _records(log) if row["span"] == _TRACE_SPAN_PREFIX]
+    parents = [
+        row for row in _records(log) if row["span"] == DETAIL_HEADER_TRACE_SPAN_PREFIX
+    ]
     assert [row["cache_state"] for row in parents] == ["cold", "warm", "cold"]
