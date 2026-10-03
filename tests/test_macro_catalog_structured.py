@@ -440,11 +440,16 @@ def test_structured_catalog_definition_paths_for_plugin_real_sources(
         ),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
         patch(
+            "sase.macro._catalog_sources.discover_macro_plugin_modules",
+            return_value=[macro_module],
+        ),
+        patch(
             "sase.macro._catalog_sources.discover_plugin_resources",
             side_effect=lambda group: (
                 [macro_module] if group == "sase_xprompts" else [config_module]
             ),
         ),
+        patch("sase.macro._catalog_sources.macro_plugins_disabled", return_value=False),
         patch("sase.macro._catalog_sources.is_plugin_disabled", return_value=False),
         patch("sase.macro._catalog_sources.importlib.resources.files", files),
     ):

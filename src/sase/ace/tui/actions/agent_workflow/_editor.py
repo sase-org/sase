@@ -152,10 +152,10 @@ class EditorMixin:
 
             workflow_name = default_name
 
-            # Save to the canonical home xprompt directory.
+            # Save to the canonical home macro directory.
             from sase.content_layout import resolve_home_layout
 
-            macros_dir = str(resolve_home_layout().xprompts.write_path)
+            macros_dir = str(resolve_home_layout().macros.write_path)
             os.makedirs(macros_dir, exist_ok=True)
 
             dest_path = os.path.join(macros_dir, f"{workflow_name}.yml")

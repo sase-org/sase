@@ -413,6 +413,10 @@ def test_prepare_lsp_environment_emits_plugin_metadata(
     env: dict[str, str] = {}
     with (
         patch(
+            "sase.integrations.macro_lsp.discover_macro_plugin_modules",
+            return_value=[macro_module],
+        ),
+        patch(
             "sase.integrations.macro_lsp.discover_plugin_resources",
             side_effect=fake_discover,
         ),

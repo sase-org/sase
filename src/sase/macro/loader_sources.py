@@ -19,7 +19,11 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
     is_disabled_project_lifecycle_state,
 )
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    macro_plugin_definition_dirname,
+    macro_plugins_disabled,
+)
 
 from .discovery_order import (
     RANK_CONFIG_BASE,
@@ -260,12 +264,16 @@ def load_macros_from_files(project: str | None = None) -> dict[str, Macro]:
         get_macro_search_paths() if project is None else get_macro_search_paths(project)
     )
     if not namespaced_dirs:
-        cwd = Path.cwd()
-        namespaced_dirs = {
-            cwd / "sase" / "xprompts",
-            cwd / ".xprompts",
-            cwd / "xprompts",
-        }
+        from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
+        namespaced_dirs = set()
+        if legacy_xprompt_syntax_enabled():
+            cwd = Path.cwd()
+            namespaced_dirs = {
+                cwd / "sase" / "xprompts",
+                cwd / ".xprompts",
+                cwd / "xprompts",
+            }
     rank_by_path = {
         search_dir: source_rank(RANK_FILESYSTEM_BASE, index, len(search_paths))
         for index, search_dir in enumerate(search_paths)
@@ -431,19 +439,28 @@ def load_macros_from_plugins() -> dict[str, Macro]:
     """Load macros from plugin packages via ``sase_macros`` entry points.
 
     Each entry point should reference a module whose package contains an
-    ``macros/`` resource directory with ``.md`` files. Plugin skills live in
+    ``macros/`` resource directory with ``.md`` files; a packaged
+    ``xprompts/`` directory is accepted only while the
+    ``legacy_xprompt_syntax`` flag allows it. Plugin skills live in
     a sibling ``skills/`` resource directory instead, so a ``skill:``
     declaration here is rejected with that migration destination.
 
     Returns:
         Dictionary mapping macro name to Macro object.
     """
-    if is_plugin_disabled("XPROMPTS"):
+    if macro_plugins_disabled():
         return {}
 
     macros: dict[str, Macro] = {}
-    for module in discover_plugin_resources("sase_xprompts"):
-        for source, macro_def in load_plugin_markdown_macros(module, "xprompts"):
+    for module in discover_macro_plugin_modules():
+        resource_dir = macro_plugin_definition_dirname(module)
+        if resource_dir is None:
+            log.debug(
+                "Skipping plugin %s without a macro resource directory",
+                getattr(module, "__name__", module),
+            )
+            continue
+        for source, macro_def in load_plugin_markdown_macros(module, resource_dir):
             if reject_reserved_memory_namespace(macro_def.name, source=source):
                 continue
             if reject_misplaced_skill(

@@ -19,7 +19,10 @@ from sase.content_layout import (
     resolve_home_layout,
     resolve_project_layout,
 )
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    macro_plugins_disabled,
+)
 
 from .loader import detect_project
 from .loader_skills import get_sase_package_skills_dir
@@ -70,8 +73,8 @@ def skill_destinations(project: str | None = None) -> list[SkillDestination]:
             )
         )
 
-    if not is_plugin_disabled("XPROMPTS"):
-        for module in discover_plugin_resources("sase_xprompts"):
+    if not macro_plugins_disabled():
+        for module in discover_macro_plugin_modules():
             try:
                 resource = importlib.resources.files(module).joinpath("skills")
             except (TypeError, AttributeError):

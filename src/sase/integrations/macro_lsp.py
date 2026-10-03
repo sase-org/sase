@@ -15,10 +15,18 @@ from typing import NoReturn
 
 from sase.core.paths import sase_subdir
 from sase.legacy_xprompt_names import MACRO_LSP_DIRNAME
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    discover_plugin_resources,
+    is_plugin_disabled,
+    macro_plugin_definition_dirname,
+    macro_plugins_disabled,
+)
 from sase.macro.loader_skills import get_sase_package_skills_dir
 
+SASE_MACRO_LSP_CMD_ENV = "SASE_MACRO_LSP_CMD"
 SASE_XPROMPT_LSP_CMD_ENV = "SASE_XPROMPT_LSP_CMD"
+SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV = "SASE_ACCEPT_LEGACY_XPROMPT_NAMES"
 SASE_XPROMPT_PACKAGE_DIR_ENV = "SASE_XPROMPT_PACKAGE_DIR"
 SASE_MACRO_PACKAGE_DIR_ENV = "SASE_MACRO_PACKAGE_DIR"
 SASE_XPROMPT_BUILTIN_DIR_ENV = "SASE_XPROMPT_BUILTIN_DIR"
@@ -66,7 +74,7 @@ def handle_macro_lsp_command(args: argparse.Namespace) -> NoReturn:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
-        print(f"Error: failed to launch xprompt LSP: {exc}", file=sys.stderr)
+        print(f"Error: failed to launch macro LSP: {exc}", file=sys.stderr)
         sys.exit(1)
 
     raise AssertionError("os.execvp unexpectedly returned")
@@ -103,33 +111,42 @@ def resolve_macro_lsp_command(
     )
 
 
+def _macro_lsp_accept_legacy(environ: Mapping[str, str]) -> bool:
+    """Return whether retired LSP spellings are accepted for this launch."""
+    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
+    return legacy_xprompt_syntax_enabled()
+
+
 def _resolve_macro_lsp_command(
     *,
     environ: Mapping[str, str],
     which: Callable[[str], str | None],
     repo_root: Path | None,
 ) -> tuple[str, ...]:
-    override = environ.get(SASE_XPROMPT_LSP_CMD_ENV, "").strip()
+    accept_legacy = _macro_lsp_accept_legacy(environ)
+    override = environ.get(SASE_MACRO_LSP_CMD_ENV, "").strip()
+    legacy_override = environ.get(SASE_XPROMPT_LSP_CMD_ENV, "").strip()
     if override:
-        try:
-            command = tuple(shlex.split(override))
-        except ValueError as exc:
+        return _parse_lsp_override(SASE_MACRO_LSP_CMD_ENV, override, which=which)
+    if legacy_override:
+        if not accept_legacy:
             raise MacroLspLaunchError(
-                f"{SASE_XPROMPT_LSP_CMD_ENV} is not a valid shell-style command: {exc}"
-            ) from exc
-        if command:
-            recovered = _recover_unquoted_command_path_with_spaces(
-                override,
-                command,
-                which=which,
+                f"{SASE_XPROMPT_LSP_CMD_ENV} is retired; use {SASE_MACRO_LSP_CMD_ENV}"
             )
-            return recovered or command
+        return _parse_lsp_override(
+            SASE_XPROMPT_LSP_CMD_ENV, legacy_override, which=which
+        )
 
-    venv_binary = _first_existing_macro_lsp_binary(Path(sys.executable).parent)
+    venv_binary = _first_existing_macro_lsp_binary(
+        Path(sys.executable).parent, accept_legacy=accept_legacy
+    )
     if venv_binary is not None:
         return (str(venv_binary),)
 
-    path = which(MACRO_LSP_BINARY) or which(XPROMPT_LSP_BINARY)
+    path = which(MACRO_LSP_BINARY)
+    if path is None and accept_legacy:
+        path = which(XPROMPT_LSP_BINARY)
     if path:
         return (path,)
 
@@ -139,7 +156,8 @@ def _resolve_macro_lsp_command(
         (
             sibling_core / "target" / "debug",
             sibling_core / "target" / "release",
-        )
+        ),
+        accept_legacy=accept_legacy,
     )
     if target_binary is not None:
         return (str(target_binary),)
@@ -157,10 +175,39 @@ def _resolve_macro_lsp_command(
             "--",
         )
 
-    raise MacroLspLaunchError(
-        "xprompt LSP binary not found; install `sase-macro-lsp` (or legacy "
-        f"`sase-xprompt-lsp`) into the current venv, install it on PATH, or set {SASE_XPROMPT_LSP_CMD_ENV}"
+    detail = (
+        "install `sase-macro-lsp` into the current venv, install it on PATH, "
+        f"or set {SASE_MACRO_LSP_CMD_ENV}"
     )
+    if accept_legacy:
+        detail = (
+            "install `sase-macro-lsp` (or legacy `sase-xprompt-lsp`) into the "
+            f"current venv, install it on PATH, or set {SASE_MACRO_LSP_CMD_ENV}"
+        )
+    raise MacroLspLaunchError(f"macro LSP binary not found; {detail}")
+
+
+def _parse_lsp_override(
+    env_name: str,
+    override: str,
+    *,
+    which: Callable[[str], str | None],
+) -> tuple[str, ...]:
+    """Split one explicit LSP command override, recovering spaced paths."""
+    try:
+        command = tuple(shlex.split(override))
+    except ValueError as exc:
+        raise MacroLspLaunchError(
+            f"{env_name} is not a valid shell-style command: {exc}"
+        ) from exc
+    if command:
+        recovered = _recover_unquoted_command_path_with_spaces(
+            override,
+            command,
+            which=which,
+        )
+        return recovered or command
+    raise MacroLspLaunchError(f"{env_name} is empty")
 
 
 def _lsp_cargo_package(sibling_core: Path) -> str:
@@ -170,8 +217,12 @@ def _lsp_cargo_package(sibling_core: Path) -> str:
     return "sase_xprompt_lsp"
 
 
-def _first_existing_macro_lsp_binary(directory: Path) -> Path | None:
-    for candidate in _macro_lsp_binary_candidates(directory):
+def _first_existing_macro_lsp_binary(
+    directory: Path, *, accept_legacy: bool = True
+) -> Path | None:
+    for candidate in _macro_lsp_binary_candidates(
+        directory, accept_legacy=accept_legacy
+    ):
         if candidate.is_file():
             return candidate
     return None
@@ -179,31 +230,60 @@ def _first_existing_macro_lsp_binary(directory: Path) -> Path | None:
 
 def _newest_existing_macro_lsp_binary(
     directories: Sequence[Path],
+    *,
+    accept_legacy: bool = True,
 ) -> Path | None:
-    candidates = [
+    """Return the newest built binary, preferring usable canonical binaries.
+
+    A usable canonical ``sase-macro-lsp`` binary always wins over a newer
+    legacy ``sase-xprompt-lsp`` binary; legacy candidates are considered
+    only while the sunset flag allows them.
+    """
+    canonical = [
         candidate
         for directory in directories
-        for candidate in _macro_lsp_binary_candidates(directory)
+        for candidate in _macro_lsp_binary_candidates(directory, accept_legacy=False)
         if candidate.is_file()
     ]
-    if not candidates:
+    if canonical:
+        return max(canonical, key=_mtime_ns)
+    if not accept_legacy:
         return None
-    return max(candidates, key=_mtime_ns)
+    legacy = [
+        candidate
+        for directory in directories
+        for candidate in _macro_lsp_binary_candidates(directory, accept_legacy=True)
+        if candidate.name not in _canonical_binary_names() and candidate.is_file()
+    ]
+    if not legacy:
+        return None
+    return max(legacy, key=_mtime_ns)
 
 
-def _macro_lsp_binary_candidates(directory: Path) -> tuple[Path, ...]:
-    return tuple(directory / name for name in _macro_lsp_binary_names())
-
-
-def _macro_lsp_binary_names() -> tuple[str, ...]:
+def _canonical_binary_names() -> tuple[str, ...]:
     if os.name == "nt":
-        return (
-            f"{MACRO_LSP_BINARY}.exe",
-            MACRO_LSP_BINARY,
-            f"{XPROMPT_LSP_BINARY}.exe",
-            XPROMPT_LSP_BINARY,
-        )
-    return (MACRO_LSP_BINARY, XPROMPT_LSP_BINARY)
+        return (f"{MACRO_LSP_BINARY}.exe", MACRO_LSP_BINARY)
+    return (MACRO_LSP_BINARY,)
+
+
+def _macro_lsp_binary_candidates(
+    directory: Path, *, accept_legacy: bool = True
+) -> tuple[Path, ...]:
+    return tuple(
+        directory / name
+        for name in _macro_lsp_binary_names(accept_legacy=accept_legacy)
+    )
+
+
+def _macro_lsp_binary_names(*, accept_legacy: bool = True) -> tuple[str, ...]:
+    if os.name == "nt":
+        names = [f"{MACRO_LSP_BINARY}.exe", MACRO_LSP_BINARY]
+        if accept_legacy:
+            names += [f"{XPROMPT_LSP_BINARY}.exe", XPROMPT_LSP_BINARY]
+        return tuple(names)
+    if accept_legacy:
+        return (MACRO_LSP_BINARY, XPROMPT_LSP_BINARY)
+    return (MACRO_LSP_BINARY,)
 
 
 def _mtime_ns(path: Path) -> int:
@@ -269,7 +349,19 @@ def _set_catalog_env(
 def _prepare_macro_lsp_environment(
     environ: MutableMapping[str, str], package_dir: Path | None = None
 ) -> None:
-    """Expose package macro locations to the Rust LSP catalog loader."""
+    """Expose package macro locations to the Rust LSP catalog loader.
+
+    The ``sase lsp`` wrapper execs the server without owning the client's
+    initialize message, so the sunset policy travels on the server's
+    existing ``SASE_ACCEPT_LEGACY_XPROMPT_NAMES`` transport alongside the
+    initialization option.
+    """
+    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
+    if SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV not in environ:
+        environ[SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV] = (
+            "1" if legacy_xprompt_syntax_enabled() else "0"
+        )
     root = package_dir or Path(__file__).resolve().parents[1]
     defaults = {
         SASE_SKILL_BUILTIN_DIR_ENV: str(get_sase_package_skills_dir(root)),
@@ -516,17 +608,38 @@ def _apply_agent_holds_flag(environ: MutableMapping[str, str]) -> None:
 
 
 def _discover_plugin_macro_dirs() -> list[dict[str, str]]:
-    """Return concrete plugin macro directories for the Rust LSP loader."""
-    return _discover_plugin_resource_dirs("xprompts")
+    """Return concrete plugin macro directories for the Rust LSP loader.
+
+    Probes each plugin's ``macros/`` directory first and the retired
+    ``xprompts/`` directory only while the sunset flag allows it.
+    """
+    if macro_plugins_disabled():
+        return []
+
+    entries: list[dict[str, str]] = []
+    for module in discover_macro_plugin_modules():
+        resource_dir = macro_plugin_definition_dirname(module)
+        if resource_dir is None:
+            continue
+        try:
+            ref = importlib.resources.files(module).joinpath(resource_dir)
+        except (TypeError, AttributeError):
+            continue
+        path = Path(str(ref))
+        if path.is_dir():
+            entries.append(
+                {"module": getattr(module, "__name__", str(module)), "path": str(path)}
+            )
+    return entries
 
 
 def _discover_plugin_resource_dirs(resource_dir: str) -> list[dict[str, str]]:
     """Return concrete plugin macro, skill, or ref resource directories."""
-    if is_plugin_disabled("XPROMPTS"):
+    if macro_plugins_disabled():
         return []
 
     entries: list[dict[str, str]] = []
-    for module in discover_plugin_resources("sase_xprompts"):
+    for module in discover_macro_plugin_modules():
         try:
             ref = importlib.resources.files(module).joinpath(resource_dir)
         except (TypeError, AttributeError):

@@ -11,7 +11,13 @@ from sase.content_layout import (
     resolve_home_layout,
     resolve_project_config_read_path,
 )
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    discover_plugin_resources,
+    is_plugin_disabled,
+    macro_plugin_definition_dirname,
+    macro_plugins_disabled,
+)
 from sase.macro.loader import (
     get_all_workflows,
     get_all_macros,
@@ -333,7 +339,7 @@ def _source_definition_path(source: str, project: str | None) -> Path | None:
 
 
 def _plugin_macro_definition_path(source: str) -> Path | None:
-    if is_plugin_disabled("XPROMPTS"):
+    if macro_plugins_disabled():
         return None
 
     remainder = source.removeprefix("plugin:")
@@ -343,14 +349,15 @@ def _plugin_macro_definition_path(source: str) -> Path | None:
     if not module_name or not filename:
         return None
 
-    for module in discover_plugin_resources("sase_xprompts"):
+    for module in discover_macro_plugin_modules():
         if getattr(module, "__name__", None) != module_name:
             continue
         try:
             if filename.startswith("refs/"):
                 ref = importlib.resources.files(module).joinpath(filename)
             else:
-                ref = importlib.resources.files(module).joinpath("xprompts", filename)
+                resource_dir = macro_plugin_definition_dirname(module) or "macros"
+                ref = importlib.resources.files(module).joinpath(resource_dir, filename)
         except (TypeError, AttributeError):
             return None
         return Path(str(ref))

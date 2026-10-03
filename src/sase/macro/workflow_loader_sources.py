@@ -7,7 +7,11 @@ from pathlib import Path
 
 from sase.content_layout import resolve_macro_file_sources
 from sase.core.paths import get_sase_managed_tmpdir
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    macro_plugin_definition_dirname,
+    macro_plugins_disabled,
+)
 from sase.macro.discovery_order import (
     RANK_FILESYSTEM_BASE,
     RANK_PACKAGE_MACROS,
@@ -44,12 +48,16 @@ def discover_workflow_files(
         get_macro_search_paths() if project is None else get_macro_search_paths(project)
     )
     if not namespaced_dirs:
-        cwd = Path.cwd()
-        namespaced_dirs = {
-            cwd / "sase" / "xprompts",
-            cwd / ".xprompts",
-            cwd / "xprompts",
-        }
+        from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
+        namespaced_dirs = set()
+        if legacy_xprompt_syntax_enabled():
+            cwd = Path.cwd()
+            namespaced_dirs = {
+                cwd / "sase" / "xprompts",
+                cwd / ".xprompts",
+                cwd / "xprompts",
+            }
 
     results: list[tuple[Path, int, bool]] = []
     for priority, search_dir in enumerate(search_paths):
@@ -108,14 +116,22 @@ def load_workflows_from_internal() -> dict[str, Workflow]:
 
 
 def load_workflows_from_plugins() -> dict[str, Workflow]:
-    """Load workflows from plugin ``sase_macros`` resources."""
-    if is_plugin_disabled("XPROMPTS"):
+    """Load workflows from plugin ``sase_macros`` resources.
+
+    Probes each plugin's ``macros/`` directory first and the retired
+    ``xprompts/`` directory only while the ``legacy_xprompt_syntax`` flag
+    allows it.
+    """
+    if macro_plugins_disabled():
         return {}
 
     workflows: dict[str, Workflow] = {}
-    for module in discover_plugin_resources("sase_xprompts"):
+    for module in discover_macro_plugin_modules():
+        resource_dir = macro_plugin_definition_dirname(module)
+        if resource_dir is None:
+            continue
         try:
-            macros_dir = importlib.resources.files(module).joinpath("xprompts")
+            macros_dir = importlib.resources.files(module).joinpath(resource_dir)
         except (TypeError, AttributeError):
             continue
 

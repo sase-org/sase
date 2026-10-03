@@ -207,10 +207,10 @@ def testload_macros_from_plugins_with_local_macros(tmp_path: Path, monkeypatch) 
 
     with (
         patch(
-            "sase.macro.loader_sources.discover_plugin_resources",
+            "sase.macro.loader_sources.discover_macro_plugin_modules",
             return_value=[module],
         ),
-        patch("sase.macro.loader_sources.is_plugin_disabled", return_value=False),
+        patch("sase.macro.loader_sources.macro_plugins_disabled", return_value=False),
     ):
         result = load_macros_from_plugins()
 

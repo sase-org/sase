@@ -27,7 +27,10 @@ from sase.content_layout import (
     skill_placement_issue,
     skill_reference_name,
 )
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    macro_plugins_disabled,
+)
 
 from .discovery_order import (
     RANK_PACKAGE_SKILLS,
@@ -52,7 +55,7 @@ _SASE_PACKAGE_SKILLS_RESOURCE = ("macros", "skills")
 SKILL_PLACEMENT_ISSUE_KIND = "skill_placement"
 """``XPromptLoadIssue.kind`` for definitions the placement rules rejected."""
 
-_PLUGIN_XPROMPT_DESTINATION = "the plugin's xprompts/ resource directory"
+_PLUGIN_XPROMPT_DESTINATION = "the plugin's macros/ resource directory"
 _PLUGIN_SKILL_DESTINATION = "the plugin's skills/ resource directory"
 _CONFIG_SKILL_DESTINATION = "a Markdown file in the scope's sase/skills/ directory"
 
@@ -150,8 +153,8 @@ def _macro_destination_for_skill_dir(directory: Path) -> Path | None:
     if parent == directory:
         return None
     if directory.name != "skills" and parent.name == "skills":
-        return parent.parent / "xprompts" / directory.name
-    return parent / "xprompts"
+        return parent.parent / "macros" / directory.name
+    return parent / "macros"
 
 
 def _as_skill(
@@ -226,13 +229,13 @@ def load_skills_from_package() -> dict[str, Macro]:
 
 def load_skills_from_plugins() -> dict[str, Macro]:
     """Load skills from plugins' sibling ``skills/`` resource directories."""
-    if is_plugin_disabled("XPROMPTS"):
+    if macro_plugins_disabled():
         return {}
 
     from .loader_sources import load_plugin_markdown_macros
 
     skills: dict[str, Macro] = {}
-    for module in discover_plugin_resources("sase_xprompts"):
+    for module in discover_macro_plugin_modules():
         for source, macro_def in load_plugin_markdown_macros(module, "skills"):
             skill = _as_skill(
                 macro_def,

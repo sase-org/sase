@@ -261,7 +261,7 @@ def test_checked_in_reads_swarm_declares_one_clan_per_invocation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Every #sase/reads invocation puts its four agents in one reads-<token> clan."""
-    reads_path = Path(__file__).resolve().parents[1] / "sase" / "xprompts" / "reads.md"
+    reads_path = Path(__file__).resolve().parents[1] / "sase" / "macros" / "reads.md"
     source = reads_path.read_text(encoding="utf-8")
     assert "%g:" not in source
     assert "reads.{@1}" not in source

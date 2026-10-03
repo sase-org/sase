@@ -212,11 +212,11 @@ def _save_target_dir(*, project: str | None, use_global: bool, prog: str) -> Pat
 
     if project is not None:
         _reject_path_token(project, label="project", prog=prog)
-        return resolve_home_layout().xprompts.write_path / project
+        return resolve_home_layout().macros.write_path / project
     if use_global:
-        return resolve_home_layout().xprompts.write_path
+        return resolve_home_layout().macros.write_path
     root = discover_project_root() or Path.cwd()
-    return resolve_project_layout(root).xprompts.write_path
+    return resolve_project_layout(root).macros.write_path
 
 
 def _build_save_content(

@@ -102,7 +102,7 @@ def test_build_lsp_argv_errors_without_command(
             repo_root=Path("/missing"),
         )
     except _MacroLspLaunchError as exc:
-        assert "SASE_XPROMPT_LSP_CMD" in str(exc)
+        assert "SASE_MACRO_LSP_CMD" in str(exc)
     else:
         raise AssertionError("expected XPromptLspLaunchError")
 

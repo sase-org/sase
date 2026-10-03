@@ -17,7 +17,11 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from sase.content_layout import discover_project_root, resolve_macro_file_sources
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    macro_plugin_definition_dirname,
+    macro_plugins_disabled,
+)
 from sase.macro.discovery_order import (
     RANK_FILESYSTEM_BASE,
     RANK_PACKAGE_MACROS,
@@ -105,8 +109,9 @@ def _sync_definition_dependencies() -> None:
 def _sync_source_dependencies() -> None:
     """Forward discovery dependencies through the compatibility facade."""
     _sources.resolve_macro_file_sources = resolve_macro_file_sources
-    _sources.discover_plugin_resources = discover_plugin_resources
-    _sources.is_plugin_disabled = is_plugin_disabled
+    _sources.discover_macro_plugin_modules = discover_macro_plugin_modules
+    _sources.macro_plugin_definition_dirname = macro_plugin_definition_dirname
+    _sources.macro_plugins_disabled = macro_plugins_disabled
     _sources.get_sase_package_macros_dir = get_sase_package_macros_dir
     _sources.get_macro_search_paths = get_macro_search_paths
     _sources.canonical_macro_project = canonical_macro_project

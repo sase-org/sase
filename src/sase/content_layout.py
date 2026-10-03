@@ -173,6 +173,7 @@ def resolve_macro_file_sources(
     project_root: Path | str | None = None,
     home_root: Path | str | None = None,
     project: str | None = None,
+    accept_legacy: bool | None = None,
 ) -> tuple[MacroSource, ...]:
     """Return ordered filesystem-backed macro/workflow sources.
 
@@ -180,7 +181,25 @@ def resolve_macro_file_sources(
     compatibility directories.  When *project_root* is omitted, the nearest
     project containing the current directory is used so commands launched
     below a checkout root still see that project's content.
+
+    Retired (``role == "legacy"``) macro definition directories are visible
+    only while the ``legacy_xprompt_syntax`` flag allows it: with the flag
+    off, old definition directories are invisible to expansion, workflow
+    loading, completion, catalogs, and save choices. Only the macro
+    definition role is gated here; the project's legacy ``sase.yml``
+    location is a separate content-layout compatibility surface and can
+    contain valid canonical ``macros``.
     """
+    if accept_legacy is None:
+        try:
+            from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
+            accept_legacy = legacy_xprompt_syntax_enabled()
+        except Exception:
+            # A degraded host (for example a deleted cwd) cannot resolve the
+            # flag snapshot; fail open to the pre-cutover inclusive order so
+            # the existing no-project/cwd fallback below still applies.
+            accept_legacy = True
     if project_root is None:
         root = discover_project_root()
         if root is None:
@@ -200,6 +219,7 @@ def resolve_macro_file_sources(
         for source in layout.macro_sources
         if source.path is not None
         and any(extension in source.formats for extension in ("md", "yml", "yaml"))
+        and (accept_legacy or source.role != "legacy")
     )
 
 

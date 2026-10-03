@@ -186,11 +186,7 @@ def definition_file_for_source(source_id: str | None) -> Path | None:
         if "/" not in remainder:
             return None
         module, filename = remainder.split("/", 1)
-        resolved = _plugin_source(
-            module,
-            filename=f"xprompts/{filename}",
-            capability="sase_xprompts",
-        )
+        resolved = _plugin_macro_source(module, filename)
     elif source_id.startswith("builtin:sase/"):
         resolved = _resource_path("sase", source_id.removeprefix("builtin:sase/"))
     else:
@@ -215,6 +211,26 @@ def _plugin_source(module_name: str, *, filename: str, capability: str) -> Path 
         if module.__name__ != module_name:
             continue
         return _resource_path(module.__name__, filename)
+    return None
+
+
+def _plugin_macro_source(module_name: str, filename: str) -> Path | None:
+    """Resolve one plugin macro definition through consolidated discovery.
+
+    Probes the plugin's ``macros/`` resource directory first and the retired
+    ``xprompts/`` directory only while the ``legacy_xprompt_syntax`` flag
+    allows it.
+    """
+    from sase.main.plugin_discovery import (
+        discover_macro_plugin_modules,
+        macro_plugin_definition_dirname,
+    )
+
+    for module in discover_macro_plugin_modules():
+        if module.__name__ != module_name:
+            continue
+        resource_dir = macro_plugin_definition_dirname(module) or "macros"
+        return _resource_path(module.__name__, f"{resource_dir}/{filename}")
     return None
 
 

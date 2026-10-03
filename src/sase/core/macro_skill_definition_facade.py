@@ -9,7 +9,13 @@ from pathlib import Path
 from typing import Any, cast
 
 from sase.core.rust import require_rust_binding
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    discover_plugin_resources,
+    is_plugin_disabled,
+    macro_plugin_definition_dirname,
+    macro_plugins_disabled,
+)
 from sase.macro.loader_skills import get_sase_package_skills_dir
 
 MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION = 1
@@ -101,24 +107,46 @@ def _require_macro_skill_definition_schema() -> None:
 
 
 def _catalog_options(root_dir: Path | None) -> dict[str, object]:
+    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
+
     package_root = Path(str(importlib.resources.files("sase")))
     return {
         "root_dir": None if root_dir is None else str(root_dir),
-        "package_macros_dir": str(package_root / "xprompts"),
+        "package_macros_dir": str(package_root / "macros"),
         "package_skills_dir": str(get_sase_package_skills_dir(package_root)),
-        "default_macros_dir": str(package_root / "default_xprompts"),
+        "default_macros_dir": str(package_root / "default_macros"),
         "default_config_path": str(package_root / "default_config.yml"),
-        "plugin_macro_dirs": _plugin_resource_dirs("xprompts"),
+        "plugin_macro_dirs": _plugin_macro_dirs(),
         "plugin_skill_dirs": _plugin_resource_dirs("skills"),
         "plugin_config_paths": _plugin_config_paths(),
+        "accept_legacy_xprompt_names": legacy_xprompt_syntax_enabled(),
     }
 
 
-def _plugin_resource_dirs(resource_dir: str) -> dict[str, str]:
-    if is_plugin_disabled("XPROMPTS"):
+def _plugin_macro_dirs() -> dict[str, str]:
+    """Return concrete plugin macro directories, canonical resource first."""
+    if macro_plugins_disabled():
         return {}
     result: dict[str, str] = {}
-    for module in discover_plugin_resources("sase_xprompts"):
+    for module in discover_macro_plugin_modules():
+        resource_dir = macro_plugin_definition_dirname(module)
+        if resource_dir is None:
+            continue
+        try:
+            ref = importlib.resources.files(module).joinpath(resource_dir)
+        except (AttributeError, TypeError):
+            continue
+        path = Path(str(ref))
+        if path.is_dir():
+            result[getattr(module, "__name__", str(module))] = str(path)
+    return result
+
+
+def _plugin_resource_dirs(resource_dir: str) -> dict[str, str]:
+    if macro_plugins_disabled():
+        return {}
+    result: dict[str, str] = {}
+    for module in discover_macro_plugin_modules():
         try:
             ref = importlib.resources.files(module).joinpath(resource_dir)
         except (AttributeError, TypeError):

@@ -25,7 +25,13 @@ from sase.content_layout import (
     resolve_home_layout,
     resolve_project_layout,
 )
-from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    discover_plugin_resources,
+    is_plugin_disabled,
+    macro_plugin_definition_dirname,
+    macro_plugins_disabled,
+)
 from sase.macro.loader import (
     detect_project,
     get_sase_package_default_macros_dir,
@@ -87,9 +93,9 @@ def get_all_xprompt_locations(
     project_root = discover_project_root() or cwd
     project_layout = resolve_project_layout(project_root, home_root=home)
     home_xprompts = (
-        resolve_chezmoi_layout(CHEZMOI_HOME, home_root=home).xprompts.write_path
+        resolve_chezmoi_layout(CHEZMOI_HOME, home_root=home).macros.write_path
         if chezmoi
-        else resolve_home_layout(home).xprompts.write_path
+        else resolve_home_layout(home).macros.write_path
     )
 
     directories: list[XPromptLocation] = []
@@ -101,7 +107,7 @@ def get_all_xprompt_locations(
     directories.append(
         XPromptLocation(
             label=XPROMPT_PROJECT_DIR_LABEL,
-            path=str(project_layout.xprompts.write_path),
+            path=str(project_layout.macros.write_path),
             location_type="directory",
         )
     )
@@ -154,10 +160,13 @@ def get_all_xprompt_locations(
     )
 
     # --- 3. Plugin xprompts directories ---
-    if not is_plugin_disabled("XPROMPTS"):
-        for module in discover_plugin_resources("sase_xprompts"):
+    if not macro_plugins_disabled():
+        for module in discover_macro_plugin_modules():
             try:
-                xprompts_ref = importlib.resources.files(module).joinpath("xprompts")
+                resource_dir = macro_plugin_definition_dirname(module)
+                if resource_dir is None:
+                    continue
+                xprompts_ref = importlib.resources.files(module).joinpath(resource_dir)
                 plugin_path = str(xprompts_ref)
                 short_name = getattr(module, "__name__", str(module)).replace("_", "-")
                 plugin_dirs.append(
