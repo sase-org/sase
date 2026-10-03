@@ -65,6 +65,24 @@ def _resolve_malloc_trim() -> ctypes._NamedFuncPointer | None:
         return _malloc_trim
 
 
+def trim_allocator() -> bool:
+    """Return freed heap arenas to the OS; report whether any moved.
+
+    This is the trim half of :func:`release_idle_memory`, exposed so the
+    TUI's idle-GC policy can release pages after its own collections
+    without running another collection. Never raises: every failure
+    degrades to returning ``False`` and leaving the process exactly as
+    it was.
+    """
+    trim = _resolve_malloc_trim()
+    if trim is None:
+        return False
+    try:
+        return bool(trim(0))
+    except OSError:
+        return False
+
+
 def release_idle_memory() -> bool:
     """Collect garbage and return freed heap to the OS; report whether any moved.
 
@@ -73,10 +91,4 @@ def release_idle_memory() -> bool:
     returning ``False`` and leaving the process exactly as it was.
     """
     gc.collect()
-    trim = _resolve_malloc_trim()
-    if trim is None:
-        return False
-    try:
-        return bool(trim(0))
-    except OSError:
-        return False
+    return trim_allocator()

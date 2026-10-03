@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ...patch import Patch
     from ..modals.notification_modal_tags import NotificationTagTab
     from ..quit_impact import TuiExitImpact
+    from ..util.gc_policy import GCPolicy
     from ..util.gc_telemetry import GCTelemetry
     from textual.timer import Timer
 
@@ -40,6 +41,7 @@ class LifecycleMixin:
     _delivered_notification_activity_cursors: set[NotificationActivityCursor]
     _startup_deferred_fallback_timer: Timer | None
     _gc_telemetry: GCTelemetry | None
+    _gc_policy: GCPolicy | None
 
     def on_unmount(self) -> None:
         """Clean up resources when Textual tears the app down."""
@@ -49,6 +51,7 @@ class LifecycleMixin:
 
         set_startup_window(False)
         stop_tui_heap_sampler(self)
+        self._stop_gc_policy()
         self._stop_gc_telemetry()
         fallback_timer = getattr(self, "_startup_deferred_fallback_timer", None)
         self._startup_deferred_fallback_timer = None
@@ -483,6 +486,19 @@ class LifecycleMixin:
         self._stall_watchdog = None
         try:
             watchdog.stop()
+        except Exception:
+            pass
+
+    def _stop_gc_policy(self) -> None:
+        """Stop the GC idle policy, restoring thresholds and freeze state."""
+        handle = getattr(self, "_gc_policy", None)
+        if handle is None:
+            return
+        self._gc_policy = None
+        try:
+            from ..util.gc_policy import uninstall_gc_policy
+
+            uninstall_gc_policy(handle)
         except Exception:
             pass
 

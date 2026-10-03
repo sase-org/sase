@@ -243,6 +243,7 @@ def init_runtime_state(
     # busy hour with several restarts stays attributable per instance.
     self._app_instance_id = new_app_instance_id()
     self._gc_telemetry = None
+    self._gc_policy = None
 
     # Phase 7 event-driven auto-refresh state.  When the inotify
     # watcher is active, ``_on_artifact_change`` flips the dirty

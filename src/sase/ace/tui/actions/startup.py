@@ -28,6 +28,7 @@ from ._state_init import StateInitMixin
 from ._usage_refresh_fallback import UsageRefreshFallbackMixin
 
 if TYPE_CHECKING:
+    from ..util.gc_policy import GCPolicy
     from ..util.gc_telemetry import GCTelemetry
     from .navigation._types import JumpAllResult
     from ...query_record import QueryRecord
@@ -146,6 +147,7 @@ class StartupMixin(
     _stall_watchdog_suspend_signals_wired: bool
     _app_instance_id: str
     _gc_telemetry: GCTelemetry | None
+    _gc_policy: GCPolicy | None
     _w_patch_list: Any
     _w_patch_detail: Any
     _w_relation_panel: Any

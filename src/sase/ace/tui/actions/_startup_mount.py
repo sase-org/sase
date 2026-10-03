@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ..util.gc_policy import GCPolicy
     from ..util.gc_telemetry import GCTelemetry
 
 log = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ class StartupMountMixin:
 
     _stall_watchdog: Any
     _gc_telemetry: GCTelemetry | None
+    _gc_policy: GCPolicy | None
 
     def on_mount(self: Any) -> None:
         """Set up the app synchronously and defer slow reads until first paint."""
@@ -184,6 +186,18 @@ class StartupMountMixin:
             self._gc_telemetry = install_gc_telemetry(app=self)
         except Exception:
             log.exception("Failed to start GC telemetry")
+
+        try:
+            # Function-local import so the ace testing harness can replace
+            # install with a no-op (mirroring the GC telemetry patch): a
+            # pytest process hosts many app instances, and a raised
+            # threshold2 or gc.freeze() there would change GC behavior for
+            # the whole suite.
+            from ..util.gc_policy import install_gc_policy
+
+            self._gc_policy = install_gc_policy(app=self)
+        except Exception:
+            log.exception("Failed to start GC idle policy")
 
         if self.refresh_interval > 0:
             self._countdown_remaining = self.refresh_interval

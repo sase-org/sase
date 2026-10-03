@@ -957,6 +957,42 @@ window, while `loop_suppressed_episodes` / `loop_suppressed_seconds` (and the pu
 equivalents) count the rate-limited ones. Row counts stay bounded; the totals stay
 exact.
 
+### GC idle-collection policy
+
+The idle-GC policy (`src/sase/ace/tui/util/gc_policy.py`, installed from
+`_start_post_first_paint_services` right after telemetry) keeps automatic gen-2
+collections off the interactive path:
+
+- Once startup loads settle (`_mount_state_loads_done`) and input first goes idle, one
+  `gc.collect()` followed by `gc.freeze()` runs under the `startup_freeze` trigger,
+  exactly once per app instance. It is never re-frozen: cyclic garbage among frozen
+  objects is never reclaimed.
+- On the classic three-generation collector the policy preserves the current `t0`/`t1`
+  and raises `threshold2` to 10_000, so automatic full collections become a rare
+  backstop (about once an hour at 2.9 gen-1/s). Any other collector shape leaves
+  thresholds alone and records `threshold_policy: "unsupported"` (instead of `"raised"`)
+  on the `tui_memory_heartbeat` row; the idle collector still runs.
+- A 1 s tick runs `gc.collect()` on the UI thread only when input has been quiet for 3
+  s, no prompt is active, the navigation gate is idle, no modal screen is accepting text
+  input, at least 60 s have passed since the last full collection of any trigger, and a
+  collection is due (100 gen-1 collections since the last full one). Mouse clicks and
+  scrolls count as input for the quiet window without consuming the events.
+- After 5 minutes without a full collection, or when RSS grew more than 500 MB since the
+  last full one (from the heartbeat's cached sample, never a UI-thread `/proc` read),
+  the quiet window relaxes to 1 s. These run tagged `backstop` / `rss_backstop`; the
+  raised `threshold2` remains the hard backstop.
+- After an idle or backstop collection, freed arenas are released with `malloc_trim` on
+  a daemon worker thread (`sase-tui-gc-trim`, via the `trim_allocator` half of
+  `sase.axe.runner_idle_memory`), at most every 10 minutes.
+
+Confirm it from `tui_gc_pause` rows: intentional collections carry `trigger` values
+`startup_freeze` / `idle` / `backstop` / `rss_backstop`, while anything still tagged
+`"automatic"` started on its own. An idle collection that overlaps a hitch is
+attributable through the same trigger. Disable freeze, threshold, and the idle collector
+with `SASE_TUI_GC_POLICY_DISABLE=1` (telemetry stays on). The policy never auto-installs
+under the `sase.ace.testing` harness, and teardown restores the original thresholds,
+calls `gc.unfreeze()`, and stops the tick timer.
+
 ### Frozen-share report
 
 `tools/tui_freeze_report` is the read-only measuring tool for the freeze epic. It

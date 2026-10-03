@@ -125,3 +125,27 @@ class EventKeyboardMixin(EventHandlersBase):
         """
         self._last_input_action = "text_area_changed"
         self._record_input_event()
+
+    def on_mouse_down(self, _event: events.MouseDown) -> None:
+        """Record mouse presses for input-quiescence timing.
+
+        The event is deliberately not consumed, so clicks keep their
+        normal focus and selection behavior.
+        """
+        self._last_input_action = "mouse_down"
+        self._record_input_event()
+
+    def on_mouse_up(self, _event: events.MouseUp) -> None:
+        """Record mouse releases for input-quiescence timing."""
+        self._last_input_action = "mouse_up"
+        self._record_input_event()
+
+    def on_mouse_scroll_up(self, _event: events.MouseScrollUp) -> None:
+        """Record scrolls for input-quiescence timing without consuming them."""
+        self._last_input_action = "mouse_scroll_up"
+        self._record_input_event()
+
+    def on_mouse_scroll_down(self, _event: events.MouseScrollDown) -> None:
+        """Record scrolls for input-quiescence timing without consuming them."""
+        self._last_input_action = "mouse_scroll_down"
+        self._record_input_event()
