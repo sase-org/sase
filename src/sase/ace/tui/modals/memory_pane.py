@@ -60,8 +60,10 @@ from .memory_panel_travel import MemoryPanelTravelMixin
 from .memory_panel_view import MemoryPanelViewMixin
 from .memory_pane_diff import MemoryPaneDiffMixin
 from .memory_pane_history import MemoryPaneHistoryMixin
+from .memory_pane_lens import MemoryPaneLensMixin
 from .memory_pane_loading import MemoryPaneLoadingMixin
 from .memory_pane_time import MemoryPaneTimeMixin
+from .memory_pane_timeline_lens import MemoryPaneTimelineLensMixin
 from .numbered_link_keys import (
     NUMBERED_LINK_BINDING,
     arm_numbered_link,
@@ -116,9 +118,29 @@ class _MemoryFilterInput(FilterInput):
         return None
 
 
+class _TimeStripLink(Static):
+    """The pinned time strip; clicking it opens the Timeline lens."""
+
+    def on_click(self, _event: events.Click) -> None:
+        node: object | None = self.parent
+        while node is not None:
+            if isinstance(node, MemoryPane) and node._lens == "notes":
+                try:
+                    node.action_history_timeline()
+                except Exception:
+                    pass
+                return
+            node = getattr(node, "parent", None)
+
+
 class MemoryPane(
     CopyModeForwardingMixin,
     SourceFileActionsMixin,
+    # Lens mixins come first so their rail/selection/header/footer and
+    # hand-off overrides win over the Notes paths they re-home; every
+    # fallback delegates explicitly to the owning mixin.
+    MemoryPaneTimelineLensMixin,
+    MemoryPaneLensMixin,
     MemoryPanelActionsMixin,
     MemoryPaneLoadingMixin,
     MemoryPaneHistoryMixin,
@@ -219,15 +241,54 @@ class MemoryPane(
         self._diff_generation = 0
         self._diff_request: tuple[str, str, int, int, int] | None = None
         self._diff_worker: Worker[Any] | None = None
+        self._lens = "notes"
+        self._lens_snapshot = None
+        self._timeline_subject_node = None
+        self._timeline_subject_key: tuple[str, str] | None = None
+        self._timeline_subject_identity: str | None = None
+        self._timeline_rows_all: tuple[dict[str, Any], ...] = ()
+        self._timeline_listed: tuple[dict[str, Any], ...] = ()
+        self._timeline_cursor = 0
+        self._timeline_open_key: tuple[str, str] | None = None
+        self._timeline_base: int | None = None
+        self._timeline_show_hidden = False
+        self._timeline_filter = ""
+        self._timeline_preview_pending = False
+        self._timeline_scheduled = -1
+        self._timeline_has_hidden_line = False
 
     def on_key(self, event: events.Key) -> None:
         from .config_hub_keys import handle_config_hub_subtab_select_key
 
         if handle_config_hub_subtab_select_key(self, event):
             return
+        if self._lens == "timeline" and self._is_timeline_hidden_key(event):
+            # `.` reveals hidden versions in the Timeline lens; chip
+            # shortcuts are inert there (D3 key routing).
+            event.prevent_default()
+            event.stop()
+            try:
+                self.action_history_toggle_hidden()
+            except Exception:
+                pass
+            return
         if handle_numbered_link_key(self, event, follow=self.action_follow_link_number):
             return
         super().on_key(event)
+
+    def _is_timeline_hidden_key(self, event: events.Key) -> bool:
+        """Return whether *event* is the lens-local hidden toggle (``.``)."""
+        try:
+            if event.key == "full_stop":
+                return True
+        except Exception:
+            pass
+        try:
+            if getattr(event, "character", None) == ".":
+                return True
+        except Exception:
+            pass
+        return False
 
     def action_arm_numbered_link(self) -> None:
         arm_numbered_link(self)
@@ -240,7 +301,7 @@ class MemoryPane(
                 yield OptionList(id=_NOTE_LIST_ID)
                 with Vertical(id="memory-panel-detail"):
                     yield Static("", id="memory-panel-card-title")
-                    yield Static("", id="memory-panel-time-strip")
+                    yield _TimeStripLink("", id="memory-panel-time-strip")
                     with VerticalScroll(id="memory-panel-card-scroll"):
                         yield Static("", id="memory-panel-card-description")
                         yield Markdown("", id="memory-panel-card-body")
@@ -305,11 +366,16 @@ class MemoryPane(
         self.focus_default()
 
     def action_close(self) -> None:
-        # Esc ladder: the filter closes first, then a past pin returns
-        # to now, then the host closes. `q` closes directly.
+        # Esc ladder: the filter closes first, then the lens, then a past
+        # pin returns to now, then the host closes. `q` closes directly.
         try:
             if self._filter_input().display:
                 self._close_filter()
+                return
+        except Exception:
+            pass
+        try:
+            if self._lens_exit_if_in_lens():
                 return
         except Exception:
             pass

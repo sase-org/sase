@@ -105,7 +105,7 @@ def test_footer_names_read_in_diff_view() -> None:
     )
     assert moment is not None
     verbs = step_footer_verbs(moment, keymaps=MemoryPanelKeymaps())
-    assert verbs == ("( v1", ") v3", "} now", "= read")
+    assert verbs == ("( v1", ") v3", "} now", "= read", "@")
 
 
 def test_footer_diff_verb_uses_configured_key() -> None:
@@ -116,7 +116,19 @@ def test_footer_diff_verb_uses_configured_key() -> None:
     assert moment is not None
     keymaps = MemoryPanelKeymaps(history_toggle_diff="!")
     verbs = step_footer_verbs(moment, keymaps=keymaps)
-    assert verbs[-1] == "! read"
+    assert verbs[-2] == "! read"
+    assert verbs[-1] == "@"
+
+
+def test_footer_timeline_verb_uses_configured_key() -> None:
+    timeline = _timeline(_row(1), _row(2))
+    moment = card_moment_for_view(
+        timeline, subject_id="note:x", pin_ordinal=1, view="read"
+    )
+    assert moment is not None
+    keymaps = MemoryPanelKeymaps(history_timeline="T")
+    verbs = step_footer_verbs(moment, keymaps=keymaps)
+    assert verbs[-1] == "T"
 
 
 def _stub_mixin(timelines: dict | None = None, **state: object) -> SimpleNamespace:

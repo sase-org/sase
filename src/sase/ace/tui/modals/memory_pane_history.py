@@ -243,6 +243,14 @@ class MemoryPaneHistoryMixin(_MixinBase):
         except Exception:
             pass
 
+    def _history_explicit_base(self) -> bool:
+        """Return whether the pager hand-off carries an explicit base.
+
+        Notes hand-offs never do; the Timeline lens overrides this to
+        carry its ``b`` base when the cursor sits on now.
+        """
+        return False
+
     def _history_invalidate_scope_key(
         self, scope_key: str, *, clear_failures: bool = False
     ) -> None:
@@ -413,12 +421,17 @@ class MemoryPaneHistoryMixin(_MixinBase):
                         carried_view, carried_base = self._history_diff_carry()
                     except Exception:
                         carried_view, carried_base = "read", None
+                    try:
+                        explicit = bool(self._history_explicit_base())
+                    except Exception:
+                        explicit = False
                     return build_history_document(
                         scope=scope,
                         subject=core_selector,
                         initial_revision=self._history_initial_revision(),
                         view=carried_view,
                         compare_base=carried_base,
+                        explicit_base=explicit,
                         service=service,
                         title=selector,
                     )
@@ -472,6 +485,13 @@ class MemoryPaneHistoryMixin(_MixinBase):
 
     def action_open_changes(self) -> None:
         """Open the cross-file changes feed for the enabled scopes."""
+        try:
+            # Lenses are entered from Notes only; the other lens key is
+            # inert inside a lens (the Changes lens arrives in sase-1ev.7).
+            if getattr(self, "_lens", "notes") != "notes":
+                return
+        except Exception:
+            pass
         if not self._ring:
             return
         ring = tuple(self._ring)

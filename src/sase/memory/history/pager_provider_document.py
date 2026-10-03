@@ -29,10 +29,16 @@ def build_history_document(
     initial_revision: str | None = None,
     view: str = "read",
     compare_base: str | None = None,
+    explicit_base: bool = False,
     service: HistoryService | None = None,
     title: str | None = None,
 ) -> PagerDocument:
-    """Build a selector-based pager document for later panel/feed phases."""
+    """Build a selector-based pager document for later panel/feed phases.
+
+    *explicit_base* marks a base the Timeline lens set: only then may
+    a ``now`` target compare against a committed base instead of the
+    default endpoints (mirrors ``VersionPin.explicit_base``).
+    """
     active = service or HistoryService()
     selector = subject
     revision = initial_revision or "now"
@@ -77,6 +83,8 @@ def build_history_document(
         pin: VersionPin = live_pin_for_subject(subject_id)
         if requested_view == "diff":
             pin = replace(pin, view="diff")
+        if explicit_base and base_ordinal is not None and base_ordinal > 0:
+            pin = replace(pin, compare_base=base_ordinal, explicit_base=True)
     else:
         pin = committed_pin_for_ordinal(
             subject_id,

@@ -185,9 +185,8 @@ def card_moment_for_view(
 def step_footer_verbs(moment: Any, *, keymaps: Any) -> tuple[str, ...]:
     """Return the footer step verbs for *moment* with configured keys.
 
-    The stepping verbs (``(`` ``)`` ``}``) plus the diff toggle
-    (``=``): the ``@`` verb belongs to a later phase whose key does not
-    exist yet, so showing it would advertise a dead key.
+    The stepping verbs (``(`` ``)`` ``}``), the diff toggle (``=``),
+    and the Timeline lens (``@``).
     """
     try:
         from sase.pager.history_kit import time_verbs_for_moment
@@ -202,9 +201,10 @@ def step_footer_verbs(moment: Any, *, keymaps: Any) -> tuple[str, ...]:
             ")": key_display_name(keymaps.history_newer),
             "}": key_display_name(keymaps.history_now),
             "=": key_display_name(keymaps.history_toggle_diff),
+            "@": key_display_name(keymaps.history_timeline),
         }
     except Exception:
-        key_for = {"(": "(", ")": ")", "}": "}", "=": "="}
+        key_for = {"(": "(", ")": ")", "}": "}", "=": "=", "@": "@"}
     shown: list[str] = []
     for text, label in verbs:
         glyph = str(text or "")[:1]

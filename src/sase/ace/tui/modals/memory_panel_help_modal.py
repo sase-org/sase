@@ -87,8 +87,10 @@ class MemoryPanelHelpModal(ModalScreen[None]):
             "\n✖ DELETED · v12 — the deletion tombstone"
             "\n( older version · ) newer version · { first version · } now"
             "\n= toggles the word-diff view (sticky for the pane session)"
+            "\n@ turns the rail into the subject's timeline (▸ cursor, ● open, ◇ base)"
+            "\nb sets the compare base in the Timeline lens; . reveals hidden versions"
             "\nH opens the pager at the exact version on screen"
-            "\nEsc returns to now before closing; o always edits now"
+            "\nEsc peels filter, then lens, then pin, before closing; o always edits now"
         )
         text.append(legend, style="dim")
         return text

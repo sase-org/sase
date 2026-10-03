@@ -7951,6 +7951,20 @@ the panel has recorded (or tried to record) an audited read for it: selecting a 
 card records an audited read the same way `sase memory read <web>:<keyword>` does, so
 previewing a strand in the panel is itself an attributable access, not a silent peek.
 
+`@` turns the rail into the selected subject's timeline: one row per version in the
+pager picker's exact cells, with `▸` on the cursor, `●` on the version the card showed
+when the lens opened, and `◇` on the compare base. The highlight moves at once while the
+card previews through the usual 150 ms debounce (a `loading vN…` strip covers the
+fetch); rail motion pushes no trail entries and never changes the Notes filter. `b`
+marks the cursor row as the compare base (again clears it); the footer reads
+`Compare vA → vB · b clear`, oldest first, or `Same version`. `.` reveals hidden
+versions (chip shortcuts are inert in the lens) and `/` filters the version rows. `⏎`,
+`l`, and `H` open the pager at the cursor's pin, view, and base -- a `now` target can
+compare against a committed base. Leaving (`Esc`, `@`, or `h`) restores the Notes rail
+exactly (cursor, filter, expansion, trail) while the card stays on the cursor's version,
+so a second `Esc` returns it to now. `C` is inert inside the lens, and `r` or a scope
+switch leaves the lens first. Clicking the time strip opens the lens.
+
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
 scope resolved through the active [`use_chezmoi`](configuration.md#use_chezmoi) mode,

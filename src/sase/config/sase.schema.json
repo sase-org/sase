@@ -2873,6 +2873,18 @@
                   "type": "string",
                   "description": "Toggle the memory card word-diff view"
                 },
+                "history_timeline": {
+                  "type": "string",
+                  "description": "Open or close the Timeline lens"
+                },
+                "history_compare_base": {
+                  "type": "string",
+                  "description": "Set or clear the Timeline lens compare base"
+                },
+                "history_toggle_hidden": {
+                  "type": "string",
+                  "description": "Reveal hidden versions in the Timeline lens"
+                },
                 "copy_body": {
                   "type": "string",
                   "description": "Copy the selected note's body"
