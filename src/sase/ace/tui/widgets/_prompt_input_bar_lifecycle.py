@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
@@ -11,6 +12,8 @@ from textual.widgets import Static
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from textual.widget import Widget
@@ -107,21 +110,54 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         if self._mode in ("feedback", "approve_prompt"):
             self.add_class("feedback-mode")
         self._schedule_xprompt_stale_check(force=True)
+        # First-keystroke essentials stay synchronous: xprompt assist entries
+        # and the VCS project completion catalog were measured, and moving
+        # them would delay the first keystroke.
         text_area._warm_current_xprompt_assist_entries()
-        text_area._warm_current_artifact_ref_completion_catalog()
         text_area._warm_vcs_project_completion_catalog()
-        text_area._warm_model_completion_catalog()
-        text_area._warm_prompt_path_inventory()
-        text_area._warm_history_word_completion_cache()
-        text_area._warm_prompt_prediction_cache()
-        text_area._warm_common_placeholder_cache()
         text_area._on_prompt_completion_context_changed()
-        self._warm_dispatch_target_catalog()
         self._refresh_dispatch_context_line()
         self._apply_active_classes()
         self.auto_show_frontmatter_panel()
         self._schedule_height_update()
         self.refresh_cursor_readouts()
+        self._schedule_deferred_mount_warmups()
+
+    def _schedule_deferred_mount_warmups(self) -> None:
+        """Defer non-essential catalog warm-ups one paint past first paint.
+
+        Phase ``post-open-quiet``: the bar paints (focus, cursor, chrome, and
+        first-keystroke completion) before the artifact-ref, model,
+        path-inventory, history-word, prediction, placeholder, and
+        dispatch-target warm-ups run.
+        """
+        try:
+            self.app.call_after_refresh(self._run_deferred_mount_warmups)
+        except Exception:
+            self._run_deferred_mount_warmups()
+
+    def _run_deferred_mount_warmups(self) -> None:
+        """Run the warm-ups deferred by :meth:`_schedule_deferred_mount_warmups`."""
+        try:
+            if not self.is_mounted:
+                return
+            text_area = self.active_text_area()
+        except Exception:
+            return
+        warmups = (
+            text_area._warm_current_artifact_ref_completion_catalog,
+            text_area._warm_model_completion_catalog,
+            text_area._warm_prompt_path_inventory,
+            text_area._warm_history_word_completion_cache,
+            text_area._warm_prompt_prediction_cache,
+            text_area._warm_common_placeholder_cache,
+            self._warm_dispatch_target_catalog,
+        )
+        for warm in warmups:
+            try:
+                warm()
+            except Exception:
+                log.debug("Deferred prompt-bar warmup failed", exc_info=True)
 
     def on_unmount(self) -> None:
         """Withdraw the explicit prompt-active reference for this bar."""

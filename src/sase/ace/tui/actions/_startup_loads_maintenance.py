@@ -7,6 +7,23 @@ from typing import Any, cast
 
 log = logging.getLogger(__name__)
 
+#: First-open prompt-bar modules pre-imported during deferred startup
+#: maintenance (phase ``post-open-quiet``). Importing them at idle, after
+#: first paint, keeps the first ``<space>`` from paying their import cost on
+#: the key-to-paint path. Entries must stay import-side-effect free; each is
+#: attempted independently so one failure never breaks startup.
+PROMPT_BAR_FIRST_MOUNT_MODULES: tuple[str, ...] = (
+    "sase.ace.tui.widgets.prompt_input_bar",
+    "sase.dispatch.machine_catalog",
+    "sase.ace.tui.agent_tabs_launch_view",
+    "sase.macro.directive_edit",
+    "sase.ace.tui.agent_tabs_settings",
+    "sase.ace.tui.widgets.agent_tab_strip",
+    "sase.ace.tui.models.agent_tab_descriptors",
+    "sase.ace.tui.modals.launch_tab_picker_modal",
+    "sase.ace.tui.actions.agents._agent_tabs_catalog",
+)
+
 
 class StartupLoadsMaintenanceMixin:
     """Mixin for deferred maintenance, post-roster warmups, and prunes."""
@@ -128,6 +145,33 @@ class StartupLoadsMaintenanceMixin:
                 schedule_link_index(source=f"startup_{reason}")
             except Exception:
                 log.debug("Failed to schedule startup link index", exc_info=True)
+        try:
+            self._schedule_prompt_bar_import_warm()
+        except Exception:
+            log.debug("Failed to schedule prompt-bar import warm", exc_info=True)
+
+    def _schedule_prompt_bar_import_warm(self: Any) -> None:
+        """Pre-import first-open prompt-bar modules off the event loop."""
+        try:
+            self.run_worker(
+                cast(Any, self._run_prompt_bar_import_warm),
+                name="prompt-bar-import-warm",
+                group="startup-loads",
+                exclusive=False,
+                thread=True,
+            )
+        except Exception:
+            log.debug("Failed to schedule prompt-bar import warm", exc_info=True)
+
+    def _run_prompt_bar_import_warm(self: Any) -> None:
+        """Import :data:`PROMPT_BAR_FIRST_MOUNT_MODULES` into ``sys.modules``."""
+        import importlib
+
+        for name in PROMPT_BAR_FIRST_MOUNT_MODULES:
+            try:
+                importlib.import_module(name)
+            except Exception:
+                log.debug("Prompt-bar import warm failed for %s", name, exc_info=True)
 
     def _schedule_agents_post_roster_startup_work(
         self: Any,

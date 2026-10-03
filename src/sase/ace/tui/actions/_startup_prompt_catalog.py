@@ -60,6 +60,7 @@ class StartupPromptCatalogMixin:
         tuple[str, ...],
     ]
     _prompt_repo_mention_warming_contexts: set[PromptRepoMentionContext]
+    _pending_selected_agent_semantic_refresh: bool
 
     def get_snippets(self: Any) -> dict[str, str]:
         """Return the memory-only xprompt + user snippet registry."""
@@ -237,7 +238,7 @@ class StartupPromptCatalogMixin:
             return
         self._prompt_glossary_catalogs_by_context[context] = result.catalog
         self._prompt_glossary_diagnostics_by_context[context] = result.diagnostics
-        self._refresh_visible_prompt_semantic_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces(context)
 
     def _invalidate_prompt_glossary_catalogs(self: Any, *, reason: str) -> None:
         """Drop warm glossary catalogs after config/project source changes."""
@@ -246,11 +247,18 @@ class StartupPromptCatalogMixin:
         self._prompt_glossary_catalogs_by_context = {}
         self._prompt_glossary_diagnostics_by_context = {}
         self._prompt_glossary_warming_contexts = set()
-        self._refresh_visible_prompt_semantic_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces(global_change=True)
 
-    def _refresh_visible_prompt_glossary_surfaces(self: Any) -> None:
+    def _refresh_visible_prompt_glossary_surfaces(
+        self: Any,
+        context: PromptGlossaryContext | None = None,
+        *,
+        global_change: bool = False,
+    ) -> None:
         """Refresh mounted prompt panes that may show glossary spans."""
-        self._refresh_visible_prompt_semantic_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces(
+            context, global_change=global_change
+        )
 
     def get_prompt_repo_mention_catalog(
         self: Any,
@@ -329,7 +337,7 @@ class StartupPromptCatalogMixin:
             return
         self._prompt_repo_mention_catalogs_by_context[context] = result.catalog
         self._prompt_repo_mention_diagnostics_by_context[context] = result.diagnostics
-        self._refresh_visible_prompt_semantic_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces(context)
 
     def _invalidate_prompt_repo_mention_catalogs(self: Any, *, reason: str) -> None:
         """Drop warm repo-mention catalogs after config/project source changes."""
@@ -338,13 +346,25 @@ class StartupPromptCatalogMixin:
         self._prompt_repo_mention_catalogs_by_context = {}
         self._prompt_repo_mention_diagnostics_by_context = {}
         self._prompt_repo_mention_warming_contexts = set()
-        self._refresh_visible_prompt_semantic_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces(global_change=True)
 
-    def _refresh_visible_prompt_repo_mention_surfaces(self: Any) -> None:
+    def _refresh_visible_prompt_repo_mention_surfaces(
+        self: Any,
+        context: PromptRepoMentionContext | None = None,
+        *,
+        global_change: bool = False,
+    ) -> None:
         """Refresh mounted prompt panes that may show repo-mention spans."""
-        self._refresh_visible_prompt_semantic_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces(
+            context, global_change=global_change
+        )
 
-    def _refresh_visible_prompt_semantic_surfaces(self: Any) -> None:
+    def _refresh_visible_prompt_semantic_surfaces(
+        self: Any,
+        context: PromptGlossaryContext | PromptRepoMentionContext | None = None,
+        *,
+        global_change: bool = False,
+    ) -> None:
         """Refresh prompt-input overlays and the selected Agents detail."""
         try:
             from ..widgets.prompt_text_area import PromptTextArea
@@ -355,20 +375,128 @@ class StartupPromptCatalogMixin:
         for text_area in text_areas:
             if not getattr(text_area, "is_mounted", False):
                 continue
+            if not getattr(text_area, "display", True):
+                continue
+            if not getattr(text_area, "visible", True):
+                continue
             try:
                 text_area._build_highlight_map()
                 text_area.refresh()
             except Exception:
                 log.debug("Failed to refresh prompt semantic surface", exc_info=True)
-        self._schedule_selected_agent_semantic_refresh()
+        self._schedule_selected_agent_semantic_refresh(
+            context, global_change=global_change
+        )
 
-    def _schedule_selected_agent_semantic_refresh(self: Any) -> None:
-        """Repaint the selected Agents detail through the shared debouncer."""
+    def _semantic_context_matches_selected_agent(self: Any, context: Any) -> bool:
+        """Return True when *context* can affect the selected Agents detail.
+
+        The comparison mirrors the ``(project, workspace)`` derivation in
+        ``agent_prompt_highlight_context``: a warm for another context cannot
+        change what the detail shows for the selected agent. Hosts without a
+        selected-agent accessor keep the legacy always-repaint behavior, and
+        an empty selection never needs a context-scoped repaint.
+        """
+        get_selected = getattr(self, "_get_selected_agent", None)
+        if not callable(get_selected):
+            return True
+        try:
+            agent = get_selected()
+        except Exception:
+            return True
+        if agent is None:
+            return False
+        try:
+            project_ref = getattr(context, "project_ref", None)
+            launch_workspace = getattr(context, "launch_workspace", None)
+        except Exception:
+            return True
+        agent_project: str | None = None
+        try:
+            project_file = getattr(agent, "project_file", None)
+            if isinstance(project_file, str) and project_file:
+                from pathlib import Path
+
+                agent_project = Path(project_file).parent.name or None
+        except Exception:
+            agent_project = None
+        agent_workspace: str | None = None
+        try:
+            workspace_dir = getattr(agent, "workspace_dir", None)
+            if isinstance(workspace_dir, str) and workspace_dir:
+                agent_workspace = workspace_dir
+        except Exception:
+            agent_workspace = None
+        return project_ref == agent_project and launch_workspace == agent_workspace
+
+    def _schedule_selected_agent_semantic_refresh(
+        self: Any,
+        context: PromptGlossaryContext | PromptRepoMentionContext | None = None,
+        *,
+        global_change: bool = False,
+    ) -> None:
+        """Repaint the selected Agents detail through the shared debouncer.
+
+        Phase ``post-open-quiet``: a context-scoped warm repaints only when
+        its context matches the selected agent. While a prompt is active the
+        repaint is deferred instead, and ``_detach_prompt_bar`` flushes it
+        once on dismissal. A missing context (or ``global_change``) keeps the
+        legacy always-repaint behavior.
+        """
+        if getattr(self, "current_tab", None) != "agents":
+            return
+        prompt_active = getattr(self, "_prompt_input_active", None)
+        try:
+            active = bool(prompt_active()) if callable(prompt_active) else False
+        except Exception:
+            active = False
+        if active:
+            try:
+                self._pending_selected_agent_semantic_refresh = True
+            except Exception:
+                log.debug(
+                    "Failed to record pending agent semantic refresh", exc_info=True
+                )
+            return
+        if not global_change and context is not None:
+            try:
+                matches = self._semantic_context_matches_selected_agent(context)
+            except Exception:
+                matches = True
+            if not matches:
+                return
+        refresh = getattr(self, "_refresh_agent_focus_detail", None)
+        if callable(refresh):
+            refresh(render_immediate=False)
+
+    def _flush_pending_selected_agent_semantic_refresh(self: Any) -> None:
+        """Repaint once after dismissal if warms landed while prompted.
+
+        Called from the prompt-bar detach path; coalesces every deferred
+        repaint into a single debounced detail refresh.
+        """
+        try:
+            pending = bool(
+                getattr(self, "_pending_selected_agent_semantic_refresh", False)
+            )
+        except Exception:
+            return
+        if not pending:
+            return
+        try:
+            self._pending_selected_agent_semantic_refresh = False
+        except Exception:
+            pass
         if getattr(self, "current_tab", None) != "agents":
             return
         refresh = getattr(self, "_refresh_agent_focus_detail", None)
         if callable(refresh):
-            refresh(render_immediate=False)
+            try:
+                refresh(render_immediate=False)
+            except Exception:
+                log.debug(
+                    "Failed to flush pending agent semantic refresh", exc_info=True
+                )
 
     def _ensure_prompt_catalog_project(self: Any, project: str | None) -> None:
         """Track requested project catalogs; watches grow off the pump.
@@ -539,6 +667,10 @@ class StartupPromptCatalogMixin:
         for text_area in text_areas:
             if not getattr(text_area, "is_mounted", False):
                 continue
+            if not getattr(text_area, "display", True):
+                continue
+            if not getattr(text_area, "visible", True):
+                continue
             try:
                 completion_kind = str(getattr(text_area, "_completion_kind", ""))
                 invalidate_artifact_refs = getattr(
@@ -560,4 +692,4 @@ class StartupPromptCatalogMixin:
                 text_area._on_prompt_completion_context_changed()
             except Exception:
                 log.debug("Failed to refresh prompt catalog surface", exc_info=True)
-        self._schedule_selected_agent_semantic_refresh()
+        self._schedule_selected_agent_semantic_refresh(global_change=True)

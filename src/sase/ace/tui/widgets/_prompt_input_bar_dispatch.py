@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
@@ -435,8 +436,6 @@ class PromptInputBarDispatchMixin(_MixinBase):
         ctx = getattr(self.app, "_prompt_context", None)
         project_file = getattr(ctx, "project_file", "") if ctx is not None else ""
         if isinstance(project_file, str) and project_file:
-            from pathlib import Path
-
             project = Path(project_file).expanduser().parent.name
             if project:
                 return project

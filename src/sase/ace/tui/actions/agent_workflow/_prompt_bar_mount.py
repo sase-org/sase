@@ -256,6 +256,17 @@ class PromptBarMountMixin:
                 self._active_prompt_bar = None
         except Exception:  # noqa: BLE001 - explicit state is best-effort.
             pass
+        # Phase ``post-open-quiet``: catalog warms that landed while the prompt
+        # was active deferred the Agents-detail repaint; flush it once here so
+        # dismissal shows the fresh detail without an extra key-to-paint cost.
+        flush_detail = getattr(
+            self, "_flush_pending_selected_agent_semantic_refresh", None
+        )
+        if callable(flush_detail):
+            try:
+                flush_detail()
+            except Exception:  # noqa: BLE001 - detail repaint is best-effort.
+                pass
         # Detaching the bar dismisses its session: drop any pending
         # `<space>` late prefill so a later publish cannot resurrect text
         # into a newer session. `invalidate_prompt_session` already clears

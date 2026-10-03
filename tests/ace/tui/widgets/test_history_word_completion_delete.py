@@ -90,6 +90,9 @@ async def test_smart_mode_ctrl_d_deletes_instantly_without_rebuilding_index() ->
     index = seeded_index([("review", "260814_000000"), ("revise", "260813_000000")])
     app = RankedHistoryCompletionTestApp(index)
     async with app.run_test() as pilot:
+        # Post-open-quiet staggers non-essential mount warm-ups one paint out;
+        # settle that deferred mount work so only the delete is measured below.
+        await pilot.pause()
         ta = app.query_one(PromptTextArea)
         ta.load_text("re")
         ta.cursor_location = (0, 2)
