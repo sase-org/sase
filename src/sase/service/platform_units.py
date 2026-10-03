@@ -43,6 +43,7 @@ def render_systemd_unit(
         "Restart=on-failure",
         "RestartSec=5",
         "KillMode=mixed",
+        "OOMPolicy=continue",
         f"Environment=SASE_SERVICE_ENV={_systemd_quote(str(env_path))}",
         f"Environment=SASE_SERVICE_UNIT={_systemd_quote(unit_identity)}",
     ]

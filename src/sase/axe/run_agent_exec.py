@@ -36,6 +36,7 @@ from sase.axe.run_agent_helpers import (
     read_and_delete_marker,
 )
 from sase.axe.runner_signals import killed_at, reset_killed, was_killed
+from sase.axe.runner_kill_provenance import record_kill_provenance
 from sase.agent.gate_intent import discard_gate_intents
 from sase.agent.user_kill import has_user_kill_intent
 from sase.history.chat import generate_chat_filename, get_chat_file_path
@@ -47,7 +48,6 @@ from sase.llm_provider.gate_intent_guard import (
     gate_intent_lost_error_for,
     raise_if_gate_intent_lost,
 )
-from sase.telemetry.metrics import AGENT_KILLS
 
 __all__ = [
     "AgentExecContext",
@@ -166,7 +166,7 @@ def _handle_killed_iteration(
         read_and_delete_marker(state.current_artifacts_dir, ".sase_monitor_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_gate_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_pipe_pending")
-        AGENT_KILLS.labels(reason="user").inc()
+        record_kill_provenance(state.current_artifacts_dir, state, kill_time=kill_time)
         return "killed"
 
     plan_data = read_and_delete_marker(
@@ -201,7 +201,9 @@ def _handle_killed_iteration(
     if pipe_data and _marker_predates_kill(pipe_data, kill_time):
         return handle_pipe_marker(pipe_data, ctx, state)
 
-    AGENT_KILLS.labels(reason="user").inc()
+    # Neither a user kill nor a handoff: an external teardown (OOM policy on
+    # the launcher's scope, a manual kill, a host stop). Record it as such.
+    record_kill_provenance(state.current_artifacts_dir, state, kill_time=kill_time)
     return "killed"
 
 

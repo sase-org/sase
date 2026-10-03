@@ -38,6 +38,7 @@ def test_linux_unit_render_contract(
     assert "Restart=on-failure" in content
     assert "RestartSec=5" in content
     assert "KillMode=mixed" in content
+    assert "OOMPolicy=continue" in content
     assert "WantedBy=default.target" in content
     assert "ExecStart=" in content
     assert "service run" in content

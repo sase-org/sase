@@ -100,6 +100,8 @@ def build_done_marker(
     repeat_stopped: bool = False,
     stopped_by: str | None = None,
     finished_at: float | None = None,
+    kill_source: str | None = None,
+    kill_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a done marker dict for writing to done.json."""
     marker: dict[str, Any] = {
@@ -164,6 +166,12 @@ def build_done_marker(
         marker["repeat_stopped"] = True
         if stopped_by:
             marker["stopped_by"] = stopped_by
+    # Kill provenance is additive and only recorded for killed runs, so
+    # lifecycle, retry, and UI consumers keying on ``outcome`` are unaffected.
+    if kill_source:
+        marker["kill_source"] = kill_source
+        if kill_evidence:
+            marker["kill_evidence"] = kill_evidence
     return marker
 
 

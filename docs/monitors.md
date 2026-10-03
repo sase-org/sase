@@ -434,9 +434,10 @@ it runs, before any expensive import, closing the startup window in which a stra
 could kill it silently.
 
 On Linux, when the starter runs inside a SASE-owned systemd unit or scope such as
-`sase.service`, the supervisor also moves into its own transient
-`systemd-run --user --scope`, so restarting that service does not kill a running
-monitor. Set `SASE_DETACH_SCOPE_DISABLE=1` to opt out.
+`sase.service` or under a reachable user systemd manager, the supervisor also moves into
+its own transient `systemd-run --user --scope` (with `OOMPolicy=continue`), so
+restarting that service does not kill a running monitor. Set
+`SASE_DETACH_SCOPE_DISABLE=1` to opt out.
 
 ### A start is fast, and never silent
 

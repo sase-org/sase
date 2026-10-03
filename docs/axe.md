@@ -17,7 +17,11 @@ Two commands own two different layers:
 - **`sase service`** owns the **service host**: the per-machine host process
   (`sase service run`) that starts, restarts, and stops that machine's service procs.
   `sase service init` registers it as a platform unit — a systemd user unit on Linux, a
-  launchd LaunchAgent on macOS — so it starts at boot or login.
+  launchd LaunchAgent on macOS — so it starts at boot or login. The Linux unit sets
+  `OOMPolicy=continue` next to `KillMode=mixed`, so one OOM-killed routine child no
+  longer stops the whole host (an OOM-killed host main process still fails and restarts
+  via `Restart=on-failure`). Existing installs compare stale against the rendered unit,
+  so they show as stale until the normal service install or init path rewrites them.
 - **`sase scheduler`** owns the **scheduler service proc**: the builtin service proc
   that runs the automation. Its start, stop, restart, and status commands route through
   the `scheduler` service proc on the service host; `sase scheduler run` execs the
@@ -1671,11 +1675,24 @@ and workflow (CRS, fix-hook, summarize) runners, the file-hook batch runner, the
 bead sync worker, and the chat-install worker — escapes into its own transient scope
 (for example `sase-agent-*`, `sase-proc-*`, `sase-monitor-*`, `sase-hook-*`, or
 `sase-mentor-*`) whenever the launching process already runs inside a SASE-owned systemd
-unit (`sase.service` or another `sase-*` scope or service), so stopping or restarting
-the scheduler or a SASE service does not tear down the agents and procs it launched.
-Outside a SASE-owned unit, children keep the ordinary new-session detach; on macOS they
-always detach into a new session. Set `SASE_DETACH_SCOPE_DISABLE=1` to turn off the
-child escape.
+unit (`sase.service` or another `sase-*` scope or service) **or** the user's systemd
+manager is reachable (the launcher's cgroup sits under `user@<uid>.service`, or the user
+bus socket exists), so stopping or restarting the scheduler, a SASE service, or the
+launching terminal or tmux pane scope does not tear down the agents and procs it
+launched. SASE scopes carry `OOMPolicy=continue`, so one OOM-killed process no longer
+stops the whole scope. Outside a reachable user manager, children keep the ordinary
+new-session detach; on macOS they always detach into a new session. Set
+`SASE_DETACH_SCOPE_DISABLE=1` to turn off the child escape.
+
+This matters because an OOM kill in a terminal or tmux pane scope used to SIGTERM every
+agent launched from it: systemd's default `OOMPolicy=stop` stops the whole scope after
+one OOM kill, and agents launched from the TUI shared the TUI pane's cgroup. A SIGTERM
+that is neither an explicit user kill nor a handoff is now recorded as an **external**
+kill: the runner log prints a `Kill source: external ...` line (with the cgroup's
+OOM-kill count when available), the `AGENT_KILLS` metric uses `reason="external"`, and
+`done.json` gains the additive `kill_source` (`"user"` or `"external"`) and optional
+`kill_evidence` (`cgroup_unit` plus `oom_kill_delta`) keys on killed runs. `outcome`
+stays `"killed"`.
 
 ## sase's TUI Integration
 

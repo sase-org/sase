@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.agent.pending_handoff import MONITOR_PENDING_MARKER, PENDING_HANDOFF_MARKERS
 from sase.axe.run_agent_monitor_handoff import monitor_handoff_claim_transferred
+from sase.axe.runner_kill_provenance import snapshot_oom_baseline
 from sase.axe.runner_signals import install_sigterm_handler, was_killed
 
 _NON_MONITOR_HANDOFF_MARKERS = tuple(
@@ -35,6 +36,8 @@ def install_workspace_release_sigterm_handler(
     artifacts_dir_getter: Callable[[], str | None] | None = None,
 ) -> None:
     """Release this runner's workspace claim promptly on SIGTERM."""
+
+    snapshot_oom_baseline()
 
     def _release_workspace_claim() -> None:
         if is_home_mode:

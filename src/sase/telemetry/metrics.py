@@ -129,7 +129,7 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "AGENT_KILLS",
         "counter",
         "sase_agent_kills_total",
-        "Total agent kills (reason=user for SIGTERM from TUI; reason=error for unhandled exceptions)",
+        "Total agent kills (reason=user for explicit user kills; reason=external for SIGTERM with no user-kill intent or handoff marker; reason=error for unhandled exceptions)",
         ["reason"],
         {},
     ),

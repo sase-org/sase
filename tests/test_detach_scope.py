@@ -27,6 +27,16 @@ def _proc_root(tmp_path: Path, cgroup: str) -> Path:
     return proc_root
 
 
+def _section(output: str, begin: str, end: str) -> str:
+    lines = output.splitlines()
+    try:
+        start = lines.index(begin)
+        stop = lines.index(end)
+    except ValueError:
+        return ""
+    return "\n".join(lines[start + 1 : stop])
+
+
 def test_process_systemd_unit_parses_scope_and_service(tmp_path: Path) -> None:
     scope_root = _proc_root(
         tmp_path / "scope",
@@ -71,6 +81,7 @@ def test_detach_scope_wraps_inside_sase_cgroup(
         "sase.detach_scope.shutil.which",
         lambda name: "/usr/bin/systemd-run" if name == "systemd-run" else None,
     )
+    monkeypatch.setattr("sase.detach_scope._systemd_run_version", lambda _path: None)
 
     launch = detach_scope(
         ["/usr/bin/sase", "agent"],
@@ -96,6 +107,7 @@ def test_detach_scope_wraps_inside_sase_cgroup(
         escaped=True,
         method="systemd-run",
         parent_unit="sase.service",
+        escape_reason="sase_unit",
     )
 
 
@@ -122,11 +134,13 @@ def test_detach_scope_noops_without_systemd_run(
     assert launch.parent_unit == "sase.service"
 
 
-def test_detach_scope_noops_outside_sase_cgroup(
+def test_detach_scope_noops_outside_user_manager(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    proc_root = _proc_root(tmp_path, "0::/user.slice/app.slice/session-2.scope\n")
+    proc_root = _proc_root(tmp_path, "0::/kubepods/besteffort/session-2.scope\n")
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
     monkeypatch.delenv(DETACH_SCOPE_DISABLE_ENV, raising=False)
     monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
     monkeypatch.setattr("sase.detach_scope.sys.platform", "linux")
@@ -141,10 +155,12 @@ def test_detach_scope_noops_outside_sase_cgroup(
         description="SASE agent runner",
         unit_prefix="sase-agent",
         proc_root=proc_root,
+        runtime_dir=runtime_dir,
     )
 
     assert launch.argv == ["sase", "agent"]
     assert launch.escaped is False
+    assert launch.escape_reason is None
     assert launch.parent_unit == "session-2.scope"
 
 
@@ -171,6 +187,210 @@ def test_detach_scope_honors_disable_env(
     assert launch.argv == ["sase", "agent"]
     assert launch.escaped is False
     assert launch.parent_unit is None
+
+
+def test_detach_scope_escapes_from_tmux_scope_via_user_manager(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proc_root = _proc_root(
+        tmp_path,
+        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/tmux-spawn-abc.scope\n",
+    )
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    monkeypatch.delenv(DETACH_SCOPE_DISABLE_ENV, raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
+    monkeypatch.setattr("sase.detach_scope.sys.platform", "linux")
+    monkeypatch.setattr("sase.detach_scope.os.getpid", lambda: 123)
+    monkeypatch.setattr("sase.detach_scope.os.getuid", lambda: 1000)
+    monkeypatch.setattr(
+        "sase.detach_scope.shutil.which",
+        lambda name: "/usr/bin/systemd-run" if name == "systemd-run" else None,
+    )
+    monkeypatch.setattr("sase.detach_scope._systemd_run_version", lambda _p: None)
+
+    launch = detach_scope(
+        ["sase", "agent"],
+        description="SASE agent runner",
+        unit_prefix="sase-agent",
+        proc_root=proc_root,
+        runtime_dir=runtime_dir,
+    )
+
+    assert launch.argv[:4] == [
+        "/usr/bin/systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+    ]
+    assert launch.escaped is True
+    assert launch.escape_reason == "user_manager"
+    assert launch.parent_unit == "tmux-spawn-abc.scope"
+
+
+def test_detach_scope_ignores_other_uid_user_manager(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proc_root = _proc_root(
+        tmp_path,
+        "0::/user.slice/user-1001.slice/user@1001.service/app.slice/tmux-spawn-abc.scope\n",
+    )
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    monkeypatch.delenv(DETACH_SCOPE_DISABLE_ENV, raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
+    monkeypatch.setattr("sase.detach_scope.sys.platform", "linux")
+    monkeypatch.setattr("sase.detach_scope.os.getpid", lambda: 123)
+    monkeypatch.setattr("sase.detach_scope.os.getuid", lambda: 1000)
+    monkeypatch.setattr(
+        "sase.detach_scope.shutil.which",
+        lambda name: "/usr/bin/systemd-run" if name == "systemd-run" else None,
+    )
+
+    launch = detach_scope(
+        ["sase", "agent"],
+        description="SASE agent runner",
+        unit_prefix="sase-agent",
+        proc_root=proc_root,
+        runtime_dir=runtime_dir,
+    )
+
+    assert launch.argv == ["sase", "agent"]
+    assert launch.escaped is False
+    assert launch.escape_reason is None
+
+
+def test_detach_scope_escapes_via_runtime_socket(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proc_root = _proc_root(tmp_path, "0::/user.slice/app.slice/session-2.scope\n")
+    runtime_dir = tmp_path / "runtime"
+    (runtime_dir / "systemd").mkdir(parents=True)
+    (runtime_dir / "systemd" / "private").write_bytes(b"")
+    monkeypatch.delenv(DETACH_SCOPE_DISABLE_ENV, raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
+    monkeypatch.setattr("sase.detach_scope.sys.platform", "linux")
+    monkeypatch.setattr("sase.detach_scope.os.getpid", lambda: 123)
+    monkeypatch.setattr(
+        "sase.detach_scope.shutil.which",
+        lambda name: "/usr/bin/systemd-run" if name == "systemd-run" else None,
+    )
+    monkeypatch.setattr("sase.detach_scope._systemd_run_version", lambda _p: None)
+
+    launch = detach_scope(
+        ["sase", "agent"],
+        description="SASE agent runner",
+        unit_prefix="sase-agent",
+        proc_root=proc_root,
+        runtime_dir=runtime_dir,
+    )
+
+    assert launch.escaped is True
+    assert launch.escape_reason == "user_manager"
+    assert launch.parent_unit == "session-2.scope"
+
+
+def test_detach_scope_disable_env_wins_over_user_manager(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proc_root = _proc_root(
+        tmp_path,
+        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/tmux-spawn-abc.scope\n",
+    )
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    monkeypatch.setenv(DETACH_SCOPE_DISABLE_ENV, "1")
+    monkeypatch.setattr("sase.detach_scope.sys.platform", "linux")
+    monkeypatch.setattr("sase.detach_scope.os.getpid", lambda: 123)
+    monkeypatch.setattr("sase.detach_scope.os.getuid", lambda: 1000)
+    monkeypatch.setattr(
+        "sase.detach_scope.shutil.which",
+        lambda name: "/usr/bin/systemd-run" if name == "systemd-run" else None,
+    )
+
+    launch = detach_scope(
+        ["sase", "agent"],
+        description="SASE agent runner",
+        unit_prefix="sase-agent",
+        proc_root=proc_root,
+        runtime_dir=runtime_dir,
+    )
+
+    assert launch.argv == ["sase", "agent"]
+    assert launch.escaped is False
+    assert launch.escape_reason is None
+    assert launch.parent_unit is None
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [(255, True), (243, True), (241, False), (None, False)],
+)
+def test_detach_scope_oom_policy_gated_by_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    version: int | None,
+    expected: bool,
+) -> None:
+    proc_root = _proc_root(tmp_path, "0::/user.slice/app.slice/sase.service\n")
+    monkeypatch.delenv(DETACH_SCOPE_DISABLE_ENV, raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
+    monkeypatch.setattr("sase.detach_scope.sys.platform", "linux")
+    monkeypatch.setattr("sase.detach_scope.os.getpid", lambda: 123)
+    monkeypatch.setattr(
+        "sase.detach_scope.shutil.which",
+        lambda name: "/usr/bin/systemd-run" if name == "systemd-run" else None,
+    )
+    monkeypatch.setattr("sase.detach_scope._systemd_run_version", lambda _p: version)
+
+    launch = detach_scope(
+        ["sase", "agent"],
+        description="SASE agent runner",
+        unit_prefix="sase-agent",
+        proc_root=proc_root,
+    )
+
+    assert ("--property=OOMPolicy=continue" in launch.argv) is expected
+
+
+def test_systemd_run_version_parses_first_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess as _subprocess
+
+    from sase.detach_scope import _systemd_run_version
+
+    def _run(stdout: str, returncode: int = 0):
+        def _fake(*_args: object, **_kwargs: object) -> object:
+            return _subprocess.CompletedProcess(
+                args=["systemd-run", "--version"],
+                returncode=returncode,
+                stdout=stdout,
+                stderr="",
+            )
+
+        return _fake
+
+    _systemd_run_version.cache_clear()
+    monkeypatch.setattr(
+        "sase.detach_scope.subprocess.run", _run("systemd 255 (255.4-1ubuntu3)\n")
+    )
+    assert _systemd_run_version("/fake/run-255") == 255
+
+    _systemd_run_version.cache_clear()
+    monkeypatch.setattr(
+        "sase.detach_scope.subprocess.run", _run("not systemd at all\n")
+    )
+    assert _systemd_run_version("/fake/run-bogus") is None
+
+    _systemd_run_version.cache_clear()
+    monkeypatch.setattr("sase.detach_scope.subprocess.run", _run("", returncode=1))
+    assert _systemd_run_version("/fake/run-fail") is None
+    _systemd_run_version.cache_clear()
 
 
 def test_detach_scope_uses_setsid_on_macos(
@@ -547,3 +767,93 @@ def test_live_scope_preserves_lock_fd_through_detach(
         except OSError:
             pass
         _os.close(lock_fd)
+
+
+def test_live_scope_reports_oom_policy_continue(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.detach_scope import _systemd_run_version, _user_manager_reachable
+
+    if sys.platform != "linux":
+        pytest.skip("Linux-only cgroup regression")
+    monkeypatch.delenv(DETACH_SCOPE_DISABLE_ENV, raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
+    parent_unit = _current_systemd_unit()
+    if not (_is_sase_owned_systemd_unit(parent_unit) or _user_manager_reachable()):
+        pytest.skip("test process is not under a SASE unit or user manager")
+    systemd_run = shutil.which("systemd-run")
+    if systemd_run is None:
+        pytest.skip("systemd-run is unavailable")
+    if shutil.which("systemctl") is None:
+        pytest.skip("systemctl is unavailable")
+
+    # The child reports its own cgroup and its own scope's OOMPolicy, so the
+    # parent never polls the user manager for a transient unit that may still
+    # be registering. `systemd-run --scope` runs synchronously, so the child
+    # output arrives via communicate().
+    probe = tmp_path / "oom_probe.py"
+    probe.write_text(
+        "import subprocess, time\n"
+        "from pathlib import Path\n"
+        "cgroup = Path('/proc/self/cgroup').read_text()\n"
+        "print('CGROUP-BEGIN')\n"
+        "print(cgroup, end='')\n"
+        "print('CGROUP-END')\n"
+        "unit = None\n"
+        "for _line in cgroup.splitlines():\n"
+        "    _parts = _line.split(':', 2)\n"
+        "    _path = _parts[2] if len(_parts) == 3 else _line\n"
+        "    for _comp in [p for p in _path.split('/') if p]:\n"
+        "        if _comp.endswith(('.scope', '.service')):\n"
+        "            unit = _comp\n"
+        "print(f'UNIT={unit}')\n"
+        "shown = ''\n"
+        "for _ in range(20):\n"
+        "    if unit is None:\n"
+        "        break\n"
+        "    _r = subprocess.run(\n"
+        "        ['systemctl', '--user', 'show', unit,\n"
+        "         '-p', 'LoadState', '-p', 'OOMPolicy'],\n"
+        "        capture_output=True, text=True, timeout=10, check=False,\n"
+        "    )\n"
+        "    shown = _r.stdout\n"
+        "    if 'LoadState=loaded' in shown:\n"
+        "        break\n"
+        "    time.sleep(0.5)\n"
+        "print('SHOW-BEGIN')\n"
+        "print(shown, end='')\n"
+        "print('SHOW-END')\n",
+        encoding="utf-8",
+    )
+    launch = detach_scope(
+        [sys.executable, str(probe)],
+        description="SASE detach-scope OOMPolicy regression",
+        unit_prefix="sase-detach-oom-test",
+    )
+    if not launch.escaped:
+        pytest.skip("detach_scope did not escape in this environment")
+    version = _systemd_run_version(systemd_run)
+    assert ("--property=OOMPolicy=continue" in launch.argv) == (
+        version is not None and version >= 243
+    )
+    if "--property=OOMPolicy=continue" not in launch.argv:
+        pytest.skip("systemd is too old for scope OOMPolicy")
+
+    result = subprocess.run(
+        launch.argv,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if result.returncode != 0:
+        pytest.skip(f"systemd-run failed: {result.stderr.strip()[-500:]}")
+    parent_cgroup = Path("/proc/self/cgroup").read_text(encoding="utf-8")
+    child_cgroup = _section(result.stdout, "CGROUP-BEGIN", "CGROUP-END")
+    assert child_cgroup.strip()
+    assert child_cgroup != parent_cgroup
+    show = _section(result.stdout, "SHOW-BEGIN", "SHOW-END")
+    if "LoadState=loaded" not in show:
+        pytest.skip("user manager did not report the transient scope")
+    assert "OOMPolicy=continue" in show

@@ -54,8 +54,12 @@ from sase.axe.run_agent_runner_signals import is_user_kill_exit, system_exit_cod
 from sase.axe.run_agent_runner_scratch import cleanup_launch_scratch
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.axe.runner_artifacts import all_steps_hidden
+from sase.axe.runner_kill_provenance import (
+    record_kill_provenance,
+    snapshot_oom_baseline,
+)
 from sase.axe.runner_reporting import write_error_report
-from sase.axe.runner_signals import install_sigterm_handler, was_killed
+from sase.axe.runner_signals import install_sigterm_handler, killed_at, was_killed
 from sase.axe.source_skew import snapshot_source_revision
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -66,6 +70,7 @@ from sase.llm_provider.gate_intent_guard import find_gate_intent_lost_error
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
+snapshot_oom_baseline()
 
 # Editable sase installs can fast-forward while a detached runner spends hours
 # waiting. Capture the imported code's checkout identity before that wait starts.
@@ -305,6 +310,11 @@ def main() -> None:
             if is_user_kill_exit(e):
                 state.exec_outcome = "killed"
                 state.suppress_completion_notification = True
+                record_kill_provenance(
+                    state.current_artifacts_dir or state.artifacts_dir,
+                    None,
+                    kill_time=killed_at(),
+                )
                 raise
 
             state.success = False

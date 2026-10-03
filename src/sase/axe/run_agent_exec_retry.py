@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING, Literal
 
 from sase.axe.run_agent_exec_attempts import snapshot_attempt
 from sase.axe.run_agent_helpers import append_meta_list_field
-from sase.axe.runner_signals import was_killed
+from sase.axe.runner_kill_provenance import record_kill_provenance
+from sase.axe.runner_signals import killed_at, was_killed
 from sase.axe.runner_workspace import (
     prepare_workspace,
     prepare_workspace_with_reclone,
@@ -383,6 +384,11 @@ def handle_workflow_error(
                 break
             time.sleep(1)
         if was_killed():
+            record_kill_provenance(
+                state.current_artifacts_dir or ctx.artifacts_dir,
+                state,
+                kill_time=killed_at(),
+            )
             state.loop_outcome = "killed"
             return "break"
 

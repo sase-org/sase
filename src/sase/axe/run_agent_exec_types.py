@@ -96,6 +96,11 @@ class LoopState:
     continuation_prepared_ref: str | None = None
     continuation_node_id: str | None = None
     continuation_manifest_ref: str | None = None
+    # Kill provenance for runs that end in ``outcome: "killed"``: ``"user"``
+    # for an explicit user-kill intent, ``"external"`` for a SIGTERM with no
+    # user-kill intent or handoff marker, plus optional OOM evidence.
+    kill_source: str | None = None
+    kill_evidence: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.question_base_prompt:

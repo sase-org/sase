@@ -547,10 +547,13 @@ fabricated. A reboot yields truthful reconciliation (`lost`), never a rerun. One
 is not an exactly-once guarantee for external side effects: a lost acknowledgement
 retried by the caller creates a second run, and each run executes once.
 
-Platform note: a terminal-launched proc stays in the terminal's cgroup unless its
-`detach_scope` escapes to a scope; closing the terminal then still reaches the run.
-`show` on a run whose owner row or logs were pruned reports the owner and the log as no
-longer retained, by name — the summary survives.
+Platform note: on Linux a terminal-launched proc escapes into its own transient
+`systemd-run --user --scope` (with `OOMPolicy=continue`) whenever the user's systemd
+manager is reachable, so closing the terminal no longer reaches the run; where no user
+manager is reachable the proc stays in the terminal's cgroup unless its `detach_scope`
+escapes, and closing the terminal then still reaches the run. `show` on a run whose
+owner row or logs were pruned reports the owner and the log as no longer retained, by
+name — the summary survives.
 
 ## In the TUI
 

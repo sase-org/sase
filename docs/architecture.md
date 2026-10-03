@@ -129,11 +129,13 @@ of the matching `sase scheduler` command, which routes through the `scheduler` s
 proc on the host.
 
 On Linux, when detached work starts inside a SASE-owned systemd unit or scope (such as
-`sase.service` or another `sase-*` scope or service), agent runners, launch-admission
-coordinators, proc and monitor supervisors, the scheduler's hook/checks/mentor/workflow
-runners, file-hook batch runners, the bead sync worker, and the chat-install worker move
-into their own transient user scopes, so restarting that service does not kill them.
-`SASE_DETACH_SCOPE_DISABLE=1` turns this off.
+`sase.service` or another `sase-*` scope or service) or anywhere under a reachable user
+systemd manager (a tmux pane, terminal, or ssh session scope), agent runners,
+launch-admission coordinators, proc and monitor supervisors, the scheduler's
+hook/checks/mentor/workflow runners, file-hook batch runners, the bead sync worker, and
+the chat-install worker move into their own transient user scopes with
+`OOMPolicy=continue`, so restarting that service — or an OOM teardown of the launching
+terminal scope — does not kill them. `SASE_DETACH_SCOPE_DISABLE=1` turns this off.
 
 ## Agent, Monitor, and Gate Turns
 
