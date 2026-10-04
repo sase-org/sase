@@ -336,6 +336,106 @@ def test_dev_update_failure_exits_one_and_does_not_restart(tmp_path: Path) -> No
     assert "uv-tool venv failed" in text
 
 
+def test_core_binding_failure_has_distinct_restart_status_in_json(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    host = _record("sase", role="host", source_root="/home/u/sase")
+    journal_path = tmp_path / "dev_update.jsonl"
+    monkeypatch.setattr(journal_mod, "DEV_UPDATE_JOURNAL", str(journal_path))
+
+    def _execute(plan: DevUpdatePlan, *, run: Any) -> DevUpdateResult:
+        package = plan.packages[0]
+        return DevUpdateResult(
+            changed=True,
+            outcomes=(
+                DevUpdateOutcome(
+                    record=package.record,
+                    status="failed",
+                    reason="binding checker: argument_list_continuation_edit missing",
+                    old_version=package.current_version,
+                    new_version=package.latest_version,
+                    git_root=package.git_root,
+                ),
+            ),
+            core_bindings_verified=False,
+        )
+
+    def _unexpected_restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
+        raise AssertionError("failed core binding verification must not restart")
+
+    code = handle_update_command(
+        _args(json=True),
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        inventory_fn=lambda: _inventory(host),
+        plan_dev_update_fn=lambda records, **_kwargs: _dev_plan(*records),
+        execute_dev_update_fn=_execute,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_unexpected_restart,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["restart"]["status"] == "skipped_core_bindings"
+    assert "sase-core-rs" in payload["restart"]["message"]
+    assert payload["dev"]["core_bindings_verified"] is False
+    journal = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert journal["result"]["core_bindings_verified"] is False
+    assert journal["restart"]["status"] == "skipped_core_bindings"
+
+
+def test_core_binding_failure_explains_cli_restart_skip(
+    tmp_path: Path,
+) -> None:
+    host = _record("sase", role="host", source_root="/home/u/sase")
+    plan = _dev_plan(host)
+
+    def _execute(_plan: DevUpdatePlan, *, run: Any) -> DevUpdateResult:
+        package = _plan.packages[0]
+        return DevUpdateResult(
+            changed=True,
+            outcomes=(
+                DevUpdateOutcome(
+                    record=package.record,
+                    status="failed",
+                    reason="argument_list_continuation_edit missing",
+                    old_version=package.current_version,
+                    new_version=package.latest_version,
+                    git_root=package.git_root,
+                ),
+            ),
+            core_bindings_verified=False,
+        )
+
+    out = _console()
+    err = _console()
+
+    def _unexpected_restart(**_kwargs: Any) -> ServiceProcActionOutcome:
+        raise AssertionError("failed core binding verification must not restart")
+
+    code = handle_update_command(
+        _args(),
+        console=out,
+        err_console=err,
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        inventory_fn=lambda: _inventory(host),
+        plan_dev_update_fn=lambda records, **_kwargs: plan,
+        execute_dev_update_fn=_execute,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_unexpected_restart,
+        version_fn=_versions,
+    )
+
+    assert code == 1
+    rendered = _text(out)
+    assert "Scheduler Restart" in rendered
+    assert "sase-core-rs" in rendered
+    assert "rerun `sase update`" in rendered
+
+
 def test_upgrade_json_counts_exclude_receipt_duplicates(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

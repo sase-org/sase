@@ -144,6 +144,7 @@ def _dev_result_json(
                 "duration_seconds": round(result.duration_seconds, 3),
                 "counts": dev_counts(result),
                 "rust_prebuild": _dev_rust_prebuild_json(result),
+                "core_bindings_verified": result.core_bindings_verified,
                 "packages": [_dev_outcome_json(outcome) for outcome in result.outcomes],
                 "commands": [_dev_command_json(command) for command in result.commands],
             }

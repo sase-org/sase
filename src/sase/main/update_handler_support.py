@@ -171,6 +171,8 @@ def _restart_detail(restart: RestartInfo) -> str:
         return "skipped · no code changed"
     if restart.status == "skipped_not_running":
         return "skipped · not running"
+    if restart.status == "skipped_core_bindings":
+        return f"skipped · {restart.reason or restart.message}"
     if restart.message:
         return restart.message
     return restart.status

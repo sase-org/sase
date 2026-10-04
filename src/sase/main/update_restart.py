@@ -39,6 +39,20 @@ def restart_skipped(*, changed: bool) -> RestartInfo:
     )
 
 
+def restart_skipped_core_bindings() -> RestartInfo:
+    """Skip restart when the installed Rust extension failed binding checks."""
+    reason = (
+        "sase-core-rs is missing bindings required by this sase version; clean or "
+        "update the sase-core checkout to the pinned revision, then rerun `sase update`"
+    )
+    return RestartInfo(
+        attempted=False,
+        status="skipped_core_bindings",
+        message=f"Scheduler restart skipped because {reason}.",
+        reason=reason,
+    )
+
+
 def restart_scheduler_service_proc(
     *,
     reason: str | None = None,

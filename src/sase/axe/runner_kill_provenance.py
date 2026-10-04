@@ -36,29 +36,29 @@ _OOM_BASELINE: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
-class KillProvenance:
+class _KillProvenance:
     """Kill-source classification plus optional OOM evidence."""
 
     source: str
     evidence: dict[str, Any] | None = None
 
 
-def classify_runner_kill(
+def _classify_runner_kill(
     artifacts_dir: str,
     *,
     kill_time: float | None = None,
     proc_root: Path = Path("/proc"),
     sysfs_root: Path = Path("/sys/fs/cgroup"),
-) -> KillProvenance:
+) -> _KillProvenance:
     """Classify a runner SIGTERM without consuming any marker files."""
 
     if has_user_kill_intent(artifacts_dir):
-        return KillProvenance(source="user")
+        return _KillProvenance(source="user")
     if _handoff_marker_predates_kill(artifacts_dir, kill_time):
-        return KillProvenance(source="handoff")
-    return KillProvenance(
+        return _KillProvenance(source="handoff")
+    return _KillProvenance(
         source="external",
-        evidence=oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root),
+        evidence=_oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root),
     )
 
 
@@ -75,6 +75,7 @@ def snapshot_oom_baseline(
     """
 
     global _OOM_BASELINE
+    _reset_oom_baseline()
     try:
         baseline = _read_oom_state(proc_root=proc_root, sysfs_root=sysfs_root)
     except Exception:
@@ -82,14 +83,14 @@ def snapshot_oom_baseline(
     _OOM_BASELINE = baseline
 
 
-def reset_oom_baseline() -> None:
+def _reset_oom_baseline() -> None:
     """Clear the snapshot (tests and loop-iteration boundaries)."""
 
     global _OOM_BASELINE
     _OOM_BASELINE = None
 
 
-def oom_kill_evidence(
+def _oom_kill_evidence(
     *,
     proc_root: Path = Path("/proc"),
     sysfs_root: Path = Path("/sys/fs/cgroup"),
@@ -127,7 +128,7 @@ def record_kill_provenance(
     kill_time: float | None = None,
     proc_root: Path = Path("/proc"),
     sysfs_root: Path = Path("/sys/fs/cgroup"),
-) -> KillProvenance:
+) -> _KillProvenance:
     """Classify a runner SIGTERM, count it, and stash it on *state*.
 
     Handoff kills keep their existing outcome handling: no metric and no
@@ -141,14 +142,14 @@ def record_kill_provenance(
     import sys as _sys
 
     try:
-        provenance = classify_runner_kill(
+        provenance = _classify_runner_kill(
             artifacts_dir,
             kill_time=kill_time,
             proc_root=proc_root,
             sysfs_root=sysfs_root,
         )
     except Exception:
-        return KillProvenance(source="external")
+        return _KillProvenance(source="external")
     if provenance.source == "handoff":
         return provenance
     try:
@@ -165,13 +166,13 @@ def record_kill_provenance(
             pass
     if provenance.source == "external":
         try:
-            print(format_kill_classification(provenance), file=_sys.stderr)
+            print(_format_kill_classification(provenance), file=_sys.stderr)
         except Exception:
             pass
     return provenance
 
 
-def format_kill_classification(provenance: KillProvenance) -> str:
+def _format_kill_classification(provenance: _KillProvenance) -> str:
     """Render the one-line kill-source classification for the runner log."""
 
     if provenance.source != "external":
@@ -269,10 +270,6 @@ def _unit_from_cgroup_path(path: str) -> str | None:
 
 __all__ = [
     "HANDOFF_MARKERS",
-    "KillProvenance",
-    "classify_runner_kill",
-    "format_kill_classification",
-    "oom_kill_evidence",
-    "reset_oom_baseline",
+    "record_kill_provenance",
     "snapshot_oom_baseline",
 ]

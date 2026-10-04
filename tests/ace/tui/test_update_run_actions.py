@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from sase.dev_update.models import DevUpdateResult
 from sase.ace.comprehensive_update import (
     ComprehensiveSaseUpdateResult,
     ComprehensiveUpdateResult,
@@ -401,6 +402,41 @@ def test_code_changed_result_restarts(
         "SASE, core & plugins: sase updated; Agent CLIs: no captured work"
     ]
     assert harness.messages == []
+
+
+def test_failed_core_binding_check_shows_error_without_restarting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    written: list[object] = []
+    monkeypatch.setattr(
+        "sase.ace.update_receipt.build_update_receipt",
+        lambda _result: object(),
+    )
+    monkeypatch.setattr(
+        "sase.ace.update_receipt.write_pending_update_toast",
+        written.append,
+    )
+    harness = _Harness()
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.UPDATED,
+            "sase updated",
+            DevUpdateResult(
+                changed=True,
+                outcomes=(),
+                core_bindings_verified=False,
+            ),
+        )
+    )
+
+    harness._on_scoped_update_complete(_completion(result, message="sase updated"))
+
+    assert harness.restarts == []
+    assert written == []
+    assert len(harness.messages) == 1
+    assert harness.messages[0][1] == "error"
+    assert "sase-core-rs" in harness.messages[0][0]
+    assert "rerun `sase update`" in harness.messages[0][0]
 
 
 def test_code_changed_result_restarts_immediately_with_monitor_turn(

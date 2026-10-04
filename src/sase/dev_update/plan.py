@@ -9,11 +9,13 @@ import sys
 import tomllib
 from collections import OrderedDict
 from collections.abc import Collection
+from dataclasses import replace
 from pathlib import Path
 
 from packaging.requirements import InvalidRequirement, Requirement
 
 from sase.dev_update.command import DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS
+from sase.dev_update.core_pin import CorePin, core_contains_revision, read_core_pin
 from sase.dev_update.models import (
     DevPackagePlanStatus,
     DevReconcileStep,
@@ -162,11 +164,17 @@ def plan_dev_update(
                     fetch_error=fetch_error,
                 )
             )
-    _finish_check_step(progress, root_plans)
-
     stale_core_plan = _stale_core_plan(stale_core_record, host_record=host_record)
     if stale_core_plan is not None:
         packages.append(stale_core_plan)
+
+    _apply_core_pin_gate(
+        packages,
+        root_plans,
+        host_record=host_record,
+        editable_core_record=_editable_core_record(records),
+    )
+    _finish_check_step(progress, root_plans)
 
     editable_core_record = _editable_core_record(records)
     reconcile_steps = _reconcile_steps(
@@ -184,6 +192,179 @@ def plan_dev_update(
         packages=tuple(packages),
         roots=tuple(root_plans),
         reconcile_steps=reconcile_steps,
+    )
+
+
+def _apply_core_pin_gate(
+    packages: list[DevUpdatePackagePlan],
+    roots: list[DevUpdateRootPlan],
+    *,
+    host_record: VersionPackageRecord,
+    editable_core_record: VersionPackageRecord | None,
+) -> None:
+    """Keep the editable host and its Rust extension on compatible revisions."""
+    if host_record.source_root is None:
+        return
+
+    host_package = next(
+        (package for package in packages if package.record.name == host_record.name),
+        None,
+    )
+    host_root = next(
+        (root for root in roots if host_record.name in root.packages),
+        None,
+    )
+    if host_package is None or host_root is None:
+        return
+
+    core_root_path: Path | None = None
+    core_root_plan: DevUpdateRootPlan | None = None
+    if editable_core_record is not None and editable_core_record.source_root:
+        core_package = next(
+            (
+                package
+                for package in packages
+                if package.record.name == editable_core_record.name
+            ),
+            None,
+        )
+        if core_package is not None and core_package.git_root:
+            core_root_path = Path(core_package.git_root)
+        else:
+            core_root_path = Path(editable_core_record.source_root)
+        core_root_plan = next(
+            (root for root in roots if root.git_root == str(core_root_path)), None
+        )
+        if core_root_plan is None:
+            core_root_plan = next(
+                (root for root in roots if editable_core_record.name in root.packages),
+                None,
+            )
+    else:
+        core_root_path = _core_checkout_dir(host_record)
+
+    if core_root_path is None:
+        return
+
+    actionable_host = host_root.status == "actionable"
+    host_ref = (
+        host_root.upstream
+        if actionable_host and host_root.upstream is not None
+        else "HEAD"
+    )
+    core_ref = (
+        core_root_plan.upstream
+        if core_root_plan is not None
+        and core_root_plan.status == "actionable"
+        and core_root_plan.upstream is not None
+        else "HEAD"
+    )
+    pin = read_core_pin(Path(host_record.source_root), host_ref)
+    if pin is None:
+        return
+
+    contained = core_contains_revision(core_root_path, pin.sha, core_ref)
+    if actionable_host and contained is False:
+        reason = _core_pin_gate_reason(
+            pin,
+            core_root_plan=core_root_plan,
+            core_ref=core_ref,
+        )
+        roots[:] = [
+            replace(root, status="skipped", reason=reason)
+            if root.git_root == host_root.git_root
+            else root
+            for root in roots
+        ]
+        packages[:] = [
+            replace(package, status="skipped", reason=reason)
+            if package.git_root == host_root.git_root
+            else package
+            for package in packages
+        ]
+    elif actionable_host or contained is not False:
+        return
+
+    host_head_pin = (
+        pin
+        if host_ref == "HEAD"
+        else read_core_pin(Path(host_record.source_root), "HEAD")
+    )
+    if host_head_pin is None:
+        return
+    head_contained = core_contains_revision(core_root_path, host_head_pin.sha, core_ref)
+    if head_contained is not False:
+        return
+    core_name = (
+        editable_core_record.name
+        if editable_core_record is not None
+        else "sase-core-rs"
+    )
+    core_reason = _core_pin_gate_reason(
+        host_head_pin,
+        core_root_plan=core_root_plan,
+        core_ref=core_ref,
+        installed_host=True,
+    )
+    if core_root_plan is not None and core_root_plan.status == "actionable":
+        roots[:] = [
+            replace(
+                root,
+                status="skipped",
+                reason=f"{root.reason}; {core_reason}",
+            )
+            if root.git_root == core_root_plan.git_root
+            else root
+            for root in roots
+        ]
+    packages[:] = [
+        replace(
+            package,
+            status="skipped",
+            reason=f"{package.reason}; {core_reason}",
+        )
+        if (
+            package.record.name == core_name
+            or (
+                core_root_plan is not None
+                and package.git_root == core_root_plan.git_root
+            )
+        )
+        else package
+        for package in packages
+    ]
+
+
+def _core_pin_gate_reason(
+    pin: CorePin,
+    *,
+    core_root_plan: DevUpdateRootPlan | None,
+    core_ref: str,
+    installed_host: bool = False,
+) -> str:
+    pin_name = f"sase-core {pin.short_sha} ({pin.pin_file})"
+    if core_root_plan is not None and core_root_plan.status == "actionable":
+        core_state = (
+            f"the actionable sase-core upstream {core_ref} does not contain the "
+            "pinned revision"
+        )
+    elif core_root_plan is not None:
+        core_state = (
+            "the sase-core checkout does not contain the pinned revision "
+            f"({core_root_plan.reason})"
+        )
+    else:
+        core_state = (
+            f"the sase-core checkout at {core_ref} does not contain the pinned revision"
+        )
+    if installed_host:
+        return (
+            f"{pin_name} is required by the installed sase, but {core_state}, so "
+            "sase_core_rs may be missing bindings"
+        )
+    return (
+        f"needs {pin_name}, but {core_state}; clean or update the sase-core checkout "
+        "to include the pin, then rerun `sase update`"
     )
 
 
@@ -421,6 +602,29 @@ def _reconcile_steps(
                 )
             )
         steps.append(_rust_health_check_step(host_record, tool_python=tool_python))
+        if host_record.source_root:
+            host_root = Path(host_record.source_root)
+            binding_checker = host_root / "tools" / "check_sase_core_rs_bindings"
+            if binding_checker.is_file():
+                python = tool_python or sys.executable
+                remedy = (
+                    "Clean or update the sase-core checkout to the revision pinned by "
+                    "this sase checkout, then rerun `sase update`."
+                )
+                steps.append(
+                    DevReconcileStep(
+                        kind="rust_binding_check",
+                        label="Verify sase-core-rs exposes the bindings sase requires",
+                        command=(
+                            python,
+                            str(binding_checker),
+                            "--src",
+                            str(host_root / "src" / "sase"),
+                            "--remedy",
+                            remedy,
+                        ),
+                    )
+                )
 
     return tuple(steps)
 

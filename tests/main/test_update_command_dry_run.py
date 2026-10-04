@@ -8,8 +8,9 @@ from typing import Any
 
 import pytest
 
-from sase.dev_update.models import DevUpdatePlan
+from sase.dev_update.models import DevUpdatePackagePlan, DevUpdatePlan
 from sase.main.update_handler import handle_update_command
+from sase.main.update_render import render_dev_update_dry_run
 from sase.uv_tool.runner import UvChangeSet
 from sase.version.inventory import VersionPackageRecord
 from tests.main.update_command_helpers import (
@@ -126,6 +127,53 @@ def test_dev_dry_run_renders_plan_without_executing(tmp_path: Path) -> None:
     assert "SASE Update (dry run)" in text
     assert "fetch + fast-forward" in text
     assert "Reinstall uv-tool editable Python packages" in text
+
+
+def test_dry_run_table_shows_host_pin_gate_and_enriched_core_reason() -> None:
+    host = _record("sase", role="host", source_root="/home/u/sase")
+    core = _record("sase-core-rs", role="core", source_root="/home/u/sase-core")
+    plan = DevUpdatePlan(
+        packages=(
+            DevUpdatePackagePlan(
+                record=host,
+                status="skipped",
+                reason=(
+                    "needs sase-core 0123456789ab (sase-core-revision.txt), but the "
+                    "sase-core checkout does not contain the pinned revision "
+                    "(checkout has local changes); clean or update the checkout"
+                ),
+                current_version=host.display_version,
+                latest_version=None,
+                git_root="/home/u/sase",
+            ),
+            DevUpdatePackagePlan(
+                record=core,
+                status="skipped",
+                reason=(
+                    "checkout has local changes; sase-core 0123456789ab "
+                    "(sase-core-revision.txt) is required by the installed sase"
+                ),
+                current_version=core.display_version,
+                latest_version=None,
+                git_root="/home/u/sase-core",
+            ),
+        ),
+        roots=(),
+        reconcile_steps=(),
+    )
+    out = _console()
+
+    render_dev_update_dry_run(
+        plan,
+        managed_argv=[],
+        managed_packages=(),
+        console=out,
+    )
+
+    text = _text(out)
+    assert "sase-core 0123456789ab (sase-core-revision.txt)" in text
+    assert "checkout has local changes" in text
+    assert "required by the installed sase" in text
 
 
 def test_editable_dry_run_routes_wheel_core_to_dev_restore(

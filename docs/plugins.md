@@ -313,7 +313,11 @@ sase update · dev install
   upstream tracking branch. SASE fetches the upstream, fast-forwards the checkout,
   reconstructs the uv-tool install from the receipt for editable Python packages, and
   rebuilds `sase-core-rs` into the uv-tool venv when the Rust core checkout changed.
-  Multiple packages in one git root are deduped.
+  Before advancing the host checkout, SASE checks that its target
+  `sase-core-revision.txt` pin is contained in the core checkout target. If the core
+  checkout or its upstream lacks that revision, the host root is skipped with the
+  missing pin and core checkout reason; plugin roots remain independent. Multiple
+  packages in one git root are deduped.
 - **Blocked editable states are non-destructive.** Dirty, diverged, detached-HEAD,
   no-upstream, offline, and fetch-failed checkouts are skipped with a reason. Commit or
   stash local changes, resolve divergence manually, check out a branch with an upstream,
@@ -328,7 +332,10 @@ sase update · dev install
 - **Restart behavior is automatic after real code changes.** In the CLI, SASE restarts
   the scheduler when it is running so it loads the new code. In the Admin Center Updates
   tab, SASE restarts sase's TUI and the service host through the same restart path as
-  the `Q` restart action. No-op and failed updates do not restart anything.
+  the `Q` restart action. After a Rust rebuild, SASE checks that `sase-core-rs` exposes
+  every binding required by the host checkout. A failed check reports the missing
+  bindings and remedy, and neither the CLI nor the TUI restarts onto the incompatible
+  extension. No-op updates do not restart anything.
 - **The Admin Center mirrors the split.** On a highlighted **Plugins** row in the
   Updates tab, `U` updates that installed plugin and `m` switches install mode.
   Pane-wide `u` still runs only the SASE core + plugins update, while pane-wide `A`
@@ -347,8 +354,10 @@ sase update · dev install
 - **`-j|--json`** emits `schema_version: 4` with a stable, sorted payload. Managed
   outcomes are reported under `managed`; editable-checkout plans/results are reported
   under `dev`; `mode` is `managed`, `dev`, or `mixed`; `restart` reports whether the
-  scheduler was restarted, skipped, or failed. The dry-run JSON reports `dry_run: true`,
-  the planned command or dev plan, and each package's current version.
+  scheduler was restarted, skipped, or failed, including `skipped_core_bindings` when
+  the extension failed verification. Dev results include `core_bindings_verified` as
+  true, false, or null when no check ran. The dry-run JSON reports `dry_run: true`, the
+  planned command or dev plan, and each package's current version.
 - **Installed shell-completion scripts are refreshed after a successful upgrade**, so a
   stamped script does not drift behind the CLI it completes. A successful update
   regenerates, `zcompile`s, and re-stamps every previously installed script, adds a

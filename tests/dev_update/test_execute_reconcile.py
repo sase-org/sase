@@ -95,6 +95,107 @@ def test_execute_dev_update_repairs_failed_core_health_check() -> None:
     ]
 
 
+def _binding_steps() -> tuple[DevReconcileStep, DevReconcileStep]:
+    health = DevReconcileStep(
+        kind="rust_health_check",
+        label="Verify sase-core-rs imports in the uv-tool venv",
+        command=("/tool/bin/python", "-c", "import sase_core_rs"),
+    )
+    binding = DevReconcileStep(
+        kind="rust_binding_check",
+        label="Verify sase-core-rs exposes the bindings sase requires",
+        command=("/host/.venv/bin/python", "/host/tools/check_sase_core_rs_bindings"),
+    )
+    return health, binding
+
+
+def test_execute_dev_update_binding_check_passes_and_reports_verified() -> None:
+    health, binding = _binding_steps()
+    runner = SequenceRunner(
+        {
+            health.command: [DevCommandResult(0)],
+            binding.command: [DevCommandResult(0)],
+        }
+    )
+
+    result = execute_dev_update(plan(reconcile=(health, binding)), run=runner)
+
+    assert result.core_bindings_verified is True
+    assert binding.command in [call[0] for call in runner.calls]
+    assert result.outcomes[0].status == "updated"
+
+
+def test_execute_dev_update_binding_check_failure_is_final_and_keeps_stderr_tail() -> (
+    None
+):
+    health, binding = _binding_steps()
+    runner = SequenceRunner(
+        {
+            health.command: [DevCommandResult(0)],
+            binding.command: [
+                DevCommandResult(
+                    1,
+                    stderr="\n".join(
+                        [f"diagnostic {index}" for index in range(24)]
+                        + ["missing binding: argument_list_continuation_edit"]
+                    ),
+                )
+            ],
+        }
+    )
+
+    result = execute_dev_update(plan(reconcile=(health, binding)), run=runner)
+
+    assert result.core_bindings_verified is False
+    assert result.outcomes[0].status == "failed"
+    assert (
+        "missing binding: argument_list_continuation_edit" in result.outcomes[0].reason
+    )
+    assert "Restore published sase-core-rs wheel" not in [
+        command.label for command in result.commands
+    ]
+
+
+def test_binding_check_runs_when_rebuild_fails_but_extension_imports() -> None:
+    build = DevReconcileStep(
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=("just", "rust-dev-install-uv-tool"),
+    )
+    health, binding = _binding_steps()
+    runner = SequenceRunner(
+        {
+            build.command: [DevCommandResult(1, stderr="maturin failed")],
+            health.command: [DevCommandResult(0, stdout="0.5.0\n")],
+            binding.command: [DevCommandResult(0)],
+        }
+    )
+
+    result = execute_dev_update(plan(reconcile=(build, health, binding)), run=runner)
+
+    assert result.core_bindings_verified is True
+    assert binding.command in [call[0] for call in runner.calls]
+    assert result.outcomes[0].status == "failed"
+    assert "maturin failed" in result.outcomes[0].reason
+
+
+def test_binding_check_is_skipped_when_extension_still_fails_import() -> None:
+    health, binding = _binding_steps()
+    runner = SequenceRunner(
+        {
+            health.command: [
+                DevCommandResult(1, stderr="No module named sase_core_rs")
+            ],
+        }
+    )
+
+    result = execute_dev_update(plan(reconcile=(health, binding)), run=runner)
+
+    assert result.core_bindings_verified is None
+    assert binding.command not in [call[0] for call in runner.calls]
+    assert result.outcomes[0].status == "failed"
+
+
 def test_execute_dev_update_runs_unified_rust_install_before_core_health_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

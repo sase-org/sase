@@ -297,6 +297,15 @@ class UpdateRunActionsMixin:
 
         message = comprehensive_update_summary(result)
         if result.code_changed:
+            if result.core_bindings_verified is False:
+                self._notify(
+                    "The rebuilt sase-core-rs is missing bindings required by this "
+                    "sase version. Clean or update the sase-core checkout to the "
+                    "pinned revision, then rerun `sase update` before restarting ACE.",
+                    severity="error",
+                    title="sase-core-rs bindings are stale",
+                )
+                return
             receipt = build_update_receipt(result)
             if receipt is not None:
                 write_pending_update_toast(receipt)

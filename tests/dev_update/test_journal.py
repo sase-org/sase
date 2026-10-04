@@ -122,6 +122,7 @@ def _result(plan: DevUpdatePlan) -> DevUpdateResult:
             hit=False,
             reason="commit-mismatch",
         ),
+        core_bindings_verified=False,
     )
 
 
@@ -144,6 +145,7 @@ def test_dev_update_journal_record_summarizes_plan_result_and_command_tails() ->
         "hit": False,
         "reason": "commit-mismatch",
     }
+    assert record["result"]["core_bindings_verified"] is False
     assert record["commands"][0]["duration_seconds"] == 294.25
     assert len(record["commands"][0]["stdout_tail"]) == 12_000
 

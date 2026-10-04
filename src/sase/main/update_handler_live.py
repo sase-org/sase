@@ -50,6 +50,7 @@ from sase.main.update_restart import (
     render_restart_info,
     restart_after_update,
     restart_skipped,
+    restart_skipped_core_bindings,
 )
 from sase.main.update_routing import (
     dev_route,
@@ -461,14 +462,17 @@ def _run_live_update(
         )
         run_ref.result = dev_result
         if not dev_update_succeeded(dev_result):
+            restart = (
+                restart_skipped_core_bindings()
+                if dev_result.core_bindings_verified is False
+                else restart_skipped(changed=False)
+            )
+            progress.start(_RESTART_STEP_ID, title=_RESTART_STEP_TITLE)
+            _finish_restart(progress, restart)
             append_dev_update_journal(
                 dev_plan,
                 dev_result,
-                restart=RestartInfo(
-                    attempted=False,
-                    status="skipped_no_change",
-                    reason="update failed before scheduler restart",
-                ),
+                restart=restart,
             )
             run_ref.journal_appended = True
             elapsed = max(0.0, clock() - start)
@@ -484,7 +488,7 @@ def _run_live_update(
                             dev_plan=dev_plan,
                             dev_result=dev_result,
                             elapsed=elapsed,
-                            restart=restart_skipped(changed=False),
+                            restart=restart,
                             log_path=log_path,
                         ),
                         indent=2,
@@ -500,6 +504,8 @@ def _run_live_update(
                     failed=True,
                     timeline_shown=session.shown,
                 )
+                if restart.status == "skipped_core_bindings":
+                    render_restart_info(restart, console=out, quiet=quiet)
                 if log_path is not None:
                     err.print(f"Full log: {log_path}", style="dim")
             return 1
@@ -549,11 +555,15 @@ def _run_live_update(
     elapsed = max(0.0, clock() - start)
     changed = combined_changed(dev_result, managed_summary)
     progress.start(_RESTART_STEP_ID, title=_RESTART_STEP_TITLE)
-    restart = restart_after_update(
-        changed=changed,
-        scheduler_running_fn=scheduler_running_fn,
-        restart_scheduler_fn=restart_scheduler_fn,
-        source="sase update",
+    restart = (
+        restart_skipped_core_bindings()
+        if dev_result is not None and dev_result.core_bindings_verified is False
+        else restart_after_update(
+            changed=changed,
+            scheduler_running_fn=scheduler_running_fn,
+            restart_scheduler_fn=restart_scheduler_fn,
+            source="sase update",
+        )
     )
     _finish_restart(progress, restart)
     if dev_plan is not None and dev_result is not None:

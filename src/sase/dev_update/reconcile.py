@@ -30,16 +30,18 @@ def run_reconcile_steps(
     commands: list[DevExecutedCommand],
     clock: Callable[[], float],
     progress: UpdateProgress = NULL_PROGRESS,
-) -> tuple[str | None, DevRustPrebuildResult]:
-    """Run planned reconcile steps and return any failure and prebuild result."""
+) -> tuple[str | None, DevRustPrebuildResult, bool | None]:
+    """Run reconcile steps and return failure, prebuild, and binding status."""
     pending_failure: str | None = None
     rust_prebuild = DevRustPrebuildResult()
+    core_importable: bool | None = None
+    core_bindings_verified: bool | None = None
     skip_next_rust_build = False
     for index, step in enumerate(steps):
         step_id = reconcile_step_id(index)
         progress.start(step_id, title=reconcile_step_title(step))
         if step.kind == "rust_health_check":
-            health_failure = _run_rust_health_check_step(
+            health_failure, core_importable = _run_rust_health_check_step(
                 step,
                 run,
                 commands,
@@ -49,7 +51,28 @@ def run_reconcile_steps(
                 step_id=step_id,
             )
             if health_failure is not None:
-                return health_failure, rust_prebuild
+                if not _has_later_rust_binding_check(steps, index):
+                    return health_failure, rust_prebuild, core_bindings_verified
+                pending_failure = health_failure
+            continue
+
+        if step.kind == "rust_binding_check":
+            if core_importable is False:
+                progress.finish(
+                    step_id, "skipped", detail="sase-core-rs is not importable"
+                )
+                continue
+            binding_failure, core_bindings_verified = _run_rust_binding_check_step(
+                step,
+                run,
+                commands,
+                clock,
+                prior_failure=pending_failure,
+                progress=progress,
+                step_id=step_id,
+            )
+            if binding_failure is not None:
+                return binding_failure, rust_prebuild, core_bindings_verified
             continue
 
         if step.kind == "rust_prebuild_install":
@@ -75,7 +98,7 @@ def run_reconcile_steps(
                 progress.finish(step_id, "warned", detail=failure)
                 continue
             progress.finish(step_id, "failed", detail=failure)
-            return failure, rust_prebuild
+            return failure, rust_prebuild, core_bindings_verified
         result = _recorded(
             run,
             tuple(step.command),
@@ -95,9 +118,9 @@ def run_reconcile_steps(
                 progress.finish(step_id, "warned", detail=failure)
                 continue
             progress.finish(step_id, "failed", detail=failure)
-            return failure, rust_prebuild
+            return failure, rust_prebuild, core_bindings_verified
         progress.finish(step_id, "done")
-    return pending_failure, rust_prebuild
+    return pending_failure, rust_prebuild, core_bindings_verified
 
 
 def _recorded(
@@ -189,6 +212,12 @@ def _has_later_rust_health_check(
     return any(step.kind == "rust_health_check" for step in steps[current_index + 1 :])
 
 
+def _has_later_rust_binding_check(
+    steps: tuple[DevReconcileStep, ...], current_index: int
+) -> bool:
+    return any(step.kind == "rust_binding_check" for step in steps[current_index + 1 :])
+
+
 def _run_rust_health_check_step(
     step: DevReconcileStep,
     run: DevCommandRunner,
@@ -198,11 +227,14 @@ def _run_rust_health_check_step(
     prior_failure: str | None,
     progress: UpdateProgress,
     step_id: str,
-) -> str | None:
+) -> tuple[str | None, bool]:
     if not step.available:
         failure = step.reason or f"{step.label} unavailable"
-        return _finish_health(
-            progress, step_id, _join_failures(prior_failure, failure), prior_failure
+        return (
+            _finish_health(
+                progress, step_id, _join_failures(prior_failure, failure), prior_failure
+            ),
+            False,
         )
 
     health = _recorded(
@@ -218,20 +250,20 @@ def _run_rust_health_check_step(
     if health.returncode == 0:
         if prior_failure is None:
             progress.finish(step_id, "done")
-            return None
+            return None, True
         version = _version_from_health_check(health.stdout)
         suffix = "existing sase-core-rs remains importable"
         if version:
             suffix = f"{suffix} ({version})"
         failure = _join_failures(prior_failure, suffix)
         progress.finish(step_id, "warned", detail=failure)
-        return failure
+        return failure, True
 
     health_failure = command_failure(f"{step.label} failed", health)
     if not step.repair_command:
         repair_reason = step.repair_reason or "repair command unavailable"
         failure = _join_failures(prior_failure, f"{health_failure}; {repair_reason}")
-        return _finish_health(progress, step_id, failure, prior_failure)
+        return _finish_health(progress, step_id, failure, prior_failure), False
 
     repair_label = step.repair_label or "Restore published sase-core-rs wheel"
     repair_step_id = f"{step_id}:repair"
@@ -251,7 +283,7 @@ def _run_rust_health_check_step(
         progress.finish(repair_step_id, "failed")
         repair_failure = command_failure(f"{repair_label} failed", repair)
         failure = _join_failures(prior_failure, f"{health_failure}; {repair_failure}")
-        return _finish_health(progress, step_id, failure, prior_failure)
+        return _finish_health(progress, step_id, failure, prior_failure), False
 
     progress.finish(repair_step_id, "done")
     repaired_health = _recorded(
@@ -269,7 +301,7 @@ def _run_rust_health_check_step(
             f"{step.label} after repair failed", repaired_health
         )
         failure = _join_failures(prior_failure, f"{health_failure}; {repaired_failure}")
-        return _finish_health(progress, step_id, failure, prior_failure)
+        return _finish_health(progress, step_id, failure, prior_failure), False
 
     version = _version_from_health_check(repaired_health.stdout)
     restored = "environment restored to a published sase-core-rs wheel"
@@ -277,7 +309,53 @@ def _run_rust_health_check_step(
         restored = f"environment restored to published sase-core-rs {version}"
     failure = _join_failures(prior_failure, f"{health_failure}; {restored}")
     progress.finish(step_id, "warned", detail=failure)
-    return failure
+    return failure, True
+
+
+def _run_rust_binding_check_step(
+    step: DevReconcileStep,
+    run: DevCommandRunner,
+    commands: list[DevExecutedCommand],
+    clock: Callable[[], float],
+    *,
+    prior_failure: str | None,
+    progress: UpdateProgress,
+    step_id: str,
+) -> tuple[str | None, bool]:
+    if not step.available:
+        failure = _join_failures(
+            prior_failure, step.reason or f"{step.label} unavailable"
+        )
+        progress.finish(step_id, "failed", detail=failure)
+        return failure, False
+
+    result = _recorded(
+        run,
+        tuple(step.command),
+        cwd=step.cwd,
+        env=step.env,
+        timeout=step.timeout_seconds,
+        label=step.label,
+        commands=commands,
+        clock=clock,
+        progress=progress,
+        step_id=step_id,
+    )
+    if result.returncode == 0:
+        progress.finish(step_id, "done")
+        return prior_failure, True
+
+    detail = _stderr_tail(result.stderr) or result.stdout.strip()
+    failure = f"{step.label} failed: {detail or f'exit {result.returncode}'}"
+    failure = _join_failures(prior_failure, failure)
+    progress.finish(step_id, "failed", detail=failure)
+    return failure, False
+
+
+def _stderr_tail(stderr: str, *, max_lines: int = 20, max_chars: int = 3000) -> str:
+    """Keep the binding checker diagnostic tail containing the missing names."""
+    tail = "\n".join(stderr.strip().splitlines()[-max_lines:])
+    return tail[-max_chars:]
 
 
 def _finish_health(

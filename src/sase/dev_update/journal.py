@@ -101,6 +101,7 @@ def _dev_update_journal_record(
                 "hit": result.rust_prebuild.hit,
                 "reason": result.rust_prebuild.reason,
             },
+            "core_bindings_verified": result.core_bindings_verified,
             "outcomes": [
                 {
                     "name": outcome.record.name,

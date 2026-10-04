@@ -142,17 +142,20 @@ def execute_dev_update(
             )
         progress.finish(MERGE_STEP_ID, "done")
 
-        reconcile_failure, rust_prebuild = run_reconcile_steps(
+        reconcile_failure, rust_prebuild, core_bindings_verified = run_reconcile_steps(
             plan.reconcile_steps, run, commands, clock, progress
         )
         if reconcile_failure is not None:
             return finish(
-                failed_result(
-                    plan,
-                    reconcile_failure,
-                    commands,
-                    changed=merged_any or bool(commands),
-                    rust_prebuild=rust_prebuild,
+                replace(
+                    failed_result(
+                        plan,
+                        reconcile_failure,
+                        commands,
+                        changed=merged_any or bool(commands),
+                        rust_prebuild=rust_prebuild,
+                    ),
+                    core_bindings_verified=core_bindings_verified,
                 )
             )
 
@@ -162,6 +165,7 @@ def execute_dev_update(
                 outcomes=success_outcomes(plan, root_diffstats, root_commits),
                 commands=tuple(commands),
                 rust_prebuild=rust_prebuild,
+                core_bindings_verified=core_bindings_verified,
             )
         )
 

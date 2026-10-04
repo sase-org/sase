@@ -15,11 +15,12 @@ from sase.axe.run_agent_exec import _handle_killed_iteration
 from sase.axe.run_agent_exec_retry import RetryTracker, handle_workflow_error
 from sase.axe.run_agent_markers import build_done_marker
 from sase.axe.runner_kill_provenance import (
-    classify_runner_kill,
-    format_kill_classification,
-    oom_kill_evidence,
+    _KillProvenance,
+    _classify_runner_kill,
+    _format_kill_classification,
+    _oom_kill_evidence,
+    _reset_oom_baseline,
     record_kill_provenance,
-    reset_oom_baseline,
     snapshot_oom_baseline,
 )
 from tests._axe_run_agent_exec_retry_helpers import (
@@ -31,9 +32,9 @@ from tests._axe_run_agent_exec_retry_helpers import (
 
 @pytest.fixture(autouse=True)
 def _clean_oom_baseline():
-    reset_oom_baseline()
+    _reset_oom_baseline()
     yield
-    reset_oom_baseline()
+    _reset_oom_baseline()
 
 
 class _FakeKills:
@@ -65,7 +66,7 @@ def test_classify_user_kill_intent(tmp_path: Path) -> None:
     artifacts = _artifacts(tmp_path)
     write_user_kill_intent(artifacts, pid=123, source="test")
 
-    provenance = classify_runner_kill(artifacts, kill_time=1000.0)
+    provenance = _classify_runner_kill(artifacts, kill_time=1000.0)
 
     assert provenance.source == "user"
     assert provenance.evidence is None
@@ -78,13 +79,13 @@ def test_classify_handoff_marker_predating_kill(tmp_path: Path) -> None:
     ) as f:
         json.dump({"timestamp": 999.0}, f)
 
-    provenance = classify_runner_kill(artifacts, kill_time=1000.0)
+    provenance = _classify_runner_kill(artifacts, kill_time=1000.0)
 
     assert provenance.source == "handoff"
 
 
 def test_classify_external_without_markers(tmp_path: Path) -> None:
-    provenance = classify_runner_kill(_artifacts(tmp_path), kill_time=1000.0)
+    provenance = _classify_runner_kill(_artifacts(tmp_path), kill_time=1000.0)
 
     assert provenance.source == "external"
     assert provenance.evidence is None
@@ -136,10 +137,8 @@ def test_record_handoff_reports_no_metric(
 
 
 def test_format_external_line_with_oom_evidence() -> None:
-    from sase.axe.runner_kill_provenance import KillProvenance
-
-    line = format_kill_classification(
-        KillProvenance(
+    line = _format_kill_classification(
+        _KillProvenance(
             source="external",
             evidence={"cgroup_unit": "tmux-spawn-abc.scope", "oom_kill_delta": 1},
         )
@@ -179,7 +178,7 @@ def test_oom_evidence_delta_with_fake_roots(tmp_path: Path) -> None:
     snapshot_oom_baseline(proc_root=proc_root, sysfs_root=sysfs_root)
 
     _fake_cgroup_roots(tmp_path, oom_kill=1)
-    evidence = oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root)
+    evidence = _oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root)
 
     assert evidence == {"oom_kill_delta": 1, "cgroup_unit": unit}
 
@@ -188,7 +187,7 @@ def test_oom_evidence_missing_without_increase(tmp_path: Path) -> None:
     proc_root, sysfs_root, _ = _fake_cgroup_roots(tmp_path, oom_kill=0)
     snapshot_oom_baseline(proc_root=proc_root, sysfs_root=sysfs_root)
 
-    assert oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root) is None
+    assert _oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root) is None
 
 
 def test_oom_evidence_missing_without_counter_file(tmp_path: Path) -> None:
@@ -202,7 +201,7 @@ def test_oom_evidence_missing_without_counter_file(tmp_path: Path) -> None:
     sysfs_root.mkdir()
     snapshot_oom_baseline(proc_root=proc_root, sysfs_root=sysfs_root)
 
-    assert oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root) is None
+    assert _oom_kill_evidence(proc_root=proc_root, sysfs_root=sysfs_root) is None
 
 
 def _minimal_done_kwargs(tmp_path: Path) -> dict[str, Any]:

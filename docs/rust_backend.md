@@ -698,7 +698,10 @@ force the published release profile for one update without editing the Justfile.
 prebuild-cache miss makes this step a full Cargo build that can take several minutes, so
 `sase update` gives it its own one-hour deadline instead of the five-minute limit used
 for its Git and uv steps; the same deadline applies when the update runs from sase's TUI
-Updates panel.
+Updates panel. After the rebuild, editable updates run
+`tools/check_sase_core_rs_bindings` against the host source tree in the uv-tool venv, so
+the installed extension must expose every binding that the updated sase checkout
+requires before the update can restart its process.
 
 A measured feature-unified
 `cargo build --release -p sase_core_py -p sase_macro_lsp --features sase_core_py/extension-module`

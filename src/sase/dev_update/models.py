@@ -29,6 +29,7 @@ DevReconcileStepKind = Literal[
     "rust_dev_install",
     "rust_install_uv_tool",
     "rust_health_check",
+    "rust_binding_check",
     "rust_lsp_install",
 ]
 
@@ -247,3 +248,4 @@ class DevUpdateResult:
     commands: tuple[DevExecutedCommand, ...] = ()
     duration_seconds: float = 0.0
     rust_prebuild: DevRustPrebuildResult = field(default_factory=DevRustPrebuildResult)
+    core_bindings_verified: bool | None = None

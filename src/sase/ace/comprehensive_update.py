@@ -37,6 +37,16 @@ class ComprehensiveSaseUpdateResult:
         """Return whether this leg changed installed SASE code."""
         return bool(getattr(self.payload, "changed", False))
 
+    @property
+    def core_bindings_verified(self) -> bool | None:
+        """Expose the dev backend's Rust binding verification state."""
+        if isinstance(self.payload, DevUpdateResult):
+            return self.payload.core_bindings_verified
+        if isinstance(self.payload, CombinedUpdateResult):
+            dev_result = self.payload.dev_result
+            return dev_result.core_bindings_verified if dev_result is not None else None
+        return None
+
 
 @dataclass(frozen=True)
 class ComprehensiveUpdateResult:
@@ -52,6 +62,11 @@ class ComprehensiveUpdateResult:
     def code_changed(self) -> bool:
         """Code changes are defined solely by the SASE/core/plugin leg."""
         return self.sase.changed
+
+    @property
+    def core_bindings_verified(self) -> bool | None:
+        """Return whether the updated Rust extension passed its binding check."""
+        return self.sase.core_bindings_verified
 
     @property
     def has_failures(self) -> bool:

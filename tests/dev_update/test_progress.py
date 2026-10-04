@@ -544,7 +544,7 @@ def test_health_check_repair_row_parented_in_timeline_snapshot() -> None:
     )
     commands: list[DevExecutedCommand] = []
 
-    failure, _ = run_reconcile_steps(
+    failure, _, _ = run_reconcile_steps(
         steps, runner, commands, time.monotonic, progress=model
     )
 

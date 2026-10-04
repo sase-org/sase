@@ -44,6 +44,7 @@ RestartSchedulerFn = Callable[..., "ServiceProcActionOutcome"]
 RestartStatus = Literal[
     "skipped_no_change",
     "skipped_not_running",
+    "skipped_core_bindings",
     "restarted",
     "unconfirmed",
     "failed",
