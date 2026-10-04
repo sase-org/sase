@@ -6149,37 +6149,37 @@ the preferred card.
   sequential session follows the row itself, or the latest of its follow-up agents, when
   that candidate qualifies. Bash and Python workflow steps are never followed. The first
   paint of an empty solo reply says `Waiting for agent response...`. An empty session
-  phase first says `No response content yet.`. After the follow reads the files, an
-  empty body with no timestamp chunks says `Waiting for agent response.`. Hint mode
-  keeps the first-paint text because the follow stays off. A change to either file
-  schedules an update, and a status check of both files about once a second is the
-  backstop. While the follow is idle, later updates are at least 0.3 seconds apart; the
-  first update can be immediate. The follow waits while you are navigating or the prompt
-  bar is open, and retries every 0.25 seconds. It stops for this row when you leave the
-  Agents tab, when the detail view is pinned to one prior attempt number, or while hint
-  mode is showing. Changing the selection cancels this follow; the newly selected row
-  starts its own when it qualifies. `D` switches between the merged history and the
-  current attempt only. That switch ends the current follow, and the view you land on
-  starts its own when it still qualifies and no attempt number is pinned. If either file
-  changes while it is being read, that snapshot is discarded and the follow tries again.
-  For agents with follow-up phases (planner, feedback rounds, coder), the AGENT REPLY
-  section consolidates replies from all phases into a single view with phase dividers
-  showing each phase's label and start time. Phases follow the session's chain order: a
-  monitor phase renders immediately after the turn that started it, including a monitor
-  started by the session root, which renders after the root's own phase. Agent-turn
-  members follow one rule, `AGENT (<role>)`, derived from the member's session role:
-  `--plan` renders as `AGENT (plan)`, `--code` as `AGENT (code)`, `--epic` as
-  `AGENT (epic)`, `--commit` as `AGENT (commit)`, and numeric feedback suffixes such as
-  `--2` as `AGENT (plan round 2)`. Custom session members render the same way with their
-  suffix token, e.g. `AGENT (bar)`. A monitor member is a named proc, so its phase
-  renders as an amber `⚙ MONITOR` divider followed by the monitor's command, its
-  recorded detail fields, and its full captured output — the same block the monitor's
-  own panel shows. A gate-turn member renders as a lifecycle-colored `⋔ GATE` divider
-  with its decision, kind, state, deadline, reason, request identity, branch policy,
-  follow-up disposition, and captured command output. Its phase remains in the
-  consolidated session reply after settlement, including terminal branches that
-  intentionally launch no successor. Legacy dotted and single-dash suffixes render the
-  same way.
+  phase first says `No response content yet.`. The follow leaves that first-paint text
+  in place until a timestamp chunk or reply text exists. If a reply that was already
+  followed is cleared, the body becomes `Waiting for agent response...`. Hint mode keeps
+  the first-paint text because the follow stays off. A change to either file schedules
+  an update, and a status check of both files about once a second is the backstop. While
+  the follow is idle, later updates are at least 0.3 seconds apart; the first update can
+  be immediate. The follow waits while you are navigating or the prompt bar is open, and
+  retries every 0.25 seconds. It stops for this row when you leave the Agents tab, when
+  the detail view is pinned to one prior attempt number, or while hint mode is showing.
+  Changing the selection cancels this follow; the newly selected row starts its own when
+  it qualifies. `D` switches between the merged history and the current attempt only.
+  That switch ends the current follow, and the view you land on starts its own when it
+  still qualifies and no attempt number is pinned. If either file changes while it is
+  being read, that snapshot is discarded and the follow tries again. For agents with
+  follow-up phases (planner, feedback rounds, coder), the AGENT REPLY section
+  consolidates replies from all phases into a single view with phase dividers showing
+  each phase's label and start time. Phases follow the session's chain order: a monitor
+  phase renders immediately after the turn that started it, including a monitor started
+  by the session root, which renders after the root's own phase. Agent-turn members
+  follow one rule, `AGENT (<role>)`, derived from the member's session role: `--plan`
+  renders as `AGENT (plan)`, `--code` as `AGENT (code)`, `--epic` as `AGENT (epic)`,
+  `--commit` as `AGENT (commit)`, and numeric feedback suffixes such as `--2` as
+  `AGENT (plan round 2)`. Custom session members render the same way with their suffix
+  token, e.g. `AGENT (bar)`. A monitor member is a named proc, so its phase renders as
+  an amber `⚙ MONITOR` divider followed by the monitor's command, its recorded detail
+  fields, and its full captured output — the same block the monitor's own panel shows. A
+  gate-turn member renders as a lifecycle-colored `⋔ GATE` divider with its decision,
+  kind, state, deadline, reason, request identity, branch policy, follow-up disposition,
+  and captured command output. Its phase remains in the consolidated session reply after
+  settlement, including terminal branches that intentionally launch no successor. Legacy
+  dotted and single-dash suffixes render the same way.
 - **WORKFLOW VARIABLES**: macro workflow output variables from step outputs with
   additional `meta_*` keys are grouped under a dedicated header. The special routing
   keys `meta_project`, `meta_patch`, and `meta_workspace` are promoted into the normal

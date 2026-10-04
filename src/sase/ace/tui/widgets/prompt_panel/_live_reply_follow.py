@@ -27,7 +27,7 @@ from ..decks.card_part import CardPart, REPLY_CARD_ID
 from ._agent_display_content import render_timestamp_divider
 
 
-_WAITING_REPLY = "Waiting for agent response.\n"
+_WAITING_REPLY = "Waiting for agent response...\n"
 
 
 class _LiveReplyRegion(Group):
@@ -267,6 +267,7 @@ class LiveReplyFollowMixin:
     _live_reply_applied_signatures: (
         tuple[_ReplyFileSignature | None, _ReplyFileSignature | None] | None
     ) = None
+    _live_reply_body_shown: bool = False
     _live_reply_render_generation: int = 0
 
     def configure_live_reply_follow(self, selected: Agent) -> None:
@@ -352,6 +353,7 @@ class LiveReplyFollowMixin:
         self._live_reply_pending = False
         self._live_reply_running = False
         self._live_reply_applied_signatures = None
+        self._live_reply_body_shown = False
         self._live_reply_last_probe = 0.0
 
     def live_reply_path_matches(self, path: Path) -> bool:
@@ -472,6 +474,13 @@ class LiveReplyFollowMixin:
                 if not self._live_reply_is_idle_and_current(source):
                     self._live_reply_pending = True
                     return
+                body_shown = bool(snapshot.chunks) or bool(
+                    (snapshot.live_text or "").strip()
+                )
+                if not body_shown and not self._live_reply_body_shown:
+                    self._live_reply_applied_signatures = snapshot.signatures
+                    accepted = True
+                    return
                 if snapshot.signatures == self._live_reply_applied_signatures:
                     accepted = True
                     return
@@ -483,6 +492,7 @@ class LiveReplyFollowMixin:
                     return
                 self.update(updated)  # type: ignore[attr-defined]
                 self._live_reply_applied_signatures = snapshot.signatures
+                self._live_reply_body_shown = body_shown
                 accepted = True
             except _ReplyChangedDuringRead:
                 self._live_reply_pending = True

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -80,6 +81,43 @@ class _ReplyController(LiveReplyFollowMixin):
         event = getattr(self, "published_event", None)
         if event is not None:
             event.set()
+
+
+async def _fire_and_wait(controller: _ReplyController) -> None:
+    controller._live_reply_pending = True
+    controller._live_reply_timer_fired()
+    for _ in range(100):
+        if not controller._live_reply_running:
+            return
+        await asyncio.sleep(0.01)  # sase-test-wait: poll for async follow completion
+    raise AssertionError("live reply collection did not finish")
+
+
+def _touch_with_new_signature(path: Path) -> None:
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+
+
+def _controller_for_empty_reply(source_dir: Path, agent: Agent) -> _ReplyController:
+    identity = agent.identity
+    content = card_document(
+        context_card(Text("context stays")),
+        reply_card(
+            Text("AGENT REPLY"),
+            live_reply_region(identity, [Text("Waiting for agent response...")]),
+        ),
+    )
+    controller = _ReplyController(agent, content)
+    controller._live_reply_source = LiveReplySource(
+        selected_identity=identity,
+        reply_identity=identity,
+        generation=5,
+        attempt_view_mode="merged",
+        attempt_pinned_number=None,
+        reply_path=str(source_dir / "live_reply.md"),
+        timestamps_path=str(source_dir / "live_reply_timestamps.jsonl"),
+    )
+    return controller
 
 
 def test_replace_live_reply_region_keeps_context_and_session_block_identity() -> None:
@@ -216,3 +254,52 @@ async def test_controller_publishes_a_fresh_snapshot_through_the_current_documen
     assert "context stays" in visible
     assert "first words" in visible
     assert "old" not in visible
+
+    reply_path = source_dir / "live_reply.md"
+    timestamps_path = source_dir / "live_reply_timestamps.jsonl"
+    reply_path.write_text("", encoding="utf-8")
+    timestamps_path.write_text("", encoding="utf-8")
+    await _fire_and_wait(controller)
+
+    assert len(controller.published) == 2
+    console = Console(record=True, width=90)
+    console.print(controller.published[-1])
+    assert "Waiting for agent response..." in console.export_text()
+
+    _touch_with_new_signature(reply_path)
+    _touch_with_new_signature(timestamps_path)
+    await _fire_and_wait(controller)
+    assert len(controller.published) == 2
+
+
+@pytest.mark.asyncio
+async def test_empty_snapshot_keeps_first_paint_placeholder_until_reply_exists(
+    tmp_path: Path,
+) -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="agent",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 10, 3, 12, 0, 0),
+        raw_suffix="20261003123456",
+    )
+    source_dir = tmp_path / "artifacts" / "ace-run" / "20261003123456"
+    source_dir.mkdir(parents=True)
+    reply_path = source_dir / "live_reply.md"
+    timestamps_path = source_dir / "live_reply_timestamps.jsonl"
+    reply_path.write_text("", encoding="utf-8")
+    timestamps_path.write_text("", encoding="utf-8")
+    controller = _controller_for_empty_reply(source_dir, agent)
+
+    await _fire_and_wait(controller)
+
+    assert controller.published == []
+    console = Console(record=True, width=90)
+    console.print(controller._last_prompt_panel_content)
+    assert "Waiting for agent response..." in console.export_text()
+
+    _touch_with_new_signature(reply_path)
+    _touch_with_new_signature(timestamps_path)
+    await _fire_and_wait(controller)
+    assert controller.published == []
