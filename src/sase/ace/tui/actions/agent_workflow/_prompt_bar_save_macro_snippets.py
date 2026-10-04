@@ -70,9 +70,11 @@ class PromptBarSaveSnippetMixin(
         )
         if snapshot is None:
             return
-        disk_state = await asyncio.to_thread(
+        project = _snippet_save_project(self)
+        disk_state, warning = await asyncio.to_thread(
             _load_snippet_save_disk_state,
             snapshot.target,
+            project,
         )
         if not self._snippet_pane_snapshot_current(snapshot):
             self.notify(  # type: ignore[attr-defined]
@@ -87,7 +89,7 @@ class PromptBarSaveSnippetMixin(
             exists=disk_state.existing_body is not None,
             existing_body=disk_state.existing_body,
             changed_on_disk=disk_state.changed_on_disk,
-            warning=_snippet_save_warning(snapshot.target),
+            warning=warning,
         )
 
         def _on_confirm(choice: object | None) -> None:
@@ -351,9 +353,40 @@ def write_snippet_sync(config_path: str, name: str, body: str) -> None:
     upsert_snippet_at_path(config_path, name, body, force=True)
 
 
+def _snippet_save_project(host: object) -> str | None:
+    context = getattr(host, "_prompt_context", None)
+    if context is None or getattr(context, "is_home_mode", False):
+        return None
+    return getattr(context, "project_name", None)
+
+
+def _refresh_snippet_save_warning(
+    project: str | None,
+    target: SnippetPaneTarget,
+) -> str | None:
+    """Recompute the redefinition warning from a freshly loaded catalog."""
+    from sase.macro.snippet_targets import load_snippet_config_locations
+    from sase.snippet.catalog import load_snippet_catalog
+    from sase.snippet.redefinition import (
+        snippet_redefinition,
+        snippet_redefinition_warning,
+    )
+
+    catalog = load_snippet_catalog(project)
+    locations = load_snippet_config_locations(project)
+    redef = snippet_redefinition(
+        catalog,
+        target.trigger,
+        target.write_path,
+        locations=locations,
+    )
+    return snippet_redefinition_warning(redef, target.display_path)
+
+
 def _load_snippet_save_disk_state(
     target: SnippetPaneTarget,
-) -> _SnippetSaveDiskState:
+    project: str | None = None,
+) -> tuple[_SnippetSaveDiskState, str | None]:
     from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
     from sase.macro.snippet_targets import load_snippet_template
 
@@ -373,11 +406,16 @@ def _load_snippet_save_disk_state(
         current_fingerprint = SourceFingerprint.from_path(target.write_path)
     except OSError:
         current_fingerprint = None
-    return _SnippetSaveDiskState(
+    disk_state = _SnippetSaveDiskState(
         existing_body=existing_body,
         changed_on_disk=changed_on_disk,
         current_fingerprint=current_fingerprint,
     )
+    try:
+        warning = _refresh_snippet_save_warning(project, target)
+    except Exception:
+        warning = _snippet_save_warning(target)
+    return disk_state, warning
 
 
 def _snippet_save_warning(target: SnippetPaneTarget) -> str | None:

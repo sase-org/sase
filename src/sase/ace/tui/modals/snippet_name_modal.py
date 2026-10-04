@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from rich.text import Text
@@ -15,15 +14,17 @@ from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.modals.save_location_choices import ChangeSaveLocationRequest
-from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.macro.naming import validate_snippet_trigger
-from sase.macro.snippet_targets import (
-    SnippetCollision,
-    SnippetConfigLocation,
-    SnippetSaveTarget,
-    load_snippet_template,
-    snippet_collision,
+from sase.ace.tui.modals.snippet_name_analysis import (
+    SnippetMatchPreview,
+    SnippetNameAnalysis,
+    build_snippet_name_analysis,
+    derived_from_for,
+    existing_body_for,
 )
+from sase.macro.naming import validate_snippet_trigger
+from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+from sase.snippet.catalog import empty_snippet_catalog
+from sase.snippet.models import SnippetCatalog
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,31 +37,6 @@ class SnippetNameResult:
     existing_body: str | None
     derived_from: str | None
     save_warning: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class _SnippetMatchPreview:
-    trigger: str
-    location_path: str | None
-    display_path: str
-    body_preview: str
-    is_destination: bool = False
-    derived_from: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class _SnippetNameAnalysis:
-    trigger: str
-    destination_path: str
-    collision: SnippetCollision
-    destination_exists: bool
-    matches: tuple[_SnippetMatchPreview, ...]
-
-    @property
-    def has_collision(self) -> bool:
-        return self.destination_exists or bool(
-            self.collision.matches or self.collision.derived_from
-        )
 
 
 class _SnippetNameInput(Input):
@@ -104,7 +80,8 @@ class SnippetNameModal(
 
     The destination is locked by the location picker that pushed this modal:
     ``↑``/``↓``/``Ctrl+N``/``Ctrl+P`` move the match highlight and ``⇧Tab``
-    asks the orchestrator to reopen the picker.
+    asks the orchestrator to reopen the picker. Analysis reads the loaded
+    snippet catalog in memory; it never opens files on the event loop.
     """
 
     BINDINGS = [
@@ -123,22 +100,17 @@ class SnippetNameModal(
         target: SnippetSaveTarget,
         locations: Sequence[SnippetConfigLocation],
         *,
-        derived_snippets: Mapping[str, str] | None = None,
-        derived_sources: Mapping[str, str] | None = None,
+        catalog: SnippetCatalog | None = None,
         initial_trigger: str = "",
     ) -> None:
         super().__init__()
         self._initial_target = target
         self._target = target
         self._locations = list(locations)
-        self._derived_snippets = dict(derived_snippets or {})
-        self._derived_sources = dict(derived_sources or {})
+        self._catalog = catalog if catalog is not None else empty_snippet_catalog()
         self._initial_trigger = initial_trigger
         self._updating_matches = False
-        self._analysis_debouncer: DetailPanelDebouncer | None = None
-        self._analysis_tasks: set[asyncio.Task[None]] = set()
-        self._pending_analyses: set[tuple[str, str]] = set()
-        self._analysis_cache: dict[tuple[str, str], _SnippetNameAnalysis] = {}
+        self._analysis_cache: dict[tuple[str, str], SnippetNameAnalysis] = {}
 
     def compose(self) -> ComposeResult:
         with Container(id="snippet-name-container"):
@@ -173,17 +145,10 @@ class SnippetNameModal(
             )
 
     def on_mount(self) -> None:
-        self._analysis_debouncer = DetailPanelDebouncer(self.app)
         field = self.query_one("#snippet-name-trigger", _SnippetNameInput)
         field.focus()
         field.cursor_position = len(field.value)
         self._refresh()
-
-    def on_unmount(self) -> None:
-        if self._analysis_debouncer is not None:
-            self._analysis_debouncer.cancel()
-        for task in self._analysis_tasks:
-            task.cancel()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "snippet-name-trigger":
@@ -211,13 +176,26 @@ class SnippetNameModal(
             return None
         return (trigger, str(self._target.write_path))
 
+    def _analysis(self) -> SnippetNameAnalysis | None:
+        identity = self._identity()
+        if identity is None:
+            return None
+        cached = self._analysis_cache.get(identity)
+        if cached is not None:
+            return cached
+        analysis = build_snippet_name_analysis(
+            identity[0],
+            self._target,
+            tuple(self._locations),
+            self._catalog,
+        )
+        self._analysis_cache[identity] = analysis
+        return analysis
+
     def _refresh(self) -> None:
         self._refresh_destination()
         self._refresh_matches()
         self._refresh_verdict()
-        identity = self._identity()
-        if identity is not None and identity not in self._analysis_cache:
-            self._schedule_analysis(identity)
 
     def _location_label(self) -> str:
         """Return the picker label for the locked destination."""
@@ -241,15 +219,14 @@ class SnippetNameModal(
 
     def _refresh_matches(self) -> None:
         option_list = self.query_one("#snippet-name-matches", _SnippetMatchList)
-        identity = self._identity()
-        analysis = self._analysis_cache.get(identity) if identity is not None else None
+        analysis = self._analysis()
         selected_trigger = self._highlighted_match_trigger()
         self._updating_matches = True
         try:
             option_list.clear_options()
-            if self._current_trigger() and analysis is None and identity is not None:
+            if self._current_trigger() and analysis is None:
                 option_list.add_option(
-                    Option(Text("  Checking matches…"), disabled=True)
+                    Option(Text("  No prefix matches", style="dim"), disabled=True)
                 )
                 option_list.highlighted = None
                 return
@@ -284,116 +261,13 @@ class SnippetNameModal(
             verdict.set_classes("snippet-name-verdict-error")
             verdict.update(f"✗ {disabled}")
             return
-        identity = self._identity()
-        analysis = self._analysis_cache.get(identity) if identity is not None else None
+        analysis = self._analysis()
         if analysis is None:
             verdict.set_classes("snippet-name-verdict-warning")
             verdict.update(f"Checking ⇥ {trigger} in {self._target.display_path}…")
             return
-        collision = analysis.collision
-        if analysis.destination_exists:
-            verdict.set_classes("snippet-name-verdict-warning")
-            verdict.update(
-                f"⚠ ⇥ {trigger} exists here — Enter loads its definition for editing"
-            )
-            return
-        if collision.shadowed_by:
-            verdict.set_classes("snippet-name-verdict-warning")
-            source = self._display_for_path(collision.shadowed_by)
-            verdict.update(
-                f"⚠ ⇥ {trigger} is defined in {source} — saving here will be shadowed by {source}"
-            )
-            return
-        if collision.shadows:
-            verdict.set_classes("snippet-name-verdict-warning")
-            source = self._display_for_path(collision.shadows)
-            verdict.update(
-                f"⚠ ⇥ {trigger} is defined in {source} — saving here will shadow it"
-            )
-            return
-        if collision.matches:
-            verdict.set_classes("snippet-name-verdict-warning")
-            source = collision.matches[0].display_path
-            verdict.update(
-                f"⚠ ⇥ {trigger} is defined in {source} — saving here will shadow it"
-            )
-            return
-        if collision.derived_from:
-            verdict.set_classes("snippet-name-verdict-warning")
-            verdict.update(
-                f"⚠ ⇥ {trigger} comes from {collision.derived_from} — this entry will override it"
-            )
-            return
-        verdict.set_classes("snippet-name-verdict-success")
-        verdict.update(f"✓ Create ⇥ {trigger} in {self._target.display_path}")
-
-    def _schedule_analysis(self, identity: tuple[str, str]) -> None:
-        if identity in self._pending_analyses or self._analysis_debouncer is None:
-            return
-        self._pending_analyses.add(identity)
-
-        def start() -> None:
-            if self._identity() != identity:
-                self._pending_analyses.discard(identity)
-                return
-            task = asyncio.create_task(self._load_analysis(identity))
-            self._analysis_tasks.add(task)
-            task.add_done_callback(self._analysis_tasks.discard)
-
-        self._analysis_debouncer.schedule(start)
-
-    async def _load_analysis(self, identity: tuple[str, str]) -> None:
-        trigger = identity[0]
-        target = self._target
-        try:
-            analysis = await asyncio.to_thread(
-                self._build_analysis,
-                trigger,
-                target,
-                tuple(self._locations),
-                dict(self._derived_snippets),
-                dict(self._derived_sources),
-            )
-        finally:
-            self._pending_analyses.discard(identity)
-        if self.is_mounted and self._identity() == identity:
-            self._analysis_cache[identity] = analysis
-            self._refresh()
-
-    @staticmethod
-    def _build_analysis(
-        trigger: str,
-        target: SnippetSaveTarget,
-        locations: tuple[SnippetConfigLocation, ...],
-        derived_snippets: dict[str, str],
-        derived_sources: dict[str, str],
-    ) -> _SnippetNameAnalysis:
-        collision = snippet_collision(
-            trigger,
-            target,
-            locations=locations,
-            derived=derived_sources,
-        )
-        matches = _prefix_matches(
-            trigger, target, locations, derived_snippets, derived_sources
-        )
-        destination_exists = any(match.is_destination for match in collision.matches)
-        if not destination_exists and str(target.write_path) not in {
-            location.path for location in locations
-        }:
-            try:
-                load_snippet_template(target.write_path, trigger)
-            except (OSError, KeyError):
-                destination_exists = False
-            else:
-                destination_exists = True
-        return _SnippetNameAnalysis(
-            trigger=trigger,
-            destination_path=str(target.write_path),
-            collision=collision,
-            destination_exists=destination_exists,
-            matches=matches,
-        )
+        verdict.set_classes(f"snippet-name-verdict-{analysis.verdict_kind}")
+        verdict.update(analysis.verdict)
 
     async def action_open(self) -> None:
         trigger = self._current_trigger()
@@ -403,106 +277,21 @@ class SnippetNameModal(
         if self._destination_disabled_reason() is not None:
             self._refresh()
             return
-        identity = self._identity()
-        if identity is None:
+        analysis = self._analysis()
+        if analysis is None:
             self._refresh()
             return
-        analysis = self._analysis_cache.get(identity)
-        if analysis is None:
-            analysis = await asyncio.to_thread(
-                self._build_analysis,
-                trigger,
-                self._target,
-                tuple(self._locations),
-                dict(self._derived_snippets),
-                dict(self._derived_sources),
+        redef = analysis.redefinition
+        self.dismiss(
+            SnippetNameResult(
+                trigger=trigger,
+                target=self._target,
+                exists=analysis.has_collision,
+                existing_body=existing_body_for(redef),
+                derived_from=derived_from_for(redef),
+                save_warning=analysis.save_warning,
             )
-            if self._identity() != identity:
-                self._refresh()
-                return
-            self._analysis_cache[identity] = analysis
-        try:
-            result = await self._result_for_analysis(analysis)
-        except Exception as exc:
-            verdict = self.query_one("#snippet-name-verdict", Static)
-            verdict.set_classes("snippet-name-verdict-error")
-            verdict.update(f"✗ Failed to load snippet definition: {exc}")
-            return
-        self.dismiss(result)
-
-    async def _result_for_analysis(
-        self, analysis: _SnippetNameAnalysis
-    ) -> SnippetNameResult:
-        trigger = analysis.trigger
-        existing_body: str | None = None
-        derived_from: str | None = None
-        if analysis.destination_exists:
-            existing_body = await asyncio.to_thread(
-                load_snippet_template,
-                self._target.write_path,
-                trigger,
-            )
-        else:
-            other_path = self._collision_body_path(analysis)
-            if other_path is not None:
-                existing_body = await asyncio.to_thread(
-                    load_snippet_template,
-                    other_path,
-                    trigger,
-                )
-            elif analysis.collision.derived_from:
-                existing_body = self._derived_snippets.get(trigger)
-                derived_from = analysis.collision.derived_from
-        return SnippetNameResult(
-            trigger=trigger,
-            target=self._target,
-            exists=analysis.has_collision,
-            existing_body=existing_body,
-            derived_from=derived_from,
-            save_warning=self._save_warning_for_analysis(analysis),
         )
-
-    def _collision_body_path(self, analysis: _SnippetNameAnalysis) -> str | None:
-        collision = analysis.collision
-        if collision.shadowed_by:
-            return collision.shadowed_by
-        if collision.shadows:
-            return collision.shadows
-        match = next(
-            (item for item in collision.matches if not item.is_destination), None
-        )
-        return match.location_path if match is not None else None
-
-    def _save_warning_for_analysis(self, analysis: _SnippetNameAnalysis) -> str | None:
-        if analysis.destination_exists:
-            return None
-        collision = analysis.collision
-        if collision.derived_from:
-            return (
-                f"⚠ ⇥ {analysis.trigger} comes from {collision.derived_from} — "
-                "this entry will override it"
-            )
-        if collision.shadowed_by:
-            source = self._display_for_path(collision.shadowed_by)
-            return (
-                f"⚠ ⇥ {analysis.trigger} is defined in {source} — "
-                f"saving here will be shadowed by {source}"
-            )
-        if collision.shadows:
-            source = self._display_for_path(collision.shadows)
-            return (
-                f"⚠ ⇥ {analysis.trigger} is defined in {source} — "
-                "saving here will shadow it"
-            )
-        match = next(
-            (item for item in collision.matches if not item.is_destination), None
-        )
-        if match is not None:
-            return (
-                f"⚠ ⇥ {analysis.trigger} is defined in {match.display_path} — "
-                "saving here will shadow it"
-            )
-        return None
 
     def action_complete_match(self) -> None:
         match = self._highlighted_match()
@@ -558,13 +347,19 @@ class SnippetNameModal(
         return location.disabled_reason if location is not None else None
 
     def _location_for_path(self, path: str) -> SnippetConfigLocation | None:
+        from sase.snippet.redefinition import paths_equivalent
+
         return next(
-            (location for location in self._locations if location.path == path), None
+            (
+                location
+                for location in self._locations
+                if location.path == path or paths_equivalent(location.path, path)
+            ),
+            None,
         )
 
-    def _highlighted_match(self) -> _SnippetMatchPreview | None:
-        identity = self._identity()
-        analysis = self._analysis_cache.get(identity) if identity is not None else None
+    def _highlighted_match(self) -> SnippetMatchPreview | None:
+        analysis = self._analysis()
         if analysis is None:
             return None
         option_list = self.query_one("#snippet-name-matches", _SnippetMatchList)
@@ -585,7 +380,7 @@ class SnippetNameModal(
         return match.trigger if match is not None else None
 
     @staticmethod
-    def _match_label(match: _SnippetMatchPreview) -> Text:
+    def _match_label(match: SnippetMatchPreview) -> Text:
         text = Text()
         marker = "⇥"
         text.append(f"  {marker} {match.trigger}", style="bold")
@@ -598,76 +393,8 @@ class SnippetNameModal(
             text.append(f"   {match.body_preview}", style="italic dim")
         return text
 
-    def _display_for_path(self, path: str) -> str:
-        location = self._location_for_path(path)
-        return location.display_path if location is not None else path
-
     def action_cancel(self) -> None:
         self.dismiss(None)
-
-
-def _prefix_matches(
-    trigger: str,
-    target: SnippetSaveTarget,
-    locations: tuple[SnippetConfigLocation, ...],
-    derived_snippets: dict[str, str],
-    derived_sources: dict[str, str],
-) -> tuple[_SnippetMatchPreview, ...]:
-    if not trigger:
-        return ()
-    from sase.macro.save_index import names_for_location
-
-    matches: list[tuple[tuple[object, ...], _SnippetMatchPreview]] = []
-    for source_order, location in enumerate(locations):
-        for name in sorted(names_for_location("snippet_config", location.path)):
-            if not name.startswith(trigger):
-                continue
-            body = _preview_for_template(location.path, name)
-            match = _SnippetMatchPreview(
-                trigger=name,
-                location_path=location.path,
-                display_path=location.display_path,
-                body_preview=body,
-                is_destination=location.path == str(target.write_path),
-            )
-            matches.append(
-                (
-                    (
-                        name != trigger,
-                        name.casefold(),
-                        source_order,
-                        0,
-                    ),
-                    match,
-                )
-            )
-    for source_order, (name, template) in enumerate(sorted(derived_snippets.items())):
-        if not name.startswith(trigger):
-            continue
-        source = derived_sources.get(name, f"#{name}")
-        match = _SnippetMatchPreview(
-            trigger=name,
-            location_path=None,
-            display_path=source,
-            body_preview=_single_line(template),
-            derived_from=source,
-        )
-        matches.append(((name != trigger, name.casefold(), source_order, 1), match))
-    return tuple(match for _, match in sorted(matches, key=lambda item: item[0])[:6])
-
-
-def _preview_for_template(path: str, trigger: str) -> str:
-    try:
-        return _single_line(load_snippet_template(path, trigger))
-    except Exception:
-        return "(preview unavailable)"
-
-
-def _single_line(value: str, *, max_chars: int = 52) -> str:
-    line = " ".join(value.split())
-    if len(line) <= max_chars:
-        return line
-    return line[: max_chars - 1] + "…"
 
 
 __all__ = [

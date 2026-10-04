@@ -142,7 +142,7 @@ def build_macro_snippet_entries_from_catalog(
     return entries
 
 
-def get_macro_snippet_entries(
+def _get_macro_snippet_entries(
     project: str | None = None,
 ) -> list[MacroSnippetEntry]:
     """Load macro snippets with metadata preserved for editor integrations.
@@ -169,7 +169,7 @@ def _get_macro_snippets(project: str | None = None) -> dict[str, str]:
         Dict mapping trigger word to snippet template string.
     """
     snippets: dict[str, str] = {}
-    for entry in get_macro_snippet_entries(project=project):
+    for entry in _get_macro_snippet_entries(project=project):
         snippets[entry.trigger] = entry.template
 
     return snippets

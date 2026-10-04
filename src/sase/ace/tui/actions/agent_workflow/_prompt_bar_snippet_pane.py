@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
     from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+    from sase.snippet.models import SnippetCatalog
 
 
 class PromptBarSnippetPaneMixin:
@@ -152,8 +153,7 @@ class _SnippetLocationFlow:
         self._origin_lost = False
         self._loaded_target: SnippetSaveTarget | None = None
         self._loaded_locations: list[SnippetConfigLocation] = []
-        self._loaded_snippets: dict[str, str] = {}
-        self._loaded_sources: dict[str, str] = {}
+        self._loaded_catalog: SnippetCatalog | None = None
         self._targets_by_choice: dict[str, SnippetSaveTarget] = {}
         self._in_use_choice_id: str | None = None
 
@@ -216,10 +216,10 @@ class _SnippetLocationFlow:
         """Load destinations off-thread, then feed them to the live picker."""
         picker = self._picker
         try:
-            target, locations, derived, last_used, names = await asyncio.gather(
+            target, locations, catalog, last_used, names = await asyncio.gather(
                 asyncio.to_thread(_resolve_snippet_target, self._configured),
                 asyncio.to_thread(_load_snippet_locations, self._project),
-                asyncio.to_thread(_load_derived_snippet_catalog, self._project),
+                asyncio.to_thread(_load_snippet_catalog, self._project),
                 asyncio.to_thread(_load_snippet_last_used_path),
                 asyncio.to_thread(
                     _load_snippet_names_by_path,
@@ -240,11 +240,9 @@ class _SnippetLocationFlow:
         if not self._origin_available():
             self._dismiss_for_origin_loss(picker)
             return
-        derived_snippets, derived_sources = derived
         self._loaded_target = target
         self._loaded_locations = list(locations)
-        self._loaded_snippets = dict(derived_snippets)
-        self._loaded_sources = dict(derived_sources)
+        self._loaded_catalog = catalog
         try:
             choices, targets = await asyncio.to_thread(
                 _build_snippet_picker_tables,
@@ -377,8 +375,7 @@ class _SnippetLocationFlow:
             SnippetNameModal(
                 target,
                 self._loaded_locations,
-                derived_snippets=self._loaded_snippets,
-                derived_sources=self._loaded_sources,
+                catalog=self._loaded_catalog,
                 initial_trigger=initial_trigger,
             ),
             _on_name_result,
@@ -489,17 +486,10 @@ def _load_snippet_locations(project: str | None) -> list[SnippetConfigLocation]:
     return load_snippet_config_locations(project)
 
 
-def _load_derived_snippet_catalog(
-    project: str | None,
-) -> tuple[dict[str, str], dict[str, str]]:
-    from sase.macro.snippet_bridge import get_macro_snippet_entries
+def _load_snippet_catalog(project: str | None) -> SnippetCatalog:
+    from sase.snippet.catalog import load_snippet_catalog
 
-    snippets: dict[str, str] = {}
-    sources: dict[str, str] = {}
-    for entry in get_macro_snippet_entries(project=project):
-        snippets[entry.trigger] = entry.template
-        sources[entry.trigger] = f"#{entry.macro_name}"
-    return snippets, sources
+    return load_snippet_catalog(project)
 
 
 def _load_snippet_last_used_path() -> str | None:

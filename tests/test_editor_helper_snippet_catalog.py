@@ -29,12 +29,13 @@ def _install_snippet_sources(
             path="ace.snippets",
             display_path="ace.snippets",
             writable=True,
+            layer="user",
         )
         for trigger, template in snippets.items()
     )
     monkeypatch.setattr(
         "sase.snippet.catalog._config_layer_contributions",
-        lambda *_a, **_k: (contributions, ()),
+        lambda *_a, **_k: (contributions, (), (("user", "ace.snippets"),)),
     )
 
 

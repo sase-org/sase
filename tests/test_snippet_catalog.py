@@ -85,7 +85,10 @@ def test_catalog_loads_named_project_without_changing_cwd(
     assert catalog.context.name == "demo"
     assert catalog.entries[0].trigger == "todo"
     assert catalog.entries[0].origin.kind == "project"
+    assert catalog.entries[0].origin.layer == "local"
     assert catalog.entries[0].origin.path == str(config_path)
+    assert "local" in catalog.layer_names
+    assert str(config_path) in catalog.layer_paths
     assert catalog.composed_templates["todo"].startswith("TODO")
     assert catalog.composed.alias_provenance["Todo"] == "todo"
 

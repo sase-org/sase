@@ -12,6 +12,11 @@ from sase.ace.tui.modals.save_location_choices import snippet_location_choices
 from sase.ace.tui.modals.save_location_picker_modal import SaveLocationPickerModal
 from sase.ace.tui.modals.snippet_name_modal import SnippetNameModal
 from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+from sase.snippet.catalog import _build_snippet_catalog
+from sase.snippet.models import (
+    SnippetCatalogContext,
+    SnippetSourceContribution,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -61,12 +66,30 @@ async def test_snippet_name_collision_png_snapshot(
     _write_snippets(dest, {})
     _write_snippets(other, {"todo": "- [ ] follow up"})
 
+    catalog = _build_snippet_catalog(
+        SnippetCatalogContext(key=None, name=None, aliases=(), workspace_dir=None),
+        macro_entries=(),
+        config_contributions=(
+            SnippetSourceContribution(
+                trigger="todo",
+                template="- [ ] follow up",
+                kind="project",
+                path=str(other),
+                display_path="~/sase/macros/todo_helpers.md",
+                writable=True,
+                layer="local",
+            ),
+        ),
+        layer_paths=(str(dest), str(other)),
+        layer_names=("user", "local"),
+    )
     modal = SnippetNameModal(
         _target(dest, "~/.config/sase/sase.yml"),
         [
             _location(dest, "~/.config/sase/sase.yml"),
             _location(other, "~/sase/macros/todo_helpers.md"),
         ],
+        catalog=catalog,
         initial_trigger="todo",
     )
 
@@ -76,7 +99,8 @@ async def test_snippet_name_collision_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(modal)
         await page.expect_modal("SnippetNameModal")
-        await wait_for_svg_contains(page, "will shadow it")
+        await wait_for_svg_contains(page, "already exists")
+        await wait_for_svg_contains(page, "todo_helpers")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

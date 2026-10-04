@@ -269,7 +269,7 @@ def test_upsert_at_path_rewires_prompt_save(
     )
     monkeypatch.setattr(
         "sase.snippet.catalog._config_layer_contributions",
-        lambda *_a, **_k: ((), ()),
+        lambda *_a, **_k: ((), (), ()),
     )
 
     outcome = upsert_snippet_at_path(config_path, "saved", "body$0")

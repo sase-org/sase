@@ -13,21 +13,24 @@ from tests.ace.tui._prompt_catalog_test_helpers import entry
 
 def _config_contributions(
     snippets: dict[str, str],
-) -> tuple[tuple[SnippetSourceContribution, ...], tuple[object, ...]]:
-    return (
-        tuple(
-            SnippetSourceContribution(
-                trigger=trigger,
-                template=template,
-                kind="user",
-                path="ace.snippets",
-                display_path="ace.snippets",
-                writable=True,
-            )
-            for trigger, template in snippets.items()
-        ),
-        (),
+) -> tuple[
+    tuple[SnippetSourceContribution, ...],
+    tuple[object, ...],
+    tuple[tuple[str, str | None], ...],
+]:
+    contributions = tuple(
+        SnippetSourceContribution(
+            trigger=trigger,
+            template=template,
+            kind="user",
+            path="ace.snippets",
+            display_path="ace.snippets",
+            writable=True,
+            layer="user",
+        )
+        for trigger, template in snippets.items()
     )
+    return (contributions, (), (("user", "ace.snippets"),))
 
 
 def test_prompt_source_token_changes_for_xprompt_file_create(

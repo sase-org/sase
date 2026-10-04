@@ -23,6 +23,8 @@ from sase.ace.tui.modals.snippet_name_modal import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+from sase.snippet.catalog import _build_snippet_catalog
+from sase.snippet.models import SnippetCatalogContext
 
 from ._prompt_save_macro_helpers import _SaveFlowApp
 
@@ -96,8 +98,14 @@ def _patches(
     stack.enter_context(patch(f"{base}._resolve_snippet_target", return_value=target))
     stack.enter_context(
         patch(
-            f"{base}._load_derived_snippet_catalog",
-            return_value=({}, {}),
+            f"{base}._load_snippet_catalog",
+            return_value=_build_snippet_catalog(
+                SnippetCatalogContext(
+                    key=None, name=None, aliases=(), workspace_dir=None
+                ),
+                macro_entries=(),
+                config_contributions=(),
+            ),
         )
     )
     stack.enter_context(

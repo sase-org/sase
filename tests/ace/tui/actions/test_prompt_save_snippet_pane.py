@@ -25,8 +25,18 @@ from sase.ace.tui.modals.snippet_save_confirm_modal import SnippetSaveConfirmMod
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
 from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+from sase.snippet.catalog import _build_snippet_catalog
+from sase.snippet.models import SnippetCatalogContext
 
 from ._prompt_save_macro_helpers import _SaveFlowApp, _wait_save_tasks
+
+
+def _empty_snippet_catalog():
+    return _build_snippet_catalog(
+        SnippetCatalogContext(key=None, name=None, aliases=(), workspace_dir=None),
+        macro_entries=(),
+        config_contributions=(),
+    )
 
 
 class _SnippetFlowApp(PromptBarSnippetPaneMixin, _SaveFlowApp):
@@ -122,8 +132,8 @@ async def test_gt_new_snippet_loop_writes_publishes_expands_and_restores_cursor(
             ],
         ),
         patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_derived_snippet_catalog",
-            return_value=({}, {}),
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_catalog",
+            return_value=_empty_snippet_catalog(),
         ),
         patch(
             "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_last_used_path",
@@ -134,6 +144,10 @@ async def test_gt_new_snippet_loop_writes_publishes_expands_and_restores_cursor(
             return_value={str(config): frozenset()},
         ),
         patch("sase.macro.save_state.save_last_used_location", return_value=True),
+        patch(
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_snippets._refresh_snippet_save_warning",
+            return_value=None,
+        ),
     ):
         async with app.run_test(size=(110, 34)) as pilot:
             await pilot.pause()
@@ -290,7 +304,13 @@ async def test_snippet_pane_confirmation_save_writes_publishes_and_closes(
     _write_snippet_config(config, {})
     app = _SaveFlowApp("agent prompt")
 
-    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
+    with (
+        patch("sase.macro.save_state.save_last_used_location", return_value=True),
+        patch(
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_snippets._refresh_snippet_save_warning",
+            return_value=None,
+        ),
+    ):
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             bar = app.query_one(PromptInputBar)
@@ -324,31 +344,35 @@ async def test_snippet_pane_failed_write_keeps_draft(tmp_path: Path) -> None:
     _write_snippet_config(config, {})
     app = _SaveFlowApp("agent prompt")
 
-    async with app.run_test(size=(100, 30)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        await _open_snippet_pane(
-            pilot,
-            bar,
-            config,
-            existing_body=None,
-            body="draft body",
-        )
+    with patch(
+        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_snippets._refresh_snippet_save_warning",
+        return_value=None,
+    ):
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            bar = app.query_one(PromptInputBar)
+            await _open_snippet_pane(
+                pilot,
+                bar,
+                config,
+                existing_body=None,
+                body="draft body",
+            )
 
-        await pilot.press("enter")
-        await _wait_save_tasks(app)
-        await pilot.pause()
-        with patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_snippets.write_snippet_sync",
-            side_effect=RuntimeError("boom"),
-        ):
             await pilot.press("enter")
             await _wait_save_tasks(app)
             await pilot.pause()
+            with patch(
+                "sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_snippets.write_snippet_sync",
+                side_effect=RuntimeError("boom"),
+            ):
+                await pilot.press("enter")
+                await _wait_save_tasks(app)
+                await pilot.pause()
 
-        assert bar._stack.has_snippet_pane
-        assert bar.active_text() == "draft body"
-        assert ("Failed to save snippet: boom", "error") in app.notifications
+            assert bar._stack.has_snippet_pane
+            assert bar.active_text() == "draft body"
+            assert ("Failed to save snippet: boom", "error") in app.notifications
 
 
 async def test_snippet_pane_no_change_closes_without_write(tmp_path: Path) -> None:
@@ -414,3 +438,64 @@ async def test_snippet_pane_changed_on_disk_reload_updates_draft(
         assert snippet is not None
         assert snippet.snippet_target is not None
         assert snippet.snippet_target.loaded_body == "disk body changed"
+
+
+def test_refresh_snippet_save_warning_recomputes_from_catalog(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_snippets import (
+        _refresh_snippet_save_warning,
+    )
+    from sase.ace.tui.widgets.prompt_stack import SnippetPaneTarget
+    from sase.snippet.models import SnippetSourceContribution
+
+    user = tmp_path / "user.yml"
+    project = tmp_path / "project.yml"
+    user.write_text("ace: {}\n", encoding="utf-8")
+    project.write_text("ace: {}\n", encoding="utf-8")
+    catalog = _build_snippet_catalog(
+        SnippetCatalogContext(key=None, name="demo", aliases=(), workspace_dir=None),
+        macro_entries=(),
+        config_contributions=(
+            SnippetSourceContribution(
+                trigger="todo",
+                template="user",
+                kind="user",
+                path=str(user),
+                display_path=str(user),
+                writable=True,
+                layer="user",
+            ),
+        ),
+        layer_paths=(str(user), str(project)),
+        layer_names=("user", "local"),
+    )
+    monkeypatch.setattr(
+        "sase.snippet.catalog.load_snippet_catalog",
+        lambda *_a, **_k: catalog,
+    )
+    monkeypatch.setattr(
+        "sase.macro.snippet_targets.load_snippet_config_locations",
+        lambda *_a, **_k: [
+            SnippetConfigLocation("User sase.yml", str(user), str(user)),
+            SnippetConfigLocation("Project sase/sase.yml", str(project), str(project)),
+        ],
+    )
+    target = SnippetPaneTarget(
+        trigger="todo",
+        read_path=str(project),
+        write_path=str(project),
+        display_path="project.yml",
+        apply_target=None,
+        via_chezmoi=False,
+        exists=False,
+        loaded_body="user",
+        loaded_fingerprint=None,
+        save_warning="stale warning",
+    )
+
+    warning = _refresh_snippet_save_warning("demo", target)
+
+    assert warning is not None
+    assert "will override it" in warning
+    assert "stale warning" not in warning

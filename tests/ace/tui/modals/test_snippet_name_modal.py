@@ -15,9 +15,16 @@ from sase.ace.tui.modals.snippet_name_modal import (
     SnippetNameModal,
     SnippetNameResult,
 )
+from sase.macro.snippet_bridge import MacroSnippetEntry
 from sase.macro.snippet_targets import (
     SnippetConfigLocation,
     SnippetSaveTarget,
+)
+from sase.snippet.catalog import _build_snippet_catalog
+from sase.snippet.models import (
+    SnippetCatalog,
+    SnippetCatalogContext,
+    SnippetSourceContribution,
 )
 
 
@@ -47,6 +54,44 @@ def _location(
         path=str(path),
         display_path=display or str(path),
         disabled_reason=disabled_reason,
+    )
+
+
+def _catalog_for(
+    path: Path,
+    snippets: dict[str, str],
+    *,
+    kind: str = "user",
+    layer: str = "user",
+    extra: list[SnippetSourceContribution] | None = None,
+    macros: tuple[MacroSnippetEntry, ...] = (),
+    extra_layers: tuple[tuple[str, str | None], ...] = (),
+) -> SnippetCatalog:
+    contributions = [
+        SnippetSourceContribution(
+            trigger=trigger,
+            template=template,
+            kind=kind,  # type: ignore[arg-type]
+            path=str(path),
+            display_path=str(path),
+            writable=True,
+            layer=layer,
+        )
+        for trigger, template in snippets.items()
+    ]
+    if extra:
+        contributions.extend(extra)
+    layer_names = (layer, *(name for name, _path in extra_layers))
+    layer_paths: tuple[str | None, ...] = (
+        str(path),
+        *(p for _name, p in extra_layers),
+    )
+    return _build_snippet_catalog(
+        SnippetCatalogContext(key=None, name=None, aliases=(), workspace_dir=None),
+        macro_entries=macros,
+        config_contributions=tuple(contributions),
+        layer_paths=layer_paths,
+        layer_names=layer_names,
     )
 
 
@@ -176,7 +221,12 @@ async def test_unused_prefix_of_destination_match_creates_new_snippet(
 
     async with app.run_test(size=(100, 28)) as pilot:
         app.push_screen(
-            SnippetNameModal(_target(config), [_location(config)], initial_trigger="r"),
+            SnippetNameModal(
+                _target(config),
+                [_location(config)],
+                catalog=_catalog_for(config, {"rchat": "Review chat transcript"}),
+                initial_trigger="r",
+            ),
             results.append,
         )
         modal = await _wait_for_modal(pilot, app)
@@ -193,49 +243,28 @@ async def test_unused_prefix_of_destination_match_creates_new_snippet(
     assert result.existing_body is None
 
 
-async def test_destination_collision_loads_own_template_off_thread(
+async def test_destination_collision_loads_own_template_from_catalog(
     tmp_path: Path,
-    monkeypatch,
 ) -> None:
     config = tmp_path / "sase.yml"
     _write_snippets(config, {"todo": "TODO($1): $0"})
     results: list[SnippetNameResult | None] = []
-    inside_to_thread = False
-    loader_calls: list[bool] = []
-
-    async def fake_to_thread(func, /, *args, **kwargs):  # type: ignore[no-untyped-def]
-        nonlocal inside_to_thread
-        inside_to_thread = True
-        try:
-            return func(*args, **kwargs)
-        finally:
-            inside_to_thread = False
-
-    def fake_load(path: str | Path, trigger: str) -> str:
-        loader_calls.append(inside_to_thread)
-        assert Path(path) == config
-        assert trigger == "todo"
-        return "TODO($1): $0"
-
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.snippet_name_modal.asyncio.to_thread",
-        fake_to_thread,
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.snippet_name_modal.load_snippet_template",
-        fake_load,
-    )
     app = _ModalApp()
 
     async with app.run_test(size=(100, 28)) as pilot:
         app.push_screen(
             SnippetNameModal(
-                _target(config), [_location(config)], initial_trigger="todo"
+                _target(config, display=str(config)),
+                [_location(config)],
+                catalog=_catalog_for(config, {"todo": "TODO($1): $0"}),
+                initial_trigger="todo",
             ),
             results.append,
         )
         modal = await _wait_for_modal(pilot, app)
-        await wait_for(pilot, lambda: _contains(_verdict_plain(modal), "exists here"))
+        await wait_for(
+            pilot, lambda: _contains(_verdict_plain(modal), "Edit ⇥ todo in place")
+        )
         await pilot.press("enter")
         await wait_for(pilot, lambda: bool(results))
 
@@ -243,7 +272,7 @@ async def test_destination_collision_loads_own_template_off_thread(
     assert result is not None
     assert result.exists is True
     assert result.existing_body == "TODO($1): $0"
-    assert loader_calls and all(loader_calls)
+    assert result.save_warning is None
 
 
 async def test_elsewhere_collision_loads_other_template_but_keeps_destination(
@@ -259,8 +288,24 @@ async def test_elsewhere_collision_loads_other_template_but_keeps_destination(
     async with app.run_test(size=(100, 28)) as pilot:
         app.push_screen(
             SnippetNameModal(
-                _target(dest),
+                _target(dest, display=str(dest)),
                 [_location(dest), _location(other)],
+                catalog=_catalog_for(
+                    dest,
+                    {},
+                    extra=[
+                        SnippetSourceContribution(
+                            trigger="todo",
+                            template="from elsewhere",
+                            kind="project",
+                            path=str(other),
+                            display_path=str(other),
+                            writable=True,
+                            layer="local",
+                        )
+                    ],
+                    extra_layers=(("local", str(other)),),
+                ),
                 initial_trigger="todo",
             ),
             results.append,
@@ -268,7 +313,7 @@ async def test_elsewhere_collision_loads_other_template_but_keeps_destination(
         modal = await _wait_for_modal(pilot, app)
         await wait_for(
             pilot,
-            lambda: _contains(_verdict_plain(modal), "saving here will shadow it"),
+            lambda: _contains(_verdict_plain(modal), "won't take effect"),
         )
         await pilot.press("enter")
         await wait_for(pilot, lambda: bool(results))
@@ -289,10 +334,20 @@ async def test_derived_only_collision_returns_composed_template(tmp_path: Path) 
     async with app.run_test(size=(100, 28)) as pilot:
         app.push_screen(
             SnippetNameModal(
-                _target(config),
+                _target(config, display=str(config)),
                 [_location(config)],
-                derived_snippets={"todo": "derived $0"},
-                derived_sources={"todo": "#project/todo"},
+                catalog=_catalog_for(
+                    config,
+                    {},
+                    macros=(
+                        MacroSnippetEntry(
+                            trigger="todo",
+                            template="derived $0",
+                            macro_name="project/todo",
+                            source_path_display="xprompts/todo.md",
+                        ),
+                    ),
+                ),
                 initial_trigger="todo",
             ),
             results.append,
@@ -300,7 +355,7 @@ async def test_derived_only_collision_returns_composed_template(tmp_path: Path) 
         modal = await _wait_for_modal(pilot, app)
         await wait_for(
             pilot,
-            lambda: _contains(_verdict_plain(modal), "comes from #project/todo"),
+            lambda: _contains(_verdict_plain(modal), "#project/todo (macro snippet)"),
         )
         await pilot.press("enter")
         await wait_for(pilot, lambda: bool(results))
@@ -326,7 +381,19 @@ async def test_matches_filter_order_and_tab_completion(tmp_path: Path) -> None:
 
     async with app.run_test(size=(100, 28)) as pilot:
         app.push_screen(
-            SnippetNameModal(_target(config), [_location(config)], initial_trigger="to")
+            SnippetNameModal(
+                _target(config),
+                [_location(config)],
+                catalog=_catalog_for(
+                    config,
+                    {
+                        "later": "later body",
+                        "todo": "TODO($1): $0",
+                        "todos": "- [ ] $1",
+                    },
+                ),
+                initial_trigger="to",
+            )
         )
         modal = await _wait_for_modal(pilot, app)
         await wait_for(pilot, lambda: _contains(_matches_plain(modal), "todo"))
@@ -360,6 +427,10 @@ async def test_destination_is_locked_and_arrows_move_matches(
                     _location(dest, display="dest.yml"),
                     _location(other, display="other.yml"),
                 ],
+                catalog=_catalog_for(
+                    dest,
+                    {"todo": "TODO($1): $0", "todos": "- [ ] $1"},
+                ),
                 initial_trigger="to",
             ),
             results.append,
@@ -439,3 +510,80 @@ async def test_escape_returns_none(tmp_path: Path) -> None:
         await _wait_for_modal(pilot, app)
         await pilot.press("escape")
         await wait_for(pilot, lambda: results == [None])
+
+
+async def test_user_destination_warns_when_project_wins(tmp_path: Path) -> None:
+    user = tmp_path / "user.yml"
+    project = tmp_path / "project.yml"
+    _write_snippets(user, {"todo": "user"})
+    _write_snippets(project, {"todo": "project"})
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 28)) as pilot:
+        app.push_screen(
+            SnippetNameModal(
+                _target(user, display="user.yml"),
+                [_location(user, display="user.yml"), _location(project)],
+                catalog=_catalog_for(
+                    user,
+                    {"todo": "user"},
+                    extra=[
+                        SnippetSourceContribution(
+                            trigger="todo",
+                            template="project",
+                            kind="project",
+                            path=str(project),
+                            display_path=str(project),
+                            writable=True,
+                            layer="local",
+                        )
+                    ],
+                    extra_layers=(("local", str(project)),),
+                ),
+                initial_trigger="todo",
+            )
+        )
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(
+            pilot,
+            lambda: _contains(_verdict_plain(modal), "edits here won't take effect"),
+        )
+
+
+async def test_project_destination_warns_it_will_override_user(
+    tmp_path: Path,
+) -> None:
+    user = tmp_path / "user.yml"
+    project = tmp_path / "project.yml"
+    _write_snippets(user, {"todo": "user"})
+    _write_snippets(project, {})
+    results: list[SnippetNameResult | None] = []
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 28)) as pilot:
+        app.push_screen(
+            SnippetNameModal(
+                _target(project, display="project.yml"),
+                [_location(user), _location(project, display="project.yml")],
+                catalog=_catalog_for(
+                    user,
+                    {"todo": "user"},
+                    extra_layers=(("local", str(project)),),
+                ),
+                initial_trigger="todo",
+            ),
+            results.append,
+        )
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(
+            pilot,
+            lambda: _contains(_verdict_plain(modal), "will override it"),
+        )
+        await pilot.press("enter")
+        await wait_for(pilot, lambda: bool(results))
+
+    result = results[0]
+    assert result is not None
+    assert result.existing_body == "user"
+    assert result.save_warning is not None
+    assert "will override it" in result.save_warning

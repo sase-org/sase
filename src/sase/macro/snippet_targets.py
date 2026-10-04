@@ -1,14 +1,14 @@
-"""Snippet destination discovery, resolution, and collision detection.
+"""Snippet destination discovery and save-target resolution.
 
 This module is intentionally UI-free: it decides which config file a saved
-``ace.snippets`` entry lands in and where that trigger already collides, but
-it performs no Textual rendering. ACE's prompt bar and modals import it for
-the ``gt`` snippet pane and the unified save panel's snippet mode alike.
+``ace.snippets`` entry lands in, but it performs no Textual rendering. ACE's
+prompt bar and modals import it for the ``gt`` snippet pane and the unified
+save panel's snippet mode alike. Redefinition analysis lives in
+``sase.snippet.redefinition``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -19,8 +19,6 @@ import yaml  # type: ignore[import-untyped]
 from sase.config import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
 from sase.content_layout import discover_project_root, resolve_project_layout
 
-from .naming import ResolutionSource, resolution_after_save
-from .save_index import names_for_location
 from .write_targets import resolve_macro_write_target
 
 
@@ -202,81 +200,6 @@ def resolve_snippet_save_target(configured: str | None) -> SnippetSaveTarget:
     )
 
 
-@dataclass(frozen=True)
-class _SnippetTriggerMatch:
-    """One config file that already defines a trigger.
-
-    Private because no caller names the type: consumers reach these records
-    only through :attr:`SnippetCollision.matches`.
-    """
-
-    trigger: str
-    location_path: str
-    display_path: str
-    is_destination: bool
-
-
-@dataclass(frozen=True)
-class SnippetCollision:
-    """Where a trigger collides today and who wins after a save."""
-
-    matches: tuple[_SnippetTriggerMatch, ...]
-    derived_from: str | None
-    winner_path: str | None
-    shadowed_by: str | None
-    shadows: str | None
-
-
-def snippet_collision(
-    trigger: str,
-    destination: SnippetSaveTarget,
-    *,
-    locations: Sequence[SnippetConfigLocation],
-    derived: Mapping[str, str],
-) -> SnippetCollision:
-    """Report where *trigger* is already defined and what saving would do.
-
-    *locations* must be in first-wins discovery order, matching
-    ``load_snippet_config_locations()``. When the resolved *destination*
-    path is not among them (an out-of-discovery configured file), it is
-    treated as the highest-precedence source, since it is where the user
-    explicitly asked the entry to be written.
-    """
-    destination_path = str(destination.write_path)
-    defines = {
-        location.path: trigger in names_for_location("snippet_config", location.path)
-        for location in locations
-    }
-    matches = tuple(
-        _SnippetTriggerMatch(
-            trigger=trigger,
-            location_path=location.path,
-            display_path=location.display_path,
-            is_destination=location.path == destination_path,
-        )
-        for location in locations
-        if defines[location.path]
-    )
-    sources = [
-        ResolutionSource(location.path, defines[location.path])
-        for location in locations
-    ]
-    if destination_path not in defines:
-        destination_defines = trigger in names_for_location(
-            "snippet_config", destination_path
-        )
-        sources.insert(0, ResolutionSource(destination_path, destination_defines))
-    resolution = resolution_after_save(destination_path, sources)
-    winner_path = resolution.shadowed_by or destination_path
-    return SnippetCollision(
-        matches=matches,
-        derived_from=derived.get(trigger),
-        winner_path=winner_path,
-        shadowed_by=resolution.shadowed_by,
-        shadows=resolution.shadows,
-    )
-
-
 def snippet_save_target_for_location(
     location: SnippetConfigLocation,
 ) -> SnippetSaveTarget:
@@ -310,12 +233,10 @@ __all__ = [
     "SNIPPET_PROJECT_CONFIG_LABEL",
     "SNIPPET_USER_CONFIG_LABEL",
     "SNIPPET_USER_OVERLAY_LABEL_PREFIX",
-    "SnippetCollision",
     "SnippetConfigLocation",
     "SnippetSaveTarget",
     "load_snippet_template",
     "load_snippet_config_locations",
     "resolve_snippet_save_target",
-    "snippet_collision",
     "snippet_save_target_for_location",
 ]

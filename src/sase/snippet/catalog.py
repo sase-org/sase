@@ -49,6 +49,15 @@ _KIND_BY_LAYER = {
 }
 
 
+def empty_snippet_catalog() -> SnippetCatalog:
+    """Return an empty provenance catalog for tests and name-step defaults."""
+    return _build_snippet_catalog(
+        SnippetCatalogContext(key=None, name=None, aliases=(), workspace_dir=None),
+        macro_entries=(),
+        config_contributions=(),
+    )
+
+
 def load_snippet_catalog(
     project_ref: str | None = None,
     *,
@@ -70,7 +79,7 @@ def load_snippet_catalog(
         macro_loader.get_all_macros(project=macro_project),
         include_shadowed=True,
     )
-    config_contributions, layer_diagnostics = _config_layer_contributions(
+    config_contributions, layer_diagnostics, layer_stack = _config_layer_contributions(
         context.workspace_dir
     )
     return _build_snippet_catalog(
@@ -79,6 +88,8 @@ def load_snippet_catalog(
         config_contributions=config_contributions,
         pending_saves=pending_saves,
         layer_diagnostics=layer_diagnostics,
+        layer_paths=tuple(path for _name, path in layer_stack),
+        layer_names=tuple(name for name, _path in layer_stack),
     )
 
 
@@ -121,6 +132,8 @@ def _build_snippet_catalog(
     config_contributions: Sequence[SnippetSourceContribution],
     pending_saves: Mapping[str, str] | None = None,
     layer_diagnostics: Sequence[SnippetLayerDiagnostic] = (),
+    layer_paths: Sequence[str | None] = (),
+    layer_names: Sequence[str] = (),
 ) -> SnippetCatalog:
     """Compose explicit templates from already-loaded source contributions."""
     by_trigger: dict[str, list[SnippetSourceContribution]] = {}
@@ -186,6 +199,8 @@ def _build_snippet_catalog(
         layer_diagnostics=tuple(layer_diagnostics),
         explicit_templates=dict(explicit),
         effective_config_templates=dict(effective_config),
+        layer_paths=tuple(layer_paths),
+        layer_names=tuple(layer_names),
     )
 
 
@@ -225,10 +240,16 @@ def editor_helper_entries(catalog: SnippetCatalog) -> list[dict[str, str | None]
 
 def _config_layer_contributions(
     workspace: Path | None,
-) -> tuple[tuple[SnippetSourceContribution, ...], tuple[SnippetLayerDiagnostic, ...]]:
+) -> tuple[
+    tuple[SnippetSourceContribution, ...],
+    tuple[SnippetLayerDiagnostic, ...],
+    tuple[tuple[str, str | None], ...],
+]:
     contributions: list[SnippetSourceContribution] = []
     diagnostics: list[SnippetLayerDiagnostic] = []
+    layer_stack: list[tuple[str, str | None]] = []
     for layer in _load_raw_layers(workspace):
+        layer_stack.append((layer.name, layer.path))
         kind = _layer_kind(layer.name)
         if layer.error:
             diagnostics.append(
@@ -297,9 +318,10 @@ def _config_layer_contributions(
                     path=layer.path,
                     display_path=display,
                     writable=writable,
+                    layer=layer.name,
                 )
             )
-    return tuple(contributions), tuple(diagnostics)
+    return tuple(contributions), tuple(diagnostics), tuple(layer_stack)
 
 
 def _load_raw_layers(workspace: Path | None) -> list[ConfigLayer]:
@@ -408,6 +430,7 @@ def _helper_display_path(origin: SnippetSourceContribution) -> str | None:
 
 __all__ = [
     "editor_helper_entries",
+    "empty_snippet_catalog",
     "load_snippet_catalog",
     "prompt_catalog_projection",
     "resolve_snippet_catalog_context",

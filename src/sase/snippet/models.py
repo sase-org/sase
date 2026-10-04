@@ -27,6 +27,11 @@ SnippetSourceKind = Literal[
 SnippetMutationAction = Literal["created", "replaced", "shadowed", "deleted"]
 
 
+def is_macro_derived_kind(kind: str) -> bool:
+    """Return True when *kind* is a macro-derived snippet contribution."""
+    return kind == "xprompt"
+
+
 @dataclass(frozen=True, slots=True)
 class SnippetCatalogContext:
     """Resolved project identity for one catalog load."""
@@ -50,6 +55,7 @@ class SnippetSourceContribution:
     macro_name: str | None = None
     description: str | None = None
     shadowed_by: str | None = None
+    layer: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +101,8 @@ class SnippetCatalog:
     layer_diagnostics: tuple[SnippetLayerDiagnostic, ...]
     explicit_templates: dict[str, str]
     effective_config_templates: dict[str, str]
+    layer_paths: tuple[str | None, ...] = ()
+    layer_names: tuple[str, ...] = ()
 
     @property
     def composed_templates(self) -> dict[str, str]:
@@ -146,4 +154,5 @@ __all__ = [
     "SnippetSourceKind",
     "SnippetSourceSpan",
     "SnippetTriggerValidation",
+    "is_macro_derived_kind",
 ]

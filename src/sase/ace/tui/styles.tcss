@@ -5189,7 +5189,7 @@ SnippetNameModal .snippet-name-change-hint {
 }
 
 SnippetNameModal #snippet-name-verdict {
-    height: 2;
+    height: 3;
     margin-top: 1;
     text-style: bold;
 }

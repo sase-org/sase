@@ -15,11 +15,9 @@ from sase.core.project_lifecycle_wire import (
 )
 from sase.macro.snippet_targets import (
     SnippetConfigLocation,
-    SnippetSaveTarget,
     load_snippet_config_locations,
     load_snippet_template,
     resolve_snippet_save_target,
-    snippet_collision,
 )
 
 
@@ -218,161 +216,10 @@ def test_default_matches_chezmoi_home_when_chezmoi_enabled(
     assert target.write_path == chezmoi_home / "dot_config" / "sase" / "sase.yml"
 
 
-# --- snippet_collision ------------------------------------------------------
-
-
 def _write_snippet_config(path: Path, snippets: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"ace": {"snippets": snippets}}
     path.write_text(yaml.safe_dump(payload), encoding="utf-8")
-
-
-def _target_for(path: Path) -> SnippetSaveTarget:
-    return SnippetSaveTarget(
-        read_path=path,
-        write_path=path,
-        apply_target=None,
-        via_chezmoi=False,
-        display_path=str(path),
-        source="configured",
-        fallback_reason=None,
-    )
-
-
-def test_snippet_collision_reports_no_collision_for_new_trigger(
-    tmp_path: Path,
-) -> None:
-    dest = tmp_path / "sase.yml"
-    _write_snippet_config(dest, {})
-    other = tmp_path / "sase_extra.yml"
-    _write_snippet_config(other, {})
-    locations = [
-        SnippetConfigLocation("User sase.yml", str(dest), str(dest)),
-        SnippetConfigLocation("User sase_extra.yml", str(other), str(other)),
-    ]
-
-    collision = snippet_collision(
-        "todo", _target_for(dest), locations=locations, derived={}
-    )
-
-    assert collision.matches == ()
-    assert collision.derived_from is None
-    assert collision.winner_path == str(dest)
-    assert collision.shadowed_by is None
-    assert collision.shadows is None
-
-
-def test_snippet_collision_in_destination(tmp_path: Path) -> None:
-    dest = tmp_path / "sase.yml"
-    _write_snippet_config(dest, {"todo": "TODO($1)"})
-    locations = [SnippetConfigLocation("User sase.yml", str(dest), str(dest))]
-
-    collision = snippet_collision(
-        "todo", _target_for(dest), locations=locations, derived={}
-    )
-
-    assert len(collision.matches) == 1
-    assert collision.matches[0].is_destination is True
-    assert collision.winner_path == str(dest)
-    assert collision.shadowed_by is None
-    assert collision.shadows is None
-
-
-def test_snippet_collision_shadowed_by_higher_precedence_file(
-    tmp_path: Path,
-) -> None:
-    higher = tmp_path / "sase.yml"
-    lower = tmp_path / "project_sase.yml"
-    _write_snippet_config(higher, {"todo": "HIGH"})
-    _write_snippet_config(lower, {})
-    locations = [
-        SnippetConfigLocation("User sase.yml", str(higher), str(higher)),
-        SnippetConfigLocation("Project sase/sase.yml", str(lower), str(lower)),
-    ]
-
-    collision = snippet_collision(
-        "todo", _target_for(lower), locations=locations, derived={}
-    )
-
-    assert collision.shadowed_by == str(higher)
-    assert collision.winner_path == str(higher)
-    assert collision.shadows is None
-    assert len(collision.matches) == 1
-    assert collision.matches[0].location_path == str(higher)
-    assert collision.matches[0].is_destination is False
-
-
-def test_snippet_collision_shadows_lower_precedence_file(tmp_path: Path) -> None:
-    higher = tmp_path / "sase.yml"
-    lower = tmp_path / "project_sase.yml"
-    _write_snippet_config(higher, {})
-    _write_snippet_config(lower, {"todo": "LOW"})
-    locations = [
-        SnippetConfigLocation("User sase.yml", str(higher), str(higher)),
-        SnippetConfigLocation("Project sase/sase.yml", str(lower), str(lower)),
-    ]
-
-    collision = snippet_collision(
-        "todo", _target_for(higher), locations=locations, derived={}
-    )
-
-    assert collision.shadows == str(lower)
-    assert collision.shadowed_by is None
-    assert collision.winner_path == str(higher)
-    assert len(collision.matches) == 1
-    assert collision.matches[0].location_path == str(lower)
-    assert collision.matches[0].is_destination is False
-
-
-def test_snippet_collision_reports_derived_from(tmp_path: Path) -> None:
-    dest = tmp_path / "sase.yml"
-    _write_snippet_config(dest, {})
-    locations = [SnippetConfigLocation("User sase.yml", str(dest), str(dest))]
-
-    collision = snippet_collision(
-        "todo",
-        _target_for(dest),
-        locations=locations,
-        derived={"todo": "#todo_template"},
-    )
-
-    assert collision.derived_from == "#todo_template"
-    assert collision.matches == ()
-
-
-def test_snippet_collision_reports_derived_and_explicit(tmp_path: Path) -> None:
-    dest = tmp_path / "sase.yml"
-    _write_snippet_config(dest, {"todo": "explicit"})
-    locations = [SnippetConfigLocation("User sase.yml", str(dest), str(dest))]
-
-    collision = snippet_collision(
-        "todo",
-        _target_for(dest),
-        locations=locations,
-        derived={"todo": "#todo_template"},
-    )
-
-    assert collision.derived_from == "#todo_template"
-    assert len(collision.matches) == 1
-    assert collision.matches[0].is_destination is True
-
-
-def test_snippet_collision_treats_out_of_discovery_destination_as_highest_precedence(
-    tmp_path: Path,
-) -> None:
-    other = tmp_path / "sase.yml"
-    _write_snippet_config(other, {"todo": "OTHER"})
-    custom = tmp_path / "custom.yml"
-    _write_snippet_config(custom, {})
-    locations = [SnippetConfigLocation("User sase.yml", str(other), str(other))]
-
-    collision = snippet_collision(
-        "todo", _target_for(custom), locations=locations, derived={}
-    )
-
-    assert collision.shadowed_by is None
-    assert collision.shadows == str(other)
-    assert collision.winner_path == str(custom)
 
 
 def test_load_snippet_template_returns_plain_template(tmp_path: Path) -> None:
