@@ -14,7 +14,7 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     PreviewPayload,
     PreviewToken,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
 from sase.core.word_lookup import DefinitionResult, SpellCheckResult
 
 
@@ -22,8 +22,8 @@ def _top_is_preview(page: PromptPage) -> bool:
     return isinstance(page.ta.app.screen_stack[-1], PreviewPanelModal)
 
 
-def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def _skill_entry(name: str = "sase_plan") -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=f"skill/{name}",
         skill_name=name,
         insertion=f"#skill/{name}",
@@ -104,7 +104,7 @@ async def test_k_on_warm_slash_skill_uses_skill_and_prompt_context(
             workspace_dir="/workspace/sase",
             is_home_mode=False,
         )
-        page.ta._xprompt_arg_assist_entries_by_project["sase"] = [_skill_entry()]
+        page.ta._macro_arg_assist_entries_by_project["sase"] = [_skill_entry()]
 
         await page.press("K")
         await page.wait_for(lambda: _top_is_preview(page))
@@ -130,7 +130,7 @@ async def test_k_on_cold_slash_candidate_warms_without_sync_build(
         raise AssertionError("cold slash candidate must defer resolution")
 
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+        "sase.ace.tui.widgets.prompt_text_area.build_macro_assist_entries",
         fail_sync_build,
     )
     monkeypatch.setattr(
@@ -141,7 +141,7 @@ async def test_k_on_cold_slash_candidate_warms_without_sync_build(
     async with PromptPage("/sase_plan", cursor=(0, 1), size=(80, 24)) as page:
         monkeypatch.setattr(
             page.ta,
-            "_schedule_xprompt_assist_warm",
+            "_schedule_macro_assist_warm",
             warmed.append,
         )
         monkeypatch.setattr(
@@ -187,7 +187,7 @@ async def test_k_on_cold_unambiguous_absolute_path_stays_a_file(
     async with PromptPage("open /tmp/readme.md", cursor=(0, 7), size=(80, 24)) as page:
         monkeypatch.setattr(
             page.ta,
-            "_schedule_xprompt_assist_warm",
+            "_schedule_macro_assist_warm",
             warmed.append,
         )
 

@@ -1,4 +1,4 @@
-"""Tests for post-accept xprompt argument hints in the prompt input."""
+"""Tests for post-accept macro argument hints in the prompt input."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroInputHint,
 )
 from sase.core.snippet_session_facade import (
     SnippetSessionState,
@@ -27,8 +27,8 @@ def _input(
     *,
     position: int = 0,
     description: str | None = None,
-) -> XPromptInputHint:
-    return XPromptInputHint(
+) -> MacroInputHint:
+    return MacroInputHint(
         name=name,
         type=type_,
         required=True,
@@ -42,13 +42,13 @@ def _entry(
     name: str,
     *,
     prefix: str = "#",
-    inputs: tuple[XPromptInputHint, ...] = (),
-) -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+    inputs: tuple[MacroInputHint, ...] = (),
+) -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=name,
         insertion=f"{prefix}{name}",
         reference_prefix=prefix,
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=inputs,
         content_preview=None,
@@ -57,13 +57,13 @@ def _entry(
 
 def _seed_entries(
     ta: PromptTextArea,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[project] = entries
+    ta._macro_arg_assist_entries_by_project[project] = entries
 
 
-async def test_accepting_required_xprompt_shows_arg_hint_panel() -> None:
+async def test_accepting_required_macro_shows_arg_hint_panel() -> None:
     entries = [
         _entry(
             "review",
@@ -84,13 +84,13 @@ async def test_accepting_required_xprompt_shows_arg_hint_panel() -> None:
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
         assert ta.text == "#review:"
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
         assert "path: path" in rendered.plain
         assert "File to inspect." in rendered.plain
-        assert panel.border_title == "xprompt args"
+        assert panel.border_title == "macro args"
 
 
-async def test_accepting_xprompt_without_required_inputs_skips_arg_hint() -> None:
+async def test_accepting_macro_without_required_inputs_skips_arg_hint() -> None:
     entries = [_entry("plain")]
     app = CompletionTestApp()
     async with app.run_test():
@@ -102,7 +102,7 @@ async def test_accepting_xprompt_without_required_inputs_skips_arg_hint() -> Non
         assert ta._try_file_completion_tab() is True
 
         assert ta.text == "#plain "
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
         assert bar._completion_visible is False
 
 
@@ -120,7 +120,7 @@ async def test_colon_action_rewrites_reference_and_preserves_surrounding_text() 
 
         assert ta.text == "before #review: after"
         assert ta.cursor_location == (0, len("before #review:"))
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
 
 
 async def test_named_action_uses_snippet_tabstops_for_required_args() -> None:
@@ -145,7 +145,7 @@ async def test_named_action_uses_snippet_tabstops_for_required_args() -> None:
 
         assert ta.text == "#review(path=, count=)"
         assert ta.cursor_location == (0, len("#review(path="))
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
         assert ta._try_advance_tabstop() is True
         assert ta.cursor_location == (0, len("#review(path=, count="))
 
@@ -159,29 +159,29 @@ async def test_submit_cancel_and_escape_clear_arg_hint_state() -> None:
         ta.cursor_location = (0, 2)
         _seed_entries(ta, entries)
         await pilot.press("ctrl+t")
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
 
         ta.action_submit_prompt()
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
 
         ta.load_text("#r")
         ta.cursor_location = (0, 2)
         _seed_entries(ta, entries)
         await pilot.press("ctrl+t")
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
 
         bar = app.query_one(PromptInputBar)
         bar.action_cancel()
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
 
         ta.load_text("#r")
         ta.cursor_location = (0, 2)
         _seed_entries(ta, entries)
         await pilot.press("ctrl+t")
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
 
         await pilot.press("escape")
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
         assert ta._vim_mode == "normal"
 
 
@@ -194,12 +194,12 @@ async def test_typed_colon_reference_shows_arg_hint_panel() -> None:
         ta.load_text("#review:")
         ta.cursor_location = (0, len("#review:"))
         _seed_entries(ta, entries)
-        ta._refresh_xprompt_arg_hint_from_cursor()
+        ta._refresh_macro_arg_hint_from_cursor()
 
         panel = bar.query_one("#prompt-completion", Static)
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
         assert "path: path" in panel.render().plain
-        assert panel.border_title == "xprompt args"
+        assert panel.border_title == "macro args"
 
 
 async def test_typed_hint_detection_skips_active_snippet_tabstops() -> None:
@@ -218,10 +218,10 @@ async def test_typed_hint_detection_skips_active_snippet_tabstops() -> None:
             next_session_id=1,
         )
         _seed_entries(ta, entries)
-        ta._refresh_xprompt_arg_hint_from_cursor()
+        ta._refresh_macro_arg_hint_from_cursor()
 
         panel = bar.query_one("#prompt-completion", Static)
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
         assert panel.has_class("hidden")
 
 
@@ -237,8 +237,8 @@ async def test_snippet_modal_insertion_opens_same_arg_hint_path() -> None:
         bar.insert_snippet("review")
 
         assert ta.text == "#review"
-        assert ta._active_xprompt_arg_hint is not None
-        assert ta._active_xprompt_arg_hint.trigger_mode == "accepted"
+        assert ta._active_macro_arg_hint is not None
+        assert ta._active_macro_arg_hint.trigger_mode == "accepted"
 
 
 async def test_snippet_modal_smart_insertion_adds_trailing_space_without_args() -> None:
@@ -253,7 +253,7 @@ async def test_snippet_modal_smart_insertion_adds_trailing_space_without_args() 
         bar.insert_snippet("plain", entry)
 
         assert ta.text == "#plain "
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
 
 
 async def test_snippet_modal_smart_insertion_skips_space_before_punctuation() -> None:
@@ -269,7 +269,7 @@ async def test_snippet_modal_smart_insertion_skips_space_before_punctuation() ->
 
         assert ta.text == "#plain)"
         assert ta.cursor_location == (0, len("#plain"))
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
 
 
 async def test_snippet_modal_smart_insertion_adds_path_colon_hint() -> None:
@@ -284,8 +284,8 @@ async def test_snippet_modal_smart_insertion_adds_path_colon_hint() -> None:
         bar.insert_snippet("review", entry)
 
         assert ta.text == "#review:"
-        assert ta._active_xprompt_arg_hint is not None
-        assert ta._active_xprompt_arg_hint.trigger_mode == "colon"
+        assert ta._active_macro_arg_hint is not None
+        assert ta._active_macro_arg_hint.trigger_mode == "colon"
 
 
 async def test_snippet_modal_smart_insertion_text_at_line_end_adds_double_colon_space() -> (
@@ -306,7 +306,7 @@ async def test_snippet_modal_smart_insertion_text_at_line_end_adds_double_colon_
         assert ta.text == "#ask:: "
         assert ta.cursor_location == (0, len("#ask:: "))
         # The committed trailing space ends structured arg hinting.
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
 
 
 async def test_snippet_modal_smart_insertion_text_before_text_keeps_single_space() -> (
@@ -326,7 +326,7 @@ async def test_snippet_modal_smart_insertion_text_before_text_keeps_single_space
         # following space is the single delimiter -- not a doubled space.
         assert ta.text == "#ask:: after"
         assert ta.cursor_location == (0, len("#ask::"))
-        assert ta._active_xprompt_arg_hint is None
+        assert ta._active_macro_arg_hint is None
 
 
 async def test_snippet_modal_smart_insertion_adds_multi_input_skeleton() -> None:
@@ -348,8 +348,8 @@ async def test_snippet_modal_smart_insertion_adds_multi_input_skeleton() -> None
 
         assert ta.text == "#many()"
         assert ta.cursor_location == (0, len("#many("))
-        assert ta._active_xprompt_arg_hint is not None
-        assert ta._active_xprompt_arg_hint.trigger_mode == "paren"
+        assert ta._active_macro_arg_hint is not None
+        assert ta._active_macro_arg_hint.trigger_mode == "paren"
 
 
 async def test_snippet_modal_smart_insertion_preserves_standalone_marker() -> None:
@@ -368,7 +368,7 @@ async def test_snippet_modal_smart_insertion_preserves_standalone_marker() -> No
         bar.insert_snippet("!run", entry)
 
         assert ta.text == "#!run:"
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
 
 
 async def test_snippet_modal_smart_insertion_uses_selected_metadata() -> None:
@@ -382,7 +382,7 @@ async def test_snippet_modal_smart_insertion_uses_selected_metadata() -> None:
         bar.insert_snippet("local", entry)
 
         assert ta.text == "#gh:sase #local:"
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
 
 
 async def test_typed_hint_uses_project_from_leading_vcs_tag() -> None:
@@ -405,6 +405,6 @@ async def test_typed_hint_uses_project_from_leading_vcs_tag() -> None:
                 return_value="sase",
             ),
         ):
-            ta._refresh_xprompt_arg_hint_from_cursor()
+            ta._refresh_macro_arg_hint_from_cursor()
 
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None

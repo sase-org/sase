@@ -19,12 +19,12 @@ from sase.ace.tui.widgets.file_completion import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptArgNameMetadata,
-    XPromptInputHint,
-    build_xprompt_assist_entries,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroArgNameMetadata,
+    MacroInputHint,
+    build_macro_assist_entries,
 )
-from sase.ace.tui.widgets.xprompt_completion import build_xprompt_completion_candidates
+from sase.ace.tui.widgets.macro_completion import build_macro_completion_candidates
 
 _ROOT = Path(__file__).resolve().parents[4]
 
@@ -150,9 +150,9 @@ async def test_short_completion_panel_reservation_is_unchanged() -> None:
 
 
 def _long_skill_candidates() -> list[CompletionCandidate]:
-    candidates, _ = build_xprompt_completion_candidates(
+    candidates, _ = build_macro_completion_candidates(
         "/sase_monitor",
-        entries=build_xprompt_assist_entries(),
+        entries=build_macro_assist_entries(),
     )
     assert candidates, "expected packaged /sase_monitor skill"
     metadata = candidates[0].metadata
@@ -173,9 +173,9 @@ def _long_xprompt_arg_name_candidates() -> list[CompletionCandidate]:
             insertion="target_path=",
             is_dir=False,
             name="target_path",
-            metadata=XPromptArgNameMetadata(
+            metadata=MacroArgNameMetadata(
                 reference_text="#review",
-                input_hint=XPromptInputHint(
+                input_hint=MacroInputHint(
                     name="target_path",
                     type="path",
                     required=True,
@@ -263,7 +263,7 @@ async def test_xprompt_arg_name_description_stays_one_visual_row() -> None:
             "",
             _long_xprompt_arg_name_candidates(),
             selected_index=0,
-            completion_kind="xprompt_arg_name",
+            completion_kind="macro_arg_name",
         )
         await pilot.pause()
 

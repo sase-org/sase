@@ -1,4 +1,4 @@
-"""Tests for Markdown + xprompt prompt syntax highlighting."""
+"""Tests for Markdown + macro prompt syntax highlighting."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from pygments.token import Generic
 from rich.text import Text
 
 from sase.ace.tui.util.lazy_syntax import MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
-from sase.ace.tui.util.xprompt_syntax import (
-    _XPROMPT_MARKDOWN_LEXER,
-    XPROMPT_TOKEN_STYLES,
+from sase.ace.tui.util.macro_syntax import (
+    _MACRO_MARKDOWN_LEXER,
+    MACRO_TOKEN_STYLES,
     highlight_markdown_text,
     highlight_prompt_text,
 )
@@ -35,7 +35,7 @@ def test_invocation_led_line_highlights_inline_code() -> None:
 
 
 def test_real_markdown_headings_keep_their_heading_tokens() -> None:
-    tokens = list(lex("# Heading\n## Sub\n", _XPROMPT_MARKDOWN_LEXER))
+    tokens = list(lex("# Heading\n## Sub\n", _MACRO_MARKDOWN_LEXER))
 
     assert (Generic.Heading, "# Heading") in tokens
     assert (Generic.Subheading, "## Sub") in tokens
@@ -72,9 +72,9 @@ def test_highlights_reference_forms_and_arguments() -> None:
         "#ask!!",
         "#skip??",
     ):
-        assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(highlighted, token)
+        assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(highlighted, token)
     for token in ("(a, k=v)", ":value", ":`two words`", "+"):
-        assert XPROMPT_TOKEN_STYLES["invocation_arg"] in _styles_at(highlighted, token)
+        assert MACRO_TOKEN_STYLES["invocation_arg"] in _styles_at(highlighted, token)
 
 
 def test_highlights_known_directives_aliases_and_arguments_only() -> None:
@@ -83,10 +83,10 @@ def test_highlights_known_directives_aliases_and_arguments_only() -> None:
     )
 
     for token in ("%wait", "%w", "%model", "%m", "%auto"):
-        assert XPROMPT_TOKEN_STYLES["directive"] in _styles_at(highlighted, token)
+        assert MACRO_TOKEN_STYLES["directive"] in _styles_at(highlighted, token)
     for token in (":x", "(opus)", ":sonnet"):
-        assert XPROMPT_TOKEN_STYLES["directive_arg"] in _styles_at(highlighted, token)
-    assert XPROMPT_TOKEN_STYLES["directive"] not in _styles_at(
+        assert MACRO_TOKEN_STYLES["directive_arg"] in _styles_at(highlighted, token)
+    assert MACRO_TOKEN_STYLES["directive"] not in _styles_at(
         highlighted, "%iotadirective"
     )
 
@@ -100,15 +100,15 @@ def test_highlights_only_known_skills_when_catalog_is_supplied() -> None:
         known_skills=frozenset({"sase_plan"}),
     )
 
-    assert XPROMPT_TOKEN_STYLES["skill"] not in _styles_at(
+    assert MACRO_TOKEN_STYLES["skill"] not in _styles_at(
         without_catalog,
         "/sase_plan",
     )
-    assert XPROMPT_TOKEN_STYLES["skill"] in _styles_at(
+    assert MACRO_TOKEN_STYLES["skill"] in _styles_at(
         with_catalog,
         "/sase_plan",
     )
-    assert XPROMPT_TOKEN_STYLES["skill"] not in _styles_at(
+    assert MACRO_TOKEN_STYLES["skill"] not in _styles_at(
         with_catalog,
         "/unknown",
     )
@@ -117,17 +117,17 @@ def test_highlights_only_known_skills_when_catalog_is_supplied() -> None:
 def test_highlights_alt_structure_and_segment_separator() -> None:
     highlighted = highlight_prompt_text("%{one | nested(x | y) | three}\n---\n")
 
-    assert XPROMPT_TOKEN_STYLES["alt_delimiter"] in _styles_at(highlighted, "%{")
-    assert XPROMPT_TOKEN_STYLES["alt_delimiter"] in _styles_at(
+    assert MACRO_TOKEN_STYLES["alt_delimiter"] in _styles_at(highlighted, "%{")
+    assert MACRO_TOKEN_STYLES["alt_delimiter"] in _styles_at(
         highlighted, " | ", offset=1
     )
-    assert XPROMPT_TOKEN_STYLES["alt_delimiter"] not in _styles_at(
+    assert MACRO_TOKEN_STYLES["alt_delimiter"] not in _styles_at(
         highlighted, "x | y", offset=2
     )
-    assert XPROMPT_TOKEN_STYLES["alt_delimiter"] in _styles_at(
+    assert MACRO_TOKEN_STYLES["alt_delimiter"] in _styles_at(
         highlighted, "three}", offset=5
     )
-    assert XPROMPT_TOKEN_STYLES["separator"] in _styles_at(highlighted, "---")
+    assert MACRO_TOKEN_STYLES["separator"] in _styles_at(highlighted, "---")
 
 
 def test_highlights_all_alt_forms_branch_names_and_errors() -> None:
@@ -135,46 +135,44 @@ def test_highlights_all_alt_forms_branch_names_and_errors() -> None:
     highlighted = highlight_prompt_text(source)
 
     for token in ("%alt(", "%(", "%{"):
-        assert XPROMPT_TOKEN_STYLES["alt_delimiter"] in _styles_at(highlighted, token)
+        assert MACRO_TOKEN_STYLES["alt_delimiter"] in _styles_at(highlighted, token)
     for token in ("fast", "slow", "one", "two"):
-        assert XPROMPT_TOKEN_STYLES["branch_name"] in _styles_at(highlighted, token)
-    assert XPROMPT_TOKEN_STYLES["error"] in _styles_at(highlighted, "%{oops")
+        assert MACRO_TOKEN_STYLES["branch_name"] in _styles_at(highlighted, token)
+    assert MACRO_TOKEN_STYLES["error"] in _styles_at(highlighted, "%{oops")
 
 
-def test_protected_regions_keep_xprompt_tokens_literal() -> None:
+def test_protected_regions_keep_macro_tokens_literal() -> None:
     source = (
         "```text\n#fenced %wait:fenced\n---\n```\n"
-        "%xprompts_enabled:false\n#disabled %m:disabled\n---\n"
-        "%xprompts_enabled:true\n"
+        "%macros_enabled:false\n#disabled %m:disabled\n---\n"
+        "%macros_enabled:true\n"
         "#active %wait:active\n---"
     )
     highlighted = highlight_prompt_text(source)
 
     for token in ("#fenced", "%wait:fenced", "#disabled", "%m:disabled"):
-        assert XPROMPT_TOKEN_STYLES["invocation"] not in _styles_at(highlighted, token)
-        assert XPROMPT_TOKEN_STYLES["directive"] not in _styles_at(highlighted, token)
-    assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(highlighted, "#active")
-    assert XPROMPT_TOKEN_STYLES["directive"] in _styles_at(highlighted, "%wait:active")
+        assert MACRO_TOKEN_STYLES["invocation"] not in _styles_at(highlighted, token)
+        assert MACRO_TOKEN_STYLES["directive"] not in _styles_at(highlighted, token)
+    assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(highlighted, "#active")
+    assert MACRO_TOKEN_STYLES["directive"] in _styles_at(highlighted, "%wait:active")
     assert (
         sum(
             1
             for span in highlighted.spans
-            if str(span.style) == XPROMPT_TOKEN_STYLES["separator"]
+            if str(span.style) == MACRO_TOKEN_STYLES["separator"]
         )
         == 1
     )
 
 
-def test_markdown_heading_and_midword_tokens_are_not_xprompts() -> None:
+def test_markdown_heading_and_midword_tokens_are_not_macros() -> None:
     highlighted = highlight_prompt_text("# Heading\nword#foo word%wait")
 
-    assert XPROMPT_TOKEN_STYLES["invocation"] not in _styles_at(
-        highlighted, "# Heading"
-    )
-    assert XPROMPT_TOKEN_STYLES["invocation"] not in _styles_at(
+    assert MACRO_TOKEN_STYLES["invocation"] not in _styles_at(highlighted, "# Heading")
+    assert MACRO_TOKEN_STYLES["invocation"] not in _styles_at(
         highlighted, "word#foo", offset=4
     )
-    assert XPROMPT_TOKEN_STYLES["directive"] not in _styles_at(
+    assert MACRO_TOKEN_STYLES["directive"] not in _styles_at(
         highlighted, "word%wait", offset=4
     )
 
@@ -191,7 +189,7 @@ def test_highlighting_exception_falls_back_to_plain_text(monkeypatch) -> None:
     def _raise(*_args, **_kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("sase.ace.tui.util.xprompt_syntax.Syntax.highlight", _raise)
+    monkeypatch.setattr("sase.ace.tui.util.macro_syntax.Syntax.highlight", _raise)
     highlighted = highlight_prompt_text("#foo-exception-fallback-unique")
 
     assert highlighted.plain == "#foo-exception-fallback-unique"
@@ -231,7 +229,7 @@ def _warm_tag_catalog(monkeypatch, *pairs: tuple[str, str | None]) -> None:
 
 
 def test_project_tags_render_like_the_project_chip(monkeypatch) -> None:
-    from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+    from sase.ace.tui.util.macro_syntax import highlight_prompt_text
 
     _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"))
     highlighted = highlight_prompt_text("+sase launch chip-style")
@@ -241,7 +239,7 @@ def test_project_tags_render_like_the_project_chip(monkeypatch) -> None:
 
 
 def test_project_tag_without_accent_renders_neutral_dim(monkeypatch) -> None:
-    from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+    from sase.ace.tui.util.macro_syntax import highlight_prompt_text
 
     _warm_tag_catalog(monkeypatch, ("home", None))
     highlighted = highlight_prompt_text("+home neutral check")
@@ -254,7 +252,7 @@ def test_project_tag_without_accent_renders_neutral_dim(monkeypatch) -> None:
 
 
 def test_project_tag_unknown_renders_warning_underline(monkeypatch) -> None:
-    from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+    from sase.ace.tui.util.macro_syntax import highlight_prompt_text
 
     _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"))
     highlighted = highlight_prompt_text("+ssae unknown tag check")
@@ -264,7 +262,7 @@ def test_project_tag_unknown_renders_warning_underline(monkeypatch) -> None:
 
 
 def test_project_tags_stay_plain_when_catalog_is_cold(monkeypatch) -> None:
-    from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+    from sase.ace.tui.util.macro_syntax import highlight_prompt_text
 
     monkeypatch.setattr(
         "sase.project_tags.catalog.peek_project_tag_catalog",
@@ -277,7 +275,7 @@ def test_project_tags_stay_plain_when_catalog_is_cold(monkeypatch) -> None:
 
 
 def test_stylize_project_tags_applies_region_offsets(monkeypatch) -> None:
-    from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+    from sase.ace.tui.util.macro_syntax import stylize_project_tags
 
     _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"))
     highlighted = Text("..+sase run")

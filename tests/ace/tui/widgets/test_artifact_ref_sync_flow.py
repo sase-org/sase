@@ -88,7 +88,7 @@ async def test_running_reloading_settled_ok_and_new_payloads() -> None:
         rewarm_calls: list[str | None] = []
 
         def fake_warm() -> None:
-            rewarm_calls.append(text_area._xprompt_arg_assist_project_from_text())
+            rewarm_calls.append(text_area._macro_arg_assist_project_from_text())
             grown = replace(CATALOG, documents=(*CATALOG.documents, _NEW_DOC))
             text_area._artifact_ref_completion_catalogs_by_project[None] = grown
             text_area._finish_artifact_ref_sync_reload_for_project(None)

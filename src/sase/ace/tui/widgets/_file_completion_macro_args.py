@@ -1,4 +1,4 @@
-"""Xprompt argument completion helpers for prompt file completion."""
+"""Macro argument completion helpers for prompt file completion."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ from sase.ace.tui.widgets.file_completion import (
     build_completion_candidates,
     is_path_like_token,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptArgCompletionContext,
-    XPromptArgNameMetadata,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroArgCompletionContext,
+    MacroArgNameMetadata,
 )
 
 
-def effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
+def effective_macro_arg_token(ctx: MacroArgCompletionContext) -> str:
     """Return the token passed to an underlying completion engine."""
-    if ctx.completion_kind != "xprompt_arg_path":
+    if ctx.completion_kind != "macro_arg_path":
         return ctx.token
     if not ctx.token:
         return "./"
@@ -28,21 +28,21 @@ def effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
     return f"./{ctx.token}"
 
 
-def build_xprompt_arg_completion_candidates(
-    ctx: XPromptArgCompletionContext,
+def build_macro_arg_completion_candidates(
+    ctx: MacroArgCompletionContext,
     *,
     base_dir: str | os.PathLike[str] | None = None,
     agent_candidates: Sequence[AgentCompletionCandidate] | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
-    """Build candidates for an xprompt argument completion context."""
-    if ctx.completion_kind == "xprompt_arg_path":
+    """Build candidates for a macro argument completion context."""
+    if ctx.completion_kind == "macro_arg_path":
         return build_completion_candidates(
-            effective_xprompt_arg_token(ctx),
+            effective_macro_arg_token(ctx),
             base_dir=base_dir,
         )
-    if ctx.completion_kind == "xprompt_arg_value":
+    if ctx.completion_kind == "macro_arg_value":
         return _build_bool_completion_candidates(ctx.token)
-    if ctx.completion_kind == "xprompt_arg_agent":
+    if ctx.completion_kind == "macro_arg_agent":
         from sase.ace.tui.widgets.directive_completion import (
             build_agent_arg_completion_candidates,
         )
@@ -52,7 +52,7 @@ def build_xprompt_arg_completion_candidates(
             agent_candidates,
             excluded_names=ctx.selected_values,
         )
-    if ctx.completion_kind == "xprompt_arg_name":
+    if ctx.completion_kind == "macro_arg_name":
         return _build_named_arg_completion_candidates(ctx)
     return [], ""
 
@@ -74,8 +74,8 @@ def _build_bool_completion_candidates(
     return candidates, ""
 
 
-def cursor_prefix_may_contain_xprompt_args(text: str, cursor_offset: int) -> bool:
-    """Return True when the cursor prefix has possible xprompt arg syntax."""
+def cursor_prefix_may_contain_macro_args(text: str, cursor_offset: int) -> bool:
+    """Return True when the cursor prefix has possible macro arg syntax."""
     prefix = text[:cursor_offset]
     marker = prefix.rfind("#")
     if marker == -1:
@@ -85,7 +85,7 @@ def cursor_prefix_may_contain_xprompt_args(text: str, cursor_offset: int) -> boo
 
 
 def _build_named_arg_completion_candidates(
-    ctx: XPromptArgCompletionContext,
+    ctx: MacroArgCompletionContext,
 ) -> tuple[list[CompletionCandidate], str]:
     partial = ctx.token.lower()
     candidates = [
@@ -94,7 +94,7 @@ def _build_named_arg_completion_candidates(
             insertion=f"{inp.name}=",
             is_dir=False,
             name=inp.name,
-            metadata=XPromptArgNameMetadata(
+            metadata=MacroArgNameMetadata(
                 reference_text=ctx.entry.insertion,
                 input_hint=inp,
             ),

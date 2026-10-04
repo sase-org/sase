@@ -270,7 +270,7 @@ def _tag_overlay(text: Text, source: str) -> None:
     if "+" not in source:
         return
     try:
-        from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+        from sase.ace.tui.util.macro_syntax import stylize_project_tags
 
         stylize_project_tags(text, source)
     except Exception:

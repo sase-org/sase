@@ -30,18 +30,18 @@ def test_flattens_overlapping_invocation_and_jinja_by_precedence(
     text = "#foo({{ bar | upper }})"
 
     assert _parts(text) == [
-        ("#foo", "xprompt.invocation"),
-        ("(", "xprompt.invocation_arg"),
+        ("#foo", "macro.invocation"),
+        ("(", "macro.invocation_arg"),
         ("{{", "jinja.delimiter"),
-        (" ", "xprompt.invocation_arg"),
+        (" ", "macro.invocation_arg"),
         ("bar", "jinja.variable"),
-        (" ", "xprompt.invocation_arg"),
+        (" ", "macro.invocation_arg"),
         ("|", "jinja.operator"),
-        (" ", "xprompt.invocation_arg"),
+        (" ", "macro.invocation_arg"),
         ("upper", "jinja.filter"),
-        (" ", "xprompt.invocation_arg"),
+        (" ", "macro.invocation_arg"),
         ("}}", "jinja.delimiter"),
-        (")", "xprompt.invocation_arg"),
+        (")", "macro.invocation_arg"),
     ]
 
 
@@ -56,10 +56,10 @@ def test_flattens_directive_argument_over_placeholder(
     text = "%model(<model>)"
 
     assert _parts(text) == [
-        ("%model", "xprompt.directive"),
-        ("(", "xprompt.directive_arg"),
+        ("%model", "macro.directive"),
+        ("(", "macro.directive_arg"),
         ("<model>", "placeholder"),
-        (")", "xprompt.directive_arg"),
+        (")", "macro.directive_arg"),
     ]
 
 
@@ -109,20 +109,28 @@ def test_core_argument_spans_are_layered_over_container(
     spans = highlight_spans(text)
 
     assert [(text[span.start : span.end], span.role) for span in spans] == [
-        ("#foo", "xprompt.invocation"),
-        ("(", "xprompt.arg_delimiter"),
-        ("é", "xprompt.arg_key"),
-        ("=", "xprompt.arg_assign"),
-        ("12", "xprompt.arg_value_number"),
-        (",", "xprompt.arg_delimiter"),
-        ("label", "xprompt.arg_key"),
-        ("=", "xprompt.arg_assign"),
-        ('"x"', "xprompt.arg_value_string"),
-        (")", "xprompt.arg_delimiter"),
+        ("#foo", "macro.invocation"),
+        ("(", "macro.arg_delimiter"),
+        ("é", "macro.arg_key"),
+        ("=", "macro.arg_assign"),
+        ("12", "macro.arg_value_number"),
+        (",", "macro.arg_delimiter"),
+        ("label", "macro.arg_key"),
+        ("=", "macro.arg_assign"),
+        ('"x"', "macro.arg_value_string"),
+        (")", "macro.arg_delimiter"),
     ]
     key_span = next(span for span in spans if text[span.start : span.end] == "é")
     assert key_span.validity == "unknown_key"
-    assert key_span.source == "xprompt"
+    assert key_span.source == "macro"
+
+
+def test_source_value_maps_legacy_xprompt_to_macro() -> None:
+    assert highlight._source_value("xprompt") == "macro"
+    assert highlight._source_value("macro") == "macro"
+    assert highlight._source_value("directive") == "directive"
+    assert highlight._source_value("unknown") is None
+    assert highlight._source_value(None) is None
 
 
 def test_alt_block_preserves_nested_invocations() -> None:
@@ -131,10 +139,10 @@ def test_alt_block_preserves_nested_invocations() -> None:
     assert _parts(text) == [
         ("%{", "alt.delimiter"),
         ("left", "alt.branch_name"),
-        ("#foo", "xprompt.invocation"),
+        ("#foo", "macro.invocation"),
         ("|", "alt.separator"),
         ("right", "alt.branch_name"),
-        ("#bar", "xprompt.invocation"),
+        ("#bar", "macro.invocation"),
         ("}", "alt.delimiter"),
     ]
 
@@ -145,7 +153,7 @@ def test_code_literals_suppress_macro_roles() -> None:
     assert _parts(text) == [
         ("```text\n#fenced\n```", "code.fence"),
         ("`#inline`", "code.inline"),
-        ("#outside", "xprompt.invocation"),
+        ("#outside", "macro.invocation"),
     ]
 
 
@@ -206,7 +214,7 @@ def test_identical_spans_resolve_by_role_precedence(
         lambda text: [SimpleNamespace(start=0, end=4, kind="variable")],
     )
 
-    assert highlight_spans("#foo") == [HighlightSpan(0, 4, "xprompt.invocation")]
+    assert highlight_spans("#foo") == [HighlightSpan(0, 4, "macro.invocation")]
 
 
 def test_adjacent_same_role_spans_are_not_merged(
@@ -223,8 +231,8 @@ def test_adjacent_same_role_spans_are_not_merged(
     )
 
     assert highlight_spans("##") == [
-        HighlightSpan(0, 1, "xprompt.invocation"),
-        HighlightSpan(1, 2, "xprompt.invocation"),
+        HighlightSpan(0, 1, "macro.invocation"),
+        HighlightSpan(1, 2, "macro.invocation"),
     ]
 
 
@@ -243,8 +251,8 @@ def test_clamps_ranges_and_drops_zero_width_spans(
     )
 
     assert highlight_spans("abcd") == [
-        HighlightSpan(0, 2, "xprompt.invocation"),
-        HighlightSpan(2, 4, "xprompt.directive"),
+        HighlightSpan(0, 2, "macro.invocation"),
+        HighlightSpan(2, 4, "macro.directive"),
     ]
 
 
@@ -258,7 +266,7 @@ def test_calls_each_scanner_once(monkeypatch: pytest.MonkeyPatch) -> None:
 
         return scanner
 
-    monkeypatch.setattr(highlight.macro_inspect, "tokenize", once("xprompt", []))
+    monkeypatch.setattr(highlight.macro_inspect, "tokenize", once("macro", []))
     monkeypatch.setattr(highlight.jinja_inspect, "tokenize", once("jinja", []))
     monkeypatch.setattr(highlight.alt_inspect, "tokenize", once("alt", []))
     monkeypatch.setattr(highlight, "placeholder_spans", once("placeholder", ()))
@@ -268,7 +276,7 @@ def test_calls_each_scanner_once(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert highlight_spans("ordinary text") == []
     assert calls == {
-        "xprompt": 1,
+        "macro": 1,
         "jinja": 1,
         "alt": 1,
         "placeholder": 1,
@@ -325,8 +333,8 @@ def test_project_tag_splits_sigil_and_name_with_accent(
     _warm_tag_catalog(monkeypatch)
 
     assert highlight_spans("+sase run") == [
-        HighlightSpan(0, 1, "xprompt.project_tag.sigil", accent="#C75A31"),
-        HighlightSpan(1, 5, "xprompt.project_tag.name", accent="#C75A31"),
+        HighlightSpan(0, 1, "macro.project_tag.sigil", accent="#C75A31"),
+        HighlightSpan(1, 5, "macro.project_tag.name", accent="#C75A31"),
     ]
 
 
@@ -335,7 +343,7 @@ def test_project_tag_unknown_only_for_anchored_tags(
 ) -> None:
     _warm_tag_catalog(monkeypatch)
 
-    assert _parts("+ssae run") == [("+ssae", "xprompt.project_tag.unknown")]
+    assert _parts("+ssae run") == [("+ssae", "macro.project_tag.unknown")]
     assert _parts("run +ssae") == []
 
 
@@ -345,10 +353,10 @@ def test_project_tag_spans_keep_their_accents_through_flattening(
     _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"), ("bob", "#4379D3"))
 
     assert highlight_spans("+sase +bob") == [
-        HighlightSpan(0, 1, "xprompt.project_tag.sigil", accent="#C75A31"),
-        HighlightSpan(1, 5, "xprompt.project_tag.name", accent="#C75A31"),
-        HighlightSpan(6, 7, "xprompt.project_tag.sigil", accent="#4379D3"),
-        HighlightSpan(7, 10, "xprompt.project_tag.name", accent="#4379D3"),
+        HighlightSpan(0, 1, "macro.project_tag.sigil", accent="#C75A31"),
+        HighlightSpan(1, 5, "macro.project_tag.name", accent="#C75A31"),
+        HighlightSpan(6, 7, "macro.project_tag.sigil", accent="#4379D3"),
+        HighlightSpan(7, 10, "macro.project_tag.name", accent="#4379D3"),
     ]
 
 
@@ -360,11 +368,11 @@ def test_project_tags_coexist_with_alt_structure(
 
     assert _parts(text) == [
         ("%{", "alt.delimiter"),
-        ("+", "xprompt.project_tag.sigil"),
-        ("sase", "xprompt.project_tag.name"),
+        ("+", "macro.project_tag.sigil"),
+        ("sase", "macro.project_tag.name"),
         ("|", "alt.separator"),
-        ("+", "xprompt.project_tag.sigil"),
-        ("bob", "xprompt.project_tag.name"),
+        ("+", "macro.project_tag.sigil"),
+        ("bob", "macro.project_tag.name"),
         ("}", "alt.delimiter"),
     ]
 
@@ -375,7 +383,7 @@ def test_alt_callers_share_one_binding_scan_per_text(
     """One rebuild's alt callers share a single core scan; plain text skips FFI."""
     from rich.style import Style
 
-    from sase.ace.tui.util import semantic_overlay, xprompt_syntax
+    from sase.ace.tui.util import semantic_overlay, macro_syntax
     from sase.ace.tui.util.semantic_styles import SemanticHighlightStyles
     from sase.macro import alt_inspect
 
@@ -400,13 +408,13 @@ def test_alt_callers_share_one_binding_scan_per_text(
     try:
         text = "foo%{bar | baz}qux"
         assert highlight_spans(text)
-        assert xprompt_syntax.xprompt_overlay_spans(text)
+        assert macro_syntax.macro_overlay_spans(text)
         target = SimpleNamespace(stylize=lambda *args, **kwargs: None)
         semantic_overlay.apply_semantic_overlays(
             target,
             text,
             styles=SemanticHighlightStyles(glossary=Style(), repo=Style()),
-            skip_xprompt=True,
+            skip_macro=True,
         )
         delimiters = [
             span for span in alt_inspect.tokenize(text) if span.kind == "delimiter"
@@ -418,12 +426,12 @@ def test_alt_callers_share_one_binding_scan_per_text(
         calls.clear()
         plain = "ordinary text with 50% effort"
         assert highlight_spans(plain) == []
-        assert xprompt_syntax.xprompt_overlay_spans(plain) == ()
+        assert macro_syntax.macro_overlay_spans(plain) == ()
         semantic_overlay.apply_semantic_overlays(
             target,
             plain,
             styles=SemanticHighlightStyles(glossary=Style(), repo=Style()),
-            skip_xprompt=True,
+            skip_macro=True,
         )
         assert alt_inspect.tokenize(plain) == []
         assert alt_inspect.groups(plain) == ()
@@ -449,5 +457,5 @@ def _isolate_scanners(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_double_colon_eol_layers_delimiter_and_next_line_value() -> None:
     text = "#foo(a=1)::\nbody"
     parts = _parts(text)
-    assert ("::", "xprompt.arg_delimiter") in parts
-    assert ("body", "xprompt.arg_value") in parts
+    assert ("::", "macro.arg_delimiter") in parts
+    assert ("body", "macro.arg_value") in parts

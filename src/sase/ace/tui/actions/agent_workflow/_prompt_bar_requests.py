@@ -442,8 +442,8 @@ class PromptBarRequestsMixin:
             returns ``None`` on success or a user-facing error message. The modal
             notifies and stays open on error, and dismisses on success.
             """
-            from sase.ace.tui.widgets.xprompt_inline_expansion import (
-                expand_inline_xprompt,
+            from sase.ace.tui.widgets.macro_inline_expansion import (
+                expand_inline_macro,
             )
             from sase.macro.workflow_models import Workflow
 
@@ -455,7 +455,7 @@ class PromptBarRequestsMixin:
             # Pass the live frontmatter locals so a selected local helper (or a
             # global xprompt that references one) resolves recursively the same
             # way it would at launch (Phase 5 catalog parity).
-            result = expand_inline_xprompt(
+            result = expand_inline_macro(
                 name, workflow, local_macros=local_macros, project=project
             )
             if result.error is not None:

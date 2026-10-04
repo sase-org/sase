@@ -70,7 +70,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             *,
             cancel_timer: bool = False,
         ) -> None: ...
-        def _clear_xprompt_arg_hint(self) -> None: ...
+        def _clear_macro_arg_hint(self) -> None: ...
         def _compute_recursive_finder_context(self) -> Any | None: ...
         def _insert_finder_result(
             self,
@@ -84,7 +84,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_snippet_session()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         try:
             self._clear_next_word_chain()  # type: ignore[attr-defined]
         except Exception:
@@ -100,7 +100,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_snippet_session()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         try:
             self._clear_next_word_chain()  # type: ignore[attr-defined]
         except Exception:
@@ -124,7 +124,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_snippet_session()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         try:
             self._clear_next_word_chain()  # type: ignore[attr-defined]
         except Exception:
@@ -159,7 +159,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             return
         self._clear_insert_g_prefix()
         self._clear_soft_completion(cancel_timer=True)
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         try:
             self._clear_next_word_chain()  # type: ignore[attr-defined]
         except Exception:
@@ -179,7 +179,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         if bar:
             self._clear_insert_g_prefix()
             self._clear_soft_completion(cancel_timer=True)
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
             try:
                 self._clear_next_word_chain()  # type: ignore[attr-defined]
             except Exception:
@@ -253,7 +253,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
 
         self._clear_file_completion()
         self._clear_soft_completion(cancel_timer=True)
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         try:
             self._clear_next_word_chain()  # type: ignore[attr-defined]
         except Exception:
@@ -374,7 +374,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_normal_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
         self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         self._reset_vcs_mru_cycle_state()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_snippet_session()

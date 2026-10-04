@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from sase.ace.tui.widgets._file_completion_accept import FileCompletionAcceptMixin
-from sase.ace.tui.widgets._file_completion_xprompt_args import (
-    build_xprompt_arg_completion_candidates,
-    effective_xprompt_arg_token,
+from sase.ace.tui.widgets._file_completion_macro_args import (
+    build_macro_arg_completion_candidates,
+    effective_macro_arg_token,
 )
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
@@ -56,7 +56,7 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_candidates,
 )
-from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
+from sase.ace.tui.widgets.macro_completion import is_macro_like_token
 
 _MODEL_SHORTCUT_COMPLETION_KINDS = frozenset(
     {
@@ -318,18 +318,18 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 token,
                 inline_reference_only=span.clamped,
             )
-        elif self._completion_kind.startswith("xprompt_arg_"):
+        elif self._completion_kind.startswith("macro_arg_"):
             arg_ctx = self._get_xprompt_arg_completion_context()
             if arg_ctx is None:
                 self._clear_file_completion()
                 return
-            token = effective_xprompt_arg_token(arg_ctx)
-            candidates, _shared = build_xprompt_arg_completion_candidates(
+            token = effective_macro_arg_token(arg_ctx)
+            candidates, _shared = build_macro_arg_completion_candidates(
                 arg_ctx,
                 base_dir=base_dir,
                 agent_candidates=(
                     self._snapshot_agent_completion_candidates()
-                    if arg_ctx.completion_kind == "xprompt_arg_agent"
+                    if arg_ctx.completion_kind == "macro_arg_agent"
                     else None
                 ),
             )
@@ -552,4 +552,4 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         if token_info is None:
             return False
         raw_token = token_info[2]
-        return is_xprompt_like_token(raw_token) or is_path_like_token(raw_token)
+        return is_macro_like_token(raw_token) or is_path_like_token(raw_token)

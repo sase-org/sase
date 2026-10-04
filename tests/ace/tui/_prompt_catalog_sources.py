@@ -159,7 +159,7 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
     )
     monkeypatch.setattr(
         prompt_catalog,
-        "build_xprompt_assist_entries",
+        "build_macro_assist_entries",
         lambda project=None: [entry("review")],
     )
     monkeypatch.setattr(
@@ -217,7 +217,7 @@ def test_prompt_catalog_preserves_explicit_capitalized_collisions(
     )
     monkeypatch.setattr(
         prompt_catalog,
-        "build_xprompt_assist_entries",
+        "build_macro_assist_entries",
         lambda project=None: [],
     )
     monkeypatch.setattr(
@@ -270,7 +270,7 @@ def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
     monkeypatch.setattr("sase.macro.loader.get_all_macros", lambda project=None: {})
     monkeypatch.setattr(
         prompt_catalog,
-        "build_xprompt_assist_entries",
+        "build_macro_assist_entries",
         lambda project=None: [],
     )
 

@@ -43,7 +43,7 @@ if TYPE_CHECKING:
         PromptCompletionSettings,
         PromptSpellcheckSettings,
     )
-    from ..widgets.xprompt_arg_assist import XPromptAssistEntry
+    from ..widgets.macro_arg_assist import MacroAssistEntry
     from sase.macro.glossary_catalog import EditorGlossaryCatalog
     from sase.macro.repo_mention_catalog import EditorRepoMentionCatalog
     from sase.history.prompt_placeholders import (
@@ -183,7 +183,7 @@ class StartupMixin(
     _prompt_catalog_token_check_last_mono: float
     _prompt_catalog_assist_entries_cache: dict[
         str | None,
-        list[XPromptAssistEntry],
+        list[MacroAssistEntry],
     ]
     _prompt_glossary_generation: int
     _prompt_glossary_catalogs_by_context: dict[

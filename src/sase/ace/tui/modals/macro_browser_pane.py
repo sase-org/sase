@@ -539,11 +539,11 @@ class MacroBrowserPane(PaneEntryJumpMixin, MacroBrowserActionsMixin, Vertical):
         if item is None:
             return
 
-        from sase.ace.tui.widgets.xprompt_inline_expansion import (
-            expand_inline_xprompt,
+        from sase.ace.tui.widgets.macro_inline_expansion import (
+            expand_inline_macro,
         )
 
-        result = expand_inline_xprompt(item.name, item.workflow, project=self._project)
+        result = expand_inline_macro(item.name, item.workflow, project=self._project)
         if result.error is not None:
             self.notify(result.error, severity="error")
             return

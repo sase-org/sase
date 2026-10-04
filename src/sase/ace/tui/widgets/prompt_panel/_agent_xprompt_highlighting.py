@@ -22,7 +22,7 @@ from sase.ace.tui.util.semantic_styles import (
     SemanticHighlightStyles,
     semantic_highlight_styles_from_theme,
 )
-from sase.ace.tui.util.xprompt_syntax import apply_xprompt_overlays
+from sase.ace.tui.util.macro_syntax import apply_macro_overlays
 from sase.artifact_refs import parsable_artifact_ref_kinds
 from sase.macro import extract_project_from_vcs_tag, extract_vcs_workflow_tag
 from sase.macro.glossary_catalog import EditorGlossaryCatalog
@@ -180,11 +180,11 @@ def apply_authored_prompt_overlays(
             repo_catalog=context.repo_catalog,
             styles=context.styles,
             region_start=region_start,
-            skip_xprompt=include_xprompt,
+            skip_macro=include_xprompt,
             known_skills=context.known_skills,
         )
         if include_xprompt:
-            apply_xprompt_overlays(
+            apply_macro_overlays(
                 highlighted,
                 source,
                 region_start=region_start,

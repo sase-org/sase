@@ -77,10 +77,10 @@ def render_agent_prompt_hint_body(
     if raw_xprompt:
         if not xprompt_hints_enabled(panel):
             display_raw = getattr(panel, "_display_raw_xprompt", None)
-            render_xprompt = getattr(panel, "_render_xprompt", None)
-            if callable(display_raw) and callable(render_xprompt):
+            render_macro = getattr(panel, "_render_xprompt", None)
+            if callable(display_raw) and callable(render_macro):
                 humanized_xprompt = display_raw(agent, raw_xprompt)
-                plain_xprompt = render_xprompt(
+                plain_xprompt = render_macro(
                     agent,
                     raw_xprompt,
                     humanized_xprompt,

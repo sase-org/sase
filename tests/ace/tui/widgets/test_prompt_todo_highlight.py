@@ -254,7 +254,7 @@ async def test_todo_overlay_uses_utf8_byte_columns_and_coexists_with_syntax() ->
         for name in (
             "codeblock.inline",
             "jinja.delimiter",
-            "xprompt.invocation",
+            "macro.invocation",
             "todo.header",
             "todo.body",
             "search.current",
@@ -262,7 +262,7 @@ async def test_todo_overlay_uses_utf8_byte_columns_and_coexists_with_syntax() ->
         ):
             assert name in names
         assert names.index("codeblock.inline") < names.index("todo.header")
-        assert names.index("xprompt.invocation") < names.index("todo.header")
+        assert names.index("macro.invocation") < names.index("todo.header")
         assert names.index("todo.header") < names.index("search.current")
         assert names.index("search.current") < names.index("yank.flash")
 

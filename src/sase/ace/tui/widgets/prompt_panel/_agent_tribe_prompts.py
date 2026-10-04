@@ -20,7 +20,7 @@ from sase.history.prompt_metadata import summarize_prompt_for_list
 from sase.macro import extract_project_from_vcs_tag, extract_vcs_workflow_tag
 
 from ..._agent_completion_prompt import split_prompt_preamble
-from ...util.xprompt_syntax import xprompt_overlay_spans
+from ...util.macro_syntax import macro_overlay_spans
 from ._agent_display_clan_sections_common import humanize_prompt_body
 
 if TYPE_CHECKING:
@@ -215,12 +215,12 @@ def _build_digest(raw: str) -> PromptDigest:
     return PromptDigest(
         group_key=group_key,
         headline=humanized_headline,
-        headline_spans=tuple(xprompt_overlay_spans(humanized_headline)),
+        headline_spans=tuple(macro_overlay_spans(humanized_headline)),
         body=humanized_body,
-        body_spans=tuple(xprompt_overlay_spans(humanized_body)),
+        body_spans=tuple(macro_overlay_spans(humanized_body)),
         body_line_count=humanized_body.count("\n") + 1 if humanized_body else 0,
         launch=humanized_launch,
-        launch_spans=tuple(xprompt_overlay_spans(humanized_launch)),
+        launch_spans=tuple(macro_overlay_spans(humanized_launch)),
         xprompts=chips,
         project=project,
     )

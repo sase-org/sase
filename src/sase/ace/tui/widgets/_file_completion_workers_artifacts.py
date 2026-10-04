@@ -41,7 +41,7 @@ class FileCompletionArtifactInventoryWorkerMixin(FileCompletionContextMixin):
         _prompt_commit_worker_projects: dict[str, str | None]
 
         def _refresh_file_completion_from_cursor(self) -> None: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
 
     def _prompt_path_directory_key(self, directory: str = "") -> str:
         """Resolve a caller-visible prompt directory to its cache key."""
@@ -161,7 +161,7 @@ class FileCompletionArtifactInventoryWorkerMixin(FileCompletionContextMixin):
             or context is None
             or context.stage != "payload"
             or (context.kind or "").casefold() != "commit"
-            or self._xprompt_arg_assist_project_from_text() != snapshot.project
+            or self._macro_arg_assist_project_from_text() != snapshot.project
         ):
             return
         self._refresh_file_completion_from_cursor()

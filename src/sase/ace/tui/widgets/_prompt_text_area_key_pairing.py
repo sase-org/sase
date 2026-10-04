@@ -55,7 +55,7 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
             *,
             cancel_timer: bool = False,
         ) -> None: ...
-        def _clear_xprompt_arg_hint(self) -> None: ...
+        def _clear_macro_arg_hint(self) -> None: ...
         def _on_prompt_completion_context_changed(self) -> None: ...
         def _open_auto_reference_completion_after_change(
             self,
@@ -104,7 +104,7 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
             self.cursor_location = (row, col - 1 + 3)
             self._clear_soft_completion(cancel_timer=True)
             self._clear_file_completion()
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
             self._on_prompt_completion_context_changed()
             if event.character in ("{", "%"):
                 self._try_auto_jinja_completion()
@@ -123,7 +123,7 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         self.cursor_location = (row, col + cursor_delta)
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         self._on_prompt_completion_context_changed()
         if event.character in ("{", "%"):
             self._try_auto_jinja_completion()
@@ -227,7 +227,7 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         self.cursor_location = self._location_from_absolute(plan.cursor)
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         self._on_prompt_completion_context_changed()
 
 

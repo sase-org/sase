@@ -9,7 +9,7 @@ from rich.console import Group
 from rich.text import Text
 
 from sase.ace.tui.util.lazy_syntax import CachedRenderable
-from sase.ace.tui.util.xprompt_syntax import XPROMPT_TOKEN_STYLES
+from sase.ace.tui.util.macro_syntax import MACRO_TOKEN_STYLES
 from sase.ace.tui.widgets.decks.card_part import flatten_card_document
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
     AgentHeaderRenderable,
@@ -189,7 +189,7 @@ def test_agent_xprompt_and_prompt_receive_roles_replies_do_not(
     panel.update_display(agent)
     rendered = flatten_card_document(panel.captured[-1])
     header = _header_text(rendered)
-    assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(header, "#git")
+    assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(header, "#git")
     assert _has_role_underline(_styles_at(header, "Agent Clan"))
     assert _has_role_underline(_styles_at(header, "sase-core"))
 
@@ -242,7 +242,7 @@ def test_hint_mode_restores_file_hints_after_semantics(
     rendered = _header_text(panel.captured[-1])
     assert "[1] @src/raw.py" in rendered.plain
     assert result.file_hints[1] == str(workspace / "src/raw.py")
-    assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(rendered, "#work")
+    assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(rendered, "#work")
     assert "bold #FFFF00" in _styles_at(rendered, "[1]")
     assert _has_role_underline(_styles_at(rendered, "Agent Clan"))
 

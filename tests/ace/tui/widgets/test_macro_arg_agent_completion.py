@@ -1,4 +1,4 @@
-"""Tests for agent-valued xprompt argument completion."""
+"""Tests for agent-valued macro argument completion."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 from ._completion_helpers import CompletionTestApp
-from ._xprompt_arg_completion_helpers import (
+from ._macro_arg_completion_helpers import (
     agent_candidate,
     ask_entry,
     fork_entry,
@@ -30,7 +30,7 @@ async def test_fork_agent_arg_completion_replaces_value() -> None:
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
         ta.load_text("#fork:co")
         ta.cursor_location = (0, len("#fork:co"))
 
@@ -47,7 +47,7 @@ async def test_fork_agent_arg_completion_inserts_tribe_target() -> None:
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
         ta.load_text("#fork:@ep")
         ta.cursor_location = (0, len("#fork:@ep"))
 
@@ -66,7 +66,7 @@ async def test_repeatable_fork_completion_replaces_only_active_element() -> None
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
         ta.load_text("#fork:planner,co")
         ta.cursor_location = (0, len("#fork:planner,co"))
 
@@ -86,7 +86,7 @@ async def test_repeatable_fork_completion_filters_selected_parent_and_templates(
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
         ta.load_text("#fork(planner, ")
         ta.cursor_location = (0, len("#fork(planner, "))
 
@@ -109,7 +109,7 @@ async def test_repeatable_fork_completion_replaces_earlier_parenthesized_element
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
         ta.load_text("#fork(co, planner)")
         ta.cursor_location = (0, len("#fork(co"))
 
@@ -127,7 +127,7 @@ async def test_fork_agent_arg_menu_renders_visible_agent_metadata() -> None:
     async with app.run_test():
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
         ta.load_text("#fork:")
         ta.cursor_location = (0, len("#fork:"))
 
@@ -167,7 +167,7 @@ async def test_fork_target_menu_renders_all_four_aligned_kinds() -> None:
     async with app.run_test():
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
         ta.load_text("#fork:")
         ta.cursor_location = (0, len("#fork:"))
 
@@ -215,7 +215,7 @@ async def test_fork_tribe_completion_colors_only_the_identity(
     async with app.run_test():
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
         ta.load_text("#fork:")
         ta.cursor_location = (0, len("#fork:"))
         assert ta._try_file_completion_tab() is True
@@ -227,7 +227,7 @@ async def test_fork_tribe_completion_colors_only_the_identity(
     )
 
 
-async def test_fork_agent_arg_auto_menu_uses_xprompt_gate() -> None:
+async def test_fork_agent_arg_auto_menu_uses_macro_gate() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
         agent_candidate("coder"),
@@ -236,13 +236,13 @@ async def test_fork_agent_arg_auto_menu_uses_xprompt_gate() -> None:
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
 
         for char in "#fork:":
             await pilot.press(char)
 
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_agent"
+        assert ta._completion_kind == "macro_arg_agent"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "coder",
             "planner",
@@ -251,7 +251,7 @@ async def test_fork_agent_arg_auto_menu_uses_xprompt_gate() -> None:
         assert panel.border_title == "fork targets"
 
 
-async def test_fork_agent_arg_completion_after_earlier_xprompt_reference() -> None:
+async def test_fork_agent_arg_completion_after_earlier_macro_reference() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
         agent_candidate("coder"),
@@ -273,7 +273,7 @@ async def test_fork_agent_arg_completion_after_earlier_xprompt_reference() -> No
         # ``#gh:sase`` reference is scanned first.
         assert ta._try_file_completion_tab() is True
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_agent"
+        assert ta._completion_kind == "macro_arg_agent"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "coder",
             "planner",
@@ -289,27 +289,27 @@ async def test_double_colon_free_text_does_not_open_fork_agent_menu() -> None:
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [
+        ta._macro_arg_assist_entries_by_project[None] = [
             ask_entry(),
             fork_entry(),
         ]
         ta.load_text("#ask:: after #fork:")
         ta.cursor_location = (0, len("#ask:: after #fork:"))
 
-        # Ctrl+T may fall through to xprompt-name completion, but it must never
+        # Ctrl+T may fall through to macro-name completion, but it must never
         # open the fork-agent menu inside the double-colon free-text body.
         ta._try_file_completion_tab()
-        assert ta._completion_kind != "xprompt_arg_agent"
+        assert ta._completion_kind != "macro_arg_agent"
 
 
-async def test_fork_agent_arg_auto_menu_respects_disabled_xprompt_gate() -> None:
+async def test_fork_agent_arg_auto_menu_respects_disabled_macro_gate() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
         agent_candidate("coder")
     ]
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [fork_entry()]
+        ta._macro_arg_assist_entries_by_project[None] = [fork_entry()]
 
         with patch.object(
             type(ta),

@@ -1,4 +1,4 @@
-"""Markdown syntax highlighting with semantic xprompt overlays."""
+"""Markdown syntax highlighting with semantic macro overlays."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from .lazy_syntax import (
 from .semantic_overlay import apply_semantic_overlays
 from .semantic_styles import SemanticHighlightStyles
 
-XPROMPT_TOKEN_STYLES: dict[str, str] = {
+MACRO_TOKEN_STYLES: dict[str, str] = {
     "invocation": "bold #87D787",
     "invocation_arg": "#5FAF87",
     "directive": "bold #FFD75F",
@@ -52,8 +52,8 @@ _ALT_TOKEN_STYLE_KEYS = {
 }
 
 
-class _XPromptMarkdownLexer(MarkdownLexer):
-    """Markdown lexer that keeps xprompt-led lines out of heading rules."""
+class _MacroMarkdownLexer(MarkdownLexer):
+    """Markdown lexer that keeps macro-led lines out of heading rules."""
 
     tokens = {
         **MarkdownLexer.tokens,
@@ -64,7 +64,7 @@ class _XPromptMarkdownLexer(MarkdownLexer):
     }
 
 
-_XPROMPT_MARKDOWN_LEXER = _XPromptMarkdownLexer()
+_MACRO_MARKDOWN_LEXER = _MacroMarkdownLexer()
 _MARKDOWN_TEXT_CACHE_MAX_ENTRIES = 24
 _markdown_text_cache: OrderedDict[tuple[object, ...], Text] = OrderedDict()
 
@@ -113,15 +113,15 @@ class _StylizableText(Protocol):
     ) -> None: ...
 
 
-def xprompt_overlay_spans(
+def macro_overlay_spans(
     source: str,
     *,
     known_skills: frozenset[str] = frozenset(),
 ) -> tuple[tuple[str, int, int], ...]:
     """Return ``(style, start, end)`` overlays for *source* in application order.
 
-    These are the xprompt/alt-token overlays plus the project-tag overlays
-    that :func:`apply_xprompt_overlays` applies today, computed without a
+    These are the macro/alt-token overlays plus the project-tag overlays
+    that :func:`apply_macro_overlays` applies today, computed without a
     target so worker-side digests can replay them later. Oversized sources
     yield no spans, matching :func:`highlight_prompt_text`.
     """
@@ -132,13 +132,13 @@ def xprompt_overlay_spans(
         return ()
 
     overlays = [
-        (XPROMPT_TOKEN_STYLES[span.kind], span.start, span.end)
+        (MACRO_TOKEN_STYLES[span.kind], span.start, span.end)
         for span in macro_inspect.tokenize(source, known_skills=known_skills)
-        if span.kind in XPROMPT_TOKEN_STYLES
+        if span.kind in MACRO_TOKEN_STYLES
     ]
     overlays.extend(
         (
-            XPROMPT_TOKEN_STYLES[_ALT_TOKEN_STYLE_KEYS[alt_span.kind]],
+            MACRO_TOKEN_STYLES[_ALT_TOKEN_STYLE_KEYS[alt_span.kind]],
             alt_span.start,
             alt_span.end,
         )
@@ -148,14 +148,14 @@ def xprompt_overlay_spans(
     return tuple(overlays)
 
 
-def apply_xprompt_overlays(
+def apply_macro_overlays(
     highlighted: _StylizableText,
     source: str,
     *,
     region_start: int = 0,
     known_skills: frozenset[str] = frozenset(),
 ) -> None:
-    """Apply semantic xprompt styles from *source* to a Text region.
+    """Apply semantic macro styles from *source* to a Text region.
 
     Tokenization finishes before the target is mutated so callers can fail open
     without leaving partially-applied overlays. Oversized regions are left
@@ -167,7 +167,7 @@ def apply_xprompt_overlays(
     ):
         return
 
-    for style, start, end in xprompt_overlay_spans(source, known_skills=known_skills):
+    for style, start, end in macro_overlay_spans(source, known_skills=known_skills):
         highlighted.stylize(
             style,
             region_start + start,
@@ -224,7 +224,7 @@ def _project_tag_overlays(span: object) -> list[tuple[str, int, int]]:
     if not isinstance(start, int) or not isinstance(end, int) or end <= start:
         return []
     if kind == "project_tag_unknown":
-        return [(XPROMPT_TOKEN_STYLES["project_tag_unknown"], start, end)]
+        return [(MACRO_TOKEN_STYLES["project_tag_unknown"], start, end)]
     if kind != "project_tag":
         return []
     name_start = getattr(span, "name_start", None)
@@ -252,12 +252,12 @@ def highlight_prompt_text(
     artifact_ref_known_kinds: frozenset[str] | None = None,
     artifact_ref_styles: ArtifactRefStylePalette | None = None,
 ) -> Text:
-    """Return Markdown-highlighted prompt text with xprompt token overlays.
+    """Return Markdown-highlighted prompt text with macro token overlays.
 
     Highlighting is presentation-only and deliberately fail-open: oversized or
     malformed input always remains fully visible as plain text. Glossary and
     repo roles, when supplied, annotate natural-language text before structural
-    xprompt styles win.
+    macro styles win.
     """
     if _exceeds_prompt_highlight_cap(text):
         return Text(text)
@@ -298,7 +298,7 @@ def highlight_markdown_text(
 ) -> Text:
     """Return ordinary Markdown-highlighted text with optional semantic roles.
 
-    Unlike :func:`highlight_prompt_text`, this path does not apply xprompt
+    Unlike :func:`highlight_prompt_text`, this path does not apply macro
     token styles. Oversized or malformed input remains fully visible.
     """
     if _exceeds_prompt_highlight_cap(text):
@@ -336,7 +336,7 @@ def _highlight_prompt_text_uncached(
 ) -> Text:
     highlighted = Syntax(
         text,
-        _XPROMPT_MARKDOWN_LEXER,
+        _MACRO_MARKDOWN_LEXER,
         theme="monokai",
     ).highlight(text)
     _trim_syntax_trailing_newline(highlighted, text)
@@ -346,10 +346,10 @@ def _highlight_prompt_text_uncached(
         glossary_catalog=glossary_catalog,
         repo_catalog=repo_catalog,
         styles=semantic_styles,
-        skip_xprompt=True,
+        skip_macro=True,
         known_skills=known_skills,
     )
-    apply_xprompt_overlays(
+    apply_macro_overlays(
         highlighted,
         text,
         known_skills=known_skills,
@@ -403,10 +403,10 @@ def _trim_syntax_trailing_newline(highlighted: Text, source: str) -> None:
 
 
 __all__ = [
-    "XPROMPT_TOKEN_STYLES",
-    "apply_xprompt_overlays",
+    "MACRO_TOKEN_STYLES",
+    "apply_macro_overlays",
     "highlight_markdown_text",
     "highlight_prompt_text",
     "stylize_project_tags",
-    "xprompt_overlay_spans",
+    "macro_overlay_spans",
 ]

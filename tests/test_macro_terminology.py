@@ -198,21 +198,6 @@ _MACRO_NAME_ALLOWLIST = {
     ),
     ("src/sase/doctor/checks_config.py", "check_config_retired_xprompt_names"),
     ("src/sase/doctor/checks_config.py", "_check_config_retired_xprompt_names"),
-    # TUI-local widget surfaces followed by macro-parity tests.
-    ("tests/macro/test_argument_surface_parity.py", "XPromptSyntaxHighlightMixin"),
-    ("tests/macro/test_argument_surface_parity.py", "XPromptAssistEntry"),
-    ("tests/macro/test_argument_surface_parity.py", "XPromptInputHint"),
-    (
-        "tests/macro/test_argument_surface_parity.py",
-        "_xprompt_arg_assist_entries_wire",
-    ),
-    (
-        "tests/macro/test_argument_surface_parity.py",
-        "_register_xprompt_text_area_theme",
-    ),
-    ("tests/macro/test_argument_surface_parity.py", "_resolve_xprompt_base_theme"),
-    ("tests/macro/test_highlight.py", "xprompt_overlay_spans"),
-    ("tests/macro/test_highlight.py", "skip_xprompt"),
     # TUI-local helpers followed by project-tag tests.
     ("tests/test_project_tags_expansion.py", "submitted_vcs_xprompt_prefix"),
     ("tests/test_project_tag_surfaces.py", "_tag_styled_xprompt_body"),

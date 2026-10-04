@@ -83,7 +83,7 @@ class PromptFormatMixin(_MixinBase):
         _prompt_format_request_id: int
         _dot_insert_capture_offset: int | None
         _mutation_key_buffer: list[str]
-        _pending_xprompt_completion_spacer: object | None
+        _pending_macro_completion_spacer: object | None
         _vcs_mru_index: int | None
         _vcs_mru_ring: tuple[str, ...] | None
         _vcs_mru_ring_generation: int | None
@@ -108,7 +108,7 @@ class PromptFormatMixin(_MixinBase):
             *,
             cancel_timer: bool = False,
         ) -> None: ...
-        def _clear_xprompt_arg_hint(self) -> None: ...
+        def _clear_macro_arg_hint(self) -> None: ...
         def _clear_snippet_session(self) -> None: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _replace_via_keyboard(
@@ -135,10 +135,10 @@ class PromptFormatMixin(_MixinBase):
         self._clear_normal_g_prefix()
         self._clear_file_completion()
         self._clear_soft_completion(cancel_timer=True)
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         self._clear_prompt_search(clear_highlights=True)
         self._clear_snippet_session()
-        self._pending_xprompt_completion_spacer = None
+        self._pending_macro_completion_spacer = None
         self._reset_vcs_mru_cycle_state()
         # ``gf`` is an explicit editor command, not a repeatable Vim mutation.
         self._mutation_key_buffer.clear()

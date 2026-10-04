@@ -16,9 +16,9 @@ from sase.ace.tui.widgets.vcs_ref_completion import (
     vcs_ref_completion_candidates,
 )
 from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroInputHint,
 )
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
 from sase.macro.vcs_project_completion import VcsProjectEntry
@@ -89,15 +89,15 @@ def _select(ta: PromptTextArea, name: str) -> None:
     ta._file_completion_index = index
 
 
-def _xprompt_entry(name: str) -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def _xprompt_entry(name: str) -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=name,
         insertion=f"#{name}",
         reference_prefix="#",
         kind="xprompt",
         input_signature=None,
         inputs=(
-            XPromptInputHint(
+            MacroInputHint(
                 name="agent",
                 type="agent",
                 required=True,
@@ -383,7 +383,7 @@ async def test_non_vcs_colon_keeps_xprompt_argument_behavior() -> None:
     ]
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        ta._xprompt_arg_assist_entries_by_project[None] = [_xprompt_entry("foo")]
+        ta._macro_arg_assist_entries_by_project[None] = [_xprompt_entry("foo")]
         with (
             patch(_WORKFLOW_NAMES_PATH, return_value={"gh"}),
             patch(_REF_ENTRIES_PATH, return_value=_REF_SOURCE),
@@ -393,7 +393,7 @@ async def test_non_vcs_colon_keeps_xprompt_argument_behavior() -> None:
 
         assert ta.text == "#foo:"
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_agent"
+        assert ta._completion_kind == "macro_arg_agent"
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == ["coder"]

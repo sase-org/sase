@@ -10,7 +10,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -34,7 +34,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-_SKILL_ENTRY = XPromptAssistEntry(
+_SKILL_ENTRY = MacroAssistEntry(
     name="skill/sase_plan",
     skill_name="sase_plan",
     insertion="#skill/sase_plan",
@@ -108,7 +108,7 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
         _project: str | None,
         *,
         schedule: bool = True,
-    ) -> list[XPromptAssistEntry]:
+    ) -> list[MacroAssistEntry]:
         del schedule
         return [_SKILL_ENTRY]
 
@@ -217,7 +217,7 @@ async def test_agents_xprompt_panel_tag_highlighting_png_snapshot(
         _project: str | None,
         *,
         schedule: bool = True,
-    ) -> list[XPromptAssistEntry]:
+    ) -> list[MacroAssistEntry]:
         del schedule
         return [_SKILL_ENTRY]
 

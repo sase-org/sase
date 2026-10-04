@@ -13,9 +13,9 @@ from textual.app import App, ComposeResult
 from sase import project_aliases, project_display_names
 from sase.ace.tui.prompt_submission_settings import PromptSubmissionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    build_xprompt_assist_entries,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    build_macro_assist_entries,
 )
 from sase.macro import project_identity
 
@@ -131,10 +131,10 @@ class CatalogCompletionTestApp(CompletionTestApp):
         project: str | None,
         *,
         schedule: bool = True,
-    ) -> list[XPromptAssistEntry]:
+    ) -> list[MacroAssistEntry]:
         del schedule
         self.requested_projects.append(project)
-        return build_xprompt_assist_entries(project=project)
+        return build_macro_assist_entries(project=project)
 
 
 @contextmanager

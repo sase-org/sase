@@ -71,7 +71,7 @@ class PromptGlossaryMixin(_MixinBase):
         ) -> None: ...
         def _preview_context(self) -> tuple[str | None, str]: ...
         def _present_jump_actions(self, payload: Any) -> None: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._prompt_glossary_context_cache: PromptGlossaryContext | None = None
@@ -225,7 +225,7 @@ class PromptGlossaryMixin(_MixinBase):
     def _compute_prompt_glossary_context(self) -> PromptGlossaryContext:
         project_ref: str | None = None
         try:
-            project_ref = self._xprompt_arg_assist_project_from_text()
+            project_ref = self._macro_arg_assist_project_from_text()
         except Exception:
             project_ref = None
 

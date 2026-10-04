@@ -150,7 +150,7 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         # First-keystroke essentials stay synchronous: xprompt assist entries
         # and the VCS project completion catalog were measured, and moving
         # them would delay the first keystroke.
-        text_area._warm_current_xprompt_assist_entries()
+        text_area._warm_current_macro_assist_entries()
         text_area._warm_vcs_project_completion_catalog()
         text_area._on_prompt_completion_context_changed()
         self._refresh_dispatch_context_line()

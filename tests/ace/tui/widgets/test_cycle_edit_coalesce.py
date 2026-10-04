@@ -214,12 +214,12 @@ async def test_jinja_diagnostics_drops_stale_result() -> None:
 
 async def test_cycle_highlight_reuses_wire_memo() -> None:
     """Repeated highlight builds convert warm entries to wire format once."""
-    from sase.macro import highlight as xprompt_highlight
+    from sase.macro import highlight as macro_highlight
 
-    from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+    from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
 
     entries = [
-        XPromptAssistEntry(
+        MacroAssistEntry(
             name="deploy",
             insertion="#deploy",
             reference_prefix="#",
@@ -237,13 +237,13 @@ async def test_cycle_highlight_reuses_wire_memo() -> None:
         with (
             patch.object(
                 PromptTextArea,
-                "_get_exact_warm_xprompt_arg_assist_entries",
+                "_get_exact_warm_macro_arg_assist_entries",
                 return_value=entries,
             ),
             patch.object(
-                xprompt_highlight,
+                macro_highlight,
                 "macro_arg_assist_entries_to_wire",
-                wraps=xprompt_highlight.macro_arg_assist_entries_to_wire,
+                wraps=macro_highlight.macro_arg_assist_entries_to_wire,
             ) as to_wire,
         ):
             ta._build_highlight_map()

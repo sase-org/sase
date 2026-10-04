@@ -13,11 +13,11 @@ from textual.app import App, ComposeResult
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    detect_xprompt_arg_hint_at_cursor,
-    merge_local_xprompt_entries,
-    xprompt_assist_entry_from_local_xprompt,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    detect_macro_arg_hint_at_cursor,
+    merge_local_macro_entries,
+    macro_assist_entry_from_local_macro,
 )
 from sase.macro.models import InputArg, InputType, Macro
 from sase.macro.prompt_frontmatter import LOCAL_MACRO_SOURCE
@@ -36,8 +36,8 @@ class _PromptBarApp(App[None]):
         yield PromptInputBar(initial_value=self._initial_value, id="prompt-input-bar")
 
 
-def _global_entry(name: str, *, description: str | None = None) -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def _global_entry(name: str, *, description: str | None = None) -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=name,
         insertion=f"#{name}",
         reference_prefix="#",
@@ -64,7 +64,7 @@ def test_local_xprompt_entry_mirrors_global_shape() -> None:
             InputArg(name="dry_run", type=InputType.BOOL, default=False),
         ],
     )
-    entry = xprompt_assist_entry_from_local_xprompt("_rules", xprompt)
+    entry = macro_assist_entry_from_local_macro("_rules", xprompt)
 
     assert entry.name == "_rules"
     assert entry.insertion == "#_rules"
@@ -84,7 +84,7 @@ def test_local_xprompt_entry_uses_inline_marker_for_segments() -> None:
         content="first agent\n---\nsecond agent",
         source_path=LOCAL_MACRO_SOURCE,
     )
-    entry = xprompt_assist_entry_from_local_xprompt("_multi", xprompt)
+    entry = macro_assist_entry_from_local_macro("_multi", xprompt)
 
     assert entry.reference_prefix == "#"
     assert entry.insertion == "#_multi"
@@ -95,7 +95,7 @@ def test_merge_is_additive_and_local_wins_on_collision() -> None:
     base = [_global_entry("commit"), _global_entry("_rules", description="STALE")]
     local = [_global_entry("_rules", description="LIVE")]
 
-    merged = merge_local_xprompt_entries(base, local)
+    merged = merge_local_macro_entries(base, local)
 
     assert [e.name for e in merged] == ["commit", "_rules"]
     # The live local entry replaces the stale global of the same name, and lands
@@ -105,7 +105,7 @@ def test_merge_is_additive_and_local_wins_on_collision() -> None:
 
 def test_merge_empty_local_returns_base_unchanged() -> None:
     base = [_global_entry("commit")]
-    assert merge_local_xprompt_entries(base, []) is base
+    assert merge_local_macro_entries(base, []) is base
 
 
 # --- bar: live local entries ----------------------------------------------
@@ -173,7 +173,7 @@ async def test_pane_ctrl_t_completion_lists_local_helper() -> None:
         pane = app.query_one(PromptTextArea)
         # Seed the warm project catalog so the merge takes the deterministic fast
         # path rather than building the real global catalog.
-        pane._xprompt_arg_assist_entries_by_project[None] = [_global_entry("commit")]
+        pane._macro_arg_assist_entries_by_project[None] = [_global_entry("commit")]
 
         candidates, _shared = pane._build_xprompt_completion_candidates("#_")
         assert [c.insertion for c in candidates] == ["#_rules"]
@@ -192,7 +192,7 @@ async def test_pane_ctrl_t_local_overrides_stale_global() -> None:
         bar = app.query_one(PromptInputBar)
         bar._stack.frontmatter = "---\nxprompts:\n  _rules: live body\n---"
         pane = app.query_one(PromptTextArea)
-        pane._xprompt_arg_assist_entries_by_project[None] = [
+        pane._macro_arg_assist_entries_by_project[None] = [
             _global_entry("_rules", description="STALE")
         ]
 
@@ -200,7 +200,7 @@ async def test_pane_ctrl_t_local_overrides_stale_global() -> None:
         assert len(candidates) == 1
         # The metadata carried into completion is the live local entry.
         metadata = candidates[0].metadata
-        assert isinstance(metadata, XPromptAssistEntry)
+        assert isinstance(metadata, MacroAssistEntry)
         assert metadata.content_preview == "live body"
 
 
@@ -222,15 +222,15 @@ async def test_pane_arg_assist_entries_include_local_with_inputs() -> None:
         bar = app.query_one(PromptInputBar)
         bar._stack.frontmatter = frontmatter
         pane = app.query_one(PromptTextArea)
-        pane._xprompt_arg_assist_entries_by_project[None] = [_global_entry("commit")]
+        pane._macro_arg_assist_entries_by_project[None] = [_global_entry("commit")]
 
-        entries = pane._get_xprompt_arg_assist_entries()
+        entries = pane._get_macro_arg_assist_entries()
         by_name = {e.name: e for e in entries}
         assert "_svc" in by_name
         assert [inp.name for inp in by_name["_svc"].inputs] == ["target"]
 
         # The merged entries drive real argument-hint detection for ``#_svc(``.
         text = "#_svc("
-        hint = detect_xprompt_arg_hint_at_cursor(text, len(text), entries)
+        hint = detect_macro_arg_hint_at_cursor(text, len(text), entries)
         assert hint is not None
         assert hint.entry.name == "_svc"

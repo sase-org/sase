@@ -43,9 +43,9 @@ from sase.core.snippet_session_facade import (
 from sase.ace.tui.widgets._vcs_mru_cycling import (
     VcsMruCyclingMixin,
 )
-from sase.ace.tui.widgets._xprompt_arg_hints import XPromptArgHintMixin
-from sase.ace.tui.widgets._xprompt_syntax_highlight import (
-    XPromptSyntaxHighlightMixin,
+from sase.ace.tui.widgets._macro_arg_hints import MacroArgHintMixin
+from sase.ace.tui.widgets._macro_syntax_highlight import (
+    MacroSyntaxHighlightMixin,
 )
 from sase.ace.tui.widgets._yank_highlight import YankHighlightMixin
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
@@ -56,11 +56,11 @@ from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
 from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
 from sase.macro.vcs_repo_completion import VcsRepoFetchResult
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    ActiveXPromptArgHint,
-    PendingXPromptCompletionSpacer,
-    XPromptAssistEntry,
-    build_xprompt_assist_entries,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    ActiveMacroArgHint,
+    PendingMacroCompletionSpacer,
+    MacroAssistEntry,
+    build_macro_assist_entries,
 )
 from sase.macro._parsing import (
     extract_project_from_vcs_tag,
@@ -74,7 +74,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "PromptTextArea",
-    "build_xprompt_assist_entries",
+    "build_macro_assist_entries",
     "extract_project_from_vcs_tag",
     "extract_vcs_workflow_tag",
 ]
@@ -92,7 +92,7 @@ class PromptTextArea(
     AltSyntaxHighlightMixin,
     ArtifactRefHighlightMixin,
     ArtifactRefSyncMixin,
-    XPromptSyntaxHighlightMixin,
+    MacroSyntaxHighlightMixin,
     BulletHighlightMixin,
     PromptSearchOperatorMixin,
     PromptSearchMixin,
@@ -108,7 +108,7 @@ class PromptTextArea(
     JinjaHighlightMixin,
     FileCompletionMixin,
     PromptSoftCompletionMixin,
-    XPromptArgHintMixin,
+    MacroArgHintMixin,
     SnippetExpansionMixin,
     VcsMruCyclingMixin,
     VimTextArea,
@@ -176,17 +176,17 @@ class PromptTextArea(
         self._model_completion_catalog_request: (
             tuple[str, str | None, str, int, str] | None
         ) = None
-        self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
-        self._pending_xprompt_completion_spacer: (
-            PendingXPromptCompletionSpacer | None
-        ) = None
-        self._xprompt_arg_assist_entries_by_project: dict[
-            str | None, list[XPromptAssistEntry]
+        self._active_macro_arg_hint: ActiveMacroArgHint | None = None
+        self._pending_macro_completion_spacer: PendingMacroCompletionSpacer | None = (
+            None
+        )
+        self._macro_arg_assist_entries_by_project: dict[
+            str | None, list[MacroAssistEntry]
         ] = {}
-        self._xprompt_highlight_skill_entries: list[XPromptAssistEntry] | None = None
-        self._xprompt_highlight_skill_names: frozenset[str] = frozenset()
-        self._xprompt_arg_assist_warming_projects: set[str | None] = set()
-        self._xprompt_arg_assist_worker_projects: dict[str, str | None] = {}
+        self._macro_highlight_skill_entries: list[MacroAssistEntry] | None = None
+        self._macro_highlight_skill_names: frozenset[str] = frozenset()
+        self._macro_arg_assist_warming_projects: set[str | None] = set()
+        self._macro_arg_assist_worker_projects: dict[str, str | None] = {}
         self._vcs_mru_index: int | None = None
         self._vcs_mru_ring: tuple[str, ...] | None = None
         self._vcs_mru_ring_generation: int | None = None

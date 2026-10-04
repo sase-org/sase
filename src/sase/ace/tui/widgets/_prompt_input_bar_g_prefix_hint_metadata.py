@@ -42,7 +42,7 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
             text_area = self.active_text_area()
             offset = text_area._absolute_offset(text_area.cursor_location)
             known_skills = (
-                text_area._get_warm_xprompt_skill_names()
+                text_area._get_warm_macro_skill_names()
                 if "/" in text_area.text
                 else frozenset()
             )

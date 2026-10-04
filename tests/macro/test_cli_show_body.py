@@ -78,13 +78,13 @@ def test_highlighted_body_styles_keyword_argument_roles() -> None:
 
     assert rendered.plain == source
     for needle, role in (
-        ("(", "xprompt.arg_delimiter"),
-        ("raw", "xprompt.arg_key"),
-        ("=", "xprompt.arg_assign"),
-        ("plain", "xprompt.arg_value"),
-        ('"release"', "xprompt.arg_value_string"),
-        ("2", "xprompt.arg_value_number"),
-        ("true", "xprompt.arg_value_bool"),
+        ("(", "macro.arg_delimiter"),
+        ("raw", "macro.arg_key"),
+        ("=", "macro.arg_assign"),
+        ("plain", "macro.arg_value"),
+        ('"release"', "macro.arg_value_string"),
+        ("2", "macro.arg_value_number"),
+        ("true", "macro.arg_value_bool"),
     ):
         position = source.index(needle)
         assert any(
@@ -105,7 +105,7 @@ def test_highlighted_body_uses_directive_argument_source_family(
             HighlightSpan(
                 source.index("capacity"),
                 source.index("capacity") + len("capacity"),
-                "xprompt.arg_key",
+                "macro.arg_key",
                 source="directive",
             )
         ],

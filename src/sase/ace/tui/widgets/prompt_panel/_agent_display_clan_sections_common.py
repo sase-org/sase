@@ -78,7 +78,7 @@ def append_triage_line(
     body_text = Text(visible_body, style=body_style)
     if highlight_project_tags:
         try:
-            from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+            from sase.ace.tui.util.macro_syntax import stylize_project_tags
 
             stylize_project_tags(body_text, visible_body)
         except Exception:
@@ -144,7 +144,7 @@ def _append_tag_highlighted_lines(
     zones stay inert, then split back into the same indented line
     structure as the plain path. Fails open to the plain rendering.
     """
-    from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+    from sase.ace.tui.util.macro_syntax import stylize_project_tags
 
     humanized = humanize_prompt_body(body)
     display_lines = humanized.splitlines() or ["—"]

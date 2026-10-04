@@ -12,9 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    build_xprompt_assist_entries,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    build_macro_assist_entries,
 )
 from sase.config.core import CONFIG_DIR, current_config_token, stat_token
 from sase.content_layout import (
@@ -49,7 +49,7 @@ class PromptCatalogSnapshot:
     user_snippets: Mapping[str, str]
     assist_entries_by_project: Mapping[
         str | None,
-        tuple[XPromptAssistEntry, ...],
+        tuple[MacroAssistEntry, ...],
     ]
 
 
@@ -81,10 +81,10 @@ def build_prompt_catalog_snapshot(
         catalog
     )
 
-    assist_entries_by_project: dict[str | None, tuple[XPromptAssistEntry, ...]] = {}
+    assist_entries_by_project: dict[str | None, tuple[MacroAssistEntry, ...]] = {}
     for project in project_tuple:
         assist_entries_by_project[project] = tuple(
-            build_xprompt_assist_entries(project=project)
+            build_macro_assist_entries(project=project)
         )
 
     return PromptCatalogSnapshot(

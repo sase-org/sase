@@ -1,4 +1,4 @@
-"""Input hint rendering and conversion helpers for xprompt argument assist."""
+"""Input hint rendering and conversion helpers for macro argument assist."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from rich.text import Text
 from sase.macro.models import UNSET, InputArg
 from sase.macro.properties import single_line_default
 
-from ._xprompt_arg_assist_models import XPromptAssistEntry, XPromptInputHint
+from ._macro_arg_assist_models import MacroAssistEntry, MacroInputHint
 
 _INPUT_INDENT = "\n     "
 _REQUIRED_INPUT_STYLE = "#D7AF87"
@@ -15,40 +15,40 @@ _OPTIONAL_INPUT_STYLE = "dim #D7AF87"
 _DEFAULT_STYLE = "dim #888888"
 
 
-def visible_inputs(entry: XPromptAssistEntry) -> tuple[XPromptInputHint, ...]:
+def visible_inputs(entry: MacroAssistEntry) -> tuple[MacroInputHint, ...]:
     """Return user-facing inputs for an assist entry."""
     return entry.inputs
 
 
-def required_inputs(entry: XPromptAssistEntry) -> tuple[XPromptInputHint, ...]:
+def required_inputs(entry: MacroAssistEntry) -> tuple[MacroInputHint, ...]:
     """Return required user-facing inputs for an assist entry."""
     return tuple(inp for inp in entry.inputs if inp.required)
 
 
-def has_no_required_inputs(entry: XPromptAssistEntry) -> bool:
+def has_no_required_inputs(entry: MacroAssistEntry) -> bool:
     """Return True when an entry has no required user-facing inputs."""
     return not any(inp.required for inp in entry.inputs)
 
 
-def has_only_optional_inputs(entry: XPromptAssistEntry) -> bool:
+def has_only_optional_inputs(entry: MacroAssistEntry) -> bool:
     """Return True when an entry has inputs and all of them are optional.
 
-    Optional-only xprompts complete to ``#name `` (a trailing spacer) exactly
-    like no-input xprompts, but only optional-only ones should let a following
-    ``:`` replace that spacer -- a no-input xprompt has no arguments to
+    Optional-only macros complete to ``#name `` (a trailing spacer) exactly
+    like no-input macros, but only optional-only ones should let a following
+    ``:`` replace that spacer -- a no-input macro has no arguments to
     introduce, so its trailing space must be left untouched.
     """
     return bool(entry.inputs) and has_no_required_inputs(entry)
 
 
-def input_label(input_hint: XPromptInputHint) -> str:
+def input_label(input_hint: MacroInputHint) -> str:
     """Format a compact input label for non-Rich assist surfaces."""
     required_marker = "" if input_hint.required else "?"
     repeatable_marker = "…" if input_hint.repeatable else ""
     return f"{input_hint.name}{repeatable_marker}{required_marker}: {input_hint.type}"
 
 
-def input_name_style(input_hint: XPromptInputHint) -> str:
+def input_name_style(input_hint: MacroInputHint) -> str:
     """Return the shared style for an input's name."""
     return _input_name_style(input_hint)
 
@@ -58,14 +58,14 @@ def input_default_style() -> str:
     return _DEFAULT_STYLE
 
 
-def input_default_suffix(input_hint: XPromptInputHint) -> str:
+def input_default_suffix(input_hint: MacroInputHint) -> str:
     """Return the shared suffix for an optional input default."""
     return _default_suffix(input_hint)
 
 
 def append_input_hints(
     text: Text,
-    inputs: tuple[XPromptInputHint, ...],
+    inputs: tuple[MacroInputHint, ...],
     *,
     include_types: bool = True,
     active_index: int | None = None,
@@ -89,12 +89,12 @@ def append_input_hints(
             text.append(inp.description, style=_DEFAULT_STYLE)
 
 
-def input_hint_from_input_arg(inp: InputArg, position: int) -> XPromptInputHint | None:
+def input_hint_from_input_arg(inp: InputArg, position: int) -> MacroInputHint | None:
     """Convert a workflow input arg to a TUI input hint, filtering step inputs."""
     if inp.is_step_input:
         return None
     required = inp.default is UNSET
-    return XPromptInputHint(
+    return MacroInputHint(
         name=inp.name,
         type=inp.type.value,
         required=required,
@@ -107,7 +107,7 @@ def input_hint_from_input_arg(inp: InputArg, position: int) -> XPromptInputHint 
 
 def append_input_args(text: Text, inputs: list[InputArg]) -> None:
     """Append styled user-facing workflow input args to a Rich Text label."""
-    hints: list[XPromptInputHint] = []
+    hints: list[MacroInputHint] = []
     for inp in inputs:
         hint = input_hint_from_input_arg(inp, len(hints))
         if hint is not None:
@@ -115,17 +115,17 @@ def append_input_args(text: Text, inputs: list[InputArg]) -> None:
     append_input_hints(text, tuple(hints), include_types=False)
 
 
-def _input_name_style(input_hint: XPromptInputHint) -> str:
+def _input_name_style(input_hint: MacroInputHint) -> str:
     return _REQUIRED_INPUT_STYLE if input_hint.required else _OPTIONAL_INPUT_STYLE
 
 
-def _styled_input_label(input_hint: XPromptInputHint, include_types: bool) -> str:
+def _styled_input_label(input_hint: MacroInputHint, include_types: bool) -> str:
     if include_types:
         return input_label(input_hint)
     return input_hint.name
 
 
-def _default_suffix(input_hint: XPromptInputHint) -> str:
+def _default_suffix(input_hint: MacroInputHint) -> str:
     if input_hint.default_display:
         compacted = single_line_default(input_hint.default_display)
         if compacted.strip(" …"):

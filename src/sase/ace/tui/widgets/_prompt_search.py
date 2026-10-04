@@ -60,7 +60,7 @@ class PromptSearchMixin(_MixinBase):
             *,
             cancel_timer: bool = False,
         ) -> None: ...
-        def _clear_xprompt_arg_hint(self) -> None: ...
+        def _clear_macro_arg_hint(self) -> None: ...
         def _find_prompt_bar(self) -> Any: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _set_search_highlights(
@@ -125,7 +125,7 @@ class PromptSearchMixin(_MixinBase):
 
         self._clear_file_completion()
         self._clear_soft_completion(cancel_timer=True)
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         self._clear_search_highlights()
 
         bar = self._find_prompt_bar()

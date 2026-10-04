@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    detect_xprompt_arg_hint_at_cursor,
-    xprompt_completion_suffix_skeleton,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    detect_macro_arg_hint_at_cursor,
+    macro_completion_suffix_skeleton,
 )
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
     def insert_snippet(
         self,
         snippet_name: str,
-        entry: XPromptAssistEntry | None = None,
+        entry: MacroAssistEntry | None = None,
     ) -> None:
         """Insert a snippet reference at the active pane's cursor.
 
@@ -66,7 +66,7 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
         pane_id: str,
         trigger_range: tuple[tuple[int, int], tuple[int, int]] | None,
         snippet_name: str,
-        entry: XPromptAssistEntry | None = None,
+        entry: MacroAssistEntry | None = None,
     ) -> bool:
         """Insert a snippet into the pane that opened the ``#@`` selector.
 
@@ -132,7 +132,7 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
         text_area._clear_insert_g_prefix()
         text_area._clear_file_completion()
         text_area._clear_soft_completion(cancel_timer=True)
-        text_area._clear_xprompt_arg_hint()
+        text_area._clear_macro_arg_hint()
 
         start, end = trigger_range if trigger_range is not None else text_area.selection
         text_area._replace_via_keyboard(expanded_text, start, end)
@@ -178,7 +178,7 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
         self,
         text_area: PromptTextArea,
         snippet_name: str,
-        entry: XPromptAssistEntry | None,
+        entry: MacroAssistEntry | None,
     ) -> None:
         """Insert *snippet_name* (and optional smart args) into *text_area*."""
         start, end = text_area.selection
@@ -194,13 +194,13 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
         reference_start = max(0, text_area._absolute_offset(start) - 1)
         text_area._replace_via_keyboard(snippet_name, start, end)
         reference_end = reference_start + 1 + len(snippet_name)
-        text_area._maybe_show_inserted_xprompt_arg_hint(reference_start, reference_end)
+        text_area._maybe_show_inserted_macro_arg_hint(reference_start, reference_end)
         text_area.focus()
 
     def _insert_xprompt_smart_snippet(
         self,
         text_area: PromptTextArea,
-        entry: XPromptAssistEntry,
+        entry: MacroAssistEntry,
         start: tuple[int, int],
         end: tuple[int, int],
     ) -> bool:
@@ -210,7 +210,7 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
         line = text_area.document.get_line(end[0])
         append_text_arg_space = end[1] == len(line)
         next_char = line[end[1]] if end[1] < len(line) else None
-        skeleton = xprompt_completion_suffix_skeleton(
+        skeleton = macro_completion_suffix_skeleton(
             entry,
             append_text_arg_space=append_text_arg_space,
             next_char=next_char,
@@ -223,17 +223,17 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
         ):
             return False
 
-        text_area._note_xprompt_completion_spacer(entry)
+        text_area._note_macro_completion_spacer(entry)
         cursor_offset = text_area._absolute_offset(text_area.cursor_location)
-        hint = detect_xprompt_arg_hint_at_cursor(
+        hint = detect_macro_arg_hint_at_cursor(
             text_area.text,
             cursor_offset,
             [entry],
         )
         if hint is None:
-            text_area._clear_xprompt_arg_hint()
+            text_area._clear_macro_arg_hint()
             return True
 
-        text_area._active_xprompt_arg_hint = hint
-        text_area._show_xprompt_arg_hint(hint)
+        text_area._active_macro_arg_hint = hint
+        text_area._show_macro_arg_hint(hint)
         return True

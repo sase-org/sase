@@ -86,8 +86,8 @@ def _fold_description(description: str) -> Text:
 
 def _inputs_table(inputs: list[ShowInput], *, max_input_rows: int) -> RenderableType:
     table = Table.grid(padding=(0, 2))
-    table.add_column(style=_role_style("xprompt.invocation_arg"), no_wrap=True)
-    table.add_column(style=_role_style("xprompt.directive"), no_wrap=True)
+    table.add_column(style=_role_style("macro.invocation_arg"), no_wrap=True)
+    table.add_column(style=_role_style("macro.directive"), no_wrap=True)
     table.add_column(no_wrap=True)
     table.add_column(style="dim", overflow="fold")
 
@@ -116,7 +116,7 @@ def _input_marker(item: ShowInput) -> Text:
     if item.type == "enum" and item.choices:
         return Text(_enum_marker(item.choices))
     if item.required:
-        return Text("required", style=_role_style("xprompt.directive"))
+        return Text("required", style=_role_style("macro.directive"))
     if item.default_display is not None:
         return Text(f"default: {single_line_default(item.default_display)}")
     return Text("optional")
@@ -175,7 +175,7 @@ def _properties_summary(properties: MacroProperties) -> RenderableType:
 
     row(
         "reference",
-        Text(properties.reference, style=_role_style("xprompt.invocation")),
+        Text(properties.reference, style=_role_style("macro.invocation")),
     )
     row("kind", Text(properties.kind))
     if properties.description:
@@ -205,7 +205,7 @@ def _properties_summary(properties: MacroProperties) -> RenderableType:
             "slash",
             Text(
                 f"/{properties.skill_name}",
-                style=_role_style("xprompt.invocation"),
+                style=_role_style("macro.invocation"),
             ),
         )
     if properties.snippet is not None:
@@ -226,7 +226,7 @@ def _properties_summary(properties: MacroProperties) -> RenderableType:
 
 def _local_xprompts_table(items: list[ShowLocalMacro]) -> RenderableType:
     table = Table.grid(padding=(0, 2))
-    table.add_column(style=_role_style("xprompt.invocation_arg"), no_wrap=True)
+    table.add_column(style=_role_style("macro.invocation_arg"), no_wrap=True)
     table.add_column(style="dim", no_wrap=True)
     table.add_column(overflow="fold")
     for item in items:
@@ -243,7 +243,7 @@ def _steps_view(steps: list[ShowStep]) -> RenderableType:
     for step in steps:
         heading = Text(f"  {step.index:>2}. ", style="dim")
         heading.append(step.name, style="bold")
-        heading.append(f"  {step.type}", style=_role_style("xprompt.directive"))
+        heading.append(f"  {step.type}", style=_role_style("macro.directive"))
         if step.hidden:
             heading.append(" · hidden", style="dim")
         if step.condition:

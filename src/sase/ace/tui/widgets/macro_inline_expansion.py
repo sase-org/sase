@@ -1,4 +1,4 @@
-"""Pure helper that decides whether a selected xprompt can be inline-expanded.
+"""Pure helper that decides whether a selected macro can be inline-expanded.
 
 This is the ``Ctrl+I`` ("expand in place") decision logic for the ``#@``
 selector, kept free of Textual so it can be unit-tested directly. Given the
@@ -9,7 +9,7 @@ Inline expansion is a no-argument expansion: the user picks an entry and the
 selector splices its rendered body into the originating prompt pane. Entries
 that carry runtime side effects (standalone/embeddable workflows, environment)
 cannot be rendered as plain text and are rejected so the caller can fall back
-to inserting the ``#name`` reference. Simple xprompts with declared inputs are
+to inserting the ``#name`` reference. Simple macros with declared inputs are
 expanded with placeholders preserved and returned to the caller for staging in
 prompt frontmatter.
 """
@@ -44,7 +44,7 @@ class _InlineExpansionReason(Enum):
 
 @dataclass(frozen=True, slots=True)
 class _InlineExpansionResult:
-    """Outcome of attempting to inline-expand a selected xprompt entry.
+    """Outcome of attempting to inline-expand a selected macro entry.
 
     Exactly one of ``expanded_text`` / ``error`` is set: on success
     ``expanded_text`` holds the rendered body and ``error`` is ``None``; on
@@ -63,7 +63,7 @@ class _InlineExpansionResult:
         return self.reason is _InlineExpansionReason.EXPANDED
 
 
-def expand_inline_xprompt(
+def expand_inline_macro(
     name: str,
     workflow: Workflow,
     *,
@@ -75,9 +75,9 @@ def expand_inline_xprompt(
     Args:
         name: The selected catalog name (used only for messages/lookups).
         workflow: The selected catalog entry as a unified ``Workflow``.
-        local_xprompts: Local xprompts from the live prompt frontmatter, made
-            available as extra xprompts so a selected local helper (or a global
-            xprompt that references one) expands the same way it would at
+        local_macros: Local macros from the live prompt frontmatter, made
+            available as extra macros so a selected local helper (or a global
+            macro that references one) expands the same way it would at
             launch.
         project: Optional project name used to load the recursive expansion
             catalog so nested references resolve with project parity.
@@ -88,7 +88,7 @@ def expand_inline_xprompt(
     """
     local_macros = local_macros or {}
 
-    # 1. Classify by xprompt reference semantics. Only simple, side-effect-free
+    # 1. Classify by macro reference semantics. Only simple, side-effect-free
     #    prompt-part entries can be rendered as inline text.
     kind = workflow.prompt_kind()
     if kind is WorkflowKind.STANDALONE_WORKFLOW:
@@ -103,7 +103,7 @@ def expand_inline_xprompt(
             f"Cannot inline-expand #{name} because it has workflow steps.",
         )
 
-    # ``kind is SIMPLE_XPROMPT``: a single prompt_part step with no pre/post
+    # ``kind is SIMPLE_MACRO``: a single prompt_part step with no pre/post
     # steps. Still reject any leftover runtime side effect such as workflow
     # environment variables, which cannot be applied during a text expansion.
     if workflow.environment:
@@ -114,13 +114,13 @@ def expand_inline_xprompt(
 
     # 2. Render the body by reusing the launch-time expansion primitives so the
     #    inline result matches what the same reference would produce at launch.
-    xprompt = _workflow_to_xprompt(name, workflow)
-    inputs = list(xprompt.inputs)
+    macro = _workflow_to_macro(name, workflow)
+    inputs = list(macro.inputs)
     identity_scope = _identity_input_scope(inputs)
-    render_xprompt = replace(xprompt, inputs=[]) if inputs else xprompt
+    render_macro = replace(macro, inputs=[]) if inputs else macro
     try:
         rendered = expand_single_macro(
-            render_xprompt,
+            render_macro,
             [],
             identity_scope,
             scope=identity_scope or None,
@@ -138,7 +138,7 @@ def expand_inline_xprompt(
             f"Cannot inline-expand #{name}: {exc}",
         )
     except SystemExit:
-        # Legacy catalog expansion (``process_xprompt_references_with_catalog``)
+        # Legacy catalog expansion (``process_macro_references_with_catalog``)
         # calls ``sys.exit()`` on circular or otherwise invalid references
         # instead of raising. Convert that into a clean, recoverable error so a
         # bad reference never tears down the TUI.
@@ -161,12 +161,12 @@ def _error(reason: _InlineExpansionReason, message: str) -> _InlineExpansionResu
     return _InlineExpansionResult(expanded_text=None, error=message, reason=reason)
 
 
-def _workflow_to_xprompt(name: str, workflow: Workflow) -> Macro:
-    """Project a simple prompt-part workflow back into an ``XPrompt``.
+def _workflow_to_macro(name: str, workflow: Workflow) -> Macro:
+    """Project a simple prompt-part workflow back into an ``Macro``.
 
-    The inverse of :func:`sase.macro.models.xprompt_to_workflow`, scoped to
+    The inverse of :func:`sase.macro.models.macro_to_workflow`, scoped to
     the single prompt-part body so it can be rendered through the same helper
-    as a hand-authored xprompt.
+    as a hand-authored macro.
     """
     return Macro(
         name=name,
@@ -200,7 +200,7 @@ def _expand_nested_references(
 ) -> str:
     """Recursively expand global/frontmatter references left in *rendered*.
 
-    The first render pass (``expand_single_xprompt``) only resolves the entry's
+    The first render pass (``expand_single_macro``) only resolves the entry's
     own local helpers. This pass resolves any remaining references against the
     global catalog plus the live frontmatter locals, matching launch behavior.
     """
@@ -222,5 +222,5 @@ def _expand_nested_references(
 
 
 __all__ = [
-    "expand_inline_xprompt",
+    "expand_inline_macro",
 ]

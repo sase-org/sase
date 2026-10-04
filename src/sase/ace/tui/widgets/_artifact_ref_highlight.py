@@ -130,7 +130,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
             style_name: str,
         ) -> None: ...
 
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         # TextArea builds its first highlight map inside its constructor, so
@@ -195,7 +195,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
     def _get_warm_artifact_ref_known_kinds(self) -> frozenset[str] | None:
         """Return the current project's memory-only known-kind set."""
         try:
-            project = self._xprompt_arg_assist_project_from_text()
+            project = self._macro_arg_assist_project_from_text()
         except Exception:
             project = None
         return self._artifact_ref_known_kinds_by_project.get(project)
@@ -205,7 +205,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
     ) -> ArtifactRefCompletionCatalog | None:
         """Return the current target project's immutable warm payload catalog."""
         try:
-            project = self._xprompt_arg_assist_project_from_text()
+            project = self._macro_arg_assist_project_from_text()
         except Exception:
             project = None
         return self._artifact_ref_completion_catalogs_by_project.get(project)
@@ -213,7 +213,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
     def _get_warm_artifact_ref_context(self) -> ArtifactRefContext | None:
         """Return the current target project's already-built local context."""
         try:
-            project = self._xprompt_arg_assist_project_from_text()
+            project = self._macro_arg_assist_project_from_text()
         except Exception:
             project = None
         return self._artifact_ref_contexts_by_project.get(project)
@@ -222,7 +222,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
         """Warm project kinds and payloads for disk-free prompt interaction."""
         if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
             return
-        project = self._xprompt_arg_assist_project_from_text()
+        project = self._macro_arg_assist_project_from_text()
         if (
             project in self._artifact_ref_completion_catalogs_by_project
             or project in self._artifact_ref_kinds_warming
@@ -301,7 +301,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
                     and getattr(self, "_file_completion_active", False)
                     and getattr(self, "_completion_kind", "")
                     == ARTIFACT_REF_COMPLETION_KIND
-                    and self._xprompt_arg_assist_project_from_text() == result.project
+                    and self._macro_arg_assist_project_from_text() == result.project
                 ):
                     refresh_completion = getattr(
                         self,

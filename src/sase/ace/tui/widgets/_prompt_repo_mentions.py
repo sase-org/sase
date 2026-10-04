@@ -65,7 +65,7 @@ class PromptRepoMentionMixin(_MixinBase):
         def _preview_context(self) -> tuple[str | None, str]: ...
         def _present_jump_actions(self, payload: Any) -> None: ...
         def _perform_jump_action(self, choice: Any, payload: Any) -> None: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._prompt_repo_mention_context_cache: PromptRepoMentionContext | None = None
@@ -169,7 +169,7 @@ class PromptRepoMentionMixin(_MixinBase):
     def _compute_prompt_repo_mention_context(self) -> PromptRepoMentionContext:
         project_ref: str | None = None
         try:
-            project_ref = self._xprompt_arg_assist_project_from_text()
+            project_ref = self._macro_arg_assist_project_from_text()
         except Exception:
             project_ref = None
 

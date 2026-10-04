@@ -118,7 +118,7 @@ async def test_codeblock_overlay_registers_styles_and_injects_python() -> None:
             assert name in text_area._theme.syntax_styles
         assert "keyword.function" in names
         assert "function" in names
-        assert names.index("codeblock.content") < names.index("xprompt.invocation")
+        assert names.index("codeblock.content") < names.index("macro.invocation")
 
         styles = text_area._theme.syntax_styles
         assert styles["codeblock.content"].color is None
@@ -169,7 +169,7 @@ async def test_adjacent_inline_code_chips_tint_both_delimiter_pairs() -> None:
         semantic = [
             (start, end, name)
             for start, end, name in row
-            if name.startswith(("xprompt.", "jinja."))
+            if name.startswith(("macro.", "jinja."))
         ]
         assert semantic
         assert all(end <= 6 or start >= 11 for start, end, _name in semantic)
@@ -260,7 +260,7 @@ async def test_codeblock_overlay_suppresses_other_syntax_inside_literals() -> No
 
         names = _highlight_names(text_area)
         assert any(name.startswith("codeblock.") for name in names)
-        assert not any(name.startswith("xprompt.") for name in names)
+        assert not any(name.startswith("macro.") for name in names)
         assert not any(name.startswith("jinja.") for name in names)
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sase import project_display_names as pdn
 from sase.ace.tui.util.artifact_ref_syntax import artifact_ref_style_palette_from_theme
-from sase.ace.tui.util.xprompt_syntax import XPROMPT_TOKEN_STYLES
+from sase.ace.tui.util.macro_syntax import MACRO_TOKEN_STYLES
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from sase.ace.tui.widgets.prompt_panel._hint_caps import HintContentBudget
 
@@ -153,8 +153,8 @@ class TestAgentXPromptHintMode:
         rendered = _header_text(panel.captured[-1])
         assert "#work([1] @src/raw.py) %auto" in rendered.plain
         assert result.file_hints[1] == str(workspace_dir / "src/raw.py")
-        assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(rendered, "#work")
-        assert XPROMPT_TOKEN_STYLES["directive"] in _styles_at(rendered, "%auto")
+        assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(rendered, "#work")
+        assert MACRO_TOKEN_STYLES["directive"] in _styles_at(rendered, "%auto")
         assert "bold #FFFF00" in _styles_at(rendered, "[1]")
         assert "#87AFFF" in _styles_at(rendered, "@src/raw.py")
         assert_logical_section_is_compact(

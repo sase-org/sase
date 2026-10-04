@@ -1,4 +1,4 @@
-"""Catalog projection helpers for xprompt argument assist."""
+"""Catalog projection helpers for macro argument assist."""
 
 from __future__ import annotations
 
@@ -11,21 +11,21 @@ from sase.macro.reference_display import (
 )
 from sase.macro.workflow_models import Workflow
 
-from ._xprompt_arg_assist_inputs import input_hint_from_input_arg
-from ._xprompt_arg_assist_models import XPromptAssistEntry, XPromptInputHint
+from ._macro_arg_assist_inputs import input_hint_from_input_arg
+from ._macro_arg_assist_models import MacroAssistEntry, MacroInputHint
 
 
-def build_xprompt_assist_entries(
+def build_macro_assist_entries(
     project: str | None = None,
-) -> list[XPromptAssistEntry]:
-    """Build immutable TUI assist entries from the structured xprompt catalog."""
+) -> list[MacroAssistEntry]:
+    """Build immutable TUI assist entries from the structured macro catalog."""
     # The TUI is a local display; the string-default redaction exists only
     # for the mobile wire.
     projection = build_structured_macros_catalog(
         project=project, include_string_defaults=True
     )
     return [
-        XPromptAssistEntry(
+        MacroAssistEntry(
             name=entry.name,
             description=entry.description,
             insertion=entry.insertion,
@@ -33,7 +33,7 @@ def build_xprompt_assist_entries(
             kind=entry.kind,
             input_signature=entry.input_signature,
             inputs=tuple(
-                XPromptInputHint(
+                MacroInputHint(
                     name=inp.name,
                     type=inp.type,
                     required=inp.required,
@@ -53,18 +53,18 @@ def build_xprompt_assist_entries(
     ]
 
 
-def xprompt_assist_entry_from_workflow(
+def macro_assist_entry_from_workflow(
     name: str,
     workflow: Workflow,
-) -> XPromptAssistEntry:
-    """Build a TUI assist entry from a selected workflow-like xprompt."""
-    inputs: list[XPromptInputHint] = []
+) -> MacroAssistEntry:
+    """Build a TUI assist entry from a selected workflow-like macro."""
+    inputs: list[MacroInputHint] = []
     for inp in workflow.inputs:
         hint = input_hint_from_input_arg(inp, len(inputs))
         if hint is not None:
             inputs.append(hint)
 
-    return XPromptAssistEntry(
+    return MacroAssistEntry(
         name=name,
         description=workflow.description,
         insertion=workflow_reference_insertion(name, workflow),
@@ -79,27 +79,27 @@ def xprompt_assist_entry_from_workflow(
     )
 
 
-def xprompt_assist_entry_from_local_xprompt(
+def macro_assist_entry_from_local_macro(
     name: str,
-    xprompt: Macro,
-) -> XPromptAssistEntry:
-    """Build a TUI assist entry from a prompt-frontmatter local xprompt.
+    macro: Macro,
+) -> MacroAssistEntry:
+    """Build a TUI assist entry from a prompt-frontmatter local macro.
 
-    Mirrors :func:`xprompt_assist_entry_from_workflow` (it routes through the
+    Mirrors :func:`macro_assist_entry_from_workflow` (it routes through the
     same workflow projection) so a ``#_helper`` declared in the Frontmatter
-    Panel's ``xprompts:`` field completes, soft-completes, and shows argument
-    hints in every prompt pane exactly like a global xprompt.
+    Panel's ``macros:`` field completes, soft-completes, and shows argument
+    hints in every prompt pane exactly like a global macro.
     """
     from sase.macro.models import macro_to_workflow
 
-    return xprompt_assist_entry_from_workflow(name, macro_to_workflow(xprompt))
+    return macro_assist_entry_from_workflow(name, macro_to_workflow(macro))
 
 
-def merge_local_xprompt_entries(
-    base: list[XPromptAssistEntry],
-    local: list[XPromptAssistEntry],
-) -> list[XPromptAssistEntry]:
-    """Merge live local xprompt *local* entries over the *base* catalog.
+def merge_local_macro_entries(
+    base: list[MacroAssistEntry],
+    local: list[MacroAssistEntry],
+) -> list[MacroAssistEntry]:
+    """Merge live local macro *local* entries over the *base* catalog.
 
     Local entries are **additive**: every local helper is appended, and on a
     name collision the live local definition wins (the panel keeps frontmatter
@@ -115,8 +115,8 @@ def merge_local_xprompt_entries(
 
 
 __all__ = [
-    "build_xprompt_assist_entries",
-    "merge_local_xprompt_entries",
-    "xprompt_assist_entry_from_local_xprompt",
-    "xprompt_assist_entry_from_workflow",
+    "build_macro_assist_entries",
+    "merge_local_macro_entries",
+    "macro_assist_entry_from_local_macro",
+    "macro_assist_entry_from_workflow",
 ]

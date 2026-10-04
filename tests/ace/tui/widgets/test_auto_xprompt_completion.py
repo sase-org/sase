@@ -13,7 +13,7 @@ from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
-from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
 from sase.macro.vcs_project_completion import VcsProjectEntry
 
 from ._completion_helpers import (
@@ -26,7 +26,7 @@ _PROJECT_ENTRIES_PATH = (
     "sase.ace.tui.widgets.vcs_project_completion.build_vcs_project_completion_entries"
 )
 _XPROMPT_COLD_BUILD_PATH = (
-    "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries"
+    "sase.ace.tui.widgets.prompt_text_area.build_macro_assist_entries"
 )
 
 
@@ -36,11 +36,11 @@ def _entry(
     prefix: str = "#",
     kind: str = "xprompt",
     is_skill: bool = False,
-) -> XPromptAssistEntry:
+) -> MacroAssistEntry:
     # Skills take the namespaced ``skill/foo`` xprompt reference name and keep
     # ``foo`` as the provider skill name matched by ``/`` completion.
     reference_name = f"skill/{name}" if is_skill else name
-    return XPromptAssistEntry(
+    return MacroAssistEntry(
         name=reference_name,
         insertion=f"{prefix}{reference_name}",
         reference_prefix=prefix,
@@ -67,10 +67,10 @@ def _project(name: str) -> VcsProjectEntry:
 
 def _seed_entries(
     ta: PromptTextArea,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[project] = entries
+    ta._macro_arg_assist_entries_by_project[project] = entries
 
 
 async def test_hash_name_auto_opens_xprompt_menu_without_extending() -> None:
@@ -286,7 +286,7 @@ async def test_slash_skill_cold_catalog_defers_without_sync_build() -> None:
         ta = app.query_one(PromptTextArea)
 
         with (
-            patch.object(type(ta), "_warm_current_xprompt_assist_entries") as warm,
+            patch.object(type(ta), "_warm_current_macro_assist_entries") as warm,
             patch(
                 _XPROMPT_COLD_BUILD_PATH,
                 side_effect=AssertionError("cold catalog build"),
@@ -347,7 +347,7 @@ async def test_cold_catalog_defers_without_sync_build_then_opens_when_warm() -> 
         ta = app.query_one(PromptTextArea)
 
         with (
-            patch.object(type(ta), "_warm_current_xprompt_assist_entries") as warm,
+            patch.object(type(ta), "_warm_current_macro_assist_entries") as warm,
             patch(
                 _XPROMPT_COLD_BUILD_PATH,
                 side_effect=AssertionError("cold catalog build"),

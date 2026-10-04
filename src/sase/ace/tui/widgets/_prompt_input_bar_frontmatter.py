@@ -27,9 +27,9 @@ from textual.dom import DOMNode
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    xprompt_assist_entry_from_local_xprompt,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    macro_assist_entry_from_local_macro,
 )
 from sase.macro.jinja_assist import JinjaScope
 from sase.macro.models import InputArg
@@ -112,7 +112,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
     # Cache of (scope key, frontmatter string -> assist entries) so completion
     # reads the active scope's live local xprompts without reparsing YAML on each
     # keystroke.  Mini panes have their own scope; agent panes share the stack.
-    _local_xprompt_cache: tuple[str, str, list[XPromptAssistEntry]] | None = None
+    _local_xprompt_cache: tuple[str, str, list[MacroAssistEntry]] | None = None
 
     # -- scope ---------------------------------------------------------------
 
@@ -199,12 +199,12 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
 
     def local_xprompt_assist_entries(
         self, text_area: object | None = None
-    ) -> list[XPromptAssistEntry]:
+    ) -> list[MacroAssistEntry]:
         """Assist entries for the local xprompts declared in the live frontmatter.
 
         Parses the stack's current ``frontmatter`` string into the structured
         model and converts each ``xprompts:`` helper into an
-        :class:`XPromptAssistEntry`, so panes can merge them into ``<ctrl+t>`` /
+        :class:`MacroAssistEntry`, so panes can merge them into ``<ctrl+t>`` /
         ``<ctrl+l>`` completion and the argument-hint resolver.  Returns ``[]``
         when there is no frontmatter or it declares no local xprompts.
         """
@@ -220,10 +220,10 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         except Exception:
             # A mid-edit / invalid block (e.g. a non-underscore name) simply
             # contributes no completions rather than breaking the pane.
-            entries: list[XPromptAssistEntry] = []
+            entries: list[MacroAssistEntry] = []
         else:
             entries = [
-                xprompt_assist_entry_from_local_xprompt(name, xprompt)
+                macro_assist_entry_from_local_macro(name, xprompt)
                 for name, xprompt in model.macros.items()
             ]
         self._local_xprompt_cache = (scope.key, frontmatter, entries)

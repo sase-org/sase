@@ -32,7 +32,7 @@ class FileCompletionArtifactCandidatesMixin(FileCompletionHistoryMixin):
         )
 
         def _get_warm_artifact_ref_context(self) -> ArtifactRefContext | None: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
         def _artifact_ref_sync_row(
             self,
             project: str | None,
@@ -67,7 +67,7 @@ class FileCompletionArtifactCandidatesMixin(FileCompletionHistoryMixin):
         commits_loading = False
         commits_truncated_payloads = 0
         if context.stage == "payload" and (context.kind or "").casefold() == "commit":
-            project = self._xprompt_arg_assist_project_from_text()
+            project = self._macro_arg_assist_project_from_text()
             commit_snapshot = self._prompt_commit_snapshots.get(project)
             artifact_context = self._get_warm_artifact_ref_context()
             if artifact_context is not None:
@@ -92,7 +92,7 @@ class FileCompletionArtifactCandidatesMixin(FileCompletionHistoryMixin):
             paths_loading=context.stage == "kind" and path_snapshot is None,
         )
         if context.stage == "payload" and context.kind:
-            project = self._xprompt_arg_assist_project_from_text()
+            project = self._macro_arg_assist_project_from_text()
             new_payloads = self._artifact_ref_sync_new_payloads(project, context.kind)
             if new_payloads:
                 for candidate in result.candidates:
@@ -118,7 +118,7 @@ class FileCompletionArtifactCandidatesMixin(FileCompletionHistoryMixin):
         snapshot = getattr(pane, "snapshot", None)
         if snapshot is None:
             return ()
-        target_project = self._xprompt_arg_assist_project_from_text()
+        target_project = self._macro_arg_assist_project_from_text()
         cached = getattr(self, "_artifact_ref_bug_projection", None)
         if cached is not None and cached[0] is snapshot and cached[1] == target_project:
             return cached[2]

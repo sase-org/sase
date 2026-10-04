@@ -1,4 +1,4 @@
-"""Tests for prompt-input xprompt completion."""
+"""Tests for prompt-input macro completion."""
 
 from __future__ import annotations
 
@@ -10,16 +10,16 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptInputHint,
-    build_xprompt_assist_entries,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroInputHint,
+    build_macro_assist_entries,
 )
-from sase.ace.tui.widgets.xprompt_completion import (
-    XPromptTokenSpan,
-    build_xprompt_completion_candidates,
-    extract_xprompt_token_around_cursor,
-    is_xprompt_like_token,
+from sase.ace.tui.widgets.macro_completion import (
+    MacroTokenSpan,
+    build_macro_completion_candidates,
+    extract_macro_token_around_cursor,
+    is_macro_like_token,
 )
 
 from ._completion_helpers import CompletionTestApp
@@ -29,15 +29,15 @@ def _entry(
     name: str,
     *,
     prefix: str = "#",
-    kind: str = "xprompt",
-    inputs: tuple[XPromptInputHint, ...] = (),
+    kind: str = "macro",
+    inputs: tuple[MacroInputHint, ...] = (),
     is_skill: bool = False,
     description: str | None = None,
-) -> XPromptAssistEntry:
-    # Skills carry the namespaced ``skill/foo`` xprompt reference name while
+) -> MacroAssistEntry:
+    # Skills carry the namespaced ``skill/foo`` macro reference name while
     # keeping ``foo`` as the provider skill name matched by ``/`` completion.
     reference_name = f"skill/{name}" if is_skill else name
-    return XPromptAssistEntry(
+    return MacroAssistEntry(
         name=reference_name,
         insertion=f"{prefix}{reference_name}",
         reference_prefix=prefix,
@@ -58,8 +58,8 @@ def _input(
     required: bool = True,
     default_display: str | None = None,
     position: int = 0,
-) -> XPromptInputHint:
-    return XPromptInputHint(
+) -> MacroInputHint:
+    return MacroInputHint(
         name=name,
         type=type_,
         required=required,
@@ -70,75 +70,75 @@ def _input(
 
 def _seed_entries(
     ta: PromptTextArea,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[project] = entries
+    ta._macro_arg_assist_entries_by_project[project] = entries
 
 
-def test_xprompt_like_token_accepts_standalone_marker() -> None:
-    assert is_xprompt_like_token("#foo") is True
-    assert is_xprompt_like_token("#!foo") is True
-    assert is_xprompt_like_token("#!") is True
-    assert is_xprompt_like_token("foo") is False
+def test_macro_like_token_accepts_standalone_marker() -> None:
+    assert is_macro_like_token("#foo") is True
+    assert is_macro_like_token("#!foo") is True
+    assert is_macro_like_token("#!") is True
+    assert is_macro_like_token("foo") is False
 
 
-def test_xprompt_like_token_accepts_bare_slash_skill_tokens() -> None:
-    assert is_xprompt_like_token("/") is True
-    assert is_xprompt_like_token("/sase_plan") is True
-    assert is_xprompt_like_token("/sase_plan2") is True
-    assert is_xprompt_like_token("/tmp/foo") is False
-    assert is_xprompt_like_token("/sase-plan") is False
-    assert is_xprompt_like_token("foo") is False
+def test_macro_like_token_accepts_bare_slash_skill_tokens() -> None:
+    assert is_macro_like_token("/") is True
+    assert is_macro_like_token("/sase_plan") is True
+    assert is_macro_like_token("/sase_plan2") is True
+    assert is_macro_like_token("/tmp/foo") is False
+    assert is_macro_like_token("/sase-plan") is False
+    assert is_macro_like_token("foo") is False
 
 
-def test_extract_xprompt_token_around_cursor_clamps_to_reference_name() -> None:
-    assert extract_xprompt_token_around_cursor("(see #ss.", 8) == XPromptTokenSpan(
+def test_extract_macro_token_around_cursor_clamps_to_reference_name() -> None:
+    assert extract_macro_token_around_cursor("(see #ss.", 8) == MacroTokenSpan(
         5, 8, "#ss", clamped=True
     )
-    assert extract_xprompt_token_around_cursor("(see #ss.", 9) is None
-    assert extract_xprompt_token_around_cursor("(see #ss", 8) == XPromptTokenSpan(
+    assert extract_macro_token_around_cursor("(see #ss.", 9) is None
+    assert extract_macro_token_around_cursor("(see #ss", 8) == MacroTokenSpan(
         5, 8, "#ss", clamped=False
     )
-    assert extract_xprompt_token_around_cursor("(#n)", 3) == XPromptTokenSpan(
+    assert extract_macro_token_around_cursor("(#n)", 3) == MacroTokenSpan(
         1, 3, "#n", clamped=False
     )
-    assert extract_xprompt_token_around_cursor("#bd/wo.", 6) == XPromptTokenSpan(
+    assert extract_macro_token_around_cursor("#bd/wo.", 6) == MacroTokenSpan(
         0, 6, "#bd/wo", clamped=True
     )
-    assert extract_xprompt_token_around_cursor("#!sy.", 4) == XPromptTokenSpan(
+    assert extract_macro_token_around_cursor("#!sy.", 4) == MacroTokenSpan(
         0, 4, "#!sy", clamped=True
     )
-    assert extract_xprompt_token_around_cursor("#", 1) == XPromptTokenSpan(
+    assert extract_macro_token_around_cursor("#", 1) == MacroTokenSpan(
         0, 1, "#", clamped=False
     )
-    assert extract_xprompt_token_around_cursor("~/foo.py", 5) is None
-    assert extract_xprompt_token_around_cursor(".#ss", 4) is None
+    assert extract_macro_token_around_cursor("~/foo.py", 5) is None
+    assert extract_macro_token_around_cursor(".#ss", 4) is None
 
 
-def test_clamped_xprompt_completion_excludes_dotted_names() -> None:
+def test_clamped_macro_completion_excludes_dotted_names() -> None:
     entry = _entry("foo.bar")
-    span = extract_xprompt_token_around_cursor("#foo.b", 4)
-    assert span == XPromptTokenSpan(0, 4, "#foo", clamped=True)
+    span = extract_macro_token_around_cursor("#foo.b", 4)
+    assert span == MacroTokenSpan(0, 4, "#foo", clamped=True)
 
-    clamped, _ = build_xprompt_completion_candidates(
+    clamped, _ = build_macro_completion_candidates(
         span.token,
         entries=[entry],
         inline_reference_only=span.clamped,
     )
-    unclamped, _ = build_xprompt_completion_candidates("#foo", entries=[entry])
+    unclamped, _ = build_macro_completion_candidates("#foo", entries=[entry])
 
     assert clamped == []
     assert [candidate.insertion for candidate in unclamped] == ["#foo.bar"]
 
 
-def test_xprompt_completion_uses_kind_aware_insertions() -> None:
+def test_macro_completion_uses_kind_aware_insertions() -> None:
     entries = [
         _entry("commit"),
         _entry("gh", kind="embeddable_workflow"),
         _entry("sync", prefix="#!", kind="standalone_workflow"),
     ]
-    candidates, shared = build_xprompt_completion_candidates("#s", entries=entries)
+    candidates, shared = build_macro_completion_candidates("#s", entries=entries)
 
     assert shared == ""
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
@@ -150,10 +150,10 @@ def test_standalone_marker_filters_to_standalone_workflows() -> None:
     entries = [
         _entry("sync", prefix="#!", kind="standalone_workflow"),
         _entry("setup"),
-        _entry("split", prefix="#!", kind="xprompt"),
+        _entry("split", prefix="#!", kind="macro"),
         _entry("send", kind="embeddable_workflow"),
     ]
-    candidates, shared = build_xprompt_completion_candidates("#!s", entries=entries)
+    candidates, shared = build_macro_completion_candidates("#!s", entries=entries)
 
     assert shared == ""
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
@@ -162,19 +162,19 @@ def test_standalone_marker_filters_to_standalone_workflows() -> None:
     ]
 
 
-def test_xprompt_completion_omits_removed_directory_workflow() -> None:
-    candidates, _ = build_xprompt_completion_candidates(
+def test_macro_completion_omits_removed_directory_workflow() -> None:
+    candidates, _ = build_macro_completion_candidates(
         "#c",
-        entries=build_xprompt_assist_entries(),
+        entries=build_macro_assist_entries(),
     )
     by_name = {candidate.name: candidate for candidate in candidates}
 
     assert "cd" not in by_name
 
 
-def test_xprompt_candidates_carry_assist_metadata() -> None:
+def test_macro_candidates_carry_assist_metadata() -> None:
     entry = _entry("review", inputs=(_input("path", "path"),))
-    candidates, _ = build_xprompt_completion_candidates("#r", entries=[entry])
+    candidates, _ = build_macro_completion_candidates("#r", entries=[entry])
 
     assert candidates[0].metadata is entry
 
@@ -187,7 +187,7 @@ def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() ->
         _entry("sase_regular"),
         _entry("review", is_skill=True),
     ]
-    candidates, shared = build_xprompt_completion_candidates(
+    candidates, shared = build_macro_completion_candidates(
         "/sase_",
         entries=entries,
     )
@@ -202,9 +202,9 @@ def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() ->
 
 
 def test_slash_skill_completion_finds_packaged_sase_skills() -> None:
-    candidates, _ = build_xprompt_completion_candidates(
+    candidates, _ = build_macro_completion_candidates(
         "/sase_",
-        entries=build_xprompt_assist_entries(),
+        entries=build_macro_assist_entries(),
     )
     by_name = {candidate.name: candidate for candidate in candidates}
 
@@ -220,11 +220,11 @@ def test_both_reference_forms_resolve_the_same_source_definition() -> None:
     entry = _entry("sase_plan", inputs=(_input("topic", "line"),), is_skill=True)
     entries = [entry]
 
-    hash_candidates, _ = build_xprompt_completion_candidates(
+    hash_candidates, _ = build_macro_completion_candidates(
         "#skill/sase_pl",
         entries=entries,
     )
-    slash_candidates, _ = build_xprompt_completion_candidates(
+    slash_candidates, _ = build_macro_completion_candidates(
         "/sase_pl",
         entries=entries,
     )
@@ -239,7 +239,7 @@ def test_both_reference_forms_resolve_the_same_source_definition() -> None:
 
 def test_project_qualified_skill_reference_and_slash_share_the_same_source() -> None:
     entry = _entry("sase_plan", inputs=(_input("topic", "line"),), is_skill=True)
-    entry = XPromptAssistEntry(
+    entry = MacroAssistEntry(
         name="app/skill/sase_plan",
         insertion="#app/skill/sase_plan",
         reference_prefix=entry.reference_prefix,
@@ -252,11 +252,11 @@ def test_project_qualified_skill_reference_and_slash_share_the_same_source() -> 
         skill_name=entry.skill_name,
     )
 
-    hash_candidates, _ = build_xprompt_completion_candidates(
+    hash_candidates, _ = build_macro_completion_candidates(
         "#app/skill/sase_pl",
         entries=[entry],
     )
-    slash_candidates, _ = build_xprompt_completion_candidates(
+    slash_candidates, _ = build_macro_completion_candidates(
         "/sase_pl",
         entries=[entry],
     )
@@ -270,7 +270,7 @@ def test_project_qualified_skill_reference_and_slash_share_the_same_source() -> 
 def test_plural_skill_namespace_does_not_produce_a_compatibility_candidate() -> None:
     entry = _entry("sase_plan", is_skill=True)
 
-    candidates, shared = build_xprompt_completion_candidates(
+    candidates, shared = build_macro_completion_candidates(
         "#skills/sase_pl",
         entries=[entry],
     )
@@ -281,11 +281,11 @@ def test_plural_skill_namespace_does_not_produce_a_compatibility_candidate() -> 
 
 def test_reference_row_advertises_the_slash_name_and_the_slash_row_does_not() -> None:
     entry = _entry("sase_plan", is_skill=True)
-    hash_candidate = build_xprompt_completion_candidates(
+    hash_candidate = build_macro_completion_candidates(
         "#skill/sase_plan",
         entries=[entry],
     )[0][0]
-    slash_candidate = build_xprompt_completion_candidates(
+    slash_candidate = build_macro_completion_candidates(
         "/sase_plan",
         entries=[entry],
     )[0][0]
@@ -307,7 +307,7 @@ def test_slash_skill_completion_extends_shared_prefix() -> None:
         _entry("sase_questions", is_skill=True),
         _entry("sample", is_skill=True),
     ]
-    candidates, shared = build_xprompt_completion_candidates("/s", entries=entries)
+    candidates, shared = build_macro_completion_candidates("/s", entries=entries)
 
     assert [c.insertion for c in candidates] == [
         "/sample",
@@ -336,7 +336,7 @@ async def test_completion_panel_shows_required_input_names_and_types() -> None:
         assert "path: path" in rendered.plain
 
 
-async def test_completion_panel_shows_xprompt_description() -> None:
+async def test_completion_panel_shows_macro_description() -> None:
     entries = [
         _entry("review", description="Review a selected diff."),
         _entry("ship"),
@@ -352,7 +352,7 @@ async def test_completion_panel_shows_xprompt_description() -> None:
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
-        assert "#review  xprompt  Review a selected diff." in rendered.plain
+        assert "#review  macro  Review a selected diff." in rendered.plain
 
 
 async def test_completion_panel_renders_optional_inputs_distinctly() -> None:
@@ -381,7 +381,7 @@ async def test_completion_panel_renders_optional_inputs_distinctly() -> None:
         assert "rgb(215,175,135) dim" in {str(span.style) for span in rendered.spans}
 
 
-async def test_completion_panel_handles_xprompt_with_no_visible_inputs() -> None:
+async def test_completion_panel_handles_macro_with_no_visible_inputs() -> None:
     entries = [_entry("plain"), _entry("typed", inputs=(_input("path", "path"),))]
     app = CompletionTestApp()
     async with app.run_test():
@@ -394,7 +394,7 @@ async def test_completion_panel_handles_xprompt_with_no_visible_inputs() -> None
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
-        assert "#plain  xprompt" in rendered.plain
+        assert "#plain  macro" in rendered.plain
 
 
 async def test_standalone_marker_single_candidate_inserts_canonical_reference() -> None:
@@ -414,7 +414,7 @@ async def test_standalone_marker_single_candidate_inserts_canonical_reference() 
     assert ta._file_completion_active is False
 
 
-async def test_single_candidate_xprompt_without_inputs_adds_trailing_space() -> None:
+async def test_single_candidate_macro_without_inputs_adds_trailing_space() -> None:
     entries = [_entry("none")]
     app = CompletionTestApp()
     async with app.run_test():
@@ -426,10 +426,10 @@ async def test_single_candidate_xprompt_without_inputs_adds_trailing_space() -> 
 
     assert ta.text == "#none "
     assert ta.cursor_location == (0, len("#none "))
-    assert ta._active_xprompt_arg_hint is None
+    assert ta._active_macro_arg_hint is None
 
 
-async def test_single_candidate_xprompt_without_inputs_skips_space_before_punctuation() -> (
+async def test_single_candidate_macro_without_inputs_skips_space_before_punctuation() -> (
     None
 ):
     entries = [_entry("none")]
@@ -443,10 +443,10 @@ async def test_single_candidate_xprompt_without_inputs_skips_space_before_punctu
 
     assert ta.text == "(#none)"
     assert ta.cursor_location == (0, len("(#none"))
-    assert ta._active_xprompt_arg_hint is None
+    assert ta._active_macro_arg_hint is None
 
 
-async def test_single_candidate_xprompt_before_period_preserves_period() -> None:
+async def test_single_candidate_macro_before_period_preserves_period() -> None:
     entries = [_entry("none")]
     app = CompletionTestApp()
     async with app.run_test():
@@ -458,10 +458,10 @@ async def test_single_candidate_xprompt_before_period_preserves_period() -> None
 
     assert ta.text == "(see #none."
     assert ta.cursor_location == (0, len("(see #none"))
-    assert ta._active_xprompt_arg_hint is None
+    assert ta._active_macro_arg_hint is None
 
 
-async def test_single_candidate_xprompt_skeleton_lands_before_period() -> None:
+async def test_single_candidate_macro_skeleton_lands_before_period() -> None:
     entries = [_entry("review", inputs=(_input("path", "path"),))]
     app = CompletionTestApp()
     async with app.run_test():
@@ -473,10 +473,10 @@ async def test_single_candidate_xprompt_skeleton_lands_before_period() -> None:
 
     assert ta.text == "(see #review:."
     assert ta.cursor_location == (0, len("(see #review:"))
-    assert ta._active_xprompt_arg_hint is not None
+    assert ta._active_macro_arg_hint is not None
 
 
-async def test_single_candidate_xprompt_required_path_inserts_colon() -> None:
+async def test_single_candidate_macro_required_path_inserts_colon() -> None:
     entries = [_entry("review", inputs=(_input("path", "path"),))]
     app = CompletionTestApp()
     async with app.run_test():
@@ -488,10 +488,10 @@ async def test_single_candidate_xprompt_required_path_inserts_colon() -> None:
 
     assert ta.text == "#review:"
     assert ta.cursor_location == (0, len("#review:"))
-    assert ta._active_xprompt_arg_hint is not None
+    assert ta._active_macro_arg_hint is not None
 
 
-async def test_single_candidate_xprompt_required_text_inserts_double_colon_space() -> (
+async def test_single_candidate_macro_required_text_inserts_double_colon_space() -> (
     None
 ):
     entries = [_entry("write", inputs=(_input("body", "text"),))]
@@ -508,10 +508,10 @@ async def test_single_candidate_xprompt_required_text_inserts_double_colon_space
     # structured argument hinting.
     assert ta.text == "#write:: "
     assert ta.cursor_location == (0, len("#write:: "))
-    assert ta._active_xprompt_arg_hint is None
+    assert ta._active_macro_arg_hint is None
 
 
-async def test_single_candidate_xprompt_many_inputs_places_cursor_in_parens() -> None:
+async def test_single_candidate_macro_many_inputs_places_cursor_in_parens() -> None:
     entries = [
         _entry(
             "many",
@@ -532,10 +532,10 @@ async def test_single_candidate_xprompt_many_inputs_places_cursor_in_parens() ->
     assert ta.text == "#many()"
     assert "$0" not in ta.text
     assert ta.cursor_location == (0, len("#many("))
-    assert ta._active_xprompt_arg_hint is not None
+    assert ta._active_macro_arg_hint is not None
 
 
-async def test_panel_acceptance_uses_xprompt_completion_skeleton() -> None:
+async def test_panel_acceptance_uses_macro_completion_skeleton() -> None:
     entries = [
         _entry("many", inputs=(_input("path", "path"), _input("body", "text"))),
         _entry("more"),
@@ -554,7 +554,7 @@ async def test_panel_acceptance_uses_xprompt_completion_skeleton() -> None:
     assert ta._insert_g_prefix_pending is False
 
 
-async def test_xprompt_enter_submits_unexpanded_text_while_menu_is_open() -> None:
+async def test_macro_enter_submits_unexpanded_text_while_menu_is_open() -> None:
     entries = [
         _entry("many", inputs=(_input("path", "path"), _input("body", "text"))),
         _entry("more"),
@@ -584,7 +584,7 @@ async def test_xprompt_enter_submits_unexpanded_text_while_menu_is_open() -> Non
     assert submitted == 1
 
 
-async def test_second_ctrl_t_redispatches_xprompt_menu() -> None:
+async def test_second_ctrl_t_redispatches_macro_menu() -> None:
     entries = [
         _entry("many"),
         _entry("more"),
@@ -637,7 +637,7 @@ async def test_slash_skill_single_candidate_inserts_slash_reference() -> None:
 
     assert ta.text == "/sase_plan"
     assert ta._file_completion_active is False
-    assert ta._active_xprompt_arg_hint is None
+    assert ta._active_macro_arg_hint is None
 
 
 async def test_slash_skill_multiple_candidates_opens_completion_panel() -> None:

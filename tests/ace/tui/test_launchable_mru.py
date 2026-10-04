@@ -486,7 +486,7 @@ async def test_warm_identity_resolves_aliased_project(
             ta.move_cursor(ta._location_from_absolute(len("#gh:docs ")))
             ta.focus()
             await pilot.pause()
-            assert ta._xprompt_arg_assist_project_from_text() == "widgets"
+            assert ta._macro_arg_assist_project_from_text() == "widgets"
             assert app.identity_warm_requests == []
     finally:
         identity.invalidate_macro_project_identity()
@@ -510,7 +510,7 @@ async def test_cold_identity_project_falls_back_to_global_namespace(
             ta.focus()
             await pilot.pause()
             assert not identity.macro_project_identity_ready()
-            assert ta._xprompt_arg_assist_project_from_text() is None
+            assert ta._macro_arg_assist_project_from_text() is None
             assert app.identity_warm_requests, "cold path must request a warm"
     finally:
         identity.invalidate_macro_project_identity()
@@ -556,7 +556,7 @@ async def test_bare_host_without_hook_canonicalizes_synchronously(
             ta.move_cursor(ta._location_from_absolute(len("#gh:docs ")))
             ta.focus()
             await pilot.pause()
-            assert ta._xprompt_arg_assist_project_from_text() == "widgets"
+            assert ta._macro_arg_assist_project_from_text() == "widgets"
             assert identity.macro_project_identity_ready()
     finally:
         identity.invalidate_macro_project_identity()

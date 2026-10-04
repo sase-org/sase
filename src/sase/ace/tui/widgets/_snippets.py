@@ -44,7 +44,7 @@ class SnippetExpansionMixin(_MixinBase):
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
         ) -> EditResult | None: ...
@@ -168,7 +168,7 @@ class SnippetExpansionMixin(_MixinBase):
         this stays safe on the Tab keystroke path.
         """
         try:
-            project = self._xprompt_arg_assist_project_from_text()
+            project = self._macro_arg_assist_project_from_text()
         except Exception:  # noqa: BLE001 - keystroke path degrades to None.
             project = None
         if project:

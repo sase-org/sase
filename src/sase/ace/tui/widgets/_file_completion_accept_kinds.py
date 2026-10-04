@@ -31,10 +31,10 @@ from sase.ace.tui.widgets.model_explicit_completion import (
     is_model_explicit_completion_placeholder,
     plan_model_explicit_completion_edit,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    detect_xprompt_arg_hint_at_cursor,
-    xprompt_completion_skeleton,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    detect_macro_arg_hint_at_cursor,
+    macro_completion_skeleton,
 )
 from sase.project_tags import apply_project_tag_selection
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
@@ -137,7 +137,7 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
         end: int,
     ) -> bool:
         """Accept an xprompt candidate using its completion skeleton when eligible."""
-        if not isinstance(selected.metadata, XPromptAssistEntry):
+        if not isinstance(selected.metadata, MacroAssistEntry):
             return False
         if not selected.insertion.startswith("#"):
             return False
@@ -149,7 +149,7 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
         append_text_arg_space = end == len(line)
         next_char = line[end] if end < len(line) else None
         expanded = self._expand_snippet_template_at_range(
-            xprompt_completion_skeleton(
+            macro_completion_skeleton(
                 selected.metadata,
                 append_text_arg_space=append_text_arg_space,
                 next_char=next_char,
@@ -159,7 +159,7 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
             session_policy="nest",
         )
         if expanded:
-            self._note_xprompt_completion_spacer(selected.metadata)
+            self._note_macro_completion_spacer(selected.metadata)
         return expanded
 
     def _accept_directive_completion_candidate(
@@ -187,20 +187,20 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
         selected: CompletionCandidate,
     ) -> None:
         """Refresh argument hints from the just-accepted xprompt metadata."""
-        if not isinstance(selected.metadata, XPromptAssistEntry):
-            self._clear_xprompt_arg_hint()
+        if not isinstance(selected.metadata, MacroAssistEntry):
+            self._clear_macro_arg_hint()
             return
         cursor_offset = self._absolute_offset(self.cursor_location)
-        hint = detect_xprompt_arg_hint_at_cursor(
+        hint = detect_macro_arg_hint_at_cursor(
             self.text,
             cursor_offset,
             [selected.metadata],
         )
         if hint is None:
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
             return
-        self._active_xprompt_arg_hint = hint
-        self._show_xprompt_arg_hint(hint)
+        self._active_macro_arg_hint = hint
+        self._show_macro_arg_hint(hint)
 
     def _accept_model_alias_completion(self, selected: CompletionCandidate) -> bool:
         """Accept a ``=alias`` shortcut candidate using the Rust edit plan."""

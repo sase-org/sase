@@ -147,7 +147,7 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
             text_area._clear_normal_g_prefix()
             text_area._clear_file_completion()
             text_area._clear_soft_completion(cancel_timer=True)
-            text_area._clear_xprompt_arg_hint()
+            text_area._clear_macro_arg_hint()
             text_area._clear_prompt_search(clear_highlights=True)
             try:
                 text_area._clear_next_word_chain()

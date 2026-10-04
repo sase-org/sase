@@ -21,19 +21,19 @@ MAX_HIGHLIGHT_BYTES = 80_000
 MAX_HIGHLIGHT_LINES = 1_200
 
 MacroHighlightRole = Literal[
-    "xprompt.invocation",
-    "xprompt.invocation_arg",
-    "xprompt.directive",
-    "xprompt.directive_arg",
-    "xprompt.arg_delimiter",
-    "xprompt.arg_key",
-    "xprompt.arg_assign",
-    "xprompt.arg_value",
-    "xprompt.arg_value_string",
-    "xprompt.arg_value_number",
-    "xprompt.arg_value_bool",
-    "xprompt.separator",
-    "xprompt.skill",
+    "macro.invocation",
+    "macro.invocation_arg",
+    "macro.directive",
+    "macro.directive_arg",
+    "macro.arg_delimiter",
+    "macro.arg_key",
+    "macro.arg_assign",
+    "macro.arg_value",
+    "macro.arg_value_string",
+    "macro.arg_value_number",
+    "macro.arg_value_bool",
+    "macro.separator",
+    "macro.skill",
     "jinja.delimiter",
     "jinja.statement",
     "jinja.variable",
@@ -49,9 +49,9 @@ MacroHighlightRole = Literal[
     "artifact_ref",
     "code.fence",
     "code.inline",
-    "xprompt.project_tag.sigil",
-    "xprompt.project_tag.name",
-    "xprompt.project_tag.unknown",
+    "macro.project_tag.sigil",
+    "macro.project_tag.name",
+    "macro.project_tag.unknown",
 ]
 
 MacroArgumentSpanValidity = Literal[
@@ -62,7 +62,7 @@ MacroArgumentSpanValidity = Literal[
     "unresolvable",
 ]
 
-MacroArgumentSource = Literal["xprompt", "directive"]
+MacroArgumentSource = Literal["macro", "directive"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,16 +98,16 @@ class _Candidate:
 _ROLE_PRECEDENCE: dict[MacroHighlightRole, int] = {
     "code.fence": 0,
     "code.inline": 1,
-    "xprompt.invocation": 10,
-    "xprompt.directive": 11,
-    "xprompt.separator": 12,
-    "xprompt.skill": 13,
-    "xprompt.project_tag.sigil": 14,
-    "xprompt.project_tag.name": 15,
-    "xprompt.project_tag.unknown": 16,
-    "xprompt.arg_key": 20,
-    "xprompt.arg_assign": 21,
-    "xprompt.arg_delimiter": 22,
+    "macro.invocation": 10,
+    "macro.directive": 11,
+    "macro.separator": 12,
+    "macro.skill": 13,
+    "macro.project_tag.sigil": 14,
+    "macro.project_tag.name": 15,
+    "macro.project_tag.unknown": 16,
+    "macro.arg_key": 20,
+    "macro.arg_assign": 21,
+    "macro.arg_delimiter": 22,
     "alt.delimiter": 30,
     "alt.separator": 31,
     "alt.branch_name": 32,
@@ -121,29 +121,29 @@ _ROLE_PRECEDENCE: dict[MacroHighlightRole, int] = {
     "jinja.operator": 46,
     "placeholder": 50,
     "artifact_ref": 60,
-    "xprompt.arg_value_string": 70,
-    "xprompt.arg_value_number": 71,
-    "xprompt.arg_value_bool": 72,
-    "xprompt.arg_value": 73,
-    "xprompt.invocation_arg": 90,
-    "xprompt.directive_arg": 91,
+    "macro.arg_value_string": 70,
+    "macro.arg_value_number": 71,
+    "macro.arg_value_bool": 72,
+    "macro.arg_value": 73,
+    "macro.invocation_arg": 90,
+    "macro.directive_arg": 91,
 }
 
 _ARGUMENT_ROLE_BY_CORE_ROLE: dict[str, MacroHighlightRole] = {
-    "arg_delimiter": "xprompt.arg_delimiter",
-    "arg_key": "xprompt.arg_key",
-    "arg_assign": "xprompt.arg_assign",
-    "arg_value": "xprompt.arg_value",
-    "arg_value_string": "xprompt.arg_value_string",
-    "arg_value_number": "xprompt.arg_value_number",
-    "arg_value_bool": "xprompt.arg_value_bool",
+    "arg_delimiter": "macro.arg_delimiter",
+    "arg_key": "macro.arg_key",
+    "arg_assign": "macro.arg_assign",
+    "arg_value": "macro.arg_value",
+    "arg_value_string": "macro.arg_value_string",
+    "arg_value_number": "macro.arg_value_number",
+    "arg_value_bool": "macro.arg_value_bool",
 }
 
 _VALIDITIES: frozenset[str] = frozenset(
     {"ok", "unknown_key", "type_mismatch", "duplicate_key", "unresolvable"}
 )
 
-_SOURCES: frozenset[str] = frozenset({"xprompt", "directive"})
+_SOURCES: frozenset[str] = frozenset({"macro", "xprompt", "directive"})
 _MISSING_BINDING = object()
 _macro_argument_spans_binding: Callable[..., object] | object | None = None
 
@@ -193,14 +193,14 @@ def highlight_spans(
             collected.extend(_project_tag_highlight_spans(token))
         elif token.kind == "project_tag_unknown":
             collected.append(
-                HighlightSpan(token.start, token.end, "xprompt.project_tag.unknown")
+                HighlightSpan(token.start, token.end, "macro.project_tag.unknown")
             )
         else:
             collected.append(
                 HighlightSpan(
                     token.start,
                     token.end,
-                    cast(MacroHighlightRole, f"xprompt.{token.kind}"),
+                    cast(MacroHighlightRole, f"macro.{token.kind}"),
                 )
             )
 
@@ -295,13 +295,13 @@ def _project_tag_highlight_spans(span: MacroSpan) -> list[HighlightSpan]:
         HighlightSpan(
             span.start,
             name_start,
-            "xprompt.project_tag.sigil",
+            "macro.project_tag.sigil",
             accent=span.accent,
         ),
         HighlightSpan(
             name_start,
             span.end,
-            "xprompt.project_tag.name",
+            "macro.project_tag.name",
             accent=span.accent,
         ),
     ]
@@ -505,9 +505,11 @@ def _validity_value(value: object) -> MacroArgumentSpanValidity:
 
 
 def _source_value(value: object) -> MacroArgumentSource | None:
-    if isinstance(value, str) and value in _SOURCES:
-        return cast(MacroArgumentSource, value)
-    return None
+    if not isinstance(value, str) or value not in _SOURCES:
+        return None
+    if value == "xprompt":
+        return "macro"
+    return cast(MacroArgumentSource, value)
 
 
 def _position_to_offset(text: str, position: PlaceholderPosition) -> int | None:

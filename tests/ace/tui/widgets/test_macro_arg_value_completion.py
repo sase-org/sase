@@ -1,4 +1,4 @@
-"""Tests for type-aware xprompt argument completion in the prompt widget."""
+"""Tests for type-aware macro argument completion in the prompt widget."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 from ._completion_helpers import CompletionTestApp
-from ._xprompt_arg_completion_helpers import (
+from ._macro_arg_completion_helpers import (
     gh_entry,
     review_entry,
     rich_review_entry,
@@ -38,13 +38,13 @@ async def test_colon_path_arg_uses_existing_file_completion(
 
         assert ta.text == "#review:./a"
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_path"
+        assert ta._completion_kind == "macro_arg_path"
         assert {c.name for c in ta._file_completion_candidates} == {
             "alpha.txt",
             "apple.txt",
         }
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "xprompt path"
+        assert panel.border_title == "macro path"
 
 
 async def test_bool_named_arg_offers_true_false_values() -> None:
@@ -57,7 +57,7 @@ async def test_bool_named_arg_offers_true_false_values() -> None:
         seed_entries(ta, [review_entry()])
         await pilot.press("ctrl+t")
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_value"
+        assert ta._completion_kind == "macro_arg_value"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "true",
             "false",
@@ -80,7 +80,7 @@ async def test_auto_keyword_arg_menu_uses_declaration_order_and_metadata() -> No
         assert ta._try_auto_xprompt_arg_completion() is True
 
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_name"
+        assert ta._completion_kind == "macro_arg_name"
         assert ta._xprompt_arg_completion_trigger == "auto"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "path=",
@@ -138,7 +138,7 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
     assert submitted == 1
     assert ta.text == "#review(enabled="
     assert ta._file_completion_active is True
-    assert ta._completion_kind == "xprompt_arg_value"
+    assert ta._completion_kind == "macro_arg_value"
     assert ta._xprompt_arg_completion_trigger == "manual"
 
 
@@ -205,7 +205,7 @@ async def test_ctrl_n_and_ctrl_p_open_keyword_arg_menu_from_cold_start() -> None
         await pilot.press("ctrl+n")
         assert ta.text == "#gh:sase #review("
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_name"
+        assert ta._completion_kind == "macro_arg_name"
         assert ta._file_completion_index == 0
         assert ta._completion_selection_moved is True
 
@@ -216,7 +216,7 @@ async def test_ctrl_n_and_ctrl_p_open_keyword_arg_menu_from_cold_start() -> None
 
     assert ta.text == "#gh:sase #review("
     assert ta._file_completion_active is True
-    assert ta._completion_kind == "xprompt_arg_name"
+    assert ta._completion_kind == "macro_arg_name"
     assert ta._file_completion_index == 3
 
 
@@ -236,7 +236,7 @@ async def test_accepting_keyword_names_chains_by_input_type(
         assert ta._try_file_completion_tab() is True
         assert ta.text == "#review(enabled="
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_value"
+        assert ta._completion_kind == "macro_arg_value"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "true",
             "false",
@@ -248,7 +248,7 @@ async def test_accepting_keyword_names_chains_by_input_type(
         assert ta._try_file_completion_tab() is True
         assert ta.text == "#review(path="
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt_arg_path"
+        assert ta._completion_kind == "macro_arg_path"
         assert "alpha.txt" in {c.name for c in ta._file_completion_candidates}
 
         ta._clear_file_completion()
@@ -257,7 +257,7 @@ async def test_accepting_keyword_names_chains_by_input_type(
         assert ta._try_file_completion_tab() is True
         assert ta.text == "#review(label="
         assert ta._file_completion_active is False
-        assert ta._active_xprompt_arg_hint is not None
+        assert ta._active_macro_arg_hint is not None
 
 
 async def test_parenthesized_arg_name_completion_skips_existing_names() -> None:
@@ -272,7 +272,7 @@ async def test_parenthesized_arg_name_completion_skips_existing_names() -> None:
 
     assert ta.text == "#review(path=foo, enabled="
     assert ta._file_completion_active is True
-    assert ta._completion_kind == "xprompt_arg_value"
+    assert ta._completion_kind == "macro_arg_value"
     assert [c.insertion for c in ta._file_completion_candidates] == ["true", "false"]
 
 
@@ -288,7 +288,7 @@ async def test_numeric_arg_keeps_hint_without_value_suggestions() -> None:
         assert ta._try_file_completion_tab() is True
 
     assert ta._file_completion_active is False
-    assert ta._active_xprompt_arg_hint is not None
+    assert ta._active_macro_arg_hint is not None
     assert bar._completion_visible is True
 
 

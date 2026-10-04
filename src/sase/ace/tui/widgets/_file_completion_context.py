@@ -10,9 +10,9 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCompletionContext,
     detect_artifact_ref_completion_context,
 )
-from sase.ace.tui.widgets._file_completion_xprompt_args import (
-    cursor_prefix_may_contain_xprompt_args,
-    effective_xprompt_arg_token,
+from sase.ace.tui.widgets._file_completion_macro_args import (
+    cursor_prefix_may_contain_macro_args,
+    effective_macro_arg_token,
 )
 from sase.ace.tui.widgets._directive_completion_tokens import compat_directive_name
 from sase.ace.tui.widgets.directive_completion import (
@@ -41,16 +41,16 @@ from sase.ace.tui.widgets.recursive_file_finder import (
     resolve_root_abs,
     split_root_and_query,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptArgCompletionContext,
-    detect_xprompt_arg_completion_at_cursor,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroArgCompletionContext,
+    detect_macro_arg_completion_at_cursor,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import merge_local_xprompt_entries
-from sase.ace.tui.widgets.xprompt_completion import (
-    XPromptTokenSpan,
-    build_xprompt_completion_candidates,
-    extract_xprompt_token_around_cursor,
+from sase.ace.tui.widgets.macro_arg_assist import merge_local_macro_entries
+from sase.ace.tui.widgets.macro_completion import (
+    MacroTokenSpan,
+    build_macro_completion_candidates,
+    extract_macro_token_around_cursor,
 )
 from sase.project_tags import find_project_tag_trigger
 from sase.macro.vcs_project_completion import VcsProjectTrigger
@@ -72,7 +72,7 @@ else:
 
 
 _RECURSIVE_PATH_KINDS: frozenset[str] = frozenset(
-    {"file", "file_history", "xprompt_arg_path"}
+    {"file", "file_history", "macro_arg_path"}
 )
 """Completion kinds whose active selection can seed the Ctrl+R recursive root."""
 
@@ -95,12 +95,12 @@ class FileCompletionContextMixin(_MixinBase):
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
-        def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]: ...
-        def _get_warm_xprompt_arg_assist_entries(
+        def _get_macro_arg_assist_entries(self) -> list[MacroAssistEntry]: ...
+        def _get_warm_macro_arg_assist_entries(
             self,
-        ) -> list[XPromptAssistEntry] | None: ...
-        def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]: ...
-        def _warm_current_xprompt_assist_entries(self) -> None: ...
+        ) -> list[MacroAssistEntry] | None: ...
+        def _local_macro_assist_entries(self) -> list[MacroAssistEntry]: ...
+        def _warm_current_macro_assist_entries(self) -> None: ...
         def _get_warm_artifact_ref_known_kinds(self) -> frozenset[str] | None: ...
         def _get_warm_artifact_ref_completion_catalog(
             self,
@@ -138,11 +138,11 @@ class FileCompletionContextMixin(_MixinBase):
 
     def _get_xprompt_token_context(
         self,
-    ) -> tuple[int, XPromptTokenSpan] | None:
+    ) -> tuple[int, MacroTokenSpan] | None:
         """Return the row and grammar-aware span for the current xprompt token."""
         row, col = self.cursor_location
         line = self.document.get_line(row)
-        span = extract_xprompt_token_around_cursor(line, col)
+        span = extract_macro_token_around_cursor(line, col)
         if span is None:
             return None
         return row, span
@@ -307,23 +307,23 @@ class FileCompletionContextMixin(_MixinBase):
                 return None
             row, span = xprompt_ctx
             return row, span.start, span.end, span.token
-        if self._completion_kind.startswith("xprompt_arg_"):
+        if self._completion_kind.startswith("macro_arg_"):
             return self._get_xprompt_arg_token_context()
         return self._get_path_token_context()
 
     def _get_xprompt_arg_completion_context(
         self,
-    ) -> XPromptArgCompletionContext | None:
+    ) -> MacroArgCompletionContext | None:
         """Return an xprompt argument completion context at the current cursor."""
         if "#" not in self.text:
             return None
         cursor_offset = self._absolute_offset(self.cursor_location)
-        if not cursor_prefix_may_contain_xprompt_args(self.text, cursor_offset):
+        if not cursor_prefix_may_contain_macro_args(self.text, cursor_offset):
             return None
-        return detect_xprompt_arg_completion_at_cursor(
+        return detect_macro_arg_completion_at_cursor(
             self.text,
             cursor_offset,
-            self._get_xprompt_arg_assist_entries(),
+            self._get_macro_arg_assist_entries(),
         )
 
     def _get_vcs_project_trigger(self) -> VcsProjectTrigger | None:
@@ -387,7 +387,7 @@ class FileCompletionContextMixin(_MixinBase):
         end_row, end = self._location_from_absolute(ctx.value_end)
         if row != end_row:
             return None
-        return row, start, end, effective_xprompt_arg_token(ctx)
+        return row, start, end, effective_macro_arg_token(ctx)
 
     def _build_xprompt_completion_candidates(
         self,
@@ -402,17 +402,17 @@ class FileCompletionContextMixin(_MixinBase):
         ``<ctrl+t>`` like a global xprompt. When the app catalog is cold, this
         schedules a warm and returns local-only candidates if present.
         """
-        local = self._local_xprompt_assist_entries()
-        warm = self._get_warm_xprompt_arg_assist_entries()
+        local = self._local_macro_assist_entries()
+        warm = self._get_warm_macro_arg_assist_entries()
         if warm is not None:
-            entries = merge_local_xprompt_entries(warm, local)
-            return build_xprompt_completion_candidates(
+            entries = merge_local_macro_entries(warm, local)
+            return build_macro_completion_candidates(
                 token,
                 entries=entries,
                 inline_reference_only=inline_reference_only,
             )
-        self._warm_current_xprompt_assist_entries()
-        return build_xprompt_completion_candidates(
+        self._warm_current_macro_assist_entries()
+        return build_macro_completion_candidates(
             token,
             entries=local,
             inline_reference_only=inline_reference_only,
@@ -429,19 +429,19 @@ class FileCompletionContextMixin(_MixinBase):
         Automatic completion runs on the keystroke path, so it must not fall
         through to the synchronous catalog build used by explicit ``Ctrl+T``.
         """
-        local = self._local_xprompt_assist_entries()
-        warm = self._get_warm_xprompt_arg_assist_entries()
+        local = self._local_macro_assist_entries()
+        warm = self._get_warm_macro_arg_assist_entries()
         if warm is None:
-            self._warm_current_xprompt_assist_entries()
+            self._warm_current_macro_assist_entries()
             if not local:
                 return None
-            return build_xprompt_completion_candidates(
+            return build_macro_completion_candidates(
                 token,
                 entries=local,
                 inline_reference_only=inline_reference_only,
             )
-        entries = merge_local_xprompt_entries(warm, local)
-        return build_xprompt_completion_candidates(
+        entries = merge_local_macro_entries(warm, local)
+        return build_macro_completion_candidates(
             token,
             entries=entries,
             inline_reference_only=inline_reference_only,

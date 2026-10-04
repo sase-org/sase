@@ -115,7 +115,7 @@ async def test_bullet_overlay_uses_utf8_byte_columns_and_coexists_with_syntax() 
 
         # The dash overlay coexists with xprompt/jinja spans on the same line.
         names = _highlight_names(text_area)
-        for name in ("bullet.dash", "xprompt.invocation", "jinja.delimiter"):
+        for name in ("bullet.dash", "macro.invocation", "jinja.delimiter"):
             assert name in names
 
 

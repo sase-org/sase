@@ -57,7 +57,7 @@ class PromptInputBarCancelActionsMixin(_MixinBase):
         text_area = self.active_text_area()
         text_area._clear_insert_g_prefix()
         text_area._clear_soft_completion(cancel_timer=True)
-        text_area._clear_xprompt_arg_hint()
+        text_area._clear_macro_arg_hint()
 
         if self._mode == "prompt" and len(self._stack) > 1:
             self._sync_state_from_widgets()

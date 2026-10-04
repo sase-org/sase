@@ -55,9 +55,9 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.file_completion import CompletionCandidate
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-    from sase.ace.tui.widgets.xprompt_arg_assist import (
-        ActiveXPromptArgHint,
-        PendingXPromptCompletionSpacer,
+    from sase.ace.tui.widgets.macro_arg_assist import (
+        ActiveMacroArgHint,
+        PendingMacroCompletionSpacer,
     )
 
 
@@ -78,8 +78,8 @@ class PromptTextAreaKeyHandlingMixin(
     """PromptTextArea key handling kept separate from widget construction."""
 
     if TYPE_CHECKING:
-        _active_xprompt_arg_hint: ActiveXPromptArgHint | None
-        _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
+        _active_macro_arg_hint: ActiveMacroArgHint | None
+        _pending_macro_completion_spacer: PendingMacroCompletionSpacer | None
         _completion_kind: str
         _file_completion_active: bool
         _file_completion_candidates: list[CompletionCandidate]
@@ -95,9 +95,9 @@ class PromptTextAreaKeyHandlingMixin(
         def _start_artifact_ref_sync(self, kind: str) -> None: ...
         def _accept_file_completion(self) -> bool: ...
         def _accept_or_build_soft_completion(self) -> bool: ...
-        def _apply_xprompt_colon_arg_hint(self) -> bool: ...
-        def _apply_xprompt_named_arg_hint(self) -> bool: ...
-        def _can_apply_xprompt_arg_action(self) -> bool: ...
+        def _apply_macro_colon_arg_hint(self) -> bool: ...
+        def _apply_macro_named_arg_hint(self) -> bool: ...
+        def _can_apply_macro_arg_action(self) -> bool: ...
         def _clear_insert_g_prefix(self) -> None: ...
         def _clear_normal_g_prefix(self) -> None: ...
         def _clear_file_completion(
@@ -110,15 +110,15 @@ class PromptTextAreaKeyHandlingMixin(
             *,
             cancel_timer: bool = False,
         ) -> None: ...
-        def _clear_xprompt_arg_hint(self) -> None: ...
-        def _consume_xprompt_completion_spacer(
+        def _clear_macro_arg_hint(self) -> None: ...
+        def _consume_macro_completion_spacer(
             self,
-            pending: PendingXPromptCompletionSpacer,
+            pending: PendingMacroCompletionSpacer,
             character: str | None,
         ) -> bool: ...
-        def _consume_xprompt_completion_spacer_for_tabstop(
+        def _consume_macro_completion_spacer_for_tabstop(
             self,
-            pending: PendingXPromptCompletionSpacer,
+            pending: PendingMacroCompletionSpacer,
             *,
             retreat: bool,
         ) -> bool: ...
@@ -147,7 +147,7 @@ class PromptTextAreaKeyHandlingMixin(
         def _open_recursive_file_finder(self) -> None: ...
         def _open_submit_choice_panel(self) -> None: ...
         def _refresh_file_completion_from_cursor(self) -> None: ...
-        def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
+        def _refresh_macro_arg_hint_from_cursor(self) -> None: ...
         def _try_advance_tabstop(self) -> bool: ...
         def _try_retreat_tabstop(self) -> bool: ...
         def _try_auto_placeholder_completion(self) -> bool: ...
@@ -213,7 +213,7 @@ class PromptTextAreaKeyHandlingMixin(
             and _is_auto_xprompt_menu_character(character)
             and self._try_auto_jinja_completion()
         ):
-            self._refresh_xprompt_arg_hint_from_cursor()
+            self._refresh_macro_arg_hint_from_cursor()
             self._on_prompt_completion_context_changed()
             return
         if (
@@ -222,7 +222,7 @@ class PromptTextAreaKeyHandlingMixin(
             and settings.auto != "off"
             and self._try_auto_placeholder_completion()
         ):
-            self._refresh_xprompt_arg_hint_from_cursor()
+            self._refresh_macro_arg_hint_from_cursor()
             self._on_prompt_completion_context_changed()
             return
         if (
@@ -236,7 +236,7 @@ class PromptTextAreaKeyHandlingMixin(
             and _is_auto_xprompt_menu_character(character)
         ):
             self._try_auto_prompt_reference_completion()
-        self._refresh_xprompt_arg_hint_from_cursor()
+        self._refresh_macro_arg_hint_from_cursor()
         self._on_prompt_completion_context_changed()
 
     async def _on_key(self, event: Key) -> None:
@@ -251,10 +251,10 @@ class PromptTextAreaKeyHandlingMixin(
         # below rather than here because tabstop jumps are INSERT-mode only.
         # The spacer is a one-shot convenience: any other key or invalidated
         # text/cursor drops the pending state.
-        pending_spacer = self._pending_xprompt_completion_spacer
+        pending_spacer = self._pending_macro_completion_spacer
         if pending_spacer is not None:
-            self._pending_xprompt_completion_spacer = None
-            if self._consume_xprompt_completion_spacer(
+            self._pending_macro_completion_spacer = None
+            if self._consume_macro_completion_spacer(
                 pending_spacer,
                 event.character,
             ):
@@ -313,7 +313,7 @@ class PromptTextAreaKeyHandlingMixin(
             if self._plain_enter_opens_submit_choice(bar):
                 self._open_submit_choice_panel()
             else:
-                self._clear_xprompt_arg_hint()
+                self._clear_macro_arg_hint()
                 self.action_submit_prompt()
             return
 
@@ -331,7 +331,7 @@ class PromptTextAreaKeyHandlingMixin(
             event.prevent_default()
             self._clear_file_completion()
             self._clear_soft_completion(cancel_timer=True)
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
             self._clear_next_word_chain()
             bar = self._find_prompt_bar()
             if bar:
@@ -387,16 +387,16 @@ class PromptTextAreaKeyHandlingMixin(
             self._open_recursive_file_finder()
             return
 
-        if self._active_xprompt_arg_hint is not None and event.character in (":", "("):
-            if self._can_apply_xprompt_arg_action():
+        if self._active_macro_arg_hint is not None and event.character in (":", "("):
+            if self._can_apply_macro_arg_action():
                 event.stop()
                 event.prevent_default()
                 if event.character == ":":
-                    self._apply_xprompt_colon_arg_hint()
+                    self._apply_macro_colon_arg_hint()
                 else:
-                    self._apply_xprompt_named_arg_hint()
+                    self._apply_macro_named_arg_hint()
                 return
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
 
         # Active manual completion navigation / acceptance.
         if self._file_completion_active:
@@ -518,7 +518,7 @@ class PromptTextAreaKeyHandlingMixin(
             event.prevent_default()
             self._clear_soft_completion(cancel_timer=True)
             if pending_spacer is not None and (
-                self._consume_xprompt_completion_spacer_for_tabstop(
+                self._consume_macro_completion_spacer_for_tabstop(
                     pending_spacer,
                     retreat=event.key == "shift+tab",
                 )

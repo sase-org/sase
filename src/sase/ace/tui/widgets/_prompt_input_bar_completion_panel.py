@@ -59,8 +59,8 @@ from sase.ace.tui.widgets.model_explicit_completion import (
     MODEL_EXPLICIT_MODE_SUBTITLE,
 )
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    ActiveXPromptArgHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    ActiveMacroArgHint,
     append_input_hints,
 )
 
@@ -535,8 +535,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             include_query=include_query,
         )
 
-    def show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
-        """Show the post-accept xprompt argument hint panel."""
+    def show_macro_arg_hint(self, hint: ActiveMacroArgHint) -> None:
+        """Show the post-accept macro argument hint panel."""
         panel = self._completion_panel()
         if panel is None:
             return
@@ -550,7 +550,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
             include_descriptions=True,
         )
 
-        panel.border_title = "xprompt args"
+        panel.border_title = "macro args"
         panel.border_subtitle = "[:] colon  [(] named args"
         panel.update(content)
         _clear_jinja_panel_classes(panel)

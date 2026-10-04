@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from sase.ace.tui.widgets._file_completion_xprompt_args import (
-    build_xprompt_arg_completion_candidates,
-    effective_xprompt_arg_token,
+from sase.ace.tui.widgets._file_completion_macro_args import (
+    build_macro_arg_completion_candidates,
+    effective_macro_arg_token,
 )
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
@@ -21,13 +21,13 @@ from sase.ace.tui.widgets.file_completion import (
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.macro.jinja_assist import JinjaScope
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    detect_xprompt_arg_completion_at_cursor,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    detect_macro_arg_completion_at_cursor,
 )
-from sase.ace.tui.widgets.xprompt_completion import (
-    build_xprompt_completion_candidates,
-    extract_xprompt_token_around_cursor,
+from sase.ace.tui.widgets.macro_completion import (
+    build_macro_completion_candidates,
+    extract_macro_token_around_cursor,
 )
 
 PromptCompletionAutoMode = Literal["off", "soft"]
@@ -252,7 +252,7 @@ def build_prompt_soft_completion(
     text: str,
     cursor_offset: int,
     settings: PromptCompletionSettings,
-    macro_entries: list[XPromptAssistEntry] | None,
+    macro_entries: list[MacroAssistEntry] | None,
     base_dir: str | None = None,
     jinja_scope: JinjaScope | None = None,
 ) -> PromptSoftCompletion | None:
@@ -321,9 +321,9 @@ def build_prompt_soft_completion(
                 token,
             )
 
-    xprompt_span = extract_xprompt_token_around_cursor(line, col)
+    xprompt_span = extract_macro_token_around_cursor(line, col)
     if xprompt_span is not None and macro_entries is not None:
-        candidates, _shared = build_xprompt_completion_candidates(
+        candidates, _shared = build_macro_completion_candidates(
             xprompt_span.token,
             entries=macro_entries,
             inline_reference_only=xprompt_span.clamped,
@@ -363,21 +363,21 @@ def build_prompt_soft_completion(
 def _build_xprompt_arg_suggestion(
     text: str,
     cursor_offset: int,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     *,
     auto_file_paths: bool,
     base_dir: str | None,
 ) -> PromptSoftCompletion | None:
-    ctx = detect_xprompt_arg_completion_at_cursor(text, cursor_offset, entries)
+    ctx = detect_macro_arg_completion_at_cursor(text, cursor_offset, entries)
     if ctx is None:
         return None
-    if ctx.completion_kind == "xprompt_arg_path" and not auto_file_paths:
+    if ctx.completion_kind == "macro_arg_path" and not auto_file_paths:
         return None
-    candidates, _shared = build_xprompt_arg_completion_candidates(
+    candidates, _shared = build_macro_arg_completion_candidates(
         ctx,
         base_dir=base_dir,
     )
-    token = effective_xprompt_arg_token(ctx)
+    token = effective_macro_arg_token(ctx)
     candidate = _first_candidate_that_changes(candidates, token)
     if candidate is None:
         return None

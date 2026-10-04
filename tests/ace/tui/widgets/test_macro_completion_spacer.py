@@ -1,8 +1,8 @@
-"""Tests for one-shot punctuation rewrites of xprompt completion spacers.
+"""Tests for one-shot punctuation rewrites of macro completion spacers.
 
-When an xprompt without required inputs completes to ``#name `` (a deliberate
+When a macro without required inputs completes to ``#name `` (a deliberate
 trailing spacer), typing ``,`` immediately afterward replaces the spacer.
-Optional-only xprompts additionally support the existing ``:`` rewrite. When
+Optional-only macros additionally support the existing ``:`` rewrite. When
 the spacer sits at a live snippet tabstop, an immediate ``Tab`` / ``Shift+Tab``
 deletes the spacer instead of rewriting it, then jumps to the next tabstop.
 """
@@ -21,9 +21,9 @@ from sase.ace.tui.agent_completion import (
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroInputHint,
     has_no_required_inputs,
     has_only_optional_inputs,
 )
@@ -37,8 +37,8 @@ def _input(
     *,
     required: bool,
     position: int = 0,
-) -> XPromptInputHint:
-    return XPromptInputHint(
+) -> MacroInputHint:
+    return MacroInputHint(
         name=name,
         type=type_,
         required=required,
@@ -51,26 +51,26 @@ def _entry(
     name: str,
     *,
     prefix: str = "#",
-    inputs: tuple[XPromptInputHint, ...] = (),
-) -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+    inputs: tuple[MacroInputHint, ...] = (),
+) -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=name,
         insertion=f"{prefix}{name}",
         reference_prefix=prefix,
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=inputs,
         content_preview=None,
     )
 
 
-def _optional_entry(name: str = "optional") -> XPromptAssistEntry:
-    """An xprompt whose single input is optional (optional-only)."""
+def _optional_entry(name: str = "optional") -> MacroAssistEntry:
+    """A macro whose single input is optional (optional-only)."""
     return _entry(name, inputs=(_input("topic", "word", required=False),))
 
 
-def _optional_agent_entry(name: str = "fork") -> XPromptAssistEntry:
-    """An optional-only xprompt whose next argument has agent completions."""
+def _optional_agent_entry(name: str = "fork") -> MacroAssistEntry:
+    """An optional-only macro whose next argument has agent completions."""
     return _entry(name, inputs=(_input("name", "agent", required=False),))
 
 
@@ -98,10 +98,10 @@ def _agent_candidate(
 
 def _seed_entries(
     ta: PromptTextArea,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[project] = entries
+    ta._macro_arg_assist_entries_by_project[project] = entries
 
 
 async def _compute_soft_now(ta: PromptTextArea) -> None:
@@ -135,12 +135,12 @@ async def test_optional_only_ctrl_t_single_candidate_then_colon() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#optional "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press(":")
 
     assert ta.text == "#optional:"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_no_input_ctrl_t_single_candidate_then_comma() -> None:
@@ -152,7 +152,7 @@ async def test_no_input_ctrl_t_single_candidate_then_comma() -> None:
         _seed_entries(ta, [_entry("plain")])
         await pilot.press("ctrl+t")
 
-        pending = ta._pending_xprompt_completion_spacer
+        pending = ta._pending_macro_completion_spacer
         assert ta.text == "#plain "
         assert pending is not None
         assert pending.has_optional_inputs is False
@@ -161,7 +161,7 @@ async def test_no_input_ctrl_t_single_candidate_then_comma() -> None:
 
     assert ta.text == "#plain,"
     assert ta.cursor_location == (0, len("#plain,"))
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_optional_only_ctrl_t_single_candidate_then_comma() -> None:
@@ -173,7 +173,7 @@ async def test_optional_only_ctrl_t_single_candidate_then_comma() -> None:
         _seed_entries(ta, [_optional_entry()])
         await pilot.press("ctrl+t")
 
-        pending = ta._pending_xprompt_completion_spacer
+        pending = ta._pending_macro_completion_spacer
         assert ta.text == "#optional "
         assert pending is not None
         assert pending.has_optional_inputs is True
@@ -182,7 +182,7 @@ async def test_optional_only_ctrl_t_single_candidate_then_comma() -> None:
 
     assert ta.text == "#optional,"
     assert ta.cursor_location == (0, len("#optional,"))
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_completion_before_punctuation_records_no_spacer() -> None:
@@ -196,12 +196,12 @@ async def test_completion_before_punctuation_records_no_spacer() -> None:
 
         assert ta.text == "(#optional)"
         assert ta.cursor_location == (0, len("(#optional"))
-        assert ta._pending_xprompt_completion_spacer is None
+        assert ta._pending_macro_completion_spacer is None
 
         await pilot.press(",")
 
     assert ta.text == "(#optional,)"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_completion_panel_accept_then_comma() -> None:
@@ -217,12 +217,12 @@ async def test_completion_panel_accept_then_comma() -> None:
         await pilot.press("ctrl+f")
 
         assert ta.text == "#optional "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press(",")
 
     assert ta.text == "#optional,"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_optional_agent_spacer_colon_opens_agent_menu() -> None:
@@ -240,14 +240,14 @@ async def test_optional_agent_spacer_colon_opens_agent_menu() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#fork "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press(":")
 
     assert ta.text == "#fork:"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
     assert ta._file_completion_active is True
-    assert ta._completion_kind == "xprompt_arg_agent"
+    assert ta._completion_kind == "macro_arg_agent"
     assert [c.insertion for c in ta._file_completion_candidates] == [
         "coder",
         "planner",
@@ -268,7 +268,7 @@ async def test_optional_agent_spacer_colon_respects_disabled_auto_menu() -> None
         await pilot.press("ctrl+t")
 
         assert ta.text == "#fork "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         with patch.object(
             type(ta),
@@ -278,7 +278,7 @@ async def test_optional_agent_spacer_colon_respects_disabled_auto_menu() -> None
             await pilot.press(":")
 
     assert ta.text == "#fork:"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
     assert ta._file_completion_active is False
 
 
@@ -293,12 +293,12 @@ async def test_no_input_soft_completion_then_comma() -> None:
 
         await pilot.press("ctrl+l")
         assert ta.text == "#plain "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press(",")
 
     assert ta.text == "#plain,"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_optional_only_selector_smart_insertion_then_comma() -> None:
@@ -318,15 +318,15 @@ async def test_optional_only_selector_smart_insertion_then_comma() -> None:
 
         assert inserted is True
         assert ta.text == "#optional "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press(",")
 
     assert ta.text == "#optional,"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
-async def test_no_input_xprompt_colon_is_not_rewritten() -> None:
+async def test_no_input_macro_colon_is_not_rewritten() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -336,13 +336,13 @@ async def test_no_input_xprompt_colon_is_not_rewritten() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#plain "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press(":")
 
     # The trailing space survives; the colon simply inserts after it.
     assert ta.text == "#plain :"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_intervening_keystroke_clears_pending_spacer() -> None:
@@ -355,11 +355,11 @@ async def test_intervening_keystroke_clears_pending_spacer() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#optional "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         # Any other character cancels the one-shot spacer rewrite.
         await pilot.press("x")
-        assert ta._pending_xprompt_completion_spacer is None
+        assert ta._pending_macro_completion_spacer is None
 
         await pilot.press(",")
 
@@ -375,12 +375,12 @@ async def test_cursor_movement_invalidates_later_comma_rewrite() -> None:
         _seed_entries(ta, [_optional_entry()])
         await pilot.press("ctrl+t")
 
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
         ta.cursor_location = (0, len("#optional"))
         await pilot.press(",")
 
     assert ta.text == "#optional, "
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_changed_reference_invalidates_later_comma_rewrite() -> None:
@@ -392,13 +392,13 @@ async def test_changed_reference_invalidates_later_comma_rewrite() -> None:
         _seed_entries(ta, [_optional_entry()])
         await pilot.press("ctrl+t")
 
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
         ta.load_text("#changedx ")
         ta.cursor_location = (0, len("#changedx "))
         await pilot.press(",")
 
     assert ta.text == "#changedx ,"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_absent_spacer_invalidates_later_comma_rewrite() -> None:
@@ -410,13 +410,13 @@ async def test_absent_spacer_invalidates_later_comma_rewrite() -> None:
         _seed_entries(ta, [_optional_entry()])
         await pilot.press("ctrl+t")
 
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
         spacer_offset = len("#optional")
         ta._replace_absolute_range(spacer_offset, spacer_offset + 1, "x")
         await pilot.press(",")
 
     assert ta.text == "#optionalx,"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def _seed_double_tabstop_completion(
@@ -453,7 +453,7 @@ async def test_tab_after_spacer_jumps_to_next_tabstop_without_the_space() -> Non
 
     assert ta.text == "#plain and "
     assert ta.cursor_location == (0, 11)
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_shift_tab_after_spacer_retreats_without_the_space() -> None:
@@ -470,13 +470,13 @@ async def test_shift_tab_after_spacer_retreats_without_the_space() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == " and #plain "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press("shift+tab")
 
     assert ta.text == " and #plain"
     assert ta.cursor_location == (0, 0)
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_tab_without_a_snippet_session_keeps_the_spacer() -> None:
@@ -489,7 +489,7 @@ async def test_tab_without_a_snippet_session_keeps_the_spacer() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#plain "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press("tab")
 
@@ -509,7 +509,7 @@ async def test_tab_at_the_last_tabstop_keeps_the_spacer() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "only #plain "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press("tab")
 
@@ -517,7 +517,7 @@ async def test_tab_at_the_last_tabstop_keeps_the_spacer() -> None:
     assert ta.snippet_session_active is False
 
 
-async def test_tab_does_not_expand_a_snippet_named_after_the_xprompt() -> None:
+async def test_tab_does_not_expand_a_snippet_named_after_the_macro() -> None:
     app = CompletionTestApp(snippets={"plain": "EXPANDED"})
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -578,7 +578,7 @@ async def test_required_text_completion_does_not_record_pending_spacer() -> None
         await pilot.press("ctrl+t")
 
         assert ta.text == "#body:: "
-        assert ta._pending_xprompt_completion_spacer is None
+        assert ta._pending_macro_completion_spacer is None
         await pilot.press(",")
 
     assert ta.text == "#body:: ,"
@@ -605,15 +605,15 @@ async def test_optional_multi_spacer_paren_opens_argument_menu() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#optional "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press("(")
 
     assert ta.text == "#optional()"
     assert ta.cursor_location == (0, len("#optional("))
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
     assert ta._file_completion_active is True
-    assert ta._completion_kind == "xprompt_arg_name"
+    assert ta._completion_kind == "macro_arg_name"
     assert [c.insertion for c in ta._file_completion_candidates] == [
         "topic=",
         "count=",
@@ -635,7 +635,7 @@ async def test_optional_multi_spacer_paren_accept_topic() -> None:
 
     assert ta.text == "#optional(topic=)"
     assert ta.cursor_location == (0, len("#optional(topic="))
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_optional_multi_spacer_paren_respects_disabled_auto_menu() -> None:
@@ -647,7 +647,7 @@ async def test_optional_multi_spacer_paren_respects_disabled_auto_menu() -> None
         _seed_entries(ta, [_optional_multi_entry()])
         await pilot.press("ctrl+t")
 
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
         with patch.object(
             type(ta),
             "_prompt_completion_settings",
@@ -657,7 +657,7 @@ async def test_optional_multi_spacer_paren_respects_disabled_auto_menu() -> None
 
     assert ta.text == "#optional()"
     assert ta.cursor_location == (0, len("#optional("))
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
     assert ta._file_completion_active is False
 
 
@@ -671,13 +671,13 @@ async def test_no_input_spacer_paren_keeps_space() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "#plain "
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
 
         await pilot.press("(")
 
     assert ta.text == "#plain ()"
     assert ta.cursor_location == (0, len("#plain ("))
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_spacer_paren_preserves_prefix_and_suffix() -> None:
@@ -693,7 +693,7 @@ async def test_spacer_paren_preserves_prefix_and_suffix() -> None:
         await pilot.press("(")
 
     assert ta.text == "before #optional() after"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_spacer_paren_uses_literal_when_pairing_unsafe() -> None:
@@ -714,7 +714,7 @@ async def test_spacer_paren_uses_literal_when_pairing_unsafe() -> None:
         await pilot.press("(")
 
     assert ta.text == "#optional x()"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_spacer_paren_selection_and_normal_mode_keep_space() -> None:
@@ -728,13 +728,13 @@ async def test_spacer_paren_selection_and_normal_mode_keep_space() -> None:
         _seed_entries(ta, [_optional_multi_entry()])
         await pilot.press("ctrl+t")
 
-        assert ta._pending_xprompt_completion_spacer is not None
+        assert ta._pending_macro_completion_spacer is not None
         ta.selection = Selection((0, 0), (0, 1))
         await pilot.press("(")
 
     assert ta.text != "#optional()"
     assert ta.text != "#optional "
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None
 
 
 async def test_spacer_paren_is_one_undo_step() -> None:
@@ -748,11 +748,11 @@ async def test_spacer_paren_is_one_undo_step() -> None:
         ta = page.ta
         _seed_entries(ta, [_optional_multi_entry()])
         # Simulate an accepted completion that owns the trailing space.
-        from sase.ace.tui.widgets.xprompt_arg_assist import (
-            PendingXPromptCompletionSpacer,
+        from sase.ace.tui.widgets.macro_arg_assist import (
+            PendingMacroCompletionSpacer,
         )
 
-        ta._pending_xprompt_completion_spacer = PendingXPromptCompletionSpacer(
+        ta._pending_macro_completion_spacer = PendingMacroCompletionSpacer(
             spacer_offset=len("#optional"),
             reference_start=0,
             reference_text="#optional",
@@ -774,8 +774,8 @@ async def test_manual_lookalike_space_is_preserved_on_paren() -> None:
         ta.load_text("#optional ")
         ta.cursor_location = (0, len("#optional "))
 
-        assert ta._pending_xprompt_completion_spacer is None
+        assert ta._pending_macro_completion_spacer is None
         await pilot.press("(")
 
     assert ta.text == "#optional ()"
-    assert ta._pending_xprompt_completion_spacer is None
+    assert ta._pending_macro_completion_spacer is None

@@ -40,15 +40,15 @@ def apply_semantic_overlays(
     repo_catalog: EditorRepoMentionCatalog | None = None,
     styles: SemanticHighlightStyles | None = None,
     region_start: int = 0,
-    skip_xprompt: bool = False,
+    skip_macro: bool = False,
     known_skills: frozenset[str] = frozenset(),
 ) -> None:
     """Apply glossary then repo styles to natural-language spans in *source*.
 
     Scanning and range conversion finish before the target is mutated so a
     malformed catalog or span cannot leave a partial overlay. Inline and
-    fenced code interiors are skipped. When *skip_xprompt* is true, structural
-    xprompt tokens are also skipped so later xprompt styles win cleanly.
+    fenced code interiors are skipped. When *skip_macro* is true, structural
+    macro tokens are also skipped so later macro styles win cleanly.
     Oversized regions are left untouched.
     """
     if styles is None:
@@ -61,7 +61,7 @@ def apply_semantic_overlays(
     try:
         protected = _protected_ranges(
             source,
-            skip_xprompt=skip_xprompt,
+            skip_macro=skip_macro,
             known_skills=known_skills,
         )
         overlays = _semantic_overlay_spans(
@@ -93,13 +93,13 @@ def _exceeds_semantic_cap(source: str) -> bool:
 def _protected_ranges(
     source: str,
     *,
-    skip_xprompt: bool,
+    skip_macro: bool,
     known_skills: frozenset[str],
 ) -> list[tuple[int, int]]:
     ranges: list[tuple[int, int]] = []
     if "`" in source or "~~~" in source or "```" in source:
         ranges.extend(code_literal_ranges(source))
-    if skip_xprompt:
+    if skip_macro:
         ranges.extend(
             (span.start, span.end)
             for span in macro_inspect.tokenize(source, known_skills=known_skills)

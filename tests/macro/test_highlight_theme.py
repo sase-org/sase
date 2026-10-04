@@ -16,19 +16,19 @@ def test_flexoki_role_palette_is_complete_and_stable() -> None:
 
     assert set(styles) == set(get_args(MacroHighlightRole))
     assert styles == {
-        "xprompt.invocation": HighlightStyle("#66800B", bold=True),
-        "xprompt.invocation_arg": HighlightStyle("#A3B166"),
-        "xprompt.directive": HighlightStyle("#AD8301", bold=True),
-        "xprompt.directive_arg": HighlightStyle("#CDB360"),
-        "xprompt.arg_delimiter": HighlightStyle("#47580C"),
-        "xprompt.arg_key": HighlightStyle("#A3B166"),
-        "xprompt.arg_assign": HighlightStyle("#47580C"),
-        "xprompt.arg_value": HighlightStyle("#BAC488"),
-        "xprompt.arg_value_string": HighlightStyle("#9CC5BB"),
-        "xprompt.arg_value_number": HighlightStyle("#D2BFDE"),
-        "xprompt.arg_value_bool": HighlightStyle("#9AB4CE"),
-        "xprompt.separator": HighlightStyle("#24837B", bold=True, dim=True),
-        "xprompt.skill": HighlightStyle("#C3ABD8", bold=True),
+        "macro.invocation": HighlightStyle("#66800B", bold=True),
+        "macro.invocation_arg": HighlightStyle("#A3B166"),
+        "macro.directive": HighlightStyle("#AD8301", bold=True),
+        "macro.directive_arg": HighlightStyle("#CDB360"),
+        "macro.arg_delimiter": HighlightStyle("#47580C"),
+        "macro.arg_key": HighlightStyle("#A3B166"),
+        "macro.arg_assign": HighlightStyle("#47580C"),
+        "macro.arg_value": HighlightStyle("#BAC488"),
+        "macro.arg_value_string": HighlightStyle("#9CC5BB"),
+        "macro.arg_value_number": HighlightStyle("#D2BFDE"),
+        "macro.arg_value_bool": HighlightStyle("#9AB4CE"),
+        "macro.separator": HighlightStyle("#24837B", bold=True, dim=True),
+        "macro.skill": HighlightStyle("#C3ABD8", bold=True),
         "jinja.delimiter": HighlightStyle("#9B76C8", dim=True),
         "jinja.statement": HighlightStyle("#9B76C8", bold=True),
         "jinja.variable": HighlightStyle("#24837B", bold=True),
@@ -44,9 +44,9 @@ def test_flexoki_role_palette_is_complete_and_stable() -> None:
         "artifact_ref": HighlightStyle("#A3B166"),
         "code.fence": HighlightStyle("#ABA9A1"),
         "code.inline": HighlightStyle("#ABA9A1"),
-        "xprompt.project_tag.sigil": HighlightStyle("#ABA9A1", dim=True),
-        "xprompt.project_tag.name": HighlightStyle("#ABA9A1", dim=True),
-        "xprompt.project_tag.unknown": HighlightStyle("#AD8301", underline=True),
+        "macro.project_tag.sigil": HighlightStyle("#ABA9A1", dim=True),
+        "macro.project_tag.name": HighlightStyle("#ABA9A1", dim=True),
+        "macro.project_tag.unknown": HighlightStyle("#AD8301", underline=True),
     }
 
 
@@ -95,13 +95,13 @@ def test_directive_argument_style_uses_warning_family() -> None:
         HighlightSpan(
             0,
             3,
-            "xprompt.arg_key",
+            "macro.arg_key",
             source="directive",
         )
     )
 
     assert style == HighlightStyle("#CDB360")
-    assert style != highlight_theme()["xprompt.arg_key"]
+    assert style != highlight_theme()["macro.arg_key"]
 
 
 def test_invalid_argument_style_preserves_foreground_and_underlines() -> None:
@@ -109,7 +109,7 @@ def test_invalid_argument_style_preserves_foreground_and_underlines() -> None:
         HighlightSpan(
             0,
             3,
-            "xprompt.arg_key",
+            "macro.arg_key",
             validity="unknown_key",
             source="directive",
         )
@@ -120,10 +120,10 @@ def test_invalid_argument_style_preserves_foreground_and_underlines() -> None:
 
 def test_project_tag_styles_match_the_project_chip() -> None:
     sigil = highlight_style_for_span(
-        HighlightSpan(0, 1, "xprompt.project_tag.sigil", accent="#C75A31")
+        HighlightSpan(0, 1, "macro.project_tag.sigil", accent="#C75A31")
     )
     name = highlight_style_for_span(
-        HighlightSpan(1, 5, "xprompt.project_tag.name", accent="#C75A31")
+        HighlightSpan(1, 5, "macro.project_tag.name", accent="#C75A31")
     )
 
     assert sigil == HighlightStyle("#C75A31", dim=True)
@@ -133,7 +133,7 @@ def test_project_tag_styles_match_the_project_chip() -> None:
 
 
 def test_project_tag_without_accent_renders_neutral_dim() -> None:
-    for role in ("xprompt.project_tag.sigil", "xprompt.project_tag.name"):
+    for role in ("macro.project_tag.sigil", "macro.project_tag.name"):
         style = highlight_style_for_span(HighlightSpan(0, 4, role))
 
         assert style == highlight_theme()[role]
@@ -141,7 +141,7 @@ def test_project_tag_without_accent_renders_neutral_dim() -> None:
 
 
 def test_project_tag_unknown_uses_warning_and_underline() -> None:
-    style = highlight_style_for_span(HighlightSpan(0, 5, "xprompt.project_tag.unknown"))
+    style = highlight_style_for_span(HighlightSpan(0, 5, "macro.project_tag.unknown"))
 
-    assert style == highlight_theme()["xprompt.project_tag.unknown"]
+    assert style == highlight_theme()["macro.project_tag.unknown"]
     assert style.underline is True

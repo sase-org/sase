@@ -17,15 +17,15 @@ from sase.ace.tui.widgets._prompt_jump_target import (
     JumpToken,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
 
 
 def _top_is_jump_modal(page: PromptPage) -> bool:
     return isinstance(page.ta.app.screen_stack[-1], JumpActionModal)
 
 
-def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def _skill_entry(name: str = "sase_plan") -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=f"skill/{name}",
         skill_name=name,
         insertion=f"#skill/{name}",
@@ -114,7 +114,7 @@ async def test_ctrl_bracket_on_warm_slash_skill_uses_skill_and_prompt_context(
             workspace_dir="/workspace/sase",
             is_home_mode=False,
         )
-        page.ta._xprompt_arg_assist_entries_by_project["sase"] = [_skill_entry()]
+        page.ta._macro_arg_assist_entries_by_project["sase"] = [_skill_entry()]
 
         await page.press("ctrl+right_square_bracket")
         await page.wait_for(lambda: _top_is_jump_modal(page))
@@ -143,7 +143,7 @@ async def test_ctrl_bracket_on_cold_slash_candidate_defers_without_resolution(
     async with PromptPage("/sase_plan", cursor=(0, 1), size=(80, 24)) as page:
         monkeypatch.setattr(
             page.ta,
-            "_schedule_xprompt_assist_warm",
+            "_schedule_macro_assist_warm",
             warmed.append,
         )
 

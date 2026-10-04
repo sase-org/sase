@@ -15,13 +15,13 @@ from tests._macro_directive_completion_parity_lsp import (
     LspSemanticToken,
     LspSession,
 )
-from sase.ace.tui.widgets._xprompt_syntax_highlight import (
-    XPromptSyntaxHighlightMixin,
+from sase.ace.tui.widgets._macro_syntax_highlight import (
+    MacroSyntaxHighlightMixin,
     _text_area_style_name,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroInputHint,
 )
 from sase.core.rust import require_rust_binding
 from sase.macro import highlight
@@ -52,8 +52,8 @@ def _input(
     type_: str,
     *,
     position: int,
-) -> XPromptInputHint:
-    return XPromptInputHint(
+) -> MacroInputHint:
+    return MacroInputHint(
         name=name,
         type=type_,
         required=True,
@@ -62,8 +62,8 @@ def _input(
     )
 
 
-def _entry() -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def _entry() -> MacroAssistEntry:
+    return MacroAssistEntry(
         name="visual_batch",
         insertion="#visual_batch",
         reference_prefix="#",
@@ -120,7 +120,7 @@ def test_tui_and_real_lsp_argument_roles_match_core_spans(
         lsp_type = _LSP_TOKEN_TYPE_BY_CORE_ROLE[core_role]
         lsp_modifiers = _LSP_MODIFIERS_BY_VALIDITY[validity]
 
-        assert tui_style.startswith("xprompt.arg_")
+        assert tui_style.startswith("macro.arg_")
         assert lsp_type in {"operator", "parameter", "string", "number", "keyword"}
         if validity in {"unknown_key", "type_mismatch", "duplicate_key"}:
             assert tui_style.endswith(".invalid")
@@ -400,38 +400,36 @@ def _artifact_ref_catalog(tmp_path: Path) -> dict[str, object]:
 
 def test_text_area_style_name_preserves_argument_source() -> None:
     assert (
-        _text_area_style_name(
-            HighlightSpan(0, 3, "xprompt.arg_key", source="directive")
-        )
-        == "xprompt.directive.arg_key"
+        _text_area_style_name(HighlightSpan(0, 3, "macro.arg_key", source="directive"))
+        == "macro.directive.arg_key"
     )
     assert (
         _text_area_style_name(
             HighlightSpan(
                 0,
                 3,
-                "xprompt.arg_key",
+                "macro.arg_key",
                 validity="unknown_key",
                 source="directive",
             )
         )
-        == "xprompt.directive.arg_key.invalid"
+        == "macro.directive.arg_key.invalid"
     )
     assert (
-        _text_area_style_name(HighlightSpan(0, 3, "xprompt.arg_key", source="xprompt"))
-        == "xprompt.arg_key"
+        _text_area_style_name(HighlightSpan(0, 3, "macro.arg_key", source="macro"))
+        == "macro.arg_key"
     )
 
 
 def test_text_area_reuses_warm_catalog_wire_for_same_entries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    widget = XPromptSyntaxHighlightMixin()
+    widget = MacroSyntaxHighlightMixin()
     entries = [_entry()]
-    calls: list[list[XPromptAssistEntry]] = []
+    calls: list[list[MacroAssistEntry]] = []
 
     def fake_to_wire(
-        passed_entries: list[XPromptAssistEntry],
+        passed_entries: list[MacroAssistEntry],
     ) -> list[dict[str, object]]:
         calls.append(passed_entries)
         return [{"call": len(calls)}]
@@ -442,9 +440,9 @@ def test_text_area_reuses_warm_catalog_wire_for_same_entries(
         fake_to_wire,
     )
 
-    first = widget._xprompt_arg_assist_entries_wire(entries)
-    second = widget._xprompt_arg_assist_entries_wire(entries)
-    refreshed = widget._xprompt_arg_assist_entries_wire(list(entries))
+    first = widget._macro_arg_assist_entries_wire(entries)
+    second = widget._macro_arg_assist_entries_wire(entries)
+    refreshed = widget._macro_arg_assist_entries_wire(list(entries))
 
     assert first is second
     assert first == [{"call": 1}]
@@ -459,7 +457,7 @@ def test_text_area_registers_source_aware_argument_styles(theme_name: str) -> No
     app_theme = BUILTIN_THEMES[theme_name]
     widget = _FakeSyntaxWidget(app_theme)
 
-    widget._register_xprompt_text_area_theme()
+    widget._register_macro_text_area_theme()
 
     assert widget.registered_theme is not None
     styles = widget.registered_theme.syntax_styles
@@ -481,28 +479,28 @@ def test_text_area_registers_source_aware_argument_styles(theme_name: str) -> No
         primary=app_theme.primary,
     )
 
-    assert styles["xprompt.arg_key"] == Style(color=macro_colors["xprompt.arg_key"])
-    assert styles["xprompt.directive.arg_key"] == Style(
-        color=directive_colors["xprompt.arg_key"]
+    assert styles["macro.arg_key"] == Style(color=macro_colors["macro.arg_key"])
+    assert styles["macro.directive.arg_key"] == Style(
+        color=directive_colors["macro.arg_key"]
     )
-    assert styles["xprompt.directive.arg_key"] != styles["xprompt.arg_key"]
-    assert styles["xprompt.directive.arg_key.invalid"] == Style(
-        color=directive_colors["xprompt.arg_key"],
+    assert styles["macro.directive.arg_key"] != styles["macro.arg_key"]
+    assert styles["macro.directive.arg_key.invalid"] == Style(
+        color=directive_colors["macro.arg_key"],
         underline=True,
     )
-    assert styles["xprompt.directive.arg_value_string"] == Style(
-        color=directive_colors["xprompt.arg_value_string"]
+    assert styles["macro.directive.arg_value_string"] == Style(
+        color=directive_colors["macro.arg_value_string"]
     )
 
 
-class _FakeSyntaxWidget(XPromptSyntaxHighlightMixin):
+class _FakeSyntaxWidget(MacroSyntaxHighlightMixin):
     def __init__(self, current_theme: object) -> None:
         self.app = SimpleNamespace(current_theme=current_theme)
         self.theme = "css"
         self.registered_theme: TextAreaTheme | None = None
         self.applied_theme: str | None = None
 
-    def _resolve_xprompt_base_theme(self, theme_name: str) -> TextAreaTheme:
+    def _resolve_macro_base_theme(self, theme_name: str) -> TextAreaTheme:
         del theme_name
         theme = TextAreaTheme.get_builtin_theme("css")
         assert theme is not None

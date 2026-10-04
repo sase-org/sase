@@ -228,7 +228,7 @@ class PromptInputBarStackRenderingMixin(
                 restore_focus.cursor,
             )
             text_area.cursor_location = restored_cursor
-        text_area._warm_current_xprompt_assist_entries()
+        text_area._warm_current_macro_assist_entries()
         text_area._warm_current_artifact_ref_completion_catalog()
         text_area._warm_vcs_project_completion_catalog()
         text_area._warm_model_completion_catalog()

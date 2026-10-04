@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 from sase.ace.tui.widgets._file_completion_accept_delete import (
     FileCompletionAcceptDeleteMixin,
 )
-from sase.ace.tui.widgets._file_completion_xprompt_args import (
-    build_xprompt_arg_completion_candidates,
-    effective_xprompt_arg_token,
+from sase.ace.tui.widgets._file_completion_macro_args import (
+    build_macro_arg_completion_candidates,
+    effective_macro_arg_token,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -52,7 +52,7 @@ from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
 
 _XPROMPT_ARG_CHAIN_KINDS = frozenset(
-    {"xprompt_arg_value", "xprompt_arg_agent", "xprompt_arg_path"}
+    {"macro_arg_value", "macro_arg_agent", "macro_arg_path"}
 )
 
 
@@ -278,7 +278,7 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
             return True
         if self._completion_kind == NEXT_WORD_COMPLETION_KIND:
             return self._accept_next_word_completion(selected)
-        if self._completion_kind.startswith("xprompt_arg_"):
+        if self._completion_kind.startswith("macro_arg_"):
             return self._accept_xprompt_arg_completion_candidate(selected)
         ctx = self._get_token_context()
         if ctx is None:
@@ -299,7 +299,7 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
         # Directory drill-down: open completion for the accepted directory/provider.
         if selected.is_dir and self._completion_kind in (
             "file",
-            "xprompt_arg_path",
+            "macro_arg_path",
             "directive_arg",
         ):
             self._file_completion_active = False
@@ -318,11 +318,11 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
                 if used_xprompt_skeleton:
                     self._refresh_xprompt_completion_skeleton_hint(selected)
                 else:
-                    self._clear_xprompt_arg_hint()
-            elif accepted_kind.startswith("xprompt_arg_"):
-                self._refresh_xprompt_arg_hint_from_cursor()
+                    self._clear_macro_arg_hint()
+            elif accepted_kind.startswith("macro_arg_"):
+                self._refresh_macro_arg_hint_from_cursor()
             else:
-                self._clear_xprompt_arg_hint()
+                self._clear_macro_arg_hint()
         return True
 
     def _accept_xprompt_arg_completion_candidate(
@@ -342,24 +342,24 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
             selected.insertion,
         )
 
-        if selected.is_dir and accepted_kind == "xprompt_arg_path":
+        if selected.is_dir and accepted_kind == "macro_arg_path":
             self._file_completion_active = False
             self._file_completion_candidates = []
             self._file_completion_index = 0
             self._xprompt_arg_completion_trigger = "manual"
             if not self._try_file_completion_tab():
                 self._clear_file_completion(clear_xprompt_arg_hint=False)
-                self._refresh_xprompt_arg_hint_from_cursor()
+                self._refresh_macro_arg_hint_from_cursor()
             return True
 
         if (
-            accepted_kind == "xprompt_arg_name"
+            accepted_kind == "macro_arg_name"
             and self._try_chain_xprompt_arg_completion()
         ):
             return True
 
         self._clear_file_completion(clear_xprompt_arg_hint=False)
-        self._refresh_xprompt_arg_hint_from_cursor()
+        self._refresh_macro_arg_hint_from_cursor()
         return True
 
     def _try_chain_xprompt_arg_completion(self) -> bool:
@@ -368,12 +368,12 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
         if next_ctx is None or next_ctx.completion_kind not in _XPROMPT_ARG_CHAIN_KINDS:
             return False
 
-        candidates, _shared_extension = build_xprompt_arg_completion_candidates(
+        candidates, _shared_extension = build_macro_arg_completion_candidates(
             next_ctx,
             base_dir=self._prompt_completion_base_dir(),
             agent_candidates=(
                 self._snapshot_agent_completion_candidates()
-                if next_ctx.completion_kind == "xprompt_arg_agent"
+                if next_ctx.completion_kind == "macro_arg_agent"
                 else None
             ),
         )
@@ -386,5 +386,5 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._completion_selection_moved = False
-        self._update_file_completion_panel(effective_xprompt_arg_token(next_ctx))
+        self._update_file_completion_panel(effective_macro_arg_token(next_ctx))
         return True

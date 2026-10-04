@@ -24,7 +24,7 @@ from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.modals import MacroSelectModal
 from sase.ace.tui.modals.macro_select_modal import MacroSelection
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.xprompt_inline_expansion import (
+from sase.ace.tui.widgets.macro_inline_expansion import (
     _InlineExpansionReason,
     _InlineExpansionResult,
 )
@@ -272,7 +272,7 @@ def test_ctrl_i_expand_applies_rendered_body_to_origin_pane() -> None:
         expanded_text="BODY", error=None, reason=_InlineExpansionReason.EXPANDED
     )
     with patch(
-        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        "sase.ace.tui.widgets.macro_inline_expansion.expand_inline_macro",
         return_value=success,
     ):
         error = _expand_callback(harness, "commit", _simple_workflow("commit"))
@@ -303,7 +303,7 @@ def test_ctrl_i_expand_stages_returned_inputs_after_body_splice() -> None:
         inputs=[topic],
     )
     with patch(
-        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        "sase.ace.tui.widgets.macro_inline_expansion.expand_inline_macro",
         return_value=success,
     ):
         error = _expand_callback(harness, "reads", _simple_workflow("reads"))
@@ -333,7 +333,7 @@ def test_ctrl_i_expand_error_does_not_touch_origin_pane() -> None:
         reason=_InlineExpansionReason.STANDALONE_WORKFLOW,
     )
     with patch(
-        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        "sase.ace.tui.widgets.macro_inline_expansion.expand_inline_macro",
         return_value=failure,
     ):
         error = _expand_callback(harness, "sync", _simple_workflow("sync"))
@@ -355,7 +355,7 @@ def test_ctrl_i_expand_stale_target_reports_recoverable_error() -> None:
         expanded_text="BODY", error=None, reason=_InlineExpansionReason.EXPANDED
     )
     with patch(
-        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        "sase.ace.tui.widgets.macro_inline_expansion.expand_inline_macro",
         return_value=success,
     ):
         error = _expand_callback(harness, "commit", _simple_workflow("commit"))
@@ -454,7 +454,7 @@ def test_ctrl_i_passes_frontmatter_locals_as_real_xprompts() -> None:
         return success
 
     with patch(
-        "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
+        "sase.ace.tui.widgets.macro_inline_expansion.expand_inline_macro",
         _fake_expand,
     ):
         error = _expand_callback(harness, "team", _simple_workflow("team"))

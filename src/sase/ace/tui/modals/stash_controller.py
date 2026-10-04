@@ -18,7 +18,7 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+from sase.ace.tui.util.macro_syntax import highlight_prompt_text
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 
 from ._prompt_stash_preview import PromptStashPreviewPane, tagified_stash_text

@@ -39,7 +39,7 @@ class TestSnippetProjectVariable:
                 _ace_app_ctx(ta, app),
                 patch.object(
                     type(ta),
-                    "_xprompt_arg_assist_project_from_text",
+                    "_macro_arg_assist_project_from_text",
                     return_value="sase",
                 ),
                 patch.object(PromptTextArea, "notify") as notify,
@@ -96,7 +96,7 @@ class TestSnippetProjectVariable:
                 _ace_app_ctx(ta, app),
                 patch.object(
                     type(ta),
-                    "_xprompt_arg_assist_project_from_text",
+                    "_macro_arg_assist_project_from_text",
                     return_value=None,
                 ),
                 patch.object(app, "query_one", side_effect=_query_one),
@@ -118,7 +118,7 @@ class TestSnippetProjectVariable:
                 _ace_app_ctx(ta, app),
                 patch.object(
                     type(ta),
-                    "_xprompt_arg_assist_project_from_text",
+                    "_macro_arg_assist_project_from_text",
                     return_value=None,
                 ),
                 patch.object(PromptTextArea, "notify") as notify,
@@ -142,7 +142,7 @@ class TestSnippetProjectVariable:
                 _ace_app_ctx(ta, app),
                 patch.object(
                     type(ta),
-                    "_xprompt_arg_assist_project_from_text",
+                    "_macro_arg_assist_project_from_text",
                     return_value="sase",
                 ),
             ):
@@ -160,7 +160,7 @@ class TestSnippetProjectVariable:
                 _ace_app_ctx(ta, app),
                 patch.object(
                     type(ta),
-                    "_xprompt_arg_assist_project_from_text",
+                    "_macro_arg_assist_project_from_text",
                     return_value="sase",
                 ),
                 patch.object(PromptTextArea, "notify") as notify,

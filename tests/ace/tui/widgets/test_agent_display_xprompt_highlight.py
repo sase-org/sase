@@ -9,7 +9,7 @@ from rich.text import Text
 
 from sase import project_display_names as pdn
 from sase.ace.tui.util.artifact_ref_syntax import artifact_ref_style_palette_from_theme
-from sase.ace.tui.util.xprompt_syntax import XPROMPT_TOKEN_STYLES
+from sase.ace.tui.util.macro_syntax import MACRO_TOKEN_STYLES
 
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
@@ -57,7 +57,7 @@ class TestAgentXPromptHighlighting:
         assert "#gh:gh_acme__widgets fix" not in plain
 
         header = _header_text(panel.captured[-1])
-        assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(
+        assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(
             header,
             "#gh:widgets",
         )
@@ -141,7 +141,7 @@ class TestAgentXPromptHighlighting:
         panel.update_display(agent)
 
         header = _header_text(panel.captured[-1])
-        assert XPROMPT_TOKEN_STYLES["skill"] in _styles_at(header, "/sase_plan")
+        assert MACRO_TOKEN_STYLES["skill"] in _styles_at(header, "/sase_plan")
         assert calls == [("sase", True)]
 
     def test_agent_xprompt_highlights_inline_code_after_humanizing(
@@ -185,7 +185,7 @@ class TestAgentXPromptHighlighting:
 
         header = _header_text(panel.captured[-1])
         palette = artifact_ref_style_palette_from_theme(None)
-        assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(header, "#work")
+        assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(header, "#work")
         assert _last_style_at(header, "plans") == str(palette.style_for_key("kind"))
         assert _last_style_at(header, "202608/design.md") == str(
             palette.style_for_key("payload")

@@ -43,7 +43,7 @@ from sase.ace.tui.widgets.placeholder_completion import (
     PlaceholderRankingMetadata,
 )
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
-from sase.ace.tui.widgets.xprompt_arg_assist import XPromptArgNameMetadata
+from sase.ace.tui.widgets.macro_arg_assist import MacroArgNameMetadata
 
 _PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
 _SYNC_TITLE_STATUS = {
@@ -95,17 +95,17 @@ def completion_panel_title(
             (
                 candidate.metadata
                 for candidate in rows
-                if isinstance(candidate.metadata, XPromptArgNameMetadata)
+                if isinstance(candidate.metadata, MacroArgNameMetadata)
             ),
             None,
         )
         if metadata is not None:
             return f"{metadata.reference_text} args"
-        return "xprompt arg names"
-    if kinds.kind == "xprompt_arg_value":
-        return "xprompt arg values"
-    if kinds.kind == "xprompt_arg_path":
-        return "xprompt path"
+        return "macro arg names"
+    if kinds.kind == "macro_arg_value":
+        return "macro arg values"
+    if kinds.kind == "macro_arg_path":
+        return "macro path"
     if kinds.jinja:
         return _jinja_panel_title(rows)
     if kinds.placeholder:
@@ -253,7 +253,7 @@ def xprompt_arg_name_completion_subtitle(
     if not 0 <= selected_index < len(rows):
         return Text()
     metadata = rows[selected_index].metadata
-    if not isinstance(metadata, XPromptArgNameMetadata):
+    if not isinstance(metadata, MacroArgNameMetadata):
         return Text()
     description = metadata.input_hint.description or ""
     text = Text(description, no_wrap=True, overflow="ellipsis")

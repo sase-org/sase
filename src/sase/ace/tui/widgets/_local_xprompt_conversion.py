@@ -24,9 +24,9 @@ import logging
 import re
 from typing import Any
 
-from sase.ace.tui.widgets.xprompt_arg_assist import (
+from sase.ace.tui.widgets.macro_arg_assist import (
     named_args_skeleton,
-    xprompt_assist_entry_from_local_xprompt,
+    macro_assist_entry_from_local_macro,
 )
 from sase.config.core import load_merged_config
 from sase.macro.jinja_assist import JinjaScope
@@ -218,7 +218,7 @@ def local_xprompt_invocation_skeleton(xprompt: Macro) -> str:
     so expanding it through the pane's snippet engine drops the cursor onto the
     first empty argument value.
     """
-    entry = xprompt_assist_entry_from_local_xprompt(xprompt.name, xprompt)
+    entry = macro_assist_entry_from_local_macro(xprompt.name, xprompt)
     return named_args_skeleton(entry)
 
 

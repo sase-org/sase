@@ -9,9 +9,9 @@ from rich.style import Style
 
 from sase.ace.tui.widgets._jinja_highlight import _MAX_OVERLAY_LINES
 from sase.ace.tui.widgets._vim_search import find_search_matches
-from sase.ace.tui.widgets._xprompt_syntax_highlight import derive_argument_color
+from sase.ace.tui.widgets._macro_syntax_highlight import derive_argument_color
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
 
 from ._completion_helpers import CompletionTestApp
 
@@ -20,8 +20,8 @@ def _highlight_names(ta: PromptTextArea) -> list[str]:
     return [name for row in ta._highlights.values() for *_range, name in row]
 
 
-def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def _skill_entry(name: str = "sase_plan") -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=f"skill/{name}",
         skill_name=name,
         insertion=f"#skill/{name}",
@@ -36,11 +36,11 @@ def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
 
 def _seed_entries(
     ta: PromptTextArea,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     *,
     project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[project] = entries
+    ta._macro_arg_assist_entries_by_project[project] = entries
 
 
 async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles(
@@ -59,33 +59,27 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles(
 
         names = _highlight_names(ta)
         for name in (
-            "xprompt.invocation",
-            "xprompt.invocation_arg",
-            "xprompt.directive",
-            "xprompt.directive_arg",
-            "xprompt.separator",
-            "xprompt.skill",
+            "macro.invocation",
+            "macro.invocation_arg",
+            "macro.directive",
+            "macro.directive_arg",
+            "macro.separator",
+            "macro.skill",
         ):
             assert name in names
             assert name in ta._theme.syntax_styles
 
         styles = ta._theme.syntax_styles
-        assert styles["xprompt.invocation"].color == Color.parse(
+        assert styles["macro.invocation"].color == Color.parse(
             app.current_theme.success
         )
-        assert styles["xprompt.directive"].color == Color.parse(
-            app.current_theme.warning
-        )
-        assert (
-            styles["xprompt.invocation_arg"].color != styles["xprompt.invocation"].color
-        )
-        assert (
-            styles["xprompt.directive_arg"].color != styles["xprompt.directive"].color
-        )
-        assert styles["xprompt.skill"].bold is True
-        assert styles["xprompt.skill"].color not in {
-            styles["xprompt.invocation"].color,
-            styles["xprompt.directive"].color,
+        assert styles["macro.directive"].color == Color.parse(app.current_theme.warning)
+        assert styles["macro.invocation_arg"].color != styles["macro.invocation"].color
+        assert styles["macro.directive_arg"].color != styles["macro.directive"].color
+        assert styles["macro.skill"].bold is True
+        assert styles["macro.skill"].color not in {
+            styles["macro.invocation"].color,
+            styles["macro.directive"].color,
         }
 
 
@@ -139,20 +133,18 @@ async def test_xprompt_highlight_overlay_marks_core_argument_roles(
 
         names = _highlight_names(ta)
         for name in (
-            "xprompt.arg_delimiter",
-            "xprompt.arg_key.invalid",
-            "xprompt.arg_assign",
-            "xprompt.arg_value_number",
-            "xprompt.arg_value_bool",
+            "macro.arg_delimiter",
+            "macro.arg_key.invalid",
+            "macro.arg_assign",
+            "macro.arg_value_number",
+            "macro.arg_value_bool",
         ):
             assert name in names
             assert name in ta._theme.syntax_styles
 
         styles = ta._theme.syntax_styles
-        assert styles["xprompt.arg_key.invalid"].underline is True
-        assert (
-            styles["xprompt.arg_value_number"].color != styles["xprompt.arg_key"].color
-        )
+        assert styles["macro.arg_key.invalid"].underline is True
+        assert styles["macro.arg_value_number"].color != styles["macro.arg_key"].color
 
 
 def test_derive_argument_color_is_theme_adaptive() -> None:
@@ -214,8 +206,8 @@ async def test_xprompt_overlay_coexists_with_jinja_alt_and_search() -> None:
         ta._build_highlight_map()
 
         names = _highlight_names(ta)
-        assert "xprompt.directive" in names
-        assert "xprompt.invocation" in names
+        assert "macro.directive" in names
+        assert "macro.invocation" in names
         assert "jinja.delimiter" in names
         assert "jinja.variable" in names
         assert "search.current" in names
@@ -224,11 +216,11 @@ async def test_xprompt_overlay_coexists_with_jinja_alt_and_search() -> None:
         assert "alt.branch_name" in names
 
         # Overlay build order keeps persistent xprompt/alt syntax below search.
-        assert names.index("xprompt.directive") < names.index("search.current")
+        assert names.index("macro.directive") < names.index("search.current")
         assert names.index("alt.delimiter") < names.index("search.current")
 
         styles = ta._theme.syntax_styles
-        for family in ("xprompt.", "jinja.", "search.", "alt."):
+        for family in ("macro.", "jinja.", "search.", "alt."):
             assert any(name.startswith(family) for name in styles)
 
 
@@ -243,7 +235,7 @@ async def test_xprompt_overlay_skips_fences_and_disabled_regions() -> None:
         )
         ta._build_highlight_map()
 
-        assert not any(name.startswith("xprompt.") for name in _highlight_names(ta))
+        assert not any(name.startswith("macro.") for name in _highlight_names(ta))
 
 
 async def test_xprompt_overlay_skips_large_buffers() -> None:
@@ -253,7 +245,7 @@ async def test_xprompt_overlay_skips_large_buffers() -> None:
         ta.load_text("#foo %auto\n" * (_MAX_OVERLAY_LINES + 1))
         ta._build_highlight_map()
 
-        assert not any(name.startswith("xprompt.") for name in _highlight_names(ta))
+        assert not any(name.startswith("macro.") for name in _highlight_names(ta))
 
 
 async def test_xprompt_skill_overlay_cold_catalog_defers_without_sync_build() -> None:
@@ -261,13 +253,13 @@ async def test_xprompt_skill_overlay_cold_catalog_defers_without_sync_build() ->
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
         with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries"
+            "sase.ace.tui.widgets.prompt_text_area.build_macro_assist_entries"
         ) as build:
             ta.load_text("use /sase_plan")
             ta._build_highlight_map()
 
         build.assert_not_called()
-        assert "xprompt.skill" not in _highlight_names(ta)
+        assert "macro.skill" not in _highlight_names(ta)
 
 
 async def test_xprompt_skill_names_are_memoized_by_warm_catalog_identity() -> None:
@@ -277,12 +269,12 @@ async def test_xprompt_skill_names_are_memoized_by_warm_catalog_identity() -> No
         entries = [_skill_entry()]
         _seed_entries(ta, entries)
 
-        first = ta._get_warm_xprompt_skill_names()
-        second = ta._get_warm_xprompt_skill_names()
+        first = ta._get_warm_macro_skill_names()
+        second = ta._get_warm_macro_skill_names()
         assert second is first
 
         _seed_entries(ta, [_skill_entry("sase_repo")])
-        assert ta._get_warm_xprompt_skill_names() == frozenset({"sase_repo"})
+        assert ta._get_warm_macro_skill_names() == frozenset({"sase_repo"})
 
 
 async def test_xprompt_overlay_reregisters_after_app_theme_switch() -> None:
@@ -290,12 +282,12 @@ async def test_xprompt_overlay_reregisters_after_app_theme_switch() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         sentinel = Style(color="red")
-        ta._theme.syntax_styles["xprompt.skill"] = sentinel
+        ta._theme.syntax_styles["macro.skill"] = sentinel
 
         app.theme = "textual-light"
         await pilot.pause()
 
-        after = ta._theme.syntax_styles["xprompt.skill"]
+        after = ta._theme.syntax_styles["macro.skill"]
         assert after.color == Color.parse("#996319")
         assert after.bold is True
         assert after != sentinel
@@ -386,4 +378,4 @@ async def test_xprompt_overlay_tokenizer_failure_is_fail_open(monkeypatch) -> No
         ta._build_highlight_map()
 
         assert ta.text == "#foo remains visible"
-        assert not any(name.startswith("xprompt.") for name in _highlight_names(ta))
+        assert not any(name.startswith("macro.") for name in _highlight_names(ta))

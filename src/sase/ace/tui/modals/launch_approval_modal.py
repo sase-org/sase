@@ -38,7 +38,7 @@ def _tag_styled_preview(content: str) -> Text | str:
         return humanized
     if "+" in humanized:
         try:
-            from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+            from sase.ace.tui.util.macro_syntax import stylize_project_tags
 
             stylize_project_tags(highlighted, humanized)
         except Exception:

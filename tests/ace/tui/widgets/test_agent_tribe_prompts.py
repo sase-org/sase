@@ -16,9 +16,9 @@ from sase.ace.tui.models._agent_clan_sections import (
     ClanTextEntry,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.util.xprompt_syntax import (
-    apply_xprompt_overlays,
-    xprompt_overlay_spans,
+from sase.ace.tui.util.macro_syntax import (
+    apply_macro_overlays,
+    macro_overlay_spans,
 )
 from sase.ace.tui.widgets.prompt_panel import _agent_tribe_prompts as tribe_prompts
 from sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation import TribeUnitSource
@@ -158,15 +158,15 @@ def test_prompt_snippet_outputs_are_unchanged() -> None:
 def test_overlay_spans_match_applied_overlays() -> None:
     source = "#bd/work_phase_bead:sase-16t.3 review the plan %auto\nSecond line.\n"
     applied = Text(source)
-    apply_xprompt_overlays(applied, source)
+    apply_macro_overlays(applied, source)
     replayed = Text(source)
-    for style, start, end in xprompt_overlay_spans(source):
+    for style, start, end in macro_overlay_spans(source):
         replayed.stylize(style, start, end)
 
     assert [(span.start, span.end, str(span.style)) for span in replayed.spans] == [
         (span.start, span.end, str(span.style)) for span in applied.spans
     ]
-    assert xprompt_overlay_spans("x" * 25_000) == ()
+    assert macro_overlay_spans("x" * 25_000) == ()
 
 
 def test_digest_joins_hard_wrapped_first_paragraph() -> None:
@@ -229,14 +229,14 @@ def test_digest_falls_back_when_a_helper_raises(monkeypatch: Any) -> None:
 
 def test_digest_lru_hit_skips_tokenization(monkeypatch: Any) -> None:
     calls = 0
-    real_spans = tribe_prompts.xprompt_overlay_spans
+    real_spans = tribe_prompts.macro_overlay_spans
 
     def counting(source: str, **_kwargs: object) -> object:
         nonlocal calls
         calls += 1
         return real_spans(source)
 
-    monkeypatch.setattr(tribe_prompts, "xprompt_overlay_spans", counting)
+    monkeypatch.setattr(tribe_prompts, "macro_overlay_spans", counting)
     raw = "Count tokenization once %auto\nUnique body for lru hit test.\n"
     agent = _agent("lru", "lru-1")
     sources = (_source(agent, "lru"),)

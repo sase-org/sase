@@ -17,13 +17,13 @@ from .highlight import HighlightSpan, MacroHighlightRole
 ACE_THEME_NAME = "flexoki"
 _ARGUMENT_ROLES: frozenset[MacroHighlightRole] = frozenset(
     {
-        "xprompt.arg_delimiter",
-        "xprompt.arg_key",
-        "xprompt.arg_assign",
-        "xprompt.arg_value",
-        "xprompt.arg_value_string",
-        "xprompt.arg_value_number",
-        "xprompt.arg_value_bool",
+        "macro.arg_delimiter",
+        "macro.arg_key",
+        "macro.arg_assign",
+        "macro.arg_value",
+        "macro.arg_value_string",
+        "macro.arg_value_number",
+        "macro.arg_value_bool",
     }
 )
 _INVALID_ARGUMENT_VALIDITIES = frozenset(
@@ -31,9 +31,9 @@ _INVALID_ARGUMENT_VALIDITIES = frozenset(
 )
 _PROJECT_TAG_ROLES: frozenset[MacroHighlightRole] = frozenset(
     {
-        "xprompt.project_tag.sigil",
-        "xprompt.project_tag.name",
-        "xprompt.project_tag.unknown",
+        "macro.project_tag.sigil",
+        "macro.project_tag.name",
+        "macro.project_tag.unknown",
     }
 )
 
@@ -124,42 +124,42 @@ def macro_argument_palette(
 ) -> Mapping[MacroHighlightRole, str | None]:
     """Return the theme-derived colors for structured argument roles."""
     return {
-        "xprompt.arg_delimiter": _derive_blended_color(
+        "macro.arg_delimiter": _derive_blended_color(
             family,
             target=background,
             background=background,
             ratio=0.35,
         ),
-        "xprompt.arg_assign": _derive_blended_color(
+        "macro.arg_assign": _derive_blended_color(
             family,
             target=background,
             background=background,
             ratio=0.35,
         ),
-        "xprompt.arg_key": derive_argument_color(
+        "macro.arg_key": derive_argument_color(
             family,
             foreground=foreground,
             background=background,
         ),
-        "xprompt.arg_value": _derive_blended_color(
+        "macro.arg_value": _derive_blended_color(
             family,
             target=foreground,
             background=background,
             ratio=0.55,
         ),
-        "xprompt.arg_value_string": _derive_blended_color(
+        "macro.arg_value_string": _derive_blended_color(
             secondary,
             target=foreground,
             background=background,
             ratio=0.55,
         ),
-        "xprompt.arg_value_number": _derive_blended_color(
+        "macro.arg_value_number": _derive_blended_color(
             accent,
             target=foreground,
             background=background,
             ratio=0.55,
         ),
-        "xprompt.arg_value_bool": _derive_blended_color(
+        "macro.arg_value_bool": _derive_blended_color(
             primary,
             target=foreground,
             background=background,
@@ -176,7 +176,7 @@ def _argument_styles(
 
 @functools.cache
 def _argument_highlight_theme(
-    source: Literal["xprompt", "directive"],
+    source: Literal["macro", "directive"],
 ) -> Mapping[MacroHighlightRole, HighlightStyle]:
     """Return source-specific styles for structured argument roles."""
     from textual.theme import BUILTIN_THEMES
@@ -225,12 +225,12 @@ def _project_tag_style_for_span(span: HighlightSpan) -> HighlightStyle:
     warning color with an underline.
     """
     neutral, warning = _project_tag_base_colors()
-    if span.role == "xprompt.project_tag.unknown":
+    if span.role == "macro.project_tag.unknown":
         return HighlightStyle(warning, underline=True)
     accent = span.accent
     if accent is None:
         return HighlightStyle(neutral, dim=True)
-    if span.role == "xprompt.project_tag.sigil":
+    if span.role == "macro.project_tag.sigil":
         return HighlightStyle(accent, dim=True)
     return HighlightStyle(accent, bold=True)
 
@@ -294,13 +294,13 @@ def highlight_theme() -> Mapping[MacroHighlightRole, HighlightStyle]:
     )
 
     styles: dict[MacroHighlightRole, HighlightStyle] = {
-        "xprompt.invocation": HighlightStyle(theme.success, bold=True),
-        "xprompt.invocation_arg": HighlightStyle(invocation_arg),
-        "xprompt.directive": HighlightStyle(theme.warning, bold=True),
-        "xprompt.directive_arg": HighlightStyle(directive_arg),
+        "macro.invocation": HighlightStyle(theme.success, bold=True),
+        "macro.invocation_arg": HighlightStyle(invocation_arg),
+        "macro.directive": HighlightStyle(theme.warning, bold=True),
+        "macro.directive_arg": HighlightStyle(directive_arg),
         **_argument_styles(arg_colors),
-        "xprompt.separator": HighlightStyle(theme.secondary, bold=True, dim=True),
-        "xprompt.skill": HighlightStyle(skill, bold=True),
+        "macro.separator": HighlightStyle(theme.secondary, bold=True, dim=True),
+        "macro.skill": HighlightStyle(skill, bold=True),
         "jinja.delimiter": HighlightStyle(theme.accent, dim=True),
         "jinja.statement": HighlightStyle(theme.accent, bold=True),
         "jinja.variable": HighlightStyle(theme.secondary, bold=True),
@@ -318,9 +318,9 @@ def highlight_theme() -> Mapping[MacroHighlightRole, HighlightStyle]:
         "code.inline": HighlightStyle(neutral_code),
         # Neutral fallbacks so direct theme indexing never fails; the
         # accent-aware path is highlight_style_for_span().
-        "xprompt.project_tag.sigil": HighlightStyle(neutral_code, dim=True),
-        "xprompt.project_tag.name": HighlightStyle(neutral_code, dim=True),
-        "xprompt.project_tag.unknown": HighlightStyle(theme.warning, underline=True),
+        "macro.project_tag.sigil": HighlightStyle(neutral_code, dim=True),
+        "macro.project_tag.name": HighlightStyle(neutral_code, dim=True),
+        "macro.project_tag.unknown": HighlightStyle(theme.warning, underline=True),
     }
     return MappingProxyType(styles)
 

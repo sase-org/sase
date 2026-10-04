@@ -1,4 +1,4 @@
-"""Cursor detection helpers for xprompt argument assist."""
+"""Cursor detection helpers for macro argument assist."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from sase.macro._parsing import (
 )
 from sase.macro._literal_zones import literal_zone_ranges
 
-from ._xprompt_arg_assist_inputs import required_inputs
-from ._xprompt_arg_assist_models import (
-    ActiveXPromptArgHint,
-    XPromptArgCompletionContext,
-    XPromptAssistEntry,
-    XPromptInputHint,
+from ._macro_arg_assist_inputs import required_inputs
+from ._macro_arg_assist_models import (
+    ActiveMacroArgHint,
+    MacroArgCompletionContext,
+    MacroAssistEntry,
+    MacroInputHint,
 )
 
 _REFERENCE_BASE_RE = re.compile(
@@ -30,16 +30,16 @@ _NAMED_ARG_CURSOR_RE = re.compile(
 )
 
 
-def detect_xprompt_arg_hint_at_cursor(
+def detect_macro_arg_hint_at_cursor(
     text: str,
     cursor_offset: int,
-    entries: list[XPromptAssistEntry],
-) -> ActiveXPromptArgHint | None:
-    """Resolve a typed xprompt argument hint at *cursor_offset*.
+    entries: list[MacroAssistEntry],
+) -> ActiveMacroArgHint | None:
+    """Resolve a typed macro argument hint at *cursor_offset*.
 
     Detection is intentionally narrow and only recognizes incomplete argument
     positions where the prompt bar can offer lightweight assistance without
-    pretending to parse full xprompt semantics.
+    pretending to parse full macro semantics.
     """
     if not text or cursor_offset < 0 or cursor_offset > len(text):
         return None
@@ -72,7 +72,7 @@ def detect_xprompt_arg_hint_at_cursor(
 
         mode: Literal["colon", "paren"]
         mode = "paren" if suffix.startswith("(") else "colon"
-        return ActiveXPromptArgHint(
+        return ActiveMacroArgHint(
             entry=entry,
             reference_start=ref.start,
             reference_end=cursor_offset,
@@ -83,13 +83,13 @@ def detect_xprompt_arg_hint_at_cursor(
     return None
 
 
-def accepted_xprompt_arg_hint(
+def accepted_macro_arg_hint(
     text: str,
     reference_start: int,
     reference_end: int,
-    entries: list[XPromptAssistEntry],
-) -> ActiveXPromptArgHint | None:
-    """Resolve a post-accept hint for an inserted xprompt reference."""
+    entries: list[MacroAssistEntry],
+) -> ActiveMacroArgHint | None:
+    """Resolve a post-accept hint for an inserted macro reference."""
     if (
         reference_start < 0
         or reference_end > len(text)
@@ -102,7 +102,7 @@ def accepted_xprompt_arg_hint(
     entry = entry_by_insertion.get(reference_text)
     if entry is None or not required_inputs(entry):
         return None
-    return ActiveXPromptArgHint(
+    return ActiveMacroArgHint(
         entry=entry,
         reference_start=reference_start,
         reference_end=reference_end,
@@ -110,12 +110,12 @@ def accepted_xprompt_arg_hint(
     )
 
 
-def detect_xprompt_arg_completion_at_cursor(
+def detect_macro_arg_completion_at_cursor(
     text: str,
     cursor_offset: int,
-    entries: list[XPromptAssistEntry],
-) -> XPromptArgCompletionContext | None:
-    """Resolve a Ctrl+T completion target inside xprompt arguments."""
+    entries: list[MacroAssistEntry],
+) -> MacroArgCompletionContext | None:
+    """Resolve a Ctrl+T completion target inside macro arguments."""
     if not text or cursor_offset < 0 or cursor_offset > len(text):
         return None
     literal_ranges = literal_zone_ranges(text)
@@ -181,8 +181,8 @@ def detect_xprompt_arg_completion_at_cursor(
 
 
 def _entry_by_name(
-    entries: list[XPromptAssistEntry],
-) -> dict[str, XPromptAssistEntry]:
+    entries: list[MacroAssistEntry],
+) -> dict[str, MacroAssistEntry]:
     return {entry.name: entry for entry in entries}
 
 
@@ -218,7 +218,7 @@ def _cursor_is_inside_reference_args(
 
 def _active_input_index_for_suffix(
     suffix: str,
-    entry: XPromptAssistEntry,
+    entry: MacroAssistEntry,
 ) -> int | None:
     if suffix == ":":
         return 0
@@ -232,30 +232,30 @@ def _active_input_index_for_suffix(
 
 
 def _completion_kind_for_input(
-    input_hint: XPromptInputHint,
+    input_hint: MacroInputHint,
 ) -> Literal[
-    "xprompt_arg_path",
-    "xprompt_arg_value",
-    "xprompt_arg_agent",
-    "xprompt_arg_type_hint",
+    "macro_arg_path",
+    "macro_arg_value",
+    "macro_arg_agent",
+    "macro_arg_type_hint",
 ]:
     if input_hint.type == "path":
-        return "xprompt_arg_path"
+        return "macro_arg_path"
     if input_hint.type == "bool":
-        return "xprompt_arg_value"
+        return "macro_arg_value"
     if input_hint.type == "agent":
-        return "xprompt_arg_agent"
-    return "xprompt_arg_type_hint"
+        return "macro_arg_agent"
+    return "macro_arg_type_hint"
 
 
 def _colon_completion_context(
-    entry: XPromptAssistEntry,
+    entry: MacroAssistEntry,
     text: str,
     base_end: int,
     cursor_offset: int,
     reference_end: int,
     suffix: str,
-) -> XPromptArgCompletionContext | None:
+) -> MacroArgCompletionContext | None:
     active_index = _colon_active_input_index(suffix, entry)
     if active_index is None:
         return None
@@ -274,7 +274,7 @@ def _colon_completion_context(
     value_end = body_start + clause_end
     token = text[value_start:cursor_offset]
     active_input = entry.inputs[active_index]
-    return XPromptArgCompletionContext(
+    return MacroArgCompletionContext(
         entry=entry,
         completion_kind=_completion_kind_for_input(active_input),
         value_start=value_start,
@@ -286,13 +286,13 @@ def _colon_completion_context(
 
 
 def _paren_completion_context(
-    entry: XPromptAssistEntry,
+    entry: MacroAssistEntry,
     text: str,
     base_end: int,
     cursor_offset: int,
     reference_end: int,
     suffix: str,
-) -> XPromptArgCompletionContext | None:
+) -> MacroArgCompletionContext | None:
     prefix_body = suffix[1:]
     if ")" in prefix_body:
         return None
@@ -320,7 +320,7 @@ def _paren_completion_context(
             active_input = entry.inputs[active_index]
             completion_kind = _completion_kind_for_input(active_input)
             if active_input.repeatable or len(entry.inputs) == 1:
-                return XPromptArgCompletionContext(
+                return MacroArgCompletionContext(
                     entry=entry,
                     completion_kind=completion_kind,
                     value_start=value_start,
@@ -333,8 +333,8 @@ def _paren_completion_context(
         if len(entry.inputs) == 1:
             single_input = entry.inputs[0]
             completion_kind = _completion_kind_for_input(single_input)
-            if completion_kind == "xprompt_arg_agent":
-                return XPromptArgCompletionContext(
+            if completion_kind == "macro_arg_agent":
+                return MacroArgCompletionContext(
                     entry=entry,
                     completion_kind=completion_kind,
                     value_start=value_start,
@@ -344,9 +344,9 @@ def _paren_completion_context(
                     used_arg_names=_used_named_arg_names(body[:clause_start]),
                     selected_values=_selected_positional_values(body, clause_start),
                 )
-        return XPromptArgCompletionContext(
+        return MacroArgCompletionContext(
             entry=entry,
-            completion_kind="xprompt_arg_name",
+            completion_kind="macro_arg_name",
             value_start=value_start,
             value_end=value_end,
             token=token,
@@ -362,7 +362,7 @@ def _paren_completion_context(
     value_leading_ws = len(value_part) - len(value_part.lstrip())
     token_start = value_start + len(name_part) + 1 + value_leading_ws
     token = text[token_start:cursor_offset]
-    return XPromptArgCompletionContext(
+    return MacroArgCompletionContext(
         entry=entry,
         completion_kind=_completion_kind_for_input(named_input),
         value_start=token_start,
@@ -419,7 +419,7 @@ def _used_named_arg_names(body_prefix: str) -> frozenset[str]:
 
 def _colon_active_input_index(
     suffix: str,
-    entry: XPromptAssistEntry,
+    entry: MacroAssistEntry,
 ) -> int | None:
     value = suffix[1:]
     if any(ch.isspace() for ch in value):
@@ -431,7 +431,7 @@ def _colon_active_input_index(
 
 def _paren_active_input_index(
     suffix: str,
-    entry: XPromptAssistEntry,
+    entry: MacroAssistEntry,
 ) -> int | None:
     body = suffix[1:]
     if ")" in body:
@@ -460,9 +460,9 @@ def _paren_active_input_index(
 
 
 def _input_by_name(
-    entry: XPromptAssistEntry,
+    entry: MacroAssistEntry,
     name: str,
-) -> XPromptInputHint | None:
+) -> MacroInputHint | None:
     for inp in entry.inputs:
         if inp.name == name:
             return inp
@@ -470,7 +470,7 @@ def _input_by_name(
 
 
 __all__ = [
-    "accepted_xprompt_arg_hint",
-    "detect_xprompt_arg_completion_at_cursor",
-    "detect_xprompt_arg_hint_at_cursor",
+    "accepted_macro_arg_hint",
+    "detect_macro_arg_completion_at_cursor",
+    "detect_macro_arg_hint_at_cursor",
 ]

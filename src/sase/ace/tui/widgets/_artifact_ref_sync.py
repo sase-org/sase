@@ -84,7 +84,7 @@ class ArtifactRefSyncMixin(_MixinBase):
         def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
         def _update_file_completion_panel(self, token: str) -> None: ...
         def _warm_current_artifact_ref_completion_catalog(self) -> None: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._artifact_ref_sync_states: dict[tuple[str | None, str], _RefSyncState] = {}
@@ -126,7 +126,7 @@ class ArtifactRefSyncMixin(_MixinBase):
 
     def _start_artifact_ref_sync(self, kind: str) -> None:
         """Refresh *kind*'s sources now, then reopen the payload menu."""
-        project = self._xprompt_arg_assist_project_from_text()
+        project = self._macro_arg_assist_project_from_text()
         key = (project, kind)
         existing = self._artifact_ref_sync_states.get(key)
         if existing is not None and existing.phase in ("running", "reloading"):
@@ -194,7 +194,7 @@ class ArtifactRefSyncMixin(_MixinBase):
 
     def _artifact_ref_sync_workspace(self) -> tuple[Path, int]:
         """Resolve the workspace identically to the completion catalog warm."""
-        project = self._xprompt_arg_assist_project_from_text()
+        project = self._macro_arg_assist_project_from_text()
         workspace_dir: str | None = None
         workspace_num = 1
         prompt_context = getattr(self.app, "_prompt_context", None)
@@ -296,7 +296,7 @@ class ArtifactRefSyncMixin(_MixinBase):
         if (
             self._file_completion_active
             and self._completion_kind == ARTIFACT_REF_COMPLETION_KIND
-            and self._xprompt_arg_assist_project_from_text() == project
+            and self._macro_arg_assist_project_from_text() == project
         ):
             refresh = getattr(self, "_refresh_file_completion_from_cursor", None)
             if callable(refresh):
@@ -351,7 +351,7 @@ class ArtifactRefSyncMixin(_MixinBase):
         context = self._get_artifact_ref_completion_context()
         if context is None or context.kind is None:
             return
-        project = self._xprompt_arg_assist_project_from_text()
+        project = self._macro_arg_assist_project_from_text()
         row = self._artifact_ref_sync_row(project, context.kind)
         if row is None:
             return

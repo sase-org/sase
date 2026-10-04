@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sase import project_display_names as pdn
 from sase.ace.tui.util.lazy_syntax import MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
-from sase.ace.tui.util.xprompt_syntax import XPROMPT_TOKEN_STYLES
+from sase.ace.tui.util.macro_syntax import MACRO_TOKEN_STYLES
 
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
@@ -162,4 +162,4 @@ class TestAgentXPromptRendering:
 
         header = _header_text(panel.captured[-1])
         assert raw_xprompt in header.plain
-        assert XPROMPT_TOKEN_STYLES["invocation"] not in _styles_at(header, "#foo")
+        assert MACRO_TOKEN_STYLES["invocation"] not in _styles_at(header, "#foo")

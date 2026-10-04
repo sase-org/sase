@@ -102,7 +102,7 @@ def plan_xprompt_completion_spacer_to_parentheses_edit(
 ) -> TextEdit | None:
     """Return the shared completion-owned spacer deletion at *cursor_location*.
 
-    *pending* is the widget's :class:`PendingXPromptCompletionSpacer` recorded
+    *pending* is the widget's :class:`PendingMacroCompletionSpacer` recorded
     at acceptance. The Rust planner validates the exact reference, single
     ASCII space, adjacency, bounds, input eligibility, and excluded regions.
     Returns a single-character deletion edit with the cursor at its start.

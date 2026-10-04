@@ -31,7 +31,7 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _refresh_file_completion_from_cursor(self) -> None: ...
-        def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
+        def _refresh_macro_arg_hint_from_cursor(self) -> None: ...
 
     def _refresh_completion_after_cursor_move(self) -> None:
         """Refresh prompt assist surfaces after TextArea cursor actions."""
@@ -48,7 +48,7 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
             except Exception:
                 pass
         self._refresh_file_completion_from_cursor()
-        self._refresh_xprompt_arg_hint_from_cursor()
+        self._refresh_macro_arg_hint_from_cursor()
 
     def action_cursor_left(self, select: bool = False) -> None:
         super().action_cursor_left(select)
@@ -128,7 +128,7 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
             except Exception:
                 pass
         self._refresh_file_completion_from_cursor()
-        self._refresh_xprompt_arg_hint_from_cursor()
+        self._refresh_macro_arg_hint_from_cursor()
 
     def action_delete_left(self) -> None:
         """Delete left, paired-deleting an empty auto-pair, then refresh menus."""

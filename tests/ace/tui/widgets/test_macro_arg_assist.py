@@ -1,4 +1,4 @@
-"""Tests for pure TUI xprompt argument assist helpers."""
+"""Tests for pure TUI macro argument assist helpers."""
 
 from __future__ import annotations
 
@@ -7,24 +7,24 @@ from unittest.mock import patch
 
 from rich.text import Text
 
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroInputHint,
     append_input_args,
     append_input_hints,
-    build_xprompt_assist_entries,
+    build_macro_assist_entries,
     input_default_suffix,
     input_label,
     named_args_skeleton,
     required_inputs,
     visible_inputs,
-    xprompt_assist_entry_from_workflow,
+    macro_assist_entry_from_workflow,
 )
 from sase.macro.models import UNSET, InputArg, InputType, OutputSpec, Macro
 from sase.macro.models import MemoryType
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
-def _make_xprompt(
+def _make_macro(
     name: str,
     *,
     source_path: str | None = "config",
@@ -46,7 +46,7 @@ def _make_xprompt(
 
 
 def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> None:
-    xp = _make_xprompt(
+    xp = _make_macro(
         "typed",
         skill=True,
         description="Run typed inputs.",
@@ -80,7 +80,7 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
             return_value=tmp_path / "pkg",
         ),
     ):
-        entries = build_xprompt_assist_entries()
+        entries = build_macro_assist_entries()
 
     entry = entries[0]
     assert entry.name == "typed"
@@ -120,7 +120,7 @@ def test_assist_adapter_preserves_memory_identity(tmp_path: Path) -> None:
     source = tmp_path / "sase" / "memory" / "glossary.md"
     source.parent.mkdir(parents=True)
     source.write_text("---\ntype: core\n---\nbody\n")
-    xp = _make_xprompt(
+    xp = _make_macro(
         "memory/glossary",
         source_path=str(source),
         description="Glossary terms.",
@@ -135,7 +135,7 @@ def test_assist_adapter_preserves_memory_identity(tmp_path: Path) -> None:
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        entries = build_xprompt_assist_entries()
+        entries = build_macro_assist_entries()
 
     entry = entries[0]
     assert entry.name == "memory/glossary"
@@ -149,12 +149,12 @@ def test_assist_adapter_preserves_memory_identity(tmp_path: Path) -> None:
 def test_assist_adapter_filters_project_entries(tmp_path: Path) -> None:
     ws = tmp_path / "workspace"
     ws.mkdir()
-    project_source = ws / ".xprompts" / "local.md"
+    project_source = ws / ".macros" / "local.md"
     project_source.parent.mkdir()
     project_source.write_text("local")
-    global_xp = _make_xprompt("global")
-    project_xp = _make_xprompt("local", source_path=str(project_source))
-    other_xp = _make_xprompt("other", source_path=str(tmp_path / "other.md"))
+    global_xp = _make_macro("global")
+    project_xp = _make_macro("local", source_path=str(project_source))
+    other_xp = _make_macro("other", source_path=str(tmp_path / "other.md"))
 
     with (
         patch(
@@ -179,13 +179,13 @@ def test_assist_adapter_filters_project_entries(tmp_path: Path) -> None:
             return_value=tmp_path / "pkg",
         ),
     ):
-        entries = build_xprompt_assist_entries(project="sase")
+        entries = build_macro_assist_entries(project="sase")
 
     assert [entry.name for entry in entries] == ["global", "local"]
 
 
 def test_entry_with_only_step_inputs_has_no_user_facing_hints() -> None:
-    xp = _make_xprompt(
+    xp = _make_macro(
         "step_only",
         inputs=[
             InputArg(
@@ -202,7 +202,7 @@ def test_entry_with_only_step_inputs_has_no_user_facing_hints() -> None:
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        entry = build_xprompt_assist_entries()[0]
+        entry = build_macro_assist_entries()[0]
 
     assert entry.input_signature is None
     assert entry.inputs == ()
@@ -210,7 +210,7 @@ def test_entry_with_only_step_inputs_has_no_user_facing_hints() -> None:
 
 
 def test_input_label_formatting_and_rich_rendering() -> None:
-    xp = _make_xprompt(
+    xp = _make_macro(
         "rendered",
         inputs=[
             InputArg(name="path", type=InputType.PATH),
@@ -223,7 +223,7 @@ def test_input_label_formatting_and_rich_rendering() -> None:
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        entry = build_xprompt_assist_entries()[0]
+        entry = build_macro_assist_entries()[0]
 
     assert [input_label(inp) for inp in entry.inputs] == [
         "path: path",
@@ -244,7 +244,7 @@ def test_append_input_hints_can_render_descriptions() -> None:
     append_input_hints(
         text,
         (
-            XPromptInputHint(
+            MacroInputHint(
                 name="path",
                 type="path",
                 required=True,
@@ -279,7 +279,7 @@ def test_append_input_args_preserves_modal_style_for_input_args() -> None:
 
 
 def test_string_default_renders_in_prompt_bar_hints(tmp_path: Path) -> None:
-    xp = _make_xprompt(
+    xp = _make_macro(
         "split_epic_like",
         inputs=[InputArg(name="lang", type=InputType.WORD, default="Rust")],
     )
@@ -291,7 +291,7 @@ def test_string_default_renders_in_prompt_bar_hints(tmp_path: Path) -> None:
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        entry = build_xprompt_assist_entries()[0]
+        entry = build_macro_assist_entries()[0]
 
     assert entry.inputs[0].default_display == "Rust"
     text = Text("split_epic_like")
@@ -306,7 +306,7 @@ def test_catalog_and_workflow_adapters_agree_on_string_defaults(
         InputArg(name="lang", type=InputType.WORD, default="Rust"),
         InputArg(name="count", type=InputType.INT, default=3),
     ]
-    xp = _make_xprompt("typed", inputs=list(inputs))
+    xp = _make_macro("typed", inputs=list(inputs))
     workflow = Workflow(
         name="typed",
         steps=[WorkflowStep(name="main", agent="Do it")],
@@ -322,8 +322,8 @@ def test_catalog_and_workflow_adapters_agree_on_string_defaults(
             return_value=tmp_path / "pkg",
         ),
     ):
-        catalog_entry = build_xprompt_assist_entries()[0]
-    workflow_entry = xprompt_assist_entry_from_workflow("typed", workflow)
+        catalog_entry = build_macro_assist_entries()[0]
+    workflow_entry = macro_assist_entry_from_workflow("typed", workflow)
 
     catalog_by_name = {inp.name: inp.default_display for inp in catalog_entry.inputs}
     workflow_by_name = {inp.name: inp.default_display for inp in workflow_entry.inputs}
@@ -332,7 +332,7 @@ def test_catalog_and_workflow_adapters_agree_on_string_defaults(
 
 
 def test_multiline_string_default_renders_on_one_row() -> None:
-    hint = XPromptInputHint(
+    hint = MacroInputHint(
         name="body",
         type="text",
         required=False,
@@ -348,7 +348,7 @@ def test_multiline_string_default_renders_on_one_row() -> None:
 
 
 def test_newlines_only_default_falls_back_to_question_mark() -> None:
-    hint = XPromptInputHint(
+    hint = MacroInputHint(
         name="body",
         type="text",
         required=False,

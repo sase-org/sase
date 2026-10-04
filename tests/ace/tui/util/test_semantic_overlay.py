@@ -10,8 +10,8 @@ from rich.text import Text
 from sase.ace.tui.util.lazy_syntax import MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
 from sase.ace.tui.util.semantic_overlay import apply_semantic_overlays
 from sase.ace.tui.util.semantic_styles import SemanticHighlightStyles
-from sase.ace.tui.util.xprompt_syntax import (
-    XPROMPT_TOKEN_STYLES,
+from sase.ace.tui.util.macro_syntax import (
+    MACRO_TOKEN_STYLES,
     highlight_markdown_text,
     highlight_prompt_text,
 )
@@ -97,7 +97,7 @@ def test_overlay_skips_code_literals_and_xprompt_tokens(
         semantic_styles=_STYLES,
     )
 
-    assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(highlighted, "#git")
+    assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(highlighted, "#git")
     inline_styles = _styles_at(highlighted, "`Agent Clan`", offset=1)
     assert not any("#ffaa00" in style for style in inline_styles)
     prose = _styles_at(highlighted, "then Agent Clan", offset=5)

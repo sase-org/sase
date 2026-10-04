@@ -1,4 +1,4 @@
-"""Xprompt syntax highlighting overlay for ``PromptTextArea``."""
+"""Macro syntax highlighting overlay for ``PromptTextArea``."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
-from sase.macro import highlight as xprompt_highlight
+from sase.macro import highlight as macro_highlight
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
     _MAX_OVERLAY_BYTES,
@@ -29,9 +29,9 @@ from sase.macro.highlight_theme import (
 
 _PROJECT_TAG_ROLES = frozenset(
     {
-        "xprompt.project_tag.sigil",
-        "xprompt.project_tag.name",
-        "xprompt.project_tag.unknown",
+        "macro.project_tag.sigil",
+        "macro.project_tag.name",
+        "macro.project_tag.unknown",
     }
 )
 
@@ -40,32 +40,32 @@ _INVALID_ARGUMENT_VALIDITIES = frozenset(
 )
 _ARGUMENT_ROLES = frozenset(
     {
-        "xprompt.arg_delimiter",
-        "xprompt.arg_key",
-        "xprompt.arg_assign",
-        "xprompt.arg_value",
-        "xprompt.arg_value_string",
-        "xprompt.arg_value_number",
-        "xprompt.arg_value_bool",
+        "macro.arg_delimiter",
+        "macro.arg_key",
+        "macro.arg_assign",
+        "macro.arg_value",
+        "macro.arg_value_string",
+        "macro.arg_value_number",
+        "macro.arg_value_bool",
     }
 )
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
-    from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+    from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
 else:
     _MixinBase = object
 
 
-class XPromptSyntaxHighlightMixin(_MixinBase):
-    """Overlay recognized xprompt syntax on TextArea markdown highlighting."""
+class MacroSyntaxHighlightMixin(_MixinBase):
+    """Overlay recognized macro syntax on TextArea markdown highlighting."""
 
     if TYPE_CHECKING:
-        _xprompt_highlight_skill_entries: list[XPromptAssistEntry] | None
-        _xprompt_highlight_skill_names: frozenset[str]
-        _xprompt_highlight_arg_entries: list[XPromptAssistEntry] | None
-        _xprompt_highlight_arg_entries_wire: list[dict[str, object]] | None
+        _macro_highlight_skill_entries: list[MacroAssistEntry] | None
+        _macro_highlight_skill_names: frozenset[str]
+        _macro_highlight_arg_entries: list[MacroAssistEntry] | None
+        _macro_highlight_arg_entries_wire: list[dict[str, object]] | None
 
         def _append_highlight_span(
             self,
@@ -73,31 +73,31 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             end: int,
             style_name: str,
         ) -> None: ...
-        def _get_warm_xprompt_arg_assist_entries(
+        def _get_warm_macro_arg_assist_entries(
             self,
-        ) -> list[XPromptAssistEntry] | None: ...
-        def _get_exact_warm_xprompt_arg_assist_entries(
+        ) -> list[MacroAssistEntry] | None: ...
+        def _get_exact_warm_macro_arg_assist_entries(
             self,
-        ) -> list[XPromptAssistEntry] | None: ...
+        ) -> list[MacroAssistEntry] | None: ...
 
     def _prompt_mount_hook(self) -> None:
-        """Register xprompt styles after the base Jinja theme exists."""
+        """Register macro styles after the base Jinja theme exists."""
         super_hook = getattr(super(), "_prompt_mount_hook", None)
         if callable(super_hook):
             super_hook()
-        self._register_xprompt_text_area_theme()
+        self._register_macro_text_area_theme()
 
     def _app_theme_changed(self) -> None:
         super_changed = getattr(super(), "_app_theme_changed", None)
         if callable(super_changed):
             super_changed()
-        self._register_xprompt_text_area_theme()
+        self._register_macro_text_area_theme()
 
     def _register_jinja_text_area_theme(self) -> None:
         register_jinja = getattr(super(), "_register_jinja_text_area_theme", None)
         if callable(register_jinja):
             register_jinja()
-        self._register_xprompt_text_area_theme(_JINJA_THEME_NAME, apply=False)
+        self._register_macro_text_area_theme(_JINJA_THEME_NAME, apply=False)
 
     def _build_highlight_map(self) -> None:
         super()._build_highlight_map()
@@ -117,14 +117,14 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             return
 
         try:
-            entries = self._get_exact_warm_xprompt_arg_assist_entries()
+            entries = self._get_exact_warm_macro_arg_assist_entries()
             known_skills = (
-                self._xprompt_skill_names_from_entries(entries)
+                self._macro_skill_names_from_entries(entries)
                 if has_slash and entries is not None
                 else frozenset()
             )
             wire_entries = (
-                self._xprompt_arg_assist_entries_wire(entries)
+                self._macro_arg_assist_entries_wire(entries)
                 if entries is not None
                 else None
             )
@@ -137,7 +137,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         except Exception:
             return
         for span in spans:
-            if not span.role.startswith("xprompt."):
+            if not span.role.startswith("macro."):
                 continue
             self._append_highlight_span(
                 span.start,
@@ -145,61 +145,61 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                 _text_area_style_name(span),
             )
 
-    def _get_warm_xprompt_skill_names(self) -> frozenset[str]:
+    def _get_warm_macro_skill_names(self) -> frozenset[str]:
         """Return memoized skill names from the disk-free warm catalog."""
-        return self._get_warm_xprompt_skill_names_if_available() or frozenset()
+        return self._get_warm_macro_skill_names_if_available() or frozenset()
 
-    def _get_warm_xprompt_skill_names_if_available(
+    def _get_warm_macro_skill_names_if_available(
         self,
     ) -> frozenset[str] | None:
         """Return memoized skill names, preserving a cold-catalog sentinel."""
-        entries = self._get_exact_warm_xprompt_arg_assist_entries()
+        entries = self._get_exact_warm_macro_arg_assist_entries()
         if entries is None:
             return None
-        return self._xprompt_skill_names_from_entries(entries)
+        return self._macro_skill_names_from_entries(entries)
 
-    def _xprompt_skill_names_from_entries(
+    def _macro_skill_names_from_entries(
         self,
-        entries: list[XPromptAssistEntry],
+        entries: list[MacroAssistEntry],
     ) -> frozenset[str]:
         """Return memoized skill names for an already-warm catalog entry list."""
-        if entries is self._xprompt_highlight_skill_entries:
-            return self._xprompt_highlight_skill_names
+        if entries is self._macro_highlight_skill_entries:
+            return self._macro_highlight_skill_names
         # Highlight ``/foo`` by the provider skill name; ``entry.name`` is the
-        # namespaced ``skill/foo`` xprompt reference.
+        # namespaced ``skill/foo`` macro reference.
         names = frozenset(
             entry.skill_name for entry in entries if entry.is_skill and entry.skill_name
         )
-        self._xprompt_highlight_skill_entries = entries
-        self._xprompt_highlight_skill_names = names
+        self._macro_highlight_skill_entries = entries
+        self._macro_highlight_skill_names = names
         return names
 
-    def _xprompt_arg_assist_entries_wire(
+    def _macro_arg_assist_entries_wire(
         self,
-        entries: list[XPromptAssistEntry],
+        entries: list[MacroAssistEntry],
     ) -> list[dict[str, object]]:
         """Return cached Rust-binding wire data for an unchanged warm catalog."""
-        if entries is getattr(self, "_xprompt_highlight_arg_entries", None):
-            cached = getattr(self, "_xprompt_highlight_arg_entries_wire", None)
+        if entries is getattr(self, "_macro_highlight_arg_entries", None):
+            cached = getattr(self, "_macro_highlight_arg_entries_wire", None)
             if cached is not None:
                 return cached
-        wire = xprompt_highlight.macro_arg_assist_entries_to_wire(entries)
-        self._xprompt_highlight_arg_entries = entries
-        self._xprompt_highlight_arg_entries_wire = wire
+        wire = macro_highlight.macro_arg_assist_entries_to_wire(entries)
+        self._macro_highlight_arg_entries = entries
+        self._macro_highlight_arg_entries_wire = wire
         return wire
 
-    def _register_xprompt_text_area_theme(
+    def _register_macro_text_area_theme(
         self,
         theme_name: str | None = None,
         *,
         apply: bool = True,
     ) -> None:
         active_name = theme_name or str(getattr(self, "theme", "css") or "css")
-        base = self._resolve_xprompt_base_theme(active_name)
+        base = self._resolve_macro_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
         background = app_theme.background or "#000000"
-        xprompt_argument_colors = macro_argument_palette(
+        macro_argument_colors = macro_argument_palette(
             app_theme.success,
             foreground=app_theme.foreground,
             background=background,
@@ -217,34 +217,34 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         )
         syntax_styles.update(
             {
-                "xprompt.invocation": Style(
+                "macro.invocation": Style(
                     color=app_theme.success,
                     bold=True,
                 ),
-                "xprompt.invocation_arg": Style(
+                "macro.invocation_arg": Style(
                     color=derive_argument_color(
                         app_theme.success,
                         foreground=app_theme.foreground,
                         background=background,
                     )
                 ),
-                "xprompt.directive": Style(
+                "macro.directive": Style(
                     color=app_theme.warning,
                     bold=True,
                 ),
-                "xprompt.directive_arg": Style(
+                "macro.directive_arg": Style(
                     color=derive_argument_color(
                         app_theme.warning,
                         foreground=app_theme.foreground,
                         background=background,
                     )
                 ),
-                "xprompt.separator": Style(
+                "macro.separator": Style(
                     color=app_theme.secondary,
                     dim=True,
                     bold=True,
                 ),
-                "xprompt.skill": Style(
+                "macro.skill": Style(
                     color=derive_argument_color(
                         app_theme.accent,
                         foreground=app_theme.foreground,
@@ -256,8 +256,8 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         )
         _update_argument_syntax_styles(
             syntax_styles,
-            xprompt_argument_colors,
-            source="xprompt",
+            macro_argument_colors,
+            source="macro",
         )
         _update_argument_syntax_styles(
             syntax_styles,
@@ -274,7 +274,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         if apply:
             self._set_theme(theme.name)
 
-    def _resolve_xprompt_base_theme(self, theme_name: str) -> TextAreaTheme:
+    def _resolve_macro_base_theme(self, theme_name: str) -> TextAreaTheme:
         try:
             theme: TextAreaTheme | None = self._themes[theme_name]
         except KeyError:
@@ -300,12 +300,10 @@ def _project_tag_style_name(
     accent: str | None,
 ) -> str:
     """Return the registered TextArea style for a project-tag span (D6)."""
-    if role == "xprompt.project_tag.unknown":
+    if role == "macro.project_tag.unknown":
         return "project_tag.unknown"
     base = (
-        "project_tag.sigil"
-        if role == "xprompt.project_tag.sigil"
-        else "project_tag.name"
+        "project_tag.sigil" if role == "macro.project_tag.sigil" else "project_tag.name"
     )
     if accent is None:
         return f"{base}.neutral"
@@ -320,7 +318,7 @@ def _argument_style_name(
     source: MacroArgumentSource | None,
 ) -> str:
     if role in _ARGUMENT_ROLES and source == "directive":
-        return f"xprompt.directive.{role.removeprefix('xprompt.')}"
+        return f"macro.directive.{role.removeprefix('macro.')}"
     return role
 
 

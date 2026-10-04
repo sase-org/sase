@@ -1,21 +1,21 @@
-"""Snippet skeleton helpers for xprompt argument assist."""
+"""Snippet skeleton helpers for macro argument assist."""
 
 from __future__ import annotations
 
 from string import punctuation
 
-from ._xprompt_arg_assist_inputs import required_inputs
-from ._xprompt_arg_assist_models import XPromptAssistEntry
+from ._macro_arg_assist_inputs import required_inputs
+from ._macro_arg_assist_models import MacroAssistEntry
 
 _NO_ARG_SPACE_SUPPRESSING_CHARS = frozenset(punctuation)
 
 
 def _suppresses_no_arg_space(next_char: str | None) -> bool:
-    """Return True when a following character should hug a no-arg xprompt."""
+    """Return True when a following character should hug a no-arg macro."""
     return next_char is not None and next_char in _NO_ARG_SPACE_SUPPRESSING_CHARS
 
 
-def named_args_skeleton(entry: XPromptAssistEntry) -> str:
+def named_args_skeleton(entry: MacroAssistEntry) -> str:
     """Return a required-only named-argument snippet skeleton."""
     inputs = required_inputs(entry)
     if not inputs:
@@ -24,18 +24,18 @@ def named_args_skeleton(entry: XPromptAssistEntry) -> str:
     return f"{entry.insertion}({args})$0"
 
 
-def colon_args_skeleton(entry: XPromptAssistEntry) -> str:
+def colon_args_skeleton(entry: MacroAssistEntry) -> str:
     """Return a colon-argument snippet skeleton for the entry."""
     return f"{entry.insertion}:$0"
 
 
-def xprompt_completion_skeleton(
-    entry: XPromptAssistEntry,
+def macro_completion_skeleton(
+    entry: MacroAssistEntry,
     *,
     append_text_arg_space: bool = False,
     next_char: str | None = None,
 ) -> str:
-    """Return the Ctrl+T accept skeleton for an xprompt completion entry.
+    """Return the Ctrl+T accept skeleton for a macro completion entry.
 
     For an entry with exactly one required ``text`` input the skeleton is the
     ``::`` double-colon shorthand. The free-form text shorthand is ``:: ``
@@ -57,14 +57,14 @@ def xprompt_completion_skeleton(
     return f"{entry.insertion}:"
 
 
-def xprompt_completion_suffix_skeleton(
-    entry: XPromptAssistEntry,
+def macro_completion_suffix_skeleton(
+    entry: MacroAssistEntry,
     *,
     append_text_arg_space: bool = False,
     next_char: str | None = None,
 ) -> str:
     """Return a completion skeleton inserted after an existing ``#`` trigger."""
-    skeleton = xprompt_completion_skeleton(
+    skeleton = macro_completion_skeleton(
         entry,
         append_text_arg_space=append_text_arg_space,
         next_char=next_char,
@@ -77,6 +77,6 @@ def xprompt_completion_suffix_skeleton(
 __all__ = [
     "colon_args_skeleton",
     "named_args_skeleton",
-    "xprompt_completion_skeleton",
-    "xprompt_completion_suffix_skeleton",
+    "macro_completion_skeleton",
+    "macro_completion_suffix_skeleton",
 ]

@@ -6,9 +6,9 @@ import pytest
 
 from sase.ace.tui import AceApp
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroInputHint,
 )
 
 
@@ -18,8 +18,8 @@ def _input(
     *,
     position: int,
     required: bool = True,
-) -> XPromptInputHint:
-    return XPromptInputHint(
+) -> MacroInputHint:
+    return MacroInputHint(
         name=name,
         type=type_,
         required=required,
@@ -29,7 +29,7 @@ def _input(
 
 
 _VISUAL_SKILL_ENTRIES = [
-    XPromptAssistEntry(
+    MacroAssistEntry(
         name="skill/sase_plan",
         skill_name="sase_plan",
         insertion="#skill/sase_plan",
@@ -41,7 +41,7 @@ _VISUAL_SKILL_ENTRIES = [
         description="Create an implementation plan",
         is_skill=True,
     ),
-    XPromptAssistEntry(
+    MacroAssistEntry(
         name="visual",
         insertion="#visual",
         reference_prefix="#",
@@ -54,7 +54,7 @@ _VISUAL_SKILL_ENTRIES = [
         content_preview=None,
         description="Visual snapshot argument fixture",
     ),
-    XPromptAssistEntry(
+    MacroAssistEntry(
         name="visual_batch",
         insertion="#visual_batch",
         reference_prefix="#",
@@ -78,14 +78,14 @@ def patch_visual_skill_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
         _project: str | None,
         *,
         schedule: bool = True,
-    ) -> list[XPromptAssistEntry]:
+    ) -> list[MacroAssistEntry]:
         del schedule
         return _VISUAL_SKILL_ENTRIES
 
     def _exact_entries(
         _app: AceApp,
         _project: str | None,
-    ) -> list[XPromptAssistEntry]:
+    ) -> list[MacroAssistEntry]:
         return _VISUAL_SKILL_ENTRIES
 
     monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
@@ -107,7 +107,7 @@ def _xprompt_candidate(
         insertion=name,
         is_dir=False,
         name=name,
-        metadata=XPromptAssistEntry(
+        metadata=MacroAssistEntry(
             name=name,
             insertion=name,
             reference_prefix="#",
@@ -148,7 +148,7 @@ def _skill_candidate(name: str, *, description: str) -> CompletionCandidate:
         insertion=f"/{name}",
         is_dir=False,
         name=name,
-        metadata=XPromptAssistEntry(
+        metadata=MacroAssistEntry(
             name=f"skill/{name}",
             insertion=f"#skill/{name}",
             reference_prefix="#",

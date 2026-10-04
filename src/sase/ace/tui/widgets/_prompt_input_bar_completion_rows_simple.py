@@ -20,9 +20,9 @@ from sase.ace.tui.widgets.history_word_completion import (
 )
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.placeholder_completion import PlaceholderCompletionMetadata
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptArgNameMetadata,
-    XPromptAssistEntry,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroArgNameMetadata,
+    MacroAssistEntry,
     append_input_hints,
     input_default_style,
     input_default_suffix,
@@ -47,9 +47,7 @@ def append_xprompt_completion_row(
         style="bold green" if is_selected else "green",
     )
     entry = (
-        candidate.metadata
-        if isinstance(candidate.metadata, XPromptAssistEntry)
-        else None
+        candidate.metadata if isinstance(candidate.metadata, MacroAssistEntry) else None
     )
     if entry is None:
         return
@@ -81,7 +79,7 @@ def append_xprompt_arg_name_completion_row(
     """Append one keyword-argument name row with input metadata columns."""
     metadata = (
         candidate.metadata
-        if isinstance(candidate.metadata, XPromptArgNameMetadata)
+        if isinstance(candidate.metadata, MacroArgNameMetadata)
         else None
     )
     if metadata is None:

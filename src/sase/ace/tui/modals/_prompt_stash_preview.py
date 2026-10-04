@@ -10,7 +10,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Label, Static
 
-from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+from sase.ace.tui.util.macro_syntax import highlight_prompt_text
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 from sase.history.prompt_metadata import summarize_prompt_for_preview
 from sase.project_display_names import ProjectDisplaySnapshot

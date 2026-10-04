@@ -1,7 +1,7 @@
 """Typing surface for the lazy runtime package exports."""
 
 from .artifacts.types import ARTIFACTS_SUBTAB_ORDER as ARTIFACTS_SUBTAB_ORDER
-from .xprompt_arg_assist import ActiveXPromptArgHint as ActiveXPromptArgHint
+from .macro_arg_assist import ActiveMacroArgHint as ActiveMacroArgHint
 from .agent_detail import AgentDetail as AgentDetail
 from .agent_info_panel import AgentInfoPanel as AgentInfoPanel
 from .agent_load_indicator import AgentLoadIndicator as AgentLoadIndicator
@@ -94,18 +94,18 @@ from .llm_calls_panel import ToolDetailLevel as ToolDetailLevel
 from .llm_calls_panel import LLMCallsVisibilityChanged as LLMCallsVisibilityChanged
 from .updates_indicator import UpdatesAvailableIndicator as UpdatesAvailableIndicator
 from .usage_header import UsageHeader as UsageHeader
-from .xprompt_arg_assist import XPromptAssistEntry as XPromptAssistEntry
-from .xprompt_arg_assist import XPromptInputHint as XPromptInputHint
-from .xprompt_arg_assist import append_input_hints as append_input_hints
-from .xprompt_arg_assist import (
-    build_xprompt_assist_entries as build_xprompt_assist_entries,
+from .macro_arg_assist import MacroAssistEntry as MacroAssistEntry
+from .macro_arg_assist import MacroInputHint as MacroInputHint
+from .macro_arg_assist import append_input_hints as append_input_hints
+from .macro_arg_assist import (
+    build_macro_assist_entries as build_macro_assist_entries,
 )
-from .xprompt_arg_assist import colon_args_skeleton as colon_args_skeleton
-from .xprompt_arg_assist import input_hint_from_input_arg as input_hint_from_input_arg
-from .xprompt_arg_assist import input_label as input_label
-from .xprompt_arg_assist import named_args_skeleton as named_args_skeleton
-from .xprompt_arg_assist import required_inputs as required_inputs
-from .xprompt_arg_assist import visible_inputs as visible_inputs
-from .xprompt_arg_assist import (
-    xprompt_completion_skeleton as xprompt_completion_skeleton,
+from .macro_arg_assist import colon_args_skeleton as colon_args_skeleton
+from .macro_arg_assist import input_hint_from_input_arg as input_hint_from_input_arg
+from .macro_arg_assist import input_label as input_label
+from .macro_arg_assist import named_args_skeleton as named_args_skeleton
+from .macro_arg_assist import required_inputs as required_inputs
+from .macro_arg_assist import visible_inputs as visible_inputs
+from .macro_arg_assist import (
+    macro_completion_skeleton as macro_completion_skeleton,
 )

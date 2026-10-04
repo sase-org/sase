@@ -17,9 +17,9 @@ from sase.ace.tui.widgets.prompt_completion import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroInputHint,
 )
 
 from ._completion_helpers import (
@@ -48,8 +48,8 @@ def _input(
     type_: str,
     *,
     position: int = 0,
-) -> XPromptInputHint:
-    return XPromptInputHint(
+) -> MacroInputHint:
+    return MacroInputHint(
         name=name,
         type=type_,
         required=True,
@@ -62,10 +62,10 @@ def _entry(
     name: str,
     *,
     prefix: str = "#",
-    inputs: tuple[XPromptInputHint, ...] = (),
+    inputs: tuple[MacroInputHint, ...] = (),
     is_skill: bool = False,
-) -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+) -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=name,
         insertion=f"{prefix}{name}",
         reference_prefix=prefix,
@@ -79,10 +79,10 @@ def _entry(
 
 def _seed_entries(
     ta: PromptTextArea,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[project] = entries
+    ta._macro_arg_assist_entries_by_project[project] = entries
 
 
 async def _compute_soft_now(ta: PromptTextArea) -> None:
@@ -177,7 +177,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
 def test_xprompt_soft_builder_uses_warm_entries_only() -> None:
     entries = [_entry("review")]
     with patch(
-        "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+        "sase.ace.tui.widgets.prompt_text_area.build_macro_assist_entries",
         side_effect=AssertionError("cold catalog build"),
     ):
         suggestion = build_prompt_soft_completion(
@@ -220,7 +220,7 @@ async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
         await pilot.press("ctrl+l")
 
     assert ta.text == "#review:"
-    assert ta._active_xprompt_arg_hint is not None
+    assert ta._active_macro_arg_hint is not None
 
 
 async def test_soft_xprompt_suggestion_ctrl_g_starts_prefix_without_accepting() -> None:
@@ -330,7 +330,7 @@ async def test_soft_xprompt_without_inputs_skips_space_before_punctuation() -> N
 
     assert ta.text == "(#review)"
     assert ta.cursor_location == (0, len("(#review"))
-    assert ta._active_xprompt_arg_hint is None
+    assert ta._active_macro_arg_hint is None
 
 
 async def test_soft_xprompt_before_period_preserves_period() -> None:
@@ -346,7 +346,7 @@ async def test_soft_xprompt_before_period_preserves_period() -> None:
 
     assert ta.text == "(see #review."
     assert ta.cursor_location == (0, len("(see #review"))
-    assert ta._active_xprompt_arg_hint is None
+    assert ta._active_macro_arg_hint is None
 
 
 async def test_ctrl_l_accepts_warm_xprompt_suggestion_before_debounce() -> None:
@@ -366,7 +366,7 @@ async def test_ctrl_l_accepts_warm_xprompt_suggestion_before_debounce() -> None:
         await pilot.press("ctrl+l")
 
     assert ta.text == f"{prefix}#review:"
-    assert ta._active_xprompt_arg_hint is not None
+    assert ta._active_macro_arg_hint is not None
 
 
 async def test_ctrl_l_cold_xprompt_cache_schedules_warm_without_sync_build() -> None:
@@ -378,13 +378,13 @@ async def test_ctrl_l_cold_xprompt_cache_schedules_warm_without_sync_build() -> 
         ta._on_prompt_completion_context_changed()
 
         with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+            "sase.ace.tui.widgets.prompt_text_area.build_macro_assist_entries",
             side_effect=AssertionError("cold catalog build"),
         ):
             await pilot.press("ctrl+l")
 
     assert ta.text == "#r"
-    assert ta._active_xprompt_arg_hint is None
+    assert ta._active_macro_arg_hint is None
 
 
 async def test_soft_directive_suggestion_replaces_only_with_ctrl_l() -> None:
@@ -461,7 +461,7 @@ async def test_cold_cache_auto_completion_does_not_build_catalog_sync() -> None:
         ta.cursor_location = (0, 2)
 
         with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
+            "sase.ace.tui.widgets.prompt_text_area.build_macro_assist_entries",
             side_effect=AssertionError("cold catalog build"),
         ):
             await _compute_soft_now(ta)

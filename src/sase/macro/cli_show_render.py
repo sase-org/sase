@@ -105,7 +105,7 @@ def _header(record: MacroShowRecord, *, styles_enabled: bool) -> Table:
     table.add_column(justify="right", no_wrap=True)
     reference = Text(
         record.reference,
-        style=_role_style("xprompt.invocation", styles_enabled=styles_enabled),
+        style=_role_style("macro.invocation", styles_enabled=styles_enabled),
     )
     if record.kind == "memory" and record.memory_type is not None:
         chips = [f"memory · {record.memory_type}"]
@@ -135,7 +135,7 @@ def _properties(record: MacroShowRecord, *, styles_enabled: bool) -> Table:
             "slash",
             Text(
                 f"/{record.skill_name}",
-                style=_role_style("xprompt.invocation", styles_enabled=styles_enabled),
+                style=_role_style("macro.invocation", styles_enabled=styles_enabled),
             ),
         )
     if record.memory_type:
@@ -198,13 +198,13 @@ def _inputs_title(record: MacroShowRecord, *, styles_enabled: bool) -> Text:
     title.append("  ")
     title.append(
         record.reference,
-        style=_role_style("xprompt.invocation", styles_enabled=styles_enabled),
+        style=_role_style("macro.invocation", styles_enabled=styles_enabled),
     )
     if record.input_signature:
         title.append(
             record.input_signature,
             style=_role_style(
-                "xprompt.invocation_arg",
+                "macro.invocation_arg",
                 styles_enabled=styles_enabled,
             ),
         )
@@ -219,7 +219,7 @@ def _inputs(
     table = Table.grid(padding=(0, 2))
     table.add_column(
         style=_role_style(
-            "xprompt.invocation_arg",
+            "macro.invocation_arg",
             styles_enabled=styles_enabled,
         ),
         no_wrap=True,
@@ -259,7 +259,7 @@ def _local_macros(
     table = Table.grid(padding=(0, 2))
     table.add_column(
         style=_role_style(
-            "xprompt.invocation_arg",
+            "macro.invocation_arg",
             styles_enabled=styles_enabled,
         ),
         no_wrap=True,
@@ -302,7 +302,7 @@ def _workflow_steps(
         heading.append(step.name, style=_style("bold", styles_enabled=styles_enabled))
         heading.append(
             f"  {step.type}",
-            style=_role_style("xprompt.directive", styles_enabled=styles_enabled),
+            style=_role_style("macro.directive", styles_enabled=styles_enabled),
         )
         if step.hidden:
             heading.append(
@@ -378,11 +378,11 @@ def _references(
     styles_enabled: bool,
 ) -> RenderableType:
     styles = _theme()
-    success = styles["xprompt.invocation"].color
+    success = styles["macro.invocation"].color
     error = styles["alt.error"].color
     table = Table.grid(padding=(0, 2))
     table.add_column(
-        style=_role_style("xprompt.invocation", styles_enabled=styles_enabled),
+        style=_role_style("macro.invocation", styles_enabled=styles_enabled),
         no_wrap=True,
     )
     table.add_column(no_wrap=True)

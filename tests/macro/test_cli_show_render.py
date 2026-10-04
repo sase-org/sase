@@ -132,9 +132,9 @@ def test_color_output_uses_shared_role_styles() -> None:
     rendered = _render(record, color=True)
     styles = highlight_theme()
 
-    assert styles["xprompt.invocation"].ansi_sgr in rendered
-    assert styles["xprompt.directive"].ansi_sgr in rendered
-    assert styles["xprompt.separator"].ansi_sgr in rendered
+    assert styles["macro.invocation"].ansi_sgr in rendered
+    assert styles["macro.directive"].ansi_sgr in rendered
+    assert styles["macro.separator"].ansi_sgr in rendered
 
 
 def test_skill_shows_both_the_reference_and_the_slash_name() -> None:

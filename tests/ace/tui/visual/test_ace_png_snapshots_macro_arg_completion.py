@@ -6,9 +6,9 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptArgNameMetadata,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroArgNameMetadata,
+    MacroInputHint,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -38,9 +38,9 @@ def _arg_name(
         insertion=f"{name}=",
         is_dir=False,
         name=name,
-        metadata=XPromptArgNameMetadata(
+        metadata=MacroArgNameMetadata(
             reference_text="#review",
-            input_hint=XPromptInputHint(
+            input_hint=MacroInputHint(
                 name=name,
                 type=type_,
                 required=required,
@@ -84,7 +84,7 @@ _ARG_ROWS = [
         ),
     ],
 )
-async def test_xprompt_arg_name_completion_png_snapshot(
+async def test_macro_arg_name_completion_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     theme: str,
@@ -105,7 +105,7 @@ async def test_xprompt_arg_name_completion_png_snapshot(
             "",
             _ARG_ROWS,
             selected_index=1,
-            completion_kind="xprompt_arg_name",
+            completion_kind="macro_arg_name",
         )
         await wait_for_state(
             page,

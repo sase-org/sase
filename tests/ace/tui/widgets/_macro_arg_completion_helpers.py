@@ -1,4 +1,4 @@
-"""Shared helpers for xprompt argument-completion tests."""
+"""Shared helpers for macro argument-completion tests."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from sase.ace.tui.agent_completion import (
     AgentVcsWorkflow,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    MacroInputHint,
 )
 
 
@@ -32,8 +32,8 @@ def input_hint(
     default_display: str | None = None,
     repeatable: bool = False,
     description: str | None = None,
-) -> XPromptInputHint:
-    return XPromptInputHint(
+) -> MacroInputHint:
+    return MacroInputHint(
         name=name,
         type=type_,
         required=required,
@@ -44,12 +44,12 @@ def input_hint(
     )
 
 
-def review_entry() -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def review_entry() -> MacroAssistEntry:
+    return MacroAssistEntry(
         name="review",
         insertion="#review",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(
             input_hint("path", "path", 0),
@@ -60,12 +60,12 @@ def review_entry() -> XPromptAssistEntry:
     )
 
 
-def rich_review_entry() -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def rich_review_entry() -> MacroAssistEntry:
+    return MacroAssistEntry(
         name="review",
         insertion="#review",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(
             input_hint("path", "path", 0, description="file to review"),
@@ -90,36 +90,36 @@ def rich_review_entry() -> XPromptAssistEntry:
     )
 
 
-def fork_entry() -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def fork_entry() -> MacroAssistEntry:
+    return MacroAssistEntry(
         name="fork",
         insertion="#fork",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(input_hint("names", "agent", 0, repeatable=True),),
         content_preview=None,
     )
 
 
-def gh_entry() -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def gh_entry() -> MacroAssistEntry:
+    return MacroAssistEntry(
         name="gh",
         insertion="#gh",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(input_hint("project", "word", 0),),
         content_preview=None,
     )
 
 
-def ask_entry() -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def ask_entry() -> MacroAssistEntry:
+    return MacroAssistEntry(
         name="ask",
         insertion="#ask",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(input_hint("body", "text", 0),),
         content_preview=None,
@@ -159,7 +159,7 @@ def agent_candidate(
 
 def seed_entries(
     ta: PromptTextArea,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[project] = entries
+    ta._macro_arg_assist_entries_by_project[project] = entries

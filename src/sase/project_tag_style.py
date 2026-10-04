@@ -84,7 +84,7 @@ def rich_text_with_project_tags(
     if "+" not in humanized_source:
         return text
     try:
-        from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+        from sase.ace.tui.util.macro_syntax import stylize_project_tags
 
         stylize_project_tags(text, humanized_source)
     except Exception:
@@ -110,7 +110,7 @@ def append_tagified_text(
         parent.append(humanized_source, style=base_style)
         if "+" not in humanized_source:
             return
-        from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+        from sase.ace.tui.util.macro_syntax import stylize_project_tags
 
         stylize_project_tags(parent, humanized_source, region_start=start)
     except Exception:

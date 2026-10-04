@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from sase.ace.tui.widgets.xprompt_inline_expansion import (
+from sase.ace.tui.widgets.macro_inline_expansion import (
     _InlineExpansionReason,
-    expand_inline_xprompt,
+    expand_inline_macro,
 )
 from sase.agent.prompt_inputs import render_prompt_with_inputs
 from sase.macro.models import InputArg, InputType, Macro
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
-_MODULE = "sase.ace.tui.widgets.xprompt_inline_expansion"
+_MODULE = "sase.ace.tui.widgets.macro_inline_expansion"
 
 
 def _simple_workflow(
@@ -24,7 +24,7 @@ def _simple_workflow(
     macros: dict[str, Macro] | None = None,
     environment: dict[str, str] | None = None,
 ) -> Workflow:
-    """Build a single prompt-part workflow (a simple xprompt projection)."""
+    """Build a single prompt-part workflow (a simple macro projection)."""
     return Workflow(
         name=name,
         inputs=inputs or [],
@@ -35,9 +35,9 @@ def _simple_workflow(
 
 
 class TestSupportedExpansion:
-    def test_simple_no_arg_xprompt_expands_to_content(self) -> None:
+    def test_simple_no_arg_macro_expands_to_content(self) -> None:
         wf = _simple_workflow("note", "Just a plain note.")
-        result = expand_inline_xprompt("note", wf)
+        result = expand_inline_macro("note", wf)
         assert result.ok
         assert result.reason is _InlineExpansionReason.EXPANDED
         assert result.expanded_text == "Just a plain note."
@@ -49,7 +49,7 @@ class TestSupportedExpansion:
     ) -> None:
         arg = InputArg(name="who", type=InputType.LINE)
         wf = _simple_workflow("greet", "Hi {{ who }}", inputs=[arg])
-        result = expand_inline_xprompt("greet", wf)
+        result = expand_inline_macro("greet", wf)
         assert result.ok
         assert result.expanded_text == "Hi {{ who }}"
         assert result.inputs == [arg]
@@ -63,7 +63,7 @@ class TestSupportedExpansion:
             "Hello {{ name }}!",
             inputs=[arg],
         )
-        result = expand_inline_xprompt("greet", wf)
+        result = expand_inline_macro("greet", wf)
         assert result.ok
         assert result.expanded_text == "Hello {{ name }}!"
         assert result.inputs == [arg]
@@ -76,14 +76,14 @@ class TestSupportedExpansion:
             "retries={{ retries }} dry_run={{ dry_run }}",
             inputs=[retries, dry_run],
         )
-        result = expand_inline_xprompt("deploy", wf)
+        result = expand_inline_macro("deploy", wf)
         assert result.ok
         assert result.expanded_text == "retries={{ retries }} dry_run={{ dry_run }}"
         assert result.inputs == [retries, dry_run]
 
     def test_segment_separators_preserved_as_text(self) -> None:
         wf = _simple_workflow("multi", "Part A\n---\nPart B")
-        result = expand_inline_xprompt("multi", wf)
+        result = expand_inline_macro("multi", wf)
         assert result.ok
         assert result.expanded_text == "Part A\n---\nPart B"
 
@@ -91,7 +91,7 @@ class TestSupportedExpansion:
         rules = Macro(name="_rules", content="Be concise.")
         wf = _simple_workflow("guide", "Rules:\n#_rules")
         with patch(f"{_MODULE}.get_all_macros", return_value={}):
-            result = expand_inline_xprompt("guide", wf, local_macros={"_rules": rules})
+            result = expand_inline_macro("guide", wf, local_macros={"_rules": rules})
         assert result.ok
         assert result.expanded_text == "Rules:\nBe concise."
 
@@ -107,7 +107,7 @@ class TestSupportedExpansion:
             inputs=[topic],
             macros={"_article_search_agent": helper},
         )
-        result = expand_inline_xprompt("reads", wf)
+        result = expand_inline_macro("reads", wf)
         assert result.ok
         assert result.expanded_text == "Search for recent writing about {{ topic }}."
         assert result.inputs == [topic]
@@ -117,7 +117,7 @@ class TestSupportedExpansion:
         rules = Macro(name="_rules", content="local rule")
         wf = _simple_workflow("entry", "#team")
         with patch(f"{_MODULE}.get_all_macros", return_value={"team": team}):
-            result = expand_inline_xprompt("entry", wf, local_macros={"_rules": rules})
+            result = expand_inline_macro("entry", wf, local_macros={"_rules": rules})
         assert result.ok
         assert result.expanded_text == "Team note: local rule"
 
@@ -128,7 +128,7 @@ class TestSupportedExpansion:
         team = Macro(name="team", content="Team topic: {{ topic }}")
         wf = _simple_workflow("entry", "#team", inputs=[topic])
         with patch(f"{_MODULE}.get_all_macros", return_value={"team": team}):
-            result = expand_inline_xprompt("entry", wf)
+            result = expand_inline_macro("entry", wf)
         assert result.ok
         assert result.expanded_text == "Team topic: {{ topic }}"
         assert result.inputs == [topic]
@@ -140,7 +140,7 @@ class TestSupportedExpansion:
             "Part A {{ item }}\n---\nPart B {{ item }}",
             inputs=[item],
         )
-        result = expand_inline_xprompt("multi", wf)
+        result = expand_inline_macro("multi", wf)
         assert result.ok
         assert result.expanded_text == "Part A {{ item }}\n---\nPart B {{ item }}"
         assert result.inputs == [item]
@@ -148,14 +148,14 @@ class TestSupportedExpansion:
     def test_input_filters_degrade_as_rendered_identity_strings(self) -> None:
         name = InputArg(name="name", type=InputType.LINE)
         wf = _simple_workflow("shout", "{{ name | upper }}", inputs=[name])
-        result = expand_inline_xprompt("shout", wf)
+        result = expand_inline_macro("shout", wf)
         assert result.ok
         assert result.expanded_text == "{{ NAME }}"
 
     def test_expanded_direct_input_resolves_through_launch_substitution(self) -> None:
         topic = InputArg(name="topic", type=InputType.LINE)
         wf = _simple_workflow("reads", "Read about {{ topic }}.", inputs=[topic])
-        result = expand_inline_xprompt("reads", wf)
+        result = expand_inline_macro("reads", wf)
 
         frontmatter = PromptFrontmatter()
         for arg in result.inputs:
@@ -175,7 +175,7 @@ class TestSupportedExpansion:
             inputs=[topic],
             macros={"_helper": helper},
         )
-        result = expand_inline_xprompt("reads", wf)
+        result = expand_inline_macro("reads", wf)
 
         frontmatter = PromptFrontmatter()
         for arg in result.inputs:
@@ -193,7 +193,7 @@ class TestRejectedExpansion:
             name="deploy",
             steps=[WorkflowStep(name="main", agent="deploy the app")],
         )
-        result = expand_inline_xprompt("deploy", wf)
+        result = expand_inline_macro("deploy", wf)
         assert not result.ok
         assert result.reason is _InlineExpansionReason.STANDALONE_WORKFLOW
         assert result.error is not None
@@ -207,7 +207,7 @@ class TestRejectedExpansion:
                 WorkflowStep(name="main", prompt_part="body text"),
             ],
         )
-        result = expand_inline_xprompt("build", wf)
+        result = expand_inline_macro("build", wf)
         assert not result.ok
         assert result.reason is _InlineExpansionReason.WORKFLOW_STEPS
         assert result.error is not None
@@ -215,7 +215,7 @@ class TestRejectedExpansion:
 
     def test_environment_side_effect_returns_error(self) -> None:
         wf = _simple_workflow("envy", "body", environment={"FOO": "bar"})
-        result = expand_inline_xprompt("envy", wf)
+        result = expand_inline_macro("envy", wf)
         assert not result.ok
         assert result.reason is _InlineExpansionReason.WORKFLOW_STEPS
 
@@ -224,7 +224,7 @@ class TestRejectedExpansion:
         b = Macro(name="b", content="#a")
         wf = _simple_workflow("start", "#a")
         with patch(f"{_MODULE}.get_all_macros", return_value={}):
-            result = expand_inline_xprompt("start", wf, local_macros={"a": a, "b": b})
+            result = expand_inline_macro("start", wf, local_macros={"a": a, "b": b})
         assert not result.ok
         assert result.reason is _InlineExpansionReason.EXPANSION_ERROR
         assert result.expanded_text is None
@@ -234,6 +234,6 @@ class TestRejectedExpansion:
         # makes rendering raise, which the helper must surface as an error rather
         # than letting it propagate.
         wf = _simple_workflow("bad", "Hello {{ definitely_undefined_xyz }}")
-        result = expand_inline_xprompt("bad", wf)
+        result = expand_inline_macro("bad", wf)
         assert not result.ok
         assert result.reason is _InlineExpansionReason.EXPANSION_ERROR

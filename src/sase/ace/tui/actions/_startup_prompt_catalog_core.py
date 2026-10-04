@@ -14,7 +14,7 @@ if TYPE_CHECKING:
         PromptCompletionSettings,
         PromptSpellcheckSettings,
     )
-    from ..widgets.xprompt_arg_assist import XPromptAssistEntry
+    from ..widgets.macro_arg_assist import MacroAssistEntry
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class StartupPromptCatalogCoreMixin:
     _prompt_catalog_token_check_last_mono: float
     _prompt_catalog_assist_entries_cache: dict[
         str | None,
-        list[XPromptAssistEntry],
+        list[MacroAssistEntry],
     ]
 
     def get_snippets(self: Any) -> dict[str, str]:
@@ -75,7 +75,7 @@ class StartupPromptCatalogCoreMixin:
         project: str | None,
         *,
         schedule: bool = True,
-    ) -> list[XPromptAssistEntry] | None:
+    ) -> list[MacroAssistEntry] | None:
         """Return memory-only xprompt assist entries for *project* if warm."""
         self._ensure_prompt_catalog_project(project)
         catalog = self._prompt_catalog
@@ -99,7 +99,7 @@ class StartupPromptCatalogCoreMixin:
     def get_warm_prompt_catalog_assist_entries_exact(
         self: Any,
         project: str | None,
-    ) -> list[XPromptAssistEntry] | None:
+    ) -> list[MacroAssistEntry] | None:
         """Return the exact memory-only project catalog without fallback."""
         self._ensure_prompt_catalog_project(project)
         catalog = self._prompt_catalog
@@ -114,8 +114,8 @@ class StartupPromptCatalogCoreMixin:
     def _cached_prompt_catalog_assist_entries(
         self: Any,
         project: str | None,
-        entries: tuple[XPromptAssistEntry, ...],
-    ) -> list[XPromptAssistEntry]:
+        entries: tuple[MacroAssistEntry, ...],
+    ) -> list[MacroAssistEntry]:
         """Return a stable list for *entries* during this catalog snapshot."""
         cached = self._prompt_catalog_assist_entries_cache.get(project)
         if cached is None:

@@ -1,4 +1,4 @@
-"""Pure-logic xprompt completion engine for the prompt input bar."""
+"""Pure-logic macro completion engine for the prompt input bar."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     extract_token_around_cursor,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
 )
 from sase.macro.naming import (
     is_inline_reference_name,
@@ -22,8 +22,8 @@ _SLASH_SKILL_TOKEN_RE = re.compile(r"^/[A-Za-z0-9_]*$")
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptTokenSpan:
-    """Grammar-aware bounds for an xprompt completion token."""
+class MacroTokenSpan:
+    """Grammar-aware bounds for a macro completion token."""
 
     start: int
     end: int
@@ -31,8 +31,8 @@ class XPromptTokenSpan:
     clamped: bool
 
 
-def is_xprompt_like_token(token: str) -> bool:
-    """Return True when token looks like an xprompt or slash-skill reference."""
+def is_macro_like_token(token: str) -> bool:
+    """Return True when token looks like a macro or slash-skill reference."""
     if not token:
         return False
     if token.startswith("/"):
@@ -44,11 +44,11 @@ def is_xprompt_like_token(token: str) -> bool:
     return not any(c.isspace() for c in token)
 
 
-def extract_xprompt_token_around_cursor(
+def extract_macro_token_around_cursor(
     line: str,
     col: int,
-) -> XPromptTokenSpan | None:
-    """Extract an xprompt token without consuming trailing punctuation."""
+) -> MacroTokenSpan | None:
+    """Extract a macro token without consuming trailing punctuation."""
     col = min(col, len(line))
     raw_span = extract_token_around_cursor(line, col)
     if raw_span is None:
@@ -56,9 +56,9 @@ def extract_xprompt_token_around_cursor(
 
     start, raw_end, raw_token = raw_span
     if not raw_token.startswith("#"):
-        if not is_xprompt_like_token(raw_token):
+        if not is_macro_like_token(raw_token):
             return None
-        return XPromptTokenSpan(start, raw_end, raw_token, clamped=False)
+        return MacroTokenSpan(start, raw_end, raw_token, clamped=False)
 
     marker_length = 2 if raw_token.startswith("#!") else 1
     name_end = start + marker_length
@@ -67,7 +67,7 @@ def extract_xprompt_token_around_cursor(
 
     if col > name_end:
         return None
-    return XPromptTokenSpan(
+    return MacroTokenSpan(
         start=start,
         end=name_end,
         token=line[start:name_end],
@@ -75,13 +75,13 @@ def extract_xprompt_token_around_cursor(
     )
 
 
-def build_xprompt_completion_candidates(
+def build_macro_completion_candidates(
     token: str,
     *,
-    entries: list[XPromptAssistEntry] | None = None,
+    entries: list[MacroAssistEntry] | None = None,
     inline_reference_only: bool = False,
 ) -> tuple[list[CompletionCandidate], str]:
-    """Build candidates and shared extension for an xprompt token.
+    """Build candidates and shared extension for a macro token.
 
     Args:
         token: The full token including the leading ``#`` or ``/``.
@@ -99,7 +99,7 @@ def build_xprompt_completion_candidates(
     for entry in source_entries:
         if inline_reference_only and not is_inline_reference_name(entry.name):
             continue
-        # ``#`` completion matches the xprompt reference name (``skill/foo``);
+        # ``#`` completion matches the macro reference name (``skill/foo``);
         # ``/`` completion matches the provider skill name (``foo``).
         match_name = entry.name
         if slash_skill:

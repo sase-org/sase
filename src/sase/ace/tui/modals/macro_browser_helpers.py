@@ -7,7 +7,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.ace.tui.widgets.xprompt_arg_assist import append_input_args
+from sase.ace.tui.widgets.macro_arg_assist import append_input_args
 from sase.content_layout import (
     discover_project_root,
     display_path,

@@ -28,9 +28,9 @@ from sase.macro.reference_display import (
 from sase.macro.workflow_models import Workflow
 
 from ..util.frontmatter_syntax import markdown_document_syntax
-from ..widgets.xprompt_arg_assist import (
-    XPromptAssistEntry as MacroAssistEntry,
-    xprompt_assist_entry_from_workflow as macro_assist_entry_from_workflow,
+from ..widgets.macro_arg_assist import (
+    MacroAssistEntry as MacroAssistEntry,
+    macro_assist_entry_from_workflow as macro_assist_entry_from_workflow,
 )
 from .base import OptionListNavigationMixin
 from .macro_browser_helpers import (

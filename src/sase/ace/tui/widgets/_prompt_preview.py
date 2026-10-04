@@ -29,11 +29,11 @@ class PromptPreviewMixin(_MixinBase):
         _prompt_preview_request_id: int
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
-        def _get_warm_xprompt_skill_names_if_available(
+        def _get_warm_macro_skill_names_if_available(
             self,
         ) -> frozenset[str] | None: ...
-        def _schedule_xprompt_assist_warm(self, project: str | None) -> None: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _schedule_macro_assist_warm(self, project: str | None) -> None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
         def _lookup_word_under_cursor(self) -> bool: ...
         def _preview_glossary_under_cursor(self) -> bool: ...
         def _preview_repo_mention_under_cursor(self) -> bool: ...
@@ -128,13 +128,13 @@ class PromptPreviewMixin(_MixinBase):
         """Return warm slash skills, or defer an ambiguous cold lookup."""
         if "/" not in self.text:
             return frozenset()
-        known_skills = self._get_warm_xprompt_skill_names_if_available()
+        known_skills = self._get_warm_macro_skill_names_if_available()
         if known_skills is not None:
             return known_skills
         if not is_slash_skill_candidate_at_cursor(self.text, cursor_offset):
             return frozenset()
-        project = self._xprompt_arg_assist_project_from_text()
-        self._schedule_xprompt_assist_warm(project)
+        project = self._macro_arg_assist_project_from_text()
+        self._schedule_macro_assist_warm(project)
         self.notify(
             "Skill catalog is still loading; try again",
             severity="warning",
@@ -143,7 +143,7 @@ class PromptPreviewMixin(_MixinBase):
 
     def _preview_context(self) -> tuple[str | None, str]:
         """Return ``(project, base_dir)`` for preview resolution."""
-        project = self._xprompt_arg_assist_project_from_text()
+        project = self._macro_arg_assist_project_from_text()
         base_dir = os.getcwd()
         ctx = getattr(self.app, "_prompt_context", None)
         if ctx is None:

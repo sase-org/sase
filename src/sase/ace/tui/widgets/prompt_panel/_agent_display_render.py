@@ -23,7 +23,7 @@ from ...util.lazy_syntax import (
     exceeds_syntax_highlight_cap,
     lazy_renderable,
 )
-from ...util.xprompt_syntax import highlight_markdown_text, highlight_prompt_text
+from ...util.macro_syntax import highlight_markdown_text, highlight_prompt_text
 from ._agent_display_attempts import (
     AgentAttemptDisplayMixin,
     render_merged_attempt_history,

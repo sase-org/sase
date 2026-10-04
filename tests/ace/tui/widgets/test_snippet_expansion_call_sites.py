@@ -6,17 +6,17 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    ActiveXPromptArgHint,
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    ActiveMacroArgHint,
+    MacroAssistEntry,
+    MacroInputHint,
 )
 
 from ._completion_helpers import CompletionTestApp
 
 
-def _input(name: str, type_: str = "path") -> XPromptInputHint:
-    return XPromptInputHint(
+def _input(name: str, type_: str = "path") -> MacroInputHint:
+    return MacroInputHint(
         name=name,
         type=type_,
         required=True,
@@ -25,8 +25,8 @@ def _input(name: str, type_: str = "path") -> XPromptInputHint:
     )
 
 
-def _entry(name: str, *, inputs: tuple[XPromptInputHint, ...]) -> XPromptAssistEntry:
-    return XPromptAssistEntry(
+def _entry(name: str, *, inputs: tuple[MacroInputHint, ...]) -> MacroAssistEntry:
+    return MacroAssistEntry(
         name=name,
         insertion=f"#{name}",
         reference_prefix="#",
@@ -62,10 +62,10 @@ def _insert_at_cursor(
 
 def _seed_entries(
     ta: PromptTextArea,
-    entries: list[XPromptAssistEntry],
+    entries: list[MacroAssistEntry],
     project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[project] = entries
+    ta._macro_arg_assist_entries_by_project[project] = entries
 
 
 def _assert_nested_and_outer_resumes(ta: PromptTextArea) -> None:
@@ -162,14 +162,14 @@ async def test_named_arg_skeleton_nests_inside_active_session() -> None:
         start, end = _insert_at_cursor(ta, "#review")
         start_offset = ta._absolute_offset(start)
         end_offset = ta._absolute_offset(end)
-        ta._active_xprompt_arg_hint = ActiveXPromptArgHint(
+        ta._active_macro_arg_hint = ActiveMacroArgHint(
             entry=entry,
             reference_start=start_offset,
             reference_end=end_offset,
             reference_text="#review",
         )
 
-        assert ta._apply_xprompt_named_arg_hint() is True
+        assert ta._apply_macro_named_arg_hint() is True
 
         assert ta.text == "(#review(path=))"
         _assert_nested_and_outer_resumes(ta)

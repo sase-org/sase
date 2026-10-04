@@ -21,12 +21,12 @@ from sase.ace.tui.widgets.prompt_completion import (
 from sase.ace.tui.widgets.prompt_completion_root import (
     resolve_prompt_completion_base_dir,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    XPromptAssistEntry,
-    merge_local_xprompt_entries,
-    xprompt_completion_skeleton,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    MacroAssistEntry,
+    merge_local_macro_entries,
+    macro_completion_skeleton,
 )
-from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
+from sase.ace.tui.widgets.macro_completion import is_macro_like_token
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -43,7 +43,7 @@ def _build_prompt_soft_completion_snapshot(
     text: str,
     cursor_offset: int,
     settings: PromptCompletionSettings,
-    macro_entries: list[XPromptAssistEntry] | None,
+    macro_entries: list[MacroAssistEntry] | None,
     jinja_scope: JinjaScope | None = None,
 ) -> PromptSoftCompletion | None:
     return build_prompt_soft_completion(
@@ -76,23 +76,23 @@ class PromptSoftCompletionMixin(_MixinBase):
         def _find_prompt_bar(self) -> Any: ...
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
-        def _schedule_xprompt_assist_warm(self, project: str | None) -> None: ...
-        def _clear_xprompt_arg_hint(self) -> None: ...
-        def _note_xprompt_completion_spacer(
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
+        def _schedule_macro_assist_warm(self, project: str | None) -> None: ...
+        def _clear_macro_arg_hint(self) -> None: ...
+        def _note_macro_completion_spacer(
             self,
-            entry: XPromptAssistEntry,
+            entry: MacroAssistEntry,
         ) -> None: ...
-        def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
+        def _refresh_macro_arg_hint_from_cursor(self) -> None: ...
         def _refresh_xprompt_completion_skeleton_hint(
             self,
             selected: CompletionCandidate,
         ) -> None: ...
-        def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]: ...
-        def _get_warm_xprompt_arg_assist_entries(
+        def _get_macro_arg_assist_entries(self) -> list[MacroAssistEntry]: ...
+        def _get_warm_macro_arg_assist_entries(
             self,
-        ) -> list[XPromptAssistEntry] | None: ...
-        def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]: ...
+        ) -> list[MacroAssistEntry] | None: ...
+        def _local_macro_assist_entries(self) -> list[MacroAssistEntry]: ...
         def _expand_snippet_template_at_range(
             self,
             template: str,
@@ -111,8 +111,8 @@ class PromptSoftCompletionMixin(_MixinBase):
 
     def _soft_completion_xprompt_entries(
         self,
-        warm: list[XPromptAssistEntry] | None,
-    ) -> list[XPromptAssistEntry] | None:
+        warm: list[MacroAssistEntry] | None,
+    ) -> list[MacroAssistEntry] | None:
         """Merge live local xprompts into the *warm* catalog for soft completion.
 
         Returns the local helpers alone when the global catalog is still cold so
@@ -121,10 +121,10 @@ class PromptSoftCompletionMixin(_MixinBase):
         only when there is neither a warm catalog nor any local helper, so the
         existing warm-scheduling deferral is preserved untouched.
         """
-        local = self._local_xprompt_assist_entries()
+        local = self._local_macro_assist_entries()
         if warm is None:
             return local or None
-        return merge_local_xprompt_entries(warm, local)
+        return merge_local_macro_entries(warm, local)
 
     def _prompt_completion_settings(self) -> PromptCompletionSettings:
         """Return prompt completion settings with a default for minimal apps."""
@@ -180,12 +180,12 @@ class PromptSoftCompletionMixin(_MixinBase):
             return
 
         settings = self._prompt_completion_settings()
-        project = self._xprompt_arg_assist_project_from_text()
-        entries = self._get_warm_xprompt_arg_assist_entries()
+        project = self._macro_arg_assist_project_from_text()
+        entries = self._get_warm_macro_arg_assist_entries()
         if entries is None and self._soft_completion_may_need_xprompt_entries(
             text, cursor_offset
         ):
-            self._schedule_xprompt_assist_warm(project)
+            self._schedule_macro_assist_warm(project)
 
         macro_entries = self._soft_completion_xprompt_entries(entries)
         task = spawn_pump_free_task(
@@ -220,7 +220,7 @@ class PromptSoftCompletionMixin(_MixinBase):
         text: str,
         cursor_offset: int,
         settings: PromptCompletionSettings,
-        macro_entries: list[XPromptAssistEntry] | None,
+        macro_entries: list[MacroAssistEntry] | None,
     ) -> None:
         try:
             suggestion = await asyncio.to_thread(
@@ -288,17 +288,17 @@ class PromptSoftCompletionMixin(_MixinBase):
         if settings.auto != "soft":
             return None
 
-        entries: list[XPromptAssistEntry] | None = None
+        entries: list[MacroAssistEntry] | None = None
         may_need_xprompt_entries = self._soft_completion_may_need_xprompt_entries(
             text=text,
             cursor_offset=cursor_offset,
         )
-        warm_entries: list[XPromptAssistEntry] | None = None
+        warm_entries: list[MacroAssistEntry] | None = None
         if may_need_xprompt_entries:
-            project = self._xprompt_arg_assist_project_from_text()
-            warm_entries = self._get_warm_xprompt_arg_assist_entries()
+            project = self._macro_arg_assist_project_from_text()
+            warm_entries = self._get_warm_macro_arg_assist_entries()
             if warm_entries is None:
-                self._schedule_xprompt_assist_warm(project)
+                self._schedule_macro_assist_warm(project)
             entries = self._soft_completion_xprompt_entries(warm_entries)
 
         return _build_prompt_soft_completion_snapshot(
@@ -346,7 +346,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             text[line_start:line_end],
             cursor_offset - line_start,
         )
-        return token_ctx is not None and is_xprompt_like_token(token_ctx[2])
+        return token_ctx is not None and is_macro_like_token(token_ctx[2])
 
     def _set_soft_completion(self, suggestion: PromptSoftCompletion | None) -> None:
         self._soft_completion = suggestion
@@ -403,7 +403,7 @@ class PromptSoftCompletionMixin(_MixinBase):
         used_xprompt_skeleton = False
         if (
             accepted_kind == "xprompt"
-            and isinstance(selected.metadata, XPromptAssistEntry)
+            and isinstance(selected.metadata, MacroAssistEntry)
             and selected.insertion.startswith("#")
         ):
             # ``:: `` only when the replacement ends its line; an accept before
@@ -412,7 +412,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             append_text_arg_space = end[1] == len(line)
             next_char = line[end[1]] if end[1] < len(line) else None
             used_xprompt_skeleton = self._expand_snippet_template_at_range(
-                xprompt_completion_skeleton(
+                macro_completion_skeleton(
                     selected.metadata,
                     append_text_arg_space=append_text_arg_space,
                     next_char=next_char,
@@ -422,7 +422,7 @@ class PromptSoftCompletionMixin(_MixinBase):
                 session_policy="nest",
             )
             if used_xprompt_skeleton:
-                self._note_xprompt_completion_spacer(selected.metadata)
+                self._note_macro_completion_spacer(selected.metadata)
 
         if not used_xprompt_skeleton:
             self._replace_absolute_range(
@@ -436,11 +436,11 @@ class PromptSoftCompletionMixin(_MixinBase):
             if used_xprompt_skeleton:
                 self._refresh_xprompt_completion_skeleton_hint(selected)
             else:
-                self._clear_xprompt_arg_hint()
-        elif accepted_kind.startswith("xprompt_arg_"):
-            self._refresh_xprompt_arg_hint_from_cursor()
+                self._clear_macro_arg_hint()
+        elif accepted_kind.startswith("macro_arg_"):
+            self._refresh_macro_arg_hint_from_cursor()
         else:
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
         return True
 
     def _accept_or_build_soft_completion(self) -> bool:

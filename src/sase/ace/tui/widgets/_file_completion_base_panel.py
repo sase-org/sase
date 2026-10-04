@@ -42,9 +42,9 @@ if TYPE_CHECKING:
     )
     from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
     from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
-    from sase.ace.tui.widgets.xprompt_arg_assist import (
-        ActiveXPromptArgHint,
-        XPromptAssistEntry,
+    from sase.ace.tui.widgets.macro_arg_assist import (
+        ActiveMacroArgHint,
+        MacroAssistEntry,
     )
     from sase.ace.tui.widgets.placeholder_completion import (
         PlaceholderCompletionResult,
@@ -75,7 +75,7 @@ class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):
         _placeholder_completion_trigger: str | None
         _xprompt_arg_completion_trigger: str | None
         _agent_completion_candidates: list[AgentCompletionCandidate] | None
-        _active_xprompt_arg_hint: ActiveXPromptArgHint | None
+        _active_macro_arg_hint: ActiveMacroArgHint | None
         _vcs_repo_completion_key: tuple[str, str] | None
         _vcs_repo_completion_result: VcsRepoFetchResult | None
         _vcs_repo_completion_inflight: set[tuple[str, str]]
@@ -119,26 +119,26 @@ class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
-        def _clear_xprompt_arg_hint(self) -> None: ...
+        def _clear_macro_arg_hint(self) -> None: ...
         def _get_vcs_ref_trigger(self) -> VcsRefTrigger | None: ...
         def _get_vcs_repo_trigger(self) -> VcsRepoTrigger | None: ...
-        def _note_xprompt_completion_spacer(
+        def _note_macro_completion_spacer(
             self,
-            entry: XPromptAssistEntry,
+            entry: MacroAssistEntry,
         ) -> None: ...
-        def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None: ...
-        def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]: ...
-        def _get_warm_xprompt_arg_assist_entries(
+        def _show_macro_arg_hint(self, hint: ActiveMacroArgHint) -> None: ...
+        def _get_macro_arg_assist_entries(self) -> list[MacroAssistEntry]: ...
+        def _get_warm_macro_arg_assist_entries(
             self,
-        ) -> list[XPromptAssistEntry] | None: ...
-        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        ) -> list[MacroAssistEntry] | None: ...
+        def _macro_arg_assist_project_from_text(self) -> str | None: ...
         def _build_warm_xprompt_completion_candidates(
             self,
             token: str,
             *,
             inline_reference_only: bool = False,
         ) -> tuple[list[CompletionCandidate], str] | None: ...
-        def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
+        def _refresh_macro_arg_hint_from_cursor(self) -> None: ...
         def _refresh_history_word_completion(
             self,
             words: list[str] | None = None,
@@ -350,4 +350,4 @@ class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):
         self._model_completion_catalog_request = None
         self._update_file_completion_panel("")
         if clear_xprompt_arg_hint:
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()

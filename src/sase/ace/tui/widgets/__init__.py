@@ -6,7 +6,7 @@ from importlib import import_module
 from typing import Any
 
 _LAZY_EXPORTS = {
-    "ActiveXPromptArgHint": (".xprompt_arg_assist", "ActiveXPromptArgHint"),
+    "ActiveMacroArgHint": (".macro_arg_assist", "ActiveMacroArgHint"),
     "AgentDetail": (".agent_detail", "AgentDetail"),
     "AgentHeaderPanel": (".agent_header_panel", "AgentHeaderPanel"),
     "AgentJumpPanel": (".agent_jump_panel", "AgentJumpPanel"),
@@ -112,22 +112,22 @@ _LAZY_EXPORTS = {
         "UpdatesAvailableIndicator",
     ),
     "UsageHeader": (".usage_header", "UsageHeader"),
-    "XPromptAssistEntry": (".xprompt_arg_assist", "XPromptAssistEntry"),
-    "XPromptInputHint": (".xprompt_arg_assist", "XPromptInputHint"),
-    "append_input_hints": (".xprompt_arg_assist", "append_input_hints"),
-    "build_xprompt_assist_entries": (
-        ".xprompt_arg_assist",
-        "build_xprompt_assist_entries",
+    "MacroAssistEntry": (".macro_arg_assist", "MacroAssistEntry"),
+    "MacroInputHint": (".macro_arg_assist", "MacroInputHint"),
+    "append_input_hints": (".macro_arg_assist", "append_input_hints"),
+    "build_macro_assist_entries": (
+        ".macro_arg_assist",
+        "build_macro_assist_entries",
     ),
-    "colon_args_skeleton": (".xprompt_arg_assist", "colon_args_skeleton"),
-    "input_hint_from_input_arg": (".xprompt_arg_assist", "input_hint_from_input_arg"),
-    "input_label": (".xprompt_arg_assist", "input_label"),
-    "named_args_skeleton": (".xprompt_arg_assist", "named_args_skeleton"),
-    "required_inputs": (".xprompt_arg_assist", "required_inputs"),
-    "visible_inputs": (".xprompt_arg_assist", "visible_inputs"),
-    "xprompt_completion_skeleton": (
-        ".xprompt_arg_assist",
-        "xprompt_completion_skeleton",
+    "colon_args_skeleton": (".macro_arg_assist", "colon_args_skeleton"),
+    "input_hint_from_input_arg": (".macro_arg_assist", "input_hint_from_input_arg"),
+    "input_label": (".macro_arg_assist", "input_label"),
+    "named_args_skeleton": (".macro_arg_assist", "named_args_skeleton"),
+    "required_inputs": (".macro_arg_assist", "required_inputs"),
+    "visible_inputs": (".macro_arg_assist", "visible_inputs"),
+    "macro_completion_skeleton": (
+        ".macro_arg_assist",
+        "macro_completion_skeleton",
     ),
 }
 
@@ -143,7 +143,7 @@ __all__ = [
     "AgentList",
     "AgentOnboarding",
     "AliasOverridesIndicator",
-    "ActiveXPromptArgHint",
+    "ActiveMacroArgHint",
     "AxeDashboard",
     "AxeDescriptionBanner",
     "AxeInfoPanel",
@@ -198,17 +198,17 @@ __all__ = [
     "LLMCallsVisibilityChanged",
     "UpdatesAvailableIndicator",
     "UsageHeader",
-    "XPromptAssistEntry",
-    "XPromptInputHint",
+    "MacroAssistEntry",
+    "MacroInputHint",
     "append_input_hints",
-    "build_xprompt_assist_entries",
+    "build_macro_assist_entries",
     "colon_args_skeleton",
     "input_hint_from_input_arg",
     "input_label",
     "named_args_skeleton",
     "required_inputs",
     "visible_inputs",
-    "xprompt_completion_skeleton",
+    "macro_completion_skeleton",
 ]
 
 

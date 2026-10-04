@@ -99,7 +99,7 @@ async def test_ordered_marker_overlay_uses_utf8_byte_columns_and_coexists_with_s
 
         # The marker overlay coexists with xprompt/jinja spans on the same line.
         names = _highlight_names(text_area)
-        for name in ("bullet.ordered", "xprompt.invocation", "jinja.delimiter"):
+        for name in ("bullet.ordered", "macro.invocation", "jinja.delimiter"):
             assert name in names
 
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._file_completion_tab import FileCompletionTabMixin
-from sase.ace.tui.widgets._file_completion_xprompt_args import (
-    build_xprompt_arg_completion_candidates,
+from sase.ace.tui.widgets._file_completion_macro_args import (
+    build_macro_arg_completion_candidates,
 )
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
@@ -474,23 +474,23 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         """Open closed-set completion inside an xprompt argument."""
         arg_ctx = self._get_xprompt_arg_completion_context()
         if arg_ctx is None or arg_ctx.completion_kind not in {
-            "xprompt_arg_agent",
-            "xprompt_arg_name",
-            "xprompt_arg_value",
+            "macro_arg_agent",
+            "macro_arg_name",
+            "macro_arg_value",
         }:
             return False
 
-        candidates, _shared_extension = build_xprompt_arg_completion_candidates(
+        candidates, _shared_extension = build_macro_arg_completion_candidates(
             arg_ctx,
             base_dir=self._prompt_completion_base_dir(),
             agent_candidates=(
                 self._snapshot_agent_completion_candidates()
-                if arg_ctx.completion_kind == "xprompt_arg_agent"
+                if arg_ctx.completion_kind == "macro_arg_agent"
                 else None
             ),
         )
         if not candidates:
-            if arg_ctx.completion_kind == "xprompt_arg_agent":
+            if arg_ctx.completion_kind == "macro_arg_agent":
                 self._agent_completion_candidates = None
             return False
 
@@ -506,10 +506,10 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
     def _try_xprompt_arg_name_completion_cycle(self, *, last: bool = False) -> bool:
         """Open keyword-argument names for insert-mode Ctrl+N/Ctrl+P."""
         arg_ctx = self._get_xprompt_arg_completion_context()
-        if arg_ctx is None or arg_ctx.completion_kind != "xprompt_arg_name":
+        if arg_ctx is None or arg_ctx.completion_kind != "macro_arg_name":
             return False
 
-        candidates, _shared_extension = build_xprompt_arg_completion_candidates(arg_ctx)
+        candidates, _shared_extension = build_macro_arg_completion_candidates(arg_ctx)
         if not candidates:
             return False
 

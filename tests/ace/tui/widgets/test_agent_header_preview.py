@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
-from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+from sase.ace.tui.util.macro_syntax import highlight_prompt_text
 from sase.ace.tui.widgets.agent_header_preview import (
     PREVIEW_BAR_GLYPH,
     PREVIEW_BAR_STYLE,

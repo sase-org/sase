@@ -13,10 +13,10 @@ from sase.ace.tui.widgets.prompt_completion import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    ActiveXPromptArgHint,
-    XPromptAssistEntry,
-    XPromptInputHint,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    ActiveMacroArgHint,
+    MacroAssistEntry,
+    MacroInputHint,
 )
 from sase.macro.models import InputArg, InputType
 from sase.macro.prompt_frontmatter import PromptFrontmatter
@@ -226,14 +226,14 @@ async def test_completion_panel_entrypoints_noop_when_panel_pruned() -> None:
         bar.show_file_completions("a", [candidate], selected_index=0)
         bar.hide_file_completions()
 
-        input_hint = XPromptInputHint(
+        input_hint = MacroInputHint(
             name="path",
             type="path",
             required=True,
             default_display=None,
             position=0,
         )
-        entry = XPromptAssistEntry(
+        entry = MacroAssistEntry(
             name="review",
             insertion="#review",
             reference_prefix="#",
@@ -242,8 +242,8 @@ async def test_completion_panel_entrypoints_noop_when_panel_pruned() -> None:
             inputs=(input_hint,),
             content_preview=None,
         )
-        bar.show_xprompt_arg_hint(
-            ActiveXPromptArgHint(
+        bar.show_macro_arg_hint(
+            ActiveMacroArgHint(
                 entry=entry,
                 reference_start=0,
                 reference_end=len("#review"),

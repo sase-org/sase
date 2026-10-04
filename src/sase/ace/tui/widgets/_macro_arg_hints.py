@@ -1,17 +1,17 @@
-"""Xprompt argument hint mixin for PromptTextArea."""
+"""Macro argument hint mixin for PromptTextArea."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.widgets.xprompt_arg_assist import (
-    ActiveXPromptArgHint,
-    PendingXPromptCompletionSpacer,
-    XPromptAssistEntry,
-    accepted_xprompt_arg_hint,
-    detect_xprompt_arg_hint_at_cursor,
+from sase.ace.tui.widgets.macro_arg_assist import (
+    ActiveMacroArgHint,
+    PendingMacroCompletionSpacer,
+    MacroAssistEntry,
+    accepted_macro_arg_hint,
+    detect_macro_arg_hint_at_cursor,
     has_no_required_inputs,
-    merge_local_xprompt_entries,
+    merge_local_macro_entries,
     named_args_skeleton,
 )
 from sase.macro.project_identity import (
@@ -36,21 +36,19 @@ def _prompt_text_area_module() -> Any:
     return prompt_text_area
 
 
-class XPromptArgHintMixin(_MixinBase):
-    """Mixin providing xprompt argument hint behavior for PromptTextArea.
+class MacroArgHintMixin(_MixinBase):
+    """Mixin providing macro argument hint behavior for PromptTextArea.
 
     Mixed into :class:`~sase.ace.tui.widgets.prompt_text_area.PromptTextArea`.
     """
 
     if TYPE_CHECKING:
-        _active_xprompt_arg_hint: ActiveXPromptArgHint | None
-        _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
+        _active_macro_arg_hint: ActiveMacroArgHint | None
+        _pending_macro_completion_spacer: PendingMacroCompletionSpacer | None
         _file_completion_active: bool
-        _xprompt_arg_assist_entries_by_project: dict[
-            str | None, list[XPromptAssistEntry]
-        ]
-        _xprompt_arg_assist_warming_projects: set[str | None]
-        _xprompt_arg_assist_worker_projects: dict[str, str | None]
+        _macro_arg_assist_entries_by_project: dict[str | None, list[MacroAssistEntry]]
+        _macro_arg_assist_warming_projects: set[str | None]
+        _macro_arg_assist_worker_projects: dict[str, str | None]
 
         @property
         def snippet_session_active(self) -> bool: ...
@@ -84,8 +82,8 @@ class XPromptArgHintMixin(_MixinBase):
             variables: Mapping[str, str] | None = None,
         ) -> bool: ...
 
-    def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
-        """Render the active xprompt argument hint through the prompt bar."""
+    def _show_macro_arg_hint(self, hint: ActiveMacroArgHint) -> None:
+        """Render the active macro argument hint through the prompt bar."""
         try:
             clearer = getattr(self, "_clear_next_word_chain", None)
             if callable(clearer):
@@ -94,19 +92,19 @@ class XPromptArgHintMixin(_MixinBase):
             pass
         bar = self._find_prompt_bar()
         if bar:
-            bar.show_xprompt_arg_hint(hint)
+            bar.show_macro_arg_hint(hint)
 
-    def _clear_xprompt_arg_hint(self) -> None:
-        """Clear active xprompt argument hint state and hide its panel."""
-        if self._active_xprompt_arg_hint is None:
+    def _clear_macro_arg_hint(self) -> None:
+        """Clear active macro argument hint state and hide its panel."""
+        if self._active_macro_arg_hint is None:
             return
-        self._active_xprompt_arg_hint = None
+        self._active_macro_arg_hint = None
         bar = self._find_prompt_bar()
         if bar and not self._file_completion_active:
             bar.hide_file_completions()
 
-    def _active_xprompt_hint_is_current(self) -> bool:
-        hint = self._active_xprompt_arg_hint
+    def _active_macro_hint_is_current(self) -> bool:
+        hint = self._active_macro_arg_hint
         if hint is None:
             return False
         return (
@@ -114,10 +112,10 @@ class XPromptArgHintMixin(_MixinBase):
         )
 
     def _cursor_may_need_arg_hint(self) -> bool:
-        """Return whether the cursor could sit inside an xprompt argument list.
+        """Return whether the cursor could sit inside a macro argument list.
 
         This mirrors the text scan at the top of
-        :meth:`_detect_xprompt_arg_hint_from_cursor`: when it returns False
+        :meth:`_detect_macro_arg_hint_from_cursor`: when it returns False
         detection would find nothing, so callers may skip the catalog-backed
         detect entirely. A leading-tag swap (for example a ``ctrl+n/p``
         cycle) never lands inside an argument list.
@@ -135,36 +133,33 @@ class XPromptArgHintMixin(_MixinBase):
         window = text[marker:cursor_offset]
         return (":" in window) or ("(" in window)
 
-    def _refresh_xprompt_arg_hint_from_cursor(self) -> None:
-        """Refresh typed xprompt arg hints and dismiss stale accepted hints."""
+    def _refresh_macro_arg_hint_from_cursor(self) -> None:
+        """Refresh typed macro arg hints and dismiss stale accepted hints."""
         if self._file_completion_active or self.snippet_session_active:
             return
 
-        if (
-            self._active_xprompt_arg_hint is None
-            and not self._cursor_may_need_arg_hint()
-        ):
+        if self._active_macro_arg_hint is None and not self._cursor_may_need_arg_hint():
             return
 
-        detected = self._detect_xprompt_arg_hint_from_cursor()
+        detected = self._detect_macro_arg_hint_from_cursor()
         if detected is not None:
-            if detected != self._active_xprompt_arg_hint:
-                self._active_xprompt_arg_hint = detected
-                self._show_xprompt_arg_hint(detected)
+            if detected != self._active_macro_arg_hint:
+                self._active_macro_arg_hint = detected
+                self._show_macro_arg_hint(detected)
             return
 
-        hint = self._active_xprompt_arg_hint
+        hint = self._active_macro_arg_hint
         if hint is None:
             return
-        if not self._active_xprompt_hint_is_current():
-            self._clear_xprompt_arg_hint()
+        if not self._active_macro_hint_is_current():
+            self._clear_macro_arg_hint()
             return
         cursor_offset = self._absolute_offset(self.cursor_location)
         if cursor_offset != hint.reference_end:
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
 
-    def _detect_xprompt_arg_hint_from_cursor(self) -> ActiveXPromptArgHint | None:
-        """Return a typed xprompt argument hint at the current cursor."""
+    def _detect_macro_arg_hint_from_cursor(self) -> ActiveMacroArgHint | None:
+        """Return a typed macro argument hint at the current cursor."""
         if "#" not in self.text:
             return None
         cursor_offset = self._absolute_offset(self.cursor_location)
@@ -172,17 +167,17 @@ class XPromptArgHintMixin(_MixinBase):
         marker = prefix.rfind("#")
         if marker == -1 or not any(ch in prefix[marker:] for ch in (":", "(")):
             return None
-        return detect_xprompt_arg_hint_at_cursor(
+        return detect_macro_arg_hint_at_cursor(
             self.text,
             cursor_offset,
-            self._get_xprompt_arg_assist_entries(),
+            self._get_macro_arg_assist_entries(),
         )
 
-    def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]:
-        """Return live local-xprompt assist entries from the parent prompt bar.
+    def _local_macro_assist_entries(self) -> list[MacroAssistEntry]:
+        """Return live local-macro assist entries from the parent prompt bar.
 
-        These come from the Frontmatter Panel's ``xprompts:`` field, so a
-        ``#_helper`` defined there is treated like a global xprompt by this
+        These come from the Frontmatter Panel's ``macros:`` field, so a
+        ``#_helper`` defined there is treated like a global macro by this
         pane's completion and argument-hint surfaces.  Empty when the pane is not
         hosted by a bar with frontmatter (e.g. feedback / approve bars).
         """
@@ -198,39 +193,37 @@ class XPromptArgHintMixin(_MixinBase):
             result = getter()
         return result if isinstance(result, list) else []
 
-    def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]:
-        """Return xprompt assist entries (project catalog + live local xprompts).
+    def _get_macro_arg_assist_entries(self) -> list[MacroAssistEntry]:
+        """Return macro assist entries (project catalog + live local macros).
 
-        The project catalog is cached per project; the live local xprompts are
+        The project catalog is cached per project; the live local macros are
         merged in fresh on every call so a helper edited in the Frontmatter Panel
         is instantly reflected in argument hints without invalidating the cache.
         """
-        project = self._xprompt_arg_assist_project_from_text()
-        entries = self._get_app_xprompt_arg_assist_entries(
+        project = self._macro_arg_assist_project_from_text()
+        entries = self._get_app_macro_arg_assist_entries(
             project,
             schedule=True,
         )
         if entries is None:
-            entries = self._xprompt_arg_assist_entries_by_project.get(project, [])
-        return merge_local_xprompt_entries(
-            entries, self._local_xprompt_assist_entries()
-        )
+            entries = self._macro_arg_assist_entries_by_project.get(project, [])
+        return merge_local_macro_entries(entries, self._local_macro_assist_entries())
 
-    def _get_warm_xprompt_arg_assist_entries(
+    def _get_warm_macro_arg_assist_entries(
         self,
-    ) -> list[XPromptAssistEntry] | None:
-        """Return warm xprompt entries for the current project, if available."""
-        project = self._xprompt_arg_assist_project_from_text()
-        entries = self._get_app_xprompt_arg_assist_entries(project, schedule=False)
+    ) -> list[MacroAssistEntry] | None:
+        """Return warm macro entries for the current project, if available."""
+        project = self._macro_arg_assist_project_from_text()
+        entries = self._get_app_macro_arg_assist_entries(project, schedule=False)
         if entries is not None:
             return entries
-        return self._xprompt_arg_assist_entries_by_project.get(project)
+        return self._macro_arg_assist_entries_by_project.get(project)
 
-    def _get_exact_warm_xprompt_arg_assist_entries(
+    def _get_exact_warm_macro_arg_assist_entries(
         self,
-    ) -> list[XPromptAssistEntry] | None:
+    ) -> list[MacroAssistEntry] | None:
         """Return only the exact warm project catalog used for skill syntax."""
-        project = self._xprompt_arg_assist_project_from_text()
+        project = self._macro_arg_assist_project_from_text()
         getter = getattr(
             self.app,
             "get_warm_prompt_catalog_assist_entries_exact",
@@ -239,24 +232,24 @@ class XPromptArgHintMixin(_MixinBase):
         if callable(getter):
             entries = getter(project)
             return entries if isinstance(entries, list) else None
-        return self._get_warm_xprompt_arg_assist_entries()
+        return self._get_warm_macro_arg_assist_entries()
 
-    def _warm_current_xprompt_assist_entries(self) -> None:
-        """Warm prompt-local xprompt entries for the current project in a worker."""
-        self._schedule_xprompt_assist_warm(self._xprompt_arg_assist_project_from_text())
+    def _warm_current_macro_assist_entries(self) -> None:
+        """Warm prompt-local macro entries for the current project in a worker."""
+        self._schedule_macro_assist_warm(self._macro_arg_assist_project_from_text())
 
-    def _schedule_xprompt_assist_warm(self, project: str | None) -> None:
+    def _schedule_macro_assist_warm(self, project: str | None) -> None:
         """Ask the app-owned prompt catalog to warm *project*."""
         warmer = getattr(self.app, "warm_prompt_catalog_project", None)
         if callable(warmer):
             warmer(project)
 
-    def _get_app_xprompt_arg_assist_entries(
+    def _get_app_macro_arg_assist_entries(
         self,
         project: str | None,
         *,
         schedule: bool,
-    ) -> list[XPromptAssistEntry] | None:
+    ) -> list[MacroAssistEntry] | None:
         getter = getattr(self.app, "get_prompt_catalog_assist_entries", None)
         if not callable(getter):
             return None
@@ -287,14 +280,14 @@ class XPromptArgHintMixin(_MixinBase):
             return None
         return canonical_macro_project(project)
 
-    def _xprompt_arg_assist_project_from_text(self) -> str | None:
-        """Derive xprompt context from a leading workspace target or the app.
+    def _macro_arg_assist_project_from_text(self) -> str | None:
+        """Derive macro context from a leading workspace target or the app.
 
         The target may be a ``+<project>`` tag or a ``#`` VCS ref; tags
         expand to their canonical ref first. The VCS tag yields a
         user-facing project name while the prompt context yields a
         ProjectSpec directory key, so both are normalized to the canonical
-        xprompt namespace. That keeps the app-level catalog cache keyed
+        macro namespace. That keeps the app-level catalog cache keyed
         consistently no matter which source wins.
         """
         prompt_text_area = _prompt_text_area_module()
@@ -332,40 +325,40 @@ class XPromptArgHintMixin(_MixinBase):
             return self._canonical_macro_project_for_keystroke(project_name)
         return None
 
-    def _maybe_show_inserted_xprompt_arg_hint(
+    def _maybe_show_inserted_macro_arg_hint(
         self,
         reference_start: int,
         reference_end: int,
     ) -> bool:
-        """Show a post-accept hint after non-completion xprompt insertion."""
-        hint = accepted_xprompt_arg_hint(
+        """Show a post-accept hint after non-completion macro insertion."""
+        hint = accepted_macro_arg_hint(
             self.text,
             reference_start,
             reference_end,
-            self._get_xprompt_arg_assist_entries(),
+            self._get_macro_arg_assist_entries(),
         )
         if hint is None:
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
             return False
-        self._active_xprompt_arg_hint = hint
-        self._show_xprompt_arg_hint(hint)
+        self._active_macro_arg_hint = hint
+        self._show_macro_arg_hint(hint)
         return True
 
-    def _can_apply_xprompt_arg_action(self) -> bool:
+    def _can_apply_macro_arg_action(self) -> bool:
         """Return True when an active hint can consume syntax action keys."""
-        hint = self._active_xprompt_arg_hint
-        if hint is None or not self._active_xprompt_hint_is_current():
+        hint = self._active_macro_arg_hint
+        if hint is None or not self._active_macro_hint_is_current():
             return False
         return self._absolute_offset(self.cursor_location) == hint.reference_end
 
-    def _apply_xprompt_colon_arg_hint(self) -> bool:
+    def _apply_macro_colon_arg_hint(self) -> bool:
         """Rewrite the accepted reference with colon-argument syntax."""
-        hint = self._active_xprompt_arg_hint
-        if hint is None or not self._active_xprompt_hint_is_current():
-            self._clear_xprompt_arg_hint()
+        hint = self._active_macro_arg_hint
+        if hint is None or not self._active_macro_hint_is_current():
+            self._clear_macro_arg_hint()
             return False
         if self._absolute_offset(self.cursor_location) != hint.reference_end:
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
             return False
 
         start = self._location_from_absolute(hint.reference_start)
@@ -374,7 +367,7 @@ class XPromptArgHintMixin(_MixinBase):
         self._replace_via_keyboard(replacement, start, end)
         new_end = hint.reference_start + len(replacement)
         self.cursor_location = self._location_from_absolute(new_end)
-        next_hint = ActiveXPromptArgHint(
+        next_hint = ActiveMacroArgHint(
             entry=hint.entry,
             reference_start=hint.reference_start,
             reference_end=new_end,
@@ -382,23 +375,23 @@ class XPromptArgHintMixin(_MixinBase):
             trigger_mode="colon",
             active_input_index=hint.active_input_index,
         )
-        self._active_xprompt_arg_hint = next_hint
-        self._show_xprompt_arg_hint(next_hint)
+        self._active_macro_arg_hint = next_hint
+        self._show_macro_arg_hint(next_hint)
         return True
 
-    def _apply_xprompt_named_arg_hint(self) -> bool:
+    def _apply_macro_named_arg_hint(self) -> bool:
         """Rewrite the accepted reference with a named-argument snippet."""
-        hint = self._active_xprompt_arg_hint
-        if hint is None or not self._active_xprompt_hint_is_current():
-            self._clear_xprompt_arg_hint()
+        hint = self._active_macro_arg_hint
+        if hint is None or not self._active_macro_hint_is_current():
+            self._clear_macro_arg_hint()
             return False
         if self._absolute_offset(self.cursor_location) != hint.reference_end:
-            self._clear_xprompt_arg_hint()
+            self._clear_macro_arg_hint()
             return False
 
         start = self._location_from_absolute(hint.reference_start)
         end = self._location_from_absolute(hint.reference_end)
-        self._clear_xprompt_arg_hint()
+        self._clear_macro_arg_hint()
         return self._expand_snippet_template_at_range(
             named_args_skeleton(hint.entry),
             start,
@@ -406,17 +399,17 @@ class XPromptArgHintMixin(_MixinBase):
             session_policy="nest",
         )
 
-    def _note_xprompt_completion_spacer(self, entry: XPromptAssistEntry) -> None:
-        """Record a trailing spacer left by an eligible xprompt completion.
+    def _note_macro_completion_spacer(self, entry: MacroAssistEntry) -> None:
+        """Record a trailing spacer left by an eligible macro completion.
 
-        Xprompts without required inputs complete to ``#name ``. Remembering
+        Macros without required inputs complete to ``#name ``. Remembering
         that exact spacer lets the next comma replace it for both no-input and
         optional-only entries, while a colon or opening parenthesis may
         replace it only when optional inputs exist. Must be called immediately
         after skeleton expansion while the cursor still sits right after the
         inserted space.
         """
-        self._pending_xprompt_completion_spacer = None
+        self._pending_macro_completion_spacer = None
         if not has_no_required_inputs(entry):
             return
         cursor_offset = self._absolute_offset(self.cursor_location)
@@ -428,16 +421,16 @@ class XPromptArgHintMixin(_MixinBase):
             return
         if self.text[reference_start:spacer_offset] != entry.insertion:
             return
-        self._pending_xprompt_completion_spacer = PendingXPromptCompletionSpacer(
+        self._pending_macro_completion_spacer = PendingMacroCompletionSpacer(
             spacer_offset=spacer_offset,
             reference_start=reference_start,
             reference_text=entry.insertion,
             has_optional_inputs=bool(entry.inputs),
         )
 
-    def _xprompt_completion_spacer_is_intact(
+    def _macro_completion_spacer_is_intact(
         self,
-        pending: PendingXPromptCompletionSpacer,
+        pending: PendingMacroCompletionSpacer,
     ) -> bool:
         """Return True while a pending spacer is still exactly as it was inserted.
 
@@ -459,9 +452,9 @@ class XPromptArgHintMixin(_MixinBase):
             return False
         return True
 
-    def _consume_xprompt_completion_spacer(
+    def _consume_macro_completion_spacer(
         self,
-        pending: PendingXPromptCompletionSpacer,
+        pending: PendingMacroCompletionSpacer,
         character: str | None,
     ) -> bool:
         """Replace a pending completion spacer with eligible punctuation.
@@ -474,21 +467,21 @@ class XPromptArgHintMixin(_MixinBase):
         """
         if character != "," and not (character == ":" and pending.has_optional_inputs):
             return False
-        if not self._xprompt_completion_spacer_is_intact(pending):
+        if not self._macro_completion_spacer_is_intact(pending):
             return False
         spacer_end = pending.spacer_offset + 1
         self._replace_absolute_range(pending.spacer_offset, spacer_end, character)
         return True
 
-    def _consume_xprompt_completion_spacer_for_tabstop(
+    def _consume_macro_completion_spacer_for_tabstop(
         self,
-        pending: PendingXPromptCompletionSpacer,
+        pending: PendingMacroCompletionSpacer,
         *,
         retreat: bool,
     ) -> bool:
         """Delete a pending completion spacer on the way to a snippet tabstop.
 
-        An xprompt with no required inputs completes to ``#name ``; when the very
+        A macro with no required inputs completes to ``#name ``; when the very
         next key jumps to another tabstop the reference is finished and that
         spacer is dead weight the user would otherwise delete by hand. Deleting
         before the jump lets the session engine remap the target stop for the
@@ -499,7 +492,7 @@ class XPromptArgHintMixin(_MixinBase):
         """
         if not self.snippet_session_active:
             return False
-        if not self._xprompt_completion_spacer_is_intact(pending):
+        if not self._macro_completion_spacer_is_intact(pending):
             return False
         if not self._snippet_tabstop_jump_moves(retreat=retreat):
             return False

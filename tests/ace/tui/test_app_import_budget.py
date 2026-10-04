@@ -21,7 +21,8 @@ _MAX_ELAPSED_SECONDS = 5.0
 # closure to 3536 (verified identical with and without the pager working
 # tree, stable across repeated measures). Restart-dependency helpers
 # (TUI-local blocker collector, overlay/submit accessors, install-mutation
-# classification) keep their extra imports lazy; the measured closure is
+# classification) keep their extra imports lazy. The tui-completion module
+# rename (sase-1eq.5.1.3) is also in this closure; the measured closure is
 # 3563. The deferred-module probe below is the heavy-edge guard; this
 # count only catches a wholesale closure regression.
 _MAX_MODULE_COUNT = 3570

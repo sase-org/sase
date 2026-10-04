@@ -226,7 +226,7 @@ async def test_fork_target_completion_png_snapshot(
             "#fork:",
             _TARGET_ROWS,
             selected_index=2,
-            completion_kind="xprompt_arg_agent",
+            completion_kind="macro_arg_agent",
         )
         await wait_for_svg_contains(page, "ship--code")
         await wait_for_visual_idle(page)

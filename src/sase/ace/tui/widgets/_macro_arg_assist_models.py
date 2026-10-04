@@ -1,4 +1,4 @@
-"""Data models for xprompt argument assist surfaces."""
+"""Data models for macro argument assist surfaces."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from sase.macro.models import MemoryType
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptInputHint:
-    """User-facing structured xprompt input metadata."""
+class MacroInputHint:
+    """User-facing structured macro input metadata."""
 
     name: str
     type: str
@@ -22,23 +22,23 @@ class XPromptInputHint:
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptArgNameMetadata:
+class MacroArgNameMetadata:
     """Metadata for a selectable keyword-argument name row."""
 
     reference_text: str
-    input_hint: XPromptInputHint
+    input_hint: MacroInputHint
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptAssistEntry:
-    """TUI-facing xprompt catalog entry used for inline assist surfaces."""
+class MacroAssistEntry:
+    """TUI-facing macro catalog entry used for inline assist surfaces."""
 
     name: str
     insertion: str
     reference_prefix: str
     kind: str
     input_signature: str | None
-    inputs: tuple[XPromptInputHint, ...]
+    inputs: tuple[MacroInputHint, ...]
     content_preview: str | None
     description: str | None = None
     is_skill: bool = False
@@ -48,10 +48,10 @@ class XPromptAssistEntry:
 
 
 @dataclass(frozen=True, slots=True)
-class ActiveXPromptArgHint:
+class ActiveMacroArgHint:
     """An active argument hint resolved at a prompt cursor position."""
 
-    entry: XPromptAssistEntry
+    entry: MacroAssistEntry
     reference_start: int
     reference_end: int
     reference_text: str
@@ -60,10 +60,10 @@ class ActiveXPromptArgHint:
 
 
 @dataclass(frozen=True, slots=True)
-class PendingXPromptCompletionSpacer:
-    """A trailing spacer left by an xprompt completion.
+class PendingMacroCompletionSpacer:
+    """A trailing spacer left by a macro completion.
 
-    Xprompts without required inputs complete to ``#name `` with a deliberate
+    Macros without required inputs complete to ``#name `` with a deliberate
     trailing space. This records the inserted spacer so the next typed
     punctuation can replace it in place. The recorded identity lets the edit
     layer confirm the cursor still sits immediately after the spacer and the
@@ -77,30 +77,30 @@ class PendingXPromptCompletionSpacer:
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptArgCompletionContext:
-    """Completion target resolved inside an xprompt argument list."""
+class MacroArgCompletionContext:
+    """Completion target resolved inside a macro argument list."""
 
-    entry: XPromptAssistEntry
+    entry: MacroAssistEntry
     completion_kind: Literal[
-        "xprompt_arg_path",
-        "xprompt_arg_value",
-        "xprompt_arg_agent",
-        "xprompt_arg_name",
-        "xprompt_arg_type_hint",
+        "macro_arg_path",
+        "macro_arg_value",
+        "macro_arg_agent",
+        "macro_arg_name",
+        "macro_arg_type_hint",
     ]
     value_start: int
     value_end: int
     token: str
-    active_input: XPromptInputHint | None = None
+    active_input: MacroInputHint | None = None
     used_arg_names: frozenset[str] = frozenset()
     selected_values: frozenset[str] = frozenset()
 
 
 __all__ = [
-    "ActiveXPromptArgHint",
-    "PendingXPromptCompletionSpacer",
-    "XPromptArgNameMetadata",
-    "XPromptArgCompletionContext",
-    "XPromptAssistEntry",
-    "XPromptInputHint",
+    "ActiveMacroArgHint",
+    "PendingMacroCompletionSpacer",
+    "MacroArgNameMetadata",
+    "MacroArgCompletionContext",
+    "MacroAssistEntry",
+    "MacroInputHint",
 ]

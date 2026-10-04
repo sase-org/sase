@@ -43,8 +43,8 @@ def _finder_candidates() -> list[CompletionCandidate]:
         "prompt_text_area.py",
         "recursive_file_finder.py",
         "directive_completion.py",
-        "xprompt_completion.py",
-        "xprompt_arg_assist.py",
+        "macro_completion.py",
+        "macro_arg_assist.py",
         "keybinding_footer.py",
         "changespec_detail.py",  # legacy compatibility retained PNG fixture path
         "bgcmd_list.py",

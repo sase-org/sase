@@ -126,7 +126,7 @@ class FileCompletionBaseInventoriesMixin(FileCompletionBasePanelMixin):
 
     def _wait_bead_project_key(self) -> str | None:
         """Return the project whose bead store should back directive completion."""
-        project = self._xprompt_arg_assist_project_from_text()
+        project = self._macro_arg_assist_project_from_text()
         if isinstance(project, str) and project:
             return project
         ctx = getattr(self.app, "_prompt_context", None)
