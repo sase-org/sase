@@ -17,7 +17,10 @@ from sase.ace.tui.models.finalizer_row_state import (
     _finalizer_row_state,
     finalizer_summary_token,
     _session_finalizer_row_state,
+    presented_status_label,
+    row_status_is_finalizing,
 )
+from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.widgets._agent_list_render_agent_status import (
     append_agent_row_status,
 )
@@ -208,6 +211,78 @@ def test_row_renders_finalizing_word_in_running_bucket() -> None:
     # D11: the overlay never changes the underlying status or its bucket.
     assert agent.status == "RUNNING"
     assert status_bucket_for_values("RUNNING") == "Running"
+
+
+def test_coder_working_status_rows_render_finalizing_overlay() -> None:
+    for working_status in ("WORKING TALE", "WORKING PLAN"):
+        agent = _agent(status=working_status, summary=_EXECUTING)
+
+        assert row_status_is_finalizing(agent) is True
+        assert presented_status_label(agent) == "FINALIZING"
+        plain = _render_row(agent)
+        assert "(FINALIZING)" in plain
+        assert "⊛ commit · just fix" in plain
+        assert "⊛!" not in plain
+        assert agent.status == working_status
+
+
+def test_coder_working_status_declaring_and_nonfinalizing_labels() -> None:
+    declaring = dict(_EXECUTING, phase="declaring")
+    agent = _agent(status="WORKING TALE", summary=declaring)
+    assert presented_status_label(agent) == "FINALIZING"
+
+    planned = {"phase": "planned", "instances": [{"id": "commit", "status": "planned"}]}
+    idle = _agent(status="WORKING TALE", summary=planned)
+    assert row_status_is_finalizing(idle) is False
+    assert "(WORKING TALE)" in _render_row(idle)
+
+
+def test_terminal_coder_status_keeps_interrupted_chip() -> None:
+    agent = _agent(status="TALE DONE", summary=_EXECUTING)
+
+    assert row_status_is_finalizing(agent) is False
+    assert "(TALE DONE)" in _render_row(agent)
+    assert "⊛! commit · just fix" in _render_row(agent)
+
+
+def test_status_normalization_preserves_finalizing_overlay_for_plan_session() -> None:
+    for plan_action, working_status in (
+        ("tale", "WORKING TALE"),
+        (None, "WORKING PLAN"),
+    ):
+        root = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="demo-code",
+            project_file="/tmp/p.sase",
+            status="DONE",
+            start_time=datetime(2026, 9, 27, 7, 30, 0),
+            raw_suffix="20260927073000-plan",
+            role_suffix=".plan",
+            plan_action=plan_action,
+            agent_session="s",
+            agent_session_role="root",
+        )
+        child = Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="demo-code",
+            project_file="/tmp/p.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 9, 27, 7, 40, 0),
+            raw_suffix="20260927074000-code",
+            parent_timestamp=root.raw_suffix,
+            role_suffix=".code",
+            agent_session="s",
+            agent_session_role="code",
+        )
+        child.finalizer_status = finalizer_status_from_mapping(_EXECUTING)
+
+        _apply_status_overrides([root, child])
+
+        assert root.status == working_status
+        assert child.status == working_status
+        for row in (root, child):
+            assert "(FINALIZING)" in _render_row(row)
+            assert "⊛!" not in _render_row(row)
 
 
 def test_row_done_failure_chip() -> None:

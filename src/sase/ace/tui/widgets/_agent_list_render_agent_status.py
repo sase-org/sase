@@ -164,11 +164,10 @@ def append_agent_row_status(
         text.append(display_status, style="bold #FFAF5F")
     elif agent.status == "STARTING":
         text.append(display_status, style="bold #87D7FF")  # Sky blue
+    elif row_status_is_finalizing(agent):
+        text.append("FINALIZING", style=f"bold {RUNNING_COLOR}")
     elif agent.status == "RUNNING":
-        if row_status_is_finalizing(agent):
-            text.append("FINALIZING", style=f"bold {RUNNING_COLOR}")
-        else:
-            text.append(display_status, style=f"bold {RUNNING_COLOR}")
+        text.append(display_status, style=f"bold {RUNNING_COLOR}")
     elif agent.status == "DONE":
         text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == STOPPED_STATUS:

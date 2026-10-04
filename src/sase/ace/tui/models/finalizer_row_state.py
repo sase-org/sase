@@ -2,8 +2,8 @@
 
 No I/O: the state derives from the agent's summary alone. Buckets,
 ordering, filters, capacity, ``agent_row_is_in_flight`` and row actions are
-untouched (plan D11); only the ``RUNNING`` word overlay and the ``⊛`` chip
-are derived here.
+untouched (plan D11); only the ``RUNNING`` and coder working-label word
+overlay and the ``⊛`` chip are derived here.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import WORKING_PLAN_STATUSES
 from sase.finalizers.view_vocabulary import FINAL_GLYPH, STATE_STYLES
 
 if TYPE_CHECKING:
@@ -19,6 +20,10 @@ if TYPE_CHECKING:
 
 #: Summary phases where finalization is under way (plan C5).
 ACTIVE_PHASES = frozenset({"declaring", "executing"})
+
+#: Live-turn status words the FINALIZING overlay may replace: raw ``RUNNING``
+#: plus the coder relabels an approved plan/tale handoff applies to it.
+_FINALIZING_OVERLAY_STATUSES = frozenset({"RUNNING", *WORKING_PLAN_STATUSES})
 
 #: D10 severity order for the session supersede rule.
 _CHIP_SEVERITY: dict[str, int] = {
@@ -85,13 +90,13 @@ def _member_candidates(
 ) -> list[tuple[str, str | None, str | None, str | None]]:
     """Return ``(state_key, id, op, step)`` rows for one turn's summary.
 
-    A ``running`` instance on a non-RUNNING turn derives to ``interrupted``:
+    A ``running`` instance on a non-live turn derives to ``interrupted``:
     the turn ended while finalization never settled.
     """
     summary = agent.finalizer_status
     if summary is None:
         return []
-    turn_terminal = agent.status != "RUNNING"
+    turn_terminal = agent.status not in _FINALIZING_OVERLAY_STATUSES
     rows: list[tuple[str, str | None, str | None, str | None]] = []
     for instance in summary.instances:
         status = instance.status or ""
@@ -145,10 +150,10 @@ def glance_finalizer_state(agent: Agent) -> _FinalizerRowState:
 
 def row_status_is_finalizing(agent: Agent) -> bool:
     """Return whether *agent*'s status word presents as ``FINALIZING``."""
+    if agent.status not in _FINALIZING_OVERLAY_STATUSES:
+        return False
     from sase.ace.tui.models._agent_clan import status_display_agent
 
-    if agent.status != "RUNNING":
-        return False
     return glance_finalizer_state(status_display_agent(agent)).is_finalizing
 
 
@@ -162,14 +167,17 @@ def presented_status_label(agent: Agent) -> str:
 def _finalizer_row_state(agent: Agent) -> _FinalizerRowState:
     """Derive the glance state for one agent row (plan §3.5, D11).
 
-    ``FINALIZING`` overlays the ``RUNNING`` word only; warnings never produce
-    a chip and ``success`` stays silent.
+    ``FINALIZING`` overlays the ``RUNNING`` or coder working-label word only;
+    warnings never produce a chip and ``success`` stays silent.
     """
     summary = agent.finalizer_status
     if summary is None:
         return _FinalizerRowState()
     state = _pick_chip(_member_candidates(agent))
-    is_finalizing = summary.phase in ACTIVE_PHASES and agent.display_status == "RUNNING"
+    is_finalizing = (
+        summary.phase in ACTIVE_PHASES
+        and agent.display_status in _FINALIZING_OVERLAY_STATUSES
+    )
     return _FinalizerRowState(
         is_finalizing=is_finalizing,
         chip_text=state.chip_text,
@@ -238,7 +246,7 @@ def _session_finalizer_row_state(
     text = _chip_text(best_key, instance_id or "", op, step)
     if len(considered) > 1:
         text += f" · {len(winners)} of {len(considered)} runs"
-    is_finalizing = container.display_status == "RUNNING" and any(
+    is_finalizing = container.display_status in _FINALIZING_OVERLAY_STATUSES and any(
         turn.finalizer_status is not None
         and turn.finalizer_status.phase in ACTIVE_PHASES
         for turn in considered
