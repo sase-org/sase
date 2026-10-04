@@ -4,8 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+import sase.dev_update._plan_roots as plan_mod
 from sase.version._git import GitProbeResult, GitUpstreamStatus
 from sase.version._models import GitVersionMetadata, VersionPackageRecord
+
+
+@pytest.fixture(autouse=True)
+def stub_fetch_git_upstream(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(plan_mod, "fetch_git_upstream", lambda _status: None)
 
 
 def record(
