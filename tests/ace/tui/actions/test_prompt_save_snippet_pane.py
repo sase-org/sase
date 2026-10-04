@@ -118,11 +118,11 @@ async def test_gt_new_snippet_loop_writes_publishes_expands_and_restores_cursor(
 
     with (
         patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._resolve_snippet_target",
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location._resolve_snippet_target",
             return_value=target,
         ),
         patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_locations",
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location._load_snippet_locations",
             return_value=[
                 SnippetConfigLocation(
                     "User sase.yml",
@@ -132,15 +132,15 @@ async def test_gt_new_snippet_loop_writes_publishes_expands_and_restores_cursor(
             ],
         ),
         patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_catalog",
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location._load_snippet_catalog",
             return_value=_empty_snippet_catalog(),
         ),
         patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_last_used_path",
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location._load_snippet_last_used_path",
             return_value=None,
         ),
         patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_names_by_path",
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location._load_snippet_names_by_path",
             return_value={str(config): frozenset()},
         ),
         patch("sase.macro.save_state.save_last_used_location", return_value=True),

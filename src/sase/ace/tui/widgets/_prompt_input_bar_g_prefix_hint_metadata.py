@@ -241,7 +241,7 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
         snippet = self._stack.snippet_item
         if snippet is not None and snippet.snippet_target is not None:
             return f"rename ⇥ {snippet.snippet_target.trigger}…"
-        return "new snippet…"
+        return "new / edit snippet…"
 
     def _g_prefix_label_mini_macro_target(self) -> str:
         """Return the ``gx`` label."""

@@ -52,6 +52,7 @@ async def _open_snippet(
     *,
     origin_pane_id: str | None = None,
     destination_exists: bool = False,
+    replace_draft: bool = False,
 ) -> None:
     if origin_pane_id is None:
         origin_pane_id = bar.active_text_area().id or ""
@@ -60,6 +61,7 @@ async def _open_snippet(
         origin_pane_id=origin_pane_id,
         destination_exists=destination_exists,
         loaded_fingerprint=None,
+        replace_draft=replace_draft,
     )
     await pilot.pause()
     await pilot.pause()
@@ -184,6 +186,43 @@ async def test_gt_retargets_existing_snippet_without_replacing_body(
         assert target.trigger == "new"
         assert target.loaded_body == "new loaded"
         assert bar._stack.snippet_index == 1
+
+
+async def test_replace_draft_replaces_body_and_keeps_focus_restore(
+    tmp_path: Path,
+) -> None:
+    app = CaptureApp("agent prompt")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_snippet(
+            pilot,
+            bar,
+            _name_result(tmp_path, trigger="old", existing_body="old body"),
+            destination_exists=True,
+        )
+        restore = bar._snippet_focus_restore
+        bar.active_text_area().text = "user draft"
+        bar._sync_state_from_widgets()
+
+        await _open_snippet(
+            pilot,
+            bar,
+            _name_result(tmp_path, trigger="other", existing_body="replacement body"),
+            origin_pane_id=bar.active_text_area().id or "",
+            destination_exists=True,
+            replace_draft=True,
+        )
+
+        assert bar.active_text() == "replacement body"
+        target = bar._stack.snippet_item.snippet_target
+        assert target is not None
+        assert target.trigger == "other"
+        assert target.loaded_body == "replacement body"
+        assert not bar._stack.snippet_is_dirty
+        assert bar._snippet_focus_restore is restore
+        assert bar.active_text_area()._vim_mode == "insert"
 
 
 async def test_enter_in_snippet_pane_requests_save_without_launch(

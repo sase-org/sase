@@ -76,7 +76,7 @@ async def test_bound_height_g_prefix_hints_show_remainder() -> None:
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" not in plain
         assert "gs   stash all panes" not in plain
-        assert "gt   new snippet…" not in plain
+        assert "gt   new / edit snippet…" not in plain
         assert "... +8 more" in plain
 
 
@@ -106,7 +106,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
-        assert "^Gt / ^G^T   new snippet…" in plain
+        assert "^Gt / ^G^T   new / edit snippet…" in plain
         assert "^Gx   new / edit mini-macro…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
@@ -147,7 +147,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
-        assert "^Gt / ^G^T   new snippet…" in plain
+        assert "^Gt / ^G^T   new / edit snippet…" in plain
         assert "^Gx   new / edit mini-macro…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "... +5 more" in plain

@@ -16,6 +16,9 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane import (
     PromptBarSnippetPaneMixin,
 )
+from sase.ace.tui.actions.agent_workflow import (
+    _prompt_bar_snippet_location as location_mod,
+)
 from sase.ace.tui.modals.save_location_picker_modal import SaveLocationPickerModal
 from sase.ace.tui.modals.snippet_name_modal import (
     SnippetNameModal,
@@ -81,9 +84,10 @@ def _patches(
     last_used: str | None = None,
     names: dict[str, frozenset[str]] | None = None,
     gate: threading.Event | None = None,
+    catalog: object | None = None,
 ) -> ExitStack:
     stack = ExitStack()
-    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane"
+    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location"
     if gate is not None:
         stack.enter_context(
             patch(
@@ -99,7 +103,9 @@ def _patches(
     stack.enter_context(
         patch(
             f"{base}._load_snippet_catalog",
-            return_value=_build_snippet_catalog(
+            return_value=catalog
+            if catalog is not None
+            else _build_snippet_catalog(
                 SnippetCatalogContext(
                     key=None, name=None, aliases=(), workspace_dir=None
                 ),
@@ -370,13 +376,11 @@ async def test_origin_vanished_closes_picker_with_warning(tmp_path: Path) -> Non
 
 async def test_origin_lost_during_choice_build_closes_picker(tmp_path: Path) -> None:
     """Origin loss inside the off-thread choice build must not orphan a picker."""
-    import sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane as pane_mod
-
     config = tmp_path / "sase.yml"
     _write_snippet_config(config, {})
     gate = threading.Event()
     entered = threading.Event()
-    real_build = pane_mod._build_snippet_picker_tables
+    real_build = location_mod._picker_payload
 
     def _gated_build(*args: object, **kwargs: object) -> object:
         entered.set()
@@ -384,9 +388,9 @@ async def test_origin_lost_during_choice_build_closes_picker(tmp_path: Path) -> 
         return real_build(*args, **kwargs)  # type: ignore[arg-type]
 
     app = _SnippetFlowApp("agent prompt")
-    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane"
+    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location"
     with _patches(target=_target(config), locations=[_user_location(config)]):
-        with patch(f"{base}._build_snippet_picker_tables", side_effect=_gated_build):
+        with patch(f"{base}._picker_payload", side_effect=_gated_build):
             async with app.run_test(size=(110, 34)) as pilot:
                 await pilot.pause()
                 bar = app.query_one(PromptInputBar)
@@ -414,11 +418,9 @@ async def test_origin_lost_during_choice_build_closes_picker(tmp_path: Path) -> 
 
 async def test_shift_tab_reload_error_shows_error(tmp_path: Path) -> None:
     """A Shift+Tab rebuild failure must surface, not hang on loading."""
-    import sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane as pane_mod
-
     config = tmp_path / "sase.yml"
     _write_snippet_config(config, {"todo": "TODO($1): $0"})
-    real_build = pane_mod._build_snippet_picker_tables
+    real_build = location_mod._picker_payload
     calls = 0
 
     def _fail_on_reload(*args: object, **kwargs: object) -> object:
@@ -429,13 +431,13 @@ async def test_shift_tab_reload_error_shows_error(tmp_path: Path) -> None:
         return real_build(*args, **kwargs)  # type: ignore[arg-type]
 
     app = _SnippetFlowApp("agent prompt")
-    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane"
+    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location"
     with _patches(
         target=_target(config),
         locations=[_user_location(config)],
         names={str(config): frozenset({"todo"})},
     ):
-        with patch(f"{base}._build_snippet_picker_tables", side_effect=_fail_on_reload):
+        with patch(f"{base}._picker_payload", side_effect=_fail_on_reload):
             async with app.run_test(size=(110, 34)) as pilot:
                 await pilot.pause()
                 await pilot.press("escape")
@@ -463,11 +465,9 @@ async def test_shift_tab_reload_error_shows_error(tmp_path: Path) -> None:
 
 async def test_shift_tab_origin_lost_closes_picker(tmp_path: Path) -> None:
     """Origin loss during a Shift+Tab rebuild closes the picker with a warning."""
-    import sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane as pane_mod
-
     config = tmp_path / "sase.yml"
     _write_snippet_config(config, {"todo": "TODO($1): $0"})
-    real_build = pane_mod._build_snippet_picker_tables
+    real_build = location_mod._picker_payload
     gate = threading.Event()
     entered = threading.Event()
     calls = 0
@@ -481,13 +481,13 @@ async def test_shift_tab_origin_lost_closes_picker(tmp_path: Path) -> None:
         return real_build(*args, **kwargs)  # type: ignore[arg-type]
 
     app = _SnippetFlowApp("agent prompt")
-    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane"
+    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_location"
     with _patches(
         target=_target(config),
         locations=[_user_location(config)],
         names={str(config): frozenset({"todo"})},
     ):
-        with patch(f"{base}._build_snippet_picker_tables", side_effect=_gate_reload):
+        with patch(f"{base}._picker_payload", side_effect=_gate_reload):
             async with app.run_test(size=(110, 34)) as pilot:
                 await pilot.pause()
                 bar = app.query_one(PromptInputBar)

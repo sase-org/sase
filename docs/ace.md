@@ -6972,7 +6972,7 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                                                                                                                                                                                                                  |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                                                                                                                                                                                                        |
 | `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open, retarget, or edit an existing mini-macro pane                                                                                                                                                                                                                                                                             |
-| `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                                                                                                                                                |
+| `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open, retarget, or edit an existing snippet pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                                                                                                                                                                      |
 | `Ctrl+G X`                   | Save as reusable macro/snippet; macro mode converts raw `<tags>`                                                                                                                                                                                                                                                                |
 | `Ctrl+G L`                   | Convert the active pane into a frontmatter-local macro; raw `<tags>` become inputs                                                                                                                                                                                                                                              |
 | `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                                                                                                                                                                                                   |
@@ -7225,7 +7225,7 @@ prefix actions currently available.
 | `gd`        | Edit the macro definition under the cursor in the prompt bar                                                                                                                        |
 | `gf`        | Reformat the active prompt pane's Markdown with Prettier                                                                                                                            |
 | `gx`        | Open, retarget, or edit an existing mini-macro pane                                                                                                                                 |
-| `gt`        | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                    |
+| `gt`        | Open, retarget, or edit an existing snippet pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                          |
 | `gX`        | Save as reusable macro/snippet; macro mode converts raw `<tags>` and leaves the bar open                                                                                            |
 | `gL`        | Convert the active pane into a frontmatter-local macro; raw `<tags>` become inputs                                                                                                  |
 
@@ -9386,8 +9386,10 @@ snippet pane at the bottom of the prompt input stack, a faster loop than the gen
 save panel above when you already know you're authoring a trigger:
 
 1. **Choose where.** `gt` first shows the [location picker](#save-location-picker): one
-   keypress picks the config file and `Enter` accepts the `★` default. Keys typed while
-   the destinations load are kept as type-ahead for the next step.
+   keypress picks the config file and `Enter` accepts the `★` default. Press `e` to
+   fuzzy-find an existing snippet and edit it in place, or start a guided override when
+   the definition is read-only. Keys typed while the destinations load are kept as
+   type-ahead for the next step.
 2. **Name it.** The trigger-name panel shows the locked destination (`⇧Tab` goes back to
    change it): type a trigger and it validates live, lists up to six existing triggers
    that share your typed prefix (`Tab` completes to the highlighted one, and `↑`/`↓` or

@@ -109,6 +109,7 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
         origin_pane_id: str,
         destination_exists: bool,
         loaded_fingerprint: SourceFingerprint | None,
+        replace_draft: bool = False,
     ) -> bool:
         """Open or retarget the single pinned snippet pane from a name result."""
         if self._mode != "prompt" or not self.is_mounted:
@@ -121,6 +122,18 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
         )
         snippet_index = self._stack.snippet_index
         if snippet_index is not None:
+            current = self._stack.snippet_item
+            if current is None:
+                return False
+            if replace_draft:
+                current.text = result.existing_body or ""
+                self._stack.retarget_snippet_pane(target)
+                self._stack.selected_index = snippet_index
+                self._clear_active_completion_state()
+                self._rebuild_stack(enter_mode="insert")
+                self._refresh_title()
+                self.refresh_cursor_readouts()
+                return True
             self._stack.retarget_snippet_pane(target)
             self.focus_item(snippet_index)
             self._refresh_title()

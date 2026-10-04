@@ -8,6 +8,9 @@ import pytest
 import yaml
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agent_workflow import (
+    _prompt_bar_snippet_location as location_mod,
+)
 from sase.ace.tui.modals.save_location_choices import snippet_location_choices
 from sase.ace.tui.modals.save_location_picker_modal import SaveLocationPickerModal
 from sase.ace.tui.modals.snippet_name_modal import SnippetNameModal
@@ -24,6 +27,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
+from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import mount_prompt_bar
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
@@ -178,4 +182,98 @@ async def test_snippet_location_flow_picker_png_snapshot(
             page,
             "snippet_location_flow_picker_120x40",
             title="ACE snippet location flow — picker",
+        )
+
+
+async def test_snippet_location_flow_finder_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Picker → finder live-flow on ``gt`` then ``e`` with a seeded catalog."""
+    patch_startup_loaders(monkeypatch)
+    user = tmp_path / "user.yml"
+    project = tmp_path / "sase" / "sase.yml"
+    _write_snippets(user, {"todo": "TODO($1): $0"})
+    _write_snippets(project, {"todo": "- [ ] follow up"})
+    locations = [
+        SnippetConfigLocation(
+            label="Project sase/sase.yml",
+            path=str(project),
+            display_path="./sase/sase.yml",
+        ),
+        SnippetConfigLocation(
+            label="User sase.yml",
+            path=str(user),
+            display_path="~/.config/sase/sase.yml",
+        ),
+    ]
+    target = _target(user, "~/.config/sase/sase.yml")
+    catalog = _build_snippet_catalog(
+        SnippetCatalogContext(key=None, name="visual", aliases=(), workspace_dir=None),
+        macro_entries=(),
+        config_contributions=(
+            SnippetSourceContribution(
+                trigger="todo",
+                template="TODO($1): $0",
+                kind="user",
+                path=str(user),
+                display_path="~/.config/sase/sase.yml",
+                writable=True,
+                layer="user",
+            ),
+            SnippetSourceContribution(
+                trigger="todo",
+                template="- [ ] follow up",
+                kind="project",
+                path=str(project),
+                display_path="./sase/sase.yml",
+                writable=True,
+                layer="local",
+            ),
+            SnippetSourceContribution(
+                trigger="help",
+                template="plugin help",
+                kind="plugin",
+                path=None,
+                display_path="plugin sase_help",
+                writable=False,
+                layer="plugin:sase_help",
+            ),
+        ),
+        layer_paths=(str(user), str(project)),
+        layer_names=("user", "local"),
+    )
+    monkeypatch.setattr(
+        location_mod, "_load_snippet_locations", lambda _project: locations
+    )
+    monkeypatch.setattr(
+        location_mod, "_resolve_snippet_target", lambda _configured: target
+    )
+    monkeypatch.setattr(location_mod, "_load_snippet_catalog", lambda _project: catalog)
+    monkeypatch.setattr(location_mod, "_load_snippet_last_used_path", lambda: None)
+    monkeypatch.setattr(
+        location_mod,
+        "_load_snippet_names_by_path",
+        lambda _project, _configured: {
+            str(user): frozenset({"todo"}),
+            str(project): frozenset({"todo"}),
+        },
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await mount_prompt_bar(page, "Summarize the risky assumptions.")
+        await page.press("escape")
+        await page.press("g", "t")
+        await page.expect_modal("SaveLocationPickerModal")
+        await wait_for_svg_contains(page, "2 snippets")
+        await page.press("e")
+        await page.expect_modal("ExistingDefinitionFinderModal")
+        await wait_for_svg_contains(page, "Edit existing snippet")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "snippet_location_flow_finder_120x40",
+            title="ACE snippet location flow — existing finder",
         )
