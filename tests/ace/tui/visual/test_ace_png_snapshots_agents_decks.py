@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from io import StringIO
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -85,12 +88,58 @@ def _long_reply_agent(tmp_path: Path) -> Agent:
     return agent
 
 
+def _live_reply_agent(tmp_path: Path) -> Agent:
+    """Build an in-flight Muse reply whose artifact can grow between frames."""
+    artifacts_dir = tmp_path / "live-reply-artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        "Launch live reply fixture\n", encoding="utf-8"
+    )
+    (artifacts_dir / "01_prompt.md").write_text(
+        "Keep the reply visible while it is still streaming.\n", encoding="utf-8"
+    )
+    (artifacts_dir / "live_reply.md").write_text(
+        "This answer is still arriving in the Main Reply card.\n\nCurrent progress: ",
+        encoding="utf-8",
+    )
+    (artifacts_dir / "live_reply_timestamps.jsonl").write_text(
+        json.dumps(
+            {
+                "byte_offset": 0,
+                "timestamp": "2026-10-03T12:34:56+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-live-reply",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 10, 3, 12, 0, 0),
+        raw_suffix="20261003-120000-live-reply",
+        agent_name="visual-live-reply",
+        llm_provider="muse",
+        model="muse-spark-1.2",
+        artifacts_dir=str(artifacts_dir),
+    )
+
+
 def _subtitle_plain(detail: AgentDetail, panel_index: int = 0) -> str:
     return detail.deck_area.panel(panel_index)._border_subtitle.plain
 
 
 def _title_plain(detail: AgentDetail, panel_index: int = 0) -> str:
     return detail.deck_area.panel(panel_index)._border_title.plain
+
+
+def _reply_card_text(detail: AgentDetail) -> str:
+    card = detail._main_deck_document.card("reply")
+    assert card is not None
+    console = Console(file=StringIO(), record=True, width=120)
+    console.print(card)
+    return console.export_text()
 
 
 async def _goto_agents(page: AcePage, count: int) -> None:
@@ -136,6 +185,96 @@ async def test_agents_decks_single_main_reply_png_snapshot(
             page,
             "agents_decks_single_main_reply_120x40",
             title="ACE agents decks single Main on Reply",
+        )
+
+
+async def test_agents_decks_live_reply_partial_and_growth_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    agent = _live_reply_agent(tmp_path)
+    artifacts_dir = Path(agent.artifacts_dir or "")
+    reply_path = artifacts_dir / "live_reply.md"
+    timestamps_path = artifacts_dir / "live_reply_timestamps.jsonl"
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual-live-reply"', patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await wait_for_state(
+            page,
+            lambda: set(detail._main_deck_document.card_ids) == {"context", "reply"},
+            description="live Main deck has Context and Reply cards",
+        )
+        await page.press("ctrl+j")
+        await wait_for_visual_idle(page)
+        single_panel = detail.deck_area.panel(0)
+        assert single_panel.main_view.active_card_id == "reply"
+        assert "Current progress:" in _reply_card_text(detail)
+        assert "more detail remains" not in _reply_card_text(detail)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_live_reply_single_partial_120x40",
+            title="ACE live Reply card while Muse is still streaming",
+        )
+
+        reply_path.write_text(
+            "This answer is still arriving in the Main Reply card.\n\n"
+            "Current progress: more detail remains before terminal completion.",
+            encoding="utf-8",
+        )
+        page.app._on_artifact_change((reply_path, timestamps_path))
+        await wait_for_state(
+            page,
+            lambda: "more detail remains" in _reply_card_text(detail),
+            description="grown live Reply content is visible",
+        )
+        assert single_panel.main_view.active_card_id == "reply"
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_live_reply_single_grown_120x40",
+            title="ACE live Reply card after Muse emits more text",
+        )
+
+        detail.deck_area.panel(0)._availability = {
+            DeckId.MAIN: DeckAvailability(True, 2),
+            DeckId.FILES: DeckAvailability(False, 0),
+            DeckId.TOOLS: DeckAvailability(False, 0),
+        }
+        await page.press("vertical_line")
+        await wait_for_state(
+            page,
+            lambda: (
+                detail.deck_area.panel(1).deck is DeckId.MAIN
+                and detail.deck_area.panel(0).main_view.active_card_id == "reply"
+            ),
+            description="split Main pane keeps the live Reply card visible",
+        )
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_live_reply_split_grown_120x40",
+            title="ACE split Main decks with a growing Reply card",
+        )
+
+        reply_path.write_text(
+            "This answer is still arriving in the Main Reply card.\n\n"
+            "Current progress: ",
+            encoding="utf-8",
+        )
+        page.app._on_artifact_change((reply_path, timestamps_path))
+        await wait_for_state(
+            page,
+            lambda: "more detail remains" not in _reply_card_text(detail),
+            description="split Main decks return to the partial live reply",
+        )
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_live_reply_split_partial_120x40",
+            title="ACE split Main decks before Muse finishes its reply",
         )
 
 

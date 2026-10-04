@@ -105,7 +105,14 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
             for path in changed_paths
         ):
             return
-        get_panel = getattr(self, "_deck_source_panel", None)
+        query_one = getattr(self, "query_one", None)
+        if not callable(query_one):
+            return
+        try:
+            detail = query_one("#agent-detail-panel")
+        except Exception:
+            return
+        get_panel = getattr(detail, "_deck_source_panel", None)
         if not callable(get_panel):
             return
         try:

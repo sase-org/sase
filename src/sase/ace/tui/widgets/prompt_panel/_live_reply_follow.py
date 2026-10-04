@@ -435,7 +435,7 @@ class LiveReplyFollowMixin:
         self._live_reply_scheduled = True
         try:
             self._live_reply_timer = self.set_timer(  # type: ignore[attr-defined]
-                max(0.0, delay), self._live_reply_timer_fired
+                max(0.001, delay), self._live_reply_timer_fired
             )
         except Exception:
             self._live_reply_scheduled = False

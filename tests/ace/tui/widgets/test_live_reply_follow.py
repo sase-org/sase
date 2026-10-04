@@ -154,7 +154,8 @@ def test_reply_watcher_event_reaches_controller_without_dirtying_agents(
 
     app = _FakeApp(watcher_active=True)
     panel = ReplyPanel()
-    app._deck_source_panel = lambda: panel  # type: ignore[attr-defined]
+    detail = SimpleNamespace(_deck_source_panel=lambda: panel)
+    app.query_one = lambda _selector: detail  # type: ignore[attr-defined]
 
     app._on_artifact_change((reply_path,))
 

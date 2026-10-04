@@ -422,6 +422,7 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         return active
 
     def _show_document_spread(self, document: CardDocument) -> str | None:
+        previous_active = self._active_card
         self.prepare_section_document((document.subject, "spread"))
         try:
             accent = self._spread_accent()
@@ -481,6 +482,12 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
                 # Same as above: explicit navigation wins over the stale
                 # scroll offset until the deferred scroll is applied.
                 self._active_card = pending
+            elif previous_active in document.card_ids:
+                # A same-subject document refresh (including a growing live
+                # Reply) can shift card anchor rows while preserving the
+                # reader's scroll offset. Keep the selected card identity;
+                # scroll events will derive a new card if the reader moves.
+                self._active_card = previous_active
             else:
                 derived = self.spread_active_card()
                 if derived is not None:

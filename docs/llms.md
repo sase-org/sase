@@ -3232,6 +3232,17 @@ that exact path); providers with token counters write `<SASE_ARTIFACTS_DIR>/usag
 Muse records the model it actually configured and its session id in
 `<SASE_ARTIFACTS_DIR>/run_metadata.json`.
 
+ACE follows reply growth in the Main Reply card for the selected live agent.
+File-watcher events drive the normal update, with a one-second stat-only poll as a
+backstop; reply writes do not reload the Agents roster. The provider's terminal reply
+remains authoritative for the invocation result, while streamed deltas are the visible
+in-progress copy and a salvage source when terminal text is unavailable. Muse controls
+when it emits text: it is usually quiet through tool work, replies tend to arrive near
+the end of generation, and a short answer may arrive as one burst. ACE displays
+available deltas promptly but cannot show text Muse has not emitted. Under Rich's
+interactive provider timer, console output keeps fragments together until a newline;
+plain stdout and agent logs continue flushing fragments as they arrive.
+
 ### Output Suppression
 
 When `suppress_output=True`, lines are still captured but not printed to the console.
