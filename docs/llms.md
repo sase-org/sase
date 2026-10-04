@@ -866,17 +866,22 @@ and `payload`. SASE's parser rules, in priority order:
 1. **`run.terminal.completed` → `payload.text` is the authoritative reply.**
    `payload.terminal` is the outcome and `payload.reason` the detail; SASE parses those
    fields and never pattern-matches reply text.
-2. **`run.output.delta` is for live display only.** It is marked `ephemeral` and carries
-   incremental fragments, split mid-word and mid-inline-code, that concatenate to the
-   text the terminal event later carries in full. SASE coalesces the deltas of one run
-   stream (keyed by `command_id`, then `run_stream.id`) into a single timestamped
+2. **`run.output.delta` updates the live reply as fragments arrive.** It is marked
+   `ephemeral` and carries incremental fragments, split mid-word and mid-inline-code.
+   When a later terminal event carries text, those fragments are the pieces of that
+   text. SASE coalesces the deltas of one run stream (keyed by `command_id`, then
+   `run_stream.id`, otherwise one unkeyed stream) into a single timestamped
    `live_reply.md` chunk, so the panel shows one divider and intact prose per run. Each
-   delta is appended to that file as it arrives. When stdout is Rich's Live `FileProxy`,
-   SASE does not flush the proxy after every fragment, so a streamed reply is not split
-   across terminal lines mid-word; any other stdout still flushes each delta. A later
-   run stream is written into `live_reply.md` after a blank line. The deltas are never
-   appended to the returned content, so replies do not double; they are only used to
-   rebuild the reply when no `run.terminal.*` event arrives.
+   delta is appended to that file and flushed as it arrives. When stdout is Rich's Live
+   `FileProxy`, SASE does not flush the proxy after every fragment, so a streamed reply
+   is not split across terminal lines mid-word. The open chunk is flushed to the
+   terminal when that chunk closes: the next run stream, a matching terminal event, or
+   the end of the subprocess read. Any other stdout still flushes each delta. A later
+   run stream is written into `live_reply.md` after a blank line. Deltas are not added
+   on top of `payload.text`. When a terminal event carries text, that text is the
+   returned reply. When no terminal event arrives, or a terminal event arrives with no
+   text, the concatenated deltas are the reply. Only a missing terminal event is
+   recorded as a schema diagnostic.
 3. **A failed, rejected, or cancelled task is not a failed run.** Muse emits
    `task.lifecycle.rejected` (`reason: "skip_if_running"`) and
    `task.lifecycle.cancelled` (`reason: "main run completed"`) on runs that exit `0`.
@@ -3189,25 +3194,34 @@ share the same artifact hooks for live replies and usage files.
 2. The prompt is supplied using the provider's documented transport, either stdin or an
    argv message argument.
 3. Stdout and stderr are set to **non-blocking** mode via `os.set_blocking()`.
-4. A `select.select()` loop polls both streams. The wait is 0.1s unless decoded JSONL
-   records are already waiting, in which case the loop services them immediately.
-5. Plain-text providers read complete lines. JSON-line providers read the pipes as raw
-   bytes in bounded chunks (64 KiB reads, and at most 256 KiB or 256 stdout records
-   before the turn checks the other pipe, the process, and the teardown watchdog). An
-   incremental UTF-8 decoder keeps a character that is split across reads, and
-   undecodable bytes are replaced. Complete stdout records are dispatched as they are
-   decoded, including when one write contains many lines. A partial trailing line waits
-   for the next read.
-6. After the process exits (`process.poll() is not None`), any remaining buffered output
-   is drained, including a final JSONL stdout record that has no trailing newline.
+4. A `select.select()` loop polls both streams. Plain-text providers wait 0.1 seconds on
+   every poll. JSON-line providers also wait 0.1 seconds, unless stdout records have
+   already been decoded and are waiting. Those records are dispatched before the loop
+   blocks, and stdout is not read again until that backlog is clear. Stderr can still be
+   read on the same turn.
+5. Plain-text providers read complete lines through the text wrapper. JSON-line
+   providers read raw bytes: each read is at most 64 KiB, and one turn takes at most 256
+   KiB from a pipe or 256 stdout records before it polls the process and can read the
+   other pipe. The two pipes alternate which is served first. An incremental UTF-8
+   decoder keeps a character that is split across reads, and undecodable bytes are
+   replaced. Each complete stdout record is dispatched as it is decoded, including when
+   one write contains many lines. A partial trailing line waits for the next read.
+6. After the process exits, a normal shutdown drains whatever is still buffered.
+   Plain-text providers switch the pipes back to blocking and read the remaining lines,
+   including a final line with no newline. JSON-line providers keep the same bounded
+   reads until both pipes reach EOF, then dispatch a final stdout record that has no
+   trailing newline. If the teardown watchdog has already settled the process, reading
+   stops after a short settle. Bytes already read are still dispatched, including a
+   final stdout record with no trailing newline. Bytes still sitting in a pipe that a
+   leaked child holds open can be left unread.
 7. Helpers return stdout/assistant text, stderr diagnostics, return code, and usage data
    when the provider reports it.
 
 ### Live Reply File
 
 When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-time to
-`<SASE_ARTIFACTS_DIR>/live_reply.md`. While a running agent stays selected, sase's TUI
-replaces that Reply body in place from this file and `live_reply_timestamps.jsonl`; see
+`<SASE_ARTIFACTS_DIR>/live_reply.md`. While the Agents-tab follow is active, the Reply
+card replaces that body from this file and `live_reply_timestamps.jsonl`; see
 [Agents Tab Main Deck](ace.md#agents-tab-main-deck). The file remains available after
 execution completes.
 

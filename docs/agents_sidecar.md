@@ -71,14 +71,18 @@ snapshot itself lists every referenced file with its size and SHA-256 digest, so
 manifest does not need to repeat that file set. With the default-on
 `slim_agents_manifest` sunset flag, every manifest write (a fresh publication or either
 repair command below) omits the per-hood `files` list, which keeps an owner manifest
-small even for owners with thousands of hoods. Readers accept manifests with or without
-the list. When an entry still carries a `files` list, the default-on
-`agents_session_manifest_compat` sunset flag accepts two exact shapes: the current
-canonical set, which names session pages under `sessions/`, or the supported legacy
-family-only set, which is that set with the `sessions/` paths removed and the historical
-`families/` pages kept. Any other list is a mismatch. A hood with no session pages has
-only the current set. Turning the flag off accepts only the current canonical set. New
-writes emit that current set, or omit the list while `slim_agents_manifest` is on. A
+small even for owners with thousands of hoods. Readers always accept a missing `files`
+list. When a list is present and the default-on `agents_session_manifest_compat` sunset
+flag is on, two exact sorted unique sets are accepted. The current set names the hood
+snapshot and hood README, each run's agent README and recorded file paths, and, for
+every session or family container, both `sessions/<global>.md` and
+`families/<global>.md`. Clan containers add no pages. The legacy set is that same list
+with every `sessions/` path removed, so it still includes the `families/` redirect
+stubs. It is a second accepted shape only when the current set contains `sessions/`
+paths. A hood with no session or family container has one set, and that set is current.
+Any other list is a mismatch. Turning the compat flag off accepts only the current set.
+New writes omit the list while `slim_agents_manifest` is on; otherwise they write the
+current set, including both page kinds when the hood has session or family containers. A
 matching list does not skip the other checks: a changed snapshot digest or a changed
 referenced file still fails publication. Owner manifests have their own read caps (16
 MiB and 16,384 hoods), and a write that would exceed them fails before anything lands.

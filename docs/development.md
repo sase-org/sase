@@ -1195,18 +1195,26 @@ Rust-backed operations, source build path, and benchmark expectations.
 
 ## Linked repositories
 
-`sase/sase.yml` is the project record for the repositories contributors open with
-`sase repo open`. `sase repo list` prints those links, this checkout's sidecars, and any
-other repository opened on the machine.
+`sase/sase.yml` records linked repositories under `repos.linked` and sidecars under
+`repos.sidecar`. A linked `path` is relative to the primary checkout, so `../sase-core`
+is the sibling directory next to this repository. `sase repo open` prepares one
+repository in a workspace. `sase repo list` defaults to the current project and the
+workspace inferred from the current directory. It prints the primary repository,
+sidecars, these linked repositories, and external repositories already cloned into that
+workspace. `sase repo list --all` adds every enabled and disabled project, at the
+primary workspace. Only `sase-core` is auto-cloned for every agent launch. The other
+five stay lazy until `sase repo open`. `plugins.required` installs `sase-github` and
+`sase-research-artifacts` from a sibling checkout when one is present, and otherwise
+from the published package.
 
-| Name                      | Path                         | What it is                                                                                                                                                                |
-| ------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase-core`               | `../sase-core`               | Shared Rust core. Auto-cloned. The CI pin is `sase-core-revision.txt`.                                                                                                    |
-| `sase-github`             | `../sase-github`             | GitHub VCS and workspace provider plugin.                                                                                                                                 |
-| `sase-telegram`           | `../sase-telegram`           | Telegram integration plugin.                                                                                                                                              |
-| `sase-nvim`               | `../sase-nvim`               | Neovim integration plugin.                                                                                                                                                |
-| `sase-research-artifacts` | `../sase-research-artifacts` | Installable `@research` document provider, `research-highlights` file hook, and `#research*` macros. Not auto-cloned; setup installs the published package.               |
-| `sase-listen`             | `../sase-listen`             | Standalone text-to-speech CLI. It turns Markdown into chaptered, loudness-normalized MP3 editions and publishes private podcast feeds. Opened on demand, not auto-cloned. |
+| Name                      | Path                         | What it is                                                                                                                                                           |
+| ------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase-core`               | `../sase-core`               | Shared Rust core. Auto-cloned for every agent launch. The CI pin is `sase-core-revision.txt`.                                                                        |
+| `sase-github`             | `../sase-github`             | GitHub VCS and workspace provider for repository, issue, and pull-request workflows. Also a required plugin.                                                         |
+| `sase-telegram`           | `../sase-telegram`           | Chat-driven workflows and notifications.                                                                                                                             |
+| `sase-nvim`               | `../sase-nvim`               | Syntax, completion, and editor support.                                                                                                                              |
+| `sase-research-artifacts` | `../sase-research-artifacts` | `@research` document provider, `research-highlights` file hook, and `#research*` macros. Required plugin; the published package is used when no checkout is present. |
+| `sase-listen`             | `../sase-listen`             | Standalone text-to-speech CLI. It turns Markdown into chaptered, loudness-normalized MP3 editions and private podcast feeds.                                         |
 
 ## Source Map
 

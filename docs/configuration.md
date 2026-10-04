@@ -5038,7 +5038,7 @@ retired spelling, so its behavior is documented in
 | `ace_refresh_tokens`             | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                                                        |
 | `admin_center_flags`             | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                                                   |
 | `agent_sudo_requests`            | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                                     |
-| `agents_session_manifest_compat` | sunset | `true`  | Owner manifests that still list files accept the current set or the supported legacy family-only set. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).                       |
+| `agents_session_manifest_compat` | sunset | `true`  | When an owner manifest still lists files, accept the current set or the legacy set that drops `sessions/` pages. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).            |
 | `agents_unified_query`           | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                                              |
 | `axe_routine_job_contract`       | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                                                   |
 | `bgcmd_legacy_slots`             | sunset | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                                                          |
@@ -5077,17 +5077,22 @@ those spellings in a new command, config key, frontmatter key, environment varia
 `sase path` target, and the error names the replacement. The retired entry-point group
 is not loaded, a plugin's packaged copy of the retired definition directory is not read,
 and those retired directories are invisible to expansion, workflow loading, completion,
-catalogs, and save choices. Supplying both the retired name and the macro name for the
-same setting is an error in either flag state. The region alias in that section stays
-accepted either way. Files already written under the old names stay readable either way,
-and new writes use only the macro spelling. A default `sase doctor` run includes the
-config check for those retired authored surfaces and does not report the durable files
-or that region alias.
+catalogs, and save choices. Config keys, frontmatter keys, and the plugin-disable
+environment variable are an error when both the retired name and the macro name are
+present, in either flag state. The LSP command environment variable is the exception: a
+non-empty macro value wins and the retired value is ignored. See that section for which
+names those are. The region alias there stays accepted either way. State files and agent
+artifact filenames already written under the old names stay readable either way, and new
+writes use only the macro spelling. A default `sase doctor` run includes the config
+check for those retired authored surfaces in either flag state. It reports non-empty
+retired definition directories and does not report those state files, agent artifact
+filenames, or that region alias.
 
 `agents_session_manifest_compat` applies when an owner-manifest hood entry still carries
-an explicit `files` list. On, that list may be the current canonical set or the
-supported legacy family-only set. Off, only the current canonical set matches. See
-[Strict v2 layout](agents_sidecar.md#strict-v2-layout).
+an explicit `files` list. Readers accept a missing list either way. On, a present list
+may be the current canonical set or the legacy set, which is that current set with every
+`sessions/` path removed and the `families/` redirect stubs kept. Off, only the current
+canonical set matches. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).
 
 Run `sase flag list` for the live registry with effective and saved state.
 

@@ -101,13 +101,25 @@ permanently as an alias of `%macros_enabled`.
 Turning that flag off rejects a retired spelling in a new command, config key,
 frontmatter key, environment variable, or `sase path` target, and the error names the
 macro replacement. The retired entry-point group in the table is not loaded, a plugin's
-packaged copy of the retired definition directory is not read, and the retired
-definition directories in the table are invisible to expansion, workflow loading,
-completion, catalogs, and save choices. Using both spellings for the same setting is an
-error whether the flag is on or off. Files already written under the old names stay
-readable either way; new writes use only the macro spelling. A default `sase doctor` run
-includes the config check for retired names in this rename. That check lists retired
-authored surfaces and does not report those durable files or the region alias above.
+packaged copy of the retired definition directory is not read (a plugin that ships only
+that directory is skipped), and the retired definition directories in the table are
+invisible to expansion, workflow loading, completion, catalogs, and save choices. Config
+keys and frontmatter keys are an error when both spellings are present, in either flag
+state. A retired config or frontmatter value still counts when it is null, an empty
+mapping, false, or an empty string. The plugin-disable environment variable (macro form
+`SASE_DISABLE_PLUGIN_MACROS`) is the same kind of error: setting both names is an error
+even when both values are empty. The LSP command environment variable is different. A
+non-empty `SASE_MACRO_LSP_CMD` wins and the retired value is ignored. An empty or
+whitespace macro value does not count as set, so a retired command is then considered.
+State files and agent artifact filenames already written under the old names stay
+readable either way; new writes use only the macro spelling. Those files are separate
+from the definition directories above, which stay invisible while the flag is off. A
+default `sase doctor` run includes the config check for retired names in this rename, in
+either flag state. That check lists retired config keys, frontmatter keys, non-empty
+retired definition directories, keymap overrides, set retired environment variables
+(names only), and plugins still registered on the retired entry-point group. It does not
+report the state files or agent artifact filenames in the table, and it does not report
+the region alias above.
 
 | Retired spelling                                                                                                                      | Replacement                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
