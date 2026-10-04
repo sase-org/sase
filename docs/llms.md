@@ -870,9 +870,13 @@ and `payload`. SASE's parser rules, in priority order:
    incremental fragments, split mid-word and mid-inline-code, that concatenate to the
    text the terminal event later carries in full. SASE coalesces the deltas of one run
    stream (keyed by `command_id`, then `run_stream.id`) into a single timestamped
-   `live_reply.md` chunk, so the panel shows one divider and intact prose per run. The
-   deltas are never appended to the returned content, so replies do not double; they are
-   only used to rebuild the reply when no `run.terminal.*` event arrives.
+   `live_reply.md` chunk, so the panel shows one divider and intact prose per run. Each
+   delta is appended to that file as it arrives. When stdout is Rich's Live `FileProxy`,
+   SASE does not flush the proxy after every fragment, so a streamed reply is not split
+   across terminal lines mid-word; any other stdout still flushes each delta. A later
+   run stream is written into `live_reply.md` after a blank line. The deltas are never
+   appended to the returned content, so replies do not double; they are only used to
+   rebuild the reply when no `run.terminal.*` event arrives.
 3. **A failed, rejected, or cancelled task is not a failed run.** Muse emits
    `task.lifecycle.rejected` (`reason: "skip_if_running"`) and
    `task.lifecycle.cancelled` (`reason: "main run completed"`) on runs that exit `0`.
@@ -3185,20 +3189,27 @@ share the same artifact hooks for live replies and usage files.
 2. The prompt is supplied using the provider's documented transport, either stdin or an
    argv message argument.
 3. Stdout and stderr are set to **non-blocking** mode via `os.set_blocking()`.
-4. A `select.select()` loop with a 0.1s timeout polls for readable data on both streams.
-5. Lines are read, parsed when needed, and optionally printed to the console in real
-   time.
+4. A `select.select()` loop polls both streams. The wait is 0.1s unless decoded JSONL
+   records are already waiting, in which case the loop services them immediately.
+5. Plain-text providers read complete lines. JSON-line providers read the pipes as raw
+   bytes in bounded chunks (64 KiB reads, and at most 256 KiB or 256 stdout records
+   before the turn checks the other pipe, the process, and the teardown watchdog). An
+   incremental UTF-8 decoder keeps a character that is split across reads, and
+   undecodable bytes are replaced. Complete stdout records are dispatched as they are
+   decoded, including when one write contains many lines. A partial trailing line waits
+   for the next read.
 6. After the process exits (`process.poll() is not None`), any remaining buffered output
-   is drained.
+   is drained, including a final JSONL stdout record that has no trailing newline.
 7. Helpers return stdout/assistant text, stderr diagnostics, return code, and usage data
    when the provider reports it.
 
 ### Live Reply File
 
 When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-time to
-`<SASE_ARTIFACTS_DIR>/live_reply.md`. This file is used by sase's TUI Agents tab to
-display the agent's reply as it streams in, and remains available after execution
-completes for the Main deck's Reply card.
+`<SASE_ARTIFACTS_DIR>/live_reply.md`. While a running agent stays selected, sase's TUI
+replaces that Reply body in place from this file and `live_reply_timestamps.jsonl`; see
+[Agents Tab Main Deck](ace.md#agents-tab-main-deck). The file remains available after
+execution completes.
 
 Providers that support richer streams may write sidecar artifacts. Codex and Grok both
 write reasoning content to `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl` (the filename is

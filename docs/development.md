@@ -1193,6 +1193,21 @@ sase core health
 See the [Rust backend reference](rust_backend.md) for the Python/Rust boundary, shipped
 Rust-backed operations, source build path, and benchmark expectations.
 
+## Linked repositories
+
+`sase/sase.yml` is the project record for the repositories contributors open with
+`sase repo open`. `sase repo list` prints those links, this checkout's sidecars, and any
+other repository opened on the machine.
+
+| Name                      | Path                         | What it is                                                                                                                                                                |
+| ------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase-core`               | `../sase-core`               | Shared Rust core. Auto-cloned. The CI pin is `sase-core-revision.txt`.                                                                                                    |
+| `sase-github`             | `../sase-github`             | GitHub VCS and workspace provider plugin.                                                                                                                                 |
+| `sase-telegram`           | `../sase-telegram`           | Telegram integration plugin.                                                                                                                                              |
+| `sase-nvim`               | `../sase-nvim`               | Neovim integration plugin.                                                                                                                                                |
+| `sase-research-artifacts` | `../sase-research-artifacts` | Installable `@research` document provider, `research-highlights` file hook, and `#research*` macros. Not auto-cloned; setup installs the published package.               |
+| `sase-listen`             | `../sase-listen`             | Standalone text-to-speech CLI. It turns Markdown into chaptered, loudness-normalized MP3 editions and publishes private podcast feeds. Opened on demand, not auto-cloned. |
+
 ## Source Map
 
 The repository is organized around the CLI entry point, operational subsystems, provider

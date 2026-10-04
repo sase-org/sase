@@ -5028,26 +5028,30 @@ unknown keys at runtime.
 
 `beta` flags default off and gate work that is still landing; `sunset` flags default on
 and keep a fallback path reachable until the flag is removed. The schema marks sunset
-flags deprecated. The currently registered flags are:
+flags deprecated. The currently registered flags are the rows below, plus the sunset
+flag for retired macro spellings. That flag defaults on. Its registry key uses the
+retired spelling, so its behavior is documented in
+[the macro rename section](macros.md#retired-macro-spellings) instead of this table.
 
-| Flag                           | Kind   | Default | Controls                                                                                                                                                                                |
-| ------------------------------ | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ace_refresh_tokens`           | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                                                        |
-| `admin_center_flags`           | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                                                   |
-| `agent_sudo_requests`          | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                                     |
-| `agents_unified_query`         | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                                              |
-| `axe_routine_job_contract`     | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                                                   |
-| `bgcmd_legacy_slots`           | sunset | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                                                          |
-| `legacy_agent_family_syntax`   | sunset | `true`  | Retired agent-family spellings still alias agent-session spellings. Off rejects new uses; stored records still read. See [Agent sessions](agent_sessions.md#sequential-agent-sessions). |
-| `legacy_sase_shell_syntax`     | sunset | `true`  | Retired sase-shell spellings still alias sase-turn spellings. Off rejects new uses; stored records still read. See [Gate turns](notifications.md#gate-turns-and-continuation).          |
-| `monitor_continuation_records` | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                 |
-| `muse_synchronous_shell`       | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                           |
-| `provider_drain`               | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                                                         |
-| `queue_capacity_budget`        | sunset | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                                               |
-| `ref_sync_gesture`             | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                               |
-| `refresh_panel`                | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                                              |
-| `slim_agents_manifest`         | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                     |
-| `typed_launch_units`           | beta   | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                                                  |
+| Flag                             | Kind   | Default | Controls                                                                                                                                                                                |
+| -------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ace_refresh_tokens`             | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                                                        |
+| `admin_center_flags`             | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                                                   |
+| `agent_sudo_requests`            | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                                     |
+| `agents_session_manifest_compat` | sunset | `true`  | Owner manifests that still list files accept the current set or the supported legacy family-only set. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).                       |
+| `agents_unified_query`           | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                                              |
+| `axe_routine_job_contract`       | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                                                   |
+| `bgcmd_legacy_slots`             | sunset | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                                                          |
+| `legacy_agent_family_syntax`     | sunset | `true`  | Retired agent-family spellings still alias agent-session spellings. Off rejects new uses; stored records still read. See [Agent sessions](agent_sessions.md#sequential-agent-sessions). |
+| `legacy_sase_shell_syntax`       | sunset | `true`  | Retired sase-shell spellings still alias sase-turn spellings. Off rejects new uses; stored records still read. See [Gate turns](notifications.md#gate-turns-and-continuation).          |
+| `monitor_continuation_records`   | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                 |
+| `muse_synchronous_shell`         | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                           |
+| `provider_drain`                 | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                                                         |
+| `queue_capacity_budget`          | sunset | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                                               |
+| `ref_sync_gesture`               | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                               |
+| `refresh_panel`                  | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                                              |
+| `slim_agents_manifest`           | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                     |
+| `typed_launch_units`             | beta   | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                                                  |
 
 `agent_decks` and `agent_tabs` are no longer registered. The Agents tab always shows
 [data decks and cards](ace.md#agent-data-decks-and-cards) and
@@ -5066,6 +5070,24 @@ registered is removed the next time an installing process reconciles
 `.reclaim_grace_seconds` key. Supplying both names for the same option or block is an
 error in either flag state. Write the session and turn spellings in new prompts and
 config, and use `--name` for proc commands.
+
+The sunset flag for retired macro spellings accepts, while it stays on, the aliases in
+[the macro rename section](macros.md#retired-macro-spellings). Turning it off rejects
+those spellings in a new command, config key, frontmatter key, environment variable, or
+`sase path` target, and the error names the replacement. The retired entry-point group
+is not loaded, a plugin's packaged copy of the retired definition directory is not read,
+and those retired directories are invisible to expansion, workflow loading, completion,
+catalogs, and save choices. Supplying both the retired name and the macro name for the
+same setting is an error in either flag state. The region alias in that section stays
+accepted either way. Files already written under the old names stay readable either way,
+and new writes use only the macro spelling. A default `sase doctor` run includes the
+config check for those retired authored surfaces and does not report the durable files
+or that region alias.
+
+`agents_session_manifest_compat` applies when an owner-manifest hood entry still carries
+an explicit `files` list. On, that list may be the current canonical set or the
+supported legacy family-only set. Off, only the current canonical set matches. See
+[Strict v2 layout](agents_sidecar.md#strict-v2-layout).
 
 Run `sase flag list` for the live registry with effective and saved state.
 

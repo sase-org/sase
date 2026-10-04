@@ -90,11 +90,24 @@ order.
 
 ## Renamed from xprompts
 
+<a id="retired-macro-spellings"></a>
+
 SASE's reusable prompt definitions were called **xprompts** before this release and are
 now called **macros**. Every retired spelling below keeps working behind the
 `legacy_xprompt_syntax` sunset flag while callers migrate; help, completion, examples,
 and output show only the macro spelling. `%xprompts_enabled` regions stay accepted
 permanently as an alias of `%macros_enabled`.
+
+Turning that flag off rejects a retired spelling in a new command, config key,
+frontmatter key, environment variable, or `sase path` target, and the error names the
+macro replacement. The retired entry-point group in the table is not loaded, a plugin's
+packaged copy of the retired definition directory is not read, and the retired
+definition directories in the table are invisible to expansion, workflow loading,
+completion, catalogs, and save choices. Using both spellings for the same setting is an
+error whether the flag is on or off. Files already written under the old names stay
+readable either way; new writes use only the macro spelling. A default `sase doctor` run
+includes the config check for retired names in this rename. That check lists retired
+authored surfaces and does not report those durable files or the region alias above.
 
 | Retired spelling                                                                                                                      | Replacement                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |

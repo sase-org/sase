@@ -72,12 +72,20 @@ manifest does not need to repeat that file set. With the default-on
 `slim_agents_manifest` sunset flag, every manifest write (a fresh publication or either
 repair command below) omits the per-hood `files` list, which keeps an owner manifest
 small even for owners with thousands of hoods. Readers accept manifests with or without
-the list, and when a legacy entry still carries one it must match the snapshot. Owner
-manifests have their own read caps (16 MiB and 16,384 hoods), and a write that would
-exceed them fails before anything lands. Turning the flag off restores the older shape
-that repeats each hood's `files` list. SASE versions that predate the optional list
-treat a slim manifest as malformed and skip that owner when they rebuild shared indexes,
-so upgrade every machine that publishes to a shared sidecar.
+the list. When an entry still carries a `files` list, the default-on
+`agents_session_manifest_compat` sunset flag accepts two exact shapes: the current
+canonical set, which names session pages under `sessions/`, or the supported legacy
+family-only set, which is that set with the `sessions/` paths removed and the historical
+`families/` pages kept. Any other list is a mismatch. A hood with no session pages has
+only the current set. Turning the flag off accepts only the current canonical set. New
+writes emit that current set, or omit the list while `slim_agents_manifest` is on. A
+matching list does not skip the other checks: a changed snapshot digest or a changed
+referenced file still fails publication. Owner manifests have their own read caps (16
+MiB and 16,384 hoods), and a write that would exceed them fails before anything lands.
+Turning `slim_agents_manifest` off restores the older shape that repeats each hood's
+`files` list. SASE versions that predate the optional list treat a slim manifest as
+malformed and skip that owner when they rebuild shared indexes, so upgrade every machine
+that publishes to a shared sidecar.
 
 Snapshot and per-run JSON is strictly versioned, canonically encoded, size/count
 bounded, and content-addressed with SHA-256. Names and paths are validated as single

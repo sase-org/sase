@@ -98,8 +98,8 @@ title: Structured Agentic Software Engineering
   <h3>I need shared agent memory</h3>
 
   <p>
-    Use instruction memory loaded through AGENTS.md, audited reference reads, and sase's TUI Memory panel for
-    flat-note changes plus memory-web strand creation and deletion.
+    Use instruction memory loaded through AGENTS.md, audited reference reads, and sase's TUI Memory panel to
+    change flat notes and memory-web strands, and to review the history of those notes.
   </p>
 
 <a href="memory/">Open memory</a>

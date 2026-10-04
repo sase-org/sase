@@ -6140,24 +6140,33 @@ the preferred card.
   `live_reply.md` during execution and read from the artifacts directory after
   completion. When per-turn reply timestamps are available (recorded in
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between
-  each agent turn. For agents with follow-up phases (planner, feedback rounds, coder),
-  the AGENT REPLY section consolidates replies from all phases into a single view with
-  phase dividers showing each phase's label and start time. Phases follow the session's
-  chain order: a monitor phase renders immediately after the turn that started it,
-  including a monitor started by the session root, which renders after the root's own
-  phase. Agent-turn members follow one rule, `AGENT (<role>)`, derived from the member's
-  session role: `--plan` renders as `AGENT (plan)`, `--code` as `AGENT (code)`, `--epic`
-  as `AGENT (epic)`, `--commit` as `AGENT (commit)`, and numeric feedback suffixes such
-  as `--2` as `AGENT (plan round 2)`. Custom session members render the same way with
-  their suffix token, e.g. `AGENT (bar)`. A monitor member is a named proc, so its phase
-  renders as an amber `⚙ MONITOR` divider followed by the monitor's command, its
-  recorded detail fields, and its full captured output — the same block the monitor's
-  own panel shows. A gate-turn member renders as a lifecycle-colored `⋔ GATE` divider
-  with its decision, kind, state, deadline, reason, request identity, branch policy,
-  follow-up disposition, and captured command output. Its phase remains in the
-  consolidated session reply after settlement, including terminal branches that
-  intentionally launch no successor. Legacy dotted and single-dash suffixes render the
-  same way.
+  each agent turn. While that row stays selected on the Agents tab, a running reply
+  follows those two files in place: the card replaces only the live reply body, the rest
+  of the detail document stays put, and the agent list is not refreshed. The follow
+  covers a running agent that is still executing, and a sequential session's current
+  in-flight agent turn. Bash and Python workflow steps are not followed. An empty reply
+  shows `Waiting for agent response.` A change to either file triggers an update; a
+  status check about once a second is the backstop, and successive updates are spaced
+  about a third of a second apart. The follow waits while you are navigating or the
+  prompt bar is open. It stops when the selection changes, you leave the Agents tab, you
+  open a pinned attempt view, or hint mode is showing. For agents with follow-up phases
+  (planner, feedback rounds, coder), the AGENT REPLY section consolidates replies from
+  all phases into a single view with phase dividers showing each phase's label and start
+  time. Phases follow the session's chain order: a monitor phase renders immediately
+  after the turn that started it, including a monitor started by the session root, which
+  renders after the root's own phase. Agent-turn members follow one rule,
+  `AGENT (<role>)`, derived from the member's session role: `--plan` renders as
+  `AGENT (plan)`, `--code` as `AGENT (code)`, `--epic` as `AGENT (epic)`, `--commit` as
+  `AGENT (commit)`, and numeric feedback suffixes such as `--2` as
+  `AGENT (plan round 2)`. Custom session members render the same way with their suffix
+  token, e.g. `AGENT (bar)`. A monitor member is a named proc, so its phase renders as
+  an amber `⚙ MONITOR` divider followed by the monitor's command, its recorded detail
+  fields, and its full captured output — the same block the monitor's own panel shows. A
+  gate-turn member renders as a lifecycle-colored `⋔ GATE` divider with its decision,
+  kind, state, deadline, reason, request identity, branch policy, follow-up disposition,
+  and captured command output. Its phase remains in the consolidated session reply after
+  settlement, including terminal branches that intentionally launch no successor. Legacy
+  dotted and single-dash suffixes render the same way.
 - **WORKFLOW VARIABLES**: macro workflow output variables from step outputs with
   additional `meta_*` keys are grouped under a dedicated header. The special routing
   keys `meta_project`, `meta_patch`, and `meta_workspace` are promoted into the normal
@@ -8782,9 +8791,10 @@ it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
   (`TESTING` while running, `TESTED` once settled) appears in that pair's accent color
   between the agent name and the secondary text (`acme--mon · TESTING · Working...`),
   and again on the output header's `agent` line.
-- **Live `live_reply.md`.** The output pane streams the monitor's artifacts-owned log
-  (`<artifacts_dir>/live_reply.md`) the same way the agent Main deck does, so a running
-  monitor is not an empty `Working...`.
+- **Live `live_reply.md`.** The output pane refreshes the monitor's artifacts-owned log
+  (`<artifacts_dir>/live_reply.md`) on this pane's 0.25 s tick, so a running monitor is
+  not an empty `Working...`. On the Agents tab, the selected running agent's Reply card
+  follows that same file in place; see [Agents Tab Main Deck](#agents-tab-main-deck).
 - **`<enter>` jumps to the agent.** On a monitor whose agent row is loaded, `<enter>`
   (or a click) closes Admin Center and reveals that agent on the Agents tab. The hints
   line shows `⏎: agent` only when that jump is possible. If the agent is not on the
