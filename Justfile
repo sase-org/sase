@@ -399,6 +399,11 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1fv.5(ExistingRowSpec)' \
+        --epic-symbol 'sase-1fv.5(ExistingDefinitionFinderModal)' \
+        --epic-symbol 'sase-1fv.5(ExistingDefinitionPick)' \
+        --epic-symbol 'sase-1fv.5(ExistingFinderBack)' \
+        --epic-symbol 'sase-1fv.5(macro_existing_entries)' \
+        --epic-symbol 'sase-1fv.6(snippet_existing_entries)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

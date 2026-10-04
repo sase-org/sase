@@ -5300,6 +5300,121 @@ MiniMacroNameModal #mini-macro-name-hints {
     text-align: center;
 }
 
+ExistingDefinitionFinderModal {
+    align: center middle;
+}
+
+ExistingDefinitionFinderModal > #existing-definition-finder-container {
+    width: 90%;
+    height: 78%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+ExistingDefinitionFinderModal #existing-definition-finder-heading {
+    height: 1;
+    margin-bottom: 1;
+}
+
+ExistingDefinitionFinderModal #existing-finder-title {
+    width: 1fr;
+    text-style: bold;
+}
+
+ExistingDefinitionFinderModal #existing-finder-stepper {
+    width: auto;
+    color: $text-muted;
+    text-align: right;
+}
+
+ExistingDefinitionFinderModal #existing-definition-finder-query-row {
+    height: 3;
+}
+
+ExistingDefinitionFinderModal #existing-finder-query-prompt {
+    width: 3;
+    padding-top: 1;
+    text-style: bold;
+}
+
+ExistingDefinitionFinderModal #existing-finder-query {
+    width: 1fr;
+}
+
+ExistingDefinitionFinderModal #existing-finder-counter {
+    width: 12;
+    padding-top: 1;
+    color: $text-muted;
+    text-align: right;
+}
+
+ExistingDefinitionFinderModal #existing-definition-finder-body {
+    height: 1fr;
+}
+
+ExistingDefinitionFinderModal #existing-finder-matches-panel {
+    width: 1fr;
+    padding-right: 1;
+}
+
+ExistingDefinitionFinderModal #existing-finder-preview-panel {
+    width: 1fr;
+    border-left: solid $secondary;
+    padding-left: 1;
+}
+
+ExistingDefinitionFinderModal .existing-finder-panel-title {
+    height: 1;
+    margin-bottom: 1;
+    text-style: bold;
+}
+
+ExistingDefinitionFinderModal #existing-finder-list {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+ExistingDefinitionFinderModal #existing-finder-preview-title {
+    height: 3;
+    color: $text-muted;
+}
+
+ExistingDefinitionFinderModal #existing-finder-preview-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+ExistingDefinitionFinderModal #existing-finder-preview-body {
+    height: auto;
+}
+
+ExistingDefinitionFinderModal #existing-finder-verdict {
+    height: 2;
+    margin-top: 1;
+    text-style: bold;
+}
+
+ExistingDefinitionFinderModal .existing-finder-verdict-success {
+    color: $success;
+}
+
+ExistingDefinitionFinderModal .existing-finder-verdict-warning {
+    color: $warning;
+}
+
+ExistingDefinitionFinderModal .existing-finder-verdict-error,
+ExistingDefinitionFinderModal .existing-finder-preview-error {
+    color: $error;
+}
+
+ExistingDefinitionFinderModal #existing-finder-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+}
+
 SnippetSaveConfirmModal {
     align: center middle;
 }

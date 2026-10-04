@@ -223,6 +223,18 @@ _LAZY_EXPORTS = {
         ".mini_macro_name_modal",
         "MiniMacroNameResult",
     ),
+    "ExistingDefinitionFinderModal": (
+        ".existing_definition_finder_modal",
+        "ExistingDefinitionFinderModal",
+    ),
+    "ExistingDefinitionPick": (
+        ".existing_definition_finder_modal",
+        "ExistingDefinitionPick",
+    ),
+    "ExistingFinderBack": (
+        ".existing_definition_finder_modal",
+        "ExistingFinderBack",
+    ),
     "MiniMacroSaveConfirmModal": (
         ".mini_macro_save_confirm_modal",
         "MiniMacroSaveConfirmModal",

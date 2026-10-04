@@ -173,6 +173,13 @@ from .memory_pane import MemoryPane as MemoryPane
 from .memory_pane import MemoryPaneSession as MemoryPaneSession
 from .mini_macro_name_modal import MiniMacroNameModal as MiniMacroNameModal
 from .mini_macro_name_modal import MiniMacroNameResult as MiniMacroNameResult
+from .existing_definition_finder_modal import (
+    ExistingDefinitionFinderModal as ExistingDefinitionFinderModal,
+)
+from .existing_definition_finder_modal import (
+    ExistingDefinitionPick as ExistingDefinitionPick,
+)
+from .existing_definition_finder_modal import ExistingFinderBack as ExistingFinderBack
 from .mini_macro_save_confirm_modal import (
     MiniMacroSaveConfirmModal as MiniMacroSaveConfirmModal,
 )
