@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import inspect
+import threading
+
+from textual import events
+from textual.drivers.linux_driver import LinuxDriver
 
 from sase.tmux_driver import (
     MODIFY_OTHER_KEYS_OFF,
     MODIFY_OTHER_KEYS_ON,
+    PasteSafeXTermParser,
     TmuxModifyOtherKeysDriver,
     _tmux_modify_other_keys_active,
     maybe_tmux_driver_class,
@@ -66,3 +73,71 @@ def test_stop_writes_reset_for_suspend_path(monkeypatch) -> None:
     driver.stop_application_mode()
     assert writes == [MODIFY_OTHER_KEYS_OFF]
     assert os.environ.get("TMUX")
+
+
+_PASTE = "\x1b[200~line1\x1b[106;5u│ line2\r\x1b[106;5u\tline3\x1b[201~"
+_PASTE_TEXT = "line1\n│ line2\r\n\tline3"
+
+
+def test_paste_safe_parser_keeps_reproduction_bytes_in_one_paste() -> None:
+    parsed = list(PasteSafeXTermParser().feed(_PASTE))
+    pastes = [event for event in parsed if isinstance(event, events.Paste)]
+    keys = [event for event in parsed if isinstance(event, events.Key)]
+
+    assert [event.text for event in pastes] == [_PASTE_TEXT]
+    assert keys == []
+
+
+def test_paste_safe_parser_preserves_event_order_and_chunking() -> None:
+    stream = "a" + _PASTE + "\x1b[102;6u"
+    parsed = list(PasteSafeXTermParser().feed(stream))
+    assert [(type(event), getattr(event, "key", None)) for event in parsed] == [
+        (events.Key, "a"),
+        (events.Paste, None),
+        (events.Key, "ctrl+shift+f"),
+    ]
+    assert parsed[1].text == _PASTE_TEXT
+
+    parser = PasteSafeXTermParser()
+    chunked = [event for char in stream for event in parser.feed(char)]
+    chunked_pastes = [event for event in chunked if isinstance(event, events.Paste)]
+    assert [event.text for event in chunked_pastes] == [_PASTE_TEXT]
+    assert [(type(event), getattr(event, "key", None)) for event in chunked] == [
+        (type(event), getattr(event, "key", None)) for event in parsed
+    ]
+
+
+def test_driver_input_thread_uses_paste_safe_parser(monkeypatch) -> None:
+    read_fd, write_fd = os.pipe()
+    try:
+        os.write(write_fd, _PASTE.encode())
+        driver = TmuxModifyOtherKeysDriver.__new__(TmuxModifyOtherKeysDriver)
+        driver.fileno = read_fd
+        driver.exit_event = threading.Event()
+        driver._debug = False
+        messages: list[object] = []
+
+        def collect_message(message: object) -> None:
+            messages.append(message)
+            driver.exit_event.set()
+
+        monkeypatch.setattr(driver, "process_message", collect_message)
+
+        driver.run_input_thread()
+
+        pastes = [event for event in messages if isinstance(event, events.Paste)]
+        keys = [event for event in messages if isinstance(event, events.Key)]
+        assert [event.text for event in pastes] == [_PASTE_TEXT]
+        assert keys == []
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_input_thread_override_matches_textual_8_0_1() -> None:
+    upstream_source = inspect.getsource(LinuxDriver.run_input_thread)
+    assert hashlib.sha256(upstream_source.encode()).hexdigest() == (
+        "d796af6d69db337d6fa6bd463984f7d17188d991dbb22f60efb92a8a9619507c"
+    ), (
+        "The run_input_thread override in sase.tmux_driver must be re-synced with upstream before bumping Textual."
+    )

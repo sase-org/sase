@@ -280,7 +280,9 @@ the top of the viewport.
 
 The `Ctrl+Shift` chords need the kitty → tmux CSI-u chain (kitty plus tmux with
 `extended-keys-format csi-u`, and SASE requesting modifyOtherKeys mode 2 inside tmux);
-`>` / `<` / `Ctrl+X` always work.
+in mode 2, tmux re-encodes pasted control characters (newlines arrive as `CSI 106;5u`),
+and SASE's input driver decodes them inside bracketed pastes so pasted text arrives
+intact. `>` / `<` / `Ctrl+X` always work.
 
 ## Resolution
 
