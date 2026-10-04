@@ -227,14 +227,14 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("start_custom_agent", "Run custom agent", "Agents", ALL_TABS, ("+",)),
     (
         "start_agent_from_patch",
-        "Repeat last launched VCS xprompt",
+        "Repeat last launched VCS macro",
         "Agents",
         ALL_TABS,
-        ("home", "repeat", "last vcs xprompt", "run agent"),
+        ("home", "repeat", "last vcs macro", "run agent"),
     ),
     (
         "start_last_vcs_xprompt_in_editor",
-        "Edit last VCS xprompt",
+        "Edit last VCS macro",
         "Agents",
         ALL_TABS,
         ("ctrl+g", "last vcs", "editor"),

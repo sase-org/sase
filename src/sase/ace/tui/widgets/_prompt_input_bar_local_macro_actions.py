@@ -1,10 +1,10 @@
-"""Prompt stack local-xprompt conversion actions."""
+"""Prompt stack local-macro conversion actions."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.ace.tui.widgets._local_xprompt_conversion import (
+from sase.ace.tui.widgets._local_macro_conversion import (
     build_local_xprompt,
     infer_local_xprompt_inputs,
     local_xprompt_invocation_skeleton,
@@ -22,7 +22,7 @@ else:
 
 
 class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
-    """Prompt pane conversion to frontmatter-local xprompts."""
+    """Prompt pane conversion to frontmatter-local macros."""
 
     if TYPE_CHECKING:
         _mode: str
@@ -38,11 +38,11 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
     def convert_active_pane_to_local_xprompt(
         self, *, target_mode: str = "normal"
     ) -> None:
-        """Convert the active pane into a local xprompt (the ``gL`` keymap).
+        """Convert the active pane into a local macro (the ``gL`` keymap).
 
         Prompt mode only.  Captures the active pane's body, infers its inputs
         from undeclared Jinja variables, opens a prefilled ghost row, and on a
-        valid name stores the body as a local ``xprompts:`` helper in the bar's
+        valid name stores the body as a local ``macros:`` helper in the bar's
         shared frontmatter and rewrites the pane into an invocation of it.  A
         blank pane or invalid Jinja in the body leaves everything unchanged and
         notifies; cancelling or naming a duplicate is a no-op too.
@@ -68,7 +68,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         if conversion is None:
             self.app.notify(
                 "Active pane has invalid Jinja — fix it before saving as a "
-                "local xprompt.",
+                "local macro.",
                 severity="warning",
             )
             return
@@ -98,7 +98,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         *,
         target_mode: str,
     ) -> None:
-        """Persist the new local xprompt and rewrite the active pane to invoke it.
+        """Persist the new local macro and rewrite the active pane to invoke it.
 
         The helper is merged into the shared frontmatter (so any pane can
         reference it) and the active pane's whole body is replaced with the

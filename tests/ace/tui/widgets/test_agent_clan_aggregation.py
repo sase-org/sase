@@ -162,7 +162,7 @@ def test_member_loader_reuses_reply_and_prompt_precedence(tmp_path: Path) -> Non
         ("AGENT REPLY", "Final member conclusion")
     ]
     assert [(entry.kind, entry.preview) for entry in snapshot.prompts] == [
-        ("AGENT XPROMPT", "#research first segment"),
+        ("AGENT RAW PROMPT", "#research first segment"),
         ("AGENT PROMPT", "Expanded prompt body"),
     ]
 

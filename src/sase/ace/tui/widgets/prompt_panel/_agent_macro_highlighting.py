@@ -1,4 +1,4 @@
-"""Shared xprompt-highlighting context for agent prompt panels."""
+"""Shared macro-highlighting context for agent prompt panels."""
 
 from __future__ import annotations
 

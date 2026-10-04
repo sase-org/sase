@@ -26,14 +26,14 @@ from ...widgets.prompt_panel._agent_gate_section import build_gate_phase
 from ...widgets.prompt_panel._agent_monitor_section import build_monitor_phase
 
 _CONVERSATION_SECTIONS = (
-    ("xprompt", "AGENT XPROMPT", "No original xprompt available."),
+    ("raw_prompt", "AGENT RAW PROMPT", "No raw prompt available."),
     ("prompt", "AGENT PROMPT", "No expanded prompt available."),
     ("reply", "AGENT REPLY", "No reply content available. Press r to refresh."),
 )
 
 
-def _tag_styled_xprompt_body(raw: str) -> Text:
-    """Return an AGENT XPROMPT body with tagified refs (D5/D6).
+def _tag_styled_raw_prompt_body(raw: str) -> Text:
+    """Return an AGENT RAW PROMPT body with tagified refs (D5/D6).
 
     Stored prompts keep the canonical ``#<wf>:<key>`` form; the pager shows
     the ``+<name>`` tag form. The returned ``Text`` is deliberately plain:
@@ -101,12 +101,12 @@ def build_agent_conversation_sections(agent: Agent) -> tuple[PagerSection, ...]:
                     member, label, frozenset({lane})
                 )
             except (OSError, UnicodeError) as exc:
-                affected = ("xprompt", "prompt") if lane == "prompts" else ("reply",)
+                affected = ("raw_prompt", "prompt") if lane == "prompts" else ("reply",)
                 for key in affected:
                     errors[key] = f"Could not load {lane}: {exc}. Press r to retry."
                 continue
             for entry in snapshot.prompts:
-                key = "xprompt" if entry.kind == "AGENT XPROMPT" else "prompt"
+                key = "raw_prompt" if entry.kind == "AGENT RAW PROMPT" else "prompt"
                 bodies[key] = entry.body
             for entry in snapshot.replies:
                 bodies["reply"] = entry.body
@@ -116,8 +116,8 @@ def build_agent_conversation_sections(agent: Agent) -> tuple[PagerSection, ...]:
         for key, title, empty_message in _CONVERSATION_SECTIONS:
             body = bodies.get(key)
             body_renderable: Text | str | None
-            if body and key == "xprompt":
-                body_renderable = _tag_styled_xprompt_body(body)
+            if body and key == "raw_prompt":
+                body_renderable = _tag_styled_raw_prompt_body(body)
             else:
                 body_renderable = body
             sections.append(

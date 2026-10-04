@@ -31,8 +31,8 @@ from ._hint_caps import HintContentBudget
 from ._output_variable_rich import append_var_value_lines, var_value_style
 
 # Member prompt bodies render tagified and accent-colored like every other
-# AGENT XPROMPT surface (D5/D6). Replies stay plain prose.
-_PROMPT_ENTRY_KINDS = frozenset({"AGENT XPROMPT", "AGENT PROMPT"})
+# AGENT RAW PROMPT surface (D5/D6). Replies stay plain prose.
+_PROMPT_ENTRY_KINDS = frozenset({"AGENT RAW PROMPT", "AGENT PROMPT"})
 
 
 def append_errors_section(
@@ -176,8 +176,8 @@ def append_text_section(
     if level == FoldLevel.EXPANDED:
         for entry in entries[:_TRIAGE_ENTRY_LIMIT]:
             label = entry.member_label
-            if entry.kind == "AGENT XPROMPT":
-                label += " [XPROMPT]"
+            if entry.kind == "AGENT RAW PROMPT":
+                label += " [RAW PROMPT]"
             preview = entry.preview or "—"
             if entry.kind in _PROMPT_ENTRY_KINDS:
                 preview = humanize_prompt_body(preview)
@@ -201,7 +201,7 @@ def append_text_section(
         append_member_subheading(text, member_label)
         for entry in member_entries:
             kind_style = (
-                "bold #AF87FF" if entry.kind == "AGENT XPROMPT" else "bold #87D7FF"
+                "bold #AF87FF" if entry.kind == "AGENT RAW PROMPT" else "bold #87D7FF"
             )
             text.append(f"  {entry.kind}\n", style=kind_style)
             append_full_body(

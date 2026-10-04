@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.widgets._local_xprompt_conversion import (
+from sase.ace.tui.widgets._local_macro_conversion import (
     infer_local_xprompt_inputs as infer_local_macro_inputs,
 )
 from sase.macro.prompt_frontmatter import PromptFrontmatter

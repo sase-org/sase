@@ -12,7 +12,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
     cache_detail_header_summary,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_xprompts import (
+from sase.ace.tui.widgets.prompt_panel._agent_macros import (
     _COLOR_HEADER,
     _COLOR_PART,
     _COLOR_SWARM,
@@ -138,7 +138,7 @@ def test_xprompts_displayed_from_header_summary(tmp_path: Path) -> None:
         summary=build_detail_header_summary(agent),
     )
 
-    assert "Xprompts: 2 workflows · 1 part" in header.plain
+    assert "Macros: 2 workflows · 1 part" in header.plain
     assert "⌘ #propose  note=blah" in header.plain
     assert "⌘ #cl" in header.plain
     assert "▣ #review_checklist" in header.plain
@@ -176,7 +176,7 @@ def test_xprompt_part_value_uses_distinct_style(tmp_path: Path) -> None:
         summary=build_detail_header_summary(agent),
     )
 
-    assert _COLOR_HEADER in _styles_over(header, "Xprompts:")
+    assert _COLOR_HEADER in _styles_over(header, "Macros:")
     assert _COLOR_WORKFLOW in _styles_over(header, "#propose")
     assert _COLOR_PART in _styles_over(header, "#review_checklist")
     # The part value must not read like a metadata field label.
@@ -218,7 +218,7 @@ def test_swarm_xprompt_gets_own_glyph_style_and_summary_count(
         summary=build_detail_header_summary(agent),
     )
 
-    assert "Xprompts: 1 swarm · 1 part" in header.plain
+    assert "Macros: 1 swarm · 1 part" in header.plain
     assert "❋ #research_swarm" in header.plain
     assert _COLOR_SWARM in _styles_over(header, "#research_swarm")
     assert _COLOR_PART not in _styles_over(header, "#research_swarm")
@@ -252,7 +252,7 @@ def test_swarm_only_agent_summarizes_as_a_swarm(tmp_path: Path) -> None:
         summary=build_detail_header_summary(agent),
     )
 
-    assert "Xprompts: 1 swarm" in header.plain
+    assert "Macros: 1 swarm" in header.plain
     assert "1 xprompt" not in header.plain
 
 
@@ -285,12 +285,12 @@ def test_update_display_renders_xprompts_after_detail_settles(
     with patch.object(panel, "update") as mock_update:
         panel.update_display(agent)
         rendered = mock_update.call_args[0][0]
-        assert "Xprompts: 1 workflow" not in plain_of(rendered)
+        assert "Macros: 1 workflow" not in plain_of(rendered)
 
         cache_detail_header_summary(panel, agent, build_detail_header_summary(agent))
         panel.update_display(agent)
 
     assert mock_update.called
     rendered = mock_update.call_args[0][0]
-    assert "Xprompts: 1 workflow" in plain_of(rendered)
+    assert "Macros: 1 workflow" in plain_of(rendered)
     assert "⌘ #propose" in plain_of(rendered)

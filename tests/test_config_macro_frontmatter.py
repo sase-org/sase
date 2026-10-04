@@ -365,7 +365,7 @@ def test_prompt_completion_prefers_canonical_menu_key() -> None:
 def test_placeholder_toggle_prefers_canonical_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.ace.tui.widgets import _local_xprompt_conversion as conversion
+    from sase.ace.tui.widgets import _local_macro_conversion as conversion
 
     (tmp_path / "sase.yml").write_text(
         yaml.dump({"ace": {"prompt_inputs": {"macro_placeholder_args": False}}})

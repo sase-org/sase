@@ -242,7 +242,7 @@ class AgentOnboarding(VerticalScroll):
         append_section_heading(text, "Start from the prompt", accent=_AGENTS_ACCENT)
         append_keycap(text, key_display_name(app.start_agent_from_patch))
         text.append(
-            "open the prompt bar (pre-filled with your last VCS xprompt, if "
+            "open the prompt bar (pre-filled with your last VCS macro, if "
             "any; `Ctrl+U` clears it) and describe a task; this launches an "
             "agent in your home workspace."
         )

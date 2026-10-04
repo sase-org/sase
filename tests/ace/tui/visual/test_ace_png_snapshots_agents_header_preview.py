@@ -1,4 +1,4 @@
-"""ACE PNG coverage for the collapsed agent-header XPROMPT preview."""
+"""ACE PNG coverage for the collapsed agent-header RAW PROMPT preview."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 _LONG_PROSE_XPROMPT = (
-    "Can you help me start rendering the `AGENT XPROMPT` section in the\n"
+    "Can you help me start rendering the `AGENT RAW PROMPT` section in the\n"
     "sticky header above the agent data deck panel? Make sure that we\n"
     "provide a good preview (use as much space as is available) of the\n"
     "contents in this section (i.e. of the user's prompt) in this header.\n"
@@ -57,7 +57,7 @@ def _preview_agent(artifacts_dir: Path, *, name: str, raw_xprompt: str) -> Agent
     artifacts_dir.mkdir()
     (artifacts_dir / "raw_xprompt.md").write_text(raw_xprompt, encoding="utf-8")
     (artifacts_dir / "01_prompt.md").write_text(
-        "Render the AGENT XPROMPT preview in the sticky header.\n",
+        "Render the AGENT RAW PROMPT preview in the sticky header.\n",
         encoding="utf-8",
     )
     return Agent(
@@ -78,14 +78,14 @@ def _preview_agent(artifacts_dir: Path, *, name: str, raw_xprompt: str) -> Agent
         (
             _LONG_PROSE_XPROMPT,
             True,
-            ("▎", "XPROMPT", "sticky header", "…"),
+            ("▎", "RAW PROMPT", "sticky header", "…"),
             "agents_header_preview_truncated_160x50",
             "ACE agents collapsed header xprompt preview, truncated",
         ),
         (
             _SHORT_DIRECTIVE_XPROMPT,
             False,
-            ("▎", "XPROMPT", "%auto", "my_change", "Summarize"),
+            ("▎", "RAW PROMPT", "%auto", "my_change", "Summarize"),
             "agents_header_preview_fits_160x50",
             "ACE agents collapsed header xprompt preview, fits",
         ),
@@ -118,7 +118,7 @@ async def test_agents_header_xprompt_preview_png_snapshot(
         await wait_for_state(
             page,
             lambda: panel.rendered_row_count > 2 and not panel.has_class("hidden"),
-            description="collapsed header XPROMPT preview",
+            description="collapsed header RAW PROMPT preview",
         )
         await wait_for_visual_idle(page)
 

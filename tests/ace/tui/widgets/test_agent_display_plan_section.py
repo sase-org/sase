@@ -294,7 +294,7 @@ def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
 
     header, _ = build_header_text(agent, summary=summary)
     header.append(
-        "AGENT XPROMPT\nAGENT PROMPT\nAGENT REPLY\nAGENT CHAT\n",
+        "AGENT RAW PROMPT\nAGENT PROMPT\nAGENT REPLY\nAGENT CHAT\n",
     )
 
     plain = header.plain
@@ -306,7 +306,7 @@ def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
         "Name:",
         "Patch:",
         "Model:",
-        "Xprompts:",
+        "Macros:",
         "VCS:",
         "PID:",
         "Activity:",
@@ -330,7 +330,7 @@ def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
     for section_label in (
         "SLOW TOOL CALLS",
         "ERROR",
-        "AGENT XPROMPT",
+        "AGENT RAW PROMPT",
         "AGENT PROMPT",
         "AGENT REPLY",
         "AGENT CHAT",

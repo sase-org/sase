@@ -66,7 +66,7 @@ def test_regular_agent_and_workflow_render_paths_mark_real_sections(
     with patch.object(panel, "update") as update:
         panel._update_display_impl(regular)  # noqa: SLF001
     assert rendered_section_ids(update.call_args.args[0]) == [
-        "agent-xprompt",
+        "agent-raw-prompt",
         "agent-prompt",
         "agent-chat",
     ]
@@ -272,9 +272,9 @@ def test_agent_session_conversation_headings_remain_navigation_targets(
     conversation_ids = [
         identity
         for identity in identities
-        if identity in {"agent-xprompt", "agent-prompt", "agent-reply"}
+        if identity in {"agent-raw-prompt", "agent-prompt", "agent-reply"}
     ]
-    assert conversation_ids == ["agent-xprompt", "agent-prompt", "agent-reply"]
+    assert conversation_ids == ["agent-raw-prompt", "agent-prompt", "agent-reply"]
     assert "session" not in identities
     assert "agent-shell" not in identities
     assert identities[0] == "members"

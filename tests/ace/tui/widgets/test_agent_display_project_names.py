@@ -63,7 +63,7 @@ class TestProjectDisplayNameRendering:
 
         header, _ = build_header_text(agent, summary=summary)
 
-        assert "Xprompts:" in header.plain
+        assert "Macros:" in header.plain
         assert "widgets" in header.plain
         assert "gh_acme__widgets" not in header.plain
         assert "--flag" in header.plain

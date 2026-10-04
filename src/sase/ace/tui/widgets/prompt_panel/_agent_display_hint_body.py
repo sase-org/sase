@@ -1,4 +1,4 @@
-"""AGENT XPROMPT / PROMPT / REPLY / CHAT body rendering for hint documents."""
+"""AGENT RAW PROMPT / PROMPT / REPLY / CHAT body rendering for hint documents."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from ._agent_display_content import (
     render_timestamp_divider,
 )
 from ._agent_display_header import AgentHeader
-from ._agent_display_xprompt import attach_xprompt_to_identity, xprompt_hints_enabled
+from ._agent_display_macro import attach_xprompt_to_identity, xprompt_hints_enabled
 from ._agent_display_hint_annotators import (
     hint_gate_annotator,
     hint_monitor_annotator,
@@ -31,7 +31,7 @@ from ._agent_session_reply_blocks import (
     phase_card_block,
     session_reply_heading,
 )
-from ._agent_xprompt_highlighting import (
+from ._agent_macro_highlighting import (
     agent_prompt_highlight_context,
     apply_authored_prompt_overlays,
 )
@@ -67,7 +67,7 @@ def render_agent_prompt_hint_body(
     the caller can keep per-phase blocks; every other path returns no extra
     parts and appends into ``reply_text`` as before.
     """
-    # AGENT XPROMPT section (with file path hints)
+    # AGENT RAW PROMPT section (with file path hints)
     raw_xprompt = agent.get_raw_prompt_content()
     highlight_context = agent_prompt_highlight_context(
         panel,
@@ -91,7 +91,7 @@ def render_agent_prompt_hint_body(
                     header_text,
                     plain_xprompt,
                 ):
-                    append_section_heading(header_text, "AGENT XPROMPT")
+                    append_section_heading(header_text, "AGENT RAW PROMPT")
                     header_text.append_text(plain_xprompt)
                     header_text.append("\n")
                     header_text.append("─" * 50 + "\n", style="dim")
@@ -112,7 +112,7 @@ def render_agent_prompt_hint_body(
                     header_text,
                     fallback_xprompt,
                 ):
-                    append_section_heading(header_text, "AGENT XPROMPT")
+                    append_section_heading(header_text, "AGENT RAW PROMPT")
                     header_text.append_text(fallback_xprompt)
                     header_text.append("\n")
                     header_text.append("─" * 50 + "\n", style="dim")
@@ -144,7 +144,7 @@ def render_agent_prompt_hint_body(
                 header_text,
                 xprompt,
             ):
-                append_section_heading(header_text, "AGENT XPROMPT")
+                append_section_heading(header_text, "AGENT RAW PROMPT")
                 header_text.append_text(xprompt)
                 header_text.append("\n")
                 header_text.append("─" * 50 + "\n", style="dim")

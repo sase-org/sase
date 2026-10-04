@@ -6,7 +6,7 @@ humanized xprompt ``Text`` into that preview: it reflows the source
 Markdown-style (soft line breaks join with a space, hard breaks become a dim
 ``¶``), wraps the result to a width, and keeps at most a row budget of rows
 behind a quote bar. :func:`preview_card` then sets the fitted rows apart from
-the metadata chips as a card: an ``XPROMPT`` tab row above rows padded to a
+the metadata chips as a card: a ``RAW PROMPT`` tab row above rows padded to a
 uniform Monokai surface. It touches no widget and does no I/O.
 """
 
@@ -29,7 +29,7 @@ PREVIEW_BREAK_GLYPH = "¶"
 PREVIEW_DIM_STYLE = "dim"
 # Must match the Monokai surface ``highlight_prompt_text`` paints under tokens.
 PREVIEW_CARD_STYLE = "on #272822"
-PREVIEW_TAB_LABEL = "XPROMPT"
+PREVIEW_TAB_LABEL = "RAW PROMPT"
 PREVIEW_TAB_LABEL_STYLE = "bold #AF87FF"
 PREVIEW_TAB_ROWS = 1
 
@@ -44,7 +44,7 @@ _MIN_WIDTH = 6
 _TAB_SIZE = 4
 _MIN_PREFIX_CHARS = 512
 # Reserved by the header chrome: two border rows, two chip rows, and the
-# XPROMPT tab row.
+# RAW PROMPT tab row.
 _CHROME_ROWS = 4 + PREVIEW_TAB_ROWS
 _NEVER = sys.maxsize
 
@@ -69,7 +69,7 @@ def preview_row_budget(column_rows: int, share: float, *, max_rows: int) -> int:
     """Return how many preview rows the collapsed header may show.
 
     The collapsed header is capped at ``floor(column_rows * share)`` rows in
-    total; the preview gets that cap minus the border, chip, and ``XPROMPT``
+    total; the preview gets that cap minus the border, chip, and ``RAW PROMPT``
     tab rows, but at least one row whenever ``share`` is positive. The body
     is also capped at ``max_rows`` rows, and the smaller of the two caps
     wins. A non-positive ``share``, ``column_rows``, or ``max_rows`` turns
@@ -146,7 +146,7 @@ def pending_preview_rows(rows: int) -> Text:
 
 
 def preview_card(body: Text, *, width: int) -> Text:
-    """Return ``body``'s rows as a card: an ``XPROMPT`` tab row, then the rows.
+    """Return ``body``'s rows as a card: a ``RAW PROMPT`` tab row, then the rows.
 
     Every body row is put on the card surface and padded with spaces to exactly
     ``width`` cells (widened to the minimum row width like the fit), so the

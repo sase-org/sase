@@ -26,14 +26,14 @@ from ._agent_display_agent_session import (
 from ._agent_session_reply_blocks import build_session_reply_blocks
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
-from ._agent_display_xprompt import (
+from ._agent_display_macro import (
     attach_xprompt_to_identity,
     memoize_xprompt,
     xprompt_hints_enabled,
 )
 from ._agent_gate_section import GateTextAnnotator, build_gate_phase
 from ._agent_monitor_section import MonitorTextAnnotator, build_monitor_phase
-from ._agent_xprompt_highlighting import (
+from ._agent_macro_highlighting import (
     AgentPromptHighlightContext,
     agent_prompt_highlight_context,
     apply_authored_prompt_overlays,
@@ -153,7 +153,7 @@ class AgentSessionDisplayMixin:
                 xprompt,
             )
             if not xprompt_detached:
-                append_section_heading(header_text, "AGENT XPROMPT")
+                append_section_heading(header_text, "AGENT RAW PROMPT")
                 header_text.append_text(xprompt)
                 header_text.append("\n")
                 rendered_content_section = True

@@ -110,12 +110,12 @@ class TestAgentXPromptHintMode:
 
         rendered = panel.captured[-1]
         plain = plain_of(rendered)
-        assert "AGENT XPROMPT" in plain
+        assert "AGENT RAW PROMPT" in plain
         assert "[1] @src/raw.py" in plain
         assert result.file_hints[1] == str(workspace_dir / "src/raw.py")
         assert_logical_section_is_compact(
             rendered,
-            "AGENT XPROMPT",
+            "AGENT RAW PROMPT",
             "Launch from [1] @src/raw.py",
         )
         assert_logical_section_is_compact(
@@ -159,7 +159,7 @@ class TestAgentXPromptHintMode:
         assert "#87AFFF" in _styles_at(rendered, "@src/raw.py")
         assert_logical_section_is_compact(
             rendered,
-            "AGENT XPROMPT",
+            "AGENT RAW PROMPT",
             "#work([1] @src/raw.py) %auto",
         )
 

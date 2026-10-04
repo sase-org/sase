@@ -1,4 +1,4 @@
-"""XPROMPT attachment to detached prompt-panel identities."""
+"""RAW PROMPT attachment to detached prompt-panel identities."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from rich.text import Text
 
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
-from sase.ace.tui.widgets.prompt_panel._agent_display_xprompt import (
+from sase.ace.tui.widgets.prompt_panel._agent_display_macro import (
     _agent_may_show_xprompt,
 )
 from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
@@ -63,8 +63,8 @@ def test_identity_xprompt_is_inline_after_expanded_fields() -> None:
     )
     plain = output.getvalue()
     assert plain.index("AGENT TURN") < plain.index("Name:")
-    assert plain.index("Name:") < plain.index("AGENT XPROMPT")
-    assert plain.index("AGENT XPROMPT") < plain.index("Review #plan")
+    assert plain.index("Name:") < plain.index("AGENT RAW PROMPT")
+    assert plain.index("AGENT RAW PROMPT") < plain.index("Review #plan")
     assert plain.index("Review #plan") < plain.index("─" * 50)
 
 
@@ -80,7 +80,7 @@ def test_expanded_renderable_separates_fields_and_xprompt_by_one_blank_row() -> 
         attached.expanded_renderable(), end=""
     )
     lines = output.getvalue().splitlines()
-    heading = lines.index("AGENT XPROMPT")
+    heading = lines.index("AGENT RAW PROMPT")
     assert lines[heading - 1] == ""
     assert lines[heading - 2].strip() != ""
     assert lines[heading + 1] == "Review #plan"
@@ -101,7 +101,7 @@ def test_standard_xprompt_moves_to_identity_when_detached(tmp_path: Path) -> Non
     assert identity is not None
     assert identity.xprompt is not None
     assert identity.xprompt.plain == "#review @src/example.py"
-    assert "AGENT XPROMPT" not in plain_of(document)
+    assert "AGENT RAW PROMPT" not in plain_of(document)
     assert "AGENT PROMPT" in plain_of(document)
 
 
@@ -123,7 +123,7 @@ def test_hinted_xprompt_moves_to_identity_and_keeps_its_markers(tmp_path: Path) 
     assert identity.xprompt is not None
     assert identity.xprompt.plain == "Read [1] @src/example.py"
     assert result.file_hints == {1: str(workspace / "src/example.py")}
-    assert "AGENT XPROMPT" not in plain_of(panel.captured[-1])
+    assert "AGENT RAW PROMPT" not in plain_of(panel.captured[-1])
 
 
 def test_collapsed_detached_xprompt_skips_markers(tmp_path: Path) -> None:
@@ -169,7 +169,7 @@ def test_agent_session_xprompt_moves_to_identity_when_detached(tmp_path: Path) -
     assert identity is not None
     assert identity.xprompt is not None
     assert "plan xprompt line 1" in identity.xprompt.plain
-    assert "AGENT XPROMPT" not in plain_of(panel.captured[-1])
+    assert "AGENT RAW PROMPT" not in plain_of(panel.captured[-1])
 
 
 def test_header_only_uses_xprompt_memo_or_pending_state(tmp_path: Path) -> None:

@@ -153,7 +153,9 @@ def _load_member_prompts(
     entries: list[ClanTextEntry] = []
     raw_xprompt = member.get_raw_prompt_content()
     if raw_xprompt:
-        entries.append(_text_entry(member, member_label, "AGENT XPROMPT", raw_xprompt))
+        entries.append(
+            _text_entry(member, member_label, "AGENT RAW PROMPT", raw_xprompt)
+        )
     prompt = get_prompt_content(member)
     if prompt:
         entries.append(_text_entry(member, member_label, "AGENT PROMPT", prompt))

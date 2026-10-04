@@ -156,7 +156,7 @@ def _select_member_raw(
         return bodies.get("AGENT PROMPT") or None
     # Every other row prefers the authored xprompt, falling back to the
     # selected prompt file only for historical rows without one.
-    return bodies.get("AGENT XPROMPT") or bodies.get("AGENT PROMPT") or None
+    return bodies.get("AGENT RAW PROMPT") or bodies.get("AGENT PROMPT") or None
 
 
 def _digest_for_raw(raw: str) -> PromptDigest:

@@ -58,7 +58,7 @@ def test_real_files_populate_all_three_searchable_conversation_sections(
 
     bodies = _bodies(document)
     for title, name in zip(
-        ("AGENT XPROMPT", "AGENT PROMPT", "AGENT REPLY"), sources, strict=True
+        ("AGENT RAW PROMPT", "AGENT PROMPT", "AGENT REPLY"), sources, strict=True
     ):
         assert bodies[title] == sources[name]
         assert sources[name] in search_corpus(document)

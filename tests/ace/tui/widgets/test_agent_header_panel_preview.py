@@ -1,4 +1,4 @@
-"""Collapsed XPROMPT preview card behavior for the header panel."""
+"""Collapsed RAW PROMPT preview card behavior for the header panel."""
 
 from __future__ import annotations
 
@@ -42,12 +42,12 @@ def _raw_rows(panel: AgentHeaderPanel) -> list[str]:
 
 
 def _assert_card(panel: AgentHeaderPanel) -> list[str]:
-    """Assert the collapsed header ends in an XPROMPT card; return its body rows."""
+    """Assert the collapsed header ends in a RAW PROMPT card; return its body rows."""
     rows = _raw_rows(panel)
     body_rows = _preview_rows(panel)
     assert body_rows >= 1
     assert len(rows) == 2 + 1 + body_rows
-    assert rows[2].rstrip() == "▎ XPROMPT"
+    assert rows[2].rstrip() == "▎ RAW PROMPT"
     body = rows[3:]
     for row in body:
         assert row.startswith("▎ ")
@@ -70,10 +70,10 @@ async def test_collapsed_preview_shows_quote_bar_and_body_omits_xprompt(
         panel = header_panel(detail)
         assert not panel.is_expanded
         _assert_card(panel)
-        assert "rendering the AGENT XPROMPT" in header_text(panel)
+        assert "rendering the AGENT RAW PROMPT" in header_text(panel)
         prompt = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
         body = renderable_to_text(prompt.content) or ""
-        assert "AGENT XPROMPT" not in body
+        assert "AGENT RAW PROMPT" not in body
         assert "AGENT PROMPT" in body
 
 
@@ -132,7 +132,7 @@ async def test_expand_shows_full_xprompt_and_toggles_back(tmp_path: Any) -> None
         assert detail.toggle_header_expanded() is True
         await pilot.pause()
         expanded = header_text(panel)
-        assert "AGENT XPROMPT" in expanded
+        assert "AGENT RAW PROMPT" in expanded
         assert "some fenced code block line" in expanded
         assert "less" in str(panel.border_subtitle)
 
@@ -140,7 +140,7 @@ async def test_expand_shows_full_xprompt_and_toggles_back(tmp_path: Any) -> None
         await pilot.pause()
         _assert_card(panel)
         collapsed = header_text(panel).splitlines()
-        assert not any(line.strip() == "AGENT XPROMPT" for line in collapsed)
+        assert not any(line.strip() == "AGENT RAW PROMPT" for line in collapsed)
 
 
 def test_no_phantom_row_rule_in_stylesheet() -> None:
@@ -228,11 +228,11 @@ async def test_share_zero_hides_preview_but_expanded_keeps_xprompt(
         assert panel.rendered_row_count == 2
         rows = header_text(panel).splitlines()
         assert len(rows) == 2
-        assert not any("XPROMPT" in row for row in rows)
+        assert not any("RAW PROMPT" in row for row in rows)
 
         assert detail.toggle_header_expanded() is True
         await pilot.pause()
-        assert "AGENT XPROMPT" in header_text(panel)
+        assert "AGENT RAW PROMPT" in header_text(panel)
 
 
 async def test_column_resize_changes_budget(tmp_path: Any) -> None:

@@ -294,7 +294,7 @@ def _append_field(text: Text, label: str, value: str, *, style: str) -> None:
 
 def _xprompts_line(run: AliasHistoryRun) -> Text:
     text = Text(no_wrap=False)
-    text.append("Xprompts: ", style=_LABEL_STYLE)
+    text.append("Macros: ", style=_LABEL_STYLE)
     for index, used in enumerate(run.used_macros):
         if index:
             text.append("  ")

@@ -158,7 +158,7 @@ def test_clan_sections_honor_all_three_fold_contracts() -> None:
     assert "• .one · AGENT REPLY · Reply summary" in expanded
     assert "BEAD · sase-demo · render clan summary" in expanded
     assert "• .one · Bash · 2m 5s · just check" in expanded
-    assert ".one [XPROMPT] · AGENT XPROMPT · #review segment" in expanded
+    assert ".one [RAW PROMPT] · AGENT RAW PROMPT · #review segment" in expanded
     assert "Second error detail" not in expanded
     assert "Reply full detail" not in expanded
 
@@ -304,7 +304,7 @@ def test_prompt_entries_render_tagified_with_accents(monkeypatch) -> None:
         ClanTextEntry(
             member_identity=member.identity,
             member_label=".one",
-            kind="AGENT XPROMPT",
+            kind="AGENT RAW PROMPT",
             preview="#gh:gh_acme__widgets fix",
             body="#gh:gh_acme__widgets fix the bug",
         ),
@@ -362,7 +362,7 @@ def test_prompt_entry_previews_tagify_in_triage(monkeypatch) -> None:
         ClanTextEntry(
             member_identity=member.identity,
             member_label=".one",
-            kind="AGENT XPROMPT",
+            kind="AGENT RAW PROMPT",
             preview="#gh:gh_acme__widgets fix",
             body="#gh:gh_acme__widgets fix the bug",
         ),

@@ -116,7 +116,7 @@ def test_last_vcs_macro_editor_command_is_all_tab_agent_command() -> None:
     """The Ctrl+G MRU editor action is discoverable on every tab."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.start_last_vcs_xprompt_in_editor"]
-    assert spec.label == "Edit last VCS xprompt"
+    assert spec.label == "Edit last VCS macro"
     assert spec.category == "Agents"
     assert spec.tabs == ("artifacts", "agents", "services")
     assert spec.key_sequence == ("ctrl+g",)
@@ -172,7 +172,7 @@ def test_start_agent_from_patch_command_uses_space() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.start_agent_from_patch"]
 
-    assert spec.label == "Repeat last launched VCS xprompt"
+    assert spec.label == "Repeat last launched VCS macro"
     assert spec.tabs == ("artifacts", "agents", "services")
     assert spec.key_sequence == ("space",)
     assert spec.key_display == "Space"

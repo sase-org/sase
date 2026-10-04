@@ -203,7 +203,7 @@ def _agent_session_case(tmp_path: Path) -> _FoldContractCase:
         roster_title="SESSION TURNS",
         content_section="SESSION TURNS",
         empty_sections=(
-            "AGENT XPROMPT",
+            "AGENT RAW PROMPT",
             "AGENT PROMPT",
             "OUTPUT VARIABLES",
             "WORKFLOW VARIABLES",
@@ -380,6 +380,6 @@ def test_agent_session_conversation_bodies_do_not_change_across_scale(
     documents = []
     for level in agent_session.scale:
         rendered = agent_session.populated[level].plain
-        documents.append(rendered[rendered.index("AGENT XPROMPT") :])
+        documents.append(rendered[rendered.index("AGENT RAW PROMPT") :])
 
     assert documents == [documents[0]] * len(documents)

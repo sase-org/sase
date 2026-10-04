@@ -33,7 +33,7 @@ __all__ = [
 ]
 
 LONG_XPROMPT = (
-    "Can you help me start rendering the AGENT XPROMPT section in the sticky "
+    "Can you help me start rendering the AGENT RAW PROMPT section in the sticky "
     "header above the agent data deck panel? Make sure that we provide a good "
     "preview of the contents in this section.\n"
     "\n"

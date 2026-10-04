@@ -150,7 +150,7 @@ class AgentHeaderPanel(VerticalScroll):
     ) -> tuple[RenderableType, XpromptPreviewFit | None, int]:
         """Return the collapsed renderable, its fit, and shown preview body rows.
 
-        The preview is an ``XPROMPT`` card: the returned row count covers its
+        The preview is an ``RAW PROMPT`` card: the returned row count covers its
         body only, not the tab row above it.
         """
         collapsed = identity.compact.copy()

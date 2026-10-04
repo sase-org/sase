@@ -74,7 +74,7 @@ async def _add_local_xprompt_from_panel(
     name: str = _LOCAL_XPROMPT_NAME,
     content: str = _LOCAL_XPROMPT_CONTENT,
 ) -> None:
-    """Author one local ``xprompts:`` helper through the real panel sub-editor."""
+    """Author one local ``macros:`` helper through the real panel sub-editor."""
     bar = app.query_one(PromptInputBar)
     bar.focus_frontmatter_panel()
     await pilot.pause()  # type: ignore[attr-defined]

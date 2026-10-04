@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
-from sase.ace.tui.widgets._local_xprompt_conversion import (
+from sase.ace.tui.widgets._local_macro_conversion import (
     convert_placeholders_to_inputs,
 )
 from sase.macro.jinja_assist import JinjaScope

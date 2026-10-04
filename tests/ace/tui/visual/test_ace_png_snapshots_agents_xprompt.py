@@ -115,7 +115,7 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
     monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
 
     # The expanded header is capped at half the detail column; 160x50 keeps
-    # the whole highlighted XPROMPT visible without scrolling the header.
+    # the whole highlighted RAW PROMPT visible without scrolling the header.
     async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         page.app.theme = theme
         await wait_for_startup(page)
@@ -125,7 +125,7 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
         # `d` is a no-op until the header panel shows an identity.
         await wait_for_svg_contains(page, "\u25be")
         await page.press("d")
-        await wait_for_svg_contains(page, "XPROMPT")
+        await wait_for_svg_contains(page, "RAW PROMPT")
         await wait_for_svg_contains(page, "sase_plan")
         await wait_for_svg_contains(page, "Clan")
         await wait_for_svg_contains(page, "sase-core")
@@ -224,7 +224,7 @@ async def test_agents_xprompt_panel_tag_highlighting_png_snapshot(
     monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
 
     # The expanded header is capped at half the detail column; 160x50 keeps
-    # the whole highlighted XPROMPT visible without scrolling the header.
+    # the whole highlighted RAW PROMPT visible without scrolling the header.
     async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         page.app.theme = theme
         await wait_for_startup(page)
@@ -234,7 +234,7 @@ async def test_agents_xprompt_panel_tag_highlighting_png_snapshot(
         # `d` is a no-op until the header panel shows an identity.
         await wait_for_svg_contains(page, "\u25be")
         await page.press("d")
-        await wait_for_svg_contains(page, "XPROMPT")
+        await wait_for_svg_contains(page, "RAW PROMPT")
         await wait_for_svg_contains(page, "sase_plan")
         await wait_for_svg_contains(page, "Clan")
         await wait_for_svg_contains(page, "sase-core")
@@ -247,7 +247,7 @@ async def test_agents_xprompt_panel_tag_highlighting_png_snapshot(
             "no-such-project",
             "%auto",
             "#pr",
-            "AGENT XPROMPT",
+            "AGENT RAW PROMPT",
             "Agent Clan",
             "sase-core",
             "sase_plan",

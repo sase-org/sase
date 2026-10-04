@@ -104,7 +104,7 @@ def rich_clan_snapshot() -> tuple[Agent, ClanSectionSnapshot]:
     prompt = ClanTextEntry(
         member_identity=identity,
         member_label=".one",
-        kind="AGENT XPROMPT",
+        kind="AGENT RAW PROMPT",
         preview="#review segment",
         body="#review segment\nPrompt full detail",
     )

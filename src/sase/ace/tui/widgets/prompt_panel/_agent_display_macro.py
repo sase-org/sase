@@ -1,4 +1,4 @@
-"""Detached xprompt attachment and cheap-path memo support."""
+"""Detached macro attachment and cheap-path memo support."""
 
 from __future__ import annotations
 

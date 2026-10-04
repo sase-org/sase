@@ -167,7 +167,7 @@ class TestAgentXPromptHighlighting:
         panel.update_display(agent)
 
         header = _header_text(panel.captured[-1])
-        assert "AGENT XPROMPT\n#gh:widgets Run `pytest`" in header.plain
+        assert "AGENT RAW PROMPT\n#gh:widgets Run `pytest`" in header.plain
         assert any("#e6db74" in style for style in _styles_at(header, "pytest"))
 
     def test_agent_xprompt_highlights_artifact_refs_after_xprompt_args(

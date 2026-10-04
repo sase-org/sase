@@ -56,7 +56,7 @@ def _member_snapshot(
             ClanTextEntry(
                 member_identity=member.identity,
                 member_label=label,
-                kind="AGENT XPROMPT",
+                kind="AGENT RAW PROMPT",
                 preview=xprompt.splitlines()[0] if xprompt else "",
                 body=xprompt,
             )

@@ -118,7 +118,7 @@ def test_help_modal_displays_space_repeat_agent_shortcuts() -> None:
     }
 
     for pairs in (cls_pairs, agent_pairs, axe_pairs):
-        assert ("Space", "Repeat last launched VCS xprompt") in pairs
+        assert ("Space", "Repeat last launched VCS macro") in pairs
         assert ("Space", "Run agent (home)") not in pairs
         assert not any("@/Space" in label for _key, label in pairs)
 
@@ -135,7 +135,7 @@ def test_help_modal_displays_bare_space_repeat_agent_app_key() -> None:
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("Space", "Repeat last launched VCS xprompt") in pairs
+        assert ("Space", "Repeat last launched VCS macro") in pairs
 
 
 def test_help_modal_displays_h_agent_home_leader_key() -> None:

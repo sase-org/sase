@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.testing import wait_for
-import sase.ace.tui.widgets._local_xprompt_conversion as conversion_module
+import sase.ace.tui.widgets._local_macro_conversion as conversion_module
 from sase.ace.tui.modals import UnifiedSaveLocation, UnifiedMacroSaveModal
 from sase.ace.tui.modals.macro_location_modal import MacroLocation
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane

@@ -31,14 +31,14 @@ class TestAgentXPromptRendering:
         panel.update_display(agent)
 
         plain = plain_of(panel.captured[-1])
-        assert "AGENT XPROMPT" in plain
+        assert "AGENT RAW PROMPT" in plain
         assert "Launch from @src/raw.py" in plain
         assert "AGENT PROMPT" in plain
         assert "AGENT CHAT" in plain
         rendered = panel.captured[-1]
         assert_rendered_section_is_compact(
             rendered,
-            "AGENT XPROMPT",
+            "AGENT RAW PROMPT",
             "Launch from @src/raw.py",
         )
         assert_rendered_section_is_compact(
@@ -59,7 +59,7 @@ class TestAgentXPromptRendering:
         panel.update_display(agent)
 
         plain = plain_of(panel.captured[-1])
-        assert "AGENT XPROMPT" in plain
+        assert "AGENT RAW PROMPT" in plain
         assert "Launch from @src/raw.py" in plain
         assert "AGENT PROMPT" in plain
         assert "AGENT CHAT" in plain

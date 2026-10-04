@@ -1,7 +1,7 @@
-"""Pure decision helpers for converting a prompt pane into a local xprompt.
+"""Pure decision helpers for converting a prompt pane into a local macro.
 
 The ``gL`` / ``Ctrl+G L`` prompt-local keymap turns the active prompt pane into
-a local ``xprompts:`` helper stored in the prompt bar's shared frontmatter and
+a local ``macros:`` helper stored in the prompt bar's shared frontmatter and
 replaces the pane with an invocation of that helper.  Every decision the keymap
 makes -- normalizing and validating the helper name, inferring its inputs from
 the pane body, building the :class:`~sase.macro.models.XPrompt`, and rendering
@@ -158,12 +158,12 @@ def validate_local_xprompt_name(name: str, used_names: set[str]) -> str:
     if not _NAME_RE.fullmatch(name):
         return "name must be a valid identifier"
     if name in used_names:
-        return f"xprompt '{name}' already exists"
+        return f"macro '{name}' already exists"
     return ""
 
 
 def infer_local_xprompt_inputs(body: str) -> _PlaceholderArgConversion | None:
-    """Rewrite placeholders and infer every required input for a local xprompt.
+    """Rewrite placeholders and infer every required input for a local macro.
 
     Returns one ``TEXT`` :class:`InputArg` per undeclared variable (no default,
     so each is required), with engine scope variables filtered out by

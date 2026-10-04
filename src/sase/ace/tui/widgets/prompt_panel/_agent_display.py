@@ -35,7 +35,7 @@ from ._agent_display_tribe import tribe_enrichment_sections_for_fold_state
 from ._agent_display_header import build_header_text
 from ._agent_display_header_summary import immediate_detail_header_summary
 from ._agent_display_render import AgentDisplayRenderMixin
-from ._agent_display_xprompt import attach_memoized_xprompt
+from ._agent_display_macro import attach_memoized_xprompt
 from ._member_roster import member_jump_map_publisher_for
 from ._agent_tribe_aggregation import (
     TribeSectionSnapshot,

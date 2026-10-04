@@ -59,14 +59,14 @@ from ._agent_display_header_summary import (
 from ._agent_display_hints import clear_agent_hint_render_cache
 from ._live_reply_follow import is_live_reply_agent, live_reply_region
 from ._agent_display_step_render import AgentStepDisplayMixin
-from ._agent_display_xprompt import (
+from ._agent_display_macro import (
     attach_xprompt_to_identity,
     memoize_xprompt,
 )
 from ._agent_finalizer_receipt import append_finalizer_receipt
 from ._agent_gate_section import build_gate_phase
 from ._agent_monitor_section import build_monitor_phase
-from ._agent_xprompt_highlighting import (
+from ._agent_macro_highlighting import (
     AgentPromptHighlightContext,
     agent_prompt_highlight_context,
 )
@@ -439,7 +439,7 @@ class AgentDisplayRenderMixin(
             self._update_parallel_display(agent, header_text, error_tb_syntax)
             return
 
-        # AGENT XPROMPT section
+        # AGENT RAW PROMPT section
         raw_xprompt = agent.get_raw_prompt_content()
         highlight_context = self._prompt_highlight_context(
             agent,
@@ -455,7 +455,7 @@ class AgentDisplayRenderMixin(
                 context=highlight_context,
             )
             if not attach_xprompt_to_identity(self, header_text, xprompt):
-                append_section_heading(header_text, "AGENT XPROMPT")
+                append_section_heading(header_text, "AGENT RAW PROMPT")
                 header_text.append_text(xprompt)
                 header_text.append("\n")
                 header_text.append("\n")

@@ -87,11 +87,11 @@ def test_help_xprompt_controls_are_visible_only_on_xprompts() -> None:
     for view in VIEW_ORDER:
         controls = _modal(view)._controls_text().plain
         if view == "xprompts":
-            assert "Focus XPrompt — choose from loaded xprompts" in controls
-            assert "Clear XPrompt Focus — return to All xprompts" in controls
+            assert "Focus Macro — choose from loaded xprompts" in controls
+            assert "Clear Macro Focus — return to All xprompts" in controls
         else:
-            assert "Focus XPrompt" not in controls
-            assert "Clear XPrompt Focus" not in controls
+            assert "Focus Macro" not in controls
+            assert "Clear Macro Focus" not in controls
 
 
 def test_help_explains_runner_eligibility_windows_and_capacity_caveats() -> None:

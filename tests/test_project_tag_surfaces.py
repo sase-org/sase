@@ -185,13 +185,13 @@ def test_pager_macro_body_stays_plain_for_syntax_highlighting(
     warm_catalog,
 ) -> None:
     from sase.ace.tui.actions.agents._metadata_pager_conversation import (
-        _tag_styled_xprompt_body,
+        _tag_styled_raw_prompt_body,
     )
 
     # Tag-form input (humanize tagify of ``#`` refs is covered by the
     # humanizer tests with a populated display snapshot; pytest isolates
     # SASE_HOME so the snapshot is empty here).
-    body = _tag_styled_xprompt_body("+sase do things")
+    body = _tag_styled_raw_prompt_body("+sase do things")
     assert isinstance(body, Text)
     assert body.plain == "+sase do things"
     # Tag accents arrive through the pager highlighter's PROJECT_TAG spans,

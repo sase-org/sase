@@ -1,4 +1,4 @@
-"""Agent-specific XPROMPTS metadata helpers for the prompt panel header."""
+"""Agent-specific macro metadata helpers for the prompt panel header."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def append_agent_xprompts_section(
     if not xprompts:
         return
 
-    text.append("Xprompts: ", style=_COLOR_HEADER)
+    text.append("Macros: ", style=_COLOR_HEADER)
     text.append(_summary(xprompts), style=_COLOR_SUMMARY)
     text.append("\n")
 
@@ -74,7 +74,7 @@ def _summary(xprompts: list[dict[str, Any]]) -> str:
         parts.append(count_phrase(workflow_count, "workflow"))
     if part_count:
         parts.append(count_phrase(part_count, "part"))
-    return " · ".join(parts) if parts else count_phrase(len(xprompts), "xprompt")
+    return " · ".join(parts) if parts else count_phrase(len(xprompts), "macro")
 
 
 def _format_args(

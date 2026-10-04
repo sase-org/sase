@@ -215,7 +215,7 @@ class TabQuickStart(VerticalScroll):
         rows: list[tuple[tuple[str, ...], str]] = [
             (
                 (key_display_name(app.start_agent_from_patch),),
-                "Launch an agent: repeats your last VCS xprompt, or opens a "
+                "Launch an agent: repeats your last VCS macro, or opens a "
                 "blank home-workspace prompt the first time.",
             ),
             (

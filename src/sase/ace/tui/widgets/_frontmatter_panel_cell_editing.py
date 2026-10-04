@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import re
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.widgets._local_xprompt_conversion import (
+from sase.ace.tui.widgets._local_macro_conversion import (
     normalize_local_xprompt_name,
     validate_local_xprompt_name,
 )

@@ -234,7 +234,7 @@ def test_agent_session_section_cycle_and_toggle_use_agent_session_scale() -> Non
 
 @pytest.mark.parametrize(
     "section_id",
-    ["agent-xprompt", "agent-prompt", "agent-reply"],
+    ["agent-raw-prompt", "agent-prompt", "agent-reply"],
 )
 @pytest.mark.parametrize("key", ["a", "A"])
 def test_agent_session_conversation_sections_ignore_section_fold_commands(

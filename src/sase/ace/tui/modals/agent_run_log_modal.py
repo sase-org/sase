@@ -436,12 +436,12 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append("Error: ", style="bold red")
             text.append(f"{agent.error_message}\n", style="red")
 
-        # AGENT XPROMPT section
+        # AGENT RAW PROMPT section
         xprompt_content = agent.get_raw_prompt_content()
         if xprompt_content:
             text.append("\n")
             text.append("\u2500" * 40 + "\n", style="dim")
-            text.append("AGENT XPROMPT\n", style="bold underline #87D7FF")
+            text.append("AGENT RAW PROMPT\n", style="bold underline #87D7FF")
             # Truncate if very long
             lines = xprompt_content.split("\n")
             if len(lines) > 50:

@@ -225,14 +225,14 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("Q", "stop_axe_and_quit", "Quit / Restart", show=False),
     # Agent workflow (all tabs) - shows project/Patch selection modals
     Binding("plus", "start_custom_agent", "Run Agent", show=False),
-    # Repeat last launched VCS xprompt (all tabs)
+    # Repeat last launched VCS macro (all tabs)
     Binding(
-        "space", "start_agent_from_patch", "Run Agent (Last VCS XPrompt)", show=False
+        "space", "start_agent_from_patch", "Run Agent (Last VCS Macro)", show=False
     ),
     Binding(
         "ctrl+g",
         "start_last_vcs_xprompt_in_editor",
-        "Edit Last VCS XPrompt",
+        "Edit Last VCS Macro",
         show=False,
     ),
     # Global prompt-stash restore (pop-and-load), reachable from every tab.

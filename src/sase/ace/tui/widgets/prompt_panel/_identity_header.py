@@ -69,7 +69,7 @@ class IdentityHeader:
             fields = fields.copy()
             fields.rstrip()
         heading = Text()
-        append_section_heading(heading, "AGENT XPROMPT")
+        append_section_heading(heading, "AGENT RAW PROMPT")
         # ``Text("")`` renders as exactly one blank row between the two blocks.
         return Group(fields, Text(""), heading, self.xprompt)
 

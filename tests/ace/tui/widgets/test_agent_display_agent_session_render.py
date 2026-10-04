@@ -24,7 +24,7 @@ from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
 
 _CONVERSATION_SECTION_IDS = (
-    "agent-xprompt",
+    "agent-raw-prompt",
     "agent-prompt",
     "agent-reply",
 )
@@ -58,7 +58,7 @@ def _render_agent_session(
 
 def _conversation_document(renderable: object) -> str:
     plain = plain_of(renderable)
-    return plain[plain.index("AGENT XPROMPT") :]
+    return plain[plain.index("AGENT RAW PROMPT") :]
 
 
 def _section_ids(renderable: object) -> list[str]:
@@ -97,7 +97,7 @@ def _section_ids(renderable: object) -> list[str]:
         (
             FoldLevel.EXPANDED,
             {
-                "agent-xprompt": FoldLevel.COLLAPSED,
+                "agent-raw-prompt": FoldLevel.COLLAPSED,
                 "agent-prompt": FoldLevel.EXPANDED,
                 "agent-reply": FoldLevel.FULLY_EXPANDED,
             },
@@ -116,7 +116,7 @@ def test_agent_session_conversation_sections_are_always_full(
     )
     plain = plain_of(renderable)
 
-    assert "AGENT XPROMPT\n" in plain
+    assert "AGENT RAW PROMPT\n" in plain
     assert "AGENT PROMPT\n" in plain
     assert "AGENT REPLY · 2\n" in plain
     assert "plan xprompt line 15" in plain
@@ -128,7 +128,7 @@ def test_agent_session_conversation_sections_are_always_full(
     assert not any(
         f"{glyph} {heading}" in plain
         for glyph in ("▸", "▾", "▼", "◆")
-        for heading in ("AGENT XPROMPT", "AGENT PROMPT", "AGENT REPLY")
+        for heading in ("AGENT RAW PROMPT", "AGENT PROMPT", "AGENT REPLY")
     )
     assert [
         identity
@@ -157,7 +157,7 @@ def test_agent_session_conversation_document_is_identical_across_fold_state(
                 (
                     FoldLevel.EXPANDED,
                     {
-                        "agent-xprompt": FoldLevel.FULLY_EXPANDED,
+                        "agent-raw-prompt": FoldLevel.FULLY_EXPANDED,
                         "agent-prompt": FoldLevel.COLLAPSED,
                         "agent-reply": FoldLevel.EXPANDED,
                     },
@@ -190,7 +190,7 @@ def test_agent_session_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -
     )
     plain = plain_of(panel.captured[-1])
 
-    assert "AGENT XPROMPT" not in plain
+    assert "AGENT RAW PROMPT" not in plain
     assert "No xprompt file found." not in plain
     assert "AGENT PROMPT" not in plain
     assert "No prompt file found." not in plain

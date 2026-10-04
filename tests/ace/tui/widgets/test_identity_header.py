@@ -194,9 +194,9 @@ def test_xprompts_render_on_cheap_detached_path() -> None:
     summary = DetailHeaderSummary(xprompts_used=[{"kind": "part", "name": "review"}])
     agent = make_agent(agent_name="solo")
     cheap_plain, _ = build_header_text(agent, cheap=True, summary=summary)
-    assert "Xprompts:" not in cheap_plain.plain
+    assert "Macros:" not in cheap_plain.plain
     identity = _detached(agent, cheap=True, summary=summary)
-    assert "Xprompts:" in identity.expanded.plain
+    assert "Macros:" in identity.expanded.plain
     assert "#review" in identity.compact.plain
 
 

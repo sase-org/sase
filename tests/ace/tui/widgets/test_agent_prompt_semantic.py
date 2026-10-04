@@ -15,7 +15,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
     AgentHeaderRenderable,
 )
 from sase.ace.tui.models.agent import AttemptRecord
-from sase.ace.tui.widgets.prompt_panel._agent_xprompt_highlighting import (
+from sase.ace.tui.widgets.prompt_panel._agent_macro_highlighting import (
     _agent_project_and_workspace,
     agent_prompt_highlight_context,
 )
@@ -264,7 +264,7 @@ def test_agent_session_pinned_and_workflow_authored_prompt_paths(
     Path(root.artifacts_dir, "01_prompt.md").write_text(source + "\n", encoding="utf-8")
     panel.update_display(root)
     agent_session_plain = plain_of(panel.captured[-1])
-    assert "AGENT XPROMPT" in agent_session_plain
+    assert "AGENT RAW PROMPT" in agent_session_plain
     assert "Agent Clan" in agent_session_plain
     agent_session_header = _header_text(panel.captured[-1])
     assert _has_role_underline(_styles_at(agent_session_header, "Agent Clan"))

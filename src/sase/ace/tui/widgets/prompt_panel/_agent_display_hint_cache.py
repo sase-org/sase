@@ -26,7 +26,7 @@ from ._agent_display_content import get_prompt_content
 from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_header_summary import detail_header_summary_cache_key
 from ._agent_display_state import AgentHintRender
-from ._agent_xprompt_highlighting import agent_prompt_highlight_context
+from ._agent_macro_highlighting import agent_prompt_highlight_context
 from ._hint_caps import HintContentBudget
 
 _AGENT_HINT_RENDER_CACHE_MAX_ENTRIES = 16

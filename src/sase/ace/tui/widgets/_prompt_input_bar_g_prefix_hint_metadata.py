@@ -156,10 +156,10 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
         )
 
     def _g_prefix_available_convert_local_xprompt(self) -> bool:
-        """Whether ``gL`` can convert the active pane into a local xprompt.
+        """Whether ``gL`` can convert the active pane into a local macro.
 
         Prompt mode only, and only when the active pane has non-blank text —
-        the conversion stores that pane body as a local ``xprompts:`` helper, so
+        the conversion stores that pane body as a local ``macros:`` helper, so
         an empty pane has nothing to save.
         """
         if self._mode != "prompt":

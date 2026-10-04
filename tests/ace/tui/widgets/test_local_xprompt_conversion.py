@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-import sase.ace.tui.widgets._local_xprompt_conversion as conversion_module
-from sase.ace.tui.widgets._local_xprompt_conversion import (
+import sase.ace.tui.widgets._local_macro_conversion as conversion_module
+from sase.ace.tui.widgets._local_macro_conversion import (
     build_local_xprompt,
     convert_placeholders_to_inputs,
     infer_local_xprompt_inputs,

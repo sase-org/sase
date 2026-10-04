@@ -25,7 +25,7 @@ from ._types import NavigationMixinBase
 
 _FOLD_INERT_AGENT_SECTION_IDS = frozenset(
     {
-        "agent-xprompt",
+        "agent-raw-prompt",
         "agent-prompt",
         "agent-reply",
     }

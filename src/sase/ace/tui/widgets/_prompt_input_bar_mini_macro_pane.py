@@ -1,4 +1,4 @@
-"""Mini-xprompt target pane lifecycle for ``PromptInputBar``."""
+"""Mini-macro target pane lifecycle for ``PromptInputBar``."""
 
 from __future__ import annotations
 
