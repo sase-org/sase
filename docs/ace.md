@@ -3577,7 +3577,9 @@ state path, any shadowing source, and that **sase's TUI and service host restart
 TUI tasks and installation changes finish**. Confirming writes only the machine-state
 file, waits up to 60 seconds for TUI-local work and installation mutations, then
 performs one controlled sase's TUI+service-host restart. Independent commands keep
-running. A restart failure does not roll back the saved preference.
+running. Durable operations started from this TUI still finish their result handling
+first, within the same 60-second wait. A restart failure does not roll back the saved
+preference.
 
 Disabling `admin_center_flags` from its own row is supported: the confirmation says the
 Flags pane will disappear after restart and gives `sase flag enable admin_center_flags`
@@ -5180,9 +5182,11 @@ stash opens the Prompts overlay on Stash, and inbox opens the notification modal
 SASE is updating itself, the `updates` group shows a green `⚙` gear inset at its left
 edge. While installed code waits for TUI-local tasks, submissions, or installation
 changes before restarting ACE and the SASE service, it shows a yellow `⚙` gear inset
-instead (green outranks yellow). Independent commands keep running. The yellow tooltip
-names the actual blockers and the time ACE restarts anyway; clicking it opens the Procs
-tab on the first blocker. Feature-flag restarts never show the yellow gear.
+instead (green outranks yellow). Independent commands keep running. Durable operations
+started from this TUI still finish their result handling first, within the same
+60-second wait. The yellow tooltip names the actual blockers and the time ACE restarts
+anyway; clicking it opens the Procs tab on the first blocker. Feature-flag restarts
+never show the yellow gear.
 
 ### Proc Indicator
 
@@ -9062,7 +9066,8 @@ dark chip (lime `⬆ N` SASE and sage `CLI ⬆ N` segments with separate counts,
 `core` tag for a sase-core rebuild, plus a green `⚙` gear inset at the left edge while
 SASE is updating, a yellow `⚙` gear inset while a tracked restart waits for TUI-local
 tasks and installation changes, or a red `⚙` gear inset while the most recent update
-attempt failed). Independent commands keep running.
+attempt failed). Independent commands keep running. Durable operations started from this
+TUI still finish their result handling first, within the same 60-second wait.
 
 A red gear means the last update or update-planning attempt settled with an error, or
 ACE exited before it finished (an interrupted attempt, whose install may be incomplete).
@@ -9078,8 +9083,9 @@ HEAD imported by the process and cheaply checks whether the checkout has moved o
 It warns once for each new on-disk generation. While any imported root is stale, the
 global Update panel (`,U`) adds **Restart ACE** as its first row; press `x` or `X` to
 restart after the same TUI-task and installation-change drain used by post-update
-restarts. Independent commands keep running. This reloads the already-updated code and
-does not fetch or modify a checkout.
+restarts. Independent commands keep running. Durable operations started from this TUI
+still finish their result handling first, within the same 60-second wait. This reloads
+the already-updated code and does not fetch or modify a checkout.
 
 Every mutation still plans before it runs, and `Ctrl+D` / `Ctrl+U` scroll long preview
 panes. When commit previews are enabled and a comparable range is available, core and
@@ -9118,7 +9124,9 @@ commands) in the completion toast instead of restarting. Before that restart, sa
 waits up to 60 seconds for TUI-local tasks, in-flight submissions, and installation
 changes to finish (a toast reports the queued restart) and then restarts anyway with a
 warning naming whatever is still active. Independent work — agent tool runs, ordinary
-durable commands, oneshots, monitor turns, and service daemons — keeps running.
+durable commands, oneshots, monitor turns, and service daemons — keeps running. Durable
+operations started from this TUI still finish their result handling first, within the
+same 60-second wait.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates marked agent CLIs from anywhere in the pane, and

@@ -9,13 +9,17 @@ from typing import Any, Literal
 
 _RESTART_WAIT_SECONDS = 60.0
 NotifyFn = Callable[..., None]
-RestartBlockerKind = Literal["session_worker", "submission", "install", "legacy_tui"]
+RestartBlockerKind = Literal[
+    "session_worker", "submission", "completion", "install", "legacy_tui"
+]
 
 _DEFAULT_RESTART_PURPOSE = "load new code"
 _FALLBACK_SUBMISSION_LABEL = "durable submission"
+_FALLBACK_COMPLETION_LABEL = "TUI follow-up"
 _KIND_GROUP: dict[RestartBlockerKind, str] = {
     "session_worker": "tui",
     "legacy_tui": "tui",
+    "completion": "tui",
     "submission": "submission",
     "install": "install",
 }
@@ -187,8 +191,9 @@ def collect_restart_blockers(app: Any) -> tuple[RestartBlocker, ...]:
 
     Independent durable commands, tool runs, monitors, oneshots, and
     service daemons are not restart dependencies. Presence in the session
-    overlay or submit-worker map is authoritative even after a worker
-    thread has returned, so a queued completion callback still blocks.
+    overlay, submit-worker map, or this TUI's pending completion-callback
+    map is authoritative even after a worker thread has returned, so a
+    queued TUI follow-up still blocks.
     """
     seen: set[str] = set()
     blockers: list[RestartBlocker] = []
@@ -242,7 +247,6 @@ def collect_restart_blockers(app: Any) -> tuple[RestartBlocker, ...]:
                 aliases.append(str(durable_id))
         add(identity, label, "submission", aliases)
 
-    session_id = _current_session_id(app)
     try:
         from sase.ace.tui._proc_observer_models import (
             is_install_mutation_row,
@@ -250,6 +254,46 @@ def collect_restart_blockers(app: Any) -> tuple[RestartBlocker, ...]:
         )
     except Exception:
         return tuple(blockers)
+
+    for key in tuple(getattr(app, "_proc_completion_callbacks", {}) or {}):
+        identity = str(key or "")
+        if not identity:
+            continue
+        row = _row_by_id(cached_rows, identity)
+        if row is not None:
+            try:
+                if not proc_status_is_active(getattr(row, "status", "")):
+                    continue
+                if is_install_mutation_row(row):
+                    continue
+            except Exception:
+                continue
+            aliases = [identity]
+            row_proc_id = str(getattr(row, "proc_id", "") or "")
+            if row_proc_id and row_proc_id not in aliases:
+                aliases.append(row_proc_id)
+            durable_id = getattr(row, "durable_proc_id", None)
+            if durable_id:
+                durable_text = str(durable_id)
+                if durable_text and durable_text not in aliases:
+                    aliases.append(durable_text)
+            add(
+                _row_identity(row) or identity,
+                overlay_row_label(row) or identity,
+                "completion",
+                aliases,
+            )
+            continue
+        observer = getattr(app, "_proc_observer", None)
+        is_watching = getattr(observer, "is_watching", None)
+        try:
+            watching = callable(is_watching) and bool(is_watching(identity))
+        except Exception:
+            watching = False
+        if watching:
+            add(identity, _FALLBACK_COMPLETION_LABEL, "completion")
+
+    session_id = _current_session_id(app)
     for row in cached_rows:
         try:
             if not proc_status_is_active(getattr(row, "status", "")):
@@ -448,7 +492,8 @@ def _row_identity(row: Any) -> str:
 def _row_by_id(rows: tuple[Any, ...], identity: str) -> Any | None:
     for row in rows:
         proc_id = str(getattr(row, "proc_id", "") or "")
-        if _row_identity(row) == identity or proc_id == identity:
+        durable_id = str(getattr(row, "durable_proc_id", "") or "")
+        if identity == proc_id or identity == durable_id:
             return row
     return None
 

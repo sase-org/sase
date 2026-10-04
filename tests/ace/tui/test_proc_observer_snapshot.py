@@ -223,6 +223,10 @@ def test_observer_delivers_terminal_completion_once(
         result_path=str(result_path),
     )
 
+    assert observer.is_watching("proc-1") is True
+    assert observer.is_watching(pending.proc_id) is False
+    assert observer.is_watching("") is False
+
     first = observer.poll_once()
     second = observer.poll_once()
 
@@ -265,3 +269,27 @@ def test_pending_placeholder_message_can_be_retitled_and_removed(monkeypatch) ->
     observer.remove_pending(pending.proc_id)
     observer.update_pending(pending.proc_id, message="too late")
     assert messages() == []
+
+
+def test_observer_is_watching_reads_lock_guarded_watch_map() -> None:
+    observer = ProcObserver(on_snapshot=lambda _snapshot: None)
+    pending = observer.register_pending(
+        proc_type="patch",
+        cl_name="demo",
+        project_file="project.sase",
+        display_name="sync demo",
+    )
+
+    assert observer.is_watching(pending.proc_id) is False
+    assert observer.is_watching("durable-1") is False
+    assert observer.is_watching("") is False
+
+    observer.register_submitted(
+        placeholder_id=pending.proc_id,
+        proc_id="durable-1",
+        operation="patch.sync",
+        result_path="/tmp/result.json",
+    )
+
+    assert observer.is_watching("durable-1") is True
+    assert observer.is_watching(pending.proc_id) is False

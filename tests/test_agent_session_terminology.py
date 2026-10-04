@@ -101,7 +101,8 @@ _STALE_PHRASES = (
 )
 
 # Intentional survivors: the one formerly-called clause, the historical
-# families/ footer-link stubs, and the unrelated vcs_family example.
+# families/ footer-link stubs (sidecar docs plus the generated configuration
+# flag paragraph), and the unrelated vcs_family example.
 _STALE_PHRASE_ALLOWLIST = {
     ("docs/agent_sessions.md", "agent families"),
     ("docs/commit_workflows.md", "families/"),

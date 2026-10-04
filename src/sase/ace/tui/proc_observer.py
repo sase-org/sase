@@ -200,6 +200,13 @@ class ProcObserver:
             )
         self.request_poll()
 
+    def is_watching(self, proc_id: str) -> bool:
+        """Return whether this observer still watches *proc_id* for completion."""
+        if not proc_id:
+            return False
+        with self._lock:
+            return proc_id in self._watches
+
     def update_pending(self, placeholder_id: str, *, message: str) -> None:
         """Retitle a placeholder row's message, e.g. to name the stage it waits in."""
         with self._lock:
