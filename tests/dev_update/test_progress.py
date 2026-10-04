@@ -22,7 +22,7 @@ from sase.dev_update.models import (
     OutputSink,
 )
 from sase.dev_update.plan import plan_dev_update
-import sase.dev_update.plan as plan_mod
+import sase.dev_update._plan_roots as plan_mod
 from sase.dev_update.progress import (
     format_merge_detail,
     reconcile_step_title,

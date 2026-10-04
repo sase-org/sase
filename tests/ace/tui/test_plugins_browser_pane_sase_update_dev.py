@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from textual.widgets import Static
 
-import sase.dev_update.plan as plan_mod
+import sase.dev_update._plan_roots as plan_mod
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_dev_update as pbdu
