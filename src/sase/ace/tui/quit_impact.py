@@ -70,7 +70,8 @@ class TuiExitImpact:
         return kept
 
 
-def _session_labels(app: Any) -> tuple[str, ...]:
+def session_overlay_rows(app: Any) -> tuple[Any, ...]:
+    """Return live session-worker overlay rows without doing I/O."""
     overlay = getattr(app, "_session_overlay_rows", None)
     if not callable(overlay):
         return ()
@@ -78,19 +79,45 @@ def _session_labels(app: Any) -> tuple[str, ...]:
         rows = overlay()
     except Exception:
         return ()
+    return tuple(rows or ())
+
+
+def overlay_row_label(row: Any) -> str:
+    """Return a stable user-facing label for one overlay or proc row."""
+    label = getattr(row, "label", None)
+    if callable(label):
+        try:
+            label = label()
+        except Exception:
+            label = None
+    text = str(label or getattr(row, "display_name", None) or "")
+    if text:
+        return text
+    proc_type = getattr(row, "proc_type", None)
+    if proc_type:
+        return str(proc_type)
+    return ""
+
+
+def durable_submit_workers(app: Any) -> dict[str, Any]:
+    """Return the TUI's in-flight durable-submit worker map."""
+    workers = getattr(app, "_durable_submit_workers", None)
+    if not isinstance(workers, dict):
+        return {}
+    return workers
+
+
+def _session_labels(app: Any) -> tuple[str, ...]:
     try:
         from sase.ace.tui._proc_observer_models import proc_status_is_active
     except Exception:
         return ()
     labels: list[str] = []
-    for row in rows or ():
+    for row in session_overlay_rows(app):
         try:
             if not proc_status_is_active(getattr(row, "status", "")):
                 continue
-            label = getattr(row, "label", None)
-            if callable(label):
-                label = label()
-            text = str(label or getattr(row, "display_name", None) or row.proc_type)
+            text = overlay_row_label(row)
             if text:
                 labels.append(text)
         except Exception:
@@ -99,8 +126,8 @@ def _session_labels(app: Any) -> tuple[str, ...]:
 
 
 def _pending_durable_submit_count(app: Any) -> int:
-    workers = getattr(app, "_durable_submit_workers", None)
-    if not isinstance(workers, dict) or not workers:
+    workers = durable_submit_workers(app)
+    if not workers:
         return 0
     count = 0
     for worker in workers.values():
@@ -176,4 +203,10 @@ def collect_tui_exit_impact(app: Any) -> TuiExitImpact:
     )
 
 
-__all__ = ["TuiExitImpact", "collect_tui_exit_impact"]
+__all__ = [
+    "TuiExitImpact",
+    "collect_tui_exit_impact",
+    "durable_submit_workers",
+    "overlay_row_label",
+    "session_overlay_rows",
+]

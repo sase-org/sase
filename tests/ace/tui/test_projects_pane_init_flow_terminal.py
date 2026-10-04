@@ -20,6 +20,27 @@ from tests.ace.tui._projects_pane_init_flow_helpers import (
 )
 
 
+def _patch_init_subprocess_run(monkeypatch: pytest.MonkeyPatch, handler: Any) -> None:
+    """Patch init-actions ``subprocess.run`` without intercepting git probes.
+
+    That module uses ``import subprocess``, so setattr on ``.subprocess.run``
+    replaces the process-global function. Identity lookups then leak into
+    tests that only meant to watch the terminal ``sase init`` argv.
+    """
+    original = subprocess.run
+
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        argv = list(args[0] if args else kwargs.get("args") or [])
+        if argv[:1] == ["git"]:
+            return original(*args, **kwargs)
+        return handler(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane_init_actions.subprocess.run",
+        wrapped,
+    )
+
+
 async def test_terminal_valve_suspends_runs_scoped_argv_and_reloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -37,10 +58,7 @@ async def test_terminal_valve_suspends_runs_scoped_argv_and_reloads(
             run_calls.append((list(argv), kwargs))
             return subprocess.CompletedProcess(list(argv), 0, "", "")
 
-        monkeypatch.setattr(
-            "sase.ace.tui.modals.projects_pane_init_actions.subprocess.run",
-            fake_run,
-        )
+        _patch_init_subprocess_run(monkeypatch, fake_run)
         _center, pane = await _open_projects(page)
 
         await page.press("i")
@@ -88,10 +106,13 @@ async def test_terminal_valve_unsupported_suspend_notifies_instead_of_crashing(
 
         monkeypatch.setattr(page.app, "suspend", fail_suspend)
         run_calls: list[Any] = []
-        monkeypatch.setattr(
-            "sase.ace.tui.modals.projects_pane_init_actions.subprocess.run",
-            lambda *a, **kw: run_calls.append((a, kw)),
-        )
+
+        def record_run(*a: Any, **kw: Any) -> Any:
+            run_calls.append((a, kw))
+            argv = list(a[0] if a else kw.get("args") or [])
+            return subprocess.CompletedProcess(argv, 1, "", "blocked")
+
+        _patch_init_subprocess_run(monkeypatch, record_run)
         _center, pane = await _open_projects(page)
 
         await page.press("i")

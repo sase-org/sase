@@ -53,7 +53,9 @@ def test_session_worker_appears_in_effective_projection_and_counts() -> None:
     assert submitted.session_id == "session-mine"
     assert effective.scoped_rows(all_sessions=False) == [submitted]
     assert host.indicator_counts == [1]
-    assert running_background_procs(host) == [submitted]
+    assert [item.identity for item in running_background_procs(host)] == [
+        submitted.proc_id
+    ]
 
 
 def test_running_background_procs_excludes_monitor_turns() -> None:
@@ -77,8 +79,10 @@ def test_running_background_procs_excludes_monitor_turns() -> None:
     )
 
     # A detached monitor supervisor outlives ACE by design, so it must not
-    # block a self-update restart the way an ordinary blocking proc does.
-    assert running_background_procs(host) == [durable]
+    # block a self-update restart the way an installation mutation does.
+    assert [item.identity for item in running_background_procs(host)] == [
+        durable.proc_id
+    ]
 
 
 def test_session_overlay_preserves_rows_across_observer_snapshots() -> None:

@@ -74,6 +74,10 @@ def _cluster_text(page: AcePage) -> str:
 
 
 async def _drive_busy(page: AcePage, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The live proc observer overwrites manual counts on its next snapshot.
+    # Tests in this module drive the cluster from fixtures, so freeze the
+    # indicator against that background update.
+    monkeypatch.setattr(page.app, "_update_proc_indicator", lambda: None)
     monkeypatch.setattr(
         alias_overrides_indicator,
         "get_active_alias_overrides",

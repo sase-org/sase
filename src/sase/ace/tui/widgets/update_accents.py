@@ -12,7 +12,8 @@ bar's existing two-part pill grammar. The updates gear inset leads the
 badge in one of three states with precedence green > yellow > red: green
 (``updating``, the lime fill) while an update proc runs; yellow
 (``restart_pending``, amber ``#FFC000``) while installed code waits for
-this ACE's own procs before restarting ACE and the SASE service; red
+TUI-local tasks, submissions, or installation changes before restarting
+ACE and the SASE service; red
 (``failed``, ``#FF5F5F``) while the most recent attempt failed. All three
 gears share the same ``⚙`` glyph, 3-cell width, and bold ``#1a1a1a`` ink
 in the same slot, so switching state never shifts the badge. The fills

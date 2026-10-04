@@ -322,7 +322,10 @@ def build_toggle_confirmation(
         )
     return _FlagToggleConfirmation(
         title="Toggle feature flag",
-        message="sase's TUI and service host restart after active procs finish.",
+        message=(
+            "sase's TUI and service host restart after TUI tasks and "
+            "installation changes finish."
+        ),
         subject="\n".join(lines),
     )
 

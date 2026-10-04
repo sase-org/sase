@@ -8,6 +8,7 @@ from datetime import timedelta
 from sase.ace.tui._proc_observer_models import (
     UPDATE_PROC_TYPES,
     is_gear_eligible_row,
+    is_install_mutation_row,
     is_update_row,
     proc_gear_lane,
     proc_gear_lanes,
@@ -91,6 +92,10 @@ def test_install_and_plain_rows_are_proc_lane() -> None:
         row = _row(f"row-{proc_type}", proc_type=proc_type, scopes=scopes)
         assert is_update_row(row) is False, proc_type
         assert proc_gear_lane(row) == "proc", proc_type
+        if proc_type in {"plugin.install", "plugin.uninstall"}:
+            assert is_install_mutation_row(row) is True, proc_type
+        elif proc_type == "sync":
+            assert is_install_mutation_row(row) is False
 
 
 def test_monitor_row_with_update_scope_stays_monitor() -> None:

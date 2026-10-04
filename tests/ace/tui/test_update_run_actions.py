@@ -440,7 +440,7 @@ def test_code_changed_result_restarts_immediately_with_monitor_turn(
     ]
 
 
-def test_code_changed_result_waits_for_telegram_receiver_like_ordinary_proc(
+def test_code_changed_result_restarts_immediately_with_telegram_receiver(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     written: list[object] = []
@@ -466,12 +466,12 @@ def test_code_changed_result_waits_for_telegram_receiver_like_ordinary_proc(
     harness._on_scoped_update_complete(_completion(result, message="sase updated"))
 
     assert written == [receipt]
-    assert harness.restart_axe_calls == []
-    assert len(harness.timer_callbacks) == 1
+    assert harness.restart_axe_calls == [True]
+    assert harness.timer_callbacks == []
     assert harness.messages == [
         (
             "SASE, core & plugins: sase updated; Agent CLIs: no captured work "
-            "- restart queued until 1 proc finishes.",
+            "— restarting ACE to load new code.",
             "information",
         )
     ]

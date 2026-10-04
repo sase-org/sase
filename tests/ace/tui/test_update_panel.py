@@ -201,7 +201,10 @@ async def test_restart_key_dismisses_when_restart_row_exists() -> None:
         scope="restart",
         key="x",
         title="Restart ACE",
-        description="Running code changed on disk; restart after tracked procs finish.",
+        description=(
+            "Running code changed on disk; restart after TUI tasks and "
+            "installation changes finish."
+        ),
         chip=UpdateOptionChip(kind="stale", text="↻ code changed", count=1),
         accent=UPDATE_CAUTION_ACCENT,
         details=("sase: 111111111..222222222",),

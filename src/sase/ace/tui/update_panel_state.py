@@ -35,7 +35,7 @@ _ROW_COPY: dict[UpdateOptionScope, tuple[str, str, str]] = {
     "restart": (
         "x",
         "Restart ACE",
-        "Running code changed on disk; restart after tracked procs finish.",
+        "Running code changed on disk; restart after TUI tasks and installation changes finish.",
     ),
     "everything": (
         "e",

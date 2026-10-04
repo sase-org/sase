@@ -388,8 +388,25 @@ def test_yellow_tooltip_lists_blockers_with_more_and_time() -> None:
 
     assert "New SASE code installed" in tooltip
     assert "sync, mail, a +1 more" in tooltip
+    assert "4 tasks finish" in tooltip
     assert "Click to see what it is waiting on." in tooltip
     assert ":" in tooltip
+
+
+def test_yellow_tooltip_uses_wait_phrase_when_set() -> None:
+    from sase.ace.tui.update_gear import PendingUpdateRestart
+
+    pending = PendingUpdateRestart(
+        blocker_labels=("plugin install sample",),
+        blocker_identities=("plugin-install-1",),
+        queued_at=1700000000.0,
+        restart_by=1700000060.0,
+        wait_phrase="1 installation change finishes",
+    )
+    tooltip = UpdatesAvailableIndicator._build_tooltip(0, pending_restart=pending)
+
+    assert "once 1 installation change finishes: plugin install sample" in tooltip
+    assert "tasks finish" not in tooltip
 
 
 def test_set_restart_pending_noops_on_equal_value() -> None:

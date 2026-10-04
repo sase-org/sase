@@ -8,12 +8,21 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui._proc_observer_models import is_install_mutation_row
+from sase.ace.tui.proc_observer import (
+    ObservedProc,
+    ProcProjection,
+    recount_projection,
+    store_proc_row,
+)
 from sase.ace.tui.update_restart import (
+    RestartBlocker,
+    collect_restart_blockers,
     restart_after_update_when_ready,
     running_background_procs,
 )
 from sase.monitor_state import MONITOR_PROC_ORIGIN
-from sase.procs import Proc
+from sase.procs import Proc, TUI_PROC_KIND
 from sase.procs.service_meta import (
     SERVICE_HOST_ORIGIN,
     SERVICE_ONESHOT_ORIGIN,
@@ -23,12 +32,6 @@ from sase.procs.service_meta import (
     SERVICE_PROC_SOURCE_TRANSIENT,
     ProcServiceBlock,
 )
-from sase.ace.tui.proc_observer import (
-    ObservedProc,
-    ProcProjection,
-    recount_projection,
-    store_proc_row,
-)
 
 _STARTED_AT = "2026-09-14T20:30:30.456885Z"
 _RECEIVER_LABEL = "Telegram inbound long-poll receiver"
@@ -36,12 +39,24 @@ _TELEGRAM_RECEIVER_ORIGIN = "telegram-receiver"
 
 
 class _App(SimpleNamespace):
-    def __init__(self, *rows: ObservedProc) -> None:
+    def __init__(
+        self,
+        *rows: ObservedProc,
+        overlay: tuple[ObservedProc, ...] = (),
+        submit_workers: dict[str, Any] | None = None,
+        session_workers: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__()
         self._proc_projection = _projection(*rows)
+        self._session_overlay = list(overlay)
+        self._session_workers = dict(session_workers or {})
+        self._durable_submit_workers = dict(submit_workers or {})
         self.messages: list[tuple[str, str]] = []
         self.restart_calls: list[bool] = []
         self.timers: list[tuple[float, Any]] = []
+
+    def _session_overlay_rows(self) -> tuple[ObservedProc, ...]:
+        return tuple(self._session_overlay)
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.messages.append((message, severity))
@@ -54,8 +69,57 @@ class _App(SimpleNamespace):
         self.restart_calls.append(restart_axe)
 
 
+class _PendingApp(_App):
+    def __init__(
+        self,
+        *rows: ObservedProc,
+        overlay: tuple[ObservedProc, ...] = (),
+        submit_workers: dict[str, Any] | None = None,
+        session_workers: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(
+            *rows,
+            overlay=overlay,
+            submit_workers=submit_workers,
+            session_workers=session_workers,
+        )
+        self.pending: list[object | None] = []
+        self._pending_restart_chain: dict[str, object] | None = None
+
+    def _set_pending_update_restart(self, pending: object | None) -> None:
+        self.pending.append(pending)
+
+
 def _projection(*rows: ObservedProc) -> ProcProjection:
     return recount_projection(ProcProjection(rows=tuple(rows), session_id="session-a"))
+
+
+def _blocker_ids(app: _App) -> list[str]:
+    return [item.identity for item in collect_restart_blockers(app)]
+
+
+def _blocker_kinds(app: _App) -> list[str]:
+    return [item.kind for item in collect_restart_blockers(app)]
+
+
+def _session_row(
+    *,
+    status: str = "running",
+    proc_id: str = "session-sync",
+    label: str = "local sync",
+    proc_type: str = "sync",
+) -> ObservedProc:
+    return ObservedProc(
+        proc_id=proc_id,
+        proc_type=proc_type,
+        cl_name="",
+        project_file="",
+        status=status,
+        message="running",
+        started_at=datetime(2026, 9, 15, 12, 0, 0),
+        display_name=label,
+        session_id="session-a",
+    )
 
 
 def _receiver_row(
@@ -64,6 +128,7 @@ def _receiver_row(
     label: str = _RECEIVER_LABEL,
     origin: str = _TELEGRAM_RECEIVER_ORIGIN,
     proc_id: str = "telegram-receiver",
+    session_id: str | None = None,
 ) -> ObservedProc:
     return store_proc_row(
         Proc(
@@ -78,6 +143,7 @@ def _receiver_row(
             started_at=_STARTED_AT,
             log_path="/tmp/telegram-receiver.log",
             message="polling",
+            session_id=session_id,
         )
     )
 
@@ -88,6 +154,7 @@ def _ordinary_row(
     label: str = "Sync workspace",
     origin: str = "ace",
     proc_id: str = "ordinary-work",
+    session_id: str | None = "session-a",
 ) -> ObservedProc:
     return store_proc_row(
         Proc(
@@ -102,6 +169,82 @@ def _ordinary_row(
             started_at="2026-09-15T12:00:00Z",
             log_path=f"/tmp/{proc_id}.log",
             message="running",
+            session_id=session_id,
+        )
+    )
+
+
+def _tool_run_row(
+    *,
+    status: str = "running",
+    label: str = "tool:check",
+    proc_id: str = "tool-run-1",
+    session_id: str | None = "session-a",
+    command: list[str] | None = None,
+) -> ObservedProc:
+    return store_proc_row(
+        Proc(
+            proc_id=proc_id,
+            label=label,
+            kind="command",
+            status=status,
+            command=command or ["sase", "tool", "run", "check"],
+            cwd="/tmp",
+            origin="tool-run",
+            created_at="2026-09-15T12:00:00Z",
+            started_at="2026-09-15T12:00:00Z",
+            log_path=f"/tmp/{proc_id}.log",
+            message="running",
+            session_id=session_id,
+        )
+    )
+
+
+def _install_row(
+    *,
+    proc_id: str = "plugin-install-1",
+    proc_type: str = "plugin.install",
+    scopes: frozenset[str] = frozenset({"plugin-install:sample"}),
+    status: str = "running",
+    label: str = "plugin install sample",
+    session_id: str | None = None,
+) -> ObservedProc:
+    return ObservedProc(
+        proc_id=proc_id,
+        proc_type=proc_type,
+        cl_name="",
+        project_file="",
+        status=status,
+        message="installing",
+        started_at=datetime(2026, 9, 15, 12, 0, 0),
+        display_name=label,
+        exclusive_scopes=scopes,
+        session_id=session_id,
+        durable_proc_id=proc_id,
+    )
+
+
+def _legacy_tui_row(
+    *,
+    proc_id: str = "legacy-tui",
+    session_id: str | None = None,
+    status: str = "running",
+    label: str = "legacy TUI task",
+) -> ObservedProc:
+    return store_proc_row(
+        Proc(
+            proc_id=proc_id,
+            label=label,
+            kind=TUI_PROC_KIND,
+            status=status,
+            command=[],
+            cwd="/tmp",
+            origin="ace",
+            created_at="2026-09-15T12:00:00Z",
+            started_at="2026-09-15T12:00:00Z",
+            log_path=f"/tmp/{proc_id}.log",
+            message="running",
+            session_id=session_id,
         )
     )
 
@@ -164,136 +307,80 @@ def _monitor_row() -> ObservedProc:
     )
 
 
+def _monotonic(value: float):
+    return lambda: value
+
+
 @pytest.mark.parametrize("status", ["pending", "running", "settling"])
-@pytest.mark.parametrize("with_monitor", [False, True])
-def test_telegram_receiver_delays_restart(
+@pytest.mark.parametrize(
+    "session_id", ["session-a", None], ids=["current", "unattributed"]
+)
+def test_tool_run_rows_do_not_block_restart(
     monkeypatch: pytest.MonkeyPatch,
     status: str,
-    with_monitor: bool,
+    session_id: str | None,
 ) -> None:
-    rows = [_receiver_row(status=status)]
-    if with_monitor:
-        rows.append(_monitor_row())
-    app = _App(*rows)
+    app = _App(_tool_run_row(status=status, session_id=session_id))
     monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
 
     restart_after_update_when_ready(app, "updated", deferred=False)
 
-    assert app.restart_calls == []
-    assert [(delay, callable(callback)) for delay, callback in app.timers] == [
-        (1.0, True)
-    ]
+    assert app.restart_calls == [True]
+    assert app.timers == []
+    assert not any("restart queued until" in message for message, _ in app.messages)
     assert app.messages == [
-        ("updated - restart queued until 1 proc finishes.", "information")
+        ("updated — restarting ACE to load new code.", "information")
     ]
 
 
-def test_telegram_receiver_with_ordinary_work_waits_for_both(
+def test_renamed_tool_run_argv_still_does_not_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    receiver = _receiver_row()
-    ordinary = _ordinary_row()
-    app = _App(receiver, ordinary)
-    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
-
-    restart_after_update_when_ready(app, "updated", deferred=False)
-
-    assert app.restart_calls == []
-    assert [(delay, callable(callback)) for delay, callback in app.timers] == [
-        (1.0, True)
-    ]
-    assert app.messages == [
-        ("updated - restart queued until 2 procs finish.", "information")
-    ]
-
-    app._proc_projection = _projection(
-        _receiver_row(status="success"),
-        _ordinary_row(status="success"),
-    )
-    app.timers[0][1]()
-
-    assert app.restart_calls == [True]
-    assert app.messages[-1] == (
-        "updated — restarting ACE to load new code.",
-        "information",
-    )
-
-
-def test_ordinary_work_timeout_summary_omits_receiver(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = _App(_receiver_row(), _ordinary_row())
-    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
-
-    restart_after_update_when_ready(
-        app,
-        "updated",
-        deferred=True,
-        deadline=99.0,
-    )
-
-    assert app.restart_calls == [True]
-    warnings = [message for message, severity in app.messages if severity == "warning"]
-    assert warnings == [
-        "updated - restart wait expired; restarting with 2 procs: "
-        "Telegram inbound long-poll receiver, Sync workspace still active."
-    ]
-
-
-def test_restart_filter_treats_receiver_like_ordinary_proc() -> None:
     app = _App(
-        _receiver_row(
-            proc_id="same-label",
-            origin="ace",
-            label=_RECEIVER_LABEL,
-        ),
-        _receiver_row(
-            proc_id="same-origin",
-            origin=_TELEGRAM_RECEIVER_ORIGIN,
-            label="Long poller renamed",
-        ),
+        _tool_run_row(
+            label="ad-hoc lint",
+            command=["sase", "tool", "run", "lint"],
+            proc_id="tool-run-adhoc",
+        )
+    )
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+
+    assert app.restart_calls == [True]
+    assert app.timers == []
+
+
+def test_ordinary_durable_work_does_not_block_restart() -> None:
+    app = _App(
+        _ordinary_row(),
+        _receiver_row(),
+        _oneshot_row(),
+        _monitor_row(),
+        _service_row(service=_daemon_block()),
+        _service_row(proc_id="bgcmd-2", origin=SERVICE_ONESHOT_ORIGIN),
+        _ordinary_row(proc_id="other-tui", session_id="session-b"),
     )
 
-    blockers = running_background_procs(app)
+    assert collect_restart_blockers(app) == ()
+    assert running_background_procs(app) == []
 
-    assert [row.proc_id for row in blockers] == ["same-label", "same-origin"]
 
-
-def test_restart_filter_preserves_projection_rows_and_counts() -> None:
+def test_visibility_cannot_control_restart_safety() -> None:
     receiver = _receiver_row()
     monitor = _monitor_row()
     app = _App(receiver, monitor)
     projection = app._proc_projection
 
-    assert running_background_procs(app) == [receiver]
+    assert collect_restart_blockers(app) == ()
     assert app._proc_projection is projection
     assert projection.rows == (receiver, monitor)
-    assert projection.active_rows() == [receiver, monitor]
+    assert {row.proc_id for row in projection.active_rows()} == {
+        receiver.proc_id,
+        monitor.proc_id,
+    }
     assert projection.active_count == 2
     assert projection.active_monitor_count == 1
-
-
-@pytest.mark.parametrize("marked", [True, False], ids=["with-block", "origin-only"])
-def test_restart_filter_ignores_service_daemons(marked: bool) -> None:
-    daemon = _service_row(service=_daemon_block() if marked else None)
-    ordinary = _ordinary_row()
-    app = _App(daemon, ordinary)
-
-    assert running_background_procs(app) == [ordinary]
-
-
-def test_restart_filter_keeps_transient_oneshots_as_blockers() -> None:
-    oneshot = _oneshot_row()
-    app = _App(_service_row(service=_daemon_block()), oneshot)
-
-    assert running_background_procs(app) == [oneshot]
-
-
-def test_oneshot_without_service_block_still_blocks_restart() -> None:
-    # Origin alone marks a row as service-owned, but only a daemon never ends.
-    oneshot = _service_row(proc_id="bgcmd-2", origin=SERVICE_ONESHOT_ORIGIN)
-
-    assert running_background_procs(_App(oneshot)) == [oneshot]
 
 
 @pytest.mark.parametrize("marked", [True, False], ids=["with-block", "origin-only"])
@@ -322,24 +409,259 @@ def test_daemon_only_projection_restarts_immediately(
     ]
 
 
-class _PendingApp(_App):
-    def __init__(self, *rows: ObservedProc) -> None:
-        super().__init__(*rows)
-        self.pending: list[object | None] = []
-        self._pending_restart_chain: dict[str, object] | None = None
+def test_session_overlay_blocks_even_after_worker_status_settles() -> None:
+    finished = _session_row(status="success")
+    app = _App(overlay=(finished,))
 
-    def _set_pending_update_restart(self, pending: object | None) -> None:
-        self.pending.append(pending)
+    blockers = collect_restart_blockers(app)
+
+    assert [item.identity for item in blockers] == [finished.proc_id]
+    assert [item.kind for item in blockers] == ["session_worker"]
+    assert [item.label for item in blockers] == ["local sync"]
 
 
-def _monotonic(value: float):
-    return lambda: value
+def test_leftover_session_worker_key_blocks_without_overlay() -> None:
+    app = _App(session_workers={"orphan-worker": SimpleNamespace()})
+
+    blockers = collect_restart_blockers(app)
+
+    assert blockers == (
+        RestartBlocker(
+            identity="orphan-worker",
+            label="TUI task",
+            kind="session_worker",
+        ),
+    )
+
+
+def test_finished_submit_worker_still_blocks_until_map_pops() -> None:
+    app = _App(submit_workers={"ph-1": SimpleNamespace(is_finished=True)})
+
+    blockers = collect_restart_blockers(app)
+
+    assert blockers == (
+        RestartBlocker(
+            identity="ph-1",
+            label="durable submission",
+            kind="submission",
+        ),
+    )
+
+
+def test_submission_placeholder_and_durable_install_dedup() -> None:
+    durable = _install_row(proc_id="plugin-install-1")
+    durable.durable_proc_id = "plugin-install-1"
+    placeholder = ObservedProc(
+        proc_id="ph-install",
+        proc_type="plugin.install",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="submitting",
+        started_at=datetime(2026, 9, 15, 12, 0, 0),
+        display_name="plugin install sample",
+        exclusive_scopes=frozenset({"plugin-install:sample"}),
+        durable_proc_id="plugin-install-1",
+    )
+    app = _App(
+        placeholder,
+        durable,
+        submit_workers={"ph-install": SimpleNamespace(is_finished=False)},
+    )
+
+    blockers = collect_restart_blockers(app)
+
+    assert [item.identity for item in blockers] == ["ph-install"]
+    assert [item.kind for item in blockers] == ["submission"]
+
+
+@pytest.mark.parametrize(
+    ("proc_type", "scopes"),
+    [
+        ("plugin.install", frozenset({"plugin-install:sample"})),
+        ("plugin.uninstall", frozenset({"plugin-uninstall:sample"})),
+        ("plugin.update", frozenset({"plugin-update:sample"})),
+        ("sase-update", frozenset({"sase-update"})),
+        ("command", frozenset({"plugin-install:sample"})),
+        ("command", frozenset({"plugin-uninstall:sample"})),
+    ],
+)
+def test_install_mutations_block_regardless_of_session(
+    proc_type: str, scopes: frozenset[str]
+) -> None:
+    other_session = _install_row(
+        proc_id="other-install",
+        proc_type=proc_type,
+        scopes=scopes,
+        session_id="dead-session",
+    )
+    app = _App(other_session)
+
+    blockers = collect_restart_blockers(app)
+
+    assert [item.identity for item in blockers] == ["other-install"]
+    assert [item.kind for item in blockers] == ["install"]
+    assert is_install_mutation_row(other_session) is True
+
+
+def test_plugin_install_is_not_an_update_lane_row() -> None:
+    from sase.ace.tui._proc_observer_models import is_update_row
+
+    row = _install_row()
+    assert is_install_mutation_row(row) is True
+    assert is_update_row(row) is False
+
+
+def test_monitor_and_daemon_are_not_install_mutations() -> None:
+    monitor = ObservedProc(
+        proc_id="monitor-update",
+        proc_type="sase-update",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="monitoring",
+        started_at=datetime(2026, 9, 15, 12, 0, 0),
+        exclusive_scopes=frozenset({"sase-update"}),
+        origin=MONITOR_PROC_ORIGIN,
+    )
+    daemon = _service_row(service=_daemon_block())
+    daemon.proc_type = "sase-update"
+    daemon.exclusive_scopes = frozenset({"sase-update"})
+
+    assert is_install_mutation_row(monitor) is False
+    assert is_install_mutation_row(daemon) is False
+    assert collect_restart_blockers(_App(monitor, daemon)) == ()
+
+
+def test_local_legacy_tui_blocks_and_other_tui_does_not() -> None:
+    local = _legacy_tui_row(proc_id="local-tui", session_id="session-a")
+    unattributed = _legacy_tui_row(proc_id="unattributed-tui", session_id=None)
+    other = _legacy_tui_row(proc_id="other-tui", session_id="session-b")
+    app = _App(local, unattributed, other)
+
+    assert _blocker_ids(app) == ["local-tui", "unattributed-tui"]
+    assert _blocker_kinds(app) == ["legacy_tui", "legacy_tui"]
+
+
+def test_mixed_independent_work_waits_only_for_local_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session_row()
+    app = _App(_tool_run_row(), _ordinary_row(), overlay=(session,))
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+
+    assert app.restart_calls == []
+    assert [(delay, callable(callback)) for delay, callback in app.timers] == [
+        (1.0, True)
+    ]
+    assert app.messages == [
+        ("updated - restart queued until 1 TUI task finishes.", "information")
+    ]
+
+    app._session_overlay.clear()
+    app.timers[0][1]()
+
+    assert app.restart_calls == [True]
+    assert app.messages[-1] == (
+        "updated — restarting ACE to load new code.",
+        "information",
+    )
+    assert app._proc_projection.rows[0].origin == "tool-run"
+
+
+def test_mixed_kind_wait_copy_joins_groups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _App(
+        _install_row(),
+        overlay=(_session_row(),),
+        submit_workers={"ph-1": SimpleNamespace(is_finished=False)},
+    )
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+
+    assert app.messages == [
+        (
+            "updated - restart queued until 1 TUI task, 1 submission, "
+            "and 1 installation change finish.",
+            "information",
+        )
+    ]
+
+
+def test_coalesced_request_with_zero_blockers_restarts_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session_row()
+    app = _PendingApp(overlay=(session,))
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000000.0)
+
+    restart_after_update_when_ready(app, "first", deferred=False)
+    assert app.restart_calls == []
+    assert len(app.timers) == 1
+
+    app._session_overlay.clear()
+    restart_after_update_when_ready(app, "second", deferred=False)
+
+    assert app.restart_calls == [True]
+    assert not any("0 " in message for message, _ in app.messages)
+    assert app.messages[-1][0].startswith("second — restarting ACE")
+
+
+def test_stale_timer_does_not_restart_twice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session_row()
+    app = _PendingApp(overlay=(session,))
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000000.0)
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+    callback = app.timers[0][1]
+    app._session_overlay.clear()
+    callback()
+
+    assert app.restart_calls == [True]
+    callback()
+    assert app.restart_calls == [True]
+
+
+def test_timeout_summary_uses_actual_blockers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session_row()
+    app = _App(_ordinary_row(), overlay=(session,))
+    now = {"mono": 100.0}
+    monkeypatch.setattr(
+        "sase.ace.tui.update_restart.time.monotonic",
+        lambda: now["mono"],
+    )
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000000.0)
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+    assert app.restart_calls == []
+    assert app.timers
+
+    now["mono"] = 161.0
+    app.timers[0][1]()
+
+    assert app.restart_calls == [True]
+    warnings = [message for message, severity in app.messages if severity == "warning"]
+    assert warnings == [
+        "updated - restart wait expired; restarting with 1 TUI task: "
+        "local sync still active."
+    ]
 
 
 def test_tracked_deferred_publishes_pending_and_refreshes_on_poll(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = _PendingApp(_ordinary_row())
+    first_row = _session_row()
+    app = _PendingApp(overlay=(first_row,))
     monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", _monotonic(100.0))
     monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000000.0)
 
@@ -347,19 +669,19 @@ def test_tracked_deferred_publishes_pending_and_refreshes_on_poll(
 
     assert len(app.pending) == 1
     first = app.pending[0]
-    assert getattr(first, "blocker_labels", ()) == ("Sync workspace",)
-    assert getattr(first, "blocker_identities", ()) == ("ordinary-work",)
+    assert getattr(first, "blocker_labels", ()) == ("local sync",)
+    assert getattr(first, "blocker_identities", ()) == ("session-sync",)
     assert getattr(first, "restart_by", 0) == 1700000060.0
+    assert getattr(first, "wait_phrase", "") == "1 TUI task finishes"
     assert app.timers != []
 
-    app._proc_projection = _projection(_ordinary_row(label="Other"), _receiver_row())
+    app._session_overlay = [_session_row(label="Other", proc_id="other-sync")]
     monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000001.0)
     app.timers[0][1]()
 
     assert len(app.pending) == 2
     second = app.pending[1]
-    assert getattr(second, "blocker_labels", ()) == ("Other", _RECEIVER_LABEL)
-    # queued_at/restart_by carried through the poll, not recomputed.
+    assert getattr(second, "blocker_labels", ()) == ("Other",)
     assert getattr(second, "queued_at", None) == getattr(first, "queued_at", None)
     assert getattr(second, "restart_by", None) == getattr(first, "restart_by", None)
 
@@ -379,7 +701,7 @@ def test_immediate_restart_publishes_nothing(
 def test_untracked_chain_never_publishes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = _PendingApp(_ordinary_row())
+    app = _PendingApp(overlay=(_session_row(),))
     monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", _monotonic(100.0))
 
     restart_after_update_when_ready(app, "updated", deferred=False, track_pending=False)
@@ -392,7 +714,7 @@ def test_untracked_chain_never_publishes(
 def test_second_tracked_request_coalesces_into_one_chain(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = _PendingApp(_ordinary_row())
+    app = _PendingApp(overlay=(_session_row(),))
     monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", _monotonic(100.0))
     monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000000.0)
 
@@ -405,7 +727,7 @@ def test_second_tracked_request_coalesces_into_one_chain(
     assert app.messages[0][0].startswith("first - restart queued")
     assert app.messages[1][0].startswith("second - restart queued")
 
-    app._proc_projection = _projection()
+    app._session_overlay.clear()
     app.timers[0][1]()
 
     assert app.restart_calls == [True]

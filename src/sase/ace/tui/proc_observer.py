@@ -37,7 +37,10 @@ from sase.procs import Proc, proc_store_path, read_procs
 from ._proc_observer_log import ObservedProcLog, ProcLogLine, ProcLogStream
 from ._proc_observer_models import (
     GearLane,
+    INSTALL_MUTATION_PROC_TYPES,
     ObservedProc,
+    PLUGIN_INSTALL_SCOPE_PREFIX,
+    PLUGIN_UNINSTALL_SCOPE_PREFIX,
     PLUGIN_UPDATE_SCOPE_PREFIX,
     ProcCompletionRecord,
     ProcExitCompletion,
@@ -48,6 +51,7 @@ from ._proc_observer_models import (
     UPDATE_PROC_TYPES,
     compose_proc_projection,
     is_gear_eligible_row,
+    is_install_mutation_row,
     is_monitor_turn_row,
     is_service_daemon_row,
     is_service_row,
@@ -480,6 +484,9 @@ def stop_orphaned_proc_observers(*, timeout: float = 1.0) -> None:
 __all__ = [
     "DETAIL_LOG_LINES",
     "GearLane",
+    "INSTALL_MUTATION_PROC_TYPES",
+    "PLUGIN_INSTALL_SCOPE_PREFIX",
+    "PLUGIN_UNINSTALL_SCOPE_PREFIX",
     "PLUGIN_UPDATE_SCOPE_PREFIX",
     "POLL_SECONDS",
     "PROC_OBSERVER_THREAD_NAME",
@@ -499,6 +506,7 @@ __all__ = [
     "UPDATE_PROC_TYPES",
     "compose_proc_projection",
     "is_gear_eligible_row",
+    "is_install_mutation_row",
     "is_monitor_turn_row",
     "is_service_daemon_row",
     "is_service_row",

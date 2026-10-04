@@ -5183,10 +5183,11 @@ failures use exit `1`. `--json` emits one versioned document with separate `muta
 and `restart` objects.
 
 From Config > Flags, a confirmed toggle uses the same mutation path, then waits for
-tracked background procs and performs one controlled sase's TUI and service host
-restart. Disabling `admin_center_flags` from its own row is supported: the pane
-disappears after restart, and `sase flag enable admin_center_flags` restores it. The CLI
-commands are not gated by that flag.
+TUI-local tasks and installation changes and performs one controlled sase's TUI and
+service host restart. Independent commands keep running. Disabling `admin_center_flags`
+from its own row is supported: the pane disappears after restart, and
+`sase flag enable admin_center_flags` restores it. The CLI commands are not gated by
+that flag.
 
 Create temporary flags with `sase flag new <key>` rather than editing the registry by
 hand. The command creates a task bead of type `flag`, prints the registry entry, and

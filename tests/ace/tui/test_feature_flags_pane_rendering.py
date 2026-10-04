@@ -196,7 +196,8 @@ def test_confirmation_copy_is_cancel_first_and_warns_on_shadowing() -> None:
     )
     copy = build_toggle_confirmation(view, state_path="/tmp/feature_flags.json")
     assert (
-        copy.message == "sase's TUI and service host restart after active procs finish."
+        copy.message == "sase's TUI and service host restart after TUI tasks and "
+        "installation changes finish."
     )
     assert "OFF -> ON" in copy.subject
     assert "/tmp/feature_flags.json" in copy.subject

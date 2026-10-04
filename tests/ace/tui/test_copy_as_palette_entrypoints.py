@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Literal
 
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.copy_as_modal import CopyAsModal
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.bgcmd_list import ChopItem
 from tests.ace.tui._copy_as_palette_helpers import controlled_artifact_pane
 
@@ -63,12 +63,16 @@ async def test_percent_opens_palette_for_agent_and_axe_selection(
 ) -> None:
     async with AcePage(initial_tab=tab) as page:
         if tab == "agents":
-            agent = SimpleNamespace(
-                response_path="/workspace/chats/copy-worker.md",
-                presented_agent_name="copy-worker",
-                project_display_name="SASE",
+            agent = Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name="copy-worker",
+                project_file="/tmp/copy.sase",
                 status="DONE",
+                start_time=None,
+                response_path="/workspace/chats/copy-worker.md",
+                project_display_name="SASE",
             )
+            agent.presented_agent_name = "copy-worker"
             monkeypatch.setattr(page.app, "_get_selected_agent", lambda: agent)
         else:
             monkeypatch.setattr(page.app, "_build_axe_items", lambda: None)

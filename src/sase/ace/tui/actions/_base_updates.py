@@ -100,7 +100,7 @@ class BaseUpdateActionsMixin(BaseActionsHost):
             pass
 
     def _restart_running_code_when_ready(self) -> None:
-        """Restart ACE through the existing tracked-proc-aware helper."""
+        """Restart ACE after TUI-local work and installation mutations finish."""
         notify = getattr(self, "notify", None)
         restart_after_update_when_ready(
             self,

@@ -92,9 +92,18 @@ def _set_projection(app: object, *procs: ObservedProc) -> None:
 
 def _hold_background_proc(monkeypatch: pytest.MonkeyPatch, proc: ObservedProc) -> None:
     """Keep *proc* visible to restart-queue checks across observer snapshot races."""
+    from sase.ace.tui.update_restart import RestartBlocker
 
     def _blockers(_app: object) -> list[Any]:
-        return [proc] if proc_status_is_active(proc.status) else []
+        if not proc_status_is_active(proc.status):
+            return []
+        return [
+            RestartBlocker(
+                identity=proc.proc_id,
+                label=proc.label,
+                kind="install",
+            )
+        ]
 
     monkeypatch.setattr(update_restart_mod, "running_background_procs", _blockers)
 
@@ -130,7 +139,7 @@ def _capture_restart_polls(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
     return polls
 
 
-def test_restart_blockers_include_running_tracked_background_procs() -> None:
+def test_restart_blockers_ignore_ordinary_tracked_background_procs() -> None:
     blockers = pbsu._running_background_procs(
         SimpleNamespace(
             _proc_projection=_projection(
@@ -140,30 +149,24 @@ def test_restart_blockers_include_running_tracked_background_procs() -> None:
                 _task("done-sync", "sync", status="success"),
                 _task("done-mail", "mail", status="error"),
                 _task("done-update", "sase-update", status="success"),
+                _task("run-update", "sase-update"),
             )
         )
     )
 
-    assert {proc.proc_id for proc in blockers} == {
-        "run-sync",
-        "run-mail",
-        "run-launch",
-    }
+    assert {item.identity for item in blockers} == {"run-update"}
 
 
 def test_restart_blockers_include_session_overlay_rows() -> None:
     local = _task("session-sync", "sync")
     app = SimpleNamespace(
         _proc_projection=_projection(_task("done-sync", "sync", status="success")),
-        _effective_proc_projection=lambda: _projection(
-            _task("done-sync", "sync", status="success"),
-            local,
-        ),
+        _session_overlay_rows=lambda: (local,),
     )
 
     blockers = pbsu._running_background_procs(app)
 
-    assert [proc.proc_id for proc in blockers] == ["session-sync"]
+    assert [item.identity for item in blockers] == ["session-sync"]
 
 
 def test_restart_blockers_fail_open_without_projection_rows() -> None:
@@ -176,17 +179,19 @@ def test_restart_blockers_fail_open_without_projection_rows() -> None:
     assert pbsu._running_background_procs(SimpleNamespace()) == []
 
 
-def test_restart_blockers_use_active_session_scoped_projection() -> None:
+def test_restart_blockers_keep_install_mutations_from_any_session() -> None:
     blockers = pbsu._running_background_procs(
         SimpleNamespace(
             _proc_projection=_projection(
                 _task("mine-running", "sync", session_id="session-a"),
                 _task(
-                    "mine-settling", "mail", status="settling", session_id="session-a"
+                    "mine-update",
+                    "sase-update",
+                    session_id="session-a",
                 ),
                 _task(
-                    "dead-running",
-                    "sync",
+                    "dead-update",
+                    "sase-update",
                     session_id="dead-session",
                     session_live=False,
                 ),
@@ -196,10 +201,9 @@ def test_restart_blockers_use_active_session_scoped_projection() -> None:
         )
     )
 
-    assert {proc.proc_id for proc in blockers} == {
-        "mine-running",
-        "mine-settling",
-        "unattributed-pending",
+    assert {item.identity for item in blockers} == {
+        "mine-update",
+        "dead-update",
     }
 
 
@@ -208,11 +212,18 @@ def test_restart_after_update_deadline_expires_with_warning(
 ) -> None:
     restart_calls: list[bool] = []
     messages: list[tuple[str, str]] = []
+    timers: list[Any] = []
+    overlay = _task("run-sync", "sync")
+    overlay.display_name = "sync"
     app = SimpleNamespace(
-        _proc_projection=_projection(_task("run-sync", "sync")),
+        _proc_projection=_projection(),
+        _session_overlay_rows=lambda: (overlay,),
         _restart_tui=lambda *, restart_axe: restart_calls.append(restart_axe),
         notify=lambda message, *, severity="information": messages.append(
             (message, severity)
+        ),
+        set_timer=lambda _delay, callback: (
+            timers.append(callback) or SimpleNamespace(stop=lambda: None)
         ),
     )
 
@@ -220,13 +231,19 @@ def test_restart_after_update_deadline_expires_with_warning(
         def __init__(self) -> None:
             self.app = app
 
-    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
-    host = Host()
-    host._restart_after_update_when_ready(
-        "updated",
-        deferred=True,
-        deadline=99.0,
+    now = {"mono": 100.0}
+    monkeypatch.setattr(
+        "sase.ace.tui.update_restart.time.monotonic",
+        lambda: now["mono"],
     )
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000000.0)
+    host = Host()
+    host._restart_after_update_when_ready("updated", deferred=False)
+
+    assert restart_calls == []
+    assert timers
+    now["mono"] = 161.0
+    timers[0]()
 
     assert restart_calls == [True]
     assert any(
@@ -329,8 +346,8 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
             "_restart_tui",
             lambda *, restart_axe: restart_calls.append(restart_axe),
         )
-        background = _task("sync-feature-a", "sync")
-        background.display_name = "sync feature_a"
+        background = _task("sase-update-1", "sase-update")
+        background.display_name = "sase update"
         _set_projection(page.app, background)
         _hold_background_proc(monkeypatch, background)
         timer_callbacks = _capture_restart_polls(monkeypatch)
@@ -361,7 +378,7 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
         assert restart_calls == []
         assert calls  # initial load happened; changed update does not need a reload
         assert any(
-            "restart queued until 1 proc finishes" in message
+            "restart queued until 1 installation change finishes" in message
             for message, _severity in messages
         )
 

@@ -3574,9 +3574,10 @@ until that override is removed.
 
 Confirmation is cancel-first. It names the flag, the current-to-target state, the saved
 state path, any shadowing source, and that **sase's TUI and service host restart after
-active procs finish**. Confirming writes only the machine-state file, waits up to 60
-seconds for tracked background procs, then performs one controlled sase's
-TUI+service-host restart. A restart failure does not roll back the saved preference.
+TUI tasks and installation changes finish**. Confirming writes only the machine-state
+file, waits up to 60 seconds for TUI-local work and installation mutations, then
+performs one controlled sase's TUI+service-host restart. Independent commands keep
+running. A restart failure does not roll back the saved preference.
 
 Disabling `admin_center_flags` from its own row is supported: the confirmation says the
 Flags pane will disappear after restart and gives `sase flag enable admin_center_flags`
@@ -5177,11 +5178,11 @@ or the Procs tab on the first restart blocker while a restart is queued, when th
 shows its yellow gear inset), overrides, priority, and disabled open Launch settings,
 stash opens the Prompts overlay on Stash, and inbox opens the notification modal. While
 SASE is updating itself, the `updates` group shows a green `⚙` gear inset at its left
-edge. While installed code waits for this ACE's own procs before restarting ACE and the
-SASE service, it shows a yellow `⚙` gear inset instead (green outranks yellow). The
-yellow tooltip names the blocking procs and the time ACE restarts anyway; clicking it
-opens the Procs tab on the first blocker. Feature-flag restarts never show the yellow
-gear.
+edge. While installed code waits for TUI-local tasks, submissions, or installation
+changes before restarting ACE and the SASE service, it shows a yellow `⚙` gear inset
+instead (green outranks yellow). Independent commands keep running. The yellow tooltip
+names the actual blockers and the time ACE restarts anyway; clicking it opens the Procs
+tab on the first blocker. Feature-flag restarts never show the yellow gear.
 
 ### Proc Indicator
 
@@ -9018,8 +9019,9 @@ full discovery waits for the longer configured recompute cadence, and provider r
 lookups retain their own cache. The top bar renders the `updates:` group as its only
 dark chip (lime `⬆ N` SASE and sage `CLI ⬆ N` segments with separate counts, plus a lime
 `core` tag for a sase-core rebuild, plus a green `⚙` gear inset at the left edge while
-SASE is updating, a yellow `⚙` gear inset while a tracked restart waits for this ACE's
-own procs, or a red `⚙` gear inset while the most recent update attempt failed).
+SASE is updating, a yellow `⚙` gear inset while a tracked restart waits for TUI-local
+tasks and installation changes, or a red `⚙` gear inset while the most recent update
+attempt failed). Independent commands keep running.
 
 A red gear means the last update or update-planning attempt settled with an error, or
 ACE exited before it finished (an interrupted attempt, whose install may be incomplete).
@@ -9034,8 +9036,9 @@ For editable host, core, and plugin checkouts, the running TUI also remembers th
 HEAD imported by the process and cheaply checks whether the checkout has moved on disk.
 It warns once for each new on-disk generation. While any imported root is stale, the
 global Update panel (`,U`) adds **Restart ACE** as its first row; press `x` or `X` to
-restart after the same tracked-proc drain used by post-update restarts. This reloads the
-already-updated code and does not fetch or modify a checkout.
+restart after the same TUI-task and installation-change drain used by post-update
+restarts. Independent commands keep running. This reloads the already-updated code and
+does not fetch or modify a checkout.
 
 Every mutation still plans before it runs, and `Ctrl+D` / `Ctrl+U` scroll long preview
 panes. When commit previews are enabled and a comparable range is available, core and
@@ -9071,10 +9074,10 @@ suggested command or docs. A real SASE/core/plugin code change restarts sase's T
 its service controller only after provider work finishes, while provider-only updates
 refresh in place and report per-provider results (versions, failures, and manual
 commands) in the completion toast instead of restarting. Before that restart, sase's TUI
-waits up to 60 seconds for tracked background procs to finish (a toast reports the
-queued restart) and then restarts anyway with a warning naming whatever is still active.
-Long-lived services that outlive sase's TUI by design — monitor turns and the persistent
-Telegram receiver — never delay the restart.
+waits up to 60 seconds for TUI-local tasks, in-flight submissions, and installation
+changes to finish (a toast reports the queued restart) and then restarts anyway with a
+warning naming whatever is still active. Independent work — agent tool runs, ordinary
+durable commands, oneshots, monitor turns, and service daemons — keeps running.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates marked agent CLIs from anywhere in the pane, and

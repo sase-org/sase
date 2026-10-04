@@ -29,6 +29,7 @@ class PendingUpdateRestart:
     blocker_identities: tuple[str, ...]
     queued_at: float
     restart_by: float
+    wait_phrase: str = ""
 
 
 def resolve_update_gear(
@@ -55,16 +56,20 @@ def restart_pending_tooltip(
     """Return the yellow-gear tooltip with absolute times."""
     labels = tuple(pending.blocker_labels)
     count = len(labels)
+    shown = ", ".join(labels[:3])
+    suffix = "" if count <= 3 else f" +{count - 3} more"
+    detail = f": {shown}{suffix}" if shown else ""
     if count == 0:
         wait_line = "ACE and the SASE service restart shortly."
-    else:
-        noun = "proc" if count == 1 else "procs"
-        verb = "finishes" if count == 1 else "finish"
-        shown = ", ".join(labels[:3])
-        suffix = "" if count <= 3 else f" +{count - 3} more"
+    elif pending.wait_phrase:
         wait_line = (
-            f"ACE and the SASE service restart once {count} {noun} "
-            f"{verb}: {shown}{suffix}."
+            f"ACE and the SASE service restart once {pending.wait_phrase}{detail}."
+        )
+    else:
+        noun = "task" if count == 1 else "tasks"
+        verb = "finishes" if count == 1 else "finish"
+        wait_line = (
+            f"ACE and the SASE service restart once {count} {noun} {verb}{detail}."
         )
     restart_at = _format_hms(pending.restart_by)
     lines = [

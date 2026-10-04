@@ -19,10 +19,12 @@ _MAX_ELAPSED_SECONDS = 5.0
 # PagerScreen and toobig splits (finalizers, monitor, agents display) took CI
 # to ~3490. Dependency/environment drift has since taken the clean-tree
 # closure to 3536 (verified identical with and without the pager working
-# tree, stable across repeated measures). The deferred-module probe below
-# is the heavy-edge guard; this count only catches a wholesale closure
-# regression.
-_MAX_MODULE_COUNT = 3560
+# tree, stable across repeated measures). Restart-dependency helpers
+# (TUI-local blocker collector, overlay/submit accessors, install-mutation
+# classification) keep their extra imports lazy; the measured closure is
+# 3563. The deferred-module probe below is the heavy-edge guard; this
+# count only catches a wholesale closure regression.
+_MAX_MODULE_COUNT = 3570
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

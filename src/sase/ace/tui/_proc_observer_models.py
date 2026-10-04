@@ -181,6 +181,11 @@ UPDATE_PROC_TYPES = frozenset(
 # whose store rows carry a generic kind) and pending placeholders.
 UPDATE_EXCLUSIVE_SCOPES = frozenset({"sase-update", "agent-cli-update"})
 PLUGIN_UPDATE_SCOPE_PREFIX = "plugin-update:"
+PLUGIN_INSTALL_SCOPE_PREFIX = "plugin-install:"
+PLUGIN_UNINSTALL_SCOPE_PREFIX = "plugin-uninstall:"
+INSTALL_MUTATION_PROC_TYPES = UPDATE_PROC_TYPES | frozenset(
+    {"plugin.install", "plugin.uninstall"}
+)
 
 GearLane = Literal["proc", "update", "monitor"]
 
@@ -196,6 +201,25 @@ def is_update_row(row: ObservedProc) -> bool:
         return True
     return any(
         scope in UPDATE_EXCLUSIVE_SCOPES or scope.startswith(PLUGIN_UPDATE_SCOPE_PREFIX)
+        for scope in row.exclusive_scopes
+    )
+
+
+def is_install_mutation_row(row: ObservedProc) -> bool:
+    """Return whether a row mutates the installed SASE stack.
+
+    Plugin install/uninstall are included even though they are not
+    update-lane rows. Callers still gate on the row being active.
+    """
+    if is_monitor_turn_row(row) or is_service_daemon_row(row):
+        return False
+    if row.proc_type in INSTALL_MUTATION_PROC_TYPES:
+        return True
+    return any(
+        scope in UPDATE_EXCLUSIVE_SCOPES
+        or scope.startswith(PLUGIN_UPDATE_SCOPE_PREFIX)
+        or scope.startswith(PLUGIN_INSTALL_SCOPE_PREFIX)
+        or scope.startswith(PLUGIN_UNINSTALL_SCOPE_PREFIX)
         for scope in row.exclusive_scopes
     )
 
@@ -404,7 +428,10 @@ class ProcObserverSnapshot:
 
 __all__ = [
     "GearLane",
+    "INSTALL_MUTATION_PROC_TYPES",
     "ObservedProc",
+    "PLUGIN_INSTALL_SCOPE_PREFIX",
+    "PLUGIN_UNINSTALL_SCOPE_PREFIX",
     "PLUGIN_UPDATE_SCOPE_PREFIX",
     "ProcCompletionRecord",
     "ProcExitCompletion",
@@ -415,6 +442,7 @@ __all__ = [
     "UPDATE_PROC_TYPES",
     "compose_proc_projection",
     "is_gear_eligible_row",
+    "is_install_mutation_row",
     "is_monitor_turn_row",
     "is_service_daemon_row",
     "is_service_row",

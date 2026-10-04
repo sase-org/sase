@@ -12,9 +12,10 @@ from sase.ace.tui.actions.proc_actions import (
 )
 from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.ace.tui.update_restart import (
+    RestartBlocker,
+    collect_restart_blockers,
     restart_after_update,
     restart_after_update_when_ready,
-    running_background_procs as running_background_procs,
 )
 from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
@@ -37,6 +38,11 @@ from .plugins_browser_sase_update_summary import (
     managed_update_changed,
     sase_update_success_message,
 )
+
+
+def running_background_procs(app: Any) -> list[RestartBlocker]:
+    """Return TUI-local restart blockers; name kept for existing imports."""
+    return list(collect_restart_blockers(app))
 
 
 class SaseUpdateProcMixin:
@@ -317,7 +323,7 @@ class SaseUpdateProcMixin:
         deferred: bool,
         deadline: float | None = None,
     ) -> None:
-        """Restart after tracked background procs have finished."""
+        """Restart after TUI-local work and installation mutations finish."""
         restart_after_update_when_ready(
             self.app,
             message,
