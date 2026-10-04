@@ -541,7 +541,6 @@ async def test_typing_paren_after_double_colon_forms(
         "#foo::\t",
         "#foo::\u00a0",
         "#foo:::",
-        "#foo(args):: ",
     ],
 )
 async def test_typing_paren_after_ineligible_double_colon_keeps_literal_pair(

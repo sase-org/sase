@@ -15,6 +15,7 @@ from textual.events import Key
 from sase.ace.tui.widgets._argument_syntax_editing import (
     plan_argument_colon_to_parentheses_edit,
     plan_argument_double_colon_to_parentheses_edit,
+    plan_argument_list_continuation_edit,
     plan_xprompt_completion_spacer_to_parentheses_edit,
 )
 from sase.ace.tui.widgets._alt_syntax_editing import (
@@ -133,12 +134,13 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         """Auto-pair brackets/quotes and normalize ``|`` separators.
 
         Dispatch order for the typed character: ``|`` runs alternation separator
-        normalization inside a live ``%{...}`` span; a closer that already sits
-        under the cursor moves over instead of duplicating (close-skip); an
-        opener inserts its matching closer at a safe position. Returns False
-        (letting the default insertion path run) for every other key, when there
-        is an active selection, or when the cursor is not in an applicable
-        position.
+        normalization inside a live ``%{...}`` span; ``(`` first converts
+        argument shorthand or continues a closed macro argument list; a closer
+        that already sits under the cursor moves over instead of duplicating
+        (close-skip); an opener inserts its matching closer at a safe position.
+        Returns False (letting the default insertion path run) for every other
+        key, when there is an active selection, or when the cursor is not in an
+        applicable position.
         """
         char = event.character
         if not char or len(char) != 1:
@@ -175,6 +177,14 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
             plan = _plan_argument_colon_pair_conversion(
                 text,
                 offset,
+                self.cursor_location,
+            )
+            if plan is not None:
+                self._apply_planned_text_edit(plan, remap_dot_capture=True)
+                self._open_auto_reference_completion_after_change(char)
+                return True
+            plan = plan_argument_list_continuation_edit(
+                text,
                 self.cursor_location,
             )
             if plan is not None:

@@ -485,6 +485,17 @@ insertion behavior. This pairing applies to macro references (including `#!name:
 to the `%proc::` and `%clan::` / `%c::` directive forms; other directives followed by
 `::`, such as `%if::` or `%q::`, just insert `()`.
 
+When a `#` macro reference already has a closed parenthesized argument list, typing `(`
+immediately after its `)` continues the list: `#review(path=a)` becomes
+`#review(path=a,|)`, and `#review(path=a):: body` becomes `#review(path=a,|):: body`,
+where `|` marks the caret. The edit adds a comma after the last non-whitespace argument
+character and moves the caret before `)`; an empty list or an argument list that already
+ends in a comma only moves the caret. In the TUI, the remaining argument menu opens when
+`auto_macro_menu` is enabled. This applies to `#` macro references, not `%` directives.
+Over LSP, on-type formatting makes the text edit; the menu comes from the client's next
+completion request, so it may appear after the next argument character or when
+completion is invoked manually.
+
 Examples:
 
 ```bash

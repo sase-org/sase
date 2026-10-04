@@ -67,6 +67,45 @@ def plan_argument_double_colon_to_parentheses_edit(
     return TextEdit(start=start, end=end, text=new_text, cursor=start + 1)
 
 
+def plan_argument_list_continuation_edit(
+    text: str,
+    cursor_location: tuple[int, int],
+) -> TextEdit | None:
+    """Return the shared edit that continues a closed macro argument list."""
+    position = _editor_position(text, cursor_location)
+    if position is None:
+        return None
+    binding = require_rust_binding("argument_list_continuation_edit")
+    payload: Any = binding(text, position)
+    if not isinstance(payload, dict):
+        return None
+    edit_range = editor_range_to_offsets(
+        text,
+        payload.get("range"),
+        allow_empty=True,
+    )
+    if edit_range is None:
+        return None
+    start, end = edit_range
+    if end >= len(text) or text[end] != ")":
+        return None
+    old_text = text[start:end]
+    if not old_text.isascii() or any(not char.isspace() for char in old_text):
+        return None
+    new_text = payload.get("new_text")
+    if new_text == "":
+        if start != end:
+            return None
+    elif new_text != "," + old_text:
+        return None
+    return TextEdit(
+        start=start,
+        end=end,
+        text=new_text,
+        cursor=start + len(new_text),
+    )
+
+
 def _editor_position(
     text: str,
     location: tuple[int, int],
@@ -155,5 +194,6 @@ def plan_xprompt_completion_spacer_to_parentheses_edit(
 __all__ = [
     "plan_argument_colon_to_parentheses_edit",
     "plan_argument_double_colon_to_parentheses_edit",
+    "plan_argument_list_continuation_edit",
     "plan_xprompt_completion_spacer_to_parentheses_edit",
 ]

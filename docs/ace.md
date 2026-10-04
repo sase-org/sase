@@ -6997,9 +6997,13 @@ When `(` is typed immediately after a macro or supported directive argument deli
 the prompt input normalizes the shorthand in one keyboard edit. A single colon is
 removed (`#review:` -> `#review()`), while `::` followed only by ASCII spaces is moved
 after a complete pair (`#review:: body` -> `#review():: body`) with the caret inside the
-parentheses. The double-colon form preserves the exact spaces and suffix text; tabs,
-newlines, nonbreaking spaces, existing argument lists, selected text, and literal
-regions keep ordinary insertion behavior.
+parentheses. Typing `(` immediately after a closed macro argument list continues the
+list by adding a comma and placing the caret before `)`, for example
+`#review(path=a):: body` becomes `#review(path=a,|):: body`; the remaining macro
+argument menu opens when `auto_macro_menu` is enabled. Empty lists and lists that
+already end in a comma only move the caret. The double-colon form preserves the exact
+spaces and suffix text; tabs, newlines, nonbreaking spaces, directive argument lists,
+selected text, and literal regions keep ordinary insertion behavior.
 
 INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing
 space-indented `- ` bullet using that bullet's indentation. Prompt NORMAL-mode `J` is

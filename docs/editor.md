@@ -82,8 +82,11 @@ When a client enables LSP on-type formatting for `(`, the server shares the prom
 input's argument shorthand edits. Typing `(` after an argument-opening `:` removes that
 colon; typing it after `::` plus zero or more ASCII spaces inserts `()` before the
 delimiter and leaves the caret inside the pair, for example `#review:: body` becomes
-`#review():: body`. The edits preserve authored spacing and suffix text, and the
-syntax/literal-region exclusions match the TUI prompt input.
+`#review():: body`. Typing it after a closed macro argument list adds a comma and moves
+the caret before `)`, including when a `::` text tail follows. These are on-type text
+edits only; the argument menu comes from the client's next completion request. The edits
+preserve authored spacing and suffix text, and the syntax/literal-region exclusions
+match the TUI prompt input.
 
 Snippet completions come from the same registry sase's TUI uses: macros with `snippet`
 front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger
