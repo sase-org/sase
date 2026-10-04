@@ -116,6 +116,7 @@ class PromptInputBarMiniMacroPaneMixin(_MixinBase):
         loaded_markdown: str | None,
         loaded_fingerprint: SourceFingerprint | None,
         destination_exists: bool,
+        replace_draft: bool = False,
     ) -> bool:
         """Open or retarget the single pinned mini-macro pane."""
         if self._mode != "prompt" or not self.is_mounted:
@@ -126,6 +127,22 @@ class PromptInputBarMiniMacroPaneMixin(_MixinBase):
             current = self._stack.mini_macro_item
             if current is None or current.mini_macro_target is None:
                 return False
+            if replace_draft:
+                target = self._mini_macro_target_from_result(
+                    result,
+                    frontmatter=frontmatter,
+                    body=body,
+                    loaded_markdown=loaded_markdown,
+                    loaded_fingerprint=loaded_fingerprint,
+                    destination_exists=destination_exists,
+                )
+                current.text = body
+                self._stack.retarget_mini_macro_pane(target)
+                self._stack.selected_index = mini_index
+                self._clear_active_completion_state()
+                self._rebuild_stack(enter_mode="insert")
+                self.refresh_frontmatter_panel_from_stack()
+                return True
             draft_frontmatter = current.mini_macro_target.frontmatter
             baseline_hash = mini_macro_draft_hash(frontmatter, body)
             target = self._mini_macro_target_from_result(

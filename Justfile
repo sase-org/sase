@@ -389,8 +389,11 @@ _lint-patch-stitch-terminology: _setup
 # tool imports with symvision pragmas.
 # sase-1eg retired its PagerViewHost seam by privatizing the protocol, whose
 # only consumer is PagerView.pager_host in the same file.
-# sase-1fv.3 introduced ExistingRowSpec for the picker Existing action row;
-# sase-1fv.5 (wire-macro-existing) is the first live consumer.
+# sase-1fv.3 introduced ExistingRowSpec for the picker Existing action row.
+# sase-1fv.5 consumed the macro existing-finder seams (ExistingRowSpec,
+# ExistingDefinitionFinderModal, ExistingDefinitionPick, ExistingFinderBack,
+# macro_existing_entries) by wiring them into MiniMacroLocationFlow.
+# sase-1fv.6 is the first live consumer of snippet_existing_entries.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -398,11 +401,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1fv.5(ExistingRowSpec)' \
-        --epic-symbol 'sase-1fv.5(ExistingDefinitionFinderModal)' \
-        --epic-symbol 'sase-1fv.5(ExistingDefinitionPick)' \
-        --epic-symbol 'sase-1fv.5(ExistingFinderBack)' \
-        --epic-symbol 'sase-1fv.5(macro_existing_entries)' \
         --epic-symbol 'sase-1fv.6(snippet_existing_entries)' \
         {{ args }}
 

@@ -62,6 +62,7 @@ async def _open_mini(
     body: str = "mini body",
     frontmatter: str = "",
     destination_exists: bool = False,
+    replace_draft: bool = False,
 ) -> None:
     if origin_pane_id is None:
         origin_pane_id = bar.active_text_area().id or ""
@@ -73,6 +74,7 @@ async def _open_mini(
         loaded_markdown=None,
         loaded_fingerprint=None,
         destination_exists=destination_exists,
+        replace_draft=replace_draft,
     )
     await pilot.pause()
     await pilot.pause()
@@ -261,6 +263,51 @@ async def test_mini_retarget_preserves_body_and_frontmatter(tmp_path: Path) -> N
         assert target is not None
         assert target.name == "new"
         assert target.frontmatter == frontmatter
+
+
+async def test_replace_draft_replaces_body_frontmatter_and_keeps_focus_restore(
+    tmp_path: Path,
+) -> None:
+    old_frontmatter = "---\ndescription: old\n---"
+    new_frontmatter = "---\ndescription: new\n---"
+    app = CaptureApp("agent prompt")
+
+    async with app.run_test(size=(90, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_mini(
+            pilot,
+            bar,
+            _name_result(tmp_path, name="old", action="edit"),
+            body="old body",
+            frontmatter=old_frontmatter,
+            destination_exists=True,
+        )
+        restore = bar._mini_macro_focus_restore
+        bar.active_text_area().text = "user draft"
+        bar._sync_state_from_widgets()
+
+        assert bar.open_mini_macro_target_pane(
+            _name_result(tmp_path, name="other", action="edit"),
+            origin_pane_id=bar.active_text_area().id or "",
+            body="replacement body",
+            frontmatter=new_frontmatter,
+            loaded_markdown=f"{new_frontmatter}\n\nreplacement body\n",
+            loaded_fingerprint=None,
+            destination_exists=True,
+            replace_draft=True,
+        )
+        await pilot.pause()
+
+        assert bar.active_text() == "replacement body"
+        target = bar._stack.mini_macro_item.mini_macro_target
+        assert target is not None
+        assert target.name == "other"
+        assert target.frontmatter == new_frontmatter
+        assert target.changed_on_disk is False
+        assert not bar._stack.mini_macro_is_dirty
+        assert bar._mini_macro_focus_restore is restore
+        assert bar.active_text_area()._vim_mode == "insert"
 
 
 async def test_mini_retarget_identical_destination_remains_clean(

@@ -39,7 +39,7 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
-        assert "gx   open mini-macro…" in plain
+        assert "gx   new / edit mini-macro…" in plain
         assert "g^X" not in plain
         # The always-on launch-tab entry pushes the surface to 13 entries;
         # the fixed-height panel shows 11 plus a remainder.
@@ -107,7 +107,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt / ^G^T   new snippet…" in plain
-        assert "^Gx   open mini-macro…" not in plain
+        assert "^Gx   new / edit mini-macro…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
         assert "... +6 more" in plain
@@ -148,7 +148,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt / ^G^T   new snippet…" in plain
-        assert "^Gx   open mini-macro…" not in plain
+        assert "^Gx   new / edit mini-macro…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "... +5 more" in plain
         assert ("b", "launch tab…") in entry_pairs(bar, via_ctrl_g=True)
@@ -185,7 +185,7 @@ async def test_ctrl_g_hints_group_ctrl_x_with_mini_macro(
             if entry.key == "x"
         )
         assert mini.aliases == ("ctrl+x",)
-        assert mini.label == "open mini-macro…"
+        assert mini.label == "new / edit mini-macro…"
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^GX   save as xprompt/snippet" not in plain
 

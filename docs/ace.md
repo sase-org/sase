@@ -6967,7 +6967,7 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+G =`                   | Show/focus the macro frontmatter panel; its rows-mode `g=` returns to the originating pane                                                                                                                                                                                                                                      |
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                                                                                                                                                                                                                  |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                                                                                                                                                                                                        |
-| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open or retarget one mini-macro pane                                                                                                                                                                                                                                                                                            |
+| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open, retarget, or edit an existing mini-macro pane                                                                                                                                                                                                                                                                             |
 | `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                                                                                                                                                |
 | `Ctrl+G X`                   | Save as reusable macro/snippet; macro mode converts raw `<tags>`                                                                                                                                                                                                                                                                |
 | `Ctrl+G L`                   | Convert the active pane into a frontmatter-local macro; raw `<tags>` become inputs                                                                                                                                                                                                                                              |
@@ -7216,7 +7216,7 @@ prefix actions currently available.
 | `gw`        | Write a bound macro definition; unbound drafts fall through to save-as                                                                                                              |
 | `gd`        | Edit the macro definition under the cursor in the prompt bar                                                                                                                        |
 | `gf`        | Reformat the active prompt pane's Markdown with Prettier                                                                                                                            |
-| `gx`        | Open or retarget one mini-macro pane                                                                                                                                                |
+| `gx`        | Open, retarget, or edit an existing mini-macro pane                                                                                                                                 |
 | `gt`        | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                    |
 | `gX`        | Save as reusable macro/snippet; macro mode converts raw `<tags>` and leaves the bar open                                                                                            |
 | `gL`        | Convert the active pane into a frontmatter-local macro; raw `<tags>` become inputs                                                                                                  |
@@ -7259,16 +7259,18 @@ whole-stack save binds the prompt stack to that source. `gw` then performs atomi
 write-back, and if the source changed since load it offers overwrite, reload, or save-as
 instead of clobbering it. `gd` loads the simple macro under the cursor for the same
 bound editing loop. `gx` first shows the [location picker](#save-location-picker) and
-then opens or retargets one focused mini-macro pane; saving that pane publishes the
-definition without binding the surrounding prompt stack. `gL` converts the active pane
-through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed
-helper. Before `gX` opens the save preview, its macro version converts live `<label>`
-tags into required Jinja `text` inputs; switching that screen to snippet mode shows and
-saves the original active-pane body instead. A fresh `gx` extraction applies the same
-raw-placeholder conversion to the copied origin-pane body before the mini pane opens and
-seeds the mini definition's inferred inputs. Raw placeholders typed later in the mini
-pane are saved as edited; the mini save review does not run another conversion pass.
-`gL` also applies the conversion when it creates a frontmatter-local helper. Set
+then opens or retargets one focused mini-macro pane. Press `e` there to fuzzy-find an
+existing definition and edit it in place, or override a read-only one into a writable
+destination. Saving that pane publishes the definition without binding the surrounding
+prompt stack. `gL` converts the active pane through a prefilled frontmatter ghost row
+and rewrites the pane to invoke the committed helper. Before `gX` opens the save
+preview, its macro version converts live `<label>` tags into required Jinja `text`
+inputs; switching that screen to snippet mode shows and saves the original active-pane
+body instead. A fresh `gx` extraction applies the same raw-placeholder conversion to the
+copied origin-pane body before the mini pane opens and seeds the mini definition's
+inferred inputs. Raw placeholders typed later in the mini pane are saved as edited; the
+mini save review does not run another conversion pass. `gL` also applies the conversion
+when it creates a frontmatter-local helper. Set
 `ace.prompt_inputs.macro_placeholder_args: false` to disable these conversions while
 preserving `gL` Jinja-variable inference. `gw` only writes the currently bound
 definition—it does not reinterpret newly typed raw placeholders. Tags in inline code,
@@ -9279,14 +9281,20 @@ Starting a new mini-macro (`gx`, `Ctrl+G x`, `Ctrl+G Ctrl+X`) or a new snippet (
 should live. The picker opens synchronously, before any disk reads, so keys typed while
 destinations load are buffered and applied — never dropped into the prompt pane.
 
-One keypress picks a destination and `Enter` accepts the `★` default, whose reason is
-shown (`★ current`, `★ last used`, `★ configured`, `★ default`). `j`/`k` (or `↑`/`↓`,
-`Ctrl+N`/`Ctrl+P`) move the highlight and skip headers and unavailable rows; `Esc` (or
-`q`) cancels and returns focus to the origin pane.
+An **Existing** section sits at the top of the list, always in the same place: `e` opens
+a fuzzy finder over every physical definition (`✎ Edit existing macro…` /
+`✎ Edit existing snippet…`). While a pane of that kind is already open the row reads
+`Switch to existing …` instead. The Existing row is never the `★` default. With zero
+definitions it stays visible but disabled (`no macros yet` / `no snippets yet`).
 
-Hotkeys are mnemonic and scope-first: `p` is the project destination and `h` is the home
-destination in both pickers. In the mini-macro picker the Shift variant picks the config
-file of the same scope.
+One keypress picks a destination and `Enter` accepts the `★` default, whose reason is
+shown (`★ current`, `★ last used`, `★ configured`, `★ default`, `★ override`). `j`/`k`
+(or `↑`/`↓`, `Ctrl+N`/`Ctrl+P`) move the highlight and skip headers and unavailable
+rows; `Esc` (or `q`) cancels and returns focus to the origin pane.
+
+Hotkeys are mnemonic and scope-first: `e` is existing, `p` is the project destination,
+and `h` is the home destination in both pickers. In the mini-macro picker the Shift
+variant picks the config file of the same scope.
 
 If the prompt pane that opened the picker is gone before you choose — closed, or no
 longer in the stack — the picker closes and sase's TUI warns
@@ -9300,6 +9308,7 @@ that pane is still there.
 
 | Picker  | Key   | Destination                                            |
 | ------- | ----- | ------------------------------------------------------ |
+| both    | `e`   | Existing-definition fuzzy finder                       |
 | macro   | `p`   | Project `sase/macros/` directory (`#<project>/…`)      |
 | macro   | `P`   | Project `sase/sase.yml`                                |
 | macro   | `h`   | Home `~/sase/macros/` directory                        |
@@ -9321,12 +9330,42 @@ The default (↵) precedence is:
 
 The footer previews each destination
 (`→ <dir>/<name>.md · called as #<ns>/<name> · N macros here` for directories,
-`→ <file> · ace.snippets.<trigger> · N snippets here` for snippets). Rows that already
-define the typed name show `has #name` / `has ⇥ trigger`. Choosing a destination locks
-it for the name step: the old destination cycling is gone, and `⇧Tab` in the name step
-goes back to the picker while keeping the typed text. Writable plugin and built-in rows
-stay collapsed behind one `Plugins & built-in` summary row (`+`, `Enter`, or a click
-toggles it), so plain users never see clutter.
+`→ <file> · ace.snippets.<trigger> · N snippets here` for snippets). The Existing row
+previews
+`→ fuzzy-find N macros across M files · edit in place or override read-only ones`. Rows
+that already define the typed name show `has #name` / `has ⇥ trigger`. Choosing a
+destination locks it for the name step: the old destination cycling is gone, and `⇧Tab`
+in the name step goes back to the picker while keeping the typed text. Writable plugin
+and built-in rows stay collapsed behind one `Plugins & built-in` summary row (`+`,
+`Enter`, or a click toggles it), so plain users never see clutter.
+
+#### Existing-definition finder
+
+`e` opens a two-pane finder: matches on the left, a preview on the right. Type to
+filter; `↑`/`↓`/`Ctrl+N`/`Ctrl+P` move the highlight while focus stays in the query;
+`Enter` opens the highlighted row; `Ctrl+D`/`Ctrl+U` scroll the preview; `⇧Tab` returns
+to the location picker (the query is remembered for the next `e`); `Esc` cancels. Keys
+typed as type-ahead after `e` while the picker is still loading become the finder's
+initial query.
+
+Each row is one physical definition. Status chips:
+
+| Chip                                                            | Meaning                               | Enter                                                            |
+| --------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------- |
+| `● active`                                                      | Runtime winner, writable              | Edit in place                                                    |
+| `◐ shadowed`                                                    | Writable, but another definition wins | Edit in place, with a warning                                    |
+| `🔒 built-in` / `🔒 plugin` / `🔒 read-only` / `🔒 from #macro` | Not writable here                     | Override detour: pick a writable destination, then the name step |
+| `✗ swarm` / `✗ workflow` / `✗ skill` / `✗ memory`               | Not a simple mini target              | Refused; the verdict explains why                                |
+
+An in-place edit opens the mini-macro or snippet pane on that definition's body. If a
+pane of the same kind is already open, picking a definition replaces the draft (body,
+frontmatter, and target) after the usual discard confirmation when the draft is dirty.
+Picking the definition the pane already targets just focuses it and reports
+`Already editing #name`. A read-only pick reopens the location picker in **override
+mode**: the Existing row is hidden, destinations that would change the callable name are
+disabled, rows that would still lose after save are badged `⚠ shadowed by …`, and the
+default is badged `★ override`. `⇧Tab` from that name step returns to the override
+picker, not the original one.
 
 ### Authoring a snippet from the prompt bar
 

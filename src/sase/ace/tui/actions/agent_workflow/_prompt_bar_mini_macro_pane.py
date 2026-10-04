@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._local_macro_conversion import (
     infer_local_xprompt_inputs as infer_local_macro_inputs,
@@ -16,25 +16,12 @@ from sase.macro.save import SaveTargetFormat, load_config_macro_markdown
 from ._types import PromptContext
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine, Sequence
+    from collections.abc import Coroutine
 
     from sase.ace.tui.modals.mini_macro_name_modal import MiniMacroNameResult
-    from sase.ace.tui.modals.mini_macro_target_catalog import (
-        MiniMacroDefinition,
-        MiniMacroTargetCatalog,
-    )
-    from sase.ace.tui.modals.save_location_choices import (
-        ChangeSaveLocationRequest,
-        SaveLocationChoice,
-        SaveLocationPick,
-    )
-    from sase.ace.tui.modals.save_location_picker_modal import (
-        SaveLocationPickerModal,
-    )
-    from sase.ace.tui.modals.unified_macro_save_support import UnifiedSaveLocation
+    from sase.ace.tui.modals.mini_macro_target_catalog import MiniMacroDefinition
     from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
-    from sase.macro.save_state import SaveKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +58,9 @@ class PromptBarMiniMacroPaneMixin:
             )
             return
 
-        _MiniMacroLocationFlow(
+        from ._prompt_bar_mini_macro_location import MiniMacroLocationFlow
+
+        MiniMacroLocationFlow(
             self,
             origin_bar=origin_bar,
             origin_pane_id=event.origin_pane_id,
@@ -98,6 +87,8 @@ class PromptBarMiniMacroPaneMixin:
         origin_bar: PromptInputBar,
         origin_pane_id: str,
         result: MiniMacroNameResult,
+        *,
+        replace_draft: bool = False,
     ) -> None:
         """Apply a mini-name result after off-thread definition reads."""
         try:
@@ -122,6 +113,7 @@ class PromptBarMiniMacroPaneMixin:
             loaded_markdown=draft.markdown,
             loaded_fingerprint=draft.fingerprint,
             destination_exists=draft.destination_exists,
+            replace_draft=replace_draft,
         )
         if not opened:
             self.notify(  # type: ignore[attr-defined]
@@ -146,241 +138,6 @@ class PromptBarMiniMacroPaneMixin:
             self._mini_macro_pane_async_tasks = tasks
         tasks.add(task)
         task.add_done_callback(tasks.discard)
-
-
-class _MiniMacroLocationFlow:
-    """One location-first mini-macro request, picker first then name step."""
-
-    def __init__(
-        self,
-        app: Any,
-        *,
-        origin_bar: PromptInputBar,
-        origin_pane_id: str,
-        initial_name: str,
-        current_location_path: str | None,
-    ) -> None:
-        self._app = app
-        self._origin_bar = origin_bar
-        self._origin_pane_id = origin_pane_id
-        self._seed_base = initial_name
-        self._seed_from_path = current_location_path
-        self._current_location_path = current_location_path
-        context = app._prompt_context
-        if context is not None and not context.is_home_mode:
-            self._project: str | None = context.project_name
-        else:
-            self._project = None
-        self._home_mode = bool(context is not None and context.is_home_mode)
-        self._catalog: MiniMacroTargetCatalog | None = None
-        self._rows: tuple[UnifiedSaveLocation, ...] = ()
-        self._settled = False
-
-    def start(self) -> None:
-        """Push the picker synchronously and load destinations in the background."""
-        from ...modals.save_location_picker_modal import SaveLocationPickerModal
-
-        picker = SaveLocationPickerModal(
-            kind="macro",
-            title=_mini_macro_picker_title(
-                self._seed_base, self._current_location_path
-            ),
-        )
-        self._app.push_screen(picker, self._on_pick)  # type: ignore[attr-defined]
-        self._app._spawn_mini_macro_pane_task(
-            self._load_and_show(picker, name=self._seed_base, highlight_id=None)
-        )
-
-    def _origin_available(self) -> bool:
-        return bool(
-            self._origin_bar.is_mounted
-            and self._origin_bar.mini_macro_target_origin_available(
-                self._origin_pane_id
-            )
-        )
-
-    async def _load_and_show(
-        self,
-        picker: SaveLocationPickerModal,
-        *,
-        name: str,
-        highlight_id: str | None,
-    ) -> None:
-        """Load rows, catalog, and choices off-thread, then feed the picker."""
-        try:
-            rows = await asyncio.to_thread(_load_unified_save_rows, self._project)
-            last_used = await asyncio.to_thread(_load_last_used_locations)
-            catalog = await asyncio.to_thread(
-                _load_mini_macro_catalog, self._project, rows
-            )
-            choices, _default_id = await asyncio.to_thread(
-                _build_mini_macro_picker_choices,
-                rows,
-                last_used_path=last_used.get("xprompt"),
-                current_path=self._current_location_path,
-                home_mode=self._home_mode,
-                project=self._project,
-                name=name,
-            )
-        except Exception as exc:
-            if self._settled:
-                return
-            if not self._origin_available():
-                self._settled = True
-                self._app.notify(  # type: ignore[attr-defined]
-                    "Prompt pane is no longer available - mini-macro discarded",
-                    severity="warning",
-                )
-                picker.dismiss(None)
-                return
-            self._app.notify(  # type: ignore[attr-defined]
-                f"Failed to prepare mini-macro pane: {exc}",
-                severity="error",
-            )
-            picker.set_load_error(f"Failed to load destinations: {exc}")
-            return
-        # Stored before set_choices so the dismiss callback, which may run
-        # synchronously inside set_choices, can push the name step with no
-        # further awaits.
-        self._rows = tuple(rows)
-        self._catalog = catalog
-        if self._settled:
-            return
-        if not self._origin_available():
-            self._settled = True
-            self._app.notify(  # type: ignore[attr-defined]
-                "Prompt pane is no longer available - mini-macro discarded",
-                severity="warning",
-            )
-            picker.dismiss(None)
-            return
-        picker.set_choices(choices, highlight_id=highlight_id)
-
-    def _on_pick(self, pick: SaveLocationPick | None) -> None:
-        self._settled = True
-        if pick is None or self._catalog is None:
-            self._origin_bar.refocus_pane_id(self._origin_pane_id)
-            return
-        row = next(
-            (item for item in self._rows if item.location.path == pick.choice_id),
-            None,
-        )
-        if row is None:
-            self._origin_bar.refocus_pane_id(self._origin_pane_id)
-            return
-        self._open_name_step(row, (self._seed_base or "") + (pick.typeahead or ""))
-
-    def _open_name_step(self, row: UnifiedSaveLocation, raw_text: str) -> None:
-        from ...modals import MiniMacroNameModal
-        from ...modals.mini_macro_target_catalog import rebase_name_for_destination
-
-        catalog = self._catalog
-        assert catalog is not None
-        from_row = next(
-            (item for item in self._rows if item.location.path == self._seed_from_path),
-            None,
-        )
-        seeded = rebase_name_for_destination(raw_text, row, from_destination=from_row)
-        modal = MiniMacroNameModal(catalog, row, initial_name=seeded)
-        self._app.push_screen(  # type: ignore[attr-defined]
-            modal, lambda result: self._on_name_result(result, row)
-        )
-
-    def _on_name_result(
-        self,
-        result: MiniMacroNameResult | ChangeSaveLocationRequest | None,
-        row: UnifiedSaveLocation,
-    ) -> None:
-        from ...modals.save_location_choices import ChangeSaveLocationRequest
-
-        if result is None:
-            self._origin_bar.refocus_pane_id(self._origin_pane_id)
-            return
-        if isinstance(result, ChangeSaveLocationRequest):
-            from ...modals.save_location_picker_modal import SaveLocationPickerModal
-
-            self._settled = False
-            self._seed_base = result.text
-            self._seed_from_path = row.location.path
-            picker = SaveLocationPickerModal(
-                kind="macro",
-                title=_mini_macro_picker_title(
-                    self._seed_base, self._current_location_path
-                ),
-            )
-            self._app.push_screen(picker, self._on_pick)  # type: ignore[attr-defined]
-            self._app._spawn_mini_macro_pane_task(
-                self._load_and_show(
-                    picker,
-                    name=result.text,
-                    highlight_id=row.location.path,
-                )
-            )
-            return
-        self._app._spawn_mini_macro_pane_task(
-            self._app._apply_mini_macro_name_result(
-                self._origin_bar,
-                self._origin_pane_id,
-                result,
-            )
-        )
-
-
-def _mini_macro_picker_title(
-    initial_name: str, current_location_path: str | None
-) -> str:
-    """Return the picker title for a new mini-macro or a retarget."""
-    if current_location_path and initial_name:
-        return f"Retarget #{initial_name} · where should it live?"
-    return "New mini-macro · where should it live?"
-
-
-def _load_unified_save_rows(
-    project: str | None,
-) -> list[UnifiedSaveLocation]:
-    from sase.ace.tui.modals.unified_macro_save_support import (
-        load_unified_save_locations,
-    )
-
-    return load_unified_save_locations(project)
-
-
-def _load_mini_macro_catalog(
-    project: str | None,
-    rows: Sequence[UnifiedSaveLocation],
-) -> MiniMacroTargetCatalog:
-    from sase.ace.tui.modals.mini_macro_target_catalog import (
-        load_mini_macro_target_catalog,
-    )
-
-    return load_mini_macro_target_catalog(project, locations=rows)
-
-
-def _build_mini_macro_picker_choices(
-    rows: Sequence[UnifiedSaveLocation],
-    *,
-    last_used_path: str | None,
-    current_path: str | None,
-    home_mode: bool,
-    project: str | None,
-    name: str,
-) -> tuple[tuple[SaveLocationChoice, ...], str | None]:
-    from sase.ace.tui.modals.save_location_choices import macro_location_choices
-
-    return macro_location_choices(
-        rows,
-        last_used_path=last_used_path,
-        current_path=current_path,
-        home_mode=home_mode,
-        project=project,
-        name=name,
-    )
-
-
-def _load_last_used_locations() -> dict[SaveKind, str]:
-    from sase.macro.save_state import load_last_used_locations
-
-    return load_last_used_locations()
 
 
 def _origin_body_for_new_target(origin_bar: PromptInputBar, origin_pane_id: str) -> str:

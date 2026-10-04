@@ -44,7 +44,7 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "open mini-macro…"),
+            ("x", "new / edit mini-macro…"),
             ("X", "save as xprompt/snippet"),
             ("L", "save as local xprompt"),
         ]
@@ -67,7 +67,7 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "open mini-macro…"),
+            ("x", "new / edit mini-macro…"),
             ("X", "save as xprompt/snippet"),
             ("L", "save as local xprompt"),
         ]
@@ -91,7 +91,7 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "open mini-macro…"),
+            ("x", "new / edit mini-macro…"),
             ("X", "save as xprompt/snippet"),
             ("L", "save as local xprompt"),
             ("p", "stashed prompts…"),
@@ -148,7 +148,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "open mini-macro…"),
+            ("x", "new / edit mini-macro…"),
             ("X", "save as xprompt/snippet"),
             ("L", "save as local xprompt"),
         ]
@@ -165,7 +165,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "open mini-macro…"),
+            ("x", "new / edit mini-macro…"),
             ("X", "save as xprompt/snippet"),
             ("L", "save as local xprompt"),
             ("p", "stashed prompts…"),
@@ -210,7 +210,7 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "open mini-macro…"),
+            ("x", "new / edit mini-macro…"),
             ("X", "save as xprompt/snippet"),
             ("L", "save as local xprompt"),
         ]

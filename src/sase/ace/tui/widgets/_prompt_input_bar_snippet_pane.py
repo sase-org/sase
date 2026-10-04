@@ -232,6 +232,13 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
                 return candidate
         return None
 
+    def confirm_discard_dirty_auxiliary(
+        self,
+        proceed: Callable[[], None],
+    ) -> bool:
+        """Run *proceed* now or after confirming a dirty auxiliary discard."""
+        return self._confirm_discard_dirty_snippet(proceed)
+
     def _confirm_discard_dirty_snippet(
         self,
         proceed: Callable[[], None],

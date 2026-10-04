@@ -248,7 +248,7 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
         mini = self._stack.mini_macro_item
         if mini is not None and mini.mini_macro_target is not None:
             return f"retarget #{mini.mini_macro_target.name}…"
-        return "open mini-macro…"
+        return "new / edit mini-macro…"
 
     def _g_prefix_label_save_xprompt(self) -> str:
         """Return the ``gX`` label."""

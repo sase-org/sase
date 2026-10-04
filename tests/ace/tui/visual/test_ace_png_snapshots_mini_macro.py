@@ -432,6 +432,32 @@ async def test_mini_macro_location_flow_picker_png_snapshot(
         )
 
 
+async def test_mini_macro_location_flow_finder_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    del tmp_path
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await mount_prompt_bar(page, "Summarize the risky assumptions.")
+        await page.press("escape")
+        await page.press("g", "x")
+        await page.expect_modal("SaveLocationPickerModal")
+        await wait_for_svg_contains(page, "Edit existing")
+        await page.press("e")
+        await page.expect_modal("ExistingDefinitionFinderModal")
+        await wait_for_svg_contains(page, "Edit existing macro")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "mini_xprompt_location_flow_finder_120x40",
+            title="ACE mini-macro location picker — existing finder",
+        )
+
+
 async def test_mini_macro_save_diff_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

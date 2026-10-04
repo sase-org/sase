@@ -396,9 +396,10 @@ INSERT or NORMAL mode. The unified save panel starts in macro mode; press `Ctrl+
 to switch to snippet mode and choose which config file should hold the new
 `ace.snippets` entry. Prompt-input `Ctrl+T` remains completion. If the prompt bar
 contains a stack, sase's TUI saves the non-empty panes as one `---`-separated macro
-body, while snippet mode saves only the active pane. When you want to author or retarget
-exactly one simple macro in a focused prompt pane, use `gx`, `Ctrl+G x`, or
-`Ctrl+G Ctrl+X`. When you already know you're authoring a snippet trigger,
+body, while snippet mode saves only the active pane. When you want to author, retarget,
+or edit exactly one simple macro in a focused prompt pane, use `gx`, `Ctrl+G x`, or
+`Ctrl+G Ctrl+X` — press `e` in the location picker to fuzzy-find an existing definition.
+When you already know you're authoring a snippet trigger,
 `gt`/`Ctrl+G t`/`Ctrl+G Ctrl+T` opens a faster, dedicated snippet pane instead of this
 general save panel — it starts on a location picker, then the trigger-name panel — see
 [Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
