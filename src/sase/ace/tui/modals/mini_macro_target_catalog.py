@@ -16,6 +16,7 @@ from sase.macro.loader import (
 )
 from sase.macro.loader_parsing import parse_macro_entries
 from sase.macro.loader_sources import load_macro_from_file
+from sase.macro.macro_sources import definition_file_for_source
 from sase.macro.models import Macro
 from sase.macro.naming import (
     ResolutionSource,
@@ -32,6 +33,7 @@ from sase.macro.write_targets import (
     resolve_macro_write_target,
     write_target_for_written_path,
 )
+from sase.legacy_xprompt_syntax import normalize_frontmatter_macros
 
 from .unified_macro_save_support import (
     UnifiedSaveLocation,
@@ -157,7 +159,10 @@ def load_mini_macro_target_catalog(
     destination_rows = tuple(
         locations or load_unified_save_locations(effective_project)
     )
-    macros = get_all_macros(project=effective_project)
+    macros = {
+        name: replace(macro, source_path=_resolved_loader_source(macro.source_path))
+        for name, macro in get_all_macros(project=effective_project).items()
+    }
     definitions = list(_load_destination_definitions(destination_rows))
     definitions.extend(
         _load_catalog_only_definitions(
@@ -403,9 +408,13 @@ def _load_config_definitions(
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
         return
-    if not isinstance(payload, dict) or not isinstance(payload.get("macros"), dict):
+    if not isinstance(payload, dict):
         return
-    parsed = parse_macro_entries(payload["macros"], row.location.path)
+    try:
+        entries = normalize_frontmatter_macros(payload, source=row.location.path)
+    except ValueError:
+        return
+    parsed = parse_macro_entries(entries, row.location.path)
     for storage_name, macro in parsed.items():
         name = _callable_name(row, storage_name)
         compatibility, reason = _mini_compatibility(
@@ -456,7 +465,12 @@ def _load_catalog_only_definitions(
             workflow_kind = "macro"
             if has_swarm_separator:
                 reason = "macro swarms cannot be opened as mini targets"
-        key = (name, _normalized_path(macro.source_path))
+        source_path = macro.source_path
+        yaml_source = source_path is not None and Path(source_path).suffix.lower() in {
+            ".yml",
+            ".yaml",
+        }
+        key = (name, _normalized_path(source_path))
         if key in existing_keys:
             continue
         compatibility: MiniMacroCompatibility = (
@@ -467,10 +481,14 @@ def _load_catalog_only_definitions(
         yield MiniMacroDefinition(
             name=name,
             workflow_kind=workflow_kind,
-            source_path=macro.source_path,
-            display_path=_short_path(macro.source_path or name),
-            storage_format=None,
-            entry_name=None,
+            source_path=source_path,
+            display_path=(
+                f"{_short_path(source_path)}:{name}"
+                if yaml_source and source_path is not None
+                else _short_path(source_path or name)
+            ),
+            storage_format=SaveTargetFormat.CONFIG if yaml_source else None,
+            entry_name=name if yaml_source else None,
             location_path=None,
             precedence=_catalog_only_precedence(existing, ordinal),
             compatibility=compatibility,
@@ -561,6 +579,13 @@ def _normalized_path(path: str | None) -> str | None:
         return None
     write_path = resolve_macro_write_target(path).write_path
     return str(write_path.expanduser().resolve(strict=False))
+
+
+def _resolved_loader_source(source: str | None) -> str | None:
+    if not source or Path(source).is_absolute():
+        return source
+    resolved = definition_file_for_source(source)
+    return str(resolved) if resolved is not None else source
 
 
 def _normalized_definition_keys(

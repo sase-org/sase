@@ -14,6 +14,12 @@ from sase.ace.tui.modals.mini_macro_target_catalog import (
     MiniMacroTargetCatalog,
 )
 from sase.snippet.redefinition import SnippetDefinitionSite
+from sase.ace.tui.modals import mini_macro_target_catalog as catalog_mod
+from sase.ace.tui.modals.mini_macro_target_catalog import load_mini_macro_target_catalog
+from sase.macro.models import Macro
+from sase.ace.tui.modals.macro_location_modal import MacroLocation
+from sase.ace.tui.modals.unified_macro_save_modal import UnifiedSaveLocation
+from pathlib import Path
 
 
 def _macro(
@@ -152,6 +158,17 @@ def test_snippet_entries_preserve_source_origin_and_templates() -> None:
             shadowed_by=None,
             macro_name="review",
         ),
+        SnippetDefinitionSite(
+            trigger="legacy-macro",
+            kind="macro",
+            path=None,
+            display="#legacy (macro snippet)",
+            template="legacy macro body",
+            writable=False,
+            active=True,
+            shadowed_by=None,
+            macro_name="legacy",
+        ),
     )
 
     entries = snippet_existing_entries(sites)
@@ -159,6 +176,7 @@ def test_snippet_entries_preserve_source_origin_and_templates() -> None:
     assert [entry.status for entry in entries] == [
         "shadowed",
         "active",
+        "read_only",
         "read_only",
         "read_only",
     ]
@@ -169,6 +187,37 @@ def test_snippet_entries_preserve_source_origin_and_templates() -> None:
     assert entries[2].chip == "plugin"
     assert entries[3].origin_label == "from #review"
     assert entries[3].chip == "from #macro"
+    assert entries[4].origin_label == "from #legacy"
+    assert entries[4].chip == "from #macro"
+
+
+def test_config_loader_source_id_produces_one_active_finder_entry(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config = tmp_path / "sase.yml"
+    config.write_text("macros:\n  review:\n    content: body\n", encoding="utf-8")
+    row = UnifiedSaveLocation(
+        location=MacroLocation("User config", str(config), "config"),
+        group="User config",
+        display_path=str(config),
+        names=frozenset({"review"}),
+        precedence=0,
+    )
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "review": Macro(name="review", content="body", source_path="config")
+        },
+    )
+    monkeypatch.setattr(catalog_mod, "get_all_workflows", lambda project=None: {})
+    monkeypatch.setattr(catalog_mod, "definition_file_for_source", lambda _: config)
+
+    entries = macro_existing_entries(load_mini_macro_target_catalog(locations=[row]))
+
+    assert len(entries) == 1
+    assert entries[0].status == "active"
+    assert entries[0].display_path == f"{config}:review"
 
 
 def test_empty_query_sorts_compatible_then_name_and_active_before_shadowed() -> None:

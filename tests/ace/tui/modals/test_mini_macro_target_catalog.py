@@ -381,3 +381,156 @@ def test_destination_resolution_uses_row_names_and_write_targets(
     assert target.exists_here is False
     assert target.resolution.shadowed_by == str(high)
     assert target.write_path == str(low / "review.md")
+
+
+def test_loader_source_ids_resolve_to_existing_config_and_plugin_rows(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _empty_catalog_only(monkeypatch)
+    config = tmp_path / "sase.yml"
+    _write_config(config, {"review": {"content": "config body"}})
+    config_row = _row(
+        config,
+        names=frozenset({"review"}),
+        location_type="config",
+        group="User config",
+    )
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "review": Macro(name="review", content="config body", source_path="config")
+        },
+    )
+    monkeypatch.setattr(catalog_mod, "definition_file_for_source", lambda _: config)
+    definitions = load_mini_macro_target_catalog(
+        locations=[config_row]
+    ).definitions_for_name("review")
+    assert len(definitions) == 1
+    assert definitions[0].effective is True
+    assert definitions[0].compatibility == "editable"
+    assert definitions[0].shadowed_by is None
+
+    plugin_dir = tmp_path / "plugin"
+    plugin_file = plugin_dir / "review.md"
+    _write_macro(plugin_file, "plugin body", name="review")
+    plugin_row = _row(
+        plugin_dir,
+        names=frozenset({"review"}),
+        group="Plugin directories",
+    )
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "review": Macro(
+                name="review", content="plugin body", source_path="plugin:mod/review.md"
+            )
+        },
+    )
+    monkeypatch.setattr(
+        catalog_mod, "definition_file_for_source", lambda _: plugin_file
+    )
+    plugin_definitions = load_mini_macro_target_catalog(
+        locations=[plugin_row]
+    ).definitions_for_name("review")
+    assert len(plugin_definitions) == 1
+    assert plugin_definitions[0].compatibility == "editable"
+
+    builtin_path = tmp_path / "builtin.yml"
+    _write_config(builtin_path, {"review": {"content": "built in"}})
+    builtin_row = _row(
+        builtin_path,
+        names=frozenset({"review"}),
+        location_type="config",
+        group="Built-in (dev)",
+        builtin=True,
+    )
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "review": Macro(
+                name="review", content="built in", source_path="default_config"
+            )
+        },
+    )
+    monkeypatch.setattr(
+        catalog_mod, "definition_file_for_source", lambda _: builtin_path
+    )
+    builtin_definitions = load_mini_macro_target_catalog(
+        locations=[builtin_row]
+    ).definitions_for_name("review")
+    assert len(builtin_definitions) == 1
+    assert builtin_definitions[0].origin_label == "built-in"
+
+
+def test_unresolved_source_id_and_catalog_only_yaml_metadata(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _empty_catalog_only(monkeypatch)
+    monkeypatch.setattr(catalog_mod, "definition_file_for_source", lambda _: None)
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "unknown": Macro(
+                name="unknown", content="body", source_path="unknown-loader-id"
+            ),
+            "review": Macro(
+                name="review",
+                content="body",
+                source_path=str(tmp_path / "external.yml"),
+            ),
+        },
+    )
+
+    catalog = load_mini_macro_target_catalog(locations=[_row(tmp_path / "empty")])
+    unknown = catalog.effective_definition("unknown")
+    config_definition = catalog.effective_definition("review")
+    assert unknown is not None
+    assert unknown.compatibility == "read_only"
+    assert unknown.display_path == "unknown-loader-id"
+    assert config_definition is not None
+    assert config_definition.storage_format is SaveTargetFormat.CONFIG
+    assert config_definition.entry_name == "review"
+    assert config_definition.display_path.endswith("external.yml:review")
+
+
+def test_config_definitions_accept_legacy_key_and_reject_mixed_keys(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _empty_catalog_only(monkeypatch)
+    monkeypatch.setattr(
+        "sase.legacy_xprompt_syntax.legacy_xprompt_syntax_enabled", lambda: True
+    )
+    config = tmp_path / "legacy.yml"
+    row = _row(
+        config,
+        names=frozenset({"review"}),
+        location_type="config",
+        group="User config",
+    )
+    config.write_text(
+        yaml.safe_dump({"xprompts": {"review": {"content": "legacy"}}}),
+        encoding="utf-8",
+    )
+    definitions = load_mini_macro_target_catalog(locations=[row]).definitions_for_name(
+        "review"
+    )
+    assert len(definitions) == 1
+    assert definitions[0].compatibility == "editable"
+
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "macros": {"review": {"content": "canonical"}},
+                "xprompts": {"review": {"content": "legacy"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        load_mini_macro_target_catalog(locations=[row]).definitions_for_name("review")
+        == ()
+    )

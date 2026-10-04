@@ -22,6 +22,10 @@ from sase.ace.tui.modals.mini_macro_target_catalog import (
 from sase.ace.tui.modals.unified_macro_save_modal import UnifiedSaveLocation
 from sase.ace.tui.modals.macro_location_modal import MacroLocation
 from sase.ace.tui.modals.mini_macro_redefinition import macro_redefinition
+from sase.ace.tui.modals.mini_macro_redefinition import macro_redefinition_warning
+from sase.ace.tui.modals import mini_macro_target_catalog as catalog_mod
+from sase.ace.tui.modals.mini_macro_target_catalog import load_mini_macro_target_catalog
+from sase.macro.models import Macro
 from sase.macro.save import SaveTargetFormat
 
 
@@ -694,3 +698,49 @@ def test_read_only_override_warning_uses_active_outside_rows_copy(
     assert verdict.action == "override"
     assert "saving to" in verdict.message
     assert "adds another definition" in verdict.message
+
+
+def test_default_config_loader_id_uses_override_warning(
+    tmp_path: Path, monkeypatch
+) -> None:
+    builtin_path = tmp_path / "default_config.yml"
+    builtin_path.write_text(
+        "macros:\n  review:\n    content: built in\n", encoding="utf-8"
+    )
+    destination_path = tmp_path / "user.yml"
+    destination_path.write_text("macros: {}\n", encoding="utf-8")
+    builtin = _row(
+        builtin_path,
+        names=frozenset({"review"}),
+        location_type="config",
+        group="Built-in (dev)",
+        precedence=10,
+    )
+    destination = _row(
+        destination_path,
+        location_type="config",
+        group="User config",
+        precedence=0,
+    )
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "review": Macro(
+                name="review", content="built in", source_path="default_config"
+            )
+        },
+    )
+    monkeypatch.setattr(catalog_mod, "get_all_workflows", lambda project=None: {})
+    monkeypatch.setattr(
+        catalog_mod, "definition_file_for_source", lambda _: builtin_path
+    )
+
+    catalog = load_mini_macro_target_catalog(locations=[builtin, destination])
+    warning = macro_redefinition_warning(
+        macro_redefinition(catalog, "review", destination)
+    )
+
+    assert warning is not None
+    assert f"already exists in {builtin.display_path}:review" in warning
+    assert f"saving to {destination.display_path} will override it" in warning

@@ -13,6 +13,7 @@ from sase.ace.tui.modals.mini_macro_target_catalog import (
     MiniMacroTargetCatalog,
 )
 from sase.core.fuzzy_facade import FuzzyMatch, fuzzy_match, fuzzy_sort_key
+from sase.snippet.models import is_macro_derived_kind
 from sase.snippet.redefinition import SnippetDefinitionSite
 
 ExistingStatus = Literal["active", "shadowed", "read_only", "incompatible"]
@@ -239,7 +240,7 @@ def _snippet_origin(site: SnippetDefinitionSite) -> str:
         if not module and site.path:
             module = Path(site.path).stem
         return f"plugin {module or 'plugin'}"
-    if site.kind in ("macro", "xprompt"):
+    if site.kind == "macro" or is_macro_derived_kind(site.kind):
         return f"from #{site.macro_name or site.trigger}"
     return site.kind
 
@@ -257,7 +258,7 @@ def _macro_read_only_origin(definition: MiniMacroDefinition) -> str:
 
 def _snippet_chip(site: SnippetDefinitionSite, status: ExistingStatus) -> str:
     if status == "read_only":
-        if site.kind in ("macro", "xprompt"):
+        if site.kind == "macro" or is_macro_derived_kind(site.kind):
             return "from #macro"
         if site.kind == "plugin":
             return "plugin"
