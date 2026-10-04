@@ -1,4 +1,4 @@
-"""VCS xprompt MRU cycling helpers for PromptTextArea."""
+"""VCS macro MRU cycling helpers for PromptTextArea."""
 
 from __future__ import annotations
 
@@ -110,7 +110,7 @@ def _mru_entry_display_form(entry: str, catalog: Any | None) -> str:
     return entry
 
 
-#: The two prompt keys that drive VCS xprompt MRU cycling. ``ctrl+p`` cycles
+#: The two prompt keys that drive VCS macro MRU cycling. ``ctrl+p`` cycles
 #: forward (toward older entries) and ``ctrl+n`` cycles backward (toward newer
 #: entries); both share one ring whose terminal stop clears the VCS tag.
 VcsMruCycleKey = Literal["ctrl+n", "ctrl+p"]
@@ -134,7 +134,7 @@ class _VcsMruCycleEdit:
 
 
 @dataclass(frozen=True)
-class _VcsXPromptDeleteEdit:
+class _VcsMacroDeleteEdit:
     """Text edit that removes a VCS workflow tag from a prompt."""
 
     text: str
@@ -143,11 +143,11 @@ class _VcsXPromptDeleteEdit:
     end_offset: int
 
 
-def _delete_vcs_xprompt_text(
+def _delete_vcs_macro_text(
     text: str,
     cursor_offset: int,
     catalog: Any | None = None,
-) -> _VcsXPromptDeleteEdit | None:
+) -> _VcsMacroDeleteEdit | None:
     """Return the edit deleting the leading workspace target, or ``None``.
 
     The target is a ``#`` VCS workflow tag or a ``+<project>`` tag (see
@@ -180,7 +180,7 @@ def _delete_vcs_xprompt_text(
         new_cursor = cursor_offset - removed
     new_cursor = min(new_cursor, len(new_text))
 
-    return _VcsXPromptDeleteEdit(
+    return _VcsMacroDeleteEdit(
         text=new_text,
         cursor_offset=new_cursor,
         start_offset=new_start,
@@ -277,7 +277,7 @@ def _cycle_vcs_mru_text(
         return None
 
     if new_index == len(mru):
-        delete_edit = _delete_vcs_xprompt_text(text, cursor_offset, catalog)
+        delete_edit = _delete_vcs_macro_text(text, cursor_offset, catalog)
         if delete_edit is None:
             return None
         return _VcsMruCycleEdit(
@@ -350,7 +350,7 @@ else:
 
 
 class VcsMruCyclingMixin(_MixinBase):
-    """Mixin that applies VCS xprompt MRU cycling in the prompt widget."""
+    """Mixin that applies VCS macro MRU cycling in the prompt widget."""
 
     if TYPE_CHECKING:
         _vcs_mru_index: int | None

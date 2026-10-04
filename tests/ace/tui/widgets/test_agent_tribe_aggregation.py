@@ -84,14 +84,14 @@ def _prompt_agent(
     name: str,
     suffix: str,
     *,
-    xprompt: str | None = None,
+    macro: str | None = None,
     prompt: str | None = None,
     **overrides: object,
 ) -> Agent:
     artifacts = tmp_path / f"prompt-{suffix}"
     artifacts.mkdir()
-    if xprompt is not None:
-        (artifacts / "raw_xprompt.md").write_text(xprompt, encoding="utf-8")
+    if macro is not None:
+        (artifacts / "raw_prompt.md").write_text(macro, encoding="utf-8")
     if prompt is not None:
         (artifacts / "01_prompt.md").write_text(prompt, encoding="utf-8")
     return _agent(
@@ -236,7 +236,7 @@ def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
         tmp_path,
         "build--plan",
         "session",
-        xprompt="%id(1)\n#bd/work_phase_bead:sase-16t.1\n",
+        macro="%id(1)\n#bd/work_phase_bead:sase-16t.1\n",
         agent_session="build",
         agent_session_role="root",
         plan_chain_root=True,
@@ -245,7 +245,7 @@ def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
         tmp_path,
         "build--code",
         "child",
-        xprompt="%id(2)\n#bd/work_phase_bead:sase-16t.2\n",
+        macro="%id(2)\n#bd/work_phase_bead:sase-16t.2\n",
         agent_session="build",
         agent_session_role="code",
         parent_timestamp=agent_session.raw_suffix,
@@ -255,19 +255,19 @@ def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
         tmp_path,
         "first",
         "first",
-        xprompt="%id(3)\nInspect the documentation changes.\n",
+        macro="%id(3)\nInspect the documentation changes.\n",
     )
     second_standalone = _prompt_agent(
         tmp_path,
         "second",
         "second",
-        xprompt="%id(4)\n%wait:30\nInspect the documentation changes.\n",
+        macro="%id(4)\n%wait:30\nInspect the documentation changes.\n",
     )
     monitor = _prompt_agent(
         tmp_path,
         "build--mon",
         "monitor",
-        xprompt="%xprompts_enabled:false\n# Monitored command finished\n",
+        macro="%macros_enabled:false\n# Monitored command finished\n",
         agent_session="build",
         agent_session_role="monitor",
         role_suffix="--mon",
@@ -314,7 +314,7 @@ def test_clan_unit_reuses_prompts_from_fresh_clan_snapshot(
         tmp_path,
         "research.one",
         "clan",
-        xprompt="Clan prompt body.\n",
+        macro="Clan prompt body.\n",
     )
     member.agent_clan = "research"
     member.agent_clan_generation = "20260718160000"

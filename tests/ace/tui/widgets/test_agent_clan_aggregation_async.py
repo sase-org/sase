@@ -129,7 +129,7 @@ def test_collapsed_presence_discovery_enriches_and_reuses_member_artifacts(
 ) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text(
+    (artifacts / "raw_prompt.md").write_text(
         "#review representative segment\n",
         encoding="utf-8",
     )

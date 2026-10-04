@@ -46,7 +46,7 @@ def _block_turn(
     directory.mkdir(parents=True, exist_ok=True)
     write_phase_content(directory, role)
     if tiny_content:
-        (directory / "raw_xprompt.md").write_text(
+        (directory / "raw_prompt.md").write_text(
             f"{role} goal\n{role} scope\n", encoding="utf-8"
         )
         (directory / "01_prompt.md").write_text(f"{role} detail\n", encoding="utf-8")

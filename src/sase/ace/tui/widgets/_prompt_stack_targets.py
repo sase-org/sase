@@ -40,8 +40,8 @@ class SourceFingerprint:
 
 
 @dataclass(frozen=True)
-class XPromptBinding:
-    """The editable xprompt source a prompt stack writes back to."""
+class MacroBinding:
+    """The editable macro source a prompt stack writes back to."""
 
     kind: Literal["file", "config"]
     path: str
@@ -59,7 +59,7 @@ class XPromptBinding:
         path: str | Path,
         *,
         reference: str | None = None,
-    ) -> XPromptBinding:
+    ) -> MacroBinding:
         from sase.macro.write_targets import (
             canonical_reference_for_path,
             resolve_macro_write_target,
@@ -90,7 +90,7 @@ class XPromptBinding:
         entry_name: str,
         *,
         reference: str | None = None,
-    ) -> XPromptBinding:
+    ) -> MacroBinding:
         from sase.macro.write_targets import (
             canonical_reference_for_path,
             resolve_macro_write_target,
@@ -122,8 +122,8 @@ class XPromptBinding:
 
 
 @dataclass(frozen=True)
-class XPromptReadonlyTarget:
-    """A loaded xprompt definition that can be inspected but not overwritten."""
+class MacroReadonlyTarget:
+    """A loaded macro definition that can be inspected but not overwritten."""
 
     reference: str
     path: str | None = None
@@ -154,7 +154,7 @@ def mini_macro_draft_hash(frontmatter: str, body: str) -> str:
 
 @dataclass(frozen=True)
 class MiniMacroPaneTarget:
-    """The xprompt definition a pane-scoped mini-macro draft edits."""
+    """The macro definition a pane-scoped mini-macro draft edits."""
 
     name: str
     reference: str
@@ -186,7 +186,7 @@ __all__ = [
     "MiniMacroPaneTarget",
     "SnippetPaneTarget",
     "SourceFingerprint",
-    "XPromptBinding",
-    "XPromptReadonlyTarget",
+    "MacroBinding",
+    "MacroReadonlyTarget",
     "mini_macro_draft_hash",
 ]

@@ -30,7 +30,7 @@ def _agent(tmp_path: Path, **overrides: Any) -> Agent:
     if raw_prompt is not None:
         artifact_root = tmp_path / str(overrides.get("raw_suffix", "agent"))
         artifact_root.mkdir()
-        (artifact_root / "raw_xprompt.md").write_text(raw_prompt, encoding="utf-8")
+        (artifact_root / "raw_prompt.md").write_text(raw_prompt, encoding="utf-8")
         artifacts_dir = str(artifact_root)
 
     defaults: dict[str, Any] = {

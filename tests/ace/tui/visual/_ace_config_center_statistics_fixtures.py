@@ -24,7 +24,7 @@ _PROJECT_DISPLAY_SNAPSHOT = ProjectDisplaySnapshot(
 )
 
 
-def _xprompts_payload(
+def _macros_payload(
     selected_range: StatsRange,
     macro_focus: str | None,
 ) -> dict[str, object]:
@@ -215,9 +215,9 @@ def _xprompts_payload(
             ),
         }
     return {
-        "runs_with_xprompts": 23,
-        "runs_without_xprompts": 9,
-        "distinct_xprompts": 4,
+        "runs_with_macros": 23,
+        "runs_without_macros": 9,
+        "distinct_macros": 4,
         "total_references": 36,
         "truncated_rows": 0,
         "rows": rows,

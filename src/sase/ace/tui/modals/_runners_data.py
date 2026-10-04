@@ -213,7 +213,7 @@ def _collect_comment_runners(patch: Patch) -> list[RunnerInfo]:
 def _read_prompt_preview(
     project_name: str, artifacts_timestamp: str | None
 ) -> str | None:
-    """Read a truncated prompt preview from the agent's raw_xprompt.md artifact.
+    """Read a truncated prompt preview from the agent's raw_prompt.md artifact.
 
     Args:
         project_name: The project name (e.g., "yserve").
@@ -288,7 +288,7 @@ def _collect_manual_agents() -> list[RunnerInfo]:
                 ts_part = workflow.rsplit("-", 1)[-1]
                 start_time = _parse_timestamp(ts_part)
 
-            # Read prompt preview from artifacts raw_xprompt.md
+            # Read prompt preview from artifacts raw_prompt.md
             prompt_preview = _read_prompt_preview(
                 project_name, claim.artifacts_timestamp
             )

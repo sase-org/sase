@@ -114,7 +114,7 @@ def _sync_task(
         if not checkout_ok:
             return (False, f"checkout failed: {checkout_err}")
 
-        # Sync workspace via xprompt workflow
+        # Sync workspace via macro workflow
         from sase.macro import execute_workflow
         from sase.macro.workflow_models import WorkflowExecutionError
 

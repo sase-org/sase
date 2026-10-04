@@ -1,4 +1,4 @@
-"""Tests for terminal agent xprompt rendering."""
+"""Tests for terminal agent raw_prompt rendering."""
 
 from __future__ import annotations
 
@@ -17,14 +17,14 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_logical_section_is_compact,
     assert_rendered_section_is_compact,
 )
-from tests.ace.tui.widgets._agent_display_xprompt_helpers import (
+from tests.ace.tui.widgets._agent_display_raw_prompt_helpers import (
     _header_text,
     _styles_at,
 )
 
 
-class TestAgentXPromptRendering:
-    def test_done_agent_renders_raw_xprompt(self, tmp_path: Path) -> None:
+class TestAgentRawPromptRendering:
+    def test_done_agent_renders_raw_prompt(self, tmp_path: Path) -> None:
         panel = FakePromptPanel()
         agent = make_artifact_agent(tmp_path, status="DONE")
 
@@ -52,7 +52,7 @@ class TestAgentXPromptRendering:
             "Final response body",
         )
 
-    def test_failed_agent_renders_raw_xprompt(self, tmp_path: Path) -> None:
+    def test_failed_agent_renders_raw_prompt(self, tmp_path: Path) -> None:
         panel = FakePromptPanel()
         agent = make_artifact_agent(tmp_path, status="FAILED")
 
@@ -146,20 +146,20 @@ class TestAgentXPromptRendering:
             "Waiting for agent response...",
         )
 
-    def test_oversized_xprompt_falls_back_to_plain_text(
+    def test_oversized_raw_prompt_falls_back_to_plain_text(
         self,
         tmp_path: Path,
     ) -> None:
         panel = FakePromptPanel()
-        raw_xprompt = "#foo " + "x" * MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
+        raw_prompt = "#foo " + "x" * MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt=raw_xprompt,
+            raw_prompt=raw_prompt,
         )
 
         panel.update_display(agent)
 
         header = _header_text(panel.captured[-1])
-        assert raw_xprompt in header.plain
+        assert raw_prompt in header.plain
         assert MACRO_TOKEN_STYLES["invocation"] not in _styles_at(header, "#foo")

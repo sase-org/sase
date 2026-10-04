@@ -67,7 +67,7 @@ def _entry() -> MacroAssistEntry:
         name="visual_batch",
         insertion="#visual_batch",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(
             _input("owner", "agent", position=0),

@@ -64,9 +64,9 @@ def test_force_name_reuse_leaves_bare_and_missing_name_directives() -> None:
 def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
     prompt = (
         "```\n%id:fenced\n```\n"
-        "%xprompts_enabled:false\n"
+        "%macros_enabled:false\n"
         "%i:disabled\n"
-        "%xprompts_enabled:true\n"
+        "%macros_enabled:true\n"
         "Do work"
     )
     assert _force_name_reuse_in_prompt(prompt) == prompt

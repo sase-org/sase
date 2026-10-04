@@ -47,7 +47,7 @@ class PromptBarMemoryPanelMixin:
     Both open the same Memory subtab of the Config hub -- the glossary
     shortcut is just a different seed-detection mechanism (the highlighted
     glossary term under the cursor, already resolved to a ``glossary:<slug>``
-    identity by the bar) than the ``#memory/<stem>`` xprompt reference the
+    identity by the bar) than the ``#memory/<stem>`` macro reference the
     plain memory shortcut captures.
     """
 

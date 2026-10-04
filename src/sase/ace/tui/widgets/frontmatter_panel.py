@@ -5,13 +5,13 @@ stack (``#prompt-stack``).  It is the visible editing surface over the structure
 :class:`~sase.macro.prompt_frontmatter.PromptFrontmatter` model built in Phase
 2: it renders one row per set field with a type-styled value summary and a status
 chip, validates live through the shared ``sase-core`` engine (so its guidance
-never drifts from the xprompt LSP), and offers the common-case editors plus a raw
+never drifts from the macro LSP), and offers the common-case editors plus a raw
 YAML escape hatch.
 
 Phase 3 scope (this widget):
 
 - **Navigate** set fields with ``j``/``k`` (and arrows); fold the read-only
-  ``input`` / ``xprompts`` sub-trees with ``h``/``l``.
+  ``input`` / ``macros`` sub-trees with ``h``/``l``.
 - **Add** a field with ``a`` (core-schema picker, handled by the host bar) and
   edit scalars / lists inline; **delete** the focused field with ``d``.
 - **Raw** YAML mode with ``R``: edit the canonical serialized frontmatter in a
@@ -156,7 +156,7 @@ class FrontmatterPanel(
         self._schema = {f.name: f for f in schema}
         # Config-frontmatter glue (sase-1eq.4.1.2): the Python model now
         # serializes canonical ``macros`` while core still advertises the
-        # retired ``xprompts`` field. Alias the canonical key to the same
+        # retired ``macros`` field. Alias the canonical key to the same
         # structured descriptor until the core schema flips; the TUI rename
         # phase owns widget terminology. Field/item kind names stay.
         if "macros" not in self._schema and "xprompts" in self._schema:

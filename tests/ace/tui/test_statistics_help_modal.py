@@ -21,7 +21,7 @@ def _modal(current_view: StatisticsView = "overview") -> StatisticsHelpModal:
         current_view=current_view,
         selected_range=StatsRange(100, 200, "exact range", "Last 7 days"),
         projects_group_by="project",
-        xprompts_group_by="usage",
+        macros_group_by="usage",
         project_label="All projects",
         generated_at=150.0,
         keymaps=StatisticsPaneKeymaps(),
@@ -58,7 +58,7 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
     controls = modal._controls_text().plain
 
     for action, description in _STATISTICS_BINDING_META:
-        if action in {"cycle_group", "focus_xprompt", "clear_xprompt_focus"}:
+        if action in {"cycle_group", "focus_macro", "clear_macro_focus"}:
             assert description not in controls
         else:
             assert description in controls
@@ -75,20 +75,20 @@ def test_help_group_control_is_visible_only_for_grouping_views() -> None:
         controls = _modal(view)._controls_text().plain
         if view == "projects":
             assert "Group By — Projects · By Project" in controls
-        elif view == "xprompts":
-            assert "Group By — XPrompts · By Usage" in controls
+        elif view == "macros":
+            assert "Group By — Macros · By Usage" in controls
         elif view == "perf":
             assert "Group By — Perf · By Subsystem" in controls
         else:
             assert "Group By" not in controls
 
 
-def test_help_xprompt_controls_are_visible_only_on_xprompts() -> None:
+def test_help_macro_controls_are_visible_only_on_macros() -> None:
     for view in VIEW_ORDER:
         controls = _modal(view)._controls_text().plain
-        if view == "xprompts":
-            assert "Focus Macro — choose from loaded xprompts" in controls
-            assert "Clear Macro Focus — return to All xprompts" in controls
+        if view == "macros":
+            assert "Focus Macro — choose from loaded macros" in controls
+            assert "Clear Macro Focus — return to All macros" in controls
         else:
             assert "Focus Macro" not in controls
             assert "Clear Macro Focus" not in controls
@@ -117,16 +117,16 @@ def test_help_explains_runner_eligibility_windows_and_capacity_caveats() -> None
         assert phrase in methodology
 
 
-def test_help_explains_xprompt_counting_methodology() -> None:
-    methodology = _modal()._xprompt_methodology_text().plain
+def test_help_explains_macro_counting_methodology() -> None:
+    methodology = _modal()._macro_methodology_text().plain
 
     for phrase in (
-        "launch-boundary xprompts.json",
+        "launch-boundary macros.json",
         "before prompt expansion",
         "Workflow step-template references are excluded",
-        "A run counts once per xprompt name",
+        "A run counts once per macro name",
         "Refs counts argument variants separately",
-        "other xprompts referenced in the same run",
+        "other macros referenced in the same run",
         "attributed to every agent the swarm launched",
         "attribution is forward-only",
         "project filter is applied before aggregation",
@@ -155,7 +155,7 @@ def test_help_explains_perf_methodology() -> None:
         "not project-scoped",
         "never by project",
         "TUI perf logs carry no project",
-        "not comparable with the run counts on Overview, Projects, or XPrompts",
+        "not comparable with the run counts on Overview, Projects, or Macros",
         "rolls raw samples up after 48 hours",
         "byte-bounded",
         "All time means as far back as the retained data goes",

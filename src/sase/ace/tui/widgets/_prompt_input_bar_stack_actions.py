@@ -6,7 +6,7 @@ from sase.ace.tui.widgets._prompt_input_bar_g_prefix_actions import (
     PromptInputBarGPrefixActionsMixin,
 )
 from sase.ace.tui.widgets._prompt_input_bar_local_macro_actions import (
-    PromptInputBarLocalXPromptActionsMixin,
+    PromptInputBarLocalMacroActionsMixin,
 )
 from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
     PromptGPrefixHintEntry,
@@ -30,6 +30,6 @@ class PromptInputBarStackActionsMixin(
     PromptInputBarGPrefixActionsMixin,
     PromptInputBarStackNavigationMixin,
     PromptInputBarStashActionsMixin,
-    PromptInputBarLocalXPromptActionsMixin,
+    PromptInputBarLocalMacroActionsMixin,
 ):
     """Prompt stack keymaps and structural actions."""

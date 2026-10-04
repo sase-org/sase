@@ -116,7 +116,7 @@ class CompletionTestApp(App[None]):
 
 
 class CatalogCompletionTestApp(CompletionTestApp):
-    """Completion app whose warm catalog is built from the real xprompt catalog.
+    """Completion app whose warm catalog is built from the real macro catalog.
 
     Mirrors the ACE app's memory-only catalog: the widget asks for entries by
     project string and gets a catalog projection built for exactly that string.
@@ -138,26 +138,26 @@ class CatalogCompletionTestApp(CompletionTestApp):
 
 
 @contextmanager
-def registered_project_xprompts(
+def registered_project_macros(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     *,
     project_key: str,
     project_name: str,
-    xprompts: Mapping[str, str],
+    macros: Mapping[str, str],
 ) -> Iterator[Path]:
     """Register one project whose directory key differs from its name.
 
-    The project's workspace holds *xprompts* (``name -> body``) under
-    ``sase/xprompts/``, so the catalog discovers them through the project
+    The project's workspace holds *macros* (``name -> body``) under
+    ``sase/macros/``, so the catalog discovers them through the project
     registry exactly as it does for a real checkout.
     """
     projects_root = tmp_path / "projects"
     projects_root.mkdir(parents=True, exist_ok=True)
     workspace = tmp_path / "workspace"
-    macro_dir = workspace / "sase" / "xprompts"
+    macro_dir = workspace / "sase" / "macros"
     macro_dir.mkdir(parents=True, exist_ok=True)
-    for name, body in xprompts.items():
+    for name, body in macros.items():
         (macro_dir / f"{name}.md").write_text(body, encoding="utf-8")
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path))

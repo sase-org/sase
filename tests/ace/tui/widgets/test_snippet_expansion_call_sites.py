@@ -30,7 +30,7 @@ def _entry(name: str, *, inputs: tuple[MacroInputHint, ...]) -> MacroAssistEntry
         name=name,
         insertion=f"#{name}",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=inputs,
         content_preview=None,
@@ -86,7 +86,7 @@ def _assert_nested_and_outer_resumes(ta: PromptTextArea) -> None:
     assert ta.snippet_session_active is False
 
 
-async def test_file_completion_xprompt_skeleton_nests_inside_active_session() -> None:
+async def test_file_completion_macro_skeleton_nests_inside_active_session() -> None:
     entry = _entry("many", inputs=(_input("path"), _input("body", "text")))
     app = CompletionTestApp()
     async with app.run_test():
@@ -101,7 +101,7 @@ async def test_file_completion_xprompt_skeleton_nests_inside_active_session() ->
         _assert_nested_and_outer_resumes(ta)
 
 
-async def test_soft_completion_xprompt_skeleton_nests_inside_active_session() -> None:
+async def test_soft_completion_macro_skeleton_nests_inside_active_session() -> None:
     entry = _entry("many", inputs=(_input("path"), _input("body", "text")))
     app = CompletionTestApp()
     async with app.run_test():
@@ -118,7 +118,7 @@ async def test_soft_completion_xprompt_skeleton_nests_inside_active_session() ->
                 name=entry.name,
                 metadata=entry,
             ),
-            completion_kind="xprompt",
+            completion_kind="macro",
             replacement_start=start_offset,
             replacement_end=end_offset,
             replacement_token="#m",
@@ -136,7 +136,7 @@ async def test_soft_completion_xprompt_skeleton_nests_inside_active_session() ->
         _assert_nested_and_outer_resumes(ta)
 
 
-async def test_ctrl_t_xprompt_skeleton_nests_inside_active_session() -> None:
+async def test_ctrl_t_macro_skeleton_nests_inside_active_session() -> None:
     entry = _entry("many", inputs=(_input("path"), _input("body", "text")))
     app = CompletionTestApp()
     async with app.run_test():
@@ -147,7 +147,7 @@ async def test_ctrl_t_xprompt_skeleton_nests_inside_active_session() -> None:
         start = (0, 2)
         end = (0, 3)
 
-        assert bar._insert_xprompt_smart_snippet(ta, entry, start, end) is True
+        assert bar._insert_macro_smart_snippet(ta, entry, start, end) is True
 
         assert ta.text == "(#many())"
         _assert_nested_and_outer_resumes(ta)
@@ -175,7 +175,7 @@ async def test_named_arg_skeleton_nests_inside_active_session() -> None:
         _assert_nested_and_outer_resumes(ta)
 
 
-async def test_whole_pane_local_xprompt_skeleton_resets_active_session() -> None:
+async def test_whole_pane_local_macro_skeleton_resets_active_session() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         bar = app.query_one(PromptInputBar)

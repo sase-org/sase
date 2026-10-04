@@ -190,9 +190,9 @@ async def test_restore_adopts_frontmatter_when_bar_has_none() -> None:
         assert bar.all_prompt_texts() == ["alpha", "beta"]
 
 
-async def test_restore_adopted_xprompts_sync_to_frontmatter_panel() -> None:
+async def test_restore_adopted_macros_sync_to_frontmatter_panel() -> None:
     app = _RestoreApp("")
-    frontmatter = "---\nxprompts:\n  _stash_helper: Use restored helper\n---"
+    frontmatter = "---\nmacros:\n  _stash_helper: Use restored helper\n---"
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)

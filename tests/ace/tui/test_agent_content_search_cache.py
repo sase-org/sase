@@ -30,7 +30,7 @@ def _make_agent(artifacts_dir: Path, **overrides: object) -> Agent:
 
 
 def test_haystack_includes_prompt_and_reply(tmp_path: Path) -> None:
-    (tmp_path / "raw_xprompt.md").write_text(
+    (tmp_path / "raw_prompt.md").write_text(
         "Explain CONNECTION timeouts", encoding="utf-8"
     )
     (tmp_path / "live_reply.md").write_text(
@@ -88,8 +88,8 @@ def test_cache_refreshes_when_mtime_changes(tmp_path: Path) -> None:
 
 
 def test_missing_file_is_tolerated(tmp_path: Path) -> None:
-    # Only xprompt exists, no reply.
-    (tmp_path / "raw_xprompt.md").write_text("Just the prompt", encoding="utf-8")
+    # Only macro exists, no reply.
+    (tmp_path / "raw_prompt.md").write_text("Just the prompt", encoding="utf-8")
     agent = _make_agent(tmp_path)
 
     cache = AgentContentSearchCache()
@@ -189,7 +189,7 @@ def test_build_index_includes_all_agent_content_sources(tmp_path: Path) -> None:
     attempt_path.write_text("ATTEMPT REPLY", encoding="utf-8")
     response_path = tmp_path / "response.md"
     response_path.write_text("FINAL RESPONSE", encoding="utf-8")
-    (tmp_path / "raw_xprompt.md").write_text("PROMPT BODY", encoding="utf-8")
+    (tmp_path / "raw_prompt.md").write_text("PROMPT BODY", encoding="utf-8")
     (tmp_path / "live_reply.md").write_text("LIVE REPLY", encoding="utf-8")
     (tmp_path / "agent_meta.json").write_text(
         json.dumps({"chat_path": str(chat_path)}), encoding="utf-8"

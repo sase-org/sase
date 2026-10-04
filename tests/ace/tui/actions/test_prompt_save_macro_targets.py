@@ -13,7 +13,7 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_targets import (
     write_binding_sync,
 )
 from sase.ace.tui.modals import UnifiedMacroSaveResult
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding as MacroBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding as MacroBinding
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from sase.macro.save import SaveTargetFormat

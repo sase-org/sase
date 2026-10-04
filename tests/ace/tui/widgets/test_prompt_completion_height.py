@@ -162,7 +162,7 @@ def _long_skill_candidates() -> list[CompletionCandidate]:
     return candidates
 
 
-def _long_xprompt_arg_name_candidates() -> list[CompletionCandidate]:
+def _long_macro_arg_name_candidates() -> list[CompletionCandidate]:
     description = (
         "Review the full repository path including generated files, docs, and "
         "configuration without wrapping this row into a second visual line."
@@ -230,7 +230,7 @@ async def test_long_skill_description_stays_one_visual_row(width: int) -> None:
             "/sase_monitor",
             _long_skill_candidates(),
             selected_index=0,
-            completion_kind="xprompt",
+            completion_kind="macro",
         )
         await pilot.pause()
         _assert_long_completion_keeps_editor_visible(app, bar)
@@ -244,7 +244,7 @@ async def test_long_skill_description_stays_one_visual_row_on_resize() -> None:
             "/sase_monitor",
             _long_skill_candidates(),
             selected_index=0,
-            completion_kind="xprompt",
+            completion_kind="macro",
         )
         await pilot.pause()
         _assert_long_completion_keeps_editor_visible(app, bar)
@@ -254,14 +254,14 @@ async def test_long_skill_description_stays_one_visual_row_on_resize() -> None:
         _assert_long_completion_keeps_editor_visible(app, bar)
 
 
-async def test_xprompt_arg_name_description_stays_one_visual_row() -> None:
+async def test_macro_arg_name_description_stays_one_visual_row() -> None:
     app = _StyledPromptBarApp()
     async with app.run_test(size=(90, 24)) as pilot:
         bar = app.query_one(PromptInputBar)
         panel = bar.query_one("#prompt-completion", Static)
         bar.show_file_completions(
             "",
-            _long_xprompt_arg_name_candidates(),
+            _long_macro_arg_name_candidates(),
             selected_index=0,
             completion_kind="macro_arg_name",
         )

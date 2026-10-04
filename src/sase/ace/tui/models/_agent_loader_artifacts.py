@@ -22,7 +22,7 @@ from ._timestamps import normalize_to_14_digit
 _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_prompt_step_markers=True,
     # The TUI reads prompt-step markers (workflow agent steps + meta_*
-    # propagation) but does not render the raw_xprompt.md snippet; skip
+    # propagation) but does not render the raw_prompt.md snippet; skip
     # the snippet read to keep the scan compact.
     include_raw_prompt_snippets=False,
 )

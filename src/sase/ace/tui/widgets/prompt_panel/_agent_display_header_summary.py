@@ -14,7 +14,7 @@ lane below instead gets a cadence sized to what actually invalidates it:
   no time-based TTL at all; only a new cache entry (a new selection, or a
   plan/bead identity change) re-resolves it.
 - ``artifacts``, ``memory``, ``glossary``, ``skills``, ``workspaces``,
-  ``plan-bead``, ``xprompts``, ``page-url``: store- or lookup-backed but each already has
+  ``plan-bead``, ``macros``, ``page-url``: store- or lookup-backed but each already has
   (or gains, in the sibling `stores` phase) its own mtime-keyed cache, so a
   revalidation here is cheap. They share the auto-refresh cadence (10 s)
   instead of a sub-second one.
@@ -55,7 +55,7 @@ from ._agent_display_state import (
     DetailContextLane,
     DetailHeaderSummary,
 )
-from ._helpers import load_xprompts_used
+from ._helpers import load_macros_used
 from ._agent_display_header_summary_cache import (
     DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES,
     HINT_DETAIL_HEADER_REFRESH_INTERVAL_SECONDS,
@@ -188,9 +188,9 @@ def _build_detail_header_summary_impl(
     lanes: frozenset[DetailContextLane],
 ) -> DetailHeaderSummary:
     xprompts_used = None
-    if "xprompts" in lanes and agent.step_type not in ("bash", "python", "parallel"):
+    if "macros" in lanes and agent.step_type not in ("bash", "python", "parallel"):
         with tui_trace(f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.xprompts_used"):
-            xprompts_used = load_xprompts_used(agent)
+            xprompts_used = load_macros_used(agent)
 
     # Only confirmed bead displays surface in the header. A cache miss means
     # the candidate has not been confirmed against a bead store yet, so render

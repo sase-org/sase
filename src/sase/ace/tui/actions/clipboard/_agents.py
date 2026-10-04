@@ -61,7 +61,7 @@ class ClipboardAgentsMixin(ClipboardBase):
         )
 
     def _copy_agent_prompt(self) -> None:
-        """Copy the prompt (raw xprompt) of the selected agent (%p on agents tab)."""
+        """Copy the prompt (raw macro) of the selected agent (%p on agents tab)."""
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]

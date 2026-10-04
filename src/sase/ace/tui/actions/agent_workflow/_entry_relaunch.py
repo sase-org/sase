@@ -252,7 +252,7 @@ class EntryRelaunchMixin:
     ) -> None:
         """Kill *target* (or the selected agent), then edit its prompt.
 
-        Reads the agent's raw xprompt content, kills the agent (with
+        Reads the agent's raw macro content, kills the agent (with
         confirmation if running), and shows the prompt in the prompt input
         bar for editing.  The user can press ``Ctrl+G`` to open their
         editor, or submit directly from the bar.
@@ -482,7 +482,7 @@ class EntryRelaunchMixin:
         or press ``Ctrl+G`` to open their editor.
 
         Args:
-            raw_prompt: The agent's raw xprompt content.
+            raw_prompt: The agent's raw macro content.
             project_file: The agent's project file path.
             cl_name: The agent's Patch name.
             is_project_agent: Whether the agent was a project-level agent.

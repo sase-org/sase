@@ -340,7 +340,7 @@ def check_agents_availability(
         metadata_search = getattr(app, "_agent_metadata_search", None)
         if not bool(getattr(metadata_search, "is_active", False)):
             return False
-    # ``start_agent_from_patch`` replays the last launched VCS xprompt by
+    # ``start_agent_from_patch`` replays the last launched VCS macro by
     # remounting the prompt bar, which tears down whatever the user is
     # currently typing (``_show_prompt_input_bar_for_home`` unmounts first).
     # The action is now bound to printable ``space``, which the focused

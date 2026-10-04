@@ -1,4 +1,4 @@
-"""Filterable focus picker for Statistics xprompt rows."""
+"""Filterable focus picker for Statistics macro rows."""
 
 from __future__ import annotations
 
@@ -15,15 +15,15 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from .base import FilterInput, OptionListNavigationMixin
-from .statistics_pane_xprompts import KIND_LABELS
+from .statistics_pane_macros import KIND_LABELS
 
 
-class _StatisticsXPromptFilterInput(FilterInput):
+class _StatisticsMacroFilterInput(FilterInput):
     """Filter input that reserves picker navigation and cancel keys."""
 
     async def _on_key(self, event: events.Key) -> None:
         modal = self.screen
-        if isinstance(modal, StatisticsXPromptPickerModal):
+        if isinstance(modal, StatisticsMacroPickerModal):
             action = {
                 "j": modal.action_next_option,
                 "down": modal.action_next_option,
@@ -43,19 +43,19 @@ class _StatisticsXPromptFilterInput(FilterInput):
 
 
 @dataclass(frozen=True)
-class XPromptFocusChoice:
-    """A chosen xprompt name; ``None`` means the all-xprompts scope."""
+class MacroFocusChoice:
+    """A chosen macro name; ``None`` means the all-macros scope."""
 
     name: str | None
 
 
-class StatisticsXPromptPickerModal(
+class StatisticsMacroPickerModal(
     OptionListNavigationMixin,
-    ModalScreen[XPromptFocusChoice | None],
+    ModalScreen[MacroFocusChoice | None],
 ):
-    """Choose one already-loaded xprompt row without performing I/O."""
+    """Choose one already-loaded macro row without performing I/O."""
 
-    _option_list_id = "statistics-xprompt-picker-list"
+    _option_list_id = "statistics-macro-picker-list"
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", priority=True),
         Binding("q", "cancel", "Cancel", priority=True),
@@ -75,11 +75,11 @@ class StatisticsXPromptPickerModal(
         self._current_focus = current_focus
 
     def compose(self) -> ComposeResult:
-        with Container(id="statistics-xprompt-picker-container"):
-            yield Static(self._title_text(), id="statistics-xprompt-picker-title")
-            yield _StatisticsXPromptFilterInput(
-                placeholder="Type to filter xprompts…",
-                id="statistics-xprompt-picker-filter",
+        with Container(id="statistics-macro-picker-container"):
+            yield Static(self._title_text(), id="statistics-macro-picker-title")
+            yield _StatisticsMacroFilterInput(
+                placeholder="Type to filter macros…",
+                id="statistics-macro-picker-filter",
             )
             yield OptionList(
                 *self._create_options(self._filtered_rows),
@@ -87,7 +87,7 @@ class StatisticsXPromptPickerModal(
             )
             yield Static(
                 "Enter focus  ·  j/k or ↑/↓ move  ·  q/Esc cancel",
-                id="statistics-xprompt-picker-hints",
+                id="statistics-macro-picker-hints",
             )
 
     def on_mount(self) -> None:
@@ -100,14 +100,14 @@ class StatisticsXPromptPickerModal(
                     break
         options.highlighted = preferred_index
         self.query_one(
-            "#statistics-xprompt-picker-filter",
-            _StatisticsXPromptFilterInput,
+            "#statistics-macro-picker-filter",
+            _StatisticsMacroFilterInput,
         ).focus()
 
     def _title_text(self) -> Text:
         text = Text()
         text.append("✦ ", style="bold #FF87D7")
-        text.append("Focus XPrompt", style="bold")
+        text.append("Focus Macro", style="bold")
         text.append("  ·  ", style="dim")
         text.append(f"{len(self._filtered_rows) + 1} choices", style="dim")
         return text
@@ -126,7 +126,7 @@ class StatisticsXPromptPickerModal(
     def _create_options(self, rows: list[Any]) -> list[Option]:
         all_label = Text()
         all_label.append("◆ ", style="bold #FF87D7")
-        all_label.append("All xprompts", style="bold")
+        all_label.append("All macros", style="bold")
         options = [Option(all_label, id="all")]
         options.extend(Option(self._row_label(row), id=row.name) for row in rows)
         return options
@@ -141,12 +141,12 @@ class StatisticsXPromptPickerModal(
         for option in self._create_options(self._filtered_rows):
             options.add_option(option)
         options.highlighted = 0
-        self.query_one("#statistics-xprompt-picker-title", Static).update(
+        self.query_one("#statistics-macro-picker-title", Static).update(
             self._title_text()
         )
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id == "statistics-xprompt-picker-filter":
+        if event.input.id == "statistics-macro-picker-filter":
             self._apply_filter(event.value)
 
     def on_input_submitted(self, _event: Input.Submitted) -> None:
@@ -179,11 +179,11 @@ class StatisticsXPromptPickerModal(
         if highlighted is None:
             return
         if highlighted == 0:
-            self.dismiss(XPromptFocusChoice(None))
+            self.dismiss(MacroFocusChoice(None))
             return
         index = highlighted - 1
         if 0 <= index < len(self._filtered_rows):
-            self.dismiss(XPromptFocusChoice(self._filtered_rows[index].name))
+            self.dismiss(MacroFocusChoice(self._filtered_rows[index].name))
 
 
-__all__ = ["StatisticsXPromptPickerModal", "XPromptFocusChoice"]
+__all__ = ["StatisticsMacroPickerModal", "MacroFocusChoice"]

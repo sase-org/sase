@@ -118,17 +118,17 @@ async def test_confirm_without_bar_mounts_home_with_combined_text(
     await wait_prompt_stash_tasks(harness)
 
     assert harness.home_mounts == ["model: c\nfirst\n---\nsecond\n---\nthird"]
-    assert harness.home_mount_xprompt_markdown == [True]
+    assert harness.home_mount_macro_markdown == [True]
     assert harness.notifications == [("Restored 3 prompts", None)]
 
 
-async def test_confirm_without_bar_mounts_single_body_as_xprompt_markdown(
+async def test_confirm_without_bar_mounts_single_body_as_macro_markdown(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     skip_without_prompt_stash_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     point_store_at(monkeypatch, path)
-    frontmatter = "---\nxprompts:\n  _stash_helper: Use restored helper\n---"
+    frontmatter = "---\nmacros:\n  _stash_helper: Use restored helper\n---"
     seed_prompt_stash(
         path,
         [
@@ -148,7 +148,7 @@ async def test_confirm_without_bar_mounts_single_body_as_xprompt_markdown(
     await wait_prompt_stash_tasks(harness)
 
     assert harness.home_mounts == [f"{frontmatter}\nsingle body"]
-    assert harness.home_mount_xprompt_markdown == [True]
+    assert harness.home_mount_macro_markdown == [True]
     assert harness.notifications == [("Restored prompt", None)]
 
 

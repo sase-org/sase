@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 
 
@@ -89,7 +89,7 @@ async def test_targeted_single_pane_insert_subtitle_uses_submit_hint(
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         bar.target_macro(
-            XPromptBinding.for_file(source, reference="#draft"),
+            MacroBinding.for_file(source, reference="#draft"),
             source_markdown="solo",
         )
 

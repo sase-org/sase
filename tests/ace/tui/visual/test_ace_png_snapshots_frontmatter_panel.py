@@ -43,7 +43,7 @@ _POPULATED_PROMPT = (
     "    type: bool\n"
     "    default: false\n"
     "    description: skip writes\n"
-    "xprompts:\n"
+    "macros:\n"
     "  _rules: Follow the team review checklist\n"
     "skill: false\n"
     "---\n"
@@ -368,5 +368,5 @@ async def test_frontmatter_macro_item_modal_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "frontmatter_xprompt_item_modal_120x40",
-            title="ACE frontmatter xprompt item editor",
+            title="ACE frontmatter macro item editor",
         )

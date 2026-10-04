@@ -147,7 +147,7 @@ async def test_spare_mounts_idle_inert(
             check_app_action(app, "start_agent_from_patch", (), _allow_all) is not False
         )
         # No warm-up worker or timer ran for the spare itself.
-        assert bool(getattr(spare, "_xprompt_stale_check_in_flight", False)) is False
+        assert bool(getattr(spare, "_macro_stale_check_in_flight", False)) is False
         # DOM holds exactly the spare; the id lookup finds nothing.
         assert len(list(app.query(PromptInputBar))) == 1
         try:
@@ -203,10 +203,10 @@ async def test_reveal_matches_fresh_home(
             initial, display, history = ("#git:foo ", "foo", "foo")
             # Resolve through production helper to keep display/history exact.
             from sase.ace.tui.actions.agent_workflow._entry_custom import (
-                resolve_vcs_xprompt_mru_head,
+                resolve_vcs_macro_mru_head,
             )
 
-            resolved = resolve_vcs_xprompt_mru_head(pairs)
+            resolved = resolve_vcs_macro_mru_head(pairs)
             assert resolved is not None
             initial, display, history = resolved
             app._show_prompt_input_bar_for_home(

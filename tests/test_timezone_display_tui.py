@@ -102,7 +102,7 @@ def test_statistics_displays_use_configured_timezone(tz_divergence: None) -> Non
         current_view="overview",
         selected_range=StatsRange(100, 200, "exact range", "Last 7 days"),
         projects_group_by="project",
-        xprompts_group_by="usage",
+        macros_group_by="usage",
         project_label="All projects",
         generated_at=epoch,
         keymaps=StatisticsPaneKeymaps(),

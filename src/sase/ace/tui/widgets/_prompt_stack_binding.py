@@ -7,13 +7,13 @@ import hashlib
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 from ._prompt_stack_parsing import split_frontmatter
-from ._prompt_stack_targets import SourceFingerprint, XPromptBinding
+from ._prompt_stack_targets import SourceFingerprint, MacroBinding
 
 
 class PromptStackBindingMixin:
-    """Track dirty state and source identity for an editable xprompt binding."""
+    """Track dirty state and source identity for an editable macro binding."""
 
-    binding: XPromptBinding | None
+    binding: MacroBinding | None
     _clean_content_hash: str | None
     _bound_source_markdown: str | None
     _bound_source_texts: tuple[str, ...] | None
@@ -35,7 +35,7 @@ class PromptStackBindingMixin:
         return self._draft_hash() != self._clean_content_hash
 
     def bind(
-        self, binding: XPromptBinding, *, source_markdown: str | None = None
+        self, binding: MacroBinding, *, source_markdown: str | None = None
     ) -> None:
         self.binding = binding
         self._clean_content_hash = self._draft_hash()
@@ -80,7 +80,7 @@ class PromptStackBindingMixin:
             return
         if loaded_fingerprint is None:
             loaded_fingerprint = SourceFingerprint.from_path(binding.write_path)
-        self.binding = XPromptBinding(
+        self.binding = MacroBinding(
             kind=binding.kind,
             path=binding.path,
             write_path=binding.write_path,

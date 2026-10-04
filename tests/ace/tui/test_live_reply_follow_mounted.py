@@ -157,7 +157,7 @@ async def test_gated_muse_stream_reaches_mounted_reply_before_terminal(
 ) -> None:
     artifacts_dir = tmp_path / "muse-stream-artifacts"
     artifacts_dir.mkdir()
-    (artifacts_dir / "raw_xprompt.md").write_text(
+    (artifacts_dir / "raw_prompt.md").write_text(
         "Run the mounted Muse stream fixture.\n", encoding="utf-8"
     )
     (artifacts_dir / "01_prompt.md").write_text(

@@ -52,13 +52,13 @@ class AgentPromptHighlightContext:
 
 def _agent_project_and_workspace(
     agent: Agent,
-    raw_xprompt: str,
+    raw_prompt: str,
 ) -> tuple[str | None, str | None]:
     """Resolve the project ref and launch workspace for *agent* without I/O."""
     project: str | None = None
-    if raw_xprompt:
+    if raw_prompt:
         try:
-            vcs_tag = extract_vcs_workflow_tag(raw_xprompt)
+            vcs_tag = extract_vcs_workflow_tag(raw_prompt)
             if vcs_tag is not None:
                 project = extract_project_from_vcs_tag(vcs_tag)
         except Exception:
@@ -76,7 +76,7 @@ def _agent_project_and_workspace(
 def agent_prompt_highlight_context(
     panel: object,
     agent: Agent,
-    raw_xprompt: str,
+    raw_prompt: str,
     *,
     schedule: bool = True,
 ) -> AgentPromptHighlightContext:
@@ -85,7 +85,7 @@ def agent_prompt_highlight_context(
     Catalogs are read only through the app's in-memory getters. *schedule*
     may request an asynchronous warm; it never reads the filesystem.
     """
-    project, workspace = _agent_project_and_workspace(agent, raw_xprompt)
+    project, workspace = _agent_project_and_workspace(agent, raw_prompt)
     known_skills = _known_skills_for_project(panel, project, schedule=schedule)
     catalog_context = PromptGlossaryContext(
         project_ref=project,
@@ -168,10 +168,10 @@ def apply_authored_prompt_overlays(
     context: AgentPromptHighlightContext,
     *,
     region_start: int = 0,
-    include_xprompt: bool = False,
+    include_macro: bool = False,
     hint_spans: tuple[object, ...] = (),
 ) -> None:
-    """Layer glossary/repo, then xprompt, then numbered-hint styles."""
+    """Layer glossary/repo, then macro, then numbered-hint styles."""
     try:
         apply_semantic_overlays(
             highlighted,
@@ -180,10 +180,10 @@ def apply_authored_prompt_overlays(
             repo_catalog=context.repo_catalog,
             styles=context.styles,
             region_start=region_start,
-            skip_macro=include_xprompt,
+            skip_macro=include_macro,
             known_skills=context.known_skills,
         )
-        if include_xprompt:
+        if include_macro:
             apply_macro_overlays(
                 highlighted,
                 source,
@@ -242,7 +242,7 @@ def _known_skills_for_project(
         if entries is None:
             return frozenset()
         # ``/foo`` tokens are highlighted by the provider skill name, not the
-        # namespaced ``skill/foo`` xprompt reference.
+        # namespaced ``skill/foo`` macro reference.
         return frozenset(
             entry.skill_name
             for entry in entries

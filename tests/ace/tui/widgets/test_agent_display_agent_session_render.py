@@ -119,7 +119,7 @@ def test_agent_session_conversation_sections_are_always_full(
     assert "AGENT RAW PROMPT\n" in plain
     assert "AGENT PROMPT\n" in plain
     assert "AGENT REPLY · 2\n" in plain
-    assert "plan xprompt line 15" in plain
+    assert "plan macro line 15" in plain
     assert "plan prompt line 15" in plain
     assert "plan reply line 1" in plain
     assert "code reply line 1" in plain
@@ -169,10 +169,10 @@ def test_agent_session_conversation_document_is_identical_across_fold_state(
     assert documents == [documents[0]] * len(documents)
 
 
-def test_agent_session_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -> None:
+def test_agent_session_omits_empty_macro_and_prompt_sections(tmp_path: Path) -> None:
     root, _child = make_agent_session(tmp_path)
     artifacts_dir = Path(root.artifacts_dir or "")
-    (artifacts_dir / "raw_xprompt.md").unlink()
+    (artifacts_dir / "raw_prompt.md").unlink()
     (artifacts_dir / "01_prompt.md").unlink()
     panel = FakePromptPanel()
     header, error = build_header_text(
@@ -191,7 +191,7 @@ def test_agent_session_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -
     plain = plain_of(panel.captured[-1])
 
     assert "AGENT RAW PROMPT" not in plain
-    assert "No xprompt file found." not in plain
+    assert "No macro file found." not in plain
     assert "AGENT PROMPT" not in plain
     assert "No prompt file found." not in plain
     assert "AGENT REPLY · 2\n" in plain

@@ -539,7 +539,7 @@ def test_hint_cache_invalidates_on_neighbor_change() -> None:
         attempt_pinned_number = None
         attempt_view_mode = "merged"
         detaches_identity_header = False
-        detaches_xprompt = False
+        detaches_raw_prompt = False
 
         def __init__(self, rows: Any) -> None:
             self._rows = rows

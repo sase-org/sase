@@ -472,11 +472,11 @@ ace:
     #     description: "SASE project agents."
   agent_header:
     # Fraction of the Agents tab detail column's height that the collapsed
-    # header may occupy in total (border, chip rows, and the XPROMPT tab row
-    # included). The rows left over preview the selected agent's xprompt.
+    # header may occupy in total (border, chip rows, and the RAW PROMPT tab row
+    # included). The rows left over preview the selected agent's prompt.
     # Range 0 to 0.6; 0 turns the collapsed preview off.
     collapsed_max_share: 0.35
-    # Most xprompt preview rows the collapsed header shows, and fewer when
+    # Most raw-prompt preview rows the collapsed header shows, and fewer when
     # collapsed_max_share leaves less room. Minimum 1. d shows the whole prompt.
     collapsed_preview_max_rows: 3
   tool_calls:
@@ -596,8 +596,8 @@ ace:
       cycle_group: "g"
       cycle_project_filter: "p"
       cycle_project_filter_reverse: "P"
-      focus_xprompt: "x"
-      clear_xprompt_focus: "X"
+      focus_macro: "x"
+      clear_macro_focus: "X"
       scroll_down: "ctrl+d"
       scroll_up: "ctrl+u"
       refresh: "r"
@@ -910,7 +910,7 @@ ace:
       stop_axe_and_quit: "Q"
       start_custom_agent: "plus"
       start_agent_from_patch: "space"
-      start_last_vcs_xprompt_in_editor: "ctrl+g"
+      start_last_vcs_macro_in_editor: "ctrl+g"
       restore_prompt_stash: "at"
       # Enter reviews the selected agent's pending gate, jumps to its Patch,
       # or opens the action chooser when both apply.

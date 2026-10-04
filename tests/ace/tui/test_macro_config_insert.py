@@ -77,7 +77,7 @@ class TestInsertMacroIntoConfig:
     def test_insert_into_existing_section(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text(
-            "xprompts:\n"
+            "macros:\n"
             "  alpha: |\n"
             "    Alpha content\n"
             "\n"
@@ -95,7 +95,7 @@ class TestInsertMacroIntoConfig:
 
     def test_insert_first_alphabetically(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
-        config.write_text("xprompts:\n  bravo: |\n    Bravo content\n")
+        config.write_text("macros:\n  bravo: |\n    Bravo content\n")
         result = insert_macro_into_config(str(config), "alpha", [], "Alpha content")
         assert result is True
         text = config.read_text()
@@ -103,7 +103,7 @@ class TestInsertMacroIntoConfig:
 
     def test_insert_last_alphabetically(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
-        config.write_text("xprompts:\n  alpha: |\n    Alpha content\n")
+        config.write_text("macros:\n  alpha: |\n    Alpha content\n")
         result = insert_macro_into_config(str(config), "zulu", [], "Zulu content")
         assert result is True
         text = config.read_text()
@@ -111,7 +111,7 @@ class TestInsertMacroIntoConfig:
 
     def test_insert_into_empty_section(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
-        config.write_text("xprompts: {}\n")
+        config.write_text("macros: {}\n")
         result = insert_macro_into_config(str(config), "foo", [], "Foo content")
         assert result is True
         text = config.read_text()
@@ -129,7 +129,7 @@ class TestInsertMacroIntoConfig:
 
     def test_insert_with_inputs(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
-        config.write_text("xprompts:\n  existing: |\n    Hello\n")
+        config.write_text("macros:\n  existing: |\n    Hello\n")
         result = insert_macro_into_config(
             str(config), "greet", [("name", "word")], "Hello {{ name }}!"
         )
@@ -144,7 +144,7 @@ class TestInsertMacroIntoConfig:
     def test_unsorted_entries_append_without_reordering(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text(
-            "xprompts:\n"
+            "macros:\n"
             "  charlie: |\n"
             "    Charlie content\n"
             "\n"
@@ -165,7 +165,7 @@ class TestInsertMacroIntoConfig:
             "ace:\n"
             "  key: value\n"
             "\n"
-            "xprompts:\n"
+            "macros:\n"
             "  existing: |\n"
             "    Content\n"
             "\n"
@@ -182,7 +182,7 @@ class TestInsertMacroIntoConfig:
 
     def test_insert_with_slash_name(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
-        config.write_text("xprompts:\n  aaa: |\n    Content\n")
+        config.write_text("macros:\n  aaa: |\n    Content\n")
         result = insert_macro_into_config(
             str(config), "bd/next", [("prompt", "text")], "Do the thing {{ prompt }}"
         )
@@ -195,7 +195,7 @@ class TestInsertMacroIntoConfig:
         """Existing long-form entries should be preserved during sort."""
         config = tmp_path / "sase.yml"
         config.write_text(
-            "xprompts:\n"
+            "macros:\n"
             "  existing:\n"
             "    input:\n"
             "      bar: word\n"

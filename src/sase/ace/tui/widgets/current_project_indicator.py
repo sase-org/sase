@@ -13,7 +13,7 @@ which pushes fresh state here via :meth:`apply_launch_context`. The chip
 renders without edge pads: the bar labels supply the spacing.
 
 Clicking opens the ``+`` launch picker. The current project is derived
-from the VCS xprompt MRU store: launching an agent, ``sase project
+from the VCS macro MRU store: launching an agent, ``sase project
 set-current``, or the Projects tab set-current key all promote that head.
 """
 

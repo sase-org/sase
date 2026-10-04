@@ -304,14 +304,14 @@ def test_frontmatter_only_stash_targets_empty_pane_at_origin(
     )
 
 
-def test_stash_all_persists_bundle_with_canonical_xprompt_frontmatter(
+def test_stash_all_persists_bundle_with_canonical_macro_frontmatter(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _skip_without_prompt_stash_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     harness = _StashHarness(project="proj-a")
-    frontmatter = "---\nxprompts:\n  _stash_helper: Use saved helper rules\n---"
+    frontmatter = "---\nmacros:\n  _stash_helper: Use saved helper rules\n---"
 
     panes = [
         StashedPromptPane(text="first", frontmatter=frontmatter, pane_index=0),
@@ -328,7 +328,7 @@ def test_stash_all_persists_bundle_with_canonical_xprompt_frontmatter(
     entry = snapshot.entries[0]
     assert entry.text == "first\n---\nsecond"
     assert entry.frontmatter == frontmatter
-    assert "xprompts:\n" in entry.frontmatter
+    assert "macros:\n" in entry.frontmatter
     assert "  _stash_helper: Use saved helper rules\n" in entry.frontmatter
 
 

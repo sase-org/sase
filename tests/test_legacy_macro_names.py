@@ -149,10 +149,10 @@ def test_save_state_reads_legacy_file_and_key(tmp_path: Path) -> None:
     with patch("sase.macro.save_state._SAVE_STATE_FILE", tmp_path / "state.json"):
         # The hook's sibling legacy file stands in for a real legacy home file.
         assert legacy.is_file()
-        assert load_last_used_locations() == {"xprompt": "/tmp/xprompts"}
+        assert load_last_used_locations() == {"macro": "/tmp/xprompts"}
 
-        assert save_last_used_location("xprompt", "/tmp/macros")
-        assert load_last_used_locations() == {"xprompt": "/tmp/macros"}
+        assert save_last_used_location("macro", "/tmp/macros")
+        assert load_last_used_locations() == {"macro": "/tmp/macros"}
         assert not legacy.exists()
 
 
@@ -173,8 +173,8 @@ def test_save_state_writes_canonical_file_and_key(
     )
     monkeypatch.setattr(save_state, "_SAVE_STATE_FILE", None)
 
-    assert load_last_used_locations() == {"xprompt": "/tmp/xprompts"}
-    assert save_last_used_location("xprompt", "/tmp/macros")
+    assert load_last_used_locations() == {"macro": "/tmp/xprompts"}
+    assert save_last_used_location("macro", "/tmp/macros")
 
     canonical = home / MACRO_SAVE_STATE_FILENAME
     payload = json.loads(canonical.read_text(encoding="utf-8"))
@@ -294,7 +294,7 @@ def test_revival_lookup_prefers_canonical(tmp_path: Path) -> None:
 
 
 def test_prompt_panel_reader_accepts_legacy_step_files(tmp_path: Path) -> None:
-    from sase.ace.tui.widgets.prompt_panel._helpers import load_xprompts_used
+    from sase.ace.tui.widgets.prompt_panel._helpers import load_macros_used
 
     class _Agent:
         def __init__(self, artifacts_dir: str | None, step_name: str | None) -> None:
@@ -307,15 +307,15 @@ def test_prompt_panel_reader_accepts_legacy_step_files(tmp_path: Path) -> None:
     legacy_dir = tmp_path / "legacy_xprompt_agent"
     _write_legacy_xprompt_agent_dir(legacy_dir)
 
-    assert load_xprompts_used(_Agent(str(legacy_dir), None)) == [
+    assert load_macros_used(_Agent(str(legacy_dir), None)) == [
         {"name": "plan", "kind": "workflow", "tags": []}
     ]
-    assert load_xprompts_used(_Agent(str(legacy_dir), "main")) is None
+    assert load_macros_used(_Agent(str(legacy_dir), "main")) is None
     (legacy_dir / macros_step_filename("main")).write_text(
         json.dumps([{"name": "step"}]), encoding="utf-8"
     )
-    assert load_xprompts_used(_Agent(str(legacy_dir), "main")) == [{"name": "step"}]
-    assert load_xprompts_used(_Agent(None, None)) is None
+    assert load_macros_used(_Agent(str(legacy_dir), "main")) == [{"name": "step"}]
+    assert load_macros_used(_Agent(None, None)) is None
 
 
 def test_swarm_env_prefers_macro_spelling() -> None:

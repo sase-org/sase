@@ -21,7 +21,7 @@ else:
 
 
 class PromptInputBarStashActionsMixin(_MixinBase):
-    """Prompt pane stash, restore, and save-as-xprompt request actions."""
+    """Prompt pane stash, restore, and save-as-macro request actions."""
 
     if TYPE_CHECKING:
         Stashed: Any
@@ -173,7 +173,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         """Stash all agent panes after the snippet-discard guard has passed."""
         if self._stack.binding is not None:
             self.app.notify(
-                "Stash saved without xprompt binding; restore will use save-as",
+                "Stash saved without macro binding; restore will use save-as",
                 severity="warning",
             )
         panes = self.capture_stashable_panes()
@@ -217,22 +217,22 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         binding: object | None = None,
         read_only_target: object | None = None,
     ) -> None:
-        """Stash all agent panes and load xprompt markdown after discard guard."""
+        """Stash all agent panes and load macro markdown after discard guard."""
         panes = self.capture_stashable_panes()
         if panes:
             self._clear_active_completion_state()
             self.post_message(self.Stashed(panes, source="all", dismiss_bar=False))
         from sase.ace.tui.widgets.prompt_stack import (
-            XPromptBinding,
-            XPromptReadonlyTarget,
+            MacroBinding,
+            MacroReadonlyTarget,
         )
 
         self._load_stack_from_macro_markdown_after_snippet_guard(
             markdown,
-            binding=binding if isinstance(binding, XPromptBinding) else None,
+            binding=binding if isinstance(binding, MacroBinding) else None,
             read_only_target=(
                 read_only_target
-                if isinstance(read_only_target, XPromptReadonlyTarget)
+                if isinstance(read_only_target, MacroReadonlyTarget)
                 else None
             ),
         )
@@ -246,8 +246,8 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             self._clear_active_completion_state()
         self.post_message(self.UpdatePinnedRequested(panes))
 
-    def request_save_as_xprompt(self) -> None:
-        """Ask the app to open the unified whole-stack xprompt/snippet save panel."""
+    def request_save_as_macro(self) -> None:
+        """Ask the app to open the unified whole-stack macro/snippet save panel."""
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
@@ -255,7 +255,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         # kept only as context. Snippet mode is always available, with
         # ``snippet_body`` (the active pane only) as its source — so a multi-pane
         # ``---`` stack still saves just the current pane as a snippet, while
-        # ``panes`` remains the full xprompt-save source.
+        # ``panes`` remains the full macro-save source.
         single_pane = self._stack.agent_count == 1
         snippet_body = (
             ""
@@ -274,14 +274,14 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             )
         )
 
-    def request_write_xprompt(self) -> None:
+    def request_write_macro(self) -> None:
         """Write the bound definition, or fall through to save-as when unbound."""
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
         binding = self._stack.binding
         if binding is None:
-            self.request_save_as_xprompt()
+            self.request_save_as_macro()
             return
         panes = self.capture_stashable_panes()
         self.post_message(self.WriteMacroRequested(panes, binding, self))

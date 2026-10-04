@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._local_macro_conversion import (
-    infer_local_xprompt_inputs as infer_local_macro_inputs,
+    infer_local_macro_inputs as infer_local_macro_inputs,
 )
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from sase.macro.save import SaveTargetFormat, load_config_macro_markdown

@@ -128,7 +128,7 @@ def _write_completed(
             project_file=project_file,
         ),
     )
-    (artifact_dir / "raw_xprompt.md").write_text(
+    (artifact_dir / "raw_prompt.md").write_text(
         "feature-free-text-needle in prompt\n",
         encoding="utf-8",
     )

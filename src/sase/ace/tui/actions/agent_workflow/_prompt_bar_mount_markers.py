@@ -19,7 +19,7 @@ def strip_editor_review_markers(prompt: str) -> tuple[bool, str]:
 
     This is an editor-return syntax, not a runtime directive: typing `` @`` in
     the prompt bar and submitting it is unaffected. The strip runs before
-    xprompt-markdown loading so a marked separator such as ``--- @`` becomes a
+    macro-markdown loading so a marked separator such as ``--- @`` becomes a
     real ``---`` separator before stack parsing.
     """
     if _EDITOR_REVIEW_MARKER not in prompt:

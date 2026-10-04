@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from tests.ace.tui._prompt_catalog_sources import (
-    test_prompt_source_token_changes_for_xprompt_file_create as test_prompt_source_token_changes_for_xprompt_file_create,
+    test_prompt_source_token_changes_for_macro_file_create as test_prompt_source_token_changes_for_macro_file_create,
 )
 from tests.ace.tui._prompt_catalog_sources import (
     test_prompt_source_token_changes_for_project_file as test_prompt_source_token_changes_for_project_file,
@@ -18,7 +18,7 @@ from tests.ace.tui._prompt_catalog_sources import (
     test_build_prompt_catalog_snapshot_short_circuits_unchanged_token as test_build_prompt_catalog_snapshot_short_circuits_unchanged_token,
 )
 from tests.ace.tui._prompt_catalog_sources import (
-    test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets as test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets,
+    test_build_prompt_catalog_snapshot_merges_macro_and_user_snippets as test_build_prompt_catalog_snapshot_merges_macro_and_user_snippets,
 )
 from tests.ace.tui._prompt_catalog_sources import (
     test_prompt_catalog_preserves_explicit_capitalized_collisions as test_prompt_catalog_preserves_explicit_capitalized_collisions,

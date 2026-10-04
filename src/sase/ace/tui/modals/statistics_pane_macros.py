@@ -1,4 +1,4 @@
-"""XPrompts-view renderers for the Admin Center Statistics pane."""
+"""Macros-view renderers for the Admin Center Statistics pane."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from rich.text import Text
 
 from sase.telemetry.render import categorical_color, format_duration
 
-from .statistics_pane_data import StatisticsViewData, XPromptsGroupBy
+from .statistics_pane_data import StatisticsViewData, MacrosGroupBy
 from .statistics_pane_projects import StatisticsProjectsRenderingMixin
 
 _ACCENT = "#FF87D7"
@@ -24,12 +24,12 @@ _GREEN = "#5FD75F"
 KIND_LABELS = {"workflow": "wf", "part": "part", "swarm": "swarm"}
 
 
-class StatisticsXPromptsRenderingMixin:
-    """Render launch-boundary xprompt usage without performing any I/O."""
+class StatisticsMacrosRenderingMixin:
+    """Render launch-boundary macro usage without performing any I/O."""
 
-    _xprompts_group_by: XPromptsGroupBy
+    _macros_group_by: MacrosGroupBy
     _project_filter: str | None
-    _xprompt_focus: str | None
+    _macro_focus: str | None
     size: Any
 
     @staticmethod
@@ -46,57 +46,57 @@ class StatisticsXPromptsRenderingMixin:
     def _effective_project_keys(self) -> str:
         raise NotImplementedError
 
-    def _xprompts_renderable(self, result: StatisticsViewData) -> Any:
-        xprompts = result.views.macros
-        if not xprompts.available:
-            return self._xprompts_unavailable_renderable()
-        if self._xprompt_focus is not None:
-            if xprompts.focus is None:
-                return self._xprompt_focus_missing_renderable(result)
-            return self._xprompt_focus_renderable(result, xprompts.focus)
-        if xprompts.runs_with_macros == 0:
-            return self._xprompts_empty_renderable(result)
+    def _macros_renderable(self, result: StatisticsViewData) -> Any:
+        macros = result.views.macros
+        if not macros.available:
+            return self._macros_unavailable_renderable()
+        if self._macro_focus is not None:
+            if macros.focus is None:
+                return self._macro_focus_missing_renderable(result)
+            return self._macro_focus_renderable(result, macros.focus)
+        if macros.runs_with_macros == 0:
+            return self._macros_empty_renderable(result)
 
-        if self._xprompts_group_by == "model":
-            body = self._xprompts_drilldown_renderable(
-                xprompts,
+        if self._macros_group_by == "model":
+            body = self._macros_drilldown_renderable(
+                macros,
                 dimension="model",
             )
-        elif self._xprompts_group_by == "project":
-            body = self._xprompts_drilldown_renderable(
-                xprompts,
+        elif self._macros_group_by == "project":
+            body = self._macros_drilldown_renderable(
+                macros,
                 dimension="project",
             )
-        elif self._xprompts_group_by == "pairing":
-            body = self._xprompts_drilldown_renderable(
-                xprompts,
+        elif self._macros_group_by == "pairing":
+            body = self._macros_drilldown_renderable(
+                macros,
                 dimension="pairing",
             )
         else:
-            body = self._xprompts_usage_renderable(xprompts)
+            body = self._macros_usage_renderable(macros)
         return Group(
             body,
-            StatisticsProjectsRenderingMixin._legend_note("xprompts"),
+            StatisticsProjectsRenderingMixin._legend_note("macros"),
         )
 
-    def _xprompt_focus_renderable(
+    def _macro_focus_renderable(
         self,
         result: StatisticsViewData,
         focus: Any,
     ) -> Any:
         if not focus.found:
-            return self._xprompt_focus_not_found_renderable(result, focus.name)
+            return self._macro_focus_not_found_renderable(result, focus.name)
 
         detail: Any
-        if self._xprompts_group_by == "model":
+        if self._macros_group_by == "model":
             detail = Panel(
-                self._xprompt_focus_count_table(focus.models, "Model"),
+                self._macro_focus_count_table(focus.models, "Model"),
                 title="By Model",
                 border_style=_ACCENT,
             )
-        elif self._xprompts_group_by == "project":
+        elif self._macros_group_by == "project":
             detail = Panel(
-                self._xprompt_focus_count_table(
+                self._macro_focus_count_table(
                     focus.projects,
                     "Project",
                     projects=True,
@@ -104,28 +104,28 @@ class StatisticsXPromptsRenderingMixin:
                 title="By Project",
                 border_style=_ACCENT,
             )
-        elif self._xprompts_group_by == "pairing":
+        elif self._macros_group_by == "pairing":
             detail = Panel(
-                self._xprompt_focus_count_table(
+                self._macro_focus_count_table(
                     focus.partners,
-                    "XPrompt",
+                    "Macro",
                     partners=True,
                 ),
                 title="Used With",
                 border_style=_ACCENT,
             )
         else:
-            detail = self._xprompt_focus_usage_renderable(focus)
+            detail = self._macro_focus_usage_renderable(focus)
 
         secondary = Columns(
             (
                 Panel(
-                    self._xprompt_focus_count_table(focus.providers, "Provider"),
+                    self._macro_focus_count_table(focus.providers, "Provider"),
                     title="Providers",
                     border_style=_CYAN,
                 ),
                 Panel(
-                    self._xprompt_focus_count_table(focus.tribes, "Tribe"),
+                    self._macro_focus_count_table(focus.tribes, "Tribe"),
                     title="Tribes",
                     border_style=_GOLD,
                 ),
@@ -135,18 +135,18 @@ class StatisticsXPromptsRenderingMixin:
         )
         footer = Text(justify="center")
         footer.append(
-            f"Press {self._effective_key('clear_xprompt_focus')}",
+            f"Press {self._effective_key('clear_macro_focus')}",
             style=f"bold {_ACCENT}",
         )
-        footer.append(" to return to All xprompts.", style="dim")
+        footer.append(" to return to All macros.", style="dim")
         return Group(
-            self._xprompt_focus_header(focus),
+            self._macro_focus_header(focus),
             detail,
             secondary,
             footer,
         )
 
-    def _xprompt_focus_header(self, focus: Any) -> Panel:
+    def _macro_focus_header(self, focus: Any) -> Panel:
         heading = Text()
         heading.append(
             f"#{focus.name}",
@@ -186,11 +186,11 @@ class StatisticsXPromptsRenderingMixin:
         )
         return Panel(
             Group(heading, metrics, dates),
-            title="XPrompt focus",
+            title="Macro focus",
             border_style=categorical_color(focus.name),
         )
 
-    def _xprompt_focus_usage_renderable(self, focus: Any) -> Group:
+    def _macro_focus_usage_renderable(self, focus: Any) -> Group:
         buckets = Table(box=box.SIMPLE, expand=True, show_header=True)
         buckets.add_column("Bucket", style="bold")
         buckets.add_column("Runs", justify="right", style=_CYAN)
@@ -207,12 +207,12 @@ class StatisticsXPromptsRenderingMixin:
         summaries = Columns(
             (
                 Panel(
-                    self._xprompt_focus_count_table(focus.models, "Model"),
+                    self._macro_focus_count_table(focus.models, "Model"),
                     title="Top models",
                     border_style=_CYAN,
                 ),
                 Panel(
-                    self._xprompt_focus_count_table(
+                    self._macro_focus_count_table(
                         focus.projects,
                         "Project",
                         projects=True,
@@ -221,9 +221,9 @@ class StatisticsXPromptsRenderingMixin:
                     border_style=_GREEN,
                 ),
                 Panel(
-                    self._xprompt_focus_count_table(
+                    self._macro_focus_count_table(
                         focus.partners,
-                        "XPrompt",
+                        "Macro",
                         partners=True,
                     ),
                     title="Used with",
@@ -239,7 +239,7 @@ class StatisticsXPromptsRenderingMixin:
             summaries,
         )
 
-    def _xprompt_focus_count_table(
+    def _macro_focus_count_table(
         self,
         rows: Any,
         label: str,
@@ -277,18 +277,18 @@ class StatisticsXPromptsRenderingMixin:
             )
         return table
 
-    def _xprompt_focus_not_found_renderable(
+    def _macro_focus_not_found_renderable(
         self,
         result: StatisticsViewData,
         name: str,
     ) -> Panel:
         range_key = self._effective_key("cycle_range")
-        clear_key = self._effective_key("clear_xprompt_focus")
+        clear_key = self._effective_key("clear_macro_focus")
         guidance = Text()
         guidance.append(f"Press {range_key}", style=f"bold {_CYAN}")
         guidance.append(" to choose another range, or ")
         guidance.append(clear_key, style=f"bold {_ACCENT}")
-        guidance.append(" to return to All xprompts.")
+        guidance.append(" to return to All macros.")
         return Panel(
             Align.center(
                 Group(
@@ -301,24 +301,24 @@ class StatisticsXPromptsRenderingMixin:
                 ),
                 vertical="middle",
             ),
-            title="XPrompt focus",
+            title="Macro focus",
             border_style=categorical_color(name),
             height=max(8, int(self.size.height or 24) - 11),
         )
 
-    def _xprompt_focus_missing_renderable(
+    def _macro_focus_missing_renderable(
         self,
         result: StatisticsViewData,
     ) -> Panel:
         """Render an honest fallback for an older partial focus response."""
-        return self._xprompt_focus_not_found_renderable(
+        return self._macro_focus_not_found_renderable(
             result,
-            self._xprompt_focus or "unknown",
+            self._macro_focus or "unknown",
         )
 
-    def _xprompts_usage_renderable(self, xprompts: Any) -> Group:
+    def _macros_usage_renderable(self, macros: Any) -> Group:
         table = Table(box=box.SIMPLE, expand=True)
-        table.add_column("XPrompt", ratio=1, min_width=14)
+        table.add_column("Macro", ratio=1, min_width=14)
         table.add_column("Runs", justify="right", style=_CYAN)
         table.add_column("Refs", justify="right")
         table.add_column("Share", justify="right")
@@ -327,9 +327,9 @@ class StatisticsXPromptsRenderingMixin:
         table.add_column("Success", justify="right", style=_GREEN)
         table.add_column("Wall", justify="right")
         table.add_column("Last used", justify="right")
-        for row in xprompts.rows:
+        for row in macros.rows:
             table.add_row(
-                self._xprompt_cell(row),
+                self._macro_cell(row),
                 str(row.runs),
                 str(row.references),
                 self._percent(row.share),
@@ -340,20 +340,20 @@ class StatisticsXPromptsRenderingMixin:
                 StatisticsProjectsRenderingMixin._format_timestamp(row.last_run_ts),
             )
         return Group(
-            self._xprompts_summary(xprompts),
+            self._macros_summary(macros),
             Panel(table, title="By Usage", border_style=_ACCENT),
         )
 
-    def _xprompts_drilldown_renderable(
+    def _macros_drilldown_renderable(
         self,
-        xprompts: Any,
+        macros: Any,
         *,
-        dimension: XPromptsGroupBy,
+        dimension: MacrosGroupBy,
     ) -> Group:
         headings = {
-            "model": ("XPrompt → Model", "By Model"),
-            "project": ("XPrompt → Project", "By Project"),
-            "pairing": ("XPrompt → Used with", "Used With"),
+            "model": ("Macro → Model", "By Model"),
+            "project": ("Macro → Project", "By Project"),
+            "pairing": ("Macro → Used with", "Used With"),
         }
         column_label, title = headings[dimension]
         table = Table(box=box.SIMPLE, expand=True)
@@ -361,9 +361,9 @@ class StatisticsXPromptsRenderingMixin:
         table.add_column("Runs", justify="right", style=_CYAN)
         table.add_column("Share", justify="right")
         table.add_column("Scale")
-        for row in xprompts.rows:
+        for row in macros.rows:
             table.add_row(
-                self._xprompt_cell(row),
+                self._macro_cell(row),
                 str(row.runs),
                 self._percent(row.share),
                 self._share_bar(row.share, 1.0, width=10),
@@ -429,12 +429,12 @@ class StatisticsXPromptsRenderingMixin:
                     style="dim",
                 )
         return Group(
-            self._xprompts_summary(xprompts),
+            self._macros_summary(macros),
             Panel(table, title=title, border_style=_ACCENT),
         )
 
     @staticmethod
-    def _xprompt_cell(row: Any) -> Text:
+    def _macro_cell(row: Any) -> Text:
         text = Text(no_wrap=True, overflow="ellipsis")
         text.append(f"#{row.name}", style=f"bold {categorical_color(row.name)}")
         kind = KIND_LABELS.get(row.kind, row.kind)
@@ -450,25 +450,25 @@ class StatisticsXPromptsRenderingMixin:
         text.append(f"#{name}", style=categorical_color(name))
         return text
 
-    def _xprompts_summary(self, xprompts: Any) -> Text:
-        total_runs = xprompts.runs_with_macros + xprompts.runs_without_macros
-        without_share = xprompts.runs_without_macros / total_runs if total_runs else 0.0
+    def _macros_summary(self, macros: Any) -> Text:
+        total_runs = macros.runs_with_macros + macros.runs_without_macros
+        without_share = macros.runs_without_macros / total_runs if total_runs else 0.0
         summary = Text(
-            f"{xprompts.distinct_macros} xprompts · "
-            f"{xprompts.runs_with_macros} runs referenced · "
-            f"{xprompts.total_references} references · "
-            f"{xprompts.runs_without_macros} runs without xprompts "
+            f"{macros.distinct_macros} macros · "
+            f"{macros.runs_with_macros} runs referenced · "
+            f"{macros.total_references} references · "
+            f"{macros.runs_without_macros} runs without macros "
             f"({self._percent(without_share)})",
             style="dim",
         )
-        if xprompts.truncated_rows:
+        if macros.truncated_rows:
             summary.append(
-                f" · {xprompts.truncated_rows} more xprompts not shown.",
+                f" · {macros.truncated_rows} more macros not shown.",
                 style="dim italic",
             )
         return summary
 
-    def _xprompts_unavailable_renderable(self) -> Panel:
+    def _macros_unavailable_renderable(self) -> Panel:
         refresh_key = self._effective_key("refresh")
         retry = Text()
         retry.append(f"Press {refresh_key}", style=f"bold {_ACCENT}")
@@ -478,19 +478,19 @@ class StatisticsXPromptsRenderingMixin:
                 Group(
                     Text(
                         "The installed sase-core-rs build does not report "
-                        "xprompt usage yet.",
+                        "macro usage yet.",
                         style="dim italic",
                     ),
                     retry,
                 ),
                 vertical="middle",
             ),
-            title="XPrompt statistics unavailable",
+            title="Macro statistics unavailable",
             border_style="#444444",
             height=max(8, int(self.size.height or 24) - 11),
         )
 
-    def _xprompts_empty_renderable(self, result: StatisticsViewData) -> Panel:
+    def _macros_empty_renderable(self, result: StatisticsViewData) -> Panel:
         range_key = self._effective_key("cycle_range")
         recovery = Text()
         recovery.append(f"Press {range_key}", style=f"bold {_CYAN}")
@@ -498,7 +498,7 @@ class StatisticsXPromptsRenderingMixin:
         lines = [
             Text(
                 "No prompt in "
-                f"{result.selected_range.display_label} referenced an xprompt.",
+                f"{result.selected_range.display_label} referenced a macro.",
                 style="dim italic",
             ),
             recovery,
@@ -514,10 +514,10 @@ class StatisticsXPromptsRenderingMixin:
             lines.append(clear_filter)
         return Panel(
             Align.center(Group(*lines), vertical="middle"),
-            title="XPrompts",
+            title="Macros",
             border_style="#444444",
             height=max(8, int(self.size.height or 24) - 11),
         )
 
 
-__all__ = ["StatisticsXPromptsRenderingMixin"]
+__all__ = ["StatisticsMacrosRenderingMixin"]

@@ -155,7 +155,7 @@ def _make_clan_member(
     name: str = "research.lead",
 ) -> Agent:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "raw_xprompt.md").write_text(
+    (artifacts_dir / "raw_prompt.md").write_text(
         prompt
         or (
             "%id:research.lead\n"

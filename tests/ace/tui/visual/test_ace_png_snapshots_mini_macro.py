@@ -388,7 +388,7 @@ async def test_mini_macro_scoped_frontmatter_png_snapshot(
             frontmatter=(
                 "---\n"
                 "description: Mini-local helper\n"
-                "xprompts:\n"
+                "macros:\n"
                 "  _mini: Use mini-only rules\n"
                 "---"
             ),

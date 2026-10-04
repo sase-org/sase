@@ -25,7 +25,7 @@ from sase.ace.tui.widgets.macro_arg_assist import (
 from ._completion_helpers import (
     CatalogCompletionTestApp,
     CompletionTestApp,
-    registered_project_xprompts,
+    registered_project_macros,
 )
 
 
@@ -69,7 +69,7 @@ def _entry(
         name=name,
         insertion=f"{prefix}{name}",
         reference_prefix=prefix,
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=inputs,
         content_preview=None,
@@ -138,7 +138,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
         {
             "debounce_ms": "-1",
             "auto_file_paths": True,
-            "auto_xprompt_menu": False,
+            "auto_macro_menu": False,
             "auto_directive_menu": False,
             "auto_artifact_menu": False,
             "max_auto_rows": "0",
@@ -149,7 +149,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     )
     assert parsed.debounce_ms == 0
     assert parsed.auto_file_paths is True
-    assert parsed.auto_xprompt_menu is False
+    assert parsed.auto_macro_menu is False
     assert parsed.auto_directive_menu is False
     assert parsed.auto_artifact_menu is False
     assert parsed.max_auto_rows == 1
@@ -174,7 +174,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     )
 
 
-def test_xprompt_soft_builder_uses_warm_entries_only() -> None:
+def test_macro_soft_builder_uses_warm_entries_only() -> None:
     entries = [_entry("review")]
     with patch(
         "sase.ace.tui.widgets.prompt_text_area.build_macro_assist_entries",
@@ -198,7 +198,7 @@ def test_xprompt_soft_builder_uses_warm_entries_only() -> None:
     assert cold is None
 
 
-async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
+async def test_soft_macro_suggestion_accepts_with_ctrl_l_not_enter() -> None:
     app = RecordingCompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -223,7 +223,7 @@ async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
     assert ta._active_macro_arg_hint is not None
 
 
-async def test_soft_xprompt_suggestion_ctrl_g_starts_prefix_without_accepting() -> None:
+async def test_soft_macro_suggestion_ctrl_g_starts_prefix_without_accepting() -> None:
     app = RecordingCompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -243,7 +243,7 @@ async def test_soft_xprompt_suggestion_ctrl_g_starts_prefix_without_accepting() 
         assert ta._soft_completion is not None
 
 
-async def test_soft_xprompt_suggestion_ctrl_e_moves_to_line_end_without_accepting() -> (
+async def test_soft_macro_suggestion_ctrl_e_moves_to_line_end_without_accepting() -> (
     None
 ):
     app = RecordingCompletionTestApp()
@@ -300,7 +300,7 @@ async def test_soft_completion_timer_defers_resolution_to_pump_free_task(
     assert ta._soft_completion is None
 
 
-async def test_soft_xprompt_required_text_accept_adds_double_colon_space() -> None:
+async def test_soft_macro_required_text_accept_adds_double_colon_space() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -311,13 +311,13 @@ async def test_soft_xprompt_required_text_accept_adds_double_colon_space() -> No
         await _compute_soft_now(ta)
         await pilot.press("ctrl+l")
 
-    # Soft-accepting a single required-text xprompt at end-of-line widens the
+    # Soft-accepting a single required-text macro at end-of-line widens the
     # ``::`` skeleton to the free-form ``:: `` shorthand.
     assert ta.text == "#ask:: "
     assert ta.cursor_location == (0, len("#ask:: "))
 
 
-async def test_soft_xprompt_without_inputs_skips_space_before_punctuation() -> None:
+async def test_soft_macro_without_inputs_skips_space_before_punctuation() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -333,7 +333,7 @@ async def test_soft_xprompt_without_inputs_skips_space_before_punctuation() -> N
     assert ta._active_macro_arg_hint is None
 
 
-async def test_soft_xprompt_before_period_preserves_period() -> None:
+async def test_soft_macro_before_period_preserves_period() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -349,7 +349,7 @@ async def test_soft_xprompt_before_period_preserves_period() -> None:
     assert ta._active_macro_arg_hint is None
 
 
-async def test_ctrl_l_accepts_warm_xprompt_suggestion_before_debounce() -> None:
+async def test_ctrl_l_accepts_warm_macro_suggestion_before_debounce() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -369,7 +369,7 @@ async def test_ctrl_l_accepts_warm_xprompt_suggestion_before_debounce() -> None:
     assert ta._active_macro_arg_hint is not None
 
 
-async def test_ctrl_l_cold_xprompt_cache_schedules_warm_without_sync_build() -> None:
+async def test_ctrl_l_cold_macro_cache_schedules_warm_without_sync_build() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -403,7 +403,7 @@ async def test_soft_directive_suggestion_replaces_only_with_ctrl_l() -> None:
     assert ta._file_completion_active is False
 
 
-async def test_soft_xprompt_arg_name_and_bool_value_suggestions() -> None:
+async def test_soft_macro_arg_name_and_bool_value_suggestions() -> None:
     entry = _entry(
         "review",
         inputs=(
@@ -449,7 +449,7 @@ async def test_soft_completion_does_not_hide_ctrl_t_panel_path() -> None:
         panel = bar.query_one("#prompt-completion", Static)
         assert ta._soft_completion is None
         assert ta._file_completion_active is True
-        assert panel.border_title == "xprompts"
+        assert panel.border_title == "macros"
         assert "#review" in panel.render().plain
 
 
@@ -469,7 +469,7 @@ async def test_cold_cache_auto_completion_does_not_build_catalog_sync() -> None:
     assert ta._soft_completion is None
 
 
-async def test_soft_xprompt_suggestion_uses_canonical_project_namespace(
+async def test_soft_macro_suggestion_uses_canonical_project_namespace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -480,12 +480,12 @@ async def test_soft_xprompt_suggestion_uses_canonical_project_namespace(
     can never match and no suggestion is offered.
     """
     app = CatalogCompletionTestApp()
-    with registered_project_xprompts(
+    with registered_project_macros(
         tmp_path,
         monkeypatch,
         project_key="gh_org__proj",
         project_name="proj",
-        xprompts={"reads": "Reads body", "sync": "Sync body"},
+        macros={"reads": "Reads body", "sync": "Sync body"},
     ):
         async with app.run_test() as pilot:
             bar = app.query_one(PromptInputBar)

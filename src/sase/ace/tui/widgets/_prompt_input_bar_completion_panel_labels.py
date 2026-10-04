@@ -60,8 +60,8 @@ def completion_panel_title(
     group_directory: str,
 ) -> str:
     """Return the provider-specific title; path completion shows its directory."""
-    if kinds.xprompt:
-        return "xprompts"
+    if kinds.macro:
+        return "macros"
     if kinds.directive:
         return "directives"
     if kinds.bead:
@@ -88,9 +88,9 @@ def completion_panel_title(
         return token
     if kinds.artifact_ref:
         return _at_reference_panel_title(token, rows, group_directory)
-    if kinds.xprompt_arg_agent:
+    if kinds.macro_arg_agent:
         return "fork targets"
-    if kinds.xprompt_arg_name:
+    if kinds.macro_arg_name:
         metadata = next(
             (
                 candidate.metadata
@@ -244,12 +244,12 @@ def finalizer_completion_subtitle(
     return text
 
 
-def xprompt_arg_name_completion_subtitle(
+def macro_arg_name_completion_subtitle(
     rows: list[CompletionCandidate],
     selected_index: int,
     inner_width: int,
 ) -> Text:
-    """Return the selected xprompt input description as a subtitle."""
+    """Return the selected macro input description as a subtitle."""
     if not 0 <= selected_index < len(rows):
         return Text()
     metadata = rows[selected_index].metadata

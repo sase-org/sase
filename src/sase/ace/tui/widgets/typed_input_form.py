@@ -1,6 +1,6 @@
 """Reusable typed, validated single-page field collection.
 
-Driven entirely by the shared xprompt :class:`~sase.macro.models.InputArg`
+Driven entirely by the shared macro :class:`~sase.macro.models.InputArg`
 rules, so both the prompt-launch :class:`InputCollectionModal` and the ACE
 gate modals collect typed input through one widget with no per-host
 branching. See ``sase/repos/plans/202608/gate_inputs_ace_1.md`` for the
@@ -364,7 +364,7 @@ class TypedInputForm(Vertical):
         """Converted values per field name, omitting hidden and empty optional fields.
 
         Raises:
-            XPromptValidationError: If a visible required field is empty or a
+            MacroValidationError: If a visible required field is empty or a
                 visible field's text does not convert. Callers should block
                 submission with :meth:`is_valid` before this can happen.
         """

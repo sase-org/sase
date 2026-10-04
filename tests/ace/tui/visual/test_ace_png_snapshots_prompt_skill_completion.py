@@ -38,7 +38,7 @@ async def test_prompt_skill_completion_long_description_png_snapshot(
             "/sase_monitor",
             LONG_SKILL_COMPLETION_ROWS,
             selected_index=0,
-            completion_kind="xprompt",
+            completion_kind="macro",
         )
         await wait_for_state(
             page,

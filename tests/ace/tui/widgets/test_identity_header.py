@@ -190,7 +190,7 @@ def test_compact_form_is_two_truncating_lines() -> None:
     assert " · " in second or second.strip()
 
 
-def test_xprompts_render_on_cheap_detached_path() -> None:
+def test_macros_render_on_cheap_detached_path() -> None:
     summary = DetailHeaderSummary(xprompts_used=[{"kind": "part", "name": "review"}])
     agent = make_agent(agent_name="solo")
     cheap_plain, _ = build_header_text(agent, cheap=True, summary=summary)

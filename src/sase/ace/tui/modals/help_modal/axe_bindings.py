@@ -62,7 +62,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
             "Background Commands",
             [
                 (d(a.start_custom_agent), "Run agent"),
-                (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS macro"),
+                (d(a.start_last_vcs_macro_in_editor), "Edit last VCS macro"),
                 (d(a.restore_prompt_stash), "Restore stashed prompt"),
                 (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.open_agent_cleanup_panel), "Clear output"),

@@ -23,8 +23,8 @@ from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 
-_LOCAL_XPROMPT_NAME = "_stash_helper"
-_LOCAL_XPROMPT_CONTENT = "Use saved helper rules"
+_LOCAL_MACRO_NAME = "_stash_helper"
+_LOCAL_MACRO_CONTENT = "Use saved helper rules"
 
 
 class _CaptureApp(App[None]):
@@ -67,12 +67,12 @@ class _CaptureApp(App[None]):
         self.save_macro_requests.append(event)
 
 
-async def _add_local_xprompt_from_panel(
+async def _add_local_macro_from_panel(
     pilot: object,
     app: _CaptureApp,
     *,
-    name: str = _LOCAL_XPROMPT_NAME,
-    content: str = _LOCAL_XPROMPT_CONTENT,
+    name: str = _LOCAL_MACRO_NAME,
+    content: str = _LOCAL_MACRO_CONTENT,
 ) -> None:
     """Author one local ``macros:`` helper through the real panel sub-editor."""
     bar = app.query_one(PromptInputBar)
@@ -81,7 +81,7 @@ async def _add_local_xprompt_from_panel(
     await pilot.pause()  # type: ignore[attr-defined]
 
     panel = app.query_one(FrontmatterPanel)
-    panel.begin_add("xprompts")
+    panel.begin_add("macros")
     await pilot.pause()  # type: ignore[attr-defined]
     await pilot.pause()  # type: ignore[attr-defined]
 
@@ -94,14 +94,14 @@ async def _add_local_xprompt_from_panel(
     await pilot.pause()  # type: ignore[attr-defined]
 
 
-def _assert_frontmatter_contains_local_xprompt(frontmatter: str) -> None:
+def _assert_frontmatter_contains_local_macro(frontmatter: str) -> None:
     """Assert the stashed frontmatter has canonical delimiters and helper data."""
     assert frontmatter.startswith("---\n")
     assert frontmatter.endswith("---")
     assert "macros:\n" in frontmatter
-    assert f"  {_LOCAL_XPROMPT_NAME}: {_LOCAL_XPROMPT_CONTENT}\n" in frontmatter
+    assert f"  {_LOCAL_MACRO_NAME}: {_LOCAL_MACRO_CONTENT}\n" in frontmatter
     model = PromptFrontmatter.parse(frontmatter)
-    assert model.macros[_LOCAL_XPROMPT_NAME].content == _LOCAL_XPROMPT_CONTENT
+    assert model.macros[_LOCAL_MACRO_NAME].content == _LOCAL_MACRO_CONTENT
 
 
 # --- stripped-body cursor normalization ------------------------------------
@@ -259,7 +259,7 @@ async def test_gs_preserves_panel_authored_macro_properties() -> None:
 
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
-        await _add_local_xprompt_from_panel(pilot, app)
+        await _add_local_macro_from_panel(pilot, app)
 
         await pilot.press("escape")  # insert -> normal after panel save
         await pilot.press("g", "s")
@@ -270,15 +270,15 @@ async def test_gs_preserves_panel_authored_macro_properties() -> None:
         assert [p.text for p in event.panes] == ["alpha", "beta"]
         assert all(p.frontmatter == event.panes[0].frontmatter for p in event.panes)
         for pane in event.panes:
-            _assert_frontmatter_contains_local_xprompt(pane.frontmatter)
+            _assert_frontmatter_contains_local_macro(pane.frontmatter)
 
 
-async def test_ctrl_gs_preserves_panel_authored_xprompts_from_insert() -> None:
+async def test_ctrl_gs_preserves_panel_authored_macros_from_insert() -> None:
     app = _CaptureApp("alpha\n---\nbeta")
 
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
-        await _add_local_xprompt_from_panel(pilot, app)
+        await _add_local_macro_from_panel(pilot, app)
 
         await pilot.press("ctrl+g", "s")
         await pilot.pause()
@@ -287,7 +287,7 @@ async def test_ctrl_gs_preserves_panel_authored_xprompts_from_insert() -> None:
         assert event.source == "all"
         assert [p.text for p in event.panes] == ["alpha", "beta"]
         for pane in event.panes:
-            _assert_frontmatter_contains_local_xprompt(pane.frontmatter)
+            _assert_frontmatter_contains_local_macro(pane.frontmatter)
 
 
 async def test_gs_all_empty_is_noop() -> None:
@@ -372,7 +372,7 @@ async def test_gS_empty_prompt_posts_empty_update_request() -> None:
         assert app.stashed == []
 
 
-# --- save as xprompt/snippet (gX / Ctrl+G X) -------------------------------
+# --- save as macro/snippet (gX / Ctrl+G X) -------------------------------
 
 
 async def test_g_upper_x_captures_all_non_empty_panes_without_clearing_bar() -> None:
@@ -447,7 +447,7 @@ async def test_g_upper_x_multi_pane_captures_active_pane_as_snippet_body() -> No
 
         assert len(app.save_macro_requests) == 1
         event = app.save_macro_requests[0]
-        # The xprompt source still carries every non-empty pane in launch order.
+        # The macro source still carries every non-empty pane in launch order.
         assert [p.text for p in event.panes] == ["first", "second", "third"]
         assert [p.pane_index for p in event.panes] == [0, 1, 2]
         assert event.single_pane is False
@@ -474,7 +474,7 @@ async def test_g_upper_x_multi_pane_with_one_empty_pane_is_not_single_pane() -> 
         assert event.single_pane is False
         assert [p.text for p in event.panes] == ["alpha"]
         # The active pane is the new empty bottom pane, so the snippet source is
-        # blank even though the xprompt body ("alpha") is not.
+        # blank even though the macro body ("alpha") is not.
         assert event.snippet_body == ""
 
 

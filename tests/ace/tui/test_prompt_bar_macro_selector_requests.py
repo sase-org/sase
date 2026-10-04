@@ -1,4 +1,4 @@
-"""Tests for the ``#@`` xprompt-selector request handling from the prompt bar.
+"""Tests for the ``#@`` macro-selector request handling from the prompt bar.
 
 Phase 1 makes the selector act on the exact pane that opened it: the
 ``SnippetRequested`` message carries the originating bar / text area / pane id /
@@ -210,7 +210,7 @@ def _simple_workflow(name: str) -> Workflow:
 
 
 class _ExpandOriginBar(PromptInputBar):
-    """Origin bar that records ``expand_xprompt_at_target`` calls.
+    """Origin bar that records ``expand_macro_at_target`` calls.
 
     Overrides ``is_mounted`` so the handler's freshness guard passes without a
     running app, and records the captured target / pane id / trigger range /
@@ -227,7 +227,7 @@ class _ExpandOriginBar(PromptInputBar):
     def is_mounted(self) -> bool:  # type: ignore[override]
         return True
 
-    def expand_xprompt_at_target(  # type: ignore[override]
+    def expand_macro_at_target(  # type: ignore[override]
         self,
         target_text_area: object,
         pane_id: str,
@@ -367,10 +367,10 @@ def test_ctrl_i_expand_stale_target_reports_recoverable_error() -> None:
     assert origin_bar.merge_calls == []
 
 
-# -- Phase 5: local frontmatter xprompts + project-catalog parity ------------
+# -- Phase 5: local frontmatter macros + project-catalog parity ------------
 
 # A prompt that declares one local helper ``_rules`` through the property panel.
-_RULES_FRONTMATTER = "---\nxprompts:\n  _rules: Be concise.\n---"
+_RULES_FRONTMATTER = "---\nmacros:\n  _rules: Be concise.\n---"
 
 
 def test_frontmatter_local_appears_in_selector_catalog() -> None:
@@ -385,7 +385,7 @@ def test_frontmatter_local_appears_in_selector_catalog() -> None:
     modal, _callback = harness.pushed[0]
     assert isinstance(modal, MacroSelectModal)
     # The live frontmatter helper is merged into the selector catalog, so ``#@``
-    # surfaces it as a selectable entry alongside global/project xprompts.
+    # surfaces it as a selectable entry alongside global/project macros.
     assert "_rules" in modal._extra_prompts
     assert "_rules" in modal._prompts
 
@@ -430,7 +430,7 @@ def test_ctrl_i_global_reference_expands_recursively_from_frontmatter() -> None:
     assert "Be concise." in origin_bar.expand_calls[0][3]
 
 
-def test_ctrl_i_passes_frontmatter_locals_as_real_xprompts() -> None:
+def test_ctrl_i_passes_frontmatter_locals_as_real_macros() -> None:
     harness = _SelectorHarness()
     origin_bar = _ExpandOriginBar(applied=True)
     origin_bar._stack.frontmatter = _RULES_FRONTMATTER
@@ -450,7 +450,7 @@ def test_ctrl_i_passes_frontmatter_locals_as_real_xprompts() -> None:
         local_macros: object = None,
         project: object = None,
     ) -> _InlineExpansionResult:
-        captured["local_xprompts"] = local_macros
+        captured["local_macros"] = local_macros
         return success
 
     with patch(
@@ -460,9 +460,9 @@ def test_ctrl_i_passes_frontmatter_locals_as_real_xprompts() -> None:
         error = _expand_callback(harness, "team", _simple_workflow("team"))
 
     assert error is None
-    # The helper receives the frontmatter locals as real ``XPrompt`` objects,
+    # The helper receives the frontmatter locals as real ``Macro`` objects,
     # not display-only ``Workflow`` projections.
-    locals_passed = captured["local_xprompts"]
+    locals_passed = captured["local_macros"]
     assert isinstance(locals_passed, dict)
     assert set(locals_passed) == {"_rules"}
     assert locals_passed["_rules"].content == "Be concise."
@@ -473,7 +473,7 @@ def test_invalid_frontmatter_locals_are_omitted_without_crashing() -> None:
     origin_bar = _OriginBar()
     # A non-underscore local name violates the scoping rule; parsing raises and
     # the selector must omit the invalid local rather than tear down.
-    origin_bar._stack.frontmatter = "---\nxprompts:\n  rules: Be concise.\n---"
+    origin_bar._stack.frontmatter = "---\nmacros:\n  rules: Be concise.\n---"
 
     harness.on_prompt_input_bar_snippet_requested(
         _event(origin_bar, _StubTextArea(text="#"))
@@ -506,7 +506,7 @@ def _gh_project(
     workspace = tmp_path / "proj-ws"
     workspace.mkdir(parents=True, exist_ok=True)
     (workspace / "sase.yml").write_text(
-        "xprompts:\n  thing: 'Thing body'\n", encoding="utf-8"
+        "macros:\n  thing: 'Thing body'\n", encoding="utf-8"
     )
     _write_project(
         projects_root,
@@ -526,7 +526,7 @@ def _assert_no_swallowed_lookup_failure(caplog: pytest.LogCaptureFixture) -> Non
 
     ``on_prompt_input_bar_snippet_requested`` catches everything the
     project-local lookup can raise and opens the selector without those
-    entries, so a resolution failure and "this project has no xprompts" both
+    entries, so a resolution failure and "this project has no macros" both
     show up as an empty ``_extra_prompts``. Both assertions below are therefore
     ambiguous on their own; check the logged traceback first.
     """
@@ -536,13 +536,13 @@ def _assert_no_swallowed_lookup_failure(caplog: pytest.LogCaptureFixture) -> Non
         if record.name.endswith("_prompt_bar_requests") and record.exc_info
     ]
     formatter = logging.Formatter()
-    assert not swallowed, "project-local xprompt resolution raised:\n" + "\n".join(
+    assert not swallowed, "project-local macro resolution raised:\n" + "\n".join(
         formatter.formatException(record.exc_info)  # type: ignore[arg-type]
         for record in swallowed
     )
 
 
-def test_vcs_tag_offers_project_local_xprompts_by_canonical_name(
+def test_vcs_tag_offers_project_local_macros_by_canonical_name(
     _gh_project: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -551,7 +551,7 @@ def test_vcs_tag_offers_project_local_xprompts_by_canonical_name(
 
     # The tag names the project by its user-facing ``PROJECT_NAME``, while the
     # ProjectSpec directory key is ``gh_org__proj``. Keying the workspace lookup
-    # by the directory key silently drops the project's ``sase.yml`` xprompts.
+    # by the directory key silently drops the project's ``sase.yml`` macros.
     with caplog.at_level(logging.ERROR):
         harness.on_prompt_input_bar_snippet_requested(
             _event(origin_bar, _StubTextArea(text="#git:proj do the thing #"))

@@ -23,7 +23,7 @@ from tests.ace.tui._agent_launch_helpers import _FakeApp
 
 def test_launch_task_completion_emits_warning_messages() -> None:
     app = _FakeApp()
-    toast = "Unknown xprompt reference(s): #reviewww"
+    toast = "Unknown macro reference(s): #reviewww"
 
     app._on_launch_proc_complete(
         TrackedProcCompletion(
@@ -48,7 +48,7 @@ def test_launch_task_completion_emits_warning_messages() -> None:
 
 
 def test_launch_outcome_from_completion_reads_warning_messages_payload() -> None:
-    toast = "Unknown xprompt reference(s): #reviewww - passed through as literal text"
+    toast = "Unknown macro reference(s): #reviewww - passed through as literal text"
     completion = TrackedProcCompletion(
         proc_info=ProcInfo(
             proc_id="task",
@@ -225,7 +225,7 @@ def test_launch_completion_hands_dispatch_payload_to_fleet_handler() -> None:
 
 def test_launch_task_completion_emits_warning_messages_from_result_payload() -> None:
     app = _FakeApp()
-    toast = "Unknown xprompt reference(s): #reviewww - passed through as literal text"
+    toast = "Unknown macro reference(s): #reviewww - passed through as literal text"
 
     app._on_launch_proc_complete(
         TrackedProcCompletion(

@@ -122,7 +122,7 @@ async def test_projects_subtab_hides_defaulted_missing_spec_record(
 ) -> None:
     project_dir = tmp_path / "alpha"
     project_dir.mkdir()
-    (project_dir / "sase.yml").write_text("xprompts: []\n", encoding="utf-8")
+    (project_dir / "sase.yml").write_text("macros: []\n", encoding="utf-8")
     record = make_project_record(
         "alpha",
         explicit=False,

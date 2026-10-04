@@ -136,10 +136,10 @@ class FileCompletionContextMixin(_MixinBase):
             known_kinds,
         )
 
-    def _get_xprompt_token_context(
+    def _get_macro_token_context(
         self,
     ) -> tuple[int, MacroTokenSpan] | None:
-        """Return the row and grammar-aware span for the current xprompt token."""
+        """Return the row and grammar-aware span for the current macro token."""
         row, col = self.cursor_location
         line = self.document.get_line(row)
         span = extract_macro_token_around_cursor(line, col)
@@ -301,20 +301,20 @@ class FileCompletionContextMixin(_MixinBase):
             return row, start, end, partial
         if self._completion_kind == "directive":
             return self._get_directive_token_context()
-        if self._completion_kind == "xprompt":
-            xprompt_ctx = self._get_xprompt_token_context()
-            if xprompt_ctx is None:
+        if self._completion_kind == "macro":
+            macro_ctx = self._get_macro_token_context()
+            if macro_ctx is None:
                 return None
-            row, span = xprompt_ctx
+            row, span = macro_ctx
             return row, span.start, span.end, span.token
         if self._completion_kind.startswith("macro_arg_"):
-            return self._get_xprompt_arg_token_context()
+            return self._get_macro_arg_token_context()
         return self._get_path_token_context()
 
-    def _get_xprompt_arg_completion_context(
+    def _get_macro_arg_completion_context(
         self,
     ) -> MacroArgCompletionContext | None:
-        """Return an xprompt argument completion context at the current cursor."""
+        """Return a macro argument completion context at the current cursor."""
         if "#" not in self.text:
             return None
         cursor_offset = self._absolute_offset(self.cursor_location)
@@ -378,9 +378,9 @@ class FileCompletionContextMixin(_MixinBase):
             return None
         return find_vcs_ref_trigger(self.text, cursor_offset, workflow_names)
 
-    def _get_xprompt_arg_token_context(self) -> tuple[int, int, int, str] | None:
-        """Return row-local token context for active xprompt argument completion."""
-        ctx = self._get_xprompt_arg_completion_context()
+    def _get_macro_arg_token_context(self) -> tuple[int, int, int, str] | None:
+        """Return row-local token context for active macro argument completion."""
+        ctx = self._get_macro_arg_completion_context()
         if ctx is None:
             return None
         row, start = self._location_from_absolute(ctx.value_start)
@@ -389,17 +389,17 @@ class FileCompletionContextMixin(_MixinBase):
             return None
         return row, start, end, effective_macro_arg_token(ctx)
 
-    def _build_xprompt_completion_candidates(
+    def _build_macro_completion_candidates(
         self,
         token: str,
         *,
         inline_reference_only: bool = False,
     ) -> tuple[list[CompletionCandidate], str]:
-        """Build xprompt candidates, merging live local xprompts when present.
+        """Build macro candidates, merging live local macros when present.
 
-        The warm project cache is the fast path; live local xprompts from the
+        The warm project cache is the fast path; live local macros from the
         Frontmatter Panel are merged over it so ``#_helper`` lists under
-        ``<ctrl+t>`` like a global xprompt. When the app catalog is cold, this
+        ``<ctrl+t>`` like a global macro. When the app catalog is cold, this
         schedules a warm and returns local-only candidates if present.
         """
         local = self._local_macro_assist_entries()
@@ -418,13 +418,13 @@ class FileCompletionContextMixin(_MixinBase):
             inline_reference_only=inline_reference_only,
         )
 
-    def _build_warm_xprompt_completion_candidates(
+    def _build_warm_macro_completion_candidates(
         self,
         token: str,
         *,
         inline_reference_only: bool = False,
     ) -> tuple[list[CompletionCandidate], str] | None:
-        """Build xprompt candidates from warm/local entries only.
+        """Build macro candidates from warm/local entries only.
 
         Automatic completion runs on the keystroke path, so it must not fall
         through to the synchronous catalog build used by explicit ``Ctrl+T``.

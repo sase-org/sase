@@ -44,7 +44,7 @@ _LANE_REFRESH_INTERVAL_SECONDS: dict[DetailContextLane, float] = {
     "glossary": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "skills": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "workspaces": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
-    "xprompts": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
+    "macros": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "page-url": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
 }
 
@@ -74,7 +74,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
     "workspaces": ("opened_workspaces",),
     "slow-tools": ("slow_tool_sources",),
     "tool-runs": ("tool_run_summary",),
-    "xprompts": ("xprompts_used",),
+    "macros": ("xprompts_used",),
     "page-url": ("agent_page_url",),
     "wait-beads": ("wait_bead_statuses",),
 }
@@ -84,7 +84,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
 # (plans/202608/sase_context_incremental.md). Batch 1 lanes measure ~0 ms
 # even cold: `wait-beads` is derived from data already on the `Agent` row,
 # `plan-bead` hits `_PLAN_ASSOCIATION_CACHE`, `workspaces` stats marker
-# files instead of parsing a log, and `xprompts`/`page-url` are cheap
+# files instead of parsing a log, and `macros`/`page-url` are cheap
 # lookups. Batch 2 lanes each parse a multi-MB append-only store on a
 # cache miss (~85-210 ms cold per the trace table; near-zero once the
 # sibling `stores` phase's snapshot caches are warm) -- still slower than
@@ -98,7 +98,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
 # `test_lane_resolution_batches_cover_every_lane_exactly_once`.
 LANE_RESOLUTION_BATCHES: tuple[frozenset[DetailContextLane], ...] = (
     frozenset(
-        {"wait-beads", "plan-bead", "workspaces", "xprompts", "page-url", "tool-runs"}
+        {"wait-beads", "plan-bead", "workspaces", "macros", "page-url", "tool-runs"}
     ),
     frozenset({"artifacts", "memory", "glossary", "skills"}),
     frozenset({"slow-tools"}),

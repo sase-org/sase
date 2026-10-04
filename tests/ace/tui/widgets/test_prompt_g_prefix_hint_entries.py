@@ -45,8 +45,8 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
             ("t", "new / edit snippet…"),
             ("T", "snippets…"),
             ("x", "new / edit mini-macro…"),
-            ("X", "save as xprompt/snippet"),
-            ("L", "save as local xprompt"),
+            ("X", "save as macro/snippet"),
+            ("L", "save as local macro"),
         ]
 
 
@@ -68,8 +68,8 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
             ("t", "new / edit snippet…"),
             ("T", "snippets…"),
             ("x", "new / edit mini-macro…"),
-            ("X", "save as xprompt/snippet"),
-            ("L", "save as local xprompt"),
+            ("X", "save as macro/snippet"),
+            ("L", "save as local macro"),
         ]
 
 
@@ -92,8 +92,8 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("t", "new / edit snippet…"),
             ("T", "snippets…"),
             ("x", "new / edit mini-macro…"),
-            ("X", "save as xprompt/snippet"),
-            ("L", "save as local xprompt"),
+            ("X", "save as macro/snippet"),
+            ("L", "save as local macro"),
             ("p", "stashed prompts…"),
             ("r", "recent files"),
         ]
@@ -149,8 +149,8 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("t", "new / edit snippet…"),
             ("T", "snippets…"),
             ("x", "new / edit mini-macro…"),
-            ("X", "save as xprompt/snippet"),
-            ("L", "save as local xprompt"),
+            ("X", "save as macro/snippet"),
+            ("L", "save as local macro"),
         ]
         assert entry_pairs(bar, via_ctrl_g=True) == [
             ("f", "format prompt"),
@@ -166,8 +166,8 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("t", "new / edit snippet…"),
             ("T", "snippets…"),
             ("x", "new / edit mini-macro…"),
-            ("X", "save as xprompt/snippet"),
-            ("L", "save as local xprompt"),
+            ("X", "save as macro/snippet"),
+            ("L", "save as local macro"),
             ("p", "stashed prompts…"),
             ("r", "recent files"),
         ]
@@ -211,8 +211,8 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("t", "new / edit snippet…"),
             ("T", "snippets…"),
             ("x", "new / edit mini-macro…"),
-            ("X", "save as xprompt/snippet"),
-            ("L", "save as local xprompt"),
+            ("X", "save as macro/snippet"),
+            ("L", "save as local macro"),
         ]
 
         ctrl_g_entries = entry_pairs(bar, via_ctrl_g=True)

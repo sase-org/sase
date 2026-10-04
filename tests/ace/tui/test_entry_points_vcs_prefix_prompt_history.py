@@ -114,7 +114,7 @@ def test_prompt_history_warns_when_mru_empty(
 
     assert app.editor_prompts == []
     assert app.finished_prompts == []
-    assert app.notifications == [("No previously launched VCS xprompt", "warning")]
+    assert app.notifications == [("No previously launched VCS macro", "warning")]
     assert app._prompt_context is None
 
 
@@ -163,6 +163,6 @@ def test_prompt_history_edit_first_review_marker_reloads_instead_of_launching(
             "initial_text": _CLEANED_MULTI_AGENT_MARKDOWN,
             "display_name": "target",
             "history_sort_key": "target",
-            "as_xprompt_markdown": True,
+            "as_macro_markdown": True,
         }
     ]

@@ -7,7 +7,7 @@ from pathlib import Path
 from textual.color import Color
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.macro.highlight_theme import ACE_THEME_NAME
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
@@ -146,7 +146,7 @@ async def test_snippet_frame_takes_precedence_over_macro_target(
 ) -> None:
     source = tmp_path / "review.md"
     source.write_text("agent prompt\n", encoding="utf-8")
-    binding = XPromptBinding.for_file(source, reference="#review")
+    binding = MacroBinding.for_file(source, reference="#review")
     app = _StyledCaptureApp("agent prompt")
 
     async with app.run_test(size=(80, 24)) as pilot:

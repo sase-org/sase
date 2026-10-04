@@ -370,12 +370,10 @@ def test_reverse_statistics_project_key_collision_reverts_override() -> None:
 
 
 def test_clear_macro_focus_key_collision_reverts_override() -> None:
-    reg = load_keymap_registry(
-        {"keymaps": {"statistics": {"clear_xprompt_focus": "x"}}}
-    )
+    reg = load_keymap_registry({"keymaps": {"statistics": {"clear_macro_focus": "x"}}})
 
-    assert reg.statistics.focus_xprompt == "x"
-    assert reg.statistics.clear_xprompt_focus == "X"
+    assert reg.statistics.focus_macro == "x"
+    assert reg.statistics.clear_macro_focus == "X"
 
 
 def test_invalid_statistics_key_reverts_to_default() -> None:

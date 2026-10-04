@@ -403,7 +403,7 @@ async def test_typing_paren_after_supported_directive_colon_forms(
         "#foo??:",
     ],
 )
-async def test_typing_paren_after_xprompt_colon_forms(source: str) -> None:
+async def test_typing_paren_after_macro_colon_forms(source: str) -> None:
     app = PairEditTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)

@@ -507,7 +507,7 @@ def _validity_value(value: object) -> MacroArgumentSpanValidity:
 def _source_value(value: object) -> MacroArgumentSource | None:
     if not isinstance(value, str) or value not in _SOURCES:
         return None
-    if value == "xprompt":
+    if value in ("macro", "xprompt"):
         return "macro"
     return cast(MacroArgumentSource, value)
 

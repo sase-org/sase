@@ -90,7 +90,7 @@ def test_resolves_project_from_vcs_tag_then_project_file(
     agent = make_artifact_agent(
         tmp_path,
         status="DONE",
-        raw_xprompt="#git:sase inspect",
+        raw_prompt="#git:sase inspect",
         workspace_dir=str(tmp_path / "ws"),
     )
     project, workspace = _agent_project_and_workspace(
@@ -113,7 +113,7 @@ def test_context_schedules_cold_catalogs_and_fingerprints_warm_state(
     tmp_path: Path,
 ) -> None:
     panel = FakePromptPanel()
-    agent = make_artifact_agent(tmp_path, status="DONE", raw_xprompt="#git:sase")
+    agent = make_artifact_agent(tmp_path, status="DONE", raw_prompt="#git:sase")
     calls: list[str] = []
     install_panel_semantics(
         panel,
@@ -148,7 +148,7 @@ def test_context_fingerprint_tracks_project_tag_catalog(tmp_path: Path) -> None:
     from sase.project_tags.catalog import ProjectTagCatalog
 
     panel = FakePromptPanel()
-    agent = make_artifact_agent(tmp_path, status="DONE", raw_xprompt="#gh:sase")
+    agent = make_artifact_agent(tmp_path, status="DONE", raw_prompt="#gh:sase")
 
     saved = tag_catalog_module._CATALOG_CACHE
     tag_catalog_module._clear_project_tag_catalog_cache()
@@ -165,7 +165,7 @@ def test_context_fingerprint_tracks_project_tag_catalog(tmp_path: Path) -> None:
         tag_catalog_module._CATALOG_CACHE = saved
 
 
-def test_agent_xprompt_and_prompt_receive_roles_replies_do_not(
+def test_agent_macro_and_prompt_receive_roles_replies_do_not(
     tmp_path: Path,
 ) -> None:
     panel = FakePromptPanel()
@@ -176,7 +176,7 @@ def test_agent_xprompt_and_prompt_receive_roles_replies_do_not(
     agent = make_artifact_agent(
         tmp_path,
         status="DONE",
-        raw_xprompt="#git:sase %auto Ask Agent Clan to inspect sase-core",
+        raw_prompt="#git:sase %auto Ask Agent Clan to inspect sase-core",
     )
     Path(agent.artifacts_dir, "01_prompt.md").write_text(
         source + "\n", encoding="utf-8"
@@ -231,7 +231,7 @@ def test_hint_mode_restores_file_hints_after_semantics(
         tmp_path,
         status="DONE",
         workspace_dir=str(workspace),
-        raw_xprompt=raw,
+        raw_prompt=raw,
     )
     Path(agent.artifacts_dir, "01_prompt.md").write_text(
         "Ask Agent Clan to inspect sase-core\n",
@@ -257,7 +257,7 @@ def test_agent_session_pinned_and_workflow_authored_prompt_paths(
     install_panel_semantics(panel, glossary=glossary, repo=repo)
 
     root, _child = make_agent_session(tmp_path)
-    Path(root.artifacts_dir, "raw_xprompt.md").write_text(
+    Path(root.artifacts_dir, "raw_prompt.md").write_text(
         "#git:sase Ask Agent Clan\n",
         encoding="utf-8",
     )
@@ -331,18 +331,18 @@ def test_cache_reuses_unchanged_text_and_misses_after_catalog_or_theme(
     agent = make_artifact_agent(
         tmp_path,
         status="DONE",
-        raw_xprompt="#git:sase Ask Agent Clan to inspect sase-core",
+        raw_prompt="#git:sase Ask Agent Clan to inspect sase-core",
     )
     Path(agent.artifacts_dir, "01_prompt.md").write_text(
         source + "\n", encoding="utf-8"
     )
 
-    first = panel._render_xprompt(
+    first = panel._render_raw_prompt(
         agent,
         agent.get_raw_prompt_content() or "",
         "#git:sase Ask Agent Clan to inspect sase-core",
     )
-    second = panel._render_xprompt(
+    second = panel._render_raw_prompt(
         agent,
         agent.get_raw_prompt_content() or "",
         "#git:sase Ask Agent Clan to inspect sase-core",
@@ -355,7 +355,7 @@ def test_cache_reuses_unchanged_text_and_misses_after_catalog_or_theme(
         foreground="#000000",
         background="#FFFFFF",
     )
-    third = panel._render_xprompt(
+    third = panel._render_raw_prompt(
         agent,
         agent.get_raw_prompt_content() or "",
         "#git:sase Ask Agent Clan to inspect sase-core",

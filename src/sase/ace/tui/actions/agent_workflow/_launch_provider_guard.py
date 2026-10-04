@@ -403,7 +403,7 @@ class LaunchProviderGuardMixin:
             {
                 "prompt": unit.prompt,
                 "template_group": unit.template_group,
-                "swarm_xprompts": list(unit.swarm_macros),
+                "swarm_macros": list(unit.swarm_macros),
             }
             for unit in surviving
         ]

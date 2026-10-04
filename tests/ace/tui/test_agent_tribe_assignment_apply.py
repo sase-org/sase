@@ -60,7 +60,7 @@ def test_tribe_modal_round_trip_rewrites_id_tribe_keyword(tmp_path: Path) -> Non
     tribe_file = tmp_path / "agent_tribes.json"
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
-    prompt_path = artifacts_dir / "raw_xprompt.md"
+    prompt_path = artifacts_dir / "raw_prompt.md"
     prompt_path.write_text("%id:worker\nDo work", encoding="utf-8")
     (artifacts_dir / "agent_meta.json").write_text(
         json.dumps({"name": "worker"}),

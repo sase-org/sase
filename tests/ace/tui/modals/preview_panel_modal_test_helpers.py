@@ -69,7 +69,7 @@ def _properties_payload(
     default_view: Literal["source", "rendered"] = "source",
 ) -> PreviewPayload:
     return PreviewPayload(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#bd/review_tasks",
         source_path="/tmp/sase.yml",
@@ -79,7 +79,7 @@ def _properties_payload(
         default_view=default_view,
         properties=MacroProperties(
             reference="#bd/review_tasks",
-            kind="xprompt",
+            kind="macro",
             description="Review open task beads for a project.",
             input_signature="(project?: line)",
             inputs=[ShowInput("project", "line", False, "sase", None, False, 0)],

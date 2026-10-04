@@ -72,7 +72,7 @@ def test_context_aggregates_agent_session_with_role_labels(
             read_id="coder-read",
         ),
         make_event(
-            terms=("Xprompt",),
+            terms=("Macro",),
             timestamp="2026-05-24T10:02:00+00:00",
             agent_name="alpha--q",
             artifacts_dir=str(q_dir),
@@ -109,7 +109,7 @@ def test_context_aggregates_agent_session_with_role_labels(
     # Newest first across the whole agent_session, each labeled by its producer.
     assert [(item.event.terms, item.agent_label) for item in result] == [
         (("Patch",), "coder"),
-        (("Xprompt",), "q"),
+        (("Macro",), "q"),
         (("Sase Repo",), "plan"),
     ]
 

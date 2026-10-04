@@ -1,7 +1,7 @@
 """Off-thread load tasks for the Snippets panel.
 
 Every function here does real disk I/O (project records, config layers,
-xprompt catalogs, Rust composition) and must only ever run inside a worker
+macro catalogs, Rust composition) and must only ever run inside a worker
 thread, never on the event loop -- see the TUI performance rules in
 ``sase/memory/tui_perf.md``.
 """

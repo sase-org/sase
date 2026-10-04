@@ -229,7 +229,7 @@ def is_axe_spawned_agent(agent: Agent) -> bool:
     """
     if agent.workflow:
         # Normalize hyphens to underscores (canonical form uses underscores,
-        # e.g. xprompt workflow_label "fix_hook")
+        # e.g. macro workflow_label "fix_hook")
         workflow = agent.workflow.replace("-", "_")
         # axe-spawned workflows start with axe(...)
         if workflow.startswith(("axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor(")):

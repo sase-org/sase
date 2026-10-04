@@ -117,7 +117,7 @@ class PromptTextArea(
 
     Builds on :class:`~sase.ace.tui.widgets.vim_text_area.VimTextArea` (vim
     normal/visual modes, motions, operators, readline insert keys) and adds the
-    prompt-only surfaces -- completions, xprompt hints, snippets, search, and
+    prompt-only surfaces -- completions, macro hints, snippets, search, and
     the ``PromptInputBar`` integration -- by overriding the base's host hooks.
 
     Enter submits the prompt, or opens the submit chooser for prompt stacks.
@@ -147,7 +147,7 @@ class PromptTextArea(
         self._artifact_ref_files_revealed: bool = False
         self._artifact_ref_files_suppressed: bool = False
         self._placeholder_completion_trigger: str | None = None
-        self._xprompt_arg_completion_trigger: str | None = None
+        self._macro_arg_completion_trigger: str | None = None
         self._agent_completion_candidates: list[AgentCompletionCandidate] | None = None
         self._vcs_project_catalog_warmed: bool = False
         self._vcs_ref_completion_has_namespaces: bool = False

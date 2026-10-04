@@ -173,7 +173,7 @@ def proc_prompt_target_scope(
 
     The reference is the exact durable proc ID so name reuse can never drift
     the eventual fork/wait target; the label stays the friendly turn name.
-    A named proc has no launch xprompt, so it never contributes to VCS
+    A named proc has no launch macro, so it never contributes to VCS
     consensus (``vcs_members`` stays empty).
     """
     return AgentPromptTargetScope(

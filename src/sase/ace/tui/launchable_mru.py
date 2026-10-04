@@ -25,7 +25,7 @@ LaunchableMruState = Literal["cold", "ready", "error"]
 
 @dataclass(frozen=True, slots=True)
 class LaunchableMruSnapshot:
-    """One immutable view of the launchable VCS-xprompt MRU.
+    """One immutable view of the launchable VCS-macro MRU.
 
     ``pairs`` holds ``(canonical_prefix, display_prefix)`` in MRU order;
     cycle keys pin the display halves as their ring. ``token`` is the

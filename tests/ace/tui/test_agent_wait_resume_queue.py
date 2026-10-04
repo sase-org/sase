@@ -21,7 +21,7 @@ from tests.ace.tui._agent_wait_resume_helpers import (
 
 
 def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> None:
-    (tmp_path / "raw_xprompt.md").write_text(
+    (tmp_path / "raw_prompt.md").write_text(
         "%queue(priority=20)\nDo work",
         encoding="utf-8",
     )
@@ -75,7 +75,7 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
     assert waiting["wait_priority"] == 20
     assert waiting["wait_priority_explicit"] is True
     assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
-    assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == (
+    assert (tmp_path / "raw_prompt.md").read_text(encoding="utf-8") == (
         "%queue(capacity=1, priority=20)\nDo work"
     )
     assert json.loads((tmp_path / "agent_meta.json").read_text()) == (
@@ -90,7 +90,7 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
 
 
 def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
-    (tmp_path / "raw_xprompt.md").write_text(
+    (tmp_path / "raw_prompt.md").write_text(
         "%queue(capacity=1, priority=3)\nDo work", encoding="utf-8"
     )
     (tmp_path / "agent_meta.json").write_text(
@@ -200,7 +200,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
         assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
         assert not (tmp_path / "ready.json").exists()
         assert json.loads((tmp_path / "agent_meta.json").read_text()) == {"pid": 100}
-        assert (tmp_path / "raw_xprompt.md").read_text() == "Do work"
+        assert (tmp_path / "raw_prompt.md").read_text() == "Do work"
         assert agent.wait_runners is None
         assert agent.wait_runners_explicit is False
         assert agent.wait_priority is None
@@ -224,7 +224,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
 
 
 def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
-    (tmp_path / "raw_xprompt.md").write_text(
+    (tmp_path / "raw_prompt.md").write_text(
         "%queue(capacity=1, priority=20)\nDo work",
         encoding="utf-8",
     )
@@ -279,7 +279,7 @@ def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
             ),
         )
 
-    assert (tmp_path / "raw_xprompt.md").read_text() == (
+    assert (tmp_path / "raw_prompt.md").read_text() == (
         "%queue(capacity=1, priority=2)\nDo work"
     )
     assert json.loads((tmp_path / "agent_meta.json").read_text()) == {

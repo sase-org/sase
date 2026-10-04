@@ -20,8 +20,8 @@ from textual.widgets import Label, TextArea
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets._local_macro_conversion import (
-    normalize_local_xprompt_name as normalize_local_macro_name,
-    validate_local_xprompt_name as validate_local_macro_name,
+    normalize_local_macro_name as normalize_local_macro_name,
+    validate_local_macro_name as validate_local_macro_name,
 )
 
 

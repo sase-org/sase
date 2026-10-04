@@ -163,12 +163,14 @@ def iter_container_file_path_matches(
             yield match
 
 
-def iter_xprompt_file_path_matches(content: str) -> Iterator[re.Match[str]]:
+def iter_raw_prompt_file_path_matches(content: str) -> Iterator[re.Match[str]]:
     """Yield ordinary file hints, excluding complete typed artifact refs."""
     yield from _matches_outside_artifact_refs(content, iter_file_path_matches(content))
 
 
-def iter_xprompt_container_file_path_matches(content: str) -> Iterator[re.Match[str]]:
+def iter_raw_prompt_container_file_path_matches(
+    content: str,
+) -> Iterator[re.Match[str]]:
     """Yield container file hints, excluding complete typed artifact refs."""
     yield from _matches_outside_artifact_refs(
         content,

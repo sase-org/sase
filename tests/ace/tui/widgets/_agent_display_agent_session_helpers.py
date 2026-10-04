@@ -66,8 +66,8 @@ def make_agent_session(
 
 
 def write_phase_content(directory: Path, role: str) -> None:
-    (directory / "raw_xprompt.md").write_text(
-        "\n".join(f"{role} xprompt line {index}" for index in range(1, 16)) + "\n",
+    (directory / "raw_prompt.md").write_text(
+        "\n".join(f"{role} macro line {index}" for index in range(1, 16)) + "\n",
         encoding="utf-8",
     )
     (directory / "01_prompt.md").write_text(

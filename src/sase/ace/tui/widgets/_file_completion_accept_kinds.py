@@ -129,14 +129,14 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
             self._clear_file_completion()
         return True
 
-    def _accept_xprompt_completion_candidate(
+    def _accept_macro_completion_candidate(
         self,
         selected: CompletionCandidate,
         row: int,
         start: int,
         end: int,
     ) -> bool:
-        """Accept an xprompt candidate using its completion skeleton when eligible."""
+        """Accept a macro candidate using its completion skeleton when eligible."""
         if not isinstance(selected.metadata, MacroAssistEntry):
             return False
         if not selected.insertion.startswith("#"):
@@ -182,11 +182,11 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
             session_policy="nest",
         )
 
-    def _refresh_xprompt_completion_skeleton_hint(
+    def _refresh_macro_completion_skeleton_hint(
         self,
         selected: CompletionCandidate,
     ) -> None:
-        """Refresh argument hints from the just-accepted xprompt metadata."""
+        """Refresh argument hints from the just-accepted macro metadata."""
         if not isinstance(selected.metadata, MacroAssistEntry):
             self._clear_macro_arg_hint()
             return

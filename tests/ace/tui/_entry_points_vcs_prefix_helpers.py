@@ -10,14 +10,14 @@ from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
 
-# An editor buffer with leading xprompt frontmatter, a real multi-agent ``---``
+# An editor buffer with leading macro frontmatter, a real multi-agent ``---``
 # separator, and a trailing ` @` review marker: the marker requests review (not
-# launch), and the cleaned remainder must reload through editor-file (xprompt
+# launch), and the cleaned remainder must reload through editor-file (macro
 # markdown) semantics.
 _MARKED_MULTI_AGENT_MARKDOWN = (
     "---\n"
     "description: Review auth and API separately\n"
-    "xprompts:\n"
+    "macros:\n"
     "  _shared: Use the same style guide.\n"
     "---\n"
     "Review auth.\n"
@@ -27,7 +27,7 @@ _MARKED_MULTI_AGENT_MARKDOWN = (
 _CLEANED_MULTI_AGENT_MARKDOWN = (
     "---\n"
     "description: Review auth and API separately\n"
-    "xprompts:\n"
+    "macros:\n"
     "  _shared: Use the same style guide.\n"
     "---\n"
     "Review auth.\n"
@@ -37,7 +37,7 @@ _CLEANED_MULTI_AGENT_MARKDOWN = (
 _LIFTED_FRONTMATTER = (
     "---\n"
     "description: Review auth and API separately\n"
-    "xprompts:\n"
+    "macros:\n"
     "  _shared: Use the same style guide.\n"
     "---"
 )

@@ -151,10 +151,10 @@ def _load_member_prompts(
     member_label: str,
 ) -> tuple[ClanTextEntry, ...]:
     entries: list[ClanTextEntry] = []
-    raw_xprompt = member.get_raw_prompt_content()
-    if raw_xprompt:
+    raw_prompt = member.get_raw_prompt_content()
+    if raw_prompt:
         entries.append(
-            _text_entry(member, member_label, "AGENT RAW PROMPT", raw_xprompt)
+            _text_entry(member, member_label, "AGENT RAW PROMPT", raw_prompt)
         )
     prompt = get_prompt_content(member)
     if prompt:

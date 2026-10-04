@@ -43,26 +43,26 @@ class IdentityHeader:
     accent: str
     expanded: AgentHeader
     compact: Text
-    xprompt: Text | None = None
-    xprompt_pending: bool = False
+    raw_prompt: Text | None = None
+    raw_prompt_pending: bool = False
 
-    def with_xprompt(self, text: Text) -> IdentityHeader:
-        """Return this identity with its full, highlighted xprompt attached."""
-        xprompt = text.copy()
-        xprompt = xprompt[: len(xprompt.plain.rstrip("\n"))]
+    def with_raw_prompt(self, text: Text) -> IdentityHeader:
+        """Return this identity with its full, highlighted raw_prompt attached."""
+        raw_prompt = text.copy()
+        raw_prompt = raw_prompt[: len(raw_prompt.plain.rstrip("\n"))]
         return replace(
             self,
-            xprompt=xprompt,
-            xprompt_pending=False,
+            raw_prompt=raw_prompt,
+            raw_prompt_pending=False,
         )
 
-    def with_xprompt_pending(self) -> IdentityHeader:
-        """Return this identity marked for an imminent xprompt paint."""
-        return replace(self, xprompt_pending=True)
+    def with_raw_prompt_pending(self) -> IdentityHeader:
+        """Return this identity marked for an imminent raw_prompt paint."""
+        return replace(self, raw_prompt_pending=True)
 
     def expanded_renderable(self) -> RenderableType:
-        """Return the expanded identity fields followed by its xprompt, if any."""
-        if self.xprompt is None:
+        """Return the expanded identity fields followed by its raw_prompt, if any."""
+        if self.raw_prompt is None:
             return self.expanded
         fields: RenderableType = self.expanded
         if isinstance(fields, Text):
@@ -71,14 +71,14 @@ class IdentityHeader:
         heading = Text()
         append_section_heading(heading, "AGENT RAW PROMPT")
         # ``Text("")`` renders as exactly one blank row between the two blocks.
-        return Group(fields, Text(""), heading, self.xprompt)
+        return Group(fields, Text(""), heading, self.raw_prompt)
 
     def inline_renderable(self) -> RenderableType:
         """Return the kind line plus expanded block for inline documents."""
         kind_line = Text()
         kind_line.append(f"{self.kind_label}\n", style=f"bold {self.accent} underline")
         parts: list[RenderableType] = [kind_line, self.expanded_renderable()]
-        if self.xprompt is not None:
+        if self.raw_prompt is not None:
             divider = Text()
             append_major_section_divider(divider)
             parts.append(divider)

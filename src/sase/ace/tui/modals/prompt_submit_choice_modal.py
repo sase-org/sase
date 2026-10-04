@@ -15,7 +15,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, Static
 
 if TYPE_CHECKING:
-    from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+    from sase.ace.tui.widgets.prompt_stack import MacroBinding
 
 
 type PromptSubmitChoice = Literal["send", "all", "current", "write", "save_as"]
@@ -82,7 +82,7 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
         *,
         prompt_count: int,
         pane_count: int | None = None,
-        target: XPromptBinding | None = None,
+        target: MacroBinding | None = None,
         is_dirty: bool = False,
     ) -> None:
         super().__init__()

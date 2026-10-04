@@ -31,7 +31,7 @@ def test_submit_refreshes_replay_from_cycled_vcs_prefix(
 
 
 def test_submit_does_not_save_implicit_home_as_replay_target(tmp_path: Path) -> None:
-    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake = tmp_path / "vcs_macro_mru.json"
     fake.write_text(json.dumps({"entries": ["#gh:sase"]}), encoding="utf-8")
     with patched_mru_file(fake):
         app = _FakeApp()
@@ -49,7 +49,7 @@ def test_submit_does_not_save_non_launchable_project(
         "sase.ace.tui.modals.project_discovery.is_launchable_project",
         lambda *_args, **_kwargs: False,
     )
-    fake = sase_home / "vcs_xprompt_mru.json"
+    fake = sase_home / "vcs_macro_mru.json"
     fake.write_text(json.dumps({"entries": ["#gh:sase"]}), encoding="utf-8")
     with patched_mru_file(fake):
         app = _FakeApp()

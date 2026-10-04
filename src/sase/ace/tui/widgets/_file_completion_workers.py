@@ -80,7 +80,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
         def _clear_file_completion(
             self,
             *,
-            clear_xprompt_arg_hint: bool = True,
+            clear_macro_arg_hint: bool = True,
         ) -> None: ...
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...

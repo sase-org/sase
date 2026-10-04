@@ -190,10 +190,10 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
             "malformed_rows_skipped": 0,
             "invalid_intervals_skipped": 0,
         },
-        "xprompts": {
-            "runs_with_xprompts": 4,
-            "runs_without_xprompts": 2,
-            "distinct_xprompts": 2,
+        "macros": {
+            "runs_with_macros": 4,
+            "runs_without_macros": 2,
+            "distinct_macros": 2,
             "total_references": 5,
             "truncated_rows": 0,
             "rows": [
@@ -318,7 +318,7 @@ def _result(
         run_payload = {"totals": {"runs": 0}}
     if run_payload and macro_focus is not None:
         found = macro_focus == "split_file"
-        run_payload["xprompts"]["focus"] = {
+        run_payload["macros"]["focus"] = {
             "name": macro_focus,
             "found": found,
             "kind": "part" if found else "unknown",

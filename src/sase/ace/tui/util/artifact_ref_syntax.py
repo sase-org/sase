@@ -125,7 +125,7 @@ def artifact_ref_style_palette_from_theme(
 ) -> ArtifactRefStylePalette:
     """Return artifact-reference styles derived from *theme*.
 
-    The fallback values mirror the existing xprompt visual language so unit
+    The fallback values mirror the existing macro visual language so unit
     tests and non-mounted render paths still get stable styling.
     """
     background = _theme_color(theme, "background")

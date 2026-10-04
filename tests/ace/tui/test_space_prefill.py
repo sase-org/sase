@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.actions.agent_workflow._entry_custom import (
-    resolve_vcs_xprompt_mru_head,
+    resolve_vcs_macro_mru_head,
 )
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._space_prefill import (
@@ -231,7 +231,7 @@ def test_resolve_head_prefills_alias_display_with_canonical_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_tag_peek(monkeypatch, _tag_catalog("widgets"))
-    resolved = resolve_vcs_xprompt_mru_head([("#gh:gh_acme__widgets", "#gh:widgets")])
+    resolved = resolve_vcs_macro_mru_head([("#gh:gh_acme__widgets", "#gh:widgets")])
     assert resolved == ("+widgets ", "widgets", "gh_acme__widgets")
 
 
@@ -239,7 +239,7 @@ def test_resolve_head_keeps_patch_ref_verbatim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
-    resolved = resolve_vcs_xprompt_mru_head([("#gh:fix_bug", "#gh:fix_bug")])
+    resolved = resolve_vcs_macro_mru_head([("#gh:fix_bug", "#gh:fix_bug")])
     assert resolved is not None
     initial_text, display_name, history_sort_key = resolved
     assert initial_text == "#gh:fix_bug "
@@ -251,8 +251,8 @@ def test_resolve_head_empty_and_none_are_blank(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
-    assert resolve_vcs_xprompt_mru_head([]) is None
-    assert resolve_vcs_xprompt_mru_head(None) is None
+    assert resolve_vcs_macro_mru_head([]) is None
+    assert resolve_vcs_macro_mru_head(None) is None
 
 
 # -- warm `<space>` -----------------------------------------------------------
@@ -544,7 +544,7 @@ def test_editor_uses_snapshot_when_ready(
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
     app = _SpaceApp(_ready([("#gh:sase", "#gh:sase")]))
 
-    app.action_start_last_vcs_xprompt_in_editor()
+    app.action_start_last_vcs_macro_in_editor()
 
     assert app.editor_prompts == ["+sase "]
 
@@ -561,7 +561,7 @@ def test_editor_falls_back_to_loader_when_cold(
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
     app = _SpaceApp(COLD_LAUNCHABLE_MRU_SNAPSHOT)
 
-    app.action_start_last_vcs_xprompt_in_editor()
+    app.action_start_last_vcs_macro_in_editor()
 
     assert app.editor_prompts == ["+sase "]
 
@@ -579,10 +579,10 @@ def test_editor_cold_never_writes_mru(
     app = _SpaceApp(COLD_LAUNCHABLE_MRU_SNAPSHOT)
 
     with prompt_key_io_probe() as counts:
-        app.action_start_last_vcs_xprompt_in_editor()
+        app.action_start_last_vcs_macro_in_editor()
 
     assert counts.mru_writes == 0
-    assert app.notifications == [("No previous VCS xprompt", "warning")]
+    assert app.notifications == [("No previous VCS macro", "warning")]
 
 
 # -- `,.` history entry --------------------------------------------------------

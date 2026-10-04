@@ -17,8 +17,8 @@ _STARTED = datetime(2026, 7, 18, 13, 0, 0)
 
 def _write_phase_content(directory: Path, role: str) -> None:
     directory.mkdir()
-    (directory / "raw_xprompt.md").write_text(
-        "\n".join(f"#{role} family xprompt line {index}" for index in range(1, 16))
+    (directory / "raw_prompt.md").write_text(
+        "\n".join(f"#{role} family macro line {index}" for index in range(1, 16))
         + "\n",
         encoding="utf-8",
     )

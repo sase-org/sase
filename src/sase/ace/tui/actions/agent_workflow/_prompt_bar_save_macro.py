@@ -134,8 +134,8 @@ class PromptBarSaveMacroMixin(
             snippet_target,
         )
         last_used_for_modal: dict[SaveMode, str] = {}
-        if "xprompt" in last_used:
-            last_used_for_modal["macro"] = last_used["xprompt"]
+        if "macro" in last_used:
+            last_used_for_modal["macro"] = last_used["macro"]
         if "snippet" in last_used:
             last_used_for_modal["snippet"] = last_used["snippet"]
 
@@ -230,7 +230,7 @@ class PromptBarSaveMacroMixin(
                         self._reload_bound_macro(bar, event.binding)
                     )
                 elif choice == "save_as":
-                    bar.request_save_as_xprompt()
+                    bar.request_save_as_macro()
 
             self.push_screen(  # type: ignore[attr-defined]
                 MacroWriteConflictModal(event.binding.name, event.binding.write_path),
@@ -251,7 +251,7 @@ class PromptBarSaveMacroMixin(
         from ...widgets import PromptInputBar
         from ...widgets.prompt_stack import (
             SourceFingerprint,
-            XPromptBinding as MacroBinding,
+            MacroBinding as MacroBinding,
         )
         from sase.macro.save import save_markdown_document
 
@@ -292,7 +292,7 @@ class PromptBarSaveMacroMixin(
                 source_markdown=preserved,
                 loaded_fingerprint=loaded_fingerprint,
             )
-            bar._mark_xprompt_source_fresh()
+            bar._mark_macro_source_fresh()
             bar._refresh_title()
         self.notify(f"Wrote macro '{binding.name}'")  # type: ignore[attr-defined]
         from pathlib import Path
@@ -327,7 +327,7 @@ class PromptBarSaveMacroMixin(
         from sase.macro.save import load_config_macro_markdown
 
         from ...widgets import PromptInputBar
-        from ...widgets.prompt_stack import XPromptBinding as MacroBinding
+        from ...widgets.prompt_stack import MacroBinding as MacroBinding
 
         if not isinstance(bar, PromptInputBar) or not isinstance(binding, MacroBinding):
             return
@@ -357,7 +357,7 @@ class PromptBarSaveMacroMixin(
         if bar.is_mounted:
             bar.load_stack_from_macro_markdown(markdown, binding=refreshed)
             bar.auto_show_frontmatter_panel()
-            bar._mark_xprompt_source_fresh()
+            bar._mark_macro_source_fresh()
             bar._refresh_title()
             self.notify(  # type: ignore[attr-defined]
                 f"Reloaded macro '{binding.name}'"
@@ -396,7 +396,7 @@ class PromptBarSaveMacroMixin(
         try:
             await asyncio.to_thread(write_target_sync, target, target.frontmatter, body)
             await asyncio.to_thread(
-                save_last_used_location, "xprompt", target.location_path
+                save_last_used_location, "macro", target.location_path
             )
         except SkillPlacementError as exc:
             # The message already names the source and the required move.
@@ -440,7 +440,7 @@ class PromptBarSaveMacroMixin(
     ) -> None:
         """Bind a still-mounted originating bar after successful save-as."""
         from ...widgets import PromptInputBar
-        from ...widgets.prompt_stack import XPromptBinding as MacroBinding
+        from ...widgets.prompt_stack import MacroBinding as MacroBinding
 
         if not isinstance(origin_bar, PromptInputBar) or not origin_bar.is_mounted:
             return

@@ -111,7 +111,7 @@ class AgentDetail(
         try:
             prompt_panel.attach_identity_header_sink(
                 self._on_identity_header,
-                detach_xprompt=True,
+                detach_raw_prompt=True,
                 header_expanded=self._header_expanded,
             )
         except Exception:

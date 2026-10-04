@@ -23,7 +23,7 @@ else:
 
 
 class PromptPreviewMixin(_MixinBase):
-    """Normal-mode preview command for xprompts, skills, workflows, and files."""
+    """Normal-mode preview command for macros, skills, workflows, and files."""
 
     if TYPE_CHECKING:
         _prompt_preview_request_id: int
@@ -63,7 +63,7 @@ class PromptPreviewMixin(_MixinBase):
             token = detect_shorthand_argument_owner_at_cursor(self.text, offset)
             if token is None:
                 self.notify(
-                    "Move the cursor onto an xprompt, skill, file path, glossary "
+                    "Move the cursor onto a macro, skill, file path, glossary "
                     "term, repo name, or word to look it up",
                     severity="warning",
                 )

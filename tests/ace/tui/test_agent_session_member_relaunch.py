@@ -83,7 +83,7 @@ def _agent_session_rows(
     child_dir = tmp_path / "child"
     parent_dir.mkdir()
     child_dir.mkdir()
-    (parent_dir / "raw_xprompt.md").write_text(
+    (parent_dir / "raw_prompt.md").write_text(
         "#gh:project #propose\nPlan the change",
         encoding="utf-8",
     )
@@ -274,7 +274,7 @@ _EPIC_ROOT_PROMPT = (
 
 def _write_prompt(directory: Path, prompt: str) -> Path:
     directory.mkdir()
-    (directory / "raw_xprompt.md").write_text(prompt, encoding="utf-8")
+    (directory / "raw_prompt.md").write_text(prompt, encoding="utf-8")
     return directory
 
 

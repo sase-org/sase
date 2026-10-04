@@ -47,7 +47,7 @@ def test_real_files_populate_all_three_searchable_conversation_sections(
 ) -> None:
     agent = _agent(tmp_path)
     sources = {
-        "raw_xprompt.md": "#review Review src/sase/cli_pager.py",
+        "raw_prompt.md": "#review Review src/sase/cli_pager.py",
         "run_prompt.md": "Expanded instructions for bead:sase-uk.7",
         "response.md": "## Result\n\nThe pager now includes **conversation** content.",
     }

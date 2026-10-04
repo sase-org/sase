@@ -14,8 +14,8 @@ from ._prompt_stack_targets import (
     MiniMacroPaneTarget,
     SnippetPaneTarget,
     SourceFingerprint,
-    XPromptBinding,
-    XPromptReadonlyTarget,
+    MacroBinding,
+    MacroReadonlyTarget,
     mini_macro_draft_hash,
 )
 
@@ -25,8 +25,8 @@ __all__ = [
     "MiniMacroPaneTarget",
     "SnippetPaneTarget",
     "SourceFingerprint",
-    "XPromptBinding",
-    "XPromptReadonlyTarget",
+    "MacroBinding",
+    "MacroReadonlyTarget",
     "mini_macro_draft_hash",
     "split_frontmatter",
     "split_prompt_text",

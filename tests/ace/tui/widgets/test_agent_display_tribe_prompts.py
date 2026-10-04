@@ -60,7 +60,7 @@ def _digest(
         body_line_count=lines,
         launch=launch,
         launch_spans=(),
-        xprompts=chips,
+        macros=chips,
         project=project,
     )
 

@@ -17,7 +17,7 @@ from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 def zoom_agent(
     tmp_path: Path,
     *,
-    include_xprompts: bool = False,
+    include_macros: bool = False,
     include_plan: bool = False,
 ) -> Agent:
     diff_path = tmp_path / "visual_zoom.diff"
@@ -43,10 +43,10 @@ def zoom_agent(
         encoding="utf-8",
     )
     artifacts_dir: Path | None = None
-    if include_xprompts:
+    if include_macros:
         artifacts_dir = tmp_path / "visual_zoom_artifacts"
         artifacts_dir.mkdir()
-        (artifacts_dir / "xprompts.json").write_text(
+        (artifacts_dir / "macros.json").write_text(
             json.dumps(
                 [
                     {

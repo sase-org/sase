@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding as MacroBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding as MacroBinding
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from sase.macro.save import load_config_macro_markdown
 

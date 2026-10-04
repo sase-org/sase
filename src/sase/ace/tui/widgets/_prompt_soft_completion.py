@@ -84,7 +84,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             entry: MacroAssistEntry,
         ) -> None: ...
         def _refresh_macro_arg_hint_from_cursor(self) -> None: ...
-        def _refresh_xprompt_completion_skeleton_hint(
+        def _refresh_macro_completion_skeleton_hint(
             self,
             selected: CompletionCandidate,
         ) -> None: ...
@@ -109,11 +109,11 @@ class PromptSoftCompletionMixin(_MixinBase):
             replacement: str,
         ) -> None: ...
 
-    def _soft_completion_xprompt_entries(
+    def _soft_completion_macro_entries(
         self,
         warm: list[MacroAssistEntry] | None,
     ) -> list[MacroAssistEntry] | None:
-        """Merge live local xprompts into the *warm* catalog for soft completion.
+        """Merge live local macros into the *warm* catalog for soft completion.
 
         Returns the local helpers alone when the global catalog is still cold so
         a ``#_helper`` declared in the Frontmatter Panel soft-completes (``<ctrl+l>``)
@@ -182,12 +182,12 @@ class PromptSoftCompletionMixin(_MixinBase):
         settings = self._prompt_completion_settings()
         project = self._macro_arg_assist_project_from_text()
         entries = self._get_warm_macro_arg_assist_entries()
-        if entries is None and self._soft_completion_may_need_xprompt_entries(
+        if entries is None and self._soft_completion_may_need_macro_entries(
             text, cursor_offset
         ):
             self._schedule_macro_assist_warm(project)
 
-        macro_entries = self._soft_completion_xprompt_entries(entries)
+        macro_entries = self._soft_completion_macro_entries(entries)
         task = spawn_pump_free_task(
             self,
             self._run_prompt_completion_refresh(
@@ -278,10 +278,10 @@ class PromptSoftCompletionMixin(_MixinBase):
     def _build_current_soft_completion(
         self,
         *,
-        allow_sync_xprompt_entries: bool = False,
+        allow_sync_macro_entries: bool = False,
     ) -> PromptSoftCompletion | None:
         """Build the best soft completion for the current prompt state."""
-        del allow_sync_xprompt_entries
+        del allow_sync_macro_entries
         text = self.text
         cursor_offset = self._absolute_offset(self.cursor_location)
         settings = self._prompt_completion_settings()
@@ -289,17 +289,17 @@ class PromptSoftCompletionMixin(_MixinBase):
             return None
 
         entries: list[MacroAssistEntry] | None = None
-        may_need_xprompt_entries = self._soft_completion_may_need_xprompt_entries(
+        may_need_macro_entries = self._soft_completion_may_need_macro_entries(
             text=text,
             cursor_offset=cursor_offset,
         )
         warm_entries: list[MacroAssistEntry] | None = None
-        if may_need_xprompt_entries:
+        if may_need_macro_entries:
             project = self._macro_arg_assist_project_from_text()
             warm_entries = self._get_warm_macro_arg_assist_entries()
             if warm_entries is None:
                 self._schedule_macro_assist_warm(project)
-            entries = self._soft_completion_xprompt_entries(warm_entries)
+            entries = self._soft_completion_macro_entries(warm_entries)
 
         return _build_prompt_soft_completion_snapshot(
             text=text,
@@ -331,7 +331,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             return True
         return bool(bar and bar._mode == "feedback")
 
-    def _soft_completion_may_need_xprompt_entries(
+    def _soft_completion_may_need_macro_entries(
         self,
         text: str,
         cursor_offset: int,
@@ -400,9 +400,9 @@ class PromptSoftCompletionMixin(_MixinBase):
         accepted_kind = suggestion.completion_kind
         start = self._location_from_absolute(suggestion.replacement_start)
         end = self._location_from_absolute(suggestion.replacement_end)
-        used_xprompt_skeleton = False
+        used_macro_skeleton = False
         if (
-            accepted_kind == "xprompt"
+            accepted_kind == "macro"
             and isinstance(selected.metadata, MacroAssistEntry)
             and selected.insertion.startswith("#")
         ):
@@ -411,7 +411,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             line = self.document.get_line(end[0])
             append_text_arg_space = end[1] == len(line)
             next_char = line[end[1]] if end[1] < len(line) else None
-            used_xprompt_skeleton = self._expand_snippet_template_at_range(
+            used_macro_skeleton = self._expand_snippet_template_at_range(
                 macro_completion_skeleton(
                     selected.metadata,
                     append_text_arg_space=append_text_arg_space,
@@ -421,10 +421,10 @@ class PromptSoftCompletionMixin(_MixinBase):
                 end,
                 session_policy="nest",
             )
-            if used_xprompt_skeleton:
+            if used_macro_skeleton:
                 self._note_macro_completion_spacer(selected.metadata)
 
-        if not used_xprompt_skeleton:
+        if not used_macro_skeleton:
             self._replace_absolute_range(
                 suggestion.replacement_start,
                 suggestion.replacement_end,
@@ -432,9 +432,9 @@ class PromptSoftCompletionMixin(_MixinBase):
             )
 
         self._clear_soft_completion(cancel_timer=True)
-        if accepted_kind == "xprompt":
-            if used_xprompt_skeleton:
-                self._refresh_xprompt_completion_skeleton_hint(selected)
+        if accepted_kind == "macro":
+            if used_macro_skeleton:
+                self._refresh_macro_completion_skeleton_hint(selected)
             else:
                 self._clear_macro_arg_hint()
         elif accepted_kind.startswith("macro_arg_"):
@@ -451,7 +451,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             return False
 
         suggestion = self._build_current_soft_completion(
-            allow_sync_xprompt_entries=True,
+            allow_sync_macro_entries=True,
         )
         if suggestion is None:
             return False

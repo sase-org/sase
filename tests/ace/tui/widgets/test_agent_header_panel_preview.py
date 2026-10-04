@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.agent_header_preview import preview_row_budget
 from sase.ace.tui.agent_header_settings import AgentHeaderSettings
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_header_panel_shared import (
-    LONG_XPROMPT,
+    LONG_RAW_PROMPT,
     DetailApp,
     artifact_agent,
     header_panel,
@@ -26,7 +26,7 @@ from tests.ace.tui.widgets._agent_header_panel_shared import (
     solo_agent,
 )
 
-_SHORT_XPROMPT = "Fix the typo on the launch line."
+_SHORT_RAW_PROMPT = "Fix the typo on the launch line."
 
 
 def _preview_rows(panel: AgentHeaderPanel) -> int:
@@ -58,14 +58,14 @@ def _tagged(agent: Any, tag: str) -> Any:
     return dataclasses.replace(agent, cl_name=f"cl-{tag}", raw_suffix=tag)
 
 
-async def test_collapsed_preview_shows_quote_bar_and_body_omits_xprompt(
+async def test_collapsed_preview_shows_quote_bar_and_body_omits_raw_prompt(
     tmp_path: Any,
 ) -> None:
     app = DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         assert not panel.is_expanded
@@ -84,7 +84,7 @@ async def test_preview_row_count_matches_budget_and_short_prompt_fits(
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         expected = preview_row_budget(
@@ -97,7 +97,7 @@ async def test_preview_row_count_matches_budget_and_short_prompt_fits(
         assert "lines · " in str(panel.border_subtitle)
 
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "b", _SHORT_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "b", _SHORT_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         assert _preview_rows(panel) == 1
@@ -111,7 +111,7 @@ async def test_overflow_subtitle_names_hidden_lines(tmp_path: Any) -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         subtitle = str(panel.border_subtitle)
@@ -120,12 +120,12 @@ async def test_overflow_subtitle_names_hidden_lines(tmp_path: Any) -> None:
         assert header_text(panel).splitlines()[-1].rstrip().endswith("…")
 
 
-async def test_expand_shows_full_xprompt_and_toggles_back(tmp_path: Any) -> None:
+async def test_expand_shows_full_raw_prompt_and_toggles_back(tmp_path: Any) -> None:
     app = DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
 
@@ -158,13 +158,13 @@ async def test_collapsed_content_rows_are_exact(tmp_path: Any) -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         _assert_card(panel)
 
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "b", _SHORT_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "b", _SHORT_RAW_PROMPT), pilot
         )
         _assert_card(panel)
         assert _preview_rows(panel) == 1
@@ -176,7 +176,7 @@ async def test_pending_hold_keeps_rows_then_settles(tmp_path: Any) -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         held = _preview_rows(panel)
@@ -199,7 +199,7 @@ async def test_visited_agent_cheap_path_shows_preview(tmp_path: Any) -> None:
     app = DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        agent = artifact_agent(tmp_path, "a", LONG_XPROMPT)
+        agent = artifact_agent(tmp_path, "a", LONG_RAW_PROMPT)
         await show_agent_full(detail, agent, pilot)
         panel = header_panel(detail)
         full_rows = _preview_rows(panel)
@@ -213,7 +213,7 @@ async def test_visited_agent_cheap_path_shows_preview(tmp_path: Any) -> None:
         _assert_card(panel)
 
 
-async def test_share_zero_hides_preview_but_expanded_keeps_xprompt(
+async def test_share_zero_hides_preview_but_expanded_keeps_raw_prompt(
     tmp_path: Any,
 ) -> None:
     app = DetailApp()
@@ -221,7 +221,7 @@ async def test_share_zero_hides_preview_but_expanded_keeps_xprompt(
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         app._agent_header_settings = AgentHeaderSettings(collapsed_max_share=0.0)  # noqa: SLF001
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         assert _preview_rows(panel) == 0
@@ -242,7 +242,7 @@ async def test_column_resize_changes_budget(tmp_path: Any) -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         detail.on_resize(types.SimpleNamespace(size=types.SimpleNamespace(height=100)))
@@ -257,20 +257,20 @@ async def test_column_resize_changes_budget(tmp_path: Any) -> None:
 
 
 async def test_exact_fit_shows_no_ellipsis_or_count(tmp_path: Any) -> None:
-    from sase.ace.tui.widgets.agent_header_preview import fit_xprompt_preview
+    from sase.ace.tui.widgets.agent_header_preview import fit_raw_prompt_preview
 
     app = DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         width = panel._content_width()  # noqa: SLF001
         prompt: str | None = None
         for count in range(5, 200):
             candidate = " ".join(f"word{i:03d}" for i in range(count))
-            fit = fit_xprompt_preview(Text(candidate), width=width, max_rows=100)
+            fit = fit_raw_prompt_preview(Text(candidate), width=width, max_rows=100)
             if fit.rows == 3 and not fit.truncated:
                 prompt = candidate
                 break
@@ -292,7 +292,7 @@ async def test_row_cap_setting_changes_collapsed_rows(tmp_path: Any) -> None:
             collapsed_preview_max_rows=5
         )
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         detail.on_resize(types.SimpleNamespace(size=types.SimpleNamespace(height=100)))
@@ -312,7 +312,7 @@ async def test_hidden_line_subtitle_uses_singular_for_one_line(tmp_path: Any) ->
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         assert "+1 line · " in panel._subtitle_for(False, hidden_lines=1)  # noqa: SLF001
@@ -329,7 +329,7 @@ async def test_card_rows_are_padded_and_repaint_on_width_change(
     async with app.run_test(size=(120, 40)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         for width in (90, 60, 75):
@@ -345,7 +345,7 @@ async def test_bottom_pinned_body_stays_pinned_across_row_count_change(
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", _SHORT_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", _SHORT_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         before = panel.rendered_row_count
@@ -353,7 +353,7 @@ async def test_bottom_pinned_body_stays_pinned_across_row_count_change(
         main_view.pin_to_bottom()
         assert bool(main_view.is_pinned_to_bottom) is True
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "b", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "b", LONG_RAW_PROMPT), pilot
         )
         assert panel.rendered_row_count != before
         assert bool(main_view.is_pinned_to_bottom) is True

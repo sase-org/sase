@@ -379,7 +379,7 @@ async def test_ctrl_x_wins_over_input_cut_and_works_from_every_field(
 
 async def test_config_target_returns_entry_name(tmp_path: Path) -> None:
     config = tmp_path / "sase.yml"
-    config.write_text("xprompts: {}\n", encoding="utf-8")
+    config.write_text("macros: {}\n", encoding="utf-8")
     results: list[UnifiedMacroSaveResult | None] = []
     app = _ModalApp()
     async with app.run_test(size=(100, 35)) as pilot:

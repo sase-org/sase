@@ -203,7 +203,7 @@ async def test_action_restore_prompt_stash_single_unpinned_mounts_home_and_pops(
 
     assert harness.pushed == []
     assert harness.home_mounts == ["alpha"]
-    assert harness.home_mount_xprompt_markdown == [True]
+    assert harness.home_mount_macro_markdown == [True]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     assert read_prompt_stash_snapshot(path).entries == []

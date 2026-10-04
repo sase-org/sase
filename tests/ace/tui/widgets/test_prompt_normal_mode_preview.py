@@ -28,7 +28,7 @@ def _skill_entry(name: str = "sase_plan") -> MacroAssistEntry:
         skill_name=name,
         insertion=f"#skill/{name}",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(),
         content_preview=None,
@@ -40,7 +40,7 @@ async def test_k_on_previewable_token_pushes_preview_modal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = PreviewPayload(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#foo",
         source_path="/tmp/foo.md",
@@ -227,7 +227,7 @@ async def test_k_resolution_error_does_not_push_modal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_resolve(*_args: object, **_kwargs: object) -> object:
-        raise PreviewError("No xprompt or skill named '#missing' found")
+        raise PreviewError("No macro or skill named '#missing' found")
 
     monkeypatch.setattr(
         "sase.ace.tui.widgets._prompt_preview.resolve_preview_target",
@@ -299,7 +299,7 @@ async def test_k_on_punctuation_inside_shorthand_argument_previews_owner(
     def fake_resolve(token: PreviewToken, **_kwargs: object) -> PreviewPayload:
         seen.append(token)
         return PreviewPayload(
-            kind_label="xprompt",
+            kind_label="macro",
             icon="#",
             title="#foo",
             source_path="/tmp/foo.md",
@@ -319,7 +319,7 @@ async def test_k_on_punctuation_inside_shorthand_argument_previews_owner(
         await page.wait_for(lambda: _top_is_preview(page))
 
         assert seen
-        assert seen[0].kind == "xprompt"
+        assert seen[0].kind == "macro"
         assert seen[0].target == "foo"
         assert seen[0].raw == text
 
@@ -347,7 +347,7 @@ async def test_k_does_not_overwrite_dot_repeat(
         assert page.text == "three"
 
 
-async def test_k_on_long_xprompt_opens_taller_than_baseline(
+async def test_k_on_long_macro_opens_taller_than_baseline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from textual.containers import Container
@@ -355,7 +355,7 @@ async def test_k_on_long_xprompt_opens_taller_than_baseline(
     from sase.ace.tui.modals.preview_panel_sizing import baseline_geometry
 
     payload = PreviewPayload(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#long",
         source_path="/tmp/long.md",

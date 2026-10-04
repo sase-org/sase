@@ -19,9 +19,9 @@ class EntryPromptHistoryMixin:
     def _start_prompt_history_from_last_selection(
         self, *, show_cancelled: bool = False, edit_first: bool = False
     ) -> None:
-        """Show prompt history modal for the last launched VCS xprompt (bound to ,.).
+        """Show prompt history modal for the last launched VCS macro (bound to ,.).
 
-        Documented as "same as Space": both read the VCS xprompt MRU head.
+        Documented as "same as Space": both read the VCS macro MRU head.
         """
         from sase.core.time import generate_timestamp
         from sase.history.vcs_macro_mru import (
@@ -41,7 +41,7 @@ class EntryPromptHistoryMixin:
         if pairs is None:
             pairs = list(load_launchable_vcs_macro_mru_pairs(prune=False))
         if not pairs:
-            self.notify("No previously launched VCS xprompt", severity="warning")  # type: ignore[attr-defined]
+            self.notify("No previously launched VCS macro", severity="warning")  # type: ignore[attr-defined]
             return
         canonical_prefix, display_prefix = pairs[0]
 
@@ -95,7 +95,7 @@ class EntryPromptHistoryMixin:
                         initial_text=cleaned,
                         display_name=name,
                         history_sort_key=history_key,
-                        as_xprompt_markdown=True,
+                        as_macro_markdown=True,
                     )
                 else:
                     self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]

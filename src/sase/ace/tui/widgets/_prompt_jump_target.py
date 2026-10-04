@@ -24,11 +24,11 @@ from sase.macro.loader import get_macro_or_workflow
 from sase.macro.models import Macro
 from sase.macro.workflow_models import Workflow
 
-JumpKind = Literal["xprompt", "file"]
+JumpKind = Literal["macro", "file"]
 
 _LINE_COL_SUFFIX_RE = re.compile(r":(?P<line>\d+)(?::(?P<col>\d+))?")
 _VIM_FAMILY = frozenset({"vim", "nvim", "vi", "view", "gvim", "mvim", "nv"})
-_YAML_SECTION_KEYS = frozenset({"xprompts", "workflows"})
+_YAML_SECTION_KEYS = frozenset({"macros", "xprompts", "workflows"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +74,7 @@ def detect_jump_target_at_cursor(
     *,
     known_skills: frozenset[str] = frozenset(),
 ) -> JumpToken | None:
-    """Return the xprompt or file token under *cursor_offset*, if any."""
+    """Return the macro or file token under *cursor_offset*, if any."""
 
     preview_token = detect_preview_target_at_cursor(
         text,
@@ -90,7 +90,7 @@ def detect_jump_target_at_cursor(
 def detect_shorthand_argument_owner_jump_target(
     text: str, cursor_offset: int
 ) -> JumpToken | None:
-    """Return the jump token for the shorthand xprompt that owns the cursor."""
+    """Return the jump token for the shorthand macro that owns the cursor."""
     preview_token = detect_shorthand_argument_owner_at_cursor(text, cursor_offset)
     if preview_token is None:
         return None
@@ -105,8 +105,8 @@ def resolve_jump_target(
 ) -> JumpTarget:
     """Resolve *token* to a definition file, raising :class:`JumpError`."""
 
-    if token.kind == "xprompt":
-        return _resolve_xprompt_jump(token, project=project)
+    if token.kind == "macro":
+        return _resolve_macro_jump(token, project=project)
     return _resolve_file_jump(token, base_dir=base_dir)
 
 
@@ -184,30 +184,30 @@ def _detect_file_token_suffix_at_cursor(
     return None
 
 
-def _resolve_xprompt_jump(
+def _resolve_macro_jump(
     token: JumpToken,
     *,
     project: str | None,
 ) -> JumpTarget:
-    reference = _xprompt_reference(token)
+    reference = _macro_reference(token)
     slash_skill = reference.startswith("/")
     # ``/foo`` is the provider skill name; its definition lives under the
-    # canonical ``skill/foo`` xprompt reference.
+    # canonical ``skill/foo`` macro reference.
     lookup = skill_reference_name(token.target) if slash_skill else token.target
     obj = get_macro_or_workflow(lookup, project=project)
     if obj is None:
         if slash_skill:
             raise JumpError(f"No skill named '{reference}' found")
-        raise JumpError(f"No xprompt or skill named '{reference}' found")
+        raise JumpError(f"No macro or skill named '{reference}' found")
 
     if slash_skill and (not isinstance(obj, Macro) or not obj.skill):
         raise JumpError(f"No skill named '{reference}' found")
 
     if isinstance(obj, Macro):
-        kind_label = "skill" if obj.skill else "xprompt"
+        kind_label = "skill" if obj.skill else "macro"
         source_id = obj.source_path
     elif isinstance(obj, Workflow):
-        kind_label = "xprompt" if obj.is_simple_macro() else "workflow"
+        kind_label = "macro" if obj.is_simple_macro() else "workflow"
         source_id = obj.source_path
     else:
         raise JumpError(f"Could not jump to '{reference}'")
@@ -241,7 +241,7 @@ def _resolve_xprompt_jump(
     )
 
 
-def _xprompt_reference(token: JumpToken) -> str:
+def _macro_reference(token: JumpToken) -> str:
     prefix = token.reference_prefix
     if prefix is None:
         prefix = "/" if token.raw.startswith("/") else "#"

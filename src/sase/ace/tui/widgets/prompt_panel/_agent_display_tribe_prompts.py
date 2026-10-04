@@ -38,7 +38,7 @@ PROMPT_ENTRY_ANCHOR_PREFIX = "tribe:prompt:"
 _MEMBER_LABEL_STYLE = "bold #D75FFF"
 _UNIT_LABEL_STYLE = f"bold {TRIBE_IDENTITY_COLOR}"
 _SHARED_COUNT_STYLE = "bold #5FD7FF"
-_XPROMPT_CHIP_STYLE = "bold #87D787"
+_MACRO_CHIP_STYLE = "bold #87D787"
 _GUTTER_STYLE = "dim #8787AF"
 _SIZE_STYLE = "dim"
 
@@ -172,10 +172,10 @@ def _append_entry_tags(
     *,
     multi_project: bool,
 ) -> None:
-    """Append dim ``·``-separated xprompt, size, and project tags to *line*."""
+    """Append dim ``·``-separated macro, size, and project tags to *line*."""
     tags: list[Text] = []
-    for chip in digest.xprompts:
-        tags.append(Text(chip, style=_XPROMPT_CHIP_STYLE))
+    for chip in digest.macros:
+        tags.append(Text(chip, style=_MACRO_CHIP_STYLE))
     if digest.body_line_count > 1:
         tags.append(Text(f"{digest.body_line_count} lines", style=_SIZE_STYLE))
     if multi_project and digest.project is not None:

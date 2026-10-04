@@ -144,7 +144,7 @@ def test_section_sits_after_members_and_before_prompts() -> None:
                     body_line_count=1,
                     launch="",
                     launch_spans=(),
-                    xprompts=(),
+                    macros=(),
                     project=None,
                 ),
                 members=(

@@ -89,12 +89,12 @@ def _select(ta: PromptTextArea, name: str) -> None:
     ta._file_completion_index = index
 
 
-def _xprompt_entry(name: str) -> MacroAssistEntry:
+def _macro_entry(name: str) -> MacroAssistEntry:
     return MacroAssistEntry(
         name=name,
         insertion=f"#{name}",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(
             MacroInputHint(
@@ -376,14 +376,14 @@ async def test_owner_slash_routes_to_repo_menu_not_ref_menu() -> None:
         ]
 
 
-async def test_non_vcs_colon_keeps_xprompt_argument_behavior() -> None:
+async def test_non_vcs_colon_keeps_macro_argument_behavior() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
         _agent("coder")
     ]
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        ta._macro_arg_assist_entries_by_project[None] = [_xprompt_entry("foo")]
+        ta._macro_arg_assist_entries_by_project[None] = [_macro_entry("foo")]
         with (
             patch(_WORKFLOW_NAMES_PATH, return_value={"gh"}),
             patch(_REF_ENTRIES_PATH, return_value=_REF_SOURCE),

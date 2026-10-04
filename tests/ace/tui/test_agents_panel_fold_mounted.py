@@ -24,7 +24,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 def _mounted_clan_agents(tmp_path: Path) -> list[Agent]:
     artifacts = tmp_path / "phase-artifacts"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text(
+    (artifacts / "raw_prompt.md").write_text(
         "#review mounted clan segment\n",
         encoding="utf-8",
     )

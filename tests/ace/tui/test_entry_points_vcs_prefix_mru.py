@@ -1,4 +1,4 @@
-"""Tests for MRU VCS xprompt entry points."""
+"""Tests for MRU VCS macro entry points."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from ._entry_points_vcs_prefix_helpers import (
 )
 
 
-def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(
+def test_start_last_vcs_macro_editor_opens_mru_prefix_and_launches_edit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -22,7 +22,7 @@ def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
     app = _EditorApp()
 
-    app.action_start_last_vcs_xprompt_in_editor()
+    app.action_start_last_vcs_macro_in_editor()
 
     assert app.editor_prompts == ["+sase "]
     assert app.finished_prompts == ["edited: +sase "]
@@ -32,7 +32,7 @@ def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(
     assert app._prompt_context.history_sort_key == "sase"
 
 
-def test_start_last_vcs_xprompt_editor_uses_canonical_history_sort_key(
+def test_start_last_vcs_macro_editor_uses_canonical_history_sort_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The editor's history grouping key uses the canonical ref, not the display one.
@@ -48,7 +48,7 @@ def test_start_last_vcs_xprompt_editor_uses_canonical_history_sort_key(
     _patch_tag_peek(monkeypatch, _tag_catalog("widgets"))
     app = _EditorApp()
 
-    app.action_start_last_vcs_xprompt_in_editor()
+    app.action_start_last_vcs_macro_in_editor()
 
     assert app.editor_prompts == ["+widgets "]
     assert app._prompt_context is not None
@@ -56,7 +56,7 @@ def test_start_last_vcs_xprompt_editor_uses_canonical_history_sort_key(
     assert app._prompt_context.history_sort_key == "gh_acme__widgets"
 
 
-def test_start_last_vcs_xprompt_editor_labels_tagified_display_prefix(
+def test_start_last_vcs_macro_editor_labels_tagified_display_prefix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A tagified ``+sase`` display prefix labels the bar ``sase``.
@@ -72,7 +72,7 @@ def test_start_last_vcs_xprompt_editor_labels_tagified_display_prefix(
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
     app = _EditorApp()
 
-    app.action_start_last_vcs_xprompt_in_editor()
+    app.action_start_last_vcs_macro_in_editor()
 
     assert app.editor_prompts == ["+sase "]
     assert app._prompt_context is not None
@@ -80,7 +80,7 @@ def test_start_last_vcs_xprompt_editor_labels_tagified_display_prefix(
     assert app._prompt_context.history_sort_key == "sase"
 
 
-def test_start_last_vcs_xprompt_editor_warns_when_mru_empty(
+def test_start_last_vcs_macro_editor_warns_when_mru_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -89,14 +89,14 @@ def test_start_last_vcs_xprompt_editor_warns_when_mru_empty(
     )
     app = _App()
 
-    app.action_start_last_vcs_xprompt_in_editor()
+    app.action_start_last_vcs_macro_in_editor()
 
     assert app.editor_launches == []
     assert app.prompt_launches == []
-    assert app.notifications == [("No previous VCS xprompt", "warning")]
+    assert app.notifications == [("No previous VCS macro", "warning")]
 
 
-def test_start_last_vcs_xprompt_editor_cancel_records_prefilled_prefix(
+def test_start_last_vcs_macro_editor_cancel_records_prefilled_prefix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cancelled_prompts: list[tuple[str, bool]] = []
@@ -118,7 +118,7 @@ def test_start_last_vcs_xprompt_editor_cancel_records_prefilled_prefix(
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
     app = _EditorApp(editor_result="")
 
-    app.action_start_last_vcs_xprompt_in_editor()
+    app.action_start_last_vcs_macro_in_editor()
 
     assert app.editor_prompts == ["+sase "]
     assert cancelled_prompts == [("+sase", True)]

@@ -73,6 +73,13 @@ def _load_scope_keymaps(
 
     raw_overrides = keymaps_cfg.get(scope, {})
     overrides = raw_overrides if isinstance(raw_overrides, dict) else {}
+    if overrides:
+        from sase.legacy_xprompt_syntax import normalize_keymap_actions
+
+        overrides = normalize_keymap_actions(
+            overrides,
+            source=f"ace.keymaps.{scope}",
+        )
     if pre_step is not None:
         overrides = pre_step(overrides)
     extra = sorted(set(overrides) - field_names)

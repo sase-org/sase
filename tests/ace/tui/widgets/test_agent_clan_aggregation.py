@@ -136,7 +136,7 @@ def test_member_cache_hits_same_mtime_token_and_expands_section_union(
 def test_member_loader_reuses_reply_and_prompt_precedence(tmp_path: Path) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text(
+    (artifacts / "raw_prompt.md").write_text(
         "\n#research first segment\n",
         encoding="utf-8",
     )

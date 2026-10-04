@@ -11,7 +11,7 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from tests.ace.tui.widgets._agent_header_panel_shared import (
-    LONG_XPROMPT,
+    LONG_RAW_PROMPT,
     artifact_agent,
     header_panel,
     show_agent_full,
@@ -36,7 +36,9 @@ async def _show_both_overflowing(
     detail: AgentDetail, tmp_path: Any, pilot: Any, name: str = "both"
 ) -> tuple[Any, Any]:
     """Show an artifact agent with both sticky panels expanded and overflowing."""
-    await show_agent_full(detail, artifact_agent(tmp_path, name, LONG_XPROMPT), pilot)
+    await show_agent_full(
+        detail, artifact_agent(tmp_path, name, LONG_RAW_PROMPT), pilot
+    )
     header = header_panel(detail)
     if not header.is_expanded:
         assert detail.toggle_header_expanded() is True
@@ -291,7 +293,7 @@ async def test_header_claims_when_footer_fits(tmp_path: Any) -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "hdr-fits", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "hdr-fits", LONG_RAW_PROMPT), pilot
         )
         header = header_panel(detail)
         if not header.is_expanded:

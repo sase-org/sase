@@ -41,9 +41,8 @@ def make_agent_session(
         artifacts = tmp_path / f"{suffix}-{role}"
         artifacts.mkdir()
         if with_prompt_content:
-            (artifacts / "raw_xprompt.md").write_text(
-                "\n".join(f"{role} xprompt line {line}" for line in range(1, 16))
-                + "\n",
+            (artifacts / "raw_prompt.md").write_text(
+                "\n".join(f"{role} macro line {line}" for line in range(1, 16)) + "\n",
                 encoding="utf-8",
             )
             (artifacts / "01_prompt.md").write_text(

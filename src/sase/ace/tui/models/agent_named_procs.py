@@ -1,4 +1,4 @@
-"""Agents-tab projection for stand-alone xprompt named procs."""
+"""Agents-tab projection for stand-alone macro named procs."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def named_proc_agents_from_observed(
     selected: dict[str, ObservedProc] = {}
     dismissed = set(dismissed_proc_ids)
     for row in rows:
-        if not _is_standalone_xprompt_row(row):
+        if not _is_standalone_macro_row(row):
             continue
         if row.proc_id in dismissed:
             continue
@@ -93,7 +93,7 @@ def named_proc_agent_signature(
     )
 
 
-def _is_standalone_xprompt_row(row: ObservedProc) -> bool:
+def _is_standalone_macro_row(row: ObservedProc) -> bool:
     return row.lifecycle == PROC_LIFECYCLE_NAMED_PROC and prompt_proc_origin_matches(
         row.origin
     )

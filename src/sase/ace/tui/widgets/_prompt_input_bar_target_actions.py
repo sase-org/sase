@@ -1,4 +1,4 @@
-"""Targeted snippet insertion and xprompt expansion actions."""
+"""Targeted snippet insertion and macro expansion actions."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def _end_location_after_insert(
 
 
 class PromptInputBarTargetActionsMixin(_MixinBase):
-    """Insert snippets and expand xprompts in a captured prompt pane."""
+    """Insert snippets and expand macros in a captured prompt pane."""
 
     if TYPE_CHECKING:
 
@@ -56,7 +56,7 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
 
         Args:
             snippet_name: The snippet name to insert (without #)
-            entry: Optional selected xprompt metadata for smart argument insertion.
+            entry: Optional selected macro metadata for smart argument insertion.
         """
         self._insert_snippet_into(self.active_text_area(), snippet_name, entry)
 
@@ -91,14 +91,14 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
         self._insert_snippet_into(text_area, snippet_name, entry)
         return True
 
-    def expand_xprompt_at_target(
+    def expand_macro_at_target(
         self,
         target_text_area: object,
         pane_id: str,
         trigger_range: tuple[tuple[int, int], tuple[int, int]] | None,
         expanded_text: str,
     ) -> bool:
-        """Inline-expand a selected xprompt into the pane that opened ``#@``.
+        """Inline-expand a selected macro into the pane that opened ``#@``.
 
         Unlike :meth:`insert_snippet_at_target` -- which keeps the trigger ``#``
         and inserts a ``#name`` reference after it -- this *consumes* the ``#``,
@@ -125,7 +125,7 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
             # selector for nothing).
             return False
 
-        # Drop transient completion / soft-completion / xprompt-arg-hint state on
+        # Drop transient completion / soft-completion / macro-arg-hint state on
         # the captured target before the edit: the ``#`` is about to disappear, so
         # any menu or hint anchored to it would otherwise linger over the spliced
         # body.
@@ -182,7 +182,7 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
     ) -> None:
         """Insert *snippet_name* (and optional smart args) into *text_area*."""
         start, end = text_area.selection
-        if entry is not None and self._insert_xprompt_smart_snippet(
+        if entry is not None and self._insert_macro_smart_snippet(
             text_area,
             entry,
             start,
@@ -197,14 +197,14 @@ class PromptInputBarTargetActionsMixin(_MixinBase):
         text_area._maybe_show_inserted_macro_arg_hint(reference_start, reference_end)
         text_area.focus()
 
-    def _insert_xprompt_smart_snippet(
+    def _insert_macro_smart_snippet(
         self,
         text_area: PromptTextArea,
         entry: MacroAssistEntry,
         start: tuple[int, int],
         end: tuple[int, int],
     ) -> bool:
-        """Insert a selected xprompt using the Ctrl+T completion skeleton."""
+        """Insert a selected macro using the Ctrl+T completion skeleton."""
         # End-of-line required-text insertions get the ``:: `` shorthand; inline
         # ones keep ``::`` so existing following text is the single delimiter.
         line = text_area.document.get_line(end[0])

@@ -80,7 +80,7 @@ async def test_memory_request_carries_note_under_cursor(
         monkeypatch.setattr(
             "sase.ace.tui.widgets._prompt_jump_target.detect_jump_target_at_cursor",
             lambda *_args, **_kwargs: SimpleNamespace(
-                kind="xprompt",
+                kind="macro",
                 target=f"memory/{_SASE_BEADS}",
             ),
         )
@@ -92,7 +92,7 @@ async def test_memory_request_carries_note_under_cursor(
         assert app.memory_requests[0].note_reference == _SASE_BEADS_REF
 
 
-async def test_memory_request_is_none_for_non_memory_xprompt(
+async def test_memory_request_is_none_for_non_memory_macro(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = GPrefixHintApp("see #run here")
@@ -103,7 +103,7 @@ async def test_memory_request_is_none_for_non_memory_xprompt(
         monkeypatch.setattr(
             "sase.ace.tui.widgets._prompt_jump_target.detect_jump_target_at_cursor",
             lambda *_args, **_kwargs: SimpleNamespace(
-                kind="xprompt",
+                kind="macro",
                 target="run",
             ),
         )

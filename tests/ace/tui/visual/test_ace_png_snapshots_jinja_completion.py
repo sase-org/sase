@@ -43,7 +43,7 @@ def _show_engine_menu(
     """Build the engine menu for *text* and show it on *bar*.
 
     With *mini_scope* the active pane becomes a mini-macro pane, so the
-    menu runs in ``xprompt`` scope with the pane's own frontmatter: the
+    menu runs in ``macro`` scope with the pane's own frontmatter: the
     grid then shows inputs, sase names, conditional rows, Jinja globals,
     and legacy aliases together, with the ``#name`` scope label.
     """
@@ -108,7 +108,7 @@ async def test_jinja_variable_completion_png_snapshot(
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "draft ")
 
-        # A mini-macro pane runs in ``xprompt`` scope with its own
+        # A mini-macro pane runs in ``macro`` scope with its own
         # inputs: one grid shows inputs, sase names, the conditional
         # ``n`` row, Jinja globals, and a legacy alias together.
         _show_engine_menu(bar, "{{ n", 0, mini_scope=True)

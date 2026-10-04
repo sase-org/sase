@@ -1,4 +1,4 @@
-"""Tests for terminal agent xprompt syntax highlighting and caching."""
+"""Tests for terminal agent raw_prompt syntax highlighting and caching."""
 
 from __future__ import annotations
 
@@ -16,15 +16,15 @@ from tests.ace.tui.widgets._agent_display_helpers import (
     make_artifact_agent,
     plain_of,
 )
-from tests.ace.tui.widgets._agent_display_xprompt_helpers import (
+from tests.ace.tui.widgets._agent_display_raw_prompt_helpers import (
     _header_text,
     _last_style_at,
     _styles_at,
 )
 
 
-class TestAgentXPromptHighlighting:
-    def test_agent_xprompt_body_uses_logical_project_name(
+class TestAgentRawPromptHighlighting:
+    def test_agent_raw_prompt_body_uses_logical_project_name(
         self,
         tmp_path: Path,
         monkeypatch,
@@ -39,7 +39,7 @@ class TestAgentXPromptHighlighting:
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt=(
+            raw_prompt=(
                 "#gh:gh_acme__widgets fix\n"
                 "#gh(gh_acme__widgets) inspect\n"
                 "path: /tmp/gh_acme__widgets/file"
@@ -62,7 +62,7 @@ class TestAgentXPromptHighlighting:
             "#gh:widgets",
         )
 
-    def test_agent_xprompt_body_renders_project_tags_with_accents(
+    def test_agent_raw_prompt_body_renders_project_tags_with_accents(
         self,
         tmp_path: Path,
         monkeypatch,
@@ -95,7 +95,7 @@ class TestAgentXPromptHighlighting:
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt="#gh:gh_acme__widgets fix the bug",
+            raw_prompt="#gh:gh_acme__widgets fix the bug",
         )
         agent.project_file = "/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase"
         agent.project_display_name = "widgets"
@@ -110,7 +110,7 @@ class TestAgentXPromptHighlighting:
         assert "dim #C75A31" in _styles_at(header, "+widgets")
         assert "bold #C75A31" in _styles_at(header, "widgets")
 
-    def test_agent_xprompt_highlights_warm_catalog_skills(
+    def test_agent_raw_prompt_highlights_warm_catalog_skills(
         self,
         tmp_path: Path,
     ) -> None:
@@ -135,7 +135,7 @@ class TestAgentXPromptHighlighting:
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt="#git:sase Use /sase_plan",
+            raw_prompt="#git:sase Use /sase_plan",
         )
 
         panel.update_display(agent)
@@ -144,7 +144,7 @@ class TestAgentXPromptHighlighting:
         assert MACRO_TOKEN_STYLES["skill"] in _styles_at(header, "/sase_plan")
         assert calls == [("sase", True)]
 
-    def test_agent_xprompt_highlights_inline_code_after_humanizing(
+    def test_agent_raw_prompt_highlights_inline_code_after_humanizing(
         self,
         tmp_path: Path,
         monkeypatch,
@@ -159,7 +159,7 @@ class TestAgentXPromptHighlighting:
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt="#gh:gh_acme__widgets Run `pytest`",
+            raw_prompt="#gh:gh_acme__widgets Run `pytest`",
         )
         agent.project_file = "/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase"
         agent.project_display_name = "widgets"
@@ -170,7 +170,7 @@ class TestAgentXPromptHighlighting:
         assert "AGENT RAW PROMPT\n#gh:widgets Run `pytest`" in header.plain
         assert any("#e6db74" in style for style in _styles_at(header, "pytest"))
 
-    def test_agent_xprompt_highlights_artifact_refs_after_xprompt_args(
+    def test_agent_raw_prompt_highlights_artifact_refs_after_raw_prompt_args(
         self,
         tmp_path: Path,
     ) -> None:
@@ -178,7 +178,7 @@ class TestAgentXPromptHighlighting:
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt=("#work(@plans:202608/design.md#L12) and `@plans:literal.md`"),
+            raw_prompt=("#work(@plans:202608/design.md#L12) and `@plans:literal.md`"),
         )
 
         panel.update_display(agent)
@@ -198,7 +198,7 @@ class TestAgentXPromptHighlighting:
             if span.start <= literal_offset < span.end and span.style is not None
         }
 
-    def test_xprompt_highlight_cache_invalidates_when_ref_theme_changes(
+    def test_raw_prompt_highlight_cache_invalidates_when_ref_theme_changes(
         self,
         tmp_path: Path,
         monkeypatch,
@@ -237,7 +237,7 @@ class TestAgentXPromptHighlighting:
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt="@plans:202608/design.md",
+            raw_prompt="@plans:202608/design.md",
         )
 
         panel.update_display(agent)
@@ -255,7 +255,7 @@ class TestAgentXPromptHighlighting:
         panel.update_display(agent)
         assert calls == 2
 
-    def test_xprompt_highlight_cache_reuses_content_and_resets_for_new_agent(
+    def test_raw_prompt_highlight_cache_reuses_content_and_resets_for_new_agent(
         self,
         tmp_path: Path,
         monkeypatch,
@@ -284,7 +284,7 @@ class TestAgentXPromptHighlighting:
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt="#foo %auto",
+            raw_prompt="#foo %auto",
         )
 
         panel.update_display(agent)

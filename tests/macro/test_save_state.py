@@ -12,9 +12,9 @@ def test_last_used_locations_round_trip_independently(tmp_path: Path) -> None:
     state = tmp_path / "xprompt_save_state.json"
     with patch("sase.macro.save_state._SAVE_STATE_FILE", state):
         assert load_last_used_locations() == {}
-        assert save_last_used_location("xprompt", "/tmp/xprompts")
+        assert save_last_used_location("macro", "/tmp/xprompts")
         assert save_last_used_location("snippet", "/tmp/sase.yml")
         assert load_last_used_locations() == {
-            "xprompt": "/tmp/xprompts",
+            "macro": "/tmp/xprompts",
             "snippet": "/tmp/sase.yml",
         }

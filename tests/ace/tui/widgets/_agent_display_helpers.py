@@ -106,12 +106,12 @@ def make_artifact_agent(
     tmp_path: Path,
     *,
     status: str,
-    raw_xprompt: str = "Launch from @src/raw.py",
+    raw_prompt: str = "Launch from @src/raw.py",
     workspace_dir: str | None = None,
 ) -> Agent:
     artifacts_dir = tmp_path / f"{status.lower()}-artifacts"
     artifacts_dir.mkdir()
-    (artifacts_dir / "raw_xprompt.md").write_text(raw_xprompt, encoding="utf-8")
+    (artifacts_dir / "raw_prompt.md").write_text(raw_prompt, encoding="utf-8")
     (artifacts_dir / "01_prompt.md").write_text(
         "Expanded prompt body\n",
         encoding="utf-8",

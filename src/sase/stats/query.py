@@ -70,9 +70,9 @@ def query_run_stats(
             "top_n": int(top_n),
             "project": project,
             "work_top_n": int(work_top_n),
-            "xprompt_top_n": int(macro_top_n),
-            "xprompt_breakdown_top_n": int(macro_breakdown_top_n),
-            "xprompt_focus": macro_focus,
+            "macro_top_n": int(macro_top_n),
+            "macro_breakdown_top_n": int(macro_breakdown_top_n),
+            "macro_focus": macro_focus,
         },
     )
     return payload

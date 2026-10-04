@@ -21,7 +21,7 @@ from .statistics_pane_data import (
     ProjectsGroupBy,
     StatisticsView,
     StatisticsViewData,
-    XPromptsGroupBy,
+    MacrosGroupBy,
     VIEW_LABELS,
     VIEW_ORDER,
     statistics_view_supports_grouping,
@@ -37,7 +37,7 @@ _PROJECTS_GROUP_LABELS: dict[ProjectsGroupBy, str] = {
     "patch": "By Patch",
     "drilldown": "Project → Patch",
 }
-_XPROMPTS_GROUP_LABELS: dict[XPromptsGroupBy, str] = {
+_MACROS_GROUP_LABELS: dict[MacrosGroupBy, str] = {
     "usage": "By Usage",
     "model": "By Model",
     "project": "By Project",
@@ -60,10 +60,10 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _keymaps: StatisticsPaneKeymaps
     _view: StatisticsView
     _projects_group_by: ProjectsGroupBy
-    _xprompts_group_by: XPromptsGroupBy
+    _macros_group_by: MacrosGroupBy
     _perf_group_by: PerfGroupBy
     _project_filter: str | None
-    _xprompt_focus: str | None
+    _macro_focus: str | None
     _preset_key: PresetKey | None
     _range: StatsRange
     _loading: bool
@@ -130,13 +130,13 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         ``plans_questions`` are timestamped by when their skill/memory/plan/
         question events happened, not by when the producing agent launched,
         so a window with zero launches can still hold data for those two.
-        ``runners``, ``xprompts``, and ``perf`` render their own empty states.
+        ``runners``, ``macros``, and ``perf`` render their own empty states.
         """
         if self._view == "activity":
             return result.views.activity.empty
         if self._view == "plans_questions":
             return result.views.plans_questions.empty
-        if self._view in {"runners", "xprompts", "perf"}:
+        if self._view in {"runners", "macros", "perf"}:
             return False
         return result.views.empty
 
@@ -356,9 +356,9 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 f"Projects · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}",
                 style=f"bold {_GREEN}",
             )
-        elif self._view == "xprompts":
+        elif self._view == "macros":
             scope.append(
-                f"XPrompts · {_XPROMPTS_GROUP_LABELS[self._xprompts_group_by]}",
+                f"Macros · {_MACROS_GROUP_LABELS[self._macros_group_by]}",
                 style=f"bold {_GREEN}",
             )
         elif self._view == "perf":
@@ -392,17 +392,17 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             scope.append(" · not applied", style="dim")
         return scope
 
-    def _xprompt_scope_text(self) -> Text:
+    def _macro_scope_text(self) -> Text:
         scope = self._scope_text(
-            self._effective_xprompt_keys(),
-            "XPrompt",
+            self._effective_macro_keys(),
+            "Macro",
             accent=_ACCENT,
         )
-        if self._xprompt_focus is None:
-            scope.append("All xprompts", style=f"bold {_ACCENT}")
+        if self._macro_focus is None:
+            scope.append("All macros", style=f"bold {_ACCENT}")
         else:
-            scope.append("■ ", style=categorical_color(self._xprompt_focus))
-            scope.append(f"#{self._xprompt_focus}", style=f"bold {_ACCENT}")
+            scope.append("■ ", style=categorical_color(self._macro_focus))
+            scope.append(f"#{self._macro_focus}", style=f"bold {_ACCENT}")
         return scope
 
     def _hints_text(self) -> Text:
@@ -433,10 +433,10 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 key = self._effective_scroll_keys()
             hints.append(key, style=f"bold {color}")
             hints.append(f" {description}")
-        if self._view == "xprompts":
+        if self._view == "macros":
             hints.append("   ")
             hints.append(
-                self._effective_key("focus_xprompt"),
+                self._effective_key("focus_macro"),
                 style=f"bold {_ACCENT}",
             )
             hints.append(" focus")
@@ -465,12 +465,12 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             )
         )
 
-    def _effective_xprompt_keys(self) -> str:
+    def _effective_macro_keys(self) -> str:
         """Combine the configured focus and clear-focus keys."""
         return "/".join(
             (
-                self._effective_key("focus_xprompt"),
-                self._effective_key("clear_xprompt_focus"),
+                self._effective_key("focus_macro"),
+                self._effective_key("clear_macro_focus"),
             )
         )
 
@@ -496,9 +496,9 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             pass
         self._update_static("#statistics-scope-project", self._project_scope_text())
         try:
-            xprompt_scope = self.query_one("#statistics-scope-xprompt", Static)
-            xprompt_scope.set_class(self._view != "xprompts", "hidden")
-            xprompt_scope.update(self._xprompt_scope_text())
+            macro_scope = self.query_one("#statistics-scope-macro", Static)
+            macro_scope.set_class(self._view != "macros", "hidden")
+            macro_scope.update(self._macro_scope_text())
         except Exception:
             pass
 

@@ -40,7 +40,7 @@ def test_clan_tribe_reassignment_rewrites_only_declaring_prompt(
         ),
     ):
         artifacts_dir.mkdir()
-        (artifacts_dir / "raw_xprompt.md").write_text(prompt, encoding="utf-8")
+        (artifacts_dir / "raw_prompt.md").write_text(prompt, encoding="utf-8")
         (artifacts_dir / "agent_meta.json").write_text(
             json.dumps(
                 {
@@ -80,13 +80,13 @@ def test_clan_tribe_reassignment_rewrites_only_declaring_prompt(
             [declarer, joiner],
         )
 
-    assert (declarer_dir / "raw_xprompt.md").read_text(encoding="utf-8") == (
+    assert (declarer_dir / "raw_prompt.md").read_text(encoding="utf-8") == (
         "%id:research.lead\n"
         "%clan(research, tribe=new, "
         "summary_script=sase_clan_summary_epic)\n"
         "Lead"
     )
-    assert (joiner_dir / "raw_xprompt.md").read_text(encoding="utf-8") == (
+    assert (joiner_dir / "raw_prompt.md").read_text(encoding="utf-8") == (
         "%id(worker, clan=research)\nWork"
     )
     assert (
@@ -153,7 +153,7 @@ def test_member_edit_writes_meta_and_record(tmp_path: Path, monkeypatch: Any) ->
     assert member.clan_tribe == "new"
     meta = json.loads((member_dir / "agent_meta.json").read_text(encoding="utf-8"))
     assert meta["clan_tribe"] == "new"
-    prompt = (member_dir / "raw_xprompt.md").read_text(encoding="utf-8")
+    prompt = (member_dir / "raw_prompt.md").read_text(encoding="utf-8")
     assert "%clan(research, tribe=new" in prompt
     record = load_clan_record("research", strict=True)
     assert record is not None

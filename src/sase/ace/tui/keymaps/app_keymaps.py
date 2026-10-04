@@ -167,7 +167,7 @@ class AppKeymaps:
     stop_axe_and_quit: str
     start_custom_agent: str
     start_agent_from_patch: str
-    start_last_vcs_xprompt_in_editor: str
+    start_last_vcs_macro_in_editor: str
     restore_prompt_stash: str
     act_on_agent: str
     jump_to_agent_patch: str
@@ -289,8 +289,8 @@ class StatisticsPaneKeymaps:
     cycle_group: str = "g"
     cycle_project_filter: str = "p"
     cycle_project_filter_reverse: str = "P"
-    focus_xprompt: str = "x"
-    clear_xprompt_focus: str = "X"
+    focus_macro: str = "x"
+    clear_macro_focus: str = "X"
     scroll_down: str = "ctrl+d"
     scroll_up: str = "ctrl+u"
     refresh: str = "r"

@@ -69,7 +69,7 @@ def test_legacy_tasks_current_migrates_to_procs_on_load(
     assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")
 
 
-def test_persisted_xprompts_resume_maps_to_config(
+def test_persisted_macros_resume_maps_to_config(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:

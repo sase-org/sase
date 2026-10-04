@@ -30,7 +30,7 @@ from sase.ace.tui.widgets._prompt_text_area_key_g_prefix import (
 )
 from sase.ace.tui.widgets._prompt_text_area_key_pairing import (
     PromptTextAreaKeyPairingMixin,
-    plan_xprompt_spacer_pair_conversion,
+    plan_macro_spacer_pair_conversion,
 )
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     )
 
 
-def _is_auto_xprompt_menu_character(character: str | None) -> bool:
+def _is_auto_macro_menu_character(character: str | None) -> bool:
     """Return True for printable non-whitespace inserted characters."""
     return (
         character is not None
@@ -103,7 +103,7 @@ class PromptTextAreaKeyHandlingMixin(
         def _clear_file_completion(
             self,
             *,
-            clear_xprompt_arg_hint: bool = True,
+            clear_macro_arg_hint: bool = True,
         ) -> None: ...
         def _clear_soft_completion(
             self,
@@ -155,7 +155,7 @@ class PromptTextAreaKeyHandlingMixin(
         def _try_expand_snippet(self) -> bool: ...
         def _try_auto_prompt_reference_completion(self) -> bool: ...
         def _try_file_completion_tab(self) -> bool: ...
-        def _try_xprompt_arg_name_completion_cycle(
+        def _try_macro_arg_name_completion_cycle(
             self,
             *,
             last: bool = False,
@@ -210,7 +210,7 @@ class PromptTextAreaKeyHandlingMixin(
         if (
             self._vim_mode == "insert"
             and not self._file_completion_active
-            and _is_auto_xprompt_menu_character(character)
+            and _is_auto_macro_menu_character(character)
             and self._try_auto_jinja_completion()
         ):
             self._refresh_macro_arg_hint_from_cursor()
@@ -229,11 +229,11 @@ class PromptTextAreaKeyHandlingMixin(
             self._vim_mode == "insert"
             and not self._file_completion_active
             and (
-                settings.auto_xprompt_menu
+                settings.auto_macro_menu
                 or settings.auto_directive_menu
                 or settings.auto_artifact_menu
             )
-            and _is_auto_xprompt_menu_character(character)
+            and _is_auto_macro_menu_character(character)
         ):
             self._try_auto_prompt_reference_completion()
         self._refresh_macro_arg_hint_from_cursor()
@@ -241,7 +241,7 @@ class PromptTextAreaKeyHandlingMixin(
 
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
-        # A just-accepted no-required-input xprompt left a trailing spacer
+        # A just-accepted no-required-input macro left a trailing spacer
         # (``#name ``). An immediate comma replaces it for both no-input and
         # optional-only entries; an immediate colon does so only for
         # optional-only entries, and an immediate opening parenthesis consumes
@@ -268,7 +268,7 @@ class PromptTextAreaKeyHandlingMixin(
                 if self._vim_mode == "insert" and start == end:
                     text = self.text
                     offset = self._absolute_offset(self.cursor_location)
-                    plan = plan_xprompt_spacer_pair_conversion(
+                    plan = plan_macro_spacer_pair_conversion(
                         text,
                         offset,
                         self.cursor_location,
@@ -369,7 +369,7 @@ class PromptTextAreaKeyHandlingMixin(
 
         # INSERT mode: Escape / Ctrl+] dismiss any active completion UI and
         # enter NORMAL mode. ``_enter_normal_mode`` already clears manual
-        # completion, soft completion, and xprompt arg hints, so an open
+        # completion, soft completion, and macro arg hints, so an open
         # completion menu and the no-completion path both land in NORMAL mode
         # through the same transition helper.
         if event.key in INSERT_NORMAL_MODE_KEYS:
@@ -471,7 +471,7 @@ class PromptTextAreaKeyHandlingMixin(
         if event.key == "ctrl+n":
             event.stop()
             event.prevent_default()
-            if self._try_xprompt_arg_name_completion_cycle():
+            if self._try_macro_arg_name_completion_cycle():
                 return
             self._handle_vcs_mru_cycle_key("ctrl+n")
             return
@@ -479,7 +479,7 @@ class PromptTextAreaKeyHandlingMixin(
         if event.key == "ctrl+p":
             event.stop()
             event.prevent_default()
-            if self._try_xprompt_arg_name_completion_cycle(last=True):
+            if self._try_macro_arg_name_completion_cycle(last=True):
                 return
             self._handle_vcs_mru_cycle_key("ctrl+p")
             return

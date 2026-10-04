@@ -112,7 +112,7 @@ def create_prompt_history_label(
         project_ref_style = "dim italic"
     else:
         project_ref_style = _history_project_ref_style(summary)
-    xprompt_style = "dim italic" if is_cancelled else "green"
+    macro_style = "dim italic" if is_cancelled else "green"
     directive_style = "dim italic" if is_cancelled else "yellow"
 
     last_used = _format_history_timestamp(item.entry.last_used)
@@ -125,7 +125,7 @@ def create_prompt_history_label(
     text.append(" " * _COLUMN_GAP_WIDTH, style="dim")
     _append_project_column(text, summary, metadata_style, project_ref_style)
     text.append(" " * _COLUMN_GAP_WIDTH, style="dim")
-    _append_tag_columns(text, summary, xprompt_style, directive_style)
+    _append_tag_columns(text, summary, macro_style, directive_style)
     text.append(" " * _COLUMN_GAP_WIDTH, style="dim")
     text.append(prompt, style=prompt_style)
 
@@ -176,11 +176,11 @@ def _append_project_column(
 def _append_tag_columns(
     text: Text,
     summary: PromptListSummary,
-    xprompt_style: str,
+    macro_style: str,
     directive_style: str,
 ) -> None:
-    """Append the fixed-width xprompt/directive tag column."""
-    tokens = [(chip, xprompt_style) for chip in summary.macros]
+    """Append the fixed-width macro/directive tag column."""
+    tokens = [(chip, macro_style) for chip in summary.macros]
     if summary.directive_token:
         tokens.append((summary.directive_token, directive_style))
 

@@ -77,10 +77,10 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(
             bar, "request_mini_macro_target_pane", lambda: calls.append("x")
         )
-        monkeypatch.setattr(bar, "request_save_as_xprompt", lambda: calls.append("X"))
+        monkeypatch.setattr(bar, "request_save_as_macro", lambda: calls.append("X"))
         monkeypatch.setattr(
             bar,
-            "convert_active_pane_to_local_xprompt",
+            "convert_active_pane_to_local_macro",
             lambda **_: calls.append("L"),
         )
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
@@ -184,7 +184,7 @@ async def test_dispatch_g_prefix_key_can_target_insert_mode(
         )
         monkeypatch.setattr(
             bar,
-            "convert_active_pane_to_local_xprompt",
+            "convert_active_pane_to_local_macro",
             lambda *, target_mode="normal": calls.append(f"L:{target_mode}"),
         )
 

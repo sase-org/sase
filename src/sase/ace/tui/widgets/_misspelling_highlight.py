@@ -25,7 +25,7 @@ else:
 class MisspellingHighlightMixin(_MixinBase):
     """Underline words the user's ``K`` presses have proven misspelled.
 
-    Structural overlays (xprompt, artifact, alt, placeholder, code block) are
+    Structural overlays (macro, artifact, alt, placeholder, code block) are
     registered after this mixin in ``PromptTextArea``'s base list and therefore
     win on overlap; this overlay only ever adds an underline beneath base
     Markdown styling.
@@ -188,7 +188,7 @@ def _scan_misspelling_spans(
 
     Words inside fenced or inline code literals are skipped; structural
     overlays already win on overlap through MRO placement, so this scan need
-    not special-case Jinja/xprompt/placeholder token interiors.
+    not special-case Jinja/macro/placeholder token interiors.
     """
     if len(text.encode("utf-8")) > _MAX_OVERLAY_BYTES:
         return ()

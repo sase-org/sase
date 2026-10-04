@@ -1,4 +1,4 @@
-"""Tests for terminal agent xprompt rendering in hint mode."""
+"""Tests for terminal agent raw_prompt rendering in hint mode."""
 
 from __future__ import annotations
 
@@ -21,14 +21,14 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_logical_section_is_compact,
     assert_rendered_section_is_compact,
 )
-from tests.ace.tui.widgets._agent_display_xprompt_helpers import (
+from tests.ace.tui.widgets._agent_display_raw_prompt_helpers import (
     _header_text,
     _last_style_at,
     _styles_at,
 )
 
 
-class TestAgentXPromptHintMode:
+class TestAgentRawPromptHintMode:
     def test_hint_mode_prompt_and_chat_use_logical_project_name(
         self,
         tmp_path: Path,
@@ -44,7 +44,7 @@ class TestAgentXPromptHintMode:
         agent = make_artifact_agent(
             tmp_path,
             status="DONE",
-            raw_xprompt="#gh:gh_acme__widgets raw",
+            raw_prompt="#gh:gh_acme__widgets raw",
         )
         Path(agent.artifacts_dir, "01_prompt.md").write_text(
             "#gh:gh_acme__widgets prompt\n",
@@ -93,7 +93,7 @@ class TestAgentXPromptHintMode:
         assert "AGENT (bar) · ✓ DONE" in plain
         assert "AGENT (q)" not in plain
 
-    def test_hint_mode_renders_raw_xprompt_for_terminal_agent(
+    def test_hint_mode_renders_raw_prompt_for_terminal_agent(
         self,
         tmp_path: Path,
     ) -> None:
@@ -134,7 +134,7 @@ class TestAgentXPromptHintMode:
             "Final response body",
         )
 
-    def test_hint_mode_preserves_hints_and_adds_xprompt_overlays(
+    def test_hint_mode_preserves_hints_and_adds_raw_prompt_overlays(
         self,
         tmp_path: Path,
     ) -> None:
@@ -145,7 +145,7 @@ class TestAgentXPromptHintMode:
             tmp_path,
             status="DONE",
             workspace_dir=str(workspace_dir),
-            raw_xprompt="#work(@src/raw.py) %auto",
+            raw_prompt="#work(@src/raw.py) %auto",
         )
 
         result = panel.update_display_with_hints(agent)
@@ -174,7 +174,7 @@ class TestAgentXPromptHintMode:
             tmp_path,
             status="DONE",
             workspace_dir=str(workspace_dir),
-            raw_xprompt="#work(@plans:202608/design.md#L12) and @src/raw.py",
+            raw_prompt="#work(@plans:202608/design.md#L12) and @src/raw.py",
         )
 
         result = panel.update_display_with_hints(agent)
@@ -189,7 +189,7 @@ class TestAgentXPromptHintMode:
             artifact_ref_style_palette_from_theme(None).style_for_key("kind")
         )
 
-    def test_agent_session_hint_xprompt_keeps_typed_artifact_refs_semantic(
+    def test_agent_session_hint_raw_prompt_keeps_typed_artifact_refs_semantic(
         self,
         tmp_path: Path,
     ) -> None:
@@ -200,7 +200,7 @@ class TestAgentXPromptHintMode:
             tmp_path,
             status="DONE",
             workspace_dir=str(workspace_dir),
-            raw_xprompt="#work(@plans:202608/design.md#L12) and @src/raw.py",
+            raw_prompt="#work(@plans:202608/design.md#L12) and @src/raw.py",
         )
         hint_state = HeaderHintState(
             hint_counter=1,
@@ -214,8 +214,8 @@ class TestAgentXPromptHintMode:
             hint_state,
             workspace_dir=str(workspace_dir),
             budget=HintContentBudget(),
-            xprompt_agent=agent,
-            raw_xprompt=agent.get_raw_prompt_content(),
+            raw_prompt_agent=agent,
+            raw_prompt=agent.get_raw_prompt_content(),
         )
 
         assert text.plain == "#work(@plans:202608/design.md#L12) and [1] @src/raw.py"
@@ -238,7 +238,7 @@ class TestAgentXPromptHintMode:
             tmp_path,
             status="DONE",
             workspace_dir=str(workspace_dir),
-            raw_xprompt="Review the linked bead",
+            raw_prompt="Review the linked bead",
         )
         Path(agent.response_path).write_text(
             f"Read {url}, then open docs/local.md.\n",

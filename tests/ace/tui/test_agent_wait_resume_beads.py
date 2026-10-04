@@ -14,7 +14,7 @@ from tests.ace.tui._agent_wait_resume_helpers import (
 
 
 def test_apply_wait_preserves_bead_conditions(tmp_path: Path) -> None:
-    (tmp_path / "raw_xprompt.md").write_text(
+    (tmp_path / "raw_prompt.md").write_text(
         "%wait(old, bead=sase-87.2)\nDo work",
         encoding="utf-8",
     )
@@ -49,7 +49,7 @@ def test_apply_wait_preserves_bead_conditions(tmp_path: Path) -> None:
             ),
         )
 
-    assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == (
+    assert (tmp_path / "raw_prompt.md").read_text(encoding="utf-8") == (
         "%wait(new)\n%wait(bead=sase-87.2)\nDo work"
     )
     assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
@@ -66,7 +66,7 @@ def test_apply_wait_preserves_bead_conditions(tmp_path: Path) -> None:
 def test_apply_wait_bead_only_edit_writes_wait_for_beads_to_meta_and_waiting(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "raw_xprompt.md").write_text("Do work", encoding="utf-8")
+    (tmp_path / "raw_prompt.md").write_text("Do work", encoding="utf-8")
     agent = make_waiting_agent(
         artifacts_dir=str(tmp_path),
         waiting_for=[],
@@ -97,7 +97,7 @@ def test_apply_wait_bead_only_edit_writes_wait_for_beads_to_meta_and_waiting(
 def test_apply_wait_clearing_beads_keeps_agent_dep_removes_key_from_both(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "raw_xprompt.md").write_text(
+    (tmp_path / "raw_prompt.md").write_text(
         "%wait(old, bead=sase-1)\nDo work", encoding="utf-8"
     )
     (tmp_path / "agent_meta.json").write_text(

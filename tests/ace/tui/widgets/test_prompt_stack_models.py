@@ -10,7 +10,7 @@ from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
     SourceFingerprint,
-    XPromptBinding,
+    MacroBinding,
     split_frontmatter,
 )
 from sase.macro.models import InputArg, InputType
@@ -187,7 +187,7 @@ def test_binding_dirty_and_external_change_detection(tmp_path: Path) -> None:
     source = tmp_path / "review.md"
     source.write_text("body\n", encoding="utf-8")
     state = PromptStackState.from_text("body\n")
-    state.bind(XPromptBinding.for_file(source))
+    state.bind(MacroBinding.for_file(source))
     assert not state.is_dirty
     assert not state.source_changed()
 
@@ -220,8 +220,8 @@ def test_binding_uses_chezmoi_source_for_fingerprint_and_staleness(
 ) -> None:
     home = tmp_path / "home"
     source_root = home / ".local" / "share" / "chezmoi" / "home"
-    read_path = home / "sase" / "xprompts" / "review.md"
-    write_path = source_root / "sase" / "xprompts" / "review.md"
+    read_path = home / "sase" / "macros" / "review.md"
+    write_path = source_root / "sase" / "macros" / "review.md"
     read_path.parent.mkdir(parents=True)
     write_path.parent.mkdir(parents=True)
     read_path.write_text("applied\n", encoding="utf-8")
@@ -230,7 +230,7 @@ def test_binding_uses_chezmoi_source_for_fingerprint_and_staleness(
     monkeypatch.setattr("sase.macro.write_targets.CHEZMOI_HOME", source_root)
     monkeypatch.setattr("sase.macro.write_targets.get_use_chezmoi", lambda: True)
 
-    binding = XPromptBinding.for_file(read_path, reference="#review")
+    binding = MacroBinding.for_file(read_path, reference="#review")
     state = PromptStackState.from_text("body\n")
     state.bind(binding)
 
@@ -252,7 +252,7 @@ def test_mark_written_refreshes_binding_and_clears_dirty(tmp_path: Path) -> None
     source = tmp_path / "review.md"
     source.write_text("body\n", encoding="utf-8")
     state = PromptStackState.from_text("body")
-    state.bind(XPromptBinding.for_file(source))
+    state.bind(MacroBinding.for_file(source))
     state.selected_item.text = "changed"
     source.write_text("changed\n", encoding="utf-8")
     state.mark_written()
@@ -265,7 +265,7 @@ def test_bound_markdown_preserves_untouched_body_bytes(tmp_path: Path) -> None:
     source = tmp_path / "review.md"
     source.write_text(source_text, encoding="utf-8")
     state = PromptStackState.from_text(source_text)
-    state.bind(XPromptBinding.for_file(source), source_markdown=source_text)
+    state.bind(MacroBinding.for_file(source), source_markdown=source_text)
 
     frontmatter = state.frontmatter_model
     frontmatter.description = "new"

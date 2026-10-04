@@ -25,7 +25,7 @@ def _destination(tmp_path: Path, name: str = "review") -> MiniMacroDestinationTa
         name=name,
         location_path=str(tmp_path),
         path=str(path),
-        display_path=f"~/sase/xprompts/{name}.md",
+        display_path=f"~/sase/macros/{name}.md",
         target_format=SaveTargetFormat.MARKDOWN,
         entry_name=None,
         storage_name=name,
@@ -396,8 +396,8 @@ async def test_clean_mini_retarget_to_different_destination_becomes_dirty_and_gu
 async def test_mini_frontmatter_scope_isolated_from_agent_stack(
     tmp_path: Path,
 ) -> None:
-    agent_frontmatter = "---\nxprompts:\n  _agent: agent helper\n---"
-    mini_frontmatter = "---\nxprompts:\n  _mini: mini helper\n---"
+    agent_frontmatter = "---\nmacros:\n  _agent: agent helper\n---"
+    mini_frontmatter = "---\nmacros:\n  _mini: mini helper\n---"
     app = CaptureApp("agent prompt")
 
     async with app.run_test(size=(100, 30)) as pilot:
@@ -417,12 +417,12 @@ async def test_mini_frontmatter_scope_isolated_from_agent_stack(
         )
         mini_area = bar.active_text_area()
 
-        assert [
-            entry.name for entry in bar.local_xprompt_assist_entries(agent_area)
-        ] == ["_agent"]
-        assert [
-            entry.name for entry in bar.local_xprompt_assist_entries(mini_area)
-        ] == ["_mini"]
+        assert [entry.name for entry in bar.local_macro_assist_entries(agent_area)] == [
+            "_agent"
+        ]
+        assert [entry.name for entry in bar.local_macro_assist_entries(mini_area)] == [
+            "_mini"
+        ]
 
         bar.focus_frontmatter_panel()
         await pilot.pause()

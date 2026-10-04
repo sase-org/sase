@@ -284,8 +284,8 @@ from .stash_pane import StashPane as StashPane
 from .stashed_prompts_modal import StashRestoreResult as StashRestoreResult
 from .stashed_prompts_modal import StashedPromptsModal as StashedPromptsModal
 from .statistics_help_modal import StatisticsHelpModal as StatisticsHelpModal
-from .statistics_xprompt_picker_modal import (
-    StatisticsXPromptPickerModal as StatisticsXPromptPickerModal,
+from .statistics_macro_picker_modal import (
+    StatisticsMacroPickerModal as StatisticsMacroPickerModal,
 )
 from .status_modal import StatusModal as StatusModal
 from .help_modal import TabName as TabName
@@ -322,7 +322,7 @@ from .workspace_input_modal import WorkspaceInputModal as WorkspaceInputModal
 from .macro_config_modal import MacroConfigEntry as MacroConfigEntry
 from .macro_config_modal import MacroConfigEntryModal as MacroConfigEntryModal
 from .macro_filename_modal import MacroFilenameModal as MacroFilenameModal
-from .statistics_xprompt_picker_modal import XPromptFocusChoice as XPromptFocusChoice
+from .statistics_macro_picker_modal import MacroFocusChoice as MacroFocusChoice
 from .macro_item_modal import MacroItemModal as MacroItemModal
 from .macro_location_modal import MacroLocation as MacroLocation
 from .macro_location_modal import MacroLocationModal as MacroLocationModal

@@ -15,7 +15,7 @@ def test_select_and_open_editor_for_home_review_marker_reloads_as_review() -> No
     """A ` @`-marked multi-agent markdown editor return mounts a review bar.
 
     ``_select_and_open_editor_for_home`` strips the review marker, mounts a
-    prompt bar with editor-file (xprompt markdown) semantics - lifting
+    prompt bar with editor-file (macro markdown) semantics - lifting
     frontmatter and splitting ``---`` into panes - never launches, and preserves
     the caller's display/history context rather than falling back to generic
     home labels.

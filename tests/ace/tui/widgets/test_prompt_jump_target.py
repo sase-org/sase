@@ -21,9 +21,9 @@ def _detect(text: str, needle: str) -> JumpToken | None:
     return detect_jump_target_at_cursor(text, text.index(needle))
 
 
-def test_detects_xprompt_reference_and_file_line_suffix() -> None:
+def test_detects_macro_reference_and_file_line_suffix() -> None:
     assert _detect("run #foo:bar now", "bar") == JumpToken(
-        "xprompt",
+        "macro",
         "#foo:bar",
         "foo",
         None,
@@ -67,7 +67,7 @@ def test_detects_known_slash_skill_through_shared_preview_detection() -> None:
     )
 
     assert token == JumpToken(
-        "xprompt",
+        "macro",
         "/sase_plan",
         "sase_plan",
         None,
@@ -82,7 +82,7 @@ def test_detect_returns_none_for_plain_prose() -> None:
     assert detect_jump_target_at_cursor("nothing jumpable here", 4) is None
 
 
-def test_resolves_loadable_markdown_xprompt(
+def test_resolves_loadable_markdown_macro(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -98,12 +98,12 @@ def test_resolves_loadable_markdown_xprompt(
     )
 
     target = resolve_jump_target(
-        JumpToken("xprompt", "#review", "review", None, None, 0, 7),
+        JumpToken("macro", "#review", "review", None, None, 0, 7),
         project=None,
         base_dir=str(tmp_path),
     )
 
-    assert target.kind_label == "xprompt"
+    assert target.kind_label == "macro"
     assert target.title == "#review"
     assert target.source_path == str(source)
     assert target.line == 4
@@ -111,7 +111,7 @@ def test_resolves_loadable_markdown_xprompt(
     assert target.loadable_markdown == source.read_text(encoding="utf-8")
 
 
-def test_resolves_skill_label_from_xprompt(
+def test_resolves_skill_label_from_macro(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -128,7 +128,7 @@ def test_resolves_skill_label_from_xprompt(
     )
 
     target = resolve_jump_target(
-        JumpToken("xprompt", "#skill", "skill", None, None, 0, 6),
+        JumpToken("macro", "#skill", "skill", None, None, 0, 6),
         project=None,
         base_dir=str(tmp_path),
     )
@@ -155,7 +155,7 @@ def test_resolves_slash_skill_to_same_definition_with_slash_identity(
 
     target = resolve_jump_target(
         JumpToken(
-            "xprompt",
+            "macro",
             "/sase_plan",
             "sase_plan",
             None,
@@ -189,7 +189,7 @@ def test_slash_jump_rejects_stale_non_skill(
     with pytest.raises(JumpError, match="No skill named '/sase_plan' found"):
         resolve_jump_target(
             JumpToken(
-                "xprompt",
+                "macro",
                 "/sase_plan",
                 "sase_plan",
                 None,
@@ -209,7 +209,7 @@ def test_resolves_yaml_workflow_definition_line(
 ) -> None:
     source = tmp_path / "flows.yml"
     source.write_text(
-        "xprompts:\n  helper: ignored\nworkflows:\n  ship:\n    steps: []\n",
+        "macros:\n  helper: ignored\nworkflows:\n  ship:\n    steps: []\n",
         encoding="utf-8",
     )
     workflow = Workflow(
@@ -223,7 +223,7 @@ def test_resolves_yaml_workflow_definition_line(
     )
 
     target = resolve_jump_target(
-        JumpToken("xprompt", "#ship", "ship", None, None, 0, 5),
+        JumpToken("macro", "#ship", "ship", None, None, 0, 5),
         project="demo",
         base_dir=str(tmp_path),
     )
@@ -240,7 +240,7 @@ def test_resolves_config_source_to_real_yaml_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = tmp_path / "sase.yml"
-    source.write_text("xprompts:\n  review:\n    content: Body\n", encoding="utf-8")
+    source.write_text("macros:\n  review:\n    content: Body\n", encoding="utf-8")
     monkeypatch.setattr(
         "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
         lambda name, project=None: Macro(
@@ -255,7 +255,7 @@ def test_resolves_config_source_to_real_yaml_file(
     )
 
     target = resolve_jump_target(
-        JumpToken("xprompt", "#review", "review", None, None, 0, 7),
+        JumpToken("macro", "#review", "review", None, None, 0, 7),
         project=None,
         base_dir=str(tmp_path),
     )
@@ -265,7 +265,7 @@ def test_resolves_config_source_to_real_yaml_file(
     assert target.line == 1
 
 
-def test_missing_xprompt_and_definition_file_raise_distinct_errors(
+def test_missing_macro_and_definition_file_raise_distinct_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -273,9 +273,9 @@ def test_missing_xprompt_and_definition_file_raise_distinct_errors(
         lambda name, project=None: None,
     )
 
-    with pytest.raises(JumpError, match="No xprompt or skill named '#missing'"):
+    with pytest.raises(JumpError, match="No macro or skill named '#missing'"):
         resolve_jump_target(
-            JumpToken("xprompt", "#missing", "missing", None, None, 0, 8),
+            JumpToken("macro", "#missing", "missing", None, None, 0, 8),
             project=None,
             base_dir=".",
         )
@@ -286,7 +286,7 @@ def test_missing_xprompt_and_definition_file_raise_distinct_errors(
     )
     with pytest.raises(JumpError, match="No definition file found for #builtin"):
         resolve_jump_target(
-            JumpToken("xprompt", "#builtin", "builtin", None, None, 0, 8),
+            JumpToken("macro", "#builtin", "builtin", None, None, 0, 8),
             project=None,
             base_dir=".",
         )

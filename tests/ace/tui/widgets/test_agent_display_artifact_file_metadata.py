@@ -87,7 +87,7 @@ class TestArtifactFileMetadata:
             ),
             encoding="utf-8",
         )
-        (artifacts_dir / "raw_xprompt.md").write_text(
+        (artifacts_dir / "raw_prompt.md").write_text(
             "Compare this prompt image: screenshots/prompt.jpg\n",
             encoding="utf-8",
         )

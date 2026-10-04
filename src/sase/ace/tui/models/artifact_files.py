@@ -72,7 +72,7 @@ def get_artifacts_dir(agent: Agent) -> str | None:
             # -> artifacts dir "mentor-code_quality"
             workflow_name = f"mentor-{agent.mentor_name}"
         elif workflow == "fix_hook":
-            # VCS workspace claim uses "fix_hook" (from xprompt
+            # VCS workspace claim uses "fix_hook" (from raw_prompt
             # workflow_label) but artifacts dir is "fix-hook"
             workflow_name = "fix-hook"
         elif _is_monitor_claim_workflow(workflow):
@@ -166,10 +166,10 @@ def extract_artifacts_timestamp(agent: Agent) -> str | None:
 
 
 def get_raw_prompt_content(agent: Agent) -> str | None:
-    """Get the raw xprompt content (before preprocessing/expansion).
+    """Get the raw prompt content (before preprocessing/expansion).
 
     Returns:
-        Raw xprompt content string, or None if not available.
+        Raw prompt content string, or None if not available.
     """
     try:
         artifacts_dir = agent.get_artifacts_dir()
@@ -194,7 +194,7 @@ def get_restartable_prompt_content(
 ) -> str | None:
     """Return a complete prompt suitable for restarting *agent*.
 
-    ``raw_xprompt.md`` is authoritative. Historical plan-chain members may
+    ``raw_prompt.md`` is authoritative. Historical plan-chain members may
     lack it, so their cached detail-panel ``*_prompt.md`` selection is used as
     a body and any consumed launch context is reconstructed from already-loaded
     row metadata and ancestor artifacts.

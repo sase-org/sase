@@ -103,7 +103,7 @@ def test_update_header_only_does_not_touch_disk(tmp_path: Path) -> None:
     # listdir / open spies below.
     (artifacts_dir / "01_prompt.md").write_text("prompt body\n", encoding="utf-8")
     (artifacts_dir / "live_reply.md").write_text("live reply\n", encoding="utf-8")
-    (artifacts_dir / "xprompts.json").write_text(
+    (artifacts_dir / "macros.json").write_text(
         json.dumps(
             [
                 {
@@ -220,13 +220,13 @@ def test_update_header_only_failed_without_recorded_error_shows_output() -> None
     assert "Output: /tmp/demo-runner.log" in plain
 
 
-def test_update_header_only_skips_xprompts_disk_read(
+def test_update_header_only_skips_macros_disk_read(
     tmp_path: Path,
 ) -> None:
-    """``cheap=True`` must not call ``load_xprompts_used``."""
+    """``cheap=True`` must not call ``load_macros_used``."""
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
-    (artifacts_dir / "xprompts.json").write_text(
+    (artifacts_dir / "macros.json").write_text(
         json.dumps(
             [
                 {
@@ -245,16 +245,16 @@ def test_update_header_only_skips_xprompts_disk_read(
 
     panel = _FakePanel()
     with patch(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_parts.load_xprompts_used"
+        "sase.ace.tui.widgets.prompt_panel._agent_display_parts.load_macros_used"
     ) as mock_load:
         panel.update_header_only(agent)
 
     assert mock_load.call_count == 0, (
-        "cheap header-only path must not call load_xprompts_used"
+        "cheap header-only path must not call load_macros_used"
     )
     plain = _plain_of(panel.captured[-1])
-    # Without the disk read, the Xprompts field should be omitted.
-    assert "Xprompts" not in plain
+    # Without the disk read, the Macros field should be omitted.
+    assert "Macros" not in plain
 
 
 def test_update_display_header_renders_debounced_full_enrichment(

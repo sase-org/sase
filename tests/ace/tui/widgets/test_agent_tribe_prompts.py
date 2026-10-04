@@ -47,18 +47,18 @@ def _agent(name: str, suffix: str, **overrides: object) -> Agent:
 def _member_snapshot(
     member: Agent,
     label: str,
-    xprompt: str | None = None,
+    macro: str | None = None,
     prompt: str | None = None,
 ) -> ClanDiskMemberSnapshot:
     entries: list[ClanTextEntry] = []
-    if xprompt is not None:
+    if macro is not None:
         entries.append(
             ClanTextEntry(
                 member_identity=member.identity,
                 member_label=label,
                 kind="AGENT RAW PROMPT",
-                preview=xprompt.splitlines()[0] if xprompt else "",
-                body=xprompt,
+                preview=macro.splitlines()[0] if macro else "",
+                body=macro,
             )
         )
     if prompt is not None:
@@ -101,7 +101,7 @@ def _digest(raw: str) -> tribe_prompts.PromptDigest:
     agent = _agent("solo", f"solo-{abs(hash(raw)) % 10_000_000}")
     snapshot = build_tribe_prompts(
         (_source(agent, "solo"),),
-        {agent.identity: _member_snapshot(agent, "solo", xprompt=raw)},
+        {agent.identity: _member_snapshot(agent, "solo", macro=raw)},
     )
     assert len(snapshot.groups) == 1
     return snapshot.groups[0].digest
@@ -139,10 +139,10 @@ def test_split_preamble_directives_only_prompt_has_empty_body() -> None:
 
 
 def test_split_preamble_monitor_followup_keeps_heading_body() -> None:
-    raw = "%xprompts_enabled:false\n# Monitored command finished\nDetails here.\n"
+    raw = "%macros_enabled:false\n# Monitored command finished\nDetails here.\n"
     preamble, body = split_prompt_preamble(raw)
 
-    assert preamble == "%xprompts_enabled:false"
+    assert preamble == "%macros_enabled:false"
     assert body == "# Monitored command finished\nDetails here.\n"
 
 
@@ -191,12 +191,12 @@ def test_digest_truncates_headline_at_a_word_boundary() -> None:
     assert "…" not in digest.headline[:-1]
 
 
-def test_digest_uses_xprompt_invocation_with_args_as_headline() -> None:
+def test_digest_uses_macro_invocation_with_args_as_headline() -> None:
     digest = _digest("#bd/work_phase_bead:sase-16t.3\n")
 
     assert digest.headline == "#bd/work_phase_bead:sase-16t.3"
     # The only chip is already visible in the headline, so none remain.
-    assert digest.xprompts == ()
+    assert digest.macros == ()
 
 
 def test_digest_strips_heading_markers() -> None:
@@ -210,7 +210,7 @@ def test_digest_directive_argument_colors_never_become_chips() -> None:
         "%clan(foo, summary=[bold #D75FFF]bar)\nInspect the docs for sase.\n"
     )
 
-    assert digest.xprompts == ()
+    assert digest.macros == ()
     assert digest.headline == "Inspect the docs for sase."
 
 
@@ -224,7 +224,7 @@ def test_digest_falls_back_when_a_helper_raises(monkeypatch: Any) -> None:
     assert digest.headline == "Real headline here"
     assert digest.body == "Real headline here\nBody line.\n"
     assert digest.headline_spans == () and digest.body_spans == ()
-    assert digest.xprompts == ()
+    assert digest.macros == ()
 
 
 def test_digest_lru_hit_skips_tokenization(monkeypatch: Any) -> None:
@@ -240,7 +240,7 @@ def test_digest_lru_hit_skips_tokenization(monkeypatch: Any) -> None:
     raw = "Count tokenization once %auto\nUnique body for lru hit test.\n"
     agent = _agent("lru", "lru-1")
     sources = (_source(agent, "lru"),)
-    snapshots = {agent.identity: _member_snapshot(agent, "lru", xprompt=raw)}
+    snapshots = {agent.identity: _member_snapshot(agent, "lru", macro=raw)}
 
     build_tribe_prompts(sources, snapshots)
     first_calls = calls
@@ -262,12 +262,12 @@ def test_identical_bodies_with_different_preambles_coalesce_in_order() -> None:
             _source(third, "third"),
         ),
         {
-            first.identity: _member_snapshot(first, "first", xprompt=f"%id(1)\n{body}"),
+            first.identity: _member_snapshot(first, "first", macro=f"%id(1)\n{body}"),
             second.identity: _member_snapshot(
-                second, "second", xprompt=f"%id(2)\n%wait:30\n{body}"
+                second, "second", macro=f"%id(2)\n%wait:30\n{body}"
             ),
             third.identity: _member_snapshot(
-                third, "third", xprompt="Something else entirely.\n"
+                third, "third", macro="Something else entirely.\n"
             ),
         },
     )
@@ -317,10 +317,10 @@ def test_same_body_in_different_projects_does_not_coalesce(monkeypatch: Any) -> 
         (_source(first, "first"), _source(second, "second")),
         {
             first.identity: _member_snapshot(
-                first, "first", xprompt=f"#gh:alpha\n{body}"
+                first, "first", macro=f"#gh:alpha\n{body}"
             ),
             second.identity: _member_snapshot(
-                second, "second", xprompt=f"#gh:beta\n{body}"
+                second, "second", macro=f"#gh:beta\n{body}"
             ),
         },
     )
@@ -333,8 +333,8 @@ def test_group_key_is_stable_across_rebuilds() -> None:
     first = _agent("first", "first")
     second = _agent("second", "second")
     members = {
-        first.identity: _member_snapshot(first, "first", xprompt="Stable body.\n"),
-        second.identity: _member_snapshot(second, "second", xprompt="Other body.\n"),
+        first.identity: _member_snapshot(first, "first", macro="Stable body.\n"),
+        second.identity: _member_snapshot(second, "second", macro="Other body.\n"),
     }
     sources = (_source(first, "first"), _source(second, "second"))
 
@@ -369,7 +369,7 @@ def test_monitors_gates_and_named_procs_are_skipped() -> None:
             _source(proc, "proc"),
         ),
         {
-            member.identity: _member_snapshot(member, "row", xprompt="Body.\n")
+            member.identity: _member_snapshot(member, "row", macro="Body.\n")
             for member in (monitor, gate, proc)
         },
     )
@@ -402,13 +402,13 @@ def test_workflow_step_children_use_only_their_step_prompt() -> None:
             shell_step.identity: _member_snapshot(
                 shell_step,
                 "shell-step",
-                xprompt="Parent raw xprompt, never attributed.\n",
+                macro="Parent raw macro, never attributed.\n",
                 prompt="Shell step body.\n",
             ),
             agent_step.identity: _member_snapshot(
                 agent_step,
                 "agent-step",
-                xprompt="Parent raw xprompt, never attributed.\n",
+                macro="Parent raw macro, never attributed.\n",
                 prompt="Agent step body.\n",
             ),
         },
@@ -445,7 +445,7 @@ def test_missing_snapshots_and_prompts_are_skipped() -> None:
         ),
         {
             present.identity: _member_snapshot(
-                present, "present", xprompt="Present body.\n"
+                present, "present", macro="Present body.\n"
             ),
             empty.identity: _member_snapshot(empty, "empty"),
         },

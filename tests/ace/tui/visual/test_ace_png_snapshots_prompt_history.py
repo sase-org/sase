@@ -6,7 +6,7 @@ import pytest
 
 import sase.ace.tui.modals.history_pane as history_pane
 import sase.history.prompt_metadata as prompt_metadata
-import sase.macro._parsing as xprompt_parsing
+import sase.macro._parsing as macro_parsing
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.prompts_modal import (
     PromptsModal,
@@ -141,5 +141,5 @@ def _entry(
 
 def _clear_prompt_metadata_caches() -> None:
     prompt_metadata.known_workflow_names.cache_clear()
-    xprompt_parsing._VCS_TAG_PATTERN = None
-    xprompt_parsing._VCS_TAG_EMBEDDED_PATTERN = None
+    macro_parsing._VCS_TAG_PATTERN = None
+    macro_parsing._VCS_TAG_EMBEDDED_PATTERN = None

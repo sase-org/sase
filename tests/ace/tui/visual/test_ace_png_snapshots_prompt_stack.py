@@ -11,7 +11,7 @@ from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceMod
 from sase.ace.tui.modals.snippet_name_modal import SnippetNameResult
 from sase.ace.tui.widgets import StashedPromptsIndicator
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
+from sase.ace.tui.widgets.prompt_stack import MacroBinding, MacroReadonlyTarget
 from sase.macro.snippet_targets import SnippetSaveTarget
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -41,7 +41,7 @@ TARGETED_MARKDOWN = (
     "  - ace\n"
     "  - target\n"
     "---\n"
-    "Audit the targeted xprompt editing state and keep the review notes concise."
+    "Audit the targeted macro editing state and keep the review notes concise."
 )
 
 SNIPPET_PANE_PROMPT = "Investigate the failing CI on the beads branch"
@@ -54,7 +54,7 @@ def _write_target_source(
     body: str = TARGETED_MARKDOWN,
 ) -> tuple[Path, Path]:
     fake_home = tmp_path / "home"
-    source = fake_home / "sase" / "xprompts" / f"{name}.md"
+    source = fake_home / "sase" / "macros" / f"{name}.md"
     source.parent.mkdir(parents=True)
     source.write_text(body, encoding="utf-8")
     return source, fake_home
@@ -221,7 +221,7 @@ async def test_prompt_stack_targeted_clean_png_snapshot(
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
         bar.load_stack_from_macro_markdown(
             TARGETED_MARKDOWN,
-            binding=XPromptBinding.for_file(source, reference="#visual-clean"),
+            binding=MacroBinding.for_file(source, reference="#visual-clean"),
         )
         await wait_for_svg_contains(page, "#visual-clean")
         await wait_for_visual_idle(page)
@@ -250,10 +250,10 @@ async def test_prompt_stack_targeted_dirty_png_snapshot(
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
         bar.load_stack_from_macro_markdown(
             TARGETED_MARKDOWN,
-            binding=XPromptBinding.for_file(source, reference="#visual-dirty"),
+            binding=MacroBinding.for_file(source, reference="#visual-dirty"),
         )
         bar.active_text_area().text = (
-            "Audit the targeted xprompt editing state, then add the dirty note."
+            "Audit the targeted macro editing state, then add the dirty note."
         )
         bar._sync_state_from_widgets()
         bar._refresh_title()
@@ -284,7 +284,7 @@ async def test_prompt_stack_targeted_readonly_png_snapshot(
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
         bar.load_stack_from_macro_markdown(
             TARGETED_MARKDOWN,
-            read_only_target=XPromptReadonlyTarget(
+            read_only_target=MacroReadonlyTarget(
                 reference="#visual-readonly",
                 path=str(source),
             ),
@@ -314,7 +314,7 @@ async def test_prompt_submit_choice_targeted_png_snapshot(
         await page.expect_state("tab", "patches")
         await mount_prompt_bar(page, "Review the targeted submit menu.")
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
-        binding = XPromptBinding.for_file(source, reference="#visual-menu")
+        binding = MacroBinding.for_file(source, reference="#visual-menu")
 
         page.app.push_screen(
             PromptSubmitChoiceModal(
@@ -368,19 +368,19 @@ async def test_prompt_stack_completion_panel_png_snapshot(
         bar = await mount_prompt_bar(page, TWO_PANE_PROMPT)
 
         # The completion panel is scoped to the active pane; render a
-        # deterministic xprompt completion to pin its in-stack styling.
+        # deterministic macro completion to pin its in-stack styling.
         bar.show_file_completions(
             "fo",
             XPROMPT_COMPLETION_ROWS,
             selected_index=1,
-            completion_kind="xprompt",
+            completion_kind="macro",
         )
         await wait_for_state(
             page,
             lambda: (
                 bar._completion_visible and bar._completion_panel_kind == "completion"
             ),
-            description="xprompt completion panel visibility",
+            description="macro completion panel visibility",
         )
         await wait_for_svg_contains(page, "followup")
         await wait_for_visual_idle(page)

@@ -10,7 +10,7 @@ def entry(name: str) -> MacroAssistEntry:
         name=name,
         insertion=f"#{name}",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(),
         content_preview=None,

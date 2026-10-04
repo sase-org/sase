@@ -1,4 +1,4 @@
-"""Widget tests for prompt VCS xprompt MRU cycling.
+"""Widget tests for prompt VCS macro MRU cycling.
 
 The launch-side identity is derived from the *submitted text*, so the prompt
 text must reflect the active workspace tag after prompt-local key handling.
@@ -103,7 +103,7 @@ async def _press_with_real_loader(
     """Cycle through the *real* launchable MRU loader (no loader patch).
 
     Used to assert that on-disk MRU entries excluded by
-    ``load_launchable_vcs_xprompt_mru`` (e.g. the implicit ``#git:home``
+    ``load_launchable_vcs_macro_mru`` (e.g. the implicit ``#git:home``
     default) never surface as cyclable candidates in the widget.
     """
     return await _press(start_text, keys, cursor_offset=cursor_offset)
@@ -117,7 +117,7 @@ async def test_cycling_skips_persisted_default_git_home_entry(
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     workspace = tmp_path / "ws"
     workspace.mkdir()
-    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file = sase_home / "vcs_macro_mru.json"
     mru_file.write_text(json.dumps({"entries": ["#git:foo", "#git:home", "#git:bar"]}))
 
     monkeypatch.setattr(
@@ -155,7 +155,7 @@ async def test_cycling_inserts_humanized_configured_project_name(
         f"PROJECT_NAME: widgets\nWORKSPACE_DIR: {workspace}\nNAME: proj_widgets_c\n",
         encoding="utf-8",
     )
-    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file = sase_home / "vcs_macro_mru.json"
     mru_file.write_text(json.dumps({"entries": ["#git:proj_widgets"]}))
 
     monkeypatch.setattr(
@@ -185,7 +185,7 @@ async def test_cycling_noops_when_only_mru_entry_is_default(
     """When the only persisted entry is the default, the filtered MRU is empty
     and the cycle key is a no-op."""
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file = sase_home / "vcs_macro_mru.json"
     mru_file.write_text(json.dumps({"entries": ["#git:home"]}))
 
     text, cursor = await _press_with_real_loader("", "ctrl+p")

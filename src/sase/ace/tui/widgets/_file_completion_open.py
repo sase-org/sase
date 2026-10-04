@@ -262,9 +262,9 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         return True
 
     def _try_auto_prompt_reference_completion(self) -> bool:
-        """Open the directive or xprompt/skill menu while typing a reference.
+        """Open the directive or macro/skill menu while typing a reference.
 
-        Generalizes the prior ``#``-only automatic xprompt menu to also cover
+        Generalizes the prior ``#``-only automatic macro menu to also cover
         ``%`` directives and ``/`` skills. Each branch is gated by its own
         auto-menu setting, and the ``+`` project trigger keeps precedence.
         Returns ``True`` when a menu was opened.
@@ -278,24 +278,24 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
             return False
 
         settings = self._prompt_completion_settings()
-        if settings.auto_xprompt_menu and self._try_vcs_repo_completion():
+        if settings.auto_macro_menu and self._try_vcs_repo_completion():
             return True
-        if settings.auto_xprompt_menu and self._try_vcs_ref_completion():
+        if settings.auto_macro_menu and self._try_vcs_ref_completion():
             return True
         if settings.auto_directive_menu:
             if self._try_auto_directive_arg_completion():
                 return True
             if self._try_auto_directive_completion():
                 return True
-        if settings.auto_xprompt_menu:
-            if self._try_auto_xprompt_arg_completion():
+        if settings.auto_macro_menu:
+            if self._try_auto_macro_arg_completion():
                 return True
         if settings.auto_directive_menu and self._try_model_shortcut_completion():
             return True
         if settings.auto_artifact_menu and self._try_artifact_ref_completion():
             return True
-        if settings.auto_xprompt_menu:
-            if self._try_auto_xprompt_completion():
+        if settings.auto_macro_menu:
+            if self._try_auto_macro_completion():
                 return True
         return False
 
@@ -448,7 +448,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
     def _try_auto_directive_completion(self) -> bool:
         """Open the directive completion menu while typing a ``%`` token.
 
-        Unlike xprompt/slash completion, a directive-valid bare ``%`` opens the
+        Unlike macro/slash completion, a directive-valid bare ``%`` opens the
         menu immediately; only invalid contexts (``word%``, ``50%``) and
         unknown directives stay quiet.
         """
@@ -470,9 +470,9 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         self._update_file_completion_panel(token)
         return True
 
-    def _try_auto_xprompt_arg_completion(self) -> bool:
-        """Open closed-set completion inside an xprompt argument."""
-        arg_ctx = self._get_xprompt_arg_completion_context()
+    def _try_auto_macro_arg_completion(self) -> bool:
+        """Open closed-set completion inside a macro argument."""
+        arg_ctx = self._get_macro_arg_completion_context()
         if arg_ctx is None or arg_ctx.completion_kind not in {
             "macro_arg_agent",
             "macro_arg_name",
@@ -495,7 +495,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
             return False
 
         self._completion_kind = arg_ctx.completion_kind
-        self._xprompt_arg_completion_trigger = "auto"
+        self._macro_arg_completion_trigger = "auto"
         self._file_completion_active = True
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
@@ -503,9 +503,9 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         self._update_file_completion_panel(arg_ctx.token)
         return True
 
-    def _try_xprompt_arg_name_completion_cycle(self, *, last: bool = False) -> bool:
+    def _try_macro_arg_name_completion_cycle(self, *, last: bool = False) -> bool:
         """Open keyword-argument names for insert-mode Ctrl+N/Ctrl+P."""
-        arg_ctx = self._get_xprompt_arg_completion_context()
+        arg_ctx = self._get_macro_arg_completion_context()
         if arg_ctx is None or arg_ctx.completion_kind != "macro_arg_name":
             return False
 
@@ -514,7 +514,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
             return False
 
         self._completion_kind = arg_ctx.completion_kind
-        self._xprompt_arg_completion_trigger = "manual"
+        self._macro_arg_completion_trigger = "manual"
         self._file_completion_active = True
         self._file_completion_candidates = candidates
         self._file_completion_index = len(candidates) - 1 if last else 0
@@ -522,15 +522,15 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         self._update_file_completion_panel(arg_ctx.token)
         return True
 
-    def _try_auto_xprompt_completion(self) -> bool:
-        """Open the xprompt completion menu while typing a ``#`` or ``/`` token."""
+    def _try_auto_macro_completion(self) -> bool:
+        """Open the macro completion menu while typing a ``#`` or ``/`` token."""
         bar = self._find_prompt_bar()
         if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
             return False
         if self._get_vcs_project_trigger() is not None:
             return False
 
-        ctx = self._get_xprompt_token_context()
+        ctx = self._get_macro_token_context()
         if ctx is None:
             return False
         _row, span = ctx
@@ -539,7 +539,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         if len(token) < 2:
             return False
 
-        result = self._build_warm_xprompt_completion_candidates(
+        result = self._build_warm_macro_completion_candidates(
             token,
             inline_reference_only=span.clamped,
         )
@@ -549,7 +549,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         if not candidates:
             return False
 
-        self._completion_kind = "xprompt"
+        self._completion_kind = "macro"
         self._file_completion_active = True
         self._file_completion_candidates = candidates
         self._file_completion_index = 0

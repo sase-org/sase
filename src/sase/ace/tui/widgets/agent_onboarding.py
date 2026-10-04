@@ -24,7 +24,7 @@ from ._onboarding_common import (
 
 _DOCS_URL = "https://sase.sh"
 _ACE_DOCS_URL = "https://sase.sh/ace/"
-_XPROMPT_DOCS_URL = "https://sase.sh/macro/"
+_MACRO_DOCS_URL = "https://sase.sh/macro/"
 _AGENTS_ACCENT = "#87D7FF"
 _UPDATES_ACCENT = "#AF87FF"
 
@@ -345,8 +345,8 @@ class AgentOnboarding(VerticalScroll):
         )
         append_doc_link(
             text,
-            _XPROMPT_DOCS_URL,
-            "supercharge prompts with #xprompts.",
+            _MACRO_DOCS_URL,
+            "supercharge prompts with #macros.",
             accent=_AGENTS_ACCENT,
         )
         append_keycap(text, key_display_name(app.show_help))

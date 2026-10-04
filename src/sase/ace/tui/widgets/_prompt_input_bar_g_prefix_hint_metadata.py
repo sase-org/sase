@@ -51,7 +51,7 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
                 offset,
                 known_skills=known_skills,
             )
-            return target is not None and target.kind == "xprompt"
+            return target is not None and target.kind == "macro"
         except Exception:
             return False
 
@@ -139,7 +139,7 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
         """Whether ``gx`` can open or retarget a mini-macro target pane."""
         return self._mode == "prompt"
 
-    def _g_prefix_available_save_xprompt(self) -> bool:
+    def _g_prefix_available_save_macro(self) -> bool:
         """Whether ``gX`` can open the whole-stack save-as panel."""
         if self._mode != "prompt":
             return False
@@ -148,14 +148,12 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
             self._stack.frontmatter.strip()
         )
 
-    def _g_prefix_available_write_xprompt(self) -> bool:
+    def _g_prefix_available_write_macro(self) -> bool:
         if self._stack.selected_item.is_auxiliary_pane:
             return False
-        return (
-            self._stack.binding is not None and self._g_prefix_available_save_xprompt()
-        )
+        return self._stack.binding is not None and self._g_prefix_available_save_macro()
 
-    def _g_prefix_available_convert_local_xprompt(self) -> bool:
+    def _g_prefix_available_convert_local_macro(self) -> bool:
         """Whether ``gL`` can convert the active pane into a local macro.
 
         Prompt mode only, and only when the active pane has non-blank text —
@@ -250,22 +248,22 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
             return f"retarget #{mini.mini_macro_target.name}…"
         return "new / edit mini-macro…"
 
-    def _g_prefix_label_save_xprompt(self) -> str:
+    def _g_prefix_label_save_macro(self) -> str:
         """Return the ``gX`` label."""
-        return "save as xprompt/snippet"
+        return "save as macro/snippet"
 
-    def _g_prefix_label_write_xprompt(self) -> str:
+    def _g_prefix_label_write_macro(self) -> str:
         readonly = getattr(self, "_readonly_macro_target", None)
         if readonly is not None:
             return f"save as {readonly.reference}"
         binding = self._stack.binding
         if binding is not None:
             return f"save {binding.reference}"
-        return "save as xprompt"
+        return "save as macro"
 
-    def _g_prefix_label_convert_local_xprompt(self) -> str:
+    def _g_prefix_label_convert_local_macro(self) -> str:
         """Return the ``gL`` label."""
-        return "save as local xprompt"
+        return "save as local macro"
 
     def _g_prefix_label_open_stash(self) -> str:
         """Return the ``Ctrl+G p`` label."""

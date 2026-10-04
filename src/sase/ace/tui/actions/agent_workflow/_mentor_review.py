@@ -139,7 +139,7 @@ class MentorReviewMixin:
             cl_name: The Patch name.
             project_file: Path to the project spec file.
             mode: ``"commit"`` or ``"propose"`` — determines which
-                post-apply xprompt to append.
+                post-apply macro to append.
         """
         import json
         from pathlib import Path
@@ -152,12 +152,12 @@ class MentorReviewMixin:
 
         vcs_type = detect_workflow_type(project_file)
 
-        # Resolve the make_mentor_changes xprompt via tag
+        # Resolve the make_mentor_changes macro via tag
         changes_wf = get_by_tag_strict(MacroTag.make_mentor_changes)
         if changes_wf is None:
             raise RuntimeError(
-                "No xprompt with tag 'make_mentor_changes' found. "
-                "Ensure src/sase/xprompts/make_mentor_changes.yml is installed."
+                "No macro with tag 'make_mentor_changes' found. "
+                "Ensure src/sase/macros/make_mentor_changes.yml is installed."
             )
 
         # Build input context
@@ -178,12 +178,12 @@ class MentorReviewMixin:
         prompt_part_content = changes_wf.get_prompt_part_content()
         if not prompt_part_content:
             raise RuntimeError(
-                "The #make_mentor_changes xprompt has no prompt_part step. "
-                "Check src/sase/xprompts/make_mentor_changes.yml."
+                "The #make_mentor_changes macro has no prompt_part step. "
+                "Check src/sase/macros/make_mentor_changes.yml."
             )
         prompt = render_template(prompt_part_content, context)
 
-        # Append the post-apply xprompt (propose or commit) if one exists
+        # Append the post-apply macro (propose or commit) if one exists
         if mode == "propose":
             post_wf = get_by_tag(MacroTag.propose)
         else:

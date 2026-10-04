@@ -276,7 +276,7 @@ def _render(renderable: object) -> str:
 
 
 def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the sibling Config / Projects / XPrompts panes cheap & deterministic."""
+    """Keep the sibling Config / Projects / Macros panes cheap & deterministic."""
     result = cp._LoadResult(view=None, error=None, token=("tok", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: result)
     monkeypatch.setattr(

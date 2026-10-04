@@ -1,4 +1,4 @@
-"""Tests for the pure xprompt properties band/view renderers."""
+"""Tests for the pure macro properties band/view renderers."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sase.macro.properties import MacroProperties
 def _properties(**overrides: object) -> MacroProperties:
     base = MacroProperties(
         reference="#demo",
-        kind="xprompt",
+        kind="macro",
         description=None,
         input_signature=None,
         inputs=[],

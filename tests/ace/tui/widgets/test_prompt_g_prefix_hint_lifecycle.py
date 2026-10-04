@@ -46,8 +46,8 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "... +2 more" in plain
         # Truncated entries remain on the surface even when scrolled out.
         assert ("b", "launch tab…") in entry_pairs(bar)
-        assert ("X", "save as xprompt/snippet") in entry_pairs(bar)
-        assert ("L", "save as local xprompt") in entry_pairs(bar)
+        assert ("X", "save as macro/snippet") in entry_pairs(bar)
+        assert ("L", "save as local macro") in entry_pairs(bar)
         # Multi-pane and stash-open entries are absent on the bare g surface.
         assert "gs" not in plain
         assert "gS" not in plain
@@ -108,7 +108,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt / ^G^T   new / edit snippet…" in plain
         assert "^Gx   new / edit mini-macro…" not in plain
-        assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
+        assert "^GX / " + "^G" + "^X   save as macro/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
         assert "... +6 more" in plain
         assert ("b", "launch tab…") in entry_pairs(bar, via_ctrl_g=True)
@@ -149,7 +149,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt / ^G^T   new / edit snippet…" in plain
         assert "^Gx   new / edit mini-macro…" not in plain
-        assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
+        assert "^GX / " + "^G" + "^X   save as macro/snippet" not in plain
         assert "... +5 more" in plain
         assert ("b", "launch tab…") in entry_pairs(bar, via_ctrl_g=True)
         assert "^Gs" not in plain
@@ -186,8 +186,8 @@ async def test_ctrl_g_hints_group_ctrl_x_with_mini_macro(
         )
         assert mini.aliases == ("ctrl+x",)
         assert mini.label == "new / edit mini-macro…"
-        assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
-        assert "^GX   save as xprompt/snippet" not in plain
+        assert "^GX / " + "^G" + "^X   save as macro/snippet" not in plain
+        assert "^GX   save as macro/snippet" not in plain
 
 
 async def test_normal_ctrl_g_continuation_dispatches_in_normal_mode(

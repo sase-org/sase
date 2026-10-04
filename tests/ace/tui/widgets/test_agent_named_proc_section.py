@@ -39,7 +39,7 @@ def _agent(
         proc_status=proc_status,
         proc_phase=proc_phase,
         proc_label="Build docs",
-        proc_origin="xprompt-proc",
+        proc_origin="prompt-proc",
         proc_language="bash",
         proc_code_digest="sha256:code",
         proc_safe_preview="just check",

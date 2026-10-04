@@ -10,7 +10,7 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_models import StashedPromptPan
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-    from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+    from sase.ace.tui.widgets.prompt_stack import MacroBinding
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
@@ -129,7 +129,7 @@ class MemoryPanelRequested(Message, namespace="prompt_input_bar"):
     """Message sent when the user asks to open the memory panel.
 
     Presentation-only (boundary rule D6): the bar captures the
-    ``#memory/<stem>`` xprompt reference under the cursor (or ``None``) and
+    ``#memory/<stem>`` macro reference under the cursor (or ``None``) and
     its current ``mode``. The app opens the panel with that seed and restores
     prompt focus and vim mode on dismiss.
     """
@@ -211,7 +211,7 @@ class WriteMacroRequested(Message, namespace="prompt_input_bar"):
     def __init__(
         self,
         panes: list[StashedPromptPane],
-        binding: XPromptBinding,
+        binding: MacroBinding,
         origin_bar: PromptInputBar,
     ) -> None:
         super().__init__()
@@ -304,7 +304,7 @@ class AllEditorRequested(Message, namespace="prompt_input_bar"):
 
     Reached by the prompt editor keymap when the bar holds multiple panes.
     Unlike :class:`EditorRequested` (the single-pane editor), this opens the entire
-    prompt stack as xprompt markdown.  The bar owns the serialization, so the
+    prompt stack as macro markdown.  The bar owns the serialization, so the
     message carries no payload: the handler reads the joined markdown off the
     mounted bar and reloads the edited result back as a stack.
     """

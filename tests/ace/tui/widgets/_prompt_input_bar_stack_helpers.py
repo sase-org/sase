@@ -33,11 +33,11 @@ class _RecordingPromptBarApp(App[None]):
 
     Carries the app-level ``ctrl+g`` binding too, so a test can prove the
     focused pane's widget-local ``ctrl+g`` shadows it instead of triggering the
-    global "edit last VCS xprompt" action.
+    global "edit last VCS macro" action.
     """
 
     ENABLE_COMMAND_PALETTE = False
-    BINDINGS = [("ctrl+g", "start_last_vcs_xprompt_in_editor", "Edit last VCS")]
+    BINDINGS = [("ctrl+g", "start_last_vcs_macro_in_editor", "Edit last VCS")]
 
     def __init__(self, initial_value: str = "", mode: str = "prompt") -> None:
         super().__init__()
@@ -64,12 +64,12 @@ class _RecordingPromptBarApp(App[None]):
     ) -> None:
         self.all_editor_requests.append(event)
 
-    def action_start_last_vcs_xprompt_in_editor(self) -> None:
+    def action_start_last_vcs_macro_in_editor(self) -> None:
         self.global_editor_calls += 1
 
 
-class _XPromptMarkdownApp(App[None]):
-    """Minimal app that seeds a bar with editor-file (xprompt markdown) text."""
+class _MacroMarkdownApp(App[None]):
+    """Minimal app that seeds a bar with editor-file (macro markdown) text."""
 
     ENABLE_COMMAND_PALETTE = False
 
@@ -79,7 +79,7 @@ class _XPromptMarkdownApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
-            initial_xprompt_markdown=self._markdown,
+            initial_raw_prompt_markdown=self._markdown,
             id="prompt-input-bar",
         )
 

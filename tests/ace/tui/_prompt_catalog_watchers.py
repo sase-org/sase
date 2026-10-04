@@ -143,7 +143,7 @@ async def test_prompt_source_watch_growth_installs_and_reconciles_once(
     app = _WatchGrowthApp()
     watcher = _FakePromptSourceWatcher()
     app._prompt_source_watcher = watcher
-    new_dir = tmp_path / "xprompts"
+    new_dir = tmp_path / "macros"
     new_dir.mkdir()
     monkeypatch.setattr(
         prompt_catalog,

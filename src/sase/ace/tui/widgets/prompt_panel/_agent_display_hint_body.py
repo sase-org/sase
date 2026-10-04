@@ -18,7 +18,10 @@ from ._agent_display_content import (
     render_timestamp_divider,
 )
 from ._agent_display_header import AgentHeader
-from ._agent_display_macro import attach_xprompt_to_identity, xprompt_hints_enabled
+from ._agent_display_macro import (
+    attach_raw_prompt_to_identity,
+    raw_prompt_hints_enabled,
+)
 from ._agent_display_hint_annotators import (
     hint_gate_annotator,
     hint_monitor_annotator,
@@ -35,7 +38,7 @@ from ._agent_macro_highlighting import (
     agent_prompt_highlight_context,
     apply_authored_prompt_overlays,
 )
-from ._file_path_hints import iter_xprompt_file_path_matches
+from ._file_path_hints import iter_raw_prompt_file_path_matches
 from ._helpers import append_section_heading, format_output
 from ._hint_caps import append_bounded_text_with_file_hints
 from ._agent_finalizer_receipt import finalizer_receipt_text
@@ -58,7 +61,7 @@ def render_agent_prompt_hint_body(
     workspace_dir: str | None,
     reply_text: AgentHeader,
 ) -> tuple[int, list[Any]]:
-    """Render the xprompt, prompt, and reply/chat sections with file hints.
+    """Render the raw_prompt, prompt, and reply/chat sections with file hints.
 
     Context sections go into ``header_text``; reply/chat sections go into
     ``reply_text``. Returns the updated hint counter plus extra Reply card
@@ -68,84 +71,84 @@ def render_agent_prompt_hint_body(
     parts and appends into ``reply_text`` as before.
     """
     # AGENT RAW PROMPT section (with file path hints)
-    raw_xprompt = agent.get_raw_prompt_content()
+    raw_prompt = agent.get_raw_prompt_content()
     highlight_context = agent_prompt_highlight_context(
         panel,
         agent,
-        raw_xprompt or "",
+        raw_prompt or "",
     )
-    if raw_xprompt:
-        if not xprompt_hints_enabled(panel):
-            display_raw = getattr(panel, "_display_raw_xprompt", None)
-            render_macro = getattr(panel, "_render_xprompt", None)
+    if raw_prompt:
+        if not raw_prompt_hints_enabled(panel):
+            display_raw = getattr(panel, "_display_raw_prompt", None)
+            render_macro = getattr(panel, "_render_raw_prompt", None)
             if callable(display_raw) and callable(render_macro):
-                humanized_xprompt = display_raw(agent, raw_xprompt)
-                plain_xprompt = render_macro(
+                humanized_raw_prompt = display_raw(agent, raw_prompt)
+                plain_raw_prompt = render_macro(
                     agent,
-                    raw_xprompt,
-                    humanized_xprompt,
+                    raw_prompt,
+                    humanized_raw_prompt,
                     context=highlight_context,
                 )
-                if not attach_xprompt_to_identity(
+                if not attach_raw_prompt_to_identity(
                     panel,
                     header_text,
-                    plain_xprompt,
+                    plain_raw_prompt,
                 ):
                     append_section_heading(header_text, "AGENT RAW PROMPT")
-                    header_text.append_text(plain_xprompt)
+                    header_text.append_text(plain_raw_prompt)
                     header_text.append("\n")
                     header_text.append("─" * 50 + "\n", style="dim")
                     header_text.append("\n")
             else:
-                humanized_fallback = humanize_text(raw_xprompt)
-                fallback_xprompt = Text(humanized_fallback + "\n")
+                humanized_fallback = humanize_text(raw_prompt)
+                fallback_raw_prompt = Text(humanized_fallback + "\n")
                 apply_authored_prompt_overlays(
-                    fallback_xprompt,
-                    fallback_xprompt.plain,
+                    fallback_raw_prompt,
+                    fallback_raw_prompt.plain,
                     highlight_context,
                     region_start=0,
-                    include_xprompt=True,
+                    include_macro=True,
                     hint_spans=(),
                 )
-                if not attach_xprompt_to_identity(
+                if not attach_raw_prompt_to_identity(
                     panel,
                     header_text,
-                    fallback_xprompt,
+                    fallback_raw_prompt,
                 ):
                     append_section_heading(header_text, "AGENT RAW PROMPT")
-                    header_text.append_text(fallback_xprompt)
+                    header_text.append_text(fallback_raw_prompt)
                     header_text.append("\n")
                     header_text.append("─" * 50 + "\n", style="dim")
                     header_text.append("\n")
         else:
-            source_xprompt = raw_xprompt
-            raw_xprompt = humanize_text(source_xprompt)
-            xprompt = Text()
+            source_raw_prompt = raw_prompt
+            raw_prompt = humanize_text(source_raw_prompt)
+            raw_prompt_text = Text()
             hint_counter = append_bounded_text_with_file_hints(
-                xprompt,
-                raw_xprompt + "\n",
+                raw_prompt_text,
+                raw_prompt + "\n",
                 hint_counter,
                 hint_mappings,
                 workspace_dir,
-                matcher=iter_xprompt_file_path_matches,
+                matcher=iter_raw_prompt_file_path_matches,
             )
-            xprompt_source = xprompt.plain
-            hint_spans = tuple(xprompt.spans)
+            raw_prompt_source = raw_prompt_text.plain
+            hint_spans = tuple(raw_prompt_text.spans)
             apply_authored_prompt_overlays(
-                xprompt,
-                xprompt_source,
+                raw_prompt_text,
+                raw_prompt_source,
                 highlight_context,
                 region_start=0,
-                include_xprompt=True,
+                include_macro=True,
                 hint_spans=hint_spans,
             )
-            if not attach_xprompt_to_identity(
+            if not attach_raw_prompt_to_identity(
                 panel,
                 header_text,
-                xprompt,
+                raw_prompt_text,
             ):
                 append_section_heading(header_text, "AGENT RAW PROMPT")
-                header_text.append_text(xprompt)
+                header_text.append_text(raw_prompt_text)
                 header_text.append("\n")
                 header_text.append("─" * 50 + "\n", style="dim")
                 header_text.append("\n")

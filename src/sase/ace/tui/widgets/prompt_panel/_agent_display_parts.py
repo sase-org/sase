@@ -30,7 +30,7 @@ from ._agent_display_state import (
     DetailHeaderSummary,
     HeaderHintState,
 )
-from ._helpers import load_xprompts_used
+from ._helpers import load_macros_used
 
 _DetailHeaderSummary = DetailHeaderSummary
 _DetailHeaderSummaryCacheEntry = DetailHeaderSummaryCacheEntry
@@ -54,7 +54,7 @@ __all__ = [
     "get_cached_detail_header_summary",
     "get_phase_label",
     "get_prompt_content",
-    "load_xprompts_used",
+    "load_macros_used",
     "publish_opened_workspaces_cache",
     "render_agent_reply_content",
     "render_attempt_divider",

@@ -70,7 +70,7 @@ class _RestoreHarness(PromptBarStashMixin):
         self.notifications: list[tuple[str, str | None]] = []
         self.pushed: list[tuple[object, object]] = []
         self.home_mounts: list[str] = []
-        self.home_mount_xprompt_markdown: list[bool] = []
+        self.home_mount_macro_markdown: list[bool] = []
         self.home_mount_selected_panes: list[int | None] = []
         self.home_mount_cursors: list[tuple[int, int] | None] = []
         self.applied_counts: list[int] = []
@@ -91,14 +91,14 @@ class _RestoreHarness(PromptBarStashMixin):
         display_name: str = "~",
         history_sort_key: str = "home",
         *,
-        as_xprompt_markdown: bool = False,
+        as_macro_markdown: bool = False,
         initial_selected_pane: int | None = None,
         initial_cursor: tuple[int, int] | None = None,
         **kwargs: object,
     ) -> None:
         del kwargs
         self.home_mounts.append(initial_text)
-        self.home_mount_xprompt_markdown.append(as_xprompt_markdown)
+        self.home_mount_macro_markdown.append(as_macro_markdown)
         self.home_mount_selected_panes.append(initial_selected_pane)
         self.home_mount_cursors.append(initial_cursor)
 

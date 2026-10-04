@@ -168,7 +168,7 @@ def test_payloadless_launch_failure_recovers_proc_log_tail_and_prompt(
     log_path = tmp_path / "proc.log"
     log_path.write_text(
         "".join(f"line {idx}\n" for idx in range(80))
-        + "XPromptArgumentError: invalid priority\n"
+        + "MacroArgumentError: invalid priority\n"
         + "".join(f"tail {idx}\n" for idx in range(80, 250)),
         encoding="utf-8",
     )
@@ -186,12 +186,12 @@ def test_payloadless_launch_failure_recovers_proc_log_tail_and_prompt(
     assert record["exc_message"] == "worker died"
     assert len(record["prompt_preview"]) == 200
     assert record["log_path"] == str(log_path)
-    assert "XPromptArgumentError: invalid priority" in record["output"]
+    assert "MacroArgumentError: invalid priority" in record["output"]
     assert "tail 249" in record["output"]
     assert "line 0" not in record["output"]
     human = launch_failures_log_path().read_text()
     assert "process output:" in human
-    assert "    XPromptArgumentError: invalid priority" in human
+    assert "    MacroArgumentError: invalid priority" in human
 
 
 def test_payloadless_launch_failure_prefers_preloaded_output() -> None:

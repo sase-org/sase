@@ -79,7 +79,7 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         """Focus the active pane on mount and position its cursor at end."""
         # Phase ``space-hot-spare``: a spare mounts inert. It does not
         # publish ``_active_prompt_bar`` and does not call ``activate()``.
-        # It does not focus, watch the theme, schedule the xprompt
+        # It does not focus, watch the theme, schedule the macro
         # stale-check worker, or run deferred warm-ups.
         try:
             if bool(getattr(self, "_is_prompt_spare", False)):
@@ -147,7 +147,7 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         if self._mode in ("feedback", "approve_prompt"):
             self.add_class("feedback-mode")
         self._schedule_macro_stale_check(force=True)
-        # First-keystroke essentials stay synchronous: xprompt assist entries
+        # First-keystroke essentials stay synchronous: macro assist entries
         # and the VCS project completion catalog were measured, and moving
         # them would delay the first keystroke.
         text_area._warm_current_macro_assist_entries()

@@ -34,7 +34,7 @@ def _patch_loaders(
     result = cp._LoadResult(view=view, error=None, token=("tok", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: result)
     monkeypatch.setattr(cp, "_build_config_commit_offer", lambda *_a, **_kw: None)
-    # Keep the XPrompts pane cheap and deterministic.
+    # Keep the Macros pane cheap and deterministic.
     monkeypatch.setattr(
         "sase.ace.tui.modals.macro_browser_pane.get_all_prompts",
         lambda project=None: {},

@@ -1,7 +1,7 @@
 """PromptTextArea cursor and delete action overrides.
 
 Each inherited ``TextArea`` motion / deletion action is wrapped so the prompt
-assist surfaces (completion menu, xprompt arg hint) follow the cursor, and the
+assist surfaces (completion menu, macro arg hint) follow the cursor, and the
 two delete actions first give the paired-delimiter planners a chance to remove
 both halves of an empty auto-pair.
 """

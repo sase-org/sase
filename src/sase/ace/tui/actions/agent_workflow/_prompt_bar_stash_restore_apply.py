@@ -273,7 +273,7 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
         selected_pane, cursor = self._restore_home_bar_focus(panes)
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=self._stash_entries_to_prompt_text(entries),
-            as_xprompt_markdown=True,
+            as_macro_markdown=True,
             initial_selected_pane=selected_pane,
             initial_cursor=cursor,
         )

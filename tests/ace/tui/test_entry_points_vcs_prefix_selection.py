@@ -271,7 +271,7 @@ def test_selecting_non_launchable_project_notifies_without_persisting(
 def test_space_mounts_bar_from_mru_head(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``<space>`` pre-fills from the VCS xprompt MRU head.
+    """``<space>`` pre-fills from the VCS macro MRU head.
 
     Regression coverage for the headline defect: ``<space>`` must read
     the same store that every launch surface writes, not a separate

@@ -174,9 +174,7 @@ async def test_expand_at_target_empty_pane_replaces_trigger_with_body() -> None:
         ta.load_text("#")
         ta.cursor_location = (0, 1)
 
-        expanded = bar.expand_xprompt_at_target(
-            ta, ta.id or "", ((0, 0), (0, 1)), "BODY"
-        )
+        expanded = bar.expand_macro_at_target(ta, ta.id or "", ((0, 0), (0, 1)), "BODY")
         await pilot.pause()
 
         assert expanded is True
@@ -195,9 +193,7 @@ async def test_expand_at_target_preserves_surrounding_text() -> None:
         ta.load_text("before # after")
         ta.cursor_location = (0, len("before #"))
 
-        expanded = bar.expand_xprompt_at_target(
-            ta, ta.id or "", ((0, 7), (0, 8)), "BODY"
-        )
+        expanded = bar.expand_macro_at_target(ta, ta.id or "", ((0, 7), (0, 8)), "BODY")
         await pilot.pause()
 
         assert expanded is True
@@ -214,7 +210,7 @@ async def test_expand_at_target_multiline_body_inserts_all_lines() -> None:
         ta.load_text("a # b")
         ta.cursor_location = (0, len("a #"))
 
-        expanded = bar.expand_xprompt_at_target(
+        expanded = bar.expand_macro_at_target(
             ta, ta.id or "", ((0, 2), (0, 3)), "L1\nL2"
         )
         await pilot.pause()
@@ -238,7 +234,7 @@ async def test_expand_at_target_multi_pane_targets_origin_only() -> None:
         await pilot.pause()
         assert bar.active_text_area() is lower
 
-        expanded = bar.expand_xprompt_at_target(
+        expanded = bar.expand_macro_at_target(
             upper, upper.id or "", ((0, 0), (0, 1)), "BODY"
         )
         await pilot.pause()
@@ -260,7 +256,7 @@ async def test_expand_at_target_stale_pane_returns_false_without_mutation() -> N
         bar.load_stack_from_macro_markdown("other")
         await pilot.pause()
 
-        expanded = bar.expand_xprompt_at_target(
+        expanded = bar.expand_macro_at_target(
             stale_pane, stale_id, ((0, 0), (0, 1)), "BODY"
         )
         await pilot.pause()
@@ -274,7 +270,7 @@ class _ExpandKeySequenceApp(CompletionTestApp):
     """Applies a fixed inline expansion whenever ``#@`` fires.
 
     Stands in for the selector modal's ``Ctrl+I`` callback: a real run pushes
-    the selector and calls ``expand_xprompt_at_target`` from its expand action,
+    the selector and calls ``expand_macro_at_target`` from its expand action,
     but driving the modal here would only obscure the edit/undo path under
     test. The handler threads the captured origin straight through, exactly as
     the request wiring does.
@@ -291,7 +287,7 @@ class _ExpandKeySequenceApp(CompletionTestApp):
         bar = event.origin_bar
         assert bar is not None
         self.applied.append(
-            bar.expand_xprompt_at_target(
+            bar.expand_macro_at_target(
                 event.origin_text_area,
                 event.origin_pane_id,
                 event.trigger_range,
@@ -369,7 +365,7 @@ class _StageExpandApp(CompletionTestApp):
         assert bar is not None
         text_area = event.origin_text_area
         before_text = getattr(text_area, "text", "") or ""
-        applied = bar.expand_xprompt_at_target(
+        applied = bar.expand_macro_at_target(
             text_area,
             event.origin_pane_id,
             event.trigger_range,

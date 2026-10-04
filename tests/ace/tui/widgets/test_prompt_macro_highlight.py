@@ -1,4 +1,4 @@
-"""Tests for live xprompt syntax highlighting in ``PromptTextArea``."""
+"""Tests for live macro syntax highlighting in ``PromptTextArea``."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def _skill_entry(name: str = "sase_plan") -> MacroAssistEntry:
         skill_name=name,
         insertion=f"#skill/{name}",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(),
         content_preview=None,
@@ -43,7 +43,7 @@ def _seed_entries(
     ta._macro_arg_assist_entries_by_project[project] = entries
 
 
-async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles(
+async def test_macro_highlight_overlay_marks_spans_and_registers_styles(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -83,7 +83,7 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles(
         }
 
 
-async def test_xprompt_highlight_overlay_marks_core_argument_roles(
+async def test_macro_highlight_overlay_marks_core_argument_roles(
     monkeypatch,
 ) -> None:
     text = "#foo(alpha=1, enabled=true)"
@@ -98,7 +98,7 @@ async def test_xprompt_highlight_overlay_marks_core_argument_roles(
             "end": end_byte,
             "role": role,
             "validity": validity,
-            "source": "xprompt",
+            "source": "macro",
             "call_name": "foo",
         }
 
@@ -196,7 +196,7 @@ def test_skill_accent_color_is_pinned_for_flexoki() -> None:
     )
 
 
-async def test_xprompt_overlay_coexists_with_jinja_alt_and_search() -> None:
+async def test_macro_overlay_coexists_with_jinja_alt_and_search() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
@@ -215,7 +215,7 @@ async def test_xprompt_overlay_coexists_with_jinja_alt_and_search() -> None:
         assert "alt.separator" in names
         assert "alt.branch_name" in names
 
-        # Overlay build order keeps persistent xprompt/alt syntax below search.
+        # Overlay build order keeps persistent macro/alt syntax below search.
         assert names.index("macro.directive") < names.index("search.current")
         assert names.index("alt.delimiter") < names.index("search.current")
 
@@ -224,21 +224,21 @@ async def test_xprompt_overlay_coexists_with_jinja_alt_and_search() -> None:
             assert any(name.startswith(family) for name in styles)
 
 
-async def test_xprompt_overlay_skips_fences_and_disabled_regions() -> None:
+async def test_macro_overlay_skips_fences_and_disabled_regions() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
         ta.load_text(
             "```\n#fenced %auto\n```\n"
-            "%xprompts_enabled:false\n#disabled %m:opus\n"
-            "%xprompts_enabled:true\nplain"
+            "%macros_enabled:false\n#disabled %m:opus\n"
+            "%macros_enabled:true\nplain"
         )
         ta._build_highlight_map()
 
         assert not any(name.startswith("macro.") for name in _highlight_names(ta))
 
 
-async def test_xprompt_overlay_skips_large_buffers() -> None:
+async def test_macro_overlay_skips_large_buffers() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
@@ -248,7 +248,7 @@ async def test_xprompt_overlay_skips_large_buffers() -> None:
         assert not any(name.startswith("macro.") for name in _highlight_names(ta))
 
 
-async def test_xprompt_skill_overlay_cold_catalog_defers_without_sync_build() -> None:
+async def test_macro_skill_overlay_cold_catalog_defers_without_sync_build() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
@@ -262,7 +262,7 @@ async def test_xprompt_skill_overlay_cold_catalog_defers_without_sync_build() ->
         assert "macro.skill" not in _highlight_names(ta)
 
 
-async def test_xprompt_skill_names_are_memoized_by_warm_catalog_identity() -> None:
+async def test_macro_skill_names_are_memoized_by_warm_catalog_identity() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
@@ -277,7 +277,7 @@ async def test_xprompt_skill_names_are_memoized_by_warm_catalog_identity() -> No
         assert ta._get_warm_macro_skill_names() == frozenset({"sase_repo"})
 
 
-async def test_xprompt_overlay_reregisters_after_app_theme_switch() -> None:
+async def test_macro_overlay_reregisters_after_app_theme_switch() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -316,7 +316,7 @@ def _warm_tag_catalog(monkeypatch, *pairs: tuple[str, str | None]) -> None:
     )
 
 
-async def test_xprompt_overlay_styles_project_tags_with_accents(
+async def test_macro_overlay_styles_project_tags_with_accents(
     monkeypatch,
 ) -> None:
     from sase.project_accents import PROJECT_ACCENTS
@@ -342,7 +342,7 @@ async def test_xprompt_overlay_styles_project_tags_with_accents(
         assert name.bold is True
 
 
-async def test_xprompt_overlay_styles_unknown_tags_and_neutral_accents(
+async def test_macro_overlay_styles_unknown_tags_and_neutral_accents(
     monkeypatch,
 ) -> None:
     _warm_tag_catalog(monkeypatch, ("home", None))
@@ -361,7 +361,7 @@ async def test_xprompt_overlay_styles_unknown_tags_and_neutral_accents(
         assert styles["project_tag.unknown"].underline is True
 
 
-async def test_xprompt_overlay_tokenizer_failure_is_fail_open(monkeypatch) -> None:
+async def test_macro_overlay_tokenizer_failure_is_fail_open(monkeypatch) -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)

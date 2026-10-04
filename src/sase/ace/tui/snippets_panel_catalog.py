@@ -79,7 +79,7 @@ def build_snippet_project_ring(
 ) -> tuple[SnippetProjectRef, ...]:
     """Return the ordered, de-duplicated project ring for ``p``/``P`` cycling.
 
-    Every enabled project is included because xprompt-derived snippets exist
+    Every enabled project is included because macro-derived snippets exist
     without an ``ace.snippets`` section. The launch workspace's project is
     always kept even when it is not already in the enabled set, so browsing
     can still seed from the panel's opening context. Order is by display
@@ -103,7 +103,7 @@ def build_snippet_project_ring(
 def load_snippet_project_snapshot(ref: SnippetProjectRef) -> SnippetProjectSnapshot:
     """Load *ref*'s snippet catalog behind an mtime/token-keyed LRU.
 
-    Only ever call this off the event loop: a cache miss composes xprompt
+    Only ever call this off the event loop: a cache miss composes macro
     snippets and config layers through the shared catalog service.
     """
     now = time.monotonic()

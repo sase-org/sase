@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackState,
-    XPromptBinding,
-    XPromptReadonlyTarget,
+    MacroBinding,
+    MacroReadonlyTarget,
     split_frontmatter,
     split_prompt_text,
 )
@@ -28,7 +28,7 @@ class PromptInputBarStackMacroMixin(_MixinBase):
     """Macro content loading, binding, and frontmatter helpers."""
 
     if TYPE_CHECKING:
-        _readonly_macro_target: XPromptReadonlyTarget | None
+        _readonly_macro_target: MacroReadonlyTarget | None
         _mini_macro_focus_restore: PromptFocusRestore | None
         _snippet_focus_restore: PromptFocusRestore | None
         _stack: PromptStackState
@@ -53,16 +53,16 @@ class PromptInputBarStackMacroMixin(_MixinBase):
         ) -> PromptTextArea | None: ...
         def _schedule_macro_stale_check(self, *, force: bool = False) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
-        def mark_readonly_macro_target(self, target: XPromptReadonlyTarget) -> None: ...
+        def mark_readonly_macro_target(self, target: MacroReadonlyTarget) -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
 
     def load_stack_from_macro_markdown(
         self,
         text: str,
         *,
-        binding: XPromptBinding | None = None,
+        binding: MacroBinding | None = None,
         preserve_target: bool = False,
-        read_only_target: XPromptReadonlyTarget | None = None,
+        read_only_target: MacroReadonlyTarget | None = None,
     ) -> None:
         """Reload the whole bar from edited macro markdown (the multi-pane ``^G`` return).
 
@@ -98,9 +98,9 @@ class PromptInputBarStackMacroMixin(_MixinBase):
         self,
         text: str,
         *,
-        binding: XPromptBinding | None = None,
+        binding: MacroBinding | None = None,
         preserve_target: bool = False,
-        read_only_target: XPromptReadonlyTarget | None = None,
+        read_only_target: MacroReadonlyTarget | None = None,
     ) -> None:
         """Reload the whole bar after the snippet-discard guard has passed."""
         previous_stack = self._stack if preserve_target else None
@@ -147,11 +147,11 @@ class PromptInputBarStackMacroMixin(_MixinBase):
 
     def target_macro(
         self,
-        binding: XPromptBinding,
+        binding: MacroBinding,
         *,
         source_markdown: str | None = None,
     ) -> None:
-        """Set the xprompt definition this prompt stack edits."""
+        """Set the macro definition this prompt stack edits."""
         self._readonly_macro_target = None
         self._macro_source_stale = False
         self._macro_target_generation += 1
@@ -163,7 +163,7 @@ class PromptInputBarStackMacroMixin(_MixinBase):
         self._schedule_macro_stale_check(force=True)
 
     def clear_macro_target(self) -> None:
-        """Clear the current xprompt target from the prompt stack."""
+        """Clear the current macro target from the prompt stack."""
         self._stack.unbind()
         self._readonly_macro_target = None
         self._macro_source_stale = False
@@ -172,8 +172,8 @@ class PromptInputBarStackMacroMixin(_MixinBase):
         self._refresh_title()
         self._refresh_prompt_mode_subtitle()
 
-    def macro_target(self) -> XPromptBinding | None:
-        """Return the current xprompt target, if any."""
+    def macro_target(self) -> MacroBinding | None:
+        """Return the current macro target, if any."""
         return self._stack.binding
 
     def _refresh_target_classes(self) -> None:
@@ -213,7 +213,7 @@ class PromptInputBarStackMacroMixin(_MixinBase):
         text and relative order.
 
         A single-segment body replaces just that pane's text (kept verbatim, the
-        ``lift_frontmatter=True`` single-pane path, so an xprompt-swarm
+        ``lift_frontmatter=True`` single-pane path, so a macro-swarm
         invocation or a plain prompt stays one pane); a multi-segment body (real
         ``---`` separators outside fences/frontmatter) replaces the pane with its
         first stripped segment and inserts one new pane per remaining segment
@@ -264,7 +264,7 @@ class PromptInputBarStackMacroMixin(_MixinBase):
         return None
 
     def has_frontmatter_properties(self) -> bool:
-        """True when the stack currently carries non-empty xprompt properties.
+        """True when the stack currently carries non-empty macro properties.
 
         Drives the history-load conflict check: an incoming entry with its own
         frontmatter must not silently clobber properties the user already

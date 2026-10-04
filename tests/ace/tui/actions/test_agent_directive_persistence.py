@@ -43,8 +43,8 @@ def test_persist_agent_directive_update_rewrites_prompt_artifacts_and_history(
     artifacts.mkdir()
     old_prompt = "%id:old\nDo work"
     new_prompt = "%id:new\nDo work"
-    (artifacts / "raw_xprompt.md").write_text(old_prompt, encoding="utf-8")
-    (artifacts / "submitted_xprompt.md").write_text(old_prompt, encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text(old_prompt, encoding="utf-8")
+    (artifacts / "submitted_prompt.md").write_text(old_prompt, encoding="utf-8")
     history_file = tmp_path / "prompt_history.json"
 
     with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
@@ -60,8 +60,8 @@ def test_persist_agent_directive_update_rewrites_prompt_artifacts_and_history(
         assert result.raw_prompt_updated is True
         assert result.submitted_prompt_updated is True
         assert result.history_rewrites == 1
-        assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == new_prompt
-        assert (artifacts / "submitted_xprompt.md").read_text(
+        assert (artifacts / "raw_prompt.md").read_text(encoding="utf-8") == new_prompt
+        assert (artifacts / "submitted_prompt.md").read_text(
             encoding="utf-8"
         ) == new_prompt
         assert [entry.text for entry in load_prompt_history()] == [new_prompt]
@@ -73,8 +73,8 @@ def test_persist_agent_directive_update_leaves_diverged_submitted_prompt(
 ) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text("%id:old\nDo work", encoding="utf-8")
-    (artifacts / "submitted_xprompt.md").write_text("historical", encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text("%id:old\nDo work", encoding="utf-8")
+    (artifacts / "submitted_prompt.md").write_text("historical", encoding="utf-8")
 
     result = persist_agent_directive_update(
         AgentDirectivePersistenceSpec(
@@ -84,7 +84,7 @@ def test_persist_agent_directive_update_leaves_diverged_submitted_prompt(
     )
 
     assert result.submitted_prompt_updated is False
-    assert (artifacts / "submitted_xprompt.md").read_text(encoding="utf-8") == (
+    assert (artifacts / "submitted_prompt.md").read_text(encoding="utf-8") == (
         "historical"
     )
 
@@ -96,7 +96,7 @@ def test_persist_agent_directive_update_finishes_when_history_is_corrupt(
     artifacts.mkdir()
     old_prompt = "%id:old\nDo work"
     new_prompt = "%id:new\nDo work"
-    (artifacts / "raw_xprompt.md").write_text(old_prompt, encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text(old_prompt, encoding="utf-8")
     history_file = tmp_path / "prompt_history.json"
     history_dir = tmp_path / "prompt_history"
     history_dir.mkdir()
@@ -114,7 +114,7 @@ def test_persist_agent_directive_update_finishes_when_history_is_corrupt(
     assert result.raw_prompt_updated is True
     assert result.history_rewrites == 0
     assert result.meta_updated is True
-    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == new_prompt
+    assert (artifacts / "raw_prompt.md").read_text(encoding="utf-8") == new_prompt
     assert json.loads((artifacts / "agent_meta.json").read_text())["name"] == "new"
 
 
@@ -145,7 +145,7 @@ def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
 ) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text("%w:old\nDo work", encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text("%w:old\nDo work", encoding="utf-8")
     (artifacts / "agent_meta.json").write_text(
         json.dumps(
             {
@@ -183,7 +183,7 @@ def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
     assert result.raw_prompt_updated is True
     assert result.meta_updated is True
     assert result.waiting_updated is True
-    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == (
+    assert (artifacts / "raw_prompt.md").read_text(encoding="utf-8") == (
         "%wait(dep)\n%wait(hood=sase-11l)\nDo work"
     )
     assert json.loads((artifacts / "agent_meta.json").read_text()) == {
@@ -375,7 +375,7 @@ def test_persist_directive_payload_resolves_job_alias_before_writes(
     tribes_file = tmp_path / "agent_tribes.json"
     artifacts = tmp_path / "artifacts" / "ace-run" / "20260506120000"
     artifacts.mkdir(parents=True)
-    (artifacts / "raw_xprompt.md").write_text("%id:worker\nDo work", encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text("%id:worker\nDo work", encoding="utf-8")
     (artifacts / "agent_meta.json").write_text(
         json.dumps({"name": "worker"}),
         encoding="utf-8",
@@ -396,7 +396,7 @@ def test_persist_directive_payload_resolves_job_alias_before_writes(
         )
 
     assert result.raw_prompt_updated is True
-    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == (
+    assert (artifacts / "raw_prompt.md").read_text(encoding="utf-8") == (
         "%id(worker, tribe=chop)\nDo work"
     )
     assert json.loads((artifacts / "agent_meta.json").read_text())["tribe"] == "chop"
@@ -408,7 +408,7 @@ def test_persist_directive_payload_resolves_job_alias_before_writes(
 def test_persist_directive_set_queue_preserves_zero_weight(tmp_path: Path) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text("%q(w=0)\nDo work", encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text("%q(w=0)\nDo work", encoding="utf-8")
 
     result = persist_directive_from_payload(
         {
@@ -423,7 +423,7 @@ def test_persist_directive_set_queue_preserves_zero_weight(tmp_path: Path) -> No
     )
 
     assert result.raw_prompt_updated is True
-    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == (
+    assert (artifacts / "raw_prompt.md").read_text(encoding="utf-8") == (
         "%queue(capacity=3, priority=1, weight=0)\nDo work"
     )
 
@@ -431,7 +431,7 @@ def test_persist_directive_set_queue_preserves_zero_weight(tmp_path: Path) -> No
 def test_persist_directive_set_wait_preserves_zero_weight(tmp_path: Path) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text("%q(w=0)\nDo work", encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text("%q(w=0)\nDo work", encoding="utf-8")
 
     result = persist_directive_from_payload(
         {"prompt": {"kind": "set_wait", "wait": {"weight": 0.0}}},
@@ -439,7 +439,7 @@ def test_persist_directive_set_wait_preserves_zero_weight(tmp_path: Path) -> Non
     )
 
     assert result.raw_prompt_updated is True
-    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == (
+    assert (artifacts / "raw_prompt.md").read_text(encoding="utf-8") == (
         "%queue(weight=0)\nDo work"
     )
 
@@ -540,7 +540,7 @@ def test_persist_directive_payload_collision_leaves_files_unchanged(
     artifacts.mkdir(parents=True)
     raw_prompt = "%id(worker, tribe=old)\nDo work"
     raw_meta = {"name": "worker", "tribe": "old"}
-    (artifacts / "raw_xprompt.md").write_text(raw_prompt, encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text(raw_prompt, encoding="utf-8")
     (artifacts / "agent_meta.json").write_text(json.dumps(raw_meta), encoding="utf-8")
     colliding_layers = [
         {
@@ -584,7 +584,7 @@ def test_persist_directive_payload_collision_leaves_files_unchanged(
             artifacts_dir=str(artifacts),
         )
 
-    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == raw_prompt
+    assert (artifacts / "raw_prompt.md").read_text(encoding="utf-8") == raw_prompt
     assert json.loads((artifacts / "agent_meta.json").read_text()) == raw_meta
     assert json.loads(tribes_file.read_text()) == [
         {"id": ["run", "fix-bug", "20260506120000"], "tribe": "old"}

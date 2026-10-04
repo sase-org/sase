@@ -1,4 +1,4 @@
-"""Prompt input bar stack tests for xprompt-markdown editor behavior."""
+"""Prompt input bar stack tests for macro-markdown editor behavior."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from rich.text import Text
 
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
+from sase.ace.tui.widgets.prompt_stack import MacroBinding, MacroReadonlyTarget
 from sase.macro.models import InputArg, InputType, Macro
 from sase.macro.prompt_frontmatter import LOCAL_MACRO_SOURCE, PromptFrontmatter
 
-from ._prompt_input_bar_stack_helpers import _PromptBarApp, _XPromptMarkdownApp
+from ._prompt_input_bar_stack_helpers import _PromptBarApp, _MacroMarkdownApp
 
 
 def _plain_title(bar: PromptInputBar) -> str:
@@ -42,7 +42,7 @@ async def test_all_editor_markdown_serializes_canonical_frontmatter() -> None:
         )
         bar._stack.set_frontmatter_model(model)
 
-        markdown = bar.xprompt_markdown_for_editor()
+        markdown = bar.macro_markdown_for_editor()
         frontmatter = model.serialize()
 
         # Canonical frontmatter sits above the panes (with a blank-line spacer),
@@ -66,7 +66,7 @@ async def test_all_editor_markdown_omits_empty_frontmatter_block() -> None:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        markdown = bar.xprompt_markdown_for_editor()
+        markdown = bar.macro_markdown_for_editor()
 
         # No properties set -> no leading ``---\n---`` delimiter block.
         assert markdown == "alpha\n\n---\n\nbeta"
@@ -114,7 +114,7 @@ async def test_load_stack_from_macro_markdown_lifts_single_body_pane() -> None:
 async def test_prompt_bar_target_api_sets_and_clears_binding(tmp_path: Path) -> None:
     source = tmp_path / "review.md"
     source.write_text("body\n", encoding="utf-8")
-    binding = XPromptBinding.for_file(source, reference="#review")
+    binding = MacroBinding.for_file(source, reference="#review")
     app = _PromptBarApp("only one")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -146,7 +146,7 @@ async def test_preserve_target_reload_keeps_binding_and_dirty_baseline(
 ) -> None:
     source = tmp_path / "review.md"
     source.write_text("body\n", encoding="utf-8")
-    binding = XPromptBinding.for_file(source, reference="#review")
+    binding = MacroBinding.for_file(source, reference="#review")
     app = _PromptBarApp("body")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -176,7 +176,7 @@ async def test_prompt_bar_target_dirty_state_updates_title_and_classes(
 ) -> None:
     source = tmp_path / "review.md"
     source.write_text("body\n", encoding="utf-8")
-    binding = XPromptBinding.for_file(source, reference="#review")
+    binding = MacroBinding.for_file(source, reference="#review")
     app = _PromptBarApp("only one")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -202,7 +202,7 @@ async def test_prompt_bar_readonly_target_state_is_persistent() -> None:
         bar = app.query_one(PromptInputBar)
         bar.load_stack_from_macro_markdown(
             "body\n",
-            read_only_target=XPromptReadonlyTarget(
+            read_only_target=MacroReadonlyTarget(
                 reference="#builtin/review",
                 path="/opt/sase/macros/review.md",
             ),
@@ -225,7 +225,7 @@ async def test_prompt_bar_stale_state_renders_changed_on_disk(
 ) -> None:
     source = tmp_path / "review.md"
     source.write_text("body\n", encoding="utf-8")
-    binding = XPromptBinding.for_file(source, reference="#review")
+    binding = MacroBinding.for_file(source, reference="#review")
     app = _PromptBarApp("only one")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -234,7 +234,7 @@ async def test_prompt_bar_stale_state_renders_changed_on_disk(
         bar = app.query_one(PromptInputBar)
         bar.load_stack_from_macro_markdown("body\n", binding=binding)
         await pilot.pause()
-        bar._complete_xprompt_stale_check(
+        bar._complete_macro_stale_check(
             bar._macro_target_generation,
             binding.write_path,
             True,
@@ -269,25 +269,25 @@ async def test_load_stack_from_macro_markdown_clears_frontmatter_panel() -> None
         assert app.query_one("#frontmatter-panel", FrontmatterPanel).has_class("hidden")
 
 
-async def test_initial_xprompt_markdown_lifts_frontmatter_and_splits() -> None:
+async def test_initial_raw_prompt_markdown_lifts_frontmatter_and_splits() -> None:
     """Constructor seeding with editor-file semantics lifts frontmatter + splits.
 
     The ` @`-review-marker editor-return remount path mounts a fresh bar via
-    ``initial_xprompt_markdown=...``.  This lifts leading frontmatter onto the
+    ``initial_raw_prompt_markdown=...``.  This lifts leading frontmatter onto the
     stack, splits real ``---`` separators into panes, and auto-shows the
     frontmatter panel on mount.
     """
     markdown = (
         "---\n"
         "description: Review auth and API separately\n"
-        "xprompts:\n"
+        "macros:\n"
         "  _shared: Use the same style guide.\n"
         "---\n"
         "Review auth.\n"
         "---\n"
         "Review API."
     )
-    app = _XPromptMarkdownApp(markdown)
+    app = _MacroMarkdownApp(markdown)
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
@@ -298,7 +298,7 @@ async def test_initial_xprompt_markdown_lifts_frontmatter_and_splits() -> None:
         assert bar._stack.frontmatter == (
             "---\n"
             "description: Review auth and API separately\n"
-            "xprompts:\n"
+            "macros:\n"
             "  _shared: Use the same style guide.\n"
             "---"
         )
@@ -310,9 +310,9 @@ async def test_initial_xprompt_markdown_lifts_frontmatter_and_splits() -> None:
         assert "_shared" in model.macros
 
 
-async def test_initial_xprompt_markdown_protects_fenced_separator() -> None:
+async def test_initial_raw_prompt_markdown_protects_fenced_separator() -> None:
     initial = "before\n```\n---\nstill code\n```\nafter"
-    app = _XPromptMarkdownApp(initial)
+    app = _MacroMarkdownApp(initial)
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()

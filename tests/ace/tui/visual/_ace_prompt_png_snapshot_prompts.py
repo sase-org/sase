@@ -61,11 +61,11 @@ CURSOR_READOUT_STACK_PROMPT = (
     "and reports its position on the bar border"
 )
 
-XPROMPT_HIGHLIGHT_SOLO = (
+MACRO_HIGHLIGHT_SOLO = (
     "#gh:sase %auto #pr:my_change %m:opus fix the bug use /sase_plan\n"
     "```text\n#literal %wait:no\n---\n```"
 )
-XPROMPT_HIGHLIGHT_STACK = (
+MACRO_HIGHLIGHT_STACK = (
     "#gh:sase %auto #pr:my_change inspect the failure\n"
     "---\n"
     "%{%m:opus | %m:sonnet} #git:home summarize the fix use /sase_plan"
@@ -77,7 +77,7 @@ PROJECT_TAG_HIGHLIGHT_SOLO = (
     "+no-such-project stays a warning\n"
     "```text\n+literal stays inert here\n```"
 )
-XPROMPT_ARGUMENT_HIGHLIGHT = (
+MACRO_ARGUMENT_HIGHLIGHT = (
     "#visual(path=src/app.py)\n"
     '#visual_batch(owner, title="release notes", count=42, enabled=true)\n'
     "#visual(context=@file:plans/launch.md+{{ root }}, extra=nope)\n"
@@ -89,12 +89,12 @@ ARTIFACT_REF_HIGHLIGHT = (
 )
 GLOSSARY_HIGHLIGHT_PROMPT = (
     "Ask the Agent Clan to review the Patch glossary wiring\n"
-    "Keep xprompt references, `Agent Clan`, and @plan:notes.md distinct."
+    "Keep macro references, `Agent Clan`, and @plan:notes.md distinct."
 )
 GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT = (
     "Ask the Agent\n"
     "  Clan to review the Patch glossary wiring\n"
-    "Keep xprompt references and @plan:notes.md distinct."
+    "Keep macro references and @plan:notes.md distinct."
 )
 REPO_MENTION_HIGHLIGHT_PROMPT = (
     "Ask the Agent Clan to inspect sase-core before the Patch handoff"

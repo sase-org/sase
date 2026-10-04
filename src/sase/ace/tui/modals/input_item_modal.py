@@ -3,7 +3,7 @@
 A small typed sub-form for a single declared input: its ``name``, ``type``,
 optional ``default`` (blank means required), and optional ``description``.  The
 type field is validated against — and guided by — the ``sase-core`` input-type
-catalog (the same engine that backs the xprompt LSP), and a non-blank default is
+catalog (the same engine that backs the macro LSP), and a non-blank default is
 coerced through the real runtime validator (:meth:`InputArg.validate_and_convert`)
 so the saved value is exactly what the launch path will accept.
 

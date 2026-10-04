@@ -14,7 +14,7 @@ from ._helpers import (
     aggregate_meta_fields,
     extract_meta_fields,
     format_meta_key,
-    load_xprompts_used,
+    load_macros_used,
 )
 from ._identity_header import (
     IdentityHeader,
@@ -50,7 +50,7 @@ class AgentPromptPanel(
         return getattr(self, "id", None) == "agent-prompt-panel"
 
     _identity_header_sink: IdentityHeaderSink | None = None
-    _detach_xprompt: bool = False
+    _detach_raw_prompt: bool = False
     _identity_header_expanded_probe: Callable[[], bool] | None = None
     _identity_last_published: IdentityHeader | None = None
     _identity_last_content: Any = ""
@@ -67,12 +67,12 @@ class AgentPromptPanel(
         self,
         sink: IdentityHeaderSink | None,
         *,
-        detach_xprompt: bool = False,
+        detach_raw_prompt: bool = False,
         header_expanded: Callable[[], bool] | None = None,
     ) -> None:
         """Publish detached identity headers to ``sink`` on each update."""
         self._identity_header_sink = sink
-        self._detach_xprompt = sink is not None and detach_xprompt
+        self._detach_raw_prompt = sink is not None and detach_raw_prompt
         self._identity_header_expanded_probe = (
             header_expanded if sink is not None else None
         )
@@ -83,9 +83,9 @@ class AgentPromptPanel(
         return self._identity_header_sink is not None
 
     @property
-    def detaches_xprompt(self) -> bool:
-        """Whether xprompts travel with the detached identity header."""
-        return self.detaches_identity_header and self._detach_xprompt
+    def detaches_raw_prompt(self) -> bool:
+        """Whether macros travel with the detached identity header."""
+        return self.detaches_identity_header and self._detach_raw_prompt
 
     @property
     def identity_header_hints_enabled(self) -> bool:
@@ -334,5 +334,5 @@ __all__ = [
     "aggregate_meta_fields",
     "extract_meta_fields",
     "format_meta_key",
-    "load_xprompts_used",
+    "load_macros_used",
 ]

@@ -1,4 +1,4 @@
-"""Xprompt-focus and description-rail coverage for the Statistics pane."""
+"""Macro-focus and description-rail coverage for the Statistics pane."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from sase.ace.tui.modals.statistics_pane_data import (
     StatisticsView,
     StatisticsViewData,
 )
-from sase.ace.tui.modals.statistics_xprompt_picker_modal import (
-    StatisticsXPromptPickerModal,
+from sase.ace.tui.modals.statistics_macro_picker_modal import (
+    StatisticsMacroPickerModal,
 )
 from sase.stats.ranges import StatsRange
 
@@ -36,7 +36,7 @@ from tests.ace.tui._statistics_pane_helpers import (
 )
 
 
-async def test_xprompt_focus_picker_all_clear_key_and_cancel(
+async def test_macro_focus_picker_all_clear_key_and_cancel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple] = []
@@ -44,59 +44,59 @@ async def test_xprompt_focus_picker_all_clear_key_and_cancel(
 
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
-        pane.action_focus_xprompt()
+        pane.action_focus_macro()
         await page.pause()
-        assert not isinstance(page.app.screen, StatisticsXPromptPickerModal)
+        assert not isinstance(page.app.screen, StatisticsMacroPickerModal)
 
-        pane._set_view("xprompts")
+        pane._set_view("macros")
         await page.pause()
-        xprompt_scope = pane.query_one("#statistics-scope-xprompt", Static)
-        assert xprompt_scope.display is True
+        macro_scope = pane.query_one("#statistics-scope-macro", Static)
+        assert macro_scope.display is True
         assert "x focus" in pane.query_one("#statistics-hints", Static).render().plain
 
         await page.press("x")
-        await page.expect_modal("StatisticsXPromptPickerModal")
+        await page.expect_modal("StatisticsMacroPickerModal")
         await page.press("down", "enter")
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
 
-        assert pane._xprompt_focus == "split_file"
+        assert pane._macro_focus == "split_file"
         assert calls[-1][3] == "split_file"
-        assert "■ #split_file" in _scope_plain(pane, "xprompt")
+        assert "■ #split_file" in _scope_plain(pane, "macro")
 
         await page.press("x")
-        await page.expect_modal("StatisticsXPromptPickerModal")
+        await page.expect_modal("StatisticsMacroPickerModal")
         await page.press("up", "enter")
         await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
-        assert pane._xprompt_focus is None
+        assert pane._macro_focus is None
         assert calls[-1][3] is None
 
         await page.press("x")
-        await page.expect_modal("StatisticsXPromptPickerModal")
+        await page.expect_modal("StatisticsMacroPickerModal")
         await page.press("down", "enter")
         await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
         await page.press("X")
         await page.wait_for(lambda _state: len(calls) == 5 and not pane._loading)
-        assert pane._xprompt_focus is None
+        assert pane._macro_focus is None
         assert calls[-1][3] is None
 
         await page.press("x")
-        await page.expect_modal("StatisticsXPromptPickerModal")
+        await page.expect_modal("StatisticsMacroPickerModal")
         await page.press("q")
         await page.expect_modal("ConfigCenterModal")
-        assert pane._xprompt_focus is None
+        assert pane._macro_focus is None
         assert len(calls) == 5
 
         pane._set_view("providers")
         await page.pause()
-        assert xprompt_scope.display is False
+        assert macro_scope.display is False
 
 
-def test_focused_xprompt_body_renders_every_group_and_not_found() -> None:
+def test_focused_macro_body_renders_every_group_and_not_found() -> None:
     pane = sp.StatisticsPane(auto_load=False)
-    pane._view = "xprompts"
-    pane._xprompt_focus = "split_file"
+    pane._view = "macros"
+    pane._macro_focus = "split_file"
     result = _result(
-        "xprompts",
+        "macros",
         pane._range,
         macro_focus="split_file",
     )
@@ -108,25 +108,25 @@ def test_focused_xprompt_body_renders_every_group_and_not_found() -> None:
         "pairing": ("Used With", "#gh"),
     }
     for group, phrases in expected.items():
-        pane._xprompts_group_by = group  # type: ignore[assignment]
-        rendered = _render_plain(pane._xprompts_renderable(result))
+        pane._macros_group_by = group  # type: ignore[assignment]
+        rendered = _render_plain(pane._macros_renderable(result))
         assert "#split_file" in rendered
         assert "Runs  3" in rendered
         assert "Providers" in rendered
         assert "Tribes" in rendered
-        assert "Press X to return to All xprompts." in rendered
+        assert "Press X to return to All macros." in rendered
         for phrase in phrases:
             assert phrase in rendered
 
-    pane._xprompt_focus = "missing"
+    pane._macro_focus = "missing"
     missing = _result(
-        "xprompts",
+        "macros",
         pane._range,
         macro_focus="missing",
     )
-    rendered = _render_plain(pane._xprompts_renderable(missing))
+    rendered = _render_plain(pane._macros_renderable(missing))
     assert "#missing has no runs in" in rendered
-    assert "Press t to choose another range, or X to return to All xprompts." in (
+    assert "Press t to choose another range, or X to return to All macros." in (
         rendered
     )
 
@@ -236,7 +236,7 @@ async def test_refresh_and_hidden_tab_keep_the_active_view_rail(
 
     async with AcePage() as page:
         modal, pane = await _open_statistics(page)
-        pane._set_view("xprompts")
+        pane._set_view("macros")
         _assert_statistics_chrome(pane)
         before = len(calls)
         pane.action_refresh()
@@ -247,13 +247,13 @@ async def test_refresh_and_hidden_tab_keep_the_active_view_rail(
 
         await modal._switch_to("config")
         await page.pause()
-        assert pane._view == "xprompts"
+        assert pane._view == "macros"
         pane._on_refresh_tick()
         await page.pause()
         assert len(calls) == before + 1
         await modal._switch_to("statistics")
         await page.wait_for(lambda _state: modal._active_tab == "statistics")
-        assert pane._view == "xprompts"
+        assert pane._view == "macros"
         _assert_statistics_chrome(pane)
 
 

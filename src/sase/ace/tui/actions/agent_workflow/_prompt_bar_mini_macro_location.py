@@ -131,7 +131,7 @@ class MiniMacroLocationFlow:
                 _picker_payload,
                 rows,
                 catalog,
-                last_used_path=last_used.get("xprompt"),
+                last_used_path=last_used.get("macro"),
                 current_path=self._current_location_path,
                 home_mode=self._home_mode,
                 project=self._project,

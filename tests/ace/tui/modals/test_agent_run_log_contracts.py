@@ -90,7 +90,7 @@ def test_run_log_loads_active_dismissed_and_meta_created_agents() -> None:
     )
 
 
-def test_run_log_detail_humanizes_xprompt_and_chat(
+def test_run_log_detail_humanizes_macro_and_chat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FakeStatic:

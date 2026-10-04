@@ -85,12 +85,12 @@ def test_stale_project_filter_result_is_discarded_and_rescheduled(
     assert pane._last_result is None
 
 
-def test_stale_xprompt_focus_result_is_discarded_and_rescheduled(
+def test_stale_macro_focus_result_is_discarded_and_rescheduled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pane = StatisticsPane(auto_load=False)
-    pane._view = "xprompts"
-    pane._xprompt_focus = "split_file"
+    pane._view = "macros"
+    pane._macro_focus = "split_file"
     result = _result(
         pane._view,
         pane._range,

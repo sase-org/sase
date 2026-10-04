@@ -231,7 +231,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     ),
     Binding(
         "ctrl+g",
-        "start_last_vcs_xprompt_in_editor",
+        "start_last_vcs_macro_in_editor",
         "Edit Last VCS Macro",
         show=False,
     ),
@@ -267,7 +267,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Scroll to top/bottom (Axe tab)
     Binding("g", "scroll_to_top", "Top", show=False),
     Binding("G", "scroll_to_bottom", "Bottom", show=False),
-    # SASE Admin Center (config editor + xprompt browser)
+    # SASE Admin Center (config editor + macro browser)
     Binding("number_sign", "open_config_center", "SASE Admin Center", show=False),
     Binding("question_mark", "show_help", "Help", show=False),
     # Query history navigation

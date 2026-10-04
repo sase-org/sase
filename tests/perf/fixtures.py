@@ -129,13 +129,13 @@ def write_agent_artifacts(
 ) -> Path:
     """Materialize a minimal on-disk agent artifacts dir and return its path.
 
-    The view-hints keypath reads ``raw_macro.md``, ``*_prompt.md``, and
+    The view-hints keypath reads ``raw_prompt.md``, ``*_prompt.md``, and
     ``live_reply.md`` off disk, so these scenarios cannot use the disk-free
     agent rows the other benches share.
     """
     artifacts_dir = artifacts_root / name
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "raw_xprompt.md").write_text(
+    (artifacts_dir / "raw_prompt.md").write_text(
         macro_def or "#gh:sase Review src/sase/ace/tui/util/trace.py and report back.\n"
     )
     (artifacts_dir / f"{name}_prompt.md").write_text(

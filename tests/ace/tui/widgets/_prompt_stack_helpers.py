@@ -38,10 +38,10 @@ def mini_macro_target(
     return MiniMacroPaneTarget(
         name=name,
         reference=f"#{name}",
-        location_path="/tmp/xprompts",
+        location_path="/tmp/macros",
         read_path=f"/tmp/{name}.md",
         write_path=f"/tmp/{name}.md",
-        display_path=f"~/sase/xprompts/{name}.md",
+        display_path=f"~/sase/macros/{name}.md",
         apply_target=None,
         via_chezmoi=False,
         target_format=SaveTargetFormat.MARKDOWN,

@@ -330,7 +330,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
             handler(event)
 
     def invalidate_artifact_ref_completion_cache(self) -> None:
-        """Drop warm ref catalogs after xprompt/ref source configuration changes."""
+        """Drop warm ref catalogs after macro/ref source configuration changes."""
         self._artifact_ref_catalog_generation += 1
         self._artifact_ref_known_kinds_by_project.clear()
         self._artifact_ref_completion_catalogs_by_project.clear()

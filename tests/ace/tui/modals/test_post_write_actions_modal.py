@@ -29,7 +29,7 @@ def _offer(
         subtitle=f"Run {label}.",
         default_on=True,
         file_path="/tmp/review.md",
-        rel_path="xprompts/review.md",
+        rel_path="macros/review.md",
     )
 
 
@@ -43,7 +43,7 @@ async def test_post_write_modal_toggles_rows_and_returns_selected() -> None:
 
     async with app.run_test(size=(90, 28)) as pilot:
         app.push_screen(
-            PostWriteActionsModal(actions, subject="xprompts/review.md"),
+            PostWriteActionsModal(actions, subject="macros/review.md"),
             results.append,
         )
         await pilot.pause()

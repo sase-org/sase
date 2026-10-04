@@ -110,7 +110,7 @@ async def test_preview_modal_toggle_never_shrinks() -> None:
 async def test_preview_modal_rendered_grows_when_taller() -> None:
     content = "# A\n\nBody A.\n\n# B\n\nBody B.\n\n```python\nprint(1)\nprint(2)\n```\n"
     payload = PreviewPayload(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#md",
         source_path="/tmp/md.md",

@@ -1,7 +1,7 @@
 """Phase-6 prompt panel artifact-cache acceptance tests.
 
 The prompt panel re-globs ``*_prompt.md`` and re-reads the prompt + raw
-xprompt + response artifacts every time the user selects an agent. With
+macro + response artifacts every time the user selects an agent. With
 the ``ArtifactFileCache`` wired through ``get_prompt_content`` and the
 ``Agent`` artifact accessors, repeated selection of the same agent should
 not retouch the filesystem when nothing has changed.

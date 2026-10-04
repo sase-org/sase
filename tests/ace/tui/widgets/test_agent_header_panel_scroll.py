@@ -11,7 +11,7 @@ from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.agent_header_panel import AgentHeaderPanel
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from tests.ace.tui.widgets._agent_header_panel_shared import (
-    LONG_XPROMPT,
+    LONG_RAW_PROMPT,
     artifact_agent,
     header_panel,
     show_agent,
@@ -30,7 +30,9 @@ class _HeaderScrollNavApp(BasicNavigationMixin, App[None]):
 async def _show_overflowing_expanded(
     detail: AgentDetail, tmp_path: Any, pilot: Any, name: str = "a"
 ) -> AgentHeaderPanel:
-    await show_agent_full(detail, artifact_agent(tmp_path, name, LONG_XPROMPT), pilot)
+    await show_agent_full(
+        detail, artifact_agent(tmp_path, name, LONG_RAW_PROMPT), pilot
+    )
     panel = header_panel(detail)
     if not panel.is_expanded:
         assert detail.toggle_header_expanded() is True
@@ -115,7 +117,7 @@ async def test_hint_expanded_header_claims_scroll(tmp_path: Any) -> None:
     app = _HeaderScrollNavApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        agent = artifact_agent(tmp_path, "a", LONG_XPROMPT)
+        agent = artifact_agent(tmp_path, "a", LONG_RAW_PROMPT)
         await show_agent_full(detail, agent, pilot)
         panel = header_panel(detail)
         assert not panel.is_expanded
@@ -145,7 +147,7 @@ async def test_header_fallback_targets_focused_deck(tmp_path: Any) -> None:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         # Collapsed but overflowing preview must still fall back to the deck.
         await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
+            detail, artifact_agent(tmp_path, "a", LONG_RAW_PROMPT), pilot
         )
         panel = header_panel(detail)
         assert not panel.is_expanded

@@ -136,20 +136,20 @@ def test_project_filtered_plan_and_question_values_need_no_scope_markers() -> No
     ("group_by", "distinctive_copy"),
     (
         ("usage", ("Refs", "Agents", "Last used")),
-        ("model", ("XPrompt → Model", "gpt-5.6", "(no model recorded)")),
-        ("project", ("XPrompt → Project", "SASE", "Core")),
-        ("pairing", ("XPrompt → Used with", "#gh", "(used alone)")),
+        ("model", ("Macro → Model", "gpt-5.6", "(no model recorded)")),
+        ("project", ("Macro → Project", "SASE", "Core")),
+        ("pairing", ("Macro → Used with", "#gh", "(used alone)")),
     ),
 )
-def test_xprompts_grouping_modes_render_distinctive_columns_and_rows(
+def test_macros_grouping_modes_render_distinctive_columns_and_rows(
     group_by: str,
     distinctive_copy: tuple[str, ...],
 ) -> None:
     pane = StatisticsPane(auto_load=False)
-    pane._view = "xprompts"
-    pane._xprompts_group_by = group_by  # type: ignore[assignment]
+    pane._view = "macros"
+    pane._macros_group_by = group_by  # type: ignore[assignment]
     result = _result(
-        "xprompts",
+        "macros",
         pane._range,
         project_display_snapshot=ProjectDisplaySnapshot(
             {"sase": "SASE", "core": "Core"}
@@ -159,8 +159,7 @@ def test_xprompts_grouping_modes_render_distinctive_columns_and_rows(
     rendered = _render_plain(pane._view_renderable(result))
 
     assert (
-        "2 xprompts · 4 runs referenced · 5 references · "
-        "2 runs without xprompts (33.3%)"
+        "2 macros · 4 runs referenced · 5 references · 2 runs without macros (33.3%)"
     ) in rendered
     assert all(copy in rendered for copy in distinctive_copy)
     collapsed = " ".join(rendered.split())
@@ -170,12 +169,12 @@ def test_xprompts_grouping_modes_render_distinctive_columns_and_rows(
 def test_swarm_rows_and_focus_header_label_the_swarm_kind() -> None:
     pane = StatisticsPane(auto_load=False)
     payload = _run_payload(pane._range, "tribe")
-    payload["xprompts"]["rows"][0].update(
+    payload["macros"]["rows"][0].update(
         {"name": "research_swarm", "kind": "swarm", "tags": []}
     )
     views = build_statistics_views(payload, _activity_payload())
 
-    rendered = _render_plain(pane._xprompts_usage_renderable(views.macros))
+    rendered = _render_plain(pane._macros_usage_renderable(views.macros))
 
     assert "#research_swarm  swarm" in rendered
 
@@ -197,10 +196,10 @@ def test_plans_questions_render_feedback_and_coverage_floor() -> None:
     assert "Plan/question data begins" in rendered
 
 
-def test_xprompt_focus_header_labels_the_swarm_kind() -> None:
+def test_macro_focus_header_labels_the_swarm_kind() -> None:
     pane = StatisticsPane(auto_load=False)
     payload = _run_payload(pane._range, "tribe")
-    payload["xprompts"]["focus"] = {
+    payload["macros"]["focus"] = {
         "name": "research_swarm",
         "found": True,
         "kind": "swarm",
@@ -226,7 +225,7 @@ def test_xprompt_focus_header_labels_the_swarm_kind() -> None:
     focus = views.macros.focus
     assert focus is not None
 
-    rendered = _render_plain(pane._xprompt_focus_header(focus))
+    rendered = _render_plain(pane._macro_focus_header(focus))
 
     assert "#research_swarm  swarm" in rendered
 
@@ -263,82 +262,78 @@ def test_projects_by_project_uses_patches_header_and_spec_footnote() -> None:
     )
 
 
-def test_xprompts_drilldown_discloses_per_row_truncation() -> None:
+def test_macros_drilldown_discloses_per_row_truncation() -> None:
     pane = StatisticsPane(auto_load=False)
     payload = _run_payload(pane._range, "tribe")
-    payload["xprompts"]["rows"][0]["models_truncated"] = 4
+    payload["macros"]["rows"][0]["models_truncated"] = 4
     views = build_statistics_views(payload, _activity_payload())
 
     rendered = _render_plain(
-        pane._xprompts_drilldown_renderable(views.macros, dimension="model")
+        pane._macros_drilldown_renderable(views.macros, dimension="model")
     )
 
     assert "+4 more not shown" in rendered
     assert rendered.count("more not shown") == 1
 
 
-def test_xprompts_legend_splits_share_denominators() -> None:
+def test_macros_legend_splits_share_denominators() -> None:
     pane = StatisticsPane(auto_load=False)
-    pane._view = "xprompts"
+    pane._view = "macros"
     rendered = " ".join(
-        _render_plain(
-            pane._xprompts_renderable(_result("xprompts", pane._range))
-        ).split()
+        _render_plain(pane._macros_renderable(_result("macros", pane._range))).split()
     )
 
-    assert "Share = share of runs that referenced any xprompt" in rendered
-    assert "Child share = share of that xprompt's own runs" in rendered
+    assert "Share = share of runs that referenced any macro" in rendered
+    assert "Child share = share of that macro's own runs" in rendered
 
 
-def test_xprompts_truncation_is_explicit() -> None:
+def test_macros_truncation_is_explicit() -> None:
     pane = StatisticsPane(auto_load=False)
     payload = _run_payload(pane._range, "tribe")
-    payload["xprompts"]["truncated_rows"] = 7
+    payload["macros"]["truncated_rows"] = 7
     views = build_statistics_views(payload, _activity_payload())
 
-    rendered = _render_plain(pane._xprompts_usage_renderable(views.macros))
+    rendered = _render_plain(pane._macros_usage_renderable(views.macros))
 
-    assert "7 more xprompts not shown." in rendered
+    assert "7 more macros not shown." in rendered
 
 
-def test_xprompts_unavailable_and_no_reference_states_use_effective_keys() -> None:
+def test_macros_unavailable_and_no_reference_states_use_effective_keys() -> None:
     pane = StatisticsPane(auto_load=False)
     unavailable = _run_payload(pane._range, "tribe")
-    unavailable.pop("xprompts")
+    unavailable.pop("macros")
     unavailable_result = _result(
-        "xprompts",
+        "macros",
         pane._range,
     )
     unavailable_result = unavailable_result.__class__(
-        view="xprompts",
+        view="macros",
         selected_range=pane._range,
         generated_at=unavailable_result.generated_at,
         views=build_statistics_views(unavailable, _activity_payload()),
     )
-    pane._view = "xprompts"
+    pane._view = "macros"
 
     rendered = _render_plain(pane._view_renderable(unavailable_result))
-    assert "XPrompt statistics unavailable" in rendered
+    assert "Macro statistics unavailable" in rendered
     assert "Press r to refresh" in rendered
 
     empty_payload = _run_payload(pane._range, "tribe")
-    empty_payload["xprompts"].update(
+    empty_payload["macros"].update(
         {
-            "runs_with_xprompts": 0,
-            "runs_without_xprompts": 6,
-            "distinct_xprompts": 0,
+            "runs_with_macros": 0,
+            "runs_without_macros": 6,
+            "distinct_macros": 0,
             "total_references": 0,
             "rows": [],
         }
     )
     empty_result = unavailable_result.__class__(
-        view="xprompts",
+        view="macros",
         selected_range=pane._range,
         generated_at=unavailable_result.generated_at,
         views=build_statistics_views(empty_payload, _activity_payload()),
     )
     rendered = _render_plain(pane._view_renderable(empty_result))
-    assert (
-        f"No prompt in {pane._range.display_label} referenced an xprompt." in rendered
-    )
+    assert f"No prompt in {pane._range.display_label} referenced a macro." in rendered
     assert "Press t to widen the range." in rendered

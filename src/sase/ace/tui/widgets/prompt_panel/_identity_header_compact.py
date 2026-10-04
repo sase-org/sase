@@ -33,13 +33,13 @@ from ._fold_language import FOLD_CHARS, FOLD_STYLES
 from ._workflow_render import WORKFLOW_STATUS_STYLES
 
 CHIP_SEPARATOR_STYLE = "dim"
-_XPROMPT_KIND_STYLES: dict[str, tuple[str, str]] = {
+_MACRO_KIND_STYLES: dict[str, tuple[str, str]] = {
     "workflow": ("⌘", "bold #FFAF5F"),
     "swarm": ("❋", "bold #FF87D7"),
 }
-_XPROMPT_DEFAULT_GLYPH = "▣"
-_XPROMPT_DEFAULT_STYLE = "bold #87FFAF"
-_XPROMPT_CHIP_LIMIT = 3
+_MACRO_DEFAULT_GLYPH = "▣"
+_MACRO_DEFAULT_STYLE = "bold #87FFAF"
+_MACRO_CHIP_LIMIT = 3
 _WAIT_CHIP_GLYPH = "⏳"
 _WAIT_CHIP_GLYPH_STYLE = "#AF87FF"
 _MACHINE_CHIP_GLYPH = "⌨"
@@ -129,21 +129,21 @@ def _turn_count_chip(turn_section: ResponsiveTurnSection | None) -> Text:
     return chip
 
 
-def _xprompt_chips(summary: DetailHeaderSummary | None) -> list[Text]:
-    """Return at most three xprompt chips plus a dim overflow count."""
-    xprompts = (summary.xprompts_used if summary is not None else None) or []
+def _macro_chips(summary: DetailHeaderSummary | None) -> list[Text]:
+    """Return at most three macro chips plus a dim overflow count."""
+    macros = (summary.xprompts_used if summary is not None else None) or []
     chips: list[Text] = []
-    for item in xprompts[:_XPROMPT_CHIP_LIMIT]:
-        glyph, style = _XPROMPT_KIND_STYLES.get(
+    for item in macros[:_MACRO_CHIP_LIMIT]:
+        glyph, style = _MACRO_KIND_STYLES.get(
             str(item.get("kind") or ""),
-            (_XPROMPT_DEFAULT_GLYPH, _XPROMPT_DEFAULT_STYLE),
+            (_MACRO_DEFAULT_GLYPH, _MACRO_DEFAULT_STYLE),
         )
         chip = Text()
         chip.append(f"{glyph} #{item.get('name') or 'unknown'}", style=style)
         chips.append(chip)
-    if len(xprompts) > _XPROMPT_CHIP_LIMIT:
+    if len(macros) > _MACRO_CHIP_LIMIT:
         overflow = Text()
-        overflow.append(f"+{len(xprompts) - _XPROMPT_CHIP_LIMIT}", style="dim")
+        overflow.append(f"+{len(macros) - _MACRO_CHIP_LIMIT}", style="dim")
         chips.append(overflow)
     return chips
 
@@ -338,7 +338,7 @@ def build_agent_compact_lines(
         first.append(machine_chip)
 
     second: list[Text] = []
-    second.extend(_xprompt_chips(summary))
+    second.extend(_macro_chips(summary))
     queue_chip = _queue_chip(agent)
     if queue_chip is not None:
         second.append(queue_chip)

@@ -3,7 +3,7 @@
 The prompt editor key: on a single-pane bar it posts
 :class:`EditorRequested` (legacy behavior: a ` @` review marker reloads the
 whole bar, otherwise the edited text launches); on a multi-pane stack it posts
-:class:`AllEditorRequested`, opening the whole stack as xprompt markdown and
+:class:`AllEditorRequested`, opening the whole stack as macro markdown and
 reloading the edited result without launching.
 
 The ``EditorRequested`` handler still carries a defensive stacked-bar branch
@@ -72,7 +72,7 @@ class _FakeBar:
     def update_active_pane(self, text: str) -> None:
         self.updated_panes.append(text)
 
-    def xprompt_markdown_for_editor(self) -> str:
+    def macro_markdown_for_editor(self) -> str:
         return self._markdown
 
     def macro_target(self) -> Any:
@@ -232,15 +232,15 @@ def test_single_pane_editor_review_marker_reloads_whole_bar() -> None:
 
 def test_single_pane_editor_review_marker_reloads_multi_agent_markdown() -> None:
     # A ` @` review marker on a single-pane bar returning multi-agent markdown
-    # with leading xprompt frontmatter reloads through the editor-markdown
-    # (xprompt) path — the cleaned buffer keeps its frontmatter + ``---``
+    # with leading macro frontmatter reloads through the editor-markdown
+    # (macro) path — the cleaned buffer keeps its frontmatter + ``---``
     # separators so the bar lifts the frontmatter and splits into panes — and
     # never launches. The marker on the last body line drives the whole reload.
     bar = _FakeBar(stacked=False)
     editor_result = (
         "---\n"
         "description: Review auth and API separately\n"
-        "xprompts:\n"
+        "macros:\n"
         "  _shared: Use the same style guide.\n"
         "---\n"
         "Review auth.\n"
@@ -254,7 +254,7 @@ def test_single_pane_editor_review_marker_reloads_multi_agent_markdown() -> None
     assert harness.loaded == [
         "---\n"
         "description: Review auth and API separately\n"
-        "xprompts:\n"
+        "macros:\n"
         "  _shared: Use the same style guide.\n"
         "---\n"
         "Review auth.\n"

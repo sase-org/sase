@@ -254,18 +254,18 @@ async def test_agents_auto_approve_metadata_png_snapshots(
             )
 
 
-def _auto_approve_xprompts_agent(artifacts_dir: Path) -> Agent:
-    """One approved agent whose artifacts dir carries ``xprompts.json``.
+def _auto_approve_macros_agent(artifacts_dir: Path) -> Agent:
+    """One approved agent whose artifacts dir carries ``macros.json``.
 
     Exercises the combined metadata layout where the ``Auto:`` and ``Model:``
     fields render in order immediately before the disk-enriched ``Macros:``
     section.
     """
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "xprompts.json").write_text(
+    (artifacts_dir / "macros.json").write_text(
         json.dumps(
             [
-                {"kind": "workflow", "name": "auto_before_xprompts"},
+                {"kind": "workflow", "name": "auto_before_macros"},
                 {"kind": "part", "name": "plan_part"},
             ]
         ),
@@ -286,12 +286,12 @@ def _auto_approve_xprompts_agent(artifacts_dir: Path) -> Agent:
     )
 
 
-async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
+async def test_agents_auto_approve_macros_metadata_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    agent = _auto_approve_xprompts_agent(tmp_path / "xprompt-artifacts")
+    agent = _auto_approve_macros_agent(tmp_path / "macro-artifacts")
     patch_startup_loaders(monkeypatch, agents=[agent])
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -307,7 +307,7 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
         await page.press("d")
         await wait_for_visual_idle(page)
 
-        svg = page.export_svg(title="ACE auto/xprompts metadata")
+        svg = page.export_svg(title="ACE auto/macros metadata")
         svg_plain = svg.replace("&#160;", " ")
         assert "Auto:" in svg_plain
         assert "Model:" in svg_plain
@@ -321,5 +321,5 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "agents_auto_approve_xprompts_metadata_120x40",
-            title="ACE agents auto-approve xprompts metadata",
+            title="ACE agents auto-approve macros metadata",
         )

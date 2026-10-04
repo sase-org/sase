@@ -277,7 +277,7 @@ class PromptBarMiniMacroSaveMixin:
         try:
             await asyncio.to_thread(
                 save_last_used_location,
-                "xprompt",
+                "macro",
                 snapshot.target.location_path,
             )
         except Exception as exc:

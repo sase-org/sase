@@ -151,11 +151,11 @@ class StatisticsPaneLayoutMixin(StatisticsPanePresentationBase):
                 markup=False,
             )
             yield Static(
-                self._xprompt_scope_text(),
-                id="statistics-scope-xprompt",
+                self._macro_scope_text(),
+                id="statistics-scope-macro",
                 classes=(
                     "statistics-scope-part"
-                    if self._view == "xprompts"
+                    if self._view == "macros"
                     else "statistics-scope-part hidden"
                 ),
                 markup=False,

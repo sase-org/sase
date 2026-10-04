@@ -19,7 +19,7 @@ class _TestApp(App[None]):
 def _modal(choices: list[str]) -> JumpActionModal:
     return JumpActionModal(
         title="#review",
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         source_display="/tmp/review.md:4:1",
         choices=cast(list[JumpChoice], choices),

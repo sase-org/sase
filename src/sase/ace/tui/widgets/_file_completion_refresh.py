@@ -307,19 +307,19 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             _row, clause = clause_ctx
             token = clause.token
             candidates, _shared = self._build_live_directive_arg_candidates(clause)
-        elif self._completion_kind == "xprompt":
-            xprompt_ctx = self._get_xprompt_token_context()
-            if xprompt_ctx is None:
+        elif self._completion_kind == "macro":
+            macro_ctx = self._get_macro_token_context()
+            if macro_ctx is None:
                 self._clear_file_completion()
                 return
-            _row, span = xprompt_ctx
+            _row, span = macro_ctx
             token = span.token
-            candidates, _shared = self._build_xprompt_completion_candidates(
+            candidates, _shared = self._build_macro_completion_candidates(
                 token,
                 inline_reference_only=span.clamped,
             )
         elif self._completion_kind.startswith("macro_arg_"):
-            arg_ctx = self._get_xprompt_arg_completion_context()
+            arg_ctx = self._get_macro_arg_completion_context()
             if arg_ctx is None:
                 self._clear_file_completion()
                 return
@@ -538,7 +538,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             return True
         if self._get_directive_arg_token_context() is not None:
             return True
-        if self._get_xprompt_arg_completion_context() is not None:
+        if self._get_macro_arg_completion_context() is not None:
             return True
         if self._get_model_alias_completion_context() is not None:
             return True

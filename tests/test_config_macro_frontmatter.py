@@ -349,15 +349,15 @@ def test_prompt_completion_prefers_canonical_menu_key() -> None:
     )
 
     assert (
-        parse_prompt_completion_settings({"auto_macro_menu": False}).auto_xprompt_menu
+        parse_prompt_completion_settings({"auto_macro_menu": False}).auto_macro_menu
         is False
     )
     assert (
-        parse_prompt_completion_settings({"auto_macro_menu": True}).auto_xprompt_menu
+        parse_prompt_completion_settings({"auto_macro_menu": True}).auto_macro_menu
         is True
     )
     assert (
-        parse_prompt_completion_settings({"auto_xprompt_menu": False}).auto_xprompt_menu
+        parse_prompt_completion_settings({"auto_xprompt_menu": False}).auto_macro_menu
         is False
     )
 
@@ -376,6 +376,6 @@ def test_placeholder_toggle_prefers_canonical_key(
         patch("sase.config.core._load_plugin_configs", return_value=[]),
         override_flags(legacy_xprompt_syntax=True),
     ):
-        assert conversion._xprompt_placeholder_args_enabled() is False
+        assert conversion._macro_placeholder_args_enabled() is False
     monkeypatch.setattr(conversion, "_config_section", lambda data, key: {})
-    assert conversion._xprompt_placeholder_args_enabled() is True
+    assert conversion._macro_placeholder_args_enabled() is True

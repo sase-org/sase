@@ -33,8 +33,8 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_vcs_project_completion_row,
     append_vcs_ref_completion_row,
     append_vcs_repo_completion_row,
-    append_xprompt_arg_name_completion_row,
-    append_xprompt_completion_row,
+    append_macro_arg_name_completion_row,
+    append_macro_completion_row,
     artifact_ref_kind_label_width,
     finalizer_completion_column_widths,
     history_word_label_width,
@@ -45,7 +45,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     vcs_project_label_width,
     vcs_ref_label_width,
     vcs_repo_label_width,
-    xprompt_arg_name_label_width,
+    macro_arg_name_label_width,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceFileCompletionMetadata,
@@ -70,7 +70,7 @@ class _RowLayout:
     history_word: int
     next_word: int
     placeholder: int
-    xprompt_arg_name: int
+    macro_arg_name: int
     jinja_name: int
     jinja_badge: int
     tribe_colors: dict[str, str] | None
@@ -181,8 +181,8 @@ def _row_layout(
         placeholder=_max_label_width(
             visible, placeholder_label_width, kinds.placeholder
         ),
-        xprompt_arg_name=_max_label_width(
-            visible, xprompt_arg_name_label_width, kinds.xprompt_arg_name
+        macro_arg_name=_max_label_width(
+            visible, macro_arg_name_label_width, kinds.macro_arg_name
         ),
         jinja_name=_max_label_width(visible, jinja_label_width, kinds.jinja),
         jinja_badge=_max_label_width(visible, jinja_badge_width, kinds.jinja),
@@ -204,7 +204,7 @@ def _tribe_colors(
     kinds: CompletionPanelKinds,
     visible: list[CompletionCandidate],
 ) -> dict[str, str] | None:
-    if not (kinds.directive_arg_agent or kinds.xprompt_arg_agent):
+    if not (kinds.directive_arg_agent or kinds.macro_arg_agent):
         return None
     return named_tribe_identity_colors(
         {
@@ -233,8 +233,8 @@ def _append_candidate_row(
     jinja_styles: JinjaRowStyles | None = None,
 ) -> None:
     """Append the provider-specific rendering of a single candidate."""
-    if kinds.xprompt:
-        append_xprompt_completion_row(content, candidate, is_selected)
+    if kinds.macro:
+        append_macro_completion_row(content, candidate, is_selected)
     elif kinds.directive:
         append_directive_completion_row(content, candidate, is_selected)
     elif kinds.model_alias:
@@ -286,7 +286,7 @@ def _append_candidate_row(
                 finalizer_widths=layout.finalizer,
                 inner_width=inner_width,
             )
-    elif kinds.xprompt_arg_agent:
+    elif kinds.macro_arg_agent:
         append_agent_completion_row(
             content,
             candidate,
@@ -313,12 +313,12 @@ def _append_candidate_row(
             layout.artifact_kind,
             inner_width,
         )
-    elif kinds.xprompt_arg_name:
-        append_xprompt_arg_name_completion_row(
+    elif kinds.macro_arg_name:
+        append_macro_arg_name_completion_row(
             content,
             candidate,
             is_selected,
-            label_width=layout.xprompt_arg_name,
+            label_width=layout.macro_arg_name,
             inner_width=inner_width,
         )
     elif kinds.arg_completion:

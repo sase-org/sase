@@ -431,8 +431,8 @@ class PromptInputBarStackRenderingMixin(
         """True when the bar currently holds more than one agent prompt pane."""
         return self._stack.agent_count > 1
 
-    def xprompt_markdown_for_editor(self) -> str:
-        """Return the whole stack as spaced xprompt markdown for the all-pane editor.
+    def macro_markdown_for_editor(self) -> str:
+        """Return the whole stack as spaced macro markdown for the all-pane editor.
 
         Syncs the live panes into the model first, then renders them in launch
         order with blank-line-padded ``---`` segment separators

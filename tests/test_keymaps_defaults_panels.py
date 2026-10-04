@@ -56,7 +56,7 @@ def test_saved_query_slot_mode_default_binding() -> None:
 def test_start_last_vcs_macro_editor_default_binding() -> None:
     """Ctrl+G opens the last VCS macro directly in the editor."""
     reg = load_keymap_registry({})
-    assert reg.app.start_last_vcs_xprompt_in_editor == "ctrl+g"
+    assert reg.app.start_last_vcs_macro_in_editor == "ctrl+g"
 
 
 def test_default_config_covers_all_app_keymaps() -> None:
@@ -98,8 +98,8 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "cycle_group": "g",
         "cycle_project_filter": "p",
         "cycle_project_filter_reverse": "P",
-        "focus_xprompt": "x",
-        "clear_xprompt_focus": "X",
+        "focus_macro": "x",
+        "clear_macro_focus": "X",
         "scroll_down": "ctrl+d",
         "scroll_up": "ctrl+u",
         "refresh": "r",

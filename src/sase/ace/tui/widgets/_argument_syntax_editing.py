@@ -134,7 +134,7 @@ def _location_from_offset(
     return row, offset - line_start
 
 
-def plan_xprompt_completion_spacer_to_parentheses_edit(
+def plan_macro_completion_spacer_to_parentheses_edit(
     text: str,
     cursor_location: tuple[int, int],
     pending: Any,
@@ -195,5 +195,5 @@ __all__ = [
     "plan_argument_colon_to_parentheses_edit",
     "plan_argument_double_colon_to_parentheses_edit",
     "plan_argument_list_continuation_edit",
-    "plan_xprompt_completion_spacer_to_parentheses_edit",
+    "plan_macro_completion_spacer_to_parentheses_edit",
 ]

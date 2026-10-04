@@ -95,7 +95,7 @@ class _CursorApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
-            initial_xprompt_markdown=self._markdown,
+            initial_raw_prompt_markdown=self._markdown,
             initial_selected_pane=self._selected,
             initial_cursor=self._cursor,
             id="prompt-input-bar",

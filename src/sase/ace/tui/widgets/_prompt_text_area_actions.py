@@ -62,7 +62,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         def _clear_file_completion(
             self,
             *,
-            clear_xprompt_arg_hint: bool = True,
+            clear_macro_arg_hint: bool = True,
         ) -> None: ...
         def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
         def _clear_soft_completion(
@@ -145,7 +145,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
     def action_open_editor(self) -> None:
         """Request to open the external editor (``^G g`` / ``^G ^G``).
 
-        A multi-pane prompt stack opens the whole stack as xprompt markdown (the
+        A multi-pane prompt stack opens the whole stack as macro markdown (the
         ``AllEditorRequested`` surface); a single-pane bar opens just the current
         prompt. Keypress handling stays light -- clear transient completion /
         arg-hint state and post the message -- while the bar owns serializing the
@@ -272,9 +272,9 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             elif result == "current":
                 self.action_submit_prompt()
             elif result == "write":
-                bar.request_write_xprompt()
+                bar.request_write_macro()
             elif result == "save_as":
-                bar.request_save_as_xprompt()
+                bar.request_save_as_macro()
 
         self.app.push_screen(
             PromptSubmitChoiceModal(
@@ -365,7 +365,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         Extends :class:`VimTextArea`'s generic transition (mode / read-only /
         cursor state plus the mode-display refresh routed through the bar) with
         the prompt-only teardown: the ``Ctrl+G`` prefixes, incremental search,
-        completion menus, xprompt hints, snippet tabstops, and VCS MRU cycling.
+        completion menus, macro hints, snippet tabstops, and VCS MRU cycling.
         None of these touch the bar subtitle, so the base's display refresh
         stays authoritative.
         """

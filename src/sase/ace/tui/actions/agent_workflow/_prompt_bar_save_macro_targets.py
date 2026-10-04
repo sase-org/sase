@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.modals.unified_macro_save_modal import (
         UnifiedMacroSaveResult,
     )
-    from sase.ace.tui.widgets.prompt_stack import XPromptBinding as MacroBinding
+    from sase.ace.tui.widgets.prompt_stack import MacroBinding as MacroBinding
 
 
 def write_target_sync(

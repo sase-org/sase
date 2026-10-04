@@ -36,12 +36,12 @@ _COMMON_PLACEHOLDER_STYLE = "#D7AF5F"
 _PLACEHOLDER_LABEL_WIDTH_CAP = 28
 
 
-def append_xprompt_completion_row(
+def append_macro_completion_row(
     content: Text,
     candidate: CompletionCandidate,
     is_selected: bool,
 ) -> None:
-    """Append one xprompt completion row using assist metadata when present."""
+    """Append one macro completion row using assist metadata when present."""
     content.append(
         candidate.display,
         style="bold green" if is_selected else "green",
@@ -63,12 +63,12 @@ def append_xprompt_completion_row(
     append_input_hints(content, entry.inputs)
 
 
-def xprompt_arg_name_label_width(candidate: CompletionCandidate) -> int:
+def macro_arg_name_label_width(candidate: CompletionCandidate) -> int:
     """Visible width for the keyword name payload column."""
     return cell_len(candidate.display)
 
 
-def append_xprompt_arg_name_completion_row(
+def append_macro_arg_name_completion_row(
     content: Text,
     candidate: CompletionCandidate,
     is_selected: bool,
@@ -244,7 +244,7 @@ def append_jinja_completion_row(
 ) -> None:
     """Append one engine-backed Jinja2 completion row.
 
-    The grid mirrors the xprompt arg-name menu: the name is styled as
+    The grid mirrors the macro arg-name menu: the name is styled as
     the editor's Jinja highlighter will color that token kind once
     inserted (with fuzzy match runs highlighted), then the type or
     signature, a fixed-width source badge chip, the ``=default`` for

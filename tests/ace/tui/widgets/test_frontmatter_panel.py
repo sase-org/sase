@@ -213,7 +213,7 @@ async def test_exit_key_leaves_every_panel_editor_mode(
             panel.begin_add("input")
             editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
         elif edit_mode == "content":
-            panel.begin_add("xprompts")
+            panel.begin_add("macros")
             panel._move_cell(1)
             panel._move_cell(1)
             panel._move_cell(1)

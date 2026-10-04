@@ -48,7 +48,7 @@ class TestProjectDisplayNameRendering:
         assert "Project: widgets" in header.plain
         assert "Project: gh_acme__widgets" not in header.plain
 
-    def test_xprompt_args_use_logical_project_name(self) -> None:
+    def test_macro_args_use_logical_project_name(self) -> None:
         agent = _project_agent()
         summary = DetailHeaderSummary(
             xprompts_used=[
@@ -68,7 +68,7 @@ class TestProjectDisplayNameRendering:
         assert "gh_acme__widgets" not in header.plain
         assert "--flag" in header.plain
 
-    def test_xprompt_args_fall_back_to_directory_key(self) -> None:
+    def test_macro_args_fall_back_to_directory_key(self) -> None:
         agent = _project_agent(project_display_name=None)
         summary = DetailHeaderSummary(
             xprompts_used=[

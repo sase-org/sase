@@ -29,12 +29,12 @@ StatisticsView = Literal[
     "projects",
     "providers",
     "activity",
-    "xprompts",
+    "macros",
     "plans_questions",
     "perf",
 ]
 ProjectsGroupBy = Literal["project", "patch", "drilldown"]
-XPromptsGroupBy = Literal["usage", "model", "project", "pairing"]
+MacrosGroupBy = Literal["usage", "model", "project", "pairing"]
 _FIXED_RUNTIME_GROUP_BY: RuntimeGroupBy = "tribe"
 _STATISTICS_ACCENT = "#FF87D7"
 
@@ -102,15 +102,15 @@ STATISTICS_VIEW_SPECS: tuple[StatisticsViewSpec, ...] = (
         "See top skills, memories, and workspaces.",
     ),
     StatisticsViewSpec(
-        "xprompts",
-        "XPrompts",
-        "XPrompts",
-        "XP",
+        "macros",
+        "Macros",
+        "Macros",
+        "Mac",
         (
-            "Explore XPrompt adoption, model and project breakdowns, "
+            "Explore Macro adoption, model and project breakdowns, "
             "pairings, and focused details."
         ),
-        "Explore XPrompt usage, pairings, and focus.",
+        "Explore Macro usage, pairings, and focus.",
     ),
     StatisticsViewSpec(
         "plans_questions",
@@ -164,7 +164,7 @@ PROJECTS_GROUP_ORDER: tuple[ProjectsGroupBy, ...] = (
     "patch",
     "drilldown",
 )
-XPROMPTS_GROUP_ORDER: tuple[XPromptsGroupBy, ...] = (
+MACROS_GROUP_ORDER: tuple[MacrosGroupBy, ...] = (
     "usage",
     "model",
     "project",
@@ -172,9 +172,21 @@ XPROMPTS_GROUP_ORDER: tuple[XPromptsGroupBy, ...] = (
 )
 
 
+def validated_statistics_view(value: object) -> StatisticsView | None:
+    """Return a catalog-backed Statistics view id, if valid.
+
+    A stored ``xprompts`` id is read as ``macros`` unconditionally.
+    """
+    if isinstance(value, str):
+        migrated = "macros" if value == "xprompts" else value
+        if migrated in VIEW_ORDER:
+            return migrated  # type: ignore[return-value]
+    return None
+
+
 def statistics_view_supports_grouping(view: StatisticsView) -> bool:
     """Return whether ``view`` exposes a configurable grouping strategy."""
-    return view in ("projects", "xprompts", "perf")
+    return view in ("projects", "macros", "perf")
 
 
 def statistics_view_description_text(
@@ -314,7 +326,7 @@ __all__ = [
     "PROJECTS_GROUP_ORDER",
     "STATISTICS_VIEW_BY_ID",
     "STATISTICS_VIEW_SPECS",
-    "XPROMPTS_GROUP_ORDER",
+    "MACROS_GROUP_ORDER",
     "VIEW_DESCRIPTIONS",
     "VIEW_COMPACT_LABELS",
     "VIEW_LABELS",
@@ -325,8 +337,9 @@ __all__ = [
     "StatisticsViewSpec",
     "ProjectsGroupBy",
     "PerfGroupBy",
-    "XPromptsGroupBy",
+    "MacrosGroupBy",
     "load_statistics_view",
     "statistics_view_description_text",
     "statistics_view_supports_grouping",
+    "validated_statistics_view",
 ]

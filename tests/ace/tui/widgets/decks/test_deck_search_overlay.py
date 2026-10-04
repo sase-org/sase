@@ -60,7 +60,7 @@ async def test_main_corpus_joins_every_card(tmp_path: Path) -> None:
             make_artifact_agent(
                 tmp_path,
                 status="DONE",
-                raw_xprompt="searchable-context-marker",
+                raw_prompt="searchable-context-marker",
             )
         )
         await pilot.pause()

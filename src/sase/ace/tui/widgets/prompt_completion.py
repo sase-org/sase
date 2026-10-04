@@ -45,7 +45,7 @@ class PromptCompletionSettings:
     auto: PromptCompletionAutoMode = "soft"
     debounce_ms: int = 90
     auto_file_paths: bool = False
-    auto_xprompt_menu: bool = True
+    auto_macro_menu: bool = True
     auto_directive_menu: bool = True
     auto_artifact_menu: bool = True
     auto_jinja_menu: bool = True
@@ -123,12 +123,12 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
     # normalization; the retired spelling is honored only while the sunset
     # flag accepts it. Field names stay for the TUI rename phase.
     if "auto_macro_menu" in raw:
-        auto_xprompt_menu = bool(raw.get("auto_macro_menu"))
+        auto_macro_menu = bool(raw.get("auto_macro_menu"))
     else:
-        auto_xprompt_menu = bool(
+        auto_macro_menu = bool(
             raw.get(
                 "auto_xprompt_menu",
-                DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_xprompt_menu,
+                DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_macro_menu,
             )
         )
     auto_directive_menu = bool(
@@ -228,7 +228,7 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         auto=auto,
         debounce_ms=debounce_ms,
         auto_file_paths=auto_file_paths,
-        auto_xprompt_menu=auto_xprompt_menu,
+        auto_macro_menu=auto_macro_menu,
         auto_directive_menu=auto_directive_menu,
         auto_artifact_menu=auto_artifact_menu,
         auto_jinja_menu=auto_jinja_menu,
@@ -285,11 +285,11 @@ def build_prompt_soft_completion(
                 display=candidate.display,
             )
         # Inside a Jinja tag Jinja owns completion: never fall through
-        # to xprompt-arg, directive, or file surfaces.
+        # to macro-arg, directive, or file surfaces.
         return None
 
     if macro_entries is not None and "#" in text:
-        arg_suggestion = _build_xprompt_arg_suggestion(
+        arg_suggestion = _build_macro_arg_suggestion(
             text,
             cursor_offset,
             macro_entries,
@@ -321,22 +321,22 @@ def build_prompt_soft_completion(
                 token,
             )
 
-    xprompt_span = extract_macro_token_around_cursor(line, col)
-    if xprompt_span is not None and macro_entries is not None:
+    macro_span = extract_macro_token_around_cursor(line, col)
+    if macro_span is not None and macro_entries is not None:
         candidates, _shared = build_macro_completion_candidates(
-            xprompt_span.token,
+            macro_span.token,
             entries=macro_entries,
-            inline_reference_only=xprompt_span.clamped,
+            inline_reference_only=macro_span.clamped,
         )
-        candidate = _first_xprompt_soft_candidate(candidates, xprompt_span.token)
+        candidate = _first_macro_soft_candidate(candidates, macro_span.token)
         if candidate is not None:
             return _line_suggestion(
                 candidate,
-                "xprompt",
+                "macro",
                 line_start,
-                xprompt_span.start,
-                xprompt_span.end,
-                xprompt_span.token,
+                macro_span.start,
+                macro_span.end,
+                macro_span.token,
             )
 
     token_ctx = extract_token_around_cursor(line, col)
@@ -360,7 +360,7 @@ def build_prompt_soft_completion(
     return None
 
 
-def _build_xprompt_arg_suggestion(
+def _build_macro_arg_suggestion(
     text: str,
     cursor_offset: int,
     entries: list[MacroAssistEntry],
@@ -419,7 +419,7 @@ def _first_candidate_that_changes(
     return None
 
 
-def _first_xprompt_soft_candidate(
+def _first_macro_soft_candidate(
     candidates: list[CompletionCandidate],
     token: str,
 ) -> CompletionCandidate | None:

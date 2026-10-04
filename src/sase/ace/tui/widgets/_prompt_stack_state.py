@@ -12,7 +12,7 @@ from ._prompt_stack_parsing import split_frontmatter, split_prompt_text
 from ._prompt_stack_targets import (
     MiniMacroPaneTarget,
     SnippetPaneTarget,
-    XPromptBinding,
+    MacroBinding,
 )
 
 
@@ -74,7 +74,7 @@ class PromptStackState(PromptStackBindingMixin):
     items: list[PromptStackItem] = field(default_factory=list)
     selected_index: int = 0
     frontmatter: str = ""
-    binding: XPromptBinding | None = None
+    binding: MacroBinding | None = None
     _clean_content_hash: str | None = field(default=None, repr=False)
     _bound_source_markdown: str | None = field(default=None, repr=False)
     _bound_source_texts: tuple[str, ...] | None = field(default=None, repr=False)

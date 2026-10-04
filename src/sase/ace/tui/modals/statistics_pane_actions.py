@@ -14,13 +14,14 @@ from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.stats.ranges import PRESET_ORDER, StatsRange, parse_custom_range
 
 from .statistics_pane_data import (
+    MACROS_GROUP_ORDER,
     PERF_GROUP_ORDER,
     PROJECTS_GROUP_ORDER,
-    XPROMPTS_GROUP_ORDER,
     VIEW_LABELS,
     VIEW_ORDER,
     StatisticsView,
     statistics_view_supports_grouping,
+    validated_statistics_view,
 )
 from .statistics_pane_layout import OVERVIEW_TILE_TARGETS, StatisticsPaneLayoutMixin
 
@@ -31,7 +32,7 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
     _custom_range_value: str | None
     _project_filter_options: tuple[str, ...]
     _project_filter_seeded: bool
-    _xprompt_focus_options: tuple[str, ...]
+    _macro_focus_options: tuple[str, ...]
 
     def _resolve_current_range(self) -> StatsRange:
         """Resolve the selected range; :class:`StatisticsPane` implements it."""
@@ -143,10 +144,10 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
                 (index + 1) % len(PROJECTS_GROUP_ORDER)
             ]
             self._selection_changed(reload=False)
-        elif self._view == "xprompts":
-            index = XPROMPTS_GROUP_ORDER.index(self._xprompts_group_by)
-            self._xprompts_group_by = XPROMPTS_GROUP_ORDER[
-                (index + 1) % len(XPROMPTS_GROUP_ORDER)
+        elif self._view == "macros":
+            index = MACROS_GROUP_ORDER.index(self._macros_group_by)
+            self._macros_group_by = MACROS_GROUP_ORDER[
+                (index + 1) % len(MACROS_GROUP_ORDER)
             ]
             self._selection_changed(reload=False)
         elif self._view == "perf":
@@ -162,42 +163,42 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
         """Cycle backward through All and cached ranked projects."""
         self._cycle_project_filter(-1)
 
-    def action_focus_xprompt(self) -> None:
-        """Open the cached xprompt picker while viewing loaded XPrompts data."""
-        if self._view != "xprompts" or self._last_result is None:
+    def action_focus_macro(self) -> None:
+        """Open the cached macro picker while viewing loaded Macros data."""
+        if self._view != "macros" or self._last_result is None:
             return
-        from .statistics_xprompt_picker_modal import (
-            StatisticsXPromptPickerModal,
-            XPromptFocusChoice,
+        from .statistics_macro_picker_modal import (
+            StatisticsMacroPickerModal,
+            MacroFocusChoice,
         )
 
         rows = self._last_result.views.macros.rows
-        if self._xprompt_focus_options:
+        if self._macro_focus_options:
             by_name = {row.name: row for row in rows}
             rows = tuple(
-                by_name[name] for name in self._xprompt_focus_options if name in by_name
+                by_name[name] for name in self._macro_focus_options if name in by_name
             )
 
-        def on_picked(choice: XPromptFocusChoice | None) -> None:
+        def on_picked(choice: MacroFocusChoice | None) -> None:
             if choice is None:
                 return
-            self._xprompt_focus = choice.name
+            self._macro_focus = choice.name
             self._selection_changed(reload=True)
             self.focus()
 
         self.app.push_screen(
-            StatisticsXPromptPickerModal(
+            StatisticsMacroPickerModal(
                 rows,
-                current_focus=self._xprompt_focus,
+                current_focus=self._macro_focus,
             ),
             on_picked,
         )
 
-    def action_clear_xprompt_focus(self) -> None:
-        """Return to all xprompts when a focus is active."""
-        if self._xprompt_focus is None:
+    def action_clear_macro_focus(self) -> None:
+        """Return to all macros when a focus is active."""
+        if self._macro_focus is None:
             return
-        self._xprompt_focus = None
+        self._macro_focus = None
         self._selection_changed(reload=True)
 
     def _cycle_project_filter(self, delta: int) -> None:
@@ -269,13 +270,13 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
                 current_view=self._view,
                 selected_range=self._range,
                 projects_group_by=self._projects_group_by,
-                xprompts_group_by=self._xprompts_group_by,
+                macros_group_by=self._macros_group_by,
                 perf_group_by=self._perf_group_by,
                 project_label=project_label,
-                xprompt_focus_label=(
-                    "All xprompts"
-                    if self._xprompt_focus is None
-                    else f"#{self._xprompt_focus}"
+                macro_focus_label=(
+                    "All macros"
+                    if self._macro_focus is None
+                    else f"#{self._macro_focus}"
                 ),
                 generated_at=result.generated_at if result is not None else None,
                 keymaps=self._keymaps,
@@ -331,15 +332,16 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
                 continue
             tile.tooltip = f"Open {VIEW_LABELS[target_view]}"
 
-    def _set_view(self, view: StatisticsView) -> None:
-        if view == self._view:
+    def _set_view(self, view: StatisticsView | str) -> None:
+        resolved = validated_statistics_view(view)
+        if resolved is None or resolved == self._view:
             return
-        self._view = view
+        self._view = resolved
         try:
-            self.query_one("#statistics-views", PanelTabStrip).set_active_tab(view)
+            self.query_one("#statistics-views", PanelTabStrip).set_active_tab(resolved)
         except Exception:
             pass
-        needs_perf = view == "perf" and (
+        needs_perf = resolved == "perf" and (
             self._last_result is None or self._last_result.perf is None
         )
         self._selection_changed(reload=needs_perf)

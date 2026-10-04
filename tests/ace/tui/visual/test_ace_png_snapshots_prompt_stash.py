@@ -68,7 +68,7 @@ def _stash_entries() -> list[PromptStashEntryWire]:
                 "Run #review(scope=diff) and then %{ship | hold}.\n\n"
                 "```python\n#literal %wait:no\n```"
             ),
-            frontmatter="---\nxprompts:\n  helper: Use local rules\n---",
+            frontmatter="---\nmacros:\n  helper: Use local rules\n---",
             project="sase",
             source="current",
         ),

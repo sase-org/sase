@@ -19,6 +19,7 @@ from sase.ace.tui.modals.statistics_pane_data import (
     StatisticsViewSpec,
     statistics_view_description_text,
     statistics_view_supports_grouping,
+    validated_statistics_view,
 )
 from sase.ace.tui.modals.statistics_pane_layout import _StatisticsDescription
 from sase.project_display_names import ProjectDisplaySnapshot
@@ -68,15 +69,15 @@ _REVIEWED_COPY: dict[str, tuple[str, str, str, str, str]] = {
         "See which skills, memories, and workspaces agents use most.",
         "See top skills, memories, and workspaces.",
     ),
-    "xprompts": (
-        "XPrompts",
-        "XPrompts",
-        "XP",
+    "macros": (
+        "Macros",
+        "Macros",
+        "Mac",
         (
-            "Explore XPrompt adoption, model and project breakdowns, "
+            "Explore Macro adoption, model and project breakdowns, "
             "pairings, and focused details."
         ),
-        "Explore XPrompt usage, pairings, and focus.",
+        "Explore Macro usage, pairings, and focus.",
     ),
     "plans_questions": (
         "Plans & Questions",
@@ -108,7 +109,7 @@ def test_statistics_view_catalog_is_the_authoritative_ordered_source() -> None:
         "projects",
         "providers",
         "activity",
-        "xprompts",
+        "macros",
         "plans_questions",
         "perf",
     )
@@ -127,7 +128,7 @@ def test_statistics_view_catalog_is_the_authoritative_ordered_source() -> None:
     assert set(VIEW_DESCRIPTIONS) == set(VIEW_ORDER)
     assert {view for view in VIEW_ORDER if statistics_view_supports_grouping(view)} == {
         "projects",
-        "xprompts",
+        "macros",
         "perf",
     }
     for spec in STATISTICS_VIEW_SPECS:
@@ -138,6 +139,11 @@ def test_statistics_view_catalog_is_the_authoritative_ordered_source() -> None:
         assert spec.description == full
         assert spec.compact_description == compact
         assert STATISTICS_VIEW_BY_ID[spec.id] is spec
+    assert validated_statistics_view("macros") == "macros"
+    assert validated_statistics_view("xprompts") == "macros"
+    assert validated_statistics_view("overview") == "overview"
+    assert validated_statistics_view("missing") is None
+    assert validated_statistics_view(None) is None
 
 
 def test_statistics_view_description_text_uses_cell_width() -> None:
@@ -226,14 +232,14 @@ def test_scope_renderables_cover_range_group_project_and_status(
     assert pane._group_scope_text().plain == " g  Group —"
     pane._view = "projects"
     assert pane._group_scope_text().plain == " g  Group Projects · By Project"
-    pane._view = "xprompts"
-    assert pane._group_scope_text().plain == " g  Group XPrompts · By Usage"
+    pane._view = "macros"
+    assert pane._group_scope_text().plain == " g  Group Macros · By Usage"
     pane._view = "perf"
     assert pane._group_scope_text().plain == " g  Group Perf · By Subsystem"
-    pane._view = "xprompts"
-    assert pane._xprompt_scope_text().plain == " x/X  XPrompt All xprompts"
-    pane._xprompt_focus = "split_file"
-    assert pane._xprompt_scope_text().plain == " x/X  XPrompt ■ #split_file"
+    pane._view = "macros"
+    assert pane._macro_scope_text().plain == " x/X  Macro All macros"
+    pane._macro_focus = "split_file"
+    assert pane._macro_scope_text().plain == " x/X  Macro ■ #split_file"
 
     assert pane._project_scope_text().plain == " p/P  Project All projects"
     pane._view = "perf"

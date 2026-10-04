@@ -14,7 +14,7 @@ from ._types import PromptContext
 log = logging.getLogger(__name__)
 
 
-def submitted_vcs_xprompt_prefix(prompt: str) -> str | None:
+def submitted_vcs_prompt_prefix(prompt: str) -> str | None:
     """Return ``#<workflow>:<ref>`` for *prompt*'s leading VCS tag, if any.
 
     Project tags (``+<project>``) resolve through the tag-aware helper.
@@ -69,7 +69,7 @@ def launch_toast_label(prompt: str, fallback: str) -> str:
     """
     from sase.macro._parsing import extract_project_from_vcs_tag
 
-    prefix = submitted_vcs_xprompt_prefix(prompt)
+    prefix = submitted_vcs_prompt_prefix(prompt)
     if prefix is None:
         return fallback
     return extract_project_from_vcs_tag(prefix) or fallback
@@ -78,11 +78,11 @@ def launch_toast_label(prompt: str, fallback: str) -> str:
 def record_submit_time_vcs_replay(prompt: str) -> None:
     """Refresh the Space MRU from the prompt actually submitted.
 
-    ``record_vcs_xprompt_usage`` already drops the implicit ``#git:home``
+    ``record_vcs_macro_usage`` already drops the implicit ``#git:home``
     default and known non-launchable projects, so this is safe to call for
     every ACE submit including home-mode and bulk fan-out.
     """
-    prefix = submitted_vcs_xprompt_prefix(prompt)
+    prefix = submitted_vcs_prompt_prefix(prompt)
     if prefix is None:
         return
     try:
@@ -195,6 +195,6 @@ __all__ = [
     "launch_toast_label",
     "record_submit_time_vcs_replay",
     "schedule_submit_time_vcs_replay",
-    "submitted_vcs_xprompt_prefix",
+    "submitted_vcs_prompt_prefix",
     "vcs_workflow_type_from_tag",
 ]

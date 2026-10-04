@@ -116,9 +116,9 @@ def find_agents_for_notification(
 def get_meta_patch_name(agent: Agent) -> str | None:
     """Extract Patch name from step output meta variables.
 
-    Checks the new ``meta_patch`` variable first (from v2 xprompts),
+    Checks the new ``meta_patch`` variable first (from v2 macros),
     then falls back to legacy ``meta_new_cl`` / ``meta_new_pr`` formats
-    for agents that ran with older xprompts.
+    for agents that ran with older macros.
 
     Args:
         agent: The agent to check.

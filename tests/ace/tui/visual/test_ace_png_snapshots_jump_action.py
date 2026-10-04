@@ -32,7 +32,7 @@ async def test_jump_action_modal_png_snapshot(
         page.app.push_screen(
             JumpActionModal(
                 title="#review",
-                kind_label="xprompt",
+                kind_label="macro",
                 icon="#",
                 source_display="/home/visual/.config/sase/macros/review.md:4:1",
                 choices=["tmux", "editor", "load"],

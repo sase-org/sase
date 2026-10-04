@@ -32,9 +32,9 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_prompts import (
     GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT,
     PROJECT_TAG_HIGHLIGHT_SOLO,
     REPO_MENTION_HIGHLIGHT_PROMPT,
-    XPROMPT_ARGUMENT_HIGHLIGHT,
-    XPROMPT_HIGHLIGHT_SOLO,
-    XPROMPT_HIGHLIGHT_STACK,
+    MACRO_ARGUMENT_HIGHLIGHT,
+    MACRO_HIGHLIGHT_SOLO,
+    MACRO_HIGHLIGHT_STACK,
 )
 from tests.ace.tui.visual._ace_prompt_png_snapshot_repo_mention_fixtures import (
     patch_visual_repo_mention_catalog,
@@ -47,7 +47,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_prompt_xprompt_highlight_solo_light_png_snapshot(
+async def test_prompt_macro_highlight_solo_light_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -60,16 +60,16 @@ async def test_prompt_xprompt_highlight_solo_light_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        await mount_prompt_bar(page, XPROMPT_HIGHLIGHT_SOLO)
+        await mount_prompt_bar(page, MACRO_HIGHLIGHT_SOLO)
 
         ace_png_visual.assert_page_png(
             page,
             "prompt_xprompt_highlight_solo_light_120x40",
-            title="ACE prompt input — xprompt highlighting, light theme",
+            title="ACE prompt input — macro highlighting, light theme",
         )
 
 
-async def test_prompt_xprompt_highlight_stack_png_snapshot(
+async def test_prompt_macro_highlight_stack_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -81,12 +81,12 @@ async def test_prompt_xprompt_highlight_stack_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        await mount_prompt_bar(page, XPROMPT_HIGHLIGHT_STACK)
+        await mount_prompt_bar(page, MACRO_HIGHLIGHT_STACK)
 
         ace_png_visual.assert_page_png(
             page,
             "prompt_xprompt_highlight_stack_120x40",
-            title="ACE prompt stack — xprompt highlighting",
+            title="ACE prompt stack — macro highlighting",
         )
 
 
@@ -156,16 +156,16 @@ async def test_prompt_project_tag_highlight_png_snapshot(
         (
             "textual-dark",
             "prompt_xprompt_argument_highlight_dark_120x40",
-            "ACE prompt input - xprompt argument highlighting, dark theme",
+            "ACE prompt input - macro argument highlighting, dark theme",
         ),
         (
             "textual-light",
             "prompt_xprompt_argument_highlight_light_120x40",
-            "ACE prompt input - xprompt argument highlighting, light theme",
+            "ACE prompt input - macro argument highlighting, light theme",
         ),
     ],
 )
-async def test_prompt_xprompt_argument_highlight_png_snapshot(
+async def test_prompt_macro_argument_highlight_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     theme: str,
@@ -182,7 +182,7 @@ async def test_prompt_xprompt_argument_highlight_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, XPROMPT_ARGUMENT_HIGHLIGHT)
+        bar = await mount_prompt_bar(page, MACRO_ARGUMENT_HIGHLIGHT)
         text_area = bar.active_text_area()
         seed_visual_artifact_ref_kinds(text_area)
         await wait_for_visual_idle(page)

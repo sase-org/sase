@@ -1,4 +1,4 @@
-"""Prompt input bar stack tests for staged xprompt frontmatter inputs."""
+"""Prompt input bar stack tests for staged macro frontmatter inputs."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def test_merge_frontmatter_inputs_keeps_existing_declaration_on_collision() -> N
 
 def test_merge_frontmatter_inputs_leaves_invalid_frontmatter_unchanged() -> None:
     bar = PromptInputBar()
-    original = "---\nxprompts:\n  rules: missing underscore\n---"
+    original = "---\nmacros:\n  rules: missing underscore\n---"
     bar._stack.frontmatter = original
 
     bar.merge_frontmatter_inputs([InputArg(name="topic", type=InputType.LINE)])
@@ -88,7 +88,7 @@ def _apply_inline_expansion(
     redo body-text transition through the bar's transaction handlers.
     """
     before_text = text_area.text
-    assert bar.expand_xprompt_at_target(
+    assert bar.expand_macro_at_target(
         text_area, text_area.id or "", trigger_range, body
     )
     after_text = text_area.text
@@ -366,7 +366,7 @@ async def test_undo_leaves_invalid_frontmatter_unchanged() -> None:
             [InputArg(name="topic", type=InputType.LINE)],
         )
         # The frontmatter is now mid-edit / invalid (a non-underscore helper).
-        invalid = "---\nxprompts:\n  rules: missing underscore\n---"
+        invalid = "---\nmacros:\n  rules: missing underscore\n---"
         bar._stack.frontmatter = invalid
 
         bar.handle_text_area_undo(pane, after, before)

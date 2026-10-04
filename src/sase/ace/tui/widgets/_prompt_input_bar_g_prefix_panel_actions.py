@@ -33,7 +33,7 @@ class PromptInputBarGPrefixPanelActionsMixin(_MixinBase):
         self.active_text_area().action_submit_prompt()
 
     def edit_definition_under_cursor(self) -> None:
-        """Open the xprompt definition at the cursor in the bound stack."""
+        """Open the macro definition at the cursor in the bound stack."""
         if self._mode != "prompt" or self._stack.selected_item.is_auxiliary_pane:
             return
         action = getattr(self.active_text_area(), "_edit_definition_under_cursor", None)
@@ -103,7 +103,7 @@ class PromptInputBarGPrefixPanelActionsMixin(_MixinBase):
     def request_open_memory_panel(self) -> None:
         """Ask the app to open the memory panel.
 
-        Presentation-only: the bar captures the ``#memory/<stem>`` xprompt
+        Presentation-only: the bar captures the ``#memory/<stem>`` macro
         reference under the cursor (if any) and posts
         ``MemoryPanelRequested`` with that reference and the bar's current
         mode. The app opens the panel and restores prompt focus and vim
@@ -143,7 +143,7 @@ class PromptInputBarGPrefixPanelActionsMixin(_MixinBase):
         """Return the ``#memory/<stem>`` reference at the cursor, if any.
 
         Reuses the prompt-area jump-target detection used by definition
-        jumps. A non-memory xprompt, a nested path, or a miss is ``None``:
+        jumps. A non-memory macro, a nested path, or a miss is ``None``:
         the panel loads its own catalog and opens on the seeded scope's
         first note.
         """
@@ -157,7 +157,7 @@ class PromptInputBarGPrefixPanelActionsMixin(_MixinBase):
             target = detect_jump_target_at_cursor(text_area.text, offset)
         except Exception:
             return None
-        if target is None or getattr(target, "kind", None) != "xprompt":
+        if target is None or getattr(target, "kind", None) != "macro":
             return None
         name = str(getattr(target, "target", "") or "")
         if name.startswith("#"):

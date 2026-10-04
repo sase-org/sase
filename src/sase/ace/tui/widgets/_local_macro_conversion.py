@@ -4,13 +4,13 @@ The ``gL`` / ``Ctrl+G L`` prompt-local keymap turns the active prompt pane into
 a local ``macros:`` helper stored in the prompt bar's shared frontmatter and
 replaces the pane with an invocation of that helper.  Every decision the keymap
 makes -- normalizing and validating the helper name, inferring its inputs from
-the pane body, building the :class:`~sase.macro.models.XPrompt`, and rendering
+the pane body, building the :class:`~sase.macro.models.Macro`, and rendering
 the invocation skeleton -- lives here as plain logic so it can be unit-tested
 without a running Textual app.
 
 Name validation reuses the launch path's underscore-scoping rule (via
-:func:`parse_local_xprompt_entries`) so a helper saved here behaves identically
-to one authored in raw YAML, the Frontmatter Panel, or an xprompt ``.md`` file.
+:func:`parse_local_macro_entries`) so a helper saved here behaves identically
+to one authored in raw YAML, the Frontmatter Panel, or a macro ``.md`` file.
 Input inference reuses :func:`sase.macro.jinja_inspect.undeclared_variables`
 so engine scope variables (``root``, run builtins, and friends) are never
 mistaken for inputs.
@@ -43,7 +43,7 @@ from sase.macro.raw_placeholders import (
     substitute_raw_placeholders,
 )
 
-# Same identifier rule the Frontmatter Panel's xprompt sub-form enforces.
+# Same identifier rule the Frontmatter Panel's macro sub-form enforces.
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 log = logging.getLogger(__name__)
@@ -58,10 +58,10 @@ class _PlaceholderArgConversion:
     renames: dict[str, str]
 
 
-def _xprompt_placeholder_args_enabled() -> bool:
-    """Return whether prompt-local xprompt placeholder-to-input conversion is enabled.
+def _macro_placeholder_args_enabled() -> bool:
+    """Return whether prompt-local macro placeholder-to-input conversion is enabled.
 
-    Reads ``ace.prompt_inputs.xprompt_placeholder_args`` through the cached
+    Reads ``ace.prompt_inputs.macro_placeholder_args`` through the cached
     merged config. A missing, unreadable, or unparsable value falls back to
     enabled.
     """
@@ -75,7 +75,7 @@ def _xprompt_placeholder_args_enabled() -> bool:
         else:
             raw = inputs.get("xprompt_placeholder_args", True)
     except Exception:
-        log.debug("xprompt placeholder argument toggle unavailable", exc_info=True)
+        log.debug("macro placeholder argument toggle unavailable", exc_info=True)
         return True
     return bool(raw)
 
@@ -100,10 +100,10 @@ def convert_placeholders_to_inputs(
     existing undeclared Jinja variable.  Literal placeholders inside code
     zones are left untouched by the shared substitution transform.
 
-    When ``ace.prompt_inputs.xprompt_placeholder_args`` is disabled, returns
+    When ``ace.prompt_inputs.macro_placeholder_args`` is disabled, returns
     the original body without placeholder-derived inputs or renames.
     """
-    if not _xprompt_placeholder_args_enabled():
+    if not _macro_placeholder_args_enabled():
         return _PlaceholderArgConversion(body=body, inputs=[], renames={})
 
     fields = raw_placeholder_fields(body)
@@ -123,10 +123,10 @@ def convert_placeholders_to_inputs(
     )
 
 
-def normalize_local_xprompt_name(raw: str) -> str:
-    """Return the stored local xprompt name for a user-typed *raw* value.
+def normalize_local_macro_name(raw: str) -> str:
+    """Return the stored local macro name for a user-typed *raw* value.
 
-    Local xprompts are ``_``-scoped, so a bare ``rules`` is stored as ``_rules``.
+    Local macros are ``_``-scoped, so a bare ``rules`` is stored as ``_rules``.
     A name the user already prefixed (``_rules``) is left untouched rather than
     doubled into ``__rules``.  Surrounding whitespace is stripped; an all-blank
     value normalizes to ``""`` so the caller can reject it as missing.
@@ -139,12 +139,12 @@ def normalize_local_xprompt_name(raw: str) -> str:
     return name
 
 
-def validate_local_xprompt_name(name: str, used_names: set[str]) -> str:
+def validate_local_macro_name(name: str, used_names: set[str]) -> str:
     """Return a validation error for *name*, or ``""`` when it is acceptable.
 
-    *name* is the already-:func:`normalize_local_xprompt_name`-d value.  It is
+    *name* is the already-:func:`normalize_local_macro_name`-d value.  It is
     validated through the same launch-path underscore-scoping rule the
-    Frontmatter Panel uses (:func:`parse_local_xprompt_entries`), then checked
+    Frontmatter Panel uses (:func:`parse_local_macro_entries`), then checked
     for identifier validity and rejected as a duplicate when it collides with an
     existing local helper in *used_names* -- the flow never silently overwrites a
     helper the prompt already declares.
@@ -162,7 +162,7 @@ def validate_local_xprompt_name(name: str, used_names: set[str]) -> str:
     return ""
 
 
-def infer_local_xprompt_inputs(body: str) -> _PlaceholderArgConversion | None:
+def infer_local_macro_inputs(body: str) -> _PlaceholderArgConversion | None:
     """Rewrite placeholders and infer every required input for a local macro.
 
     Returns one ``TEXT`` :class:`InputArg` per undeclared variable (no default,
@@ -172,7 +172,7 @@ def infer_local_xprompt_inputs(body: str) -> _PlaceholderArgConversion | None:
     inputs follow those Jinja inputs, preserving document order within each
     group. A placeholder whose generated name is already an undeclared Jinja
     variable reuses that input. Disabling
-    ``ace.prompt_inputs.xprompt_placeholder_args`` skips only the placeholder
+    ``ace.prompt_inputs.macro_placeholder_args`` skips only the placeholder
     rewrite; Jinja-variable input inference is unchanged.
 
     Returns ``None`` when *body* contains invalid Jinja syntax: the caller leaves
@@ -196,10 +196,10 @@ def infer_local_xprompt_inputs(body: str) -> _PlaceholderArgConversion | None:
     )
 
 
-def build_local_xprompt(name: str, body: str, inputs: list[InputArg]) -> Macro:
-    """Build the local :class:`XPrompt` stored under the prompt's ``xprompts:``.
+def build_local_macro(name: str, body: str, inputs: list[InputArg]) -> Macro:
+    """Build the local :class:`Macro` stored under the prompt's ``macros:``.
 
-    Stamps :data:`LOCAL_XPROMPT_SOURCE` so the result compares equal to a helper
+    Stamps :data:`LOCAL_MACRO_SOURCE` so the result compares equal to a helper
     the launch path would parse out of the same frontmatter.
     """
     return Macro(
@@ -210,23 +210,23 @@ def build_local_xprompt(name: str, body: str, inputs: list[InputArg]) -> Macro:
     )
 
 
-def local_xprompt_invocation_skeleton(xprompt: Macro) -> str:
-    """Return the snippet skeleton that invokes *xprompt* in a prompt pane.
+def local_macro_invocation_skeleton(macro: Macro) -> str:
+    """Return the snippet skeleton that invokes *macro* in a prompt pane.
 
     With no inputs this is the bare ``#_name`` reference; with inputs it is a
     named-argument skeleton (``#_name(a=$1, b=$2)$0``) carrying snippet tabstops
     so expanding it through the pane's snippet engine drops the cursor onto the
     first empty argument value.
     """
-    entry = macro_assist_entry_from_local_macro(xprompt.name, xprompt)
+    entry = macro_assist_entry_from_local_macro(macro.name, macro)
     return named_args_skeleton(entry)
 
 
 __all__ = [
-    "build_local_xprompt",
+    "build_local_macro",
     "convert_placeholders_to_inputs",
-    "infer_local_xprompt_inputs",
-    "local_xprompt_invocation_skeleton",
-    "normalize_local_xprompt_name",
-    "validate_local_xprompt_name",
+    "infer_local_macro_inputs",
+    "local_macro_invocation_skeleton",
+    "normalize_local_macro_name",
+    "validate_local_macro_name",
 ]

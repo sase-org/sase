@@ -1,4 +1,4 @@
-"""Tests for automatic xprompt completion menu opening."""
+"""Tests for automatic macro completion menu opening."""
 
 from __future__ import annotations
 
@@ -19,13 +19,13 @@ from sase.macro.vcs_project_completion import VcsProjectEntry
 from ._completion_helpers import (
     CatalogCompletionTestApp,
     CompletionTestApp,
-    registered_project_xprompts,
+    registered_project_macros,
 )
 
 _PROJECT_ENTRIES_PATH = (
     "sase.ace.tui.widgets.vcs_project_completion.build_vcs_project_completion_entries"
 )
-_XPROMPT_COLD_BUILD_PATH = (
+_MACRO_COLD_BUILD_PATH = (
     "sase.ace.tui.widgets.prompt_text_area.build_macro_assist_entries"
 )
 
@@ -34,10 +34,10 @@ def _entry(
     name: str,
     *,
     prefix: str = "#",
-    kind: str = "xprompt",
+    kind: str = "macro",
     is_skill: bool = False,
 ) -> MacroAssistEntry:
-    # Skills take the namespaced ``skill/foo`` xprompt reference name and keep
+    # Skills take the namespaced ``skill/foo`` macro reference name and keep
     # ``foo`` as the provider skill name matched by ``/`` completion.
     reference_name = f"skill/{name}" if is_skill else name
     return MacroAssistEntry(
@@ -73,7 +73,7 @@ def _seed_entries(
     ta._macro_arg_assist_entries_by_project[project] = entries
 
 
-async def test_hash_name_auto_opens_xprompt_menu_without_extending() -> None:
+async def test_hash_name_auto_opens_macro_menu_without_extending() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -88,13 +88,13 @@ async def test_hash_name_auto_opens_xprompt_menu_without_extending() -> None:
 
         assert ta.text == "#f"
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._completion_kind == "macro"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "#frog",
             "#front",
         ]
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "xprompts"
+        assert panel.border_title == "macros"
         assert "#frog" in panel.render().plain
 
 
@@ -112,7 +112,7 @@ async def test_single_match_auto_opens_without_accepting() -> None:
         assert [c.insertion for c in ta._file_completion_candidates] == ["#fix"]
 
 
-async def test_xprompt_before_period_auto_opens_but_after_period_stays_quiet() -> None:
+async def test_macro_before_period_auto_opens_but_after_period_stays_quiet() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
@@ -120,17 +120,17 @@ async def test_xprompt_before_period_auto_opens_but_after_period_stays_quiet() -
 
         ta.load_text("(see #s.")
         ta.cursor_location = (0, len("(see #s"))
-        assert ta._try_auto_xprompt_completion() is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._try_auto_macro_completion() is True
+        assert ta._completion_kind == "macro"
         assert [c.insertion for c in ta._file_completion_candidates] == ["#screenshot"]
 
         ta._clear_file_completion()
         ta.cursor_location = (0, len("(see #s."))
-        assert ta._try_auto_xprompt_completion() is False
+        assert ta._try_auto_macro_completion() is False
         assert ta._file_completion_active is False
 
 
-async def test_standalone_marker_auto_opens_standalone_xprompts() -> None:
+async def test_standalone_marker_auto_opens_standalone_macros() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -189,7 +189,7 @@ async def test_bare_hash_does_not_auto_open() -> None:
         assert ta._file_completion_active is False
 
 
-async def test_no_matching_xprompt_does_not_show_placeholder() -> None:
+async def test_no_matching_macro_does_not_show_placeholder() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -258,7 +258,7 @@ async def test_slash_skill_token_auto_opens_skill_panel_when_warm() -> None:
             [
                 _entry("sase_plan", is_skill=True),
                 _entry("sase_review", is_skill=True),
-                _entry("send"),  # non-skill xprompt is filtered out of /skills
+                _entry("send"),  # non-skill macro is filtered out of /skills
             ],
         )
 
@@ -270,13 +270,13 @@ async def test_slash_skill_token_auto_opens_skill_panel_when_warm() -> None:
 
         assert ta.text == "/s"
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._completion_kind == "macro"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "/sase_plan",
             "/sase_review",
         ]
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "xprompts"
+        assert panel.border_title == "macros"
         assert "skill" in panel.render().plain
 
 
@@ -288,7 +288,7 @@ async def test_slash_skill_cold_catalog_defers_without_sync_build() -> None:
         with (
             patch.object(type(ta), "_warm_current_macro_assist_entries") as warm,
             patch(
-                _XPROMPT_COLD_BUILD_PATH,
+                _MACRO_COLD_BUILD_PATH,
                 side_effect=AssertionError("cold catalog build"),
             ),
         ):
@@ -304,11 +304,11 @@ async def test_slash_skill_cold_catalog_defers_without_sync_build() -> None:
 
         assert ta.text == "/sa"
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._completion_kind == "macro"
         assert [c.insertion for c in ta._file_completion_candidates] == ["/sase_plan"]
 
 
-async def test_auto_xprompt_menu_toggle_disables_slash_skill_auto_open() -> None:
+async def test_auto_macro_menu_toggle_disables_slash_skill_auto_open() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -323,7 +323,7 @@ async def test_auto_xprompt_menu_toggle_disables_slash_skill_auto_open() -> None
         with patch.object(
             type(ta),
             "_prompt_completion_settings",
-            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+            return_value=PromptCompletionSettings(auto_macro_menu=False),
         ):
             await pilot.press("/")
             await pilot.press("s")
@@ -334,7 +334,7 @@ async def test_auto_xprompt_menu_toggle_disables_slash_skill_auto_open() -> None
         await pilot.press("ctrl+t")
 
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._completion_kind == "macro"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "/sase_plan",
             "/split",
@@ -349,7 +349,7 @@ async def test_cold_catalog_defers_without_sync_build_then_opens_when_warm() -> 
         with (
             patch.object(type(ta), "_warm_current_macro_assist_entries") as warm,
             patch(
-                _XPROMPT_COLD_BUILD_PATH,
+                _MACRO_COLD_BUILD_PATH,
                 side_effect=AssertionError("cold catalog build"),
             ),
         ):
@@ -368,7 +368,7 @@ async def test_cold_catalog_defers_without_sync_build_then_opens_when_warm() -> 
         assert [c.insertion for c in ta._file_completion_candidates] == ["#foo"]
 
 
-async def test_auto_xprompt_menu_toggle_disables_auto_open_only() -> None:
+async def test_auto_macro_menu_toggle_disables_auto_open_only() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -377,7 +377,7 @@ async def test_auto_xprompt_menu_toggle_disables_auto_open_only() -> None:
         with patch.object(
             type(ta),
             "_prompt_completion_settings",
-            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+            return_value=PromptCompletionSettings(auto_macro_menu=False),
         ):
             await pilot.press("#")
             await pilot.press("f")
@@ -388,30 +388,30 @@ async def test_auto_xprompt_menu_toggle_disables_auto_open_only() -> None:
         await pilot.press("ctrl+t")
 
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._completion_kind == "macro"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "#fix",
             "#foo",
         ]
 
 
-async def test_vcs_tag_project_namespace_opens_project_xprompt_menu(
+async def test_vcs_tag_project_namespace_opens_project_macro_menu(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Reported regression: ``#git:proj #proj/`` must offer project xprompts.
+    """Reported regression: ``#git:proj #proj/`` must offer project macros.
 
     The VCS tag names the project the user-facing way while the catalog knows
     it by its ProjectSpec directory key, so the menu stayed empty until both
     spellings were normalized to the canonical namespace.
     """
     app = CatalogCompletionTestApp()
-    with registered_project_xprompts(
+    with registered_project_macros(
         tmp_path,
         monkeypatch,
         project_key="gh_org__proj",
         project_name="proj",
-        xprompts={"reads": "Reads body", "sync": "Sync body"},
+        macros={"reads": "Reads body", "sync": "Sync body"},
     ):
         async with app.run_test() as pilot:
             ta = app.query_one(PromptTextArea)
@@ -436,25 +436,25 @@ async def test_vcs_tag_project_namespace_opens_project_xprompt_menu(
 
     assert menu_text == "#git:proj #proj/"
     assert menu_active is True
-    assert menu_kind == "xprompt"
+    assert menu_kind == "macro"
     assert menu_candidates == ["#proj/reads", "#proj/sync"]
     assert key_candidates == []
     assert app.requested_projects == ["proj"] * len(app.requested_projects)
     assert app.requested_projects
 
 
-async def test_prompt_context_project_key_opens_same_project_xprompt_menu(
+async def test_prompt_context_project_key_opens_same_project_macro_menu(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The prompt-context fallback carries a directory key and must normalize."""
     app = CatalogCompletionTestApp()
-    with registered_project_xprompts(
+    with registered_project_macros(
         tmp_path,
         monkeypatch,
         project_key="gh_org__proj",
         project_name="proj",
-        xprompts={"reads": "Reads body", "sync": "Sync body"},
+        macros={"reads": "Reads body", "sync": "Sync body"},
     ):
         async with app.run_test() as pilot:
             ta = app.query_one(PromptTextArea)

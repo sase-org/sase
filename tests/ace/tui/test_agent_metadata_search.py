@@ -505,7 +505,7 @@ async def _show_search_header_overflow(
     )
     direc = tmp_path / name
     direc.mkdir(exist_ok=True)
-    agent = make_artifact_agent(direc, status="DONE", raw_xprompt=raw)
+    agent = make_artifact_agent(direc, status="DONE", raw_prompt=raw)
     agent = dataclasses.replace(agent, cl_name=f"cl-{name}", raw_suffix=name)
     detail.update_display(agent)
     await pilot.pause()

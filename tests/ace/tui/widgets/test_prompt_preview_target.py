@@ -21,19 +21,19 @@ def _detect(text: str, needle: str) -> PreviewToken | None:
     return detect_preview_target_at_cursor(text, text.index(needle))
 
 
-def test_detects_xprompt_reference_name_and_arg_region() -> None:
+def test_detects_macro_reference_name_and_arg_region() -> None:
     text = "run #foo:bar now"
 
     token = _detect(text, "#foo")
-    assert token == PreviewToken("xprompt", "#foo:bar", "foo", 4, 12)
+    assert token == PreviewToken("macro", "#foo:bar", "foo", 4, 12)
 
     token = _detect(text, "bar")
-    assert token == PreviewToken("xprompt", "#foo:bar", "foo", 4, 12)
+    assert token == PreviewToken("macro", "#foo:bar", "foo", 4, 12)
 
 
 def test_skips_colon_shorthand_argument_text_but_keeps_head_and_separator() -> None:
     text = "#foo: some text"
-    expected = PreviewToken("xprompt", text, "foo", 0, len(text))
+    expected = PreviewToken("macro", text, "foo", 0, len(text))
 
     assert _detect(text, "#foo") == expected
     assert detect_preview_target_at_cursor(text, text.index(":")) == expected
@@ -44,7 +44,7 @@ def test_skips_colon_shorthand_argument_text_but_keeps_head_and_separator() -> N
 
 def test_skips_double_colon_argument_text_including_later_lines() -> None:
     text = "#foo:: line one\nsecond line"
-    expected = PreviewToken("xprompt", text, "foo", 0, len(text))
+    expected = PreviewToken("macro", text, "foo", 0, len(text))
 
     assert _detect(text, "#foo") == expected
     assert detect_preview_target_at_cursor(text, text.index(":")) == expected
@@ -57,7 +57,7 @@ def test_nested_reference_inside_double_colon_block_wins() -> None:
     text = "run #foo:: line one\n\nline two\n#bar do it"
     token = _detect(text, "#bar")
     start = text.index("#bar")
-    assert token == PreviewToken("xprompt", "#bar", "bar", start, start + len("#bar"))
+    assert token == PreviewToken("macro", "#bar", "bar", start, start + len("#bar"))
 
 
 def test_file_path_inside_colon_shorthand_wins() -> None:
@@ -73,9 +73,9 @@ def test_file_path_inside_colon_shorthand_wins() -> None:
     )
 
 
-def test_paren_args_still_preview_xprompt_but_shorthand_text_does_not() -> None:
+def test_paren_args_still_preview_macro_but_shorthand_text_does_not() -> None:
     text = "#foo(x=1): text"
-    expected = PreviewToken("xprompt", text, "foo", 0, len(text))
+    expected = PreviewToken("macro", text, "foo", 0, len(text))
 
     assert _detect(text, "x=1") == expected
     assert _detect(text, "text") is None
@@ -84,7 +84,7 @@ def test_paren_args_still_preview_xprompt_but_shorthand_text_does_not() -> None:
 def test_detect_shorthand_argument_owner_at_cursor() -> None:
     text = "#foo: some text"
     owner = detect_shorthand_argument_owner_at_cursor(text, text.index("some"))
-    assert owner == PreviewToken("xprompt", text, "foo", 0, len(text))
+    assert owner == PreviewToken("macro", text, "foo", 0, len(text))
 
     assert detect_shorthand_argument_owner_at_cursor(text, text.index("#foo")) is None
     assert detect_shorthand_argument_owner_at_cursor("#foo:bar", 5) is None
@@ -94,7 +94,7 @@ def test_detect_shorthand_argument_owner_at_cursor() -> None:
     owner = detect_shorthand_argument_owner_at_cursor(nested, nested.index("yo"))
     start = nested.index("#bar")
     assert owner == PreviewToken(
-        "xprompt",
+        "macro",
         "#bar: yo",
         "bar",
         start,
@@ -102,9 +102,9 @@ def test_detect_shorthand_argument_owner_at_cursor() -> None:
     )
 
 
-def test_detects_project_xprompt_reference() -> None:
+def test_detects_project_macro_reference() -> None:
     token = _detect("run #proj/foo now", "foo")
-    assert token == PreviewToken("xprompt", "#proj/foo", "proj/foo", 4, 13)
+    assert token == PreviewToken("macro", "#proj/foo", "proj/foo", 4, 13)
 
 
 def test_detects_at_prefixed_and_bare_file_paths() -> None:
@@ -144,10 +144,10 @@ def test_detect_returns_none_for_plain_prose() -> None:
     assert detect_preview_target_at_cursor("nothing previewable here", 4) is None
 
 
-def test_xprompt_detection_takes_precedence_over_file_like_overlap() -> None:
+def test_macro_detection_takes_precedence_over_file_like_overlap() -> None:
     text = "run #foo/bar.md now"
     token = _detect(text, "foo")
-    assert token and token.kind == "xprompt"
+    assert token and token.kind == "macro"
     assert token.target == "foo/bar"
 
 
@@ -164,7 +164,7 @@ def test_detects_known_slash_skill_before_absolute_file() -> None:
     )
 
     assert token == PreviewToken(
-        "xprompt",
+        "macro",
         "/sase_plan",
         "sase_plan",
         start,
@@ -199,7 +199,7 @@ def test_slash_skill_detection_rejects_unknown_path_like_and_protected_text() ->
     for text in (
         "`/sase_plan`",
         "```text\n/sase_plan\n```",
-        "%xprompts_enabled:false\n/sase_plan\n%xprompts_enabled:true",
+        "%macros_enabled:false\n/sase_plan\n%macros_enabled:true",
     ):
         assert (
             detect_preview_target_at_cursor(
@@ -211,7 +211,7 @@ def test_slash_skill_detection_rejects_unknown_path_like_and_protected_text() ->
         )
 
 
-def test_resolves_xprompt_from_source_file(
+def test_resolves_macro_from_source_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -227,19 +227,19 @@ def test_resolves_xprompt_from_source_file(
     )
 
     payload = resolve_preview_target(
-        PreviewToken("xprompt", "#review", "review", 0, 7),
+        PreviewToken("macro", "#review", "review", 0, 7),
         project=None,
         base_dir=str(tmp_path),
     )
 
-    assert payload.kind_label == "xprompt"
+    assert payload.kind_label == "macro"
     assert payload.title == "#review"
     assert payload.source_path == str(source)
     assert payload.content.startswith("---\ndescription")
     assert payload.lexer == "markdown"
 
 
-def test_resolves_skill_label_from_xprompt(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolves_skill_label_from_macro(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
         lambda name, project=None: Macro(
@@ -251,7 +251,7 @@ def test_resolves_skill_label_from_xprompt(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     payload = resolve_preview_target(
-        PreviewToken("xprompt", "#skill", "skill", 0, 6),
+        PreviewToken("macro", "#skill", "skill", 0, 6),
         project=None,
         base_dir=".",
     )
@@ -275,7 +275,7 @@ def test_resolves_slash_skill_with_slash_presentation(
     )
 
     payload = resolve_preview_target(
-        PreviewToken("xprompt", "/sase_plan", "sase_plan", 0, 10, "/"),
+        PreviewToken("macro", "/sase_plan", "sase_plan", 0, 10, "/"),
         project="sase",
         base_dir=".",
     )
@@ -307,7 +307,7 @@ def test_slash_skill_resolution_looks_up_the_skill_reference_name(
     )
 
     resolve_preview_target(
-        PreviewToken("xprompt", "/sase_plan", "sase_plan", 0, 10, "/"),
+        PreviewToken("macro", "/sase_plan", "sase_plan", 0, 10, "/"),
         project=None,
         base_dir=".",
     )
@@ -325,7 +325,7 @@ def test_slash_skill_resolution_rejects_stale_non_skill(
 
     with pytest.raises(PreviewError, match="No skill named '/sase_plan' found"):
         resolve_preview_target(
-            PreviewToken("xprompt", "/sase_plan", "sase_plan", 0, 10, "/"),
+            PreviewToken("macro", "/sase_plan", "sase_plan", 0, 10, "/"),
             project=None,
             base_dir=".",
         )
@@ -347,7 +347,7 @@ def test_resolves_workflow_fallback_preview(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     payload = resolve_preview_target(
-        PreviewToken("xprompt", "#ship", "ship", 0, 5),
+        PreviewToken("macro", "#ship", "ship", 0, 5),
         project="demo",
         base_dir=".",
     )
@@ -358,7 +358,7 @@ def test_resolves_workflow_fallback_preview(monkeypatch: pytest.MonkeyPatch) -> 
     assert "2. [agent] run: Implement the fix" in payload.content
 
 
-def test_missing_xprompt_raises_distinct_preview_error(
+def test_missing_macro_raises_distinct_preview_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -366,9 +366,9 @@ def test_missing_xprompt_raises_distinct_preview_error(
         lambda name, project=None: None,
     )
 
-    with pytest.raises(PreviewError, match="No xprompt or skill named '#missing'"):
+    with pytest.raises(PreviewError, match="No macro or skill named '#missing'"):
         resolve_preview_target(
-            PreviewToken("xprompt", "#missing", "missing", 0, 8),
+            PreviewToken("macro", "#missing", "missing", 0, 8),
             project=None,
             base_dir=".",
         )
@@ -400,7 +400,7 @@ def test_missing_file_raises_distinct_preview_error(tmp_path: Path) -> None:
         )
 
 
-def test_resolved_xprompt_payload_carries_declared_input_properties(
+def test_resolved_macro_payload_carries_declared_input_properties(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -414,7 +414,7 @@ def test_resolved_xprompt_payload_carries_declared_input_properties(
     )
 
     payload = resolve_preview_target(
-        PreviewToken("xprompt", "#review", "review", 0, 7),
+        PreviewToken("macro", "#review", "review", 0, 7),
         project=None,
         base_dir=".",
     )
@@ -458,7 +458,7 @@ def test_properties_projection_failure_degrades_to_none(
     )
 
     payload = resolve_preview_target(
-        PreviewToken("xprompt", "#review", "review", 0, 7),
+        PreviewToken("macro", "#review", "review", 0, 7),
         project=None,
         base_dir=".",
     )
@@ -541,7 +541,7 @@ def test_image_directory_raises_directory_error(tmp_path: Path) -> None:
 
 def test_skips_double_colon_eol_argument_text() -> None:
     text = "#foo::\nbody text"
-    expected = PreviewToken("xprompt", text, "foo", 0, len(text))
+    expected = PreviewToken("macro", text, "foo", 0, len(text))
 
     assert _detect(text, "#foo") == expected
     assert _detect(text, "body") is None

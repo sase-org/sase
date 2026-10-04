@@ -68,7 +68,7 @@ def _stub_all_resolvers(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(
         _agent_display_header_summary,
-        "load_xprompts_used",
+        "load_macros_used",
         lambda agent: [{"name": "x"}],
     )
     monkeypatch.setattr(

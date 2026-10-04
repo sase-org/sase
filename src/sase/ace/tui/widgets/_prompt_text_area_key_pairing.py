@@ -16,7 +16,7 @@ from sase.ace.tui.widgets._argument_syntax_editing import (
     plan_argument_colon_to_parentheses_edit,
     plan_argument_double_colon_to_parentheses_edit,
     plan_argument_list_continuation_edit,
-    plan_xprompt_completion_spacer_to_parentheses_edit,
+    plan_macro_completion_spacer_to_parentheses_edit,
 )
 from sase.ace.tui.widgets._alt_syntax_editing import (
     plan_alt_brace_pair,
@@ -49,7 +49,7 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         def _clear_file_completion(
             self,
             *,
-            clear_xprompt_arg_hint: bool = True,
+            clear_macro_arg_hint: bool = True,
         ) -> None: ...
         def _clear_soft_completion(
             self,
@@ -92,7 +92,7 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
             return False
         if col >= 2 and line[col - 2] == "%":
             # An alternation opener: typing ``%``/``#``/``{`` right after
-            # ``%{`` starts a branch (``%m:``, ``#xprompt``) instead of a
+            # ``%{`` starts a branch (``%m:``, ``#macro``) instead of a
             # Jinja ``{%  %}`` or ``{#  #}`` pair.
             return False
 
@@ -259,7 +259,7 @@ def _plan_argument_colon_pair_conversion(
     )
 
 
-def plan_xprompt_spacer_pair_conversion(
+def plan_macro_spacer_pair_conversion(
     text: str,
     offset: int,
     cursor_location: tuple[int, int],
@@ -272,7 +272,7 @@ def plan_xprompt_spacer_pair_conversion(
     :func:`_plan_argument_colon_pair_conversion`. Uses a literal ``(`` when
     pairing is unsafe at the cursor.
     """
-    spacer_delete = plan_xprompt_completion_spacer_to_parentheses_edit(
+    spacer_delete = plan_macro_completion_spacer_to_parentheses_edit(
         text, cursor_location, pending
     )
     if spacer_delete is None or spacer_delete.end != offset:

@@ -46,7 +46,7 @@ class CompletionPanelKinds:
     """Which named provider an open completion panel is rendering."""
 
     kind: str
-    xprompt: bool
+    macro: bool
     directive: bool
     directive_arg: bool
     directive_arg_agent: bool
@@ -57,9 +57,9 @@ class CompletionPanelKinds:
     model_explicit: bool
     history: bool
     arg_completion: bool
-    xprompt_arg_name: bool
-    xprompt_arg_value: bool
-    xprompt_arg_agent: bool
+    macro_arg_name: bool
+    macro_arg_value: bool
+    macro_arg_agent: bool
     jinja: bool
     placeholder: bool
     prompt_word: bool
@@ -82,7 +82,7 @@ class CompletionPanelKinds:
         is_model_explicit = completion_kind == MODEL_EXPLICIT_COMPLETION_KIND
         return cls(
             kind=completion_kind,
-            xprompt=completion_kind == "xprompt",
+            macro=completion_kind == "macro",
             directive=completion_kind == "directive",
             directive_arg=is_directive_arg,
             directive_arg_agent=is_directive_arg
@@ -100,9 +100,9 @@ class CompletionPanelKinds:
             model_explicit=is_model_explicit,
             history=completion_kind == "file_history",
             arg_completion=completion_kind == "macro_arg_value",
-            xprompt_arg_name=completion_kind == "macro_arg_name",
-            xprompt_arg_value=completion_kind == "macro_arg_value",
-            xprompt_arg_agent=completion_kind == "macro_arg_agent",
+            macro_arg_name=completion_kind == "macro_arg_name",
+            macro_arg_value=completion_kind == "macro_arg_value",
+            macro_arg_agent=completion_kind == "macro_arg_agent",
             jinja=completion_kind == "jinja",
             placeholder=completion_kind == PLACEHOLDER_COMPLETION_KIND,
             prompt_word=completion_kind == PROMPT_WORD_COMPLETION_KIND,

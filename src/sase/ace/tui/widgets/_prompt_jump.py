@@ -77,7 +77,7 @@ class PromptJumpMixin(_MixinBase):
             token = detect_shorthand_argument_owner_jump_target(self.text, offset)
             if token is None:
                 self.notify(
-                    "Move the cursor onto an xprompt, skill, file path, glossary term, or repo name to jump to its definition",
+                    "Move the cursor onto a macro, skill, file path, glossary term, or repo name to jump to its definition",
                     severity="warning",
                 )
                 return
@@ -270,8 +270,8 @@ class PromptJumpMixin(_MixinBase):
             self.notify("Prompt input bar cannot load this target", severity="error")
             return
         from sase.ace.tui.widgets.prompt_stack import (
-            XPromptBinding,
-            XPromptReadonlyTarget,
+            MacroBinding,
+            MacroReadonlyTarget,
         )
         from sase.macro.prompt_frontmatter import PromptFrontmatter
 
@@ -298,20 +298,20 @@ class PromptJumpMixin(_MixinBase):
                         )
                     )
                 ):
-                    binding = XPromptBinding.for_config(
+                    binding = MacroBinding.for_config(
                         payload.source_path,
                         payload.definition_name or "",
                         reference=payload.title,
                     )
                 else:
-                    binding = XPromptBinding.for_file(
+                    binding = MacroBinding.for_file(
                         payload.source_path,
                         reference=payload.title,
                     )
             except OSError:
                 binding = None
         else:
-            read_only_target = XPromptReadonlyTarget(
+            read_only_target = MacroReadonlyTarget(
                 reference=payload.title,
                 path=payload.source_path,
             )

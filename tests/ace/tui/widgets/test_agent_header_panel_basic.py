@@ -182,7 +182,7 @@ async def test_hint_mode_keeps_collapsed_header_unchanged(tmp_path: Any) -> None
     agent = make_artifact_agent(
         tmp_path,
         status="DONE",
-        raw_xprompt="Read @src/example.py",
+        raw_prompt="Read @src/example.py",
         workspace_dir=str(workspace),
     )
     Path(str(agent.response_path)).write_text("See src/body.py\n", encoding="utf-8")
@@ -216,7 +216,7 @@ async def test_hint_mode_numbers_expanded_header_first(tmp_path: Any) -> None:
     agent = make_artifact_agent(
         tmp_path,
         status="DONE",
-        raw_xprompt="Read @src/example.py",
+        raw_prompt="Read @src/example.py",
         workspace_dir=str(workspace),
     )
     Path(str(agent.response_path)).write_text("See src/body.py\n", encoding="utf-8")

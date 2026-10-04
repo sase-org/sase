@@ -53,7 +53,7 @@ class PromptDigest:
     body_line_count: int
     launch: str  # humanized, whitespace-collapsed preamble (no frontmatter)
     launch_spans: tuple[StyleSpan, ...]
-    xprompts: tuple[str, ...]  # <=3 xprompt chips from the body
+    macros: tuple[str, ...]  # <=3 macro chips from the body
     project: str | None  # short display name of the prompt's VCS/project target
 
 
@@ -149,12 +149,12 @@ def _select_member_raw(
     for entry in snapshot.prompts:
         bodies.setdefault(entry.kind, entry.body)
     if row.is_workflow_step_child:
-        # A step's shared raw_xprompt.md belongs to the parent workflow, so a
+        # A step's shared raw_prompt.md belongs to the parent workflow, so a
         # step only ever contributes its own step prompt.
         if row.step_type != "agent":
             return None
         return bodies.get("AGENT PROMPT") or None
-    # Every other row prefers the authored xprompt, falling back to the
+    # Every other row prefers the authored macro, falling back to the
     # selected prompt file only for historical rows without one.
     return bodies.get("AGENT RAW PROMPT") or bodies.get("AGENT PROMPT") or None
 
@@ -221,7 +221,7 @@ def _build_digest(raw: str) -> PromptDigest:
         body_line_count=humanized_body.count("\n") + 1 if humanized_body else 0,
         launch=humanized_launch,
         launch_spans=tuple(macro_overlay_spans(humanized_launch)),
-        xprompts=chips,
+        macros=chips,
         project=project,
     )
 
@@ -244,7 +244,7 @@ def _fallback_digest(raw: str) -> PromptDigest:
         body_line_count=raw.count("\n") + 1 if raw else 0,
         launch="",
         launch_spans=(),
-        xprompts=(),
+        macros=(),
         project=None,
     )
 
@@ -295,7 +295,7 @@ def _first_paragraph_headline(body: str) -> str:
     """Return the whitespace-collapsed first paragraph of *body*.
 
     Leading blank lines are skipped; the paragraph ends at the first blank
-    line or fence line. An xprompt-only body therefore keeps its invocation
+    line or fence line. A macro-only body therefore keeps its invocation
     with arguments, and a leading Markdown heading marker is stripped.
     """
     lines = body.splitlines()
@@ -324,7 +324,7 @@ def _truncate_headline(headline: str, *, max_chars: int = _HEADLINE_MAX_CHARS) -
 
 
 def _digest_chips(body: str, headline: str) -> tuple[str, ...]:
-    """Return up to 3 xprompt chips from *body*, excluding headline text.
+    """Return up to 3 macro chips from *body*, excluding headline text.
 
     Chips come from the preamble-stripped body so directive-argument
     false positives (such as Rich color markup) can never appear.

@@ -1,4 +1,4 @@
-"""Xprompt-properties tests for the prompt preview modal."""
+"""Macro-properties tests for the prompt preview modal."""
 
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ async def test_preview_modal_p_warns_when_no_properties(
 
         assert modal._view_mode == "source"  # noqa: SLF001
 
-    assert notifications == [("This preview has no xprompt properties", "warning")]
+    assert notifications == [("This preview has no macro properties", "warning")]
 
 
 def test_preview_modal_footer_includes_properties_chip_only_when_declared() -> None:

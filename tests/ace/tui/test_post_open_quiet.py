@@ -145,7 +145,7 @@ async def test_mount_paints_before_non_essential_warmups() -> None:
 
 @pytest.mark.asyncio
 async def test_first_keystroke_completion_survives_stagger() -> None:
-    """Typing right after mount still offers xprompt completion."""
+    """Typing right after mount still offers macro completion."""
     app = QuietBarApp()
     async with app.run_test(size=(100, 35)) as pilot:
         app._show_prompt_input_bar_for_home(initial_text="")

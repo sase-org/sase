@@ -38,7 +38,7 @@ class StartupPromptCatalogCoreMixin:
     ]
 
     def get_snippets(self: Any) -> dict[str, str]:
-        """Return the memory-only xprompt + user snippet registry."""
+        """Return the memory-only macro + user snippet registry."""
         cached = getattr(self, "_snippets_cache", None)
         if cached is not None:
             self._schedule_prompt_catalog_token_fallback_check()
@@ -76,7 +76,7 @@ class StartupPromptCatalogCoreMixin:
         *,
         schedule: bool = True,
     ) -> list[MacroAssistEntry] | None:
-        """Return memory-only xprompt assist entries for *project* if warm."""
+        """Return memory-only macro assist entries for *project* if warm."""
         self._ensure_prompt_catalog_project(project)
         catalog = self._prompt_catalog
         if catalog is not None:
@@ -239,7 +239,7 @@ class StartupPromptCatalogCoreMixin:
             log.exception("Prompt catalog rebuild failed")
             try:
                 self.notify(
-                    "Failed to reload snippets/xprompts; keeping previous catalog",
+                    "Failed to reload snippets/macros; keeping previous catalog",
                     severity="warning",
                     timeout=8,
                 )

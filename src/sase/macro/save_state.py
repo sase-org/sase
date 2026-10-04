@@ -17,7 +17,7 @@ from sase.legacy_xprompt_names import (
     read_json_new_first,
 )
 
-SaveKind = Literal["xprompt", "snippet"]
+SaveKind = Literal["macro", "snippet"]
 _SAVE_STATE_FILE: Path | None = None
 
 
@@ -35,8 +35,8 @@ def load_last_used_locations() -> dict[SaveKind, str]:
     """Return valid last-used location strings from the state file.
 
     Reads the canonical file first, falling back to the pre-rename file and
-    key. The in-memory ``SaveKind`` spellings are unchanged; only the on-disk
-    file and key use the canonical macro names.
+    key. The in-memory ``SaveKind`` for macros is ``macro``; the on-disk file
+    still accepts the pre-rename key through the legacy reader.
     """
     payload, _ = read_json_new_first(_state_file(), _legacy_state_file())
     if not isinstance(payload, dict):
@@ -47,7 +47,7 @@ def load_last_used_locations() -> dict[SaveKind, str]:
         macro_def = payload.get(LEGACY_XPROMPT_SAVE_STATE_KEY)
     snippet = payload.get("snippet")
     if isinstance(macro_def, str) and macro_def:
-        result["xprompt"] = macro_def
+        result["macro"] = macro_def
     if isinstance(snippet, str) and snippet:
         result["snippet"] = snippet
     return result
@@ -58,7 +58,7 @@ def save_last_used_location(kind: SaveKind, path: str) -> bool:
     state = load_last_used_locations()
     state[kind] = path
     canonical = {
-        (MACRO_SAVE_STATE_KEY if key == "xprompt" else key): value
+        (MACRO_SAVE_STATE_KEY if key == "macro" else key): value
         for key, value in state.items()
     }
     target = _state_file()

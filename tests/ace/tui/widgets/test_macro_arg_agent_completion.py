@@ -314,7 +314,7 @@ async def test_fork_agent_arg_auto_menu_respects_disabled_macro_gate() -> None:
         with patch.object(
             type(ta),
             "_prompt_completion_settings",
-            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+            return_value=PromptCompletionSettings(auto_macro_menu=False),
         ):
             for char in "#fork:":
                 await pilot.press(char)

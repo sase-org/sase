@@ -14,7 +14,7 @@ from tests.ace.tui.visual._ace_config_center_statistics_fixtures import (
     _STATISTICS_NOW,
     _STATISTICS_RANGE,
     _WIDGETS_KEY,
-    _xprompts_payload,
+    _macros_payload,
 )
 from tests.stats._views_payloads import (
     perf_logs_payload,
@@ -287,7 +287,7 @@ def _populated_statistics_view(
             "malformed_rows_skipped": 2,
             "invalid_intervals_skipped": 1,
         },
-        "xprompts": _xprompts_payload(selected_range, macro_focus),
+        "macros": _macros_payload(selected_range, macro_focus),
     }
     activity_payload = {
         "skills": [
@@ -297,7 +297,7 @@ def _populated_statistics_view(
         ],
         "memories": [
             {"name": "tui_perf.md", "count": 7, "distinct_agents": 4},
-            {"name": "xprompts.md", "count": 5, "distinct_agents": 3},
+            {"name": "macros.md", "count": 5, "distinct_agents": 3},
         ],
         "plans": {
             "proposed": 11,

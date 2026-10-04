@@ -435,7 +435,7 @@ async def test_load_prompt_into_pane_stale_target_returns_false() -> None:
 
 
 async def test_load_prompt_into_pane_swarm_invocation_stays_single_pane() -> None:
-    """An xprompt swarm invocation has no literal ``---`` separators.
+    """A macro swarm invocation has no literal ``---`` separators.
 
     Loading it from history must keep it as the authored single-pane invocation
     (the runner expands it into agents later), not split it into stacked panes.

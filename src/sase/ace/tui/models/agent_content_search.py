@@ -1,7 +1,7 @@
 """Content-aware search cache for Agent prompts/replies.
 
 The Agents tab ``/`` filter uses this to search the text of each agent's
-xprompt, reply (live / response / chat fallback), and prior attempt replies
+macro, reply (live / response / chat fallback), and prior attempt replies
 — not just metadata fields. Reads are cached by ``(path, mtime_ns)`` so that
 auto-refresh while a query is active does not re-read unchanged files.
 """

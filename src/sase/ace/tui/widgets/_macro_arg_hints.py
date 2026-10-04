@@ -184,7 +184,7 @@ class MacroArgHintMixin(_MixinBase):
         bar = self._find_prompt_bar()
         if bar is None:
             return []
-        getter = getattr(bar, "local_xprompt_assist_entries", None)
+        getter = getattr(bar, "local_macro_assist_entries", None)
         if not callable(getter):
             return []
         try:

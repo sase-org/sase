@@ -29,14 +29,14 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_preview_panel_xprompt_png_snapshot(
+async def test_preview_panel_macro_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
     payload = PreviewPayload(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#review",
         source_path="/workspace/sase/.macros/review.md",
@@ -67,7 +67,7 @@ async def test_preview_panel_xprompt_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "preview_panel_xprompt_120x40",
-            title="ACE prompt preview panel - xprompt",
+            title="ACE prompt preview panel - macro",
         )
 
 
@@ -123,7 +123,7 @@ async def test_preview_panel_file_png_snapshot(
 def _review_tasks_properties() -> MacroProperties:
     return MacroProperties(
         reference="#bd/review_tasks",
-        kind="xprompt",
+        kind="macro",
         description="Review open task beads for a project and triage them down.",
         input_signature="(project: line, dry_run?: bool)",
         inputs=[
@@ -163,7 +163,7 @@ def _review_tasks_properties() -> MacroProperties:
 
 def _review_tasks_payload() -> PreviewPayload:
     return PreviewPayload(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#bd/review_tasks",
         source_path="/workspace/sase/sase.yml",
@@ -485,7 +485,7 @@ async def test_preview_panel_long_markdown_png_snapshot(
         sections.append(f"- item {idx}b")
         sections.append("")
     payload = PreviewPayload(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#research_swarm",
         source_path="/workspace/sase/.macros/research_swarm.md",

@@ -17,7 +17,7 @@ from ._launch_submit_helpers import (
     launch_record_context_from_prompt_context as _launch_record_context_from_prompt_context,
     launch_toast_label as _launch_toast_label,
     record_submit_time_vcs_replay as _record_submit_time_vcs_replay,
-    submitted_vcs_xprompt_prefix as _submitted_vcs_xprompt_prefix,
+    submitted_vcs_prompt_prefix as _submitted_vcs_prompt_prefix,
     vcs_workflow_type_from_tag as _vcs_workflow_type_from_tag,
 )
 from ._types import PromptContext
@@ -46,6 +46,6 @@ __all__ = [
     "_launch_toast_label",
     "_log_bulk_item_failure",
     "_record_submit_time_vcs_replay",
-    "_submitted_vcs_xprompt_prefix",
+    "_submitted_vcs_prompt_prefix",
     "_vcs_workflow_type_from_tag",
 ]

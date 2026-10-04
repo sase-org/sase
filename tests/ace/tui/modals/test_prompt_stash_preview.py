@@ -16,7 +16,7 @@ def _entry(**overrides: object) -> PromptStashEntryWire:
         "id": "stash-1",
         "created_at": "2026-06-16T10:00:00",
         "text": "#review %wait:planner",
-        "frontmatter": "---\nxprompts:\n  helper: Do work\n---",
+        "frontmatter": "---\nmacros:\n  helper: Do work\n---",
         "project": "sase",
         "source": "all",
         "pinned": True,
@@ -29,7 +29,7 @@ def test_preview_includes_frontmatter_body_and_metadata() -> None:
     preview = _build_prompt_stash_preview(_entry(), prompt_count=3)
 
     assert preview.frontmatter is not None
-    assert "xprompts:" in preview.frontmatter.plain
+    assert "macros:" in preview.frontmatter.plain
     assert preview.body.plain == "#review %wait:planner"
     assert "Project:    sase" in preview.metadata.plain
     assert "Workflows:  #review" in preview.metadata.plain

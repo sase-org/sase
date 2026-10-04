@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 import sase.history.prompt_metadata as prompt_metadata
-import sase.macro._parsing as xprompt_parsing
+import sase.macro._parsing as macro_parsing
 import sase.ace.tui.modals.history_pane as history_pane
 from sase.ace.tui.modals._prompt_history_rows import (
     _MIN_PREVIEW_WIDTH,
@@ -36,12 +36,12 @@ def workflow_names(monkeypatch: pytest.MonkeyPatch):
         lambda: names,
     )
     prompt_metadata.known_workflow_names.cache_clear()
-    xprompt_parsing._VCS_TAG_PATTERN = None
-    xprompt_parsing._VCS_TAG_EMBEDDED_PATTERN = None
+    macro_parsing._VCS_TAG_PATTERN = None
+    macro_parsing._VCS_TAG_EMBEDDED_PATTERN = None
     yield
     prompt_metadata.known_workflow_names.cache_clear()
-    xprompt_parsing._VCS_TAG_PATTERN = None
-    xprompt_parsing._VCS_TAG_EMBEDDED_PATTERN = None
+    macro_parsing._VCS_TAG_PATTERN = None
+    macro_parsing._VCS_TAG_EMBEDDED_PATTERN = None
 
 
 def test_prompt_history_label_is_single_line_and_ellipsized() -> None:

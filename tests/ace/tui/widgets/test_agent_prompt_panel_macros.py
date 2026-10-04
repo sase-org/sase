@@ -1,4 +1,4 @@
-"""Tests for xprompt metadata in the agent prompt panel."""
+"""Tests for macro metadata in the agent prompt panel."""
 
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from rich.text import Text
 
-from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel, load_xprompts_used
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel, load_macros_used
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
@@ -34,31 +34,31 @@ def _styles_over(header: Text, substring: str) -> set[str]:
     }
 
 
-def testload_xprompts_used_empty(tmp_path: Path) -> None:
-    """No xprompts.json file returns None."""
+def testload_macros_used_empty(tmp_path: Path) -> None:
+    """No macros.json file returns None."""
     agent = make_workflow_agent(artifacts_dir=str(tmp_path))
-    result = load_xprompts_used(agent)
+    result = load_macros_used(agent)
 
     assert result is None
 
 
-def testload_xprompts_used_no_artifacts_dir() -> None:
+def testload_macros_used_no_artifacts_dir() -> None:
     """Agent with no artifacts_dir returns None."""
     agent = make_workflow_agent(artifacts_dir=None)
-    result = load_xprompts_used(agent)
+    result = load_macros_used(agent)
 
     assert result is None
 
 
-def test_load_xprompts_used_child_step_does_not_fall_back_to_shared(
+def test_load_macros_used_child_step_does_not_fall_back_to_shared(
     tmp_path: Path,
 ) -> None:
-    """A child step with no step file must not read the shared xprompts.json.
+    """A child step with no step file must not read the shared macros.json.
 
     The shared file holds launch/root metadata; a workflow-child row whose own
-    step captured no xprompt usage shows nothing rather than the root's data.
+    step captured no macro usage shows nothing rather than the root's data.
     """
-    (tmp_path / "xprompts.json").write_text(
+    (tmp_path / "macros.json").write_text(
         json.dumps(
             [
                 {
@@ -78,11 +78,11 @@ def test_load_xprompts_used_child_step_does_not_fall_back_to_shared(
         step_name="build",
     )
 
-    assert load_xprompts_used(agent) is None
+    assert load_macros_used(agent) is None
 
 
-def test_load_xprompts_used_root_reads_shared(tmp_path: Path) -> None:
-    """A non-step (root) agent reads the shared xprompts.json."""
+def test_load_macros_used_root_reads_shared(tmp_path: Path) -> None:
+    """A non-step (root) agent reads the shared macros.json."""
     records = [
         {
             "name": "plan",
@@ -92,15 +92,15 @@ def test_load_xprompts_used_root_reads_shared(tmp_path: Path) -> None:
             "tags": [],
         }
     ]
-    (tmp_path / "xprompts.json").write_text(json.dumps(records))
+    (tmp_path / "macros.json").write_text(json.dumps(records))
 
     agent = make_workflow_agent(artifacts_dir=str(tmp_path))
 
-    assert load_xprompts_used(agent) == records
+    assert load_macros_used(agent) == records
 
 
-def test_xprompts_displayed_from_header_summary(tmp_path: Path) -> None:
-    """Precomputed header summaries can render xprompt metadata."""
+def test_macros_displayed_from_header_summary(tmp_path: Path) -> None:
+    """Precomputed header summaries can render macro metadata."""
     metadata = [
         {
             "name": "propose",
@@ -124,7 +124,7 @@ def test_xprompts_displayed_from_header_summary(tmp_path: Path) -> None:
             "tags": [],
         },
     ]
-    metadata_file = tmp_path / "xprompts_main.json"
+    metadata_file = tmp_path / "macros_main.json"
     metadata_file.write_text(json.dumps(metadata))
 
     agent = make_workflow_agent(
@@ -144,7 +144,7 @@ def test_xprompts_displayed_from_header_summary(tmp_path: Path) -> None:
     assert "▣ #review_checklist" in header.plain
 
 
-def test_xprompt_part_value_uses_distinct_style(tmp_path: Path) -> None:
+def test_macro_part_value_uses_distinct_style(tmp_path: Path) -> None:
     """Part values render in a distinct color, not the metadata-label blue."""
     metadata = [
         {
@@ -162,7 +162,7 @@ def test_xprompt_part_value_uses_distinct_style(tmp_path: Path) -> None:
             "tags": [],
         },
     ]
-    metadata_file = tmp_path / "xprompts_main.json"
+    metadata_file = tmp_path / "macros_main.json"
     metadata_file.write_text(json.dumps(metadata))
 
     agent = make_workflow_agent(
@@ -184,7 +184,7 @@ def test_xprompt_part_value_uses_distinct_style(tmp_path: Path) -> None:
     assert _COLOR_HEADER not in _styles_over(header, "#review_checklist")
 
 
-def test_swarm_xprompt_gets_own_glyph_style_and_summary_count(
+def test_swarm_macro_gets_own_glyph_style_and_summary_count(
     tmp_path: Path,
 ) -> None:
     """The originating swarm reads as a swarm, not as a part."""
@@ -204,7 +204,7 @@ def test_swarm_xprompt_gets_own_glyph_style_and_summary_count(
             "tags": [],
         },
     ]
-    metadata_file = tmp_path / "xprompts_main.json"
+    metadata_file = tmp_path / "macros_main.json"
     metadata_file.write_text(json.dumps(metadata))
 
     agent = make_workflow_agent(
@@ -225,8 +225,8 @@ def test_swarm_xprompt_gets_own_glyph_style_and_summary_count(
 
 
 def test_swarm_only_agent_summarizes_as_a_swarm(tmp_path: Path) -> None:
-    """A swarm-only record must not fall back to the generic xprompt count."""
-    metadata_file = tmp_path / "xprompts_main.json"
+    """A swarm-only record must not fall back to the generic macro count."""
+    metadata_file = tmp_path / "macros_main.json"
     metadata_file.write_text(
         json.dumps(
             [
@@ -253,14 +253,14 @@ def test_swarm_only_agent_summarizes_as_a_swarm(tmp_path: Path) -> None:
     )
 
     assert "Macros: 1 swarm" in header.plain
-    assert "1 xprompt" not in header.plain
+    assert "1 macro" not in header.plain
 
 
-def test_update_display_renders_xprompts_after_detail_settles(
+def test_update_display_renders_macros_after_detail_settles(
     tmp_path: Path,
 ) -> None:
-    """Full prompt updates render precomputed xprompt metadata."""
-    metadata_file = tmp_path / "xprompts_main.json"
+    """Full prompt updates render precomputed macro metadata."""
+    metadata_file = tmp_path / "macros_main.json"
     metadata_file.write_text(
         json.dumps(
             [

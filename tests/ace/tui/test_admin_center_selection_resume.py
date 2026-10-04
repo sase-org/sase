@@ -76,7 +76,7 @@ _CASES = (
     ),
     _ResumeCase("procs", "4"),
     _ResumeCase("updates", "8"),
-    _ResumeCase("xprompts", "1", move_key="ctrl+n"),
+    _ResumeCase("macros", "1", move_key="ctrl+n"),
 )
 
 
@@ -219,7 +219,7 @@ def _normalized_selection(surface: str, selection: str | None) -> str | None:
         "logs": "log__",
         "procs": "task__",
         "updates": "updates-row__",
-        "xprompts": "item__",
+        "macros": "item__",
     }
     prefix = prefixes.get(surface)
     if selection is None or prefix is None:
@@ -296,7 +296,7 @@ async def test_real_opener_resume_restores_visible_selection(
         await page.wait_for(lambda _s: modal._active_tab is not None)
         if case.surface == "config":
             await modal.query_one(ConfigHubPane)._switch_to("misc")
-        if case.surface == "xprompts":
+        if case.surface == "macros":
             await modal.query_one(ConfigHubPane)._switch_to("macros")
         if case.setup_keys:
             await page.press(*case.setup_keys)
@@ -327,7 +327,7 @@ async def test_real_opener_resume_restores_visible_selection(
             await page.wait_for(
                 lambda _s: resumed.query_one(ConfigHubPane)._active_subtab == "misc"
             )
-        if case.surface == "xprompts":
+        if case.surface == "macros":
             await page.wait_for(
                 lambda _s: resumed.query_one(ConfigHubPane)._active_subtab == "macros"
             )

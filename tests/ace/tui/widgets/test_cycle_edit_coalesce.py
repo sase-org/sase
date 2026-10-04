@@ -223,7 +223,7 @@ async def test_cycle_highlight_reuses_wire_memo() -> None:
             name="deploy",
             insertion="#deploy",
             reference_prefix="#",
-            kind="xprompt",
+            kind="macro",
             input_signature=None,
             inputs=(),
             content_preview=None,

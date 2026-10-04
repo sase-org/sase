@@ -68,7 +68,7 @@ _REVIEWED_DESCRIPTIONS: dict[str, tuple[str, str]] = {
 }
 
 
-def test_catalog_drops_top_level_xprompts_and_maps_legacy_resume() -> None:
+def test_catalog_drops_top_level_macros_and_maps_legacy_resume() -> None:
     assert tuple(spec.id for spec in _TAB_SPECS) == (
         "config",
         "logs",
@@ -80,7 +80,7 @@ def test_catalog_drops_top_level_xprompts_and_maps_legacy_resume() -> None:
         "updates",
     )
     assert tuple(spec.number for spec in _TAB_SPECS) == tuple(range(1, 9))
-    assert "xprompts" not in {spec.id for spec in _TAB_SPECS}
+    assert "macros" not in {spec.id for spec in _TAB_SPECS}
     assert _TAB_SPECS[0].pane_identity == "ConfigHubPane"
     assert validated_center_tab("xprompts") == "config"
     assert validated_center_tab("config") == "config"

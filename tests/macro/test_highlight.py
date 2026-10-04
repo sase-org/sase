@@ -78,7 +78,7 @@ def test_core_argument_spans_are_layered_over_container(
             "end": end_byte,
             "role": role,
             "validity": validity,
-            "source": "xprompt",
+            "source": "macro",
             "call_name": "foo",
         }
 

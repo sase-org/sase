@@ -1,4 +1,4 @@
-"""ACE PNG snapshots for xprompt keyword-argument completion."""
+"""ACE PNG snapshots for macro keyword-argument completion."""
 
 from __future__ import annotations
 
@@ -73,13 +73,13 @@ _ARG_ROWS = [
         pytest.param(
             "textual-dark",
             "prompt_xprompt_arg_completion_dark_120x40",
-            "ACE prompt input — xprompt keyword-argument completion, dark theme",
+            "ACE prompt input — macro keyword-argument completion, dark theme",
             id="dark",
         ),
         pytest.param(
             "textual-light",
             "prompt_xprompt_arg_completion_light_120x40",
-            "ACE prompt input — xprompt keyword-argument completion, light theme",
+            "ACE prompt input — macro keyword-argument completion, light theme",
             id="light",
         ),
     ],
@@ -112,7 +112,7 @@ async def test_macro_arg_name_completion_png_snapshot(
             lambda: (
                 bar._completion_visible and bar._completion_panel_kind == "completion"
             ),
-            description="xprompt argument completion visibility",
+            description="macro argument completion visibility",
         )
         await wait_for_svg_contains(page, "#review args")
         await wait_for_visual_idle(page)

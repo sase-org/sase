@@ -67,11 +67,11 @@ async def _mount_home_prompt(
     page: AcePage,
     initial_text: str,
     *,
-    as_xprompt_markdown: bool = False,
+    as_macro_markdown: bool = False,
 ) -> tuple[PromptInputBar, PromptTextArea]:
     page.app._show_prompt_input_bar_for_home(
         initial_text=initial_text,
-        as_xprompt_markdown=as_xprompt_markdown,
+        as_macro_markdown=as_macro_markdown,
     )
     await page.pause()
     bar = page.query_one_widget("#prompt-input-bar", PromptInputBar)
@@ -202,12 +202,12 @@ async def test_space_leaves_frontmatter_focused_prompt_intact(
         patch("sase.history.prompt.add_or_update_prompt") as save_history,
     ):
         prompt_markdown = (
-            "---\nxprompts:\n  _rules: Follow the checklist\n---\nhello world"
+            "---\nmacros:\n  _rules: Follow the checklist\n---\nhello world"
         )
         bar, text_area = await _mount_home_prompt(
             page,
             prompt_markdown,
-            as_xprompt_markdown=True,
+            as_macro_markdown=True,
         )
         bar.focus_frontmatter_panel()
         await page.pause()
@@ -266,18 +266,18 @@ async def test_other_main_screen_vim_hosts_contain_normal_space(page: AcePage) -
         assert actions == []
 
         prompt_markdown = (
-            "---\nxprompts:\n  _rules: Follow the checklist\n---\nhello world"
+            "---\nmacros:\n  _rules: Follow the checklist\n---\nhello world"
         )
         bar, _text_area = await _mount_home_prompt(
             page,
             prompt_markdown,
-            as_xprompt_markdown=True,
+            as_macro_markdown=True,
         )
         bar.focus_frontmatter_panel()
         await page.pause()
         await page.pause()
         panel = page.query_one_widget("FrontmatterPanel", FrontmatterPanel)
-        panel._begin_cell_edit("xprompts", item_name="_rules")
+        panel._begin_cell_edit("macros", item_name="_rules")
         panel._move_cell(1)
         panel._move_cell(1)
         panel._move_cell(1)

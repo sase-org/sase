@@ -61,8 +61,8 @@ def make_agent(
     """Build a lone fixture agent with Reply content and a glance summary."""
     directory = tmp_path / f"visual-final-{suffix}"
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "raw_xprompt.md").write_text(
-        f"{role} xprompt line one\n{role} xprompt line two\n", encoding="utf-8"
+    (directory / "raw_prompt.md").write_text(
+        f"{role} macro line one\n{role} macro line two\n", encoding="utf-8"
     )
     (directory / "01_prompt.md").write_text(
         f"{role} prompt line one\n{role} prompt line two\n", encoding="utf-8"

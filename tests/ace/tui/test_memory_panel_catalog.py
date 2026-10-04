@@ -15,7 +15,7 @@ from sase.core.project_lifecycle_wire import (
 )
 from sase.memory.notes import AGENTS_PARENT
 from sase.memory.read_log import MemoryReadPathSummary
-from sase.macro import glossary_catalog as xprompt_catalog
+from sase.macro import glossary_catalog as macro_catalog
 
 _SASE_BEADS = "sase" + "_beads"
 _SASE_BEADS_NOTE = f"sase/memory/{_SASE_BEADS}.md"
@@ -100,7 +100,7 @@ def _install_records(
     monkeypatch: pytest.MonkeyPatch, records: list[ProjectRecordWire]
 ) -> None:
     monkeypatch.setattr(
-        xprompt_catalog, "list_project_records", lambda *_a, **_kw: records
+        macro_catalog, "list_project_records", lambda *_a, **_kw: records
     )
 
 

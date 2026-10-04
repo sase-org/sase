@@ -377,9 +377,9 @@ _LAZY_EXPORTS = {
     "StashRestoreResult": (".stash_pane", "StashRestoreResult"),
     "StashedPromptsModal": (".stashed_prompts_modal", "StashedPromptsModal"),
     "StatisticsHelpModal": (".statistics_help_modal", "StatisticsHelpModal"),
-    "StatisticsXPromptPickerModal": (
-        ".statistics_xprompt_picker_modal",
-        "StatisticsXPromptPickerModal",
+    "StatisticsMacroPickerModal": (
+        ".statistics_macro_picker_modal",
+        "StatisticsMacroPickerModal",
     ),
     "StatusModal": (".status_modal", "StatusModal"),
     "TabName": (".help_modal", "TabName"),
@@ -434,9 +434,9 @@ _LAZY_EXPORTS = {
     "MacroConfigEntry": (".macro_config_modal", "MacroConfigEntry"),
     "MacroConfigEntryModal": (".macro_config_modal", "MacroConfigEntryModal"),
     "MacroFilenameModal": (".macro_filename_modal", "MacroFilenameModal"),
-    "XPromptFocusChoice": (
-        ".statistics_xprompt_picker_modal",
-        "XPromptFocusChoice",
+    "MacroFocusChoice": (
+        ".statistics_macro_picker_modal",
+        "MacroFocusChoice",
     ),
     "MacroItemModal": (".macro_item_modal", "MacroItemModal"),
     "MacroLocation": (".macro_location_modal", "MacroLocation"),

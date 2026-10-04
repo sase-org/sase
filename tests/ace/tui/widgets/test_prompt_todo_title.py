@@ -10,9 +10,9 @@ from textual.theme import Theme
 
 from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding
 
-from ._prompt_input_bar_stack_helpers import _PromptBarApp, _XPromptMarkdownApp
+from ._prompt_input_bar_stack_helpers import _PromptBarApp, _MacroMarkdownApp
 
 
 def _plain_title(bar: PromptInputBar) -> str:
@@ -127,7 +127,7 @@ async def test_todo_title_updates_for_append_and_fresh_stash_restore_paths() -> 
         assert "TODO 2" in _plain_title(bar)
         assert bar.active_text() == "TODO: restored with `TODO(owner): literal`"
 
-    fresh = _XPromptMarkdownApp(
+    fresh = _MacroMarkdownApp(
         "TODO: restored one\n"
         "```\n"
         "TODO: fenced literal\n"
@@ -189,7 +189,7 @@ async def test_todo_title_keeps_binding_mode_agent_and_jinja_adornments(
     async with app.run_test(size=(100, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar._stack.bind(XPromptBinding.for_file(source))
+        bar._stack.bind(MacroBinding.for_file(source))
         bar._refresh_title()
         await pilot.press("!")
         bar.active_text_area()._enter_normal_mode()

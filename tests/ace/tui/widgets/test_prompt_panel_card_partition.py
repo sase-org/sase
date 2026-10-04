@@ -238,7 +238,7 @@ def test_hint_numbering_continuous_across_cards(tmp_path: Path) -> None:
     (workspace / "a.py").write_text("x\n", encoding="utf-8")
     artifacts = tmp_path / "art"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text("see src/a.py\n", encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text("see src/a.py\n", encoding="utf-8")
     (artifacts / "01_prompt.md").write_text("open src/a.py\n", encoding="utf-8")
     response = artifacts / "response.md"
     response.write_text("open src/a.py and src/b.py\n", encoding="utf-8")
@@ -279,7 +279,7 @@ def test_hint_cache_hit_republishes_card_document(tmp_path: Path) -> None:
 
     artifacts = tmp_path / "art"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text("hi\n", encoding="utf-8")
+    (artifacts / "raw_prompt.md").write_text("hi\n", encoding="utf-8")
     (artifacts / "01_prompt.md").write_text("body\n", encoding="utf-8")
     response = artifacts / "response.md"
     response.write_text("reply\n", encoding="utf-8")

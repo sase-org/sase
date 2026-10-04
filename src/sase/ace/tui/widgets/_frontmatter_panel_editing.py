@@ -67,9 +67,7 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
 
     def _structured_item_kind(self, field: str) -> str:
         """Infer the structured item catalog from the model container shape."""
-        return (
-            "input" if isinstance(self._model.field_value(field), list) else "xprompt"
-        )
+        return "input" if isinstance(self._model.field_value(field), list) else "macro"
 
     # -- snapshots -------------------------------------------------------
 
@@ -172,7 +170,7 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
             if schema is None or schema.kind is not FrontmatterFieldKind.STRUCTURED:
                 return
             field = key
-        elif kind in {"input", "xprompt"}:
+        elif kind in {"input", "macro"}:
             field = next(
                 (
                     candidate
@@ -193,7 +191,7 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
         if nav is None:
             return
         kind, key = nav
-        if kind in {"input", "xprompt"}:
+        if kind in {"input", "macro"}:
             field = next(
                 candidate
                 for candidate in self._row_fields()
@@ -235,7 +233,7 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
         self._push_undo()
         if kind == "input":
             self._model.remove_input(key)
-        elif kind == "xprompt":
+        elif kind == "macro":
             self._model.remove_macro(key)
         else:
             self._model.clear_field(key)
@@ -243,7 +241,7 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
 
     def _move_selected_item(self, delta: int) -> None:
         nav = self._selected_nav()
-        if nav is None or nav[0] not in {"input", "xprompt"}:
+        if nav is None or nav[0] not in {"input", "macro"}:
             return
         kind, name = nav
         self._push_undo()

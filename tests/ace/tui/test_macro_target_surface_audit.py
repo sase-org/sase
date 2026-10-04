@@ -11,7 +11,7 @@ from sase.ace.tui.modals.macro_definition_loader import (
 from sase.ace.tui.widgets._prompt_jump import PromptJumpMixin
 from sase.ace.tui.widgets._prompt_jump_target import JumpTarget
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding as MacroBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding as MacroBinding
 
 from tests.ace.tui.widgets._prompt_input_bar_stack_helpers import _PromptBarApp
 

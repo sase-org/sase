@@ -83,9 +83,9 @@ class PromptBarRequestsMixin:
         if bar is None:
             return
 
-        # The bar owns serializing its live panes + frontmatter to xprompt
+        # The bar owns serializing its live panes + frontmatter to macro
         # markdown; capture it before suspending the TUI for the editor.
-        markdown = bar.xprompt_markdown_for_editor()
+        markdown = bar.macro_markdown_for_editor()
         prompt = self._open_editor_for_agent_prompt(markdown)  # type: ignore[attr-defined]
 
         if prompt:
@@ -189,7 +189,7 @@ class PromptBarRequestsMixin:
                 # every other pane's draft. A multi-agent entry grows the stack
                 # with new panes below the origin; a single entry replaces just
                 # that pane. A frontmatter clash prompts before overwriting the
-                # staged xprompt properties (see :meth:`_load_history_selection`).
+                # staged macro properties (see :meth:`_load_history_selection`).
                 self._load_history_selection(event, _build_prompt(result.prompt_text))
             else:
                 # Edit first - open editor with selected prompt
@@ -233,7 +233,7 @@ class PromptBarRequestsMixin:
         pane the history modal was opened from (``event`` carries its captured
         origin), so every other pane keeps its draft; a stale origin discards
         the selection with a warning instead of touching any prompt. When the
-        entry carries xprompt frontmatter that would overwrite properties
+        entry carries macro frontmatter that would overwrite properties
         already staged on the stack, a y/n confirmation is shown first --
         declining aborts the load and refocuses the origin pane, leaving the bar
         and its panes untouched.
@@ -297,8 +297,8 @@ class PromptBarRequestsMixin:
 
         self.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
-                "Replace xprompt properties?",
-                "Loading this prompt will replace your current xprompt properties.",
+                "Replace macro properties?",
+                "Loading this prompt will replace your current macro properties.",
                 kind=ConfirmKind.DANGER,
             ),
             _on_confirm,
@@ -357,19 +357,19 @@ class PromptBarRequestsMixin:
         # Phase 5: build the selector's extra catalog entries from two local
         # sources, merged lowest-priority-first so the more specific source wins
         # a name collision:
-        #   1. project-local xprompts from the leading VCS tag, then
-        #   2. live frontmatter ``xprompts:`` the user authored on this prompt.
-        # The frontmatter locals are also kept as real ``XPrompt`` objects
-        # (``local_xprompts``) so the ``Ctrl+I`` expansion helper can resolve a
-        # selected local helper -- or a global xprompt that references one --
+        #   1. project-local macros from the leading VCS tag, then
+        #   2. live frontmatter ``macros:`` the user authored on this prompt.
+        # The frontmatter locals are also kept as real ``Macro`` objects
+        # (``local_macros``) so the ``Ctrl+I`` expansion helper can resolve a
+        # selected local helper -- or a global macro that references one --
         # the same way the launch path would.
         from sase.macro.models import macro_to_workflow
 
         extra_prompts: dict[str, Workflow] = {}
         local_macros: dict[str, Macro] = {}
 
-        # 1. Project-local xprompts from a VCS tag in the originating pane's
-        #    text (e.g. #gh:sase → load sase's sase.yml xprompts). Read from the
+        # 1. Project-local macros from a VCS tag in the originating pane's
+        #    text (e.g. #gh:sase → load sase's sase.yml macros). Read from the
         #    captured origin pane so detection follows the pane that opened #@.
         try:
             prompt_text = ""
@@ -414,14 +414,14 @@ class PromptBarRequestsMixin:
                     if vcs_project:
                         ws_dir = known_project_namespaces().get(vcs_project)
                         if ws_dir:
-                            xprompts = load_project_local_macros(ws_dir, vcs_project)
-                            for name, xp in xprompts.items():
+                            macros = load_project_local_macros(ws_dir, vcs_project)
+                            for name, xp in macros.items():
                                 extra_prompts[name] = macro_to_workflow(xp)
         except Exception:
             # The selector still opens without project-local entries, but a
             # silent swallow here is indistinguishable from "the project has no
-            # xprompts" -- which is exactly how this path has failed before.
-            log.exception("Failed to load project-local xprompts for the selector")
+            # macros" -- which is exactly how this path has failed before.
+            log.exception("Failed to load project-local macros for the selector")
 
         # 2. Live frontmatter locals authored on this prompt. These take
         #    precedence over project-local entries and feed the expansion
@@ -435,7 +435,7 @@ class PromptBarRequestsMixin:
             except Exception:
                 local_macros = {}
 
-        def on_xprompt_expand(name: str, workflow: object) -> str | None:
+        def on_macro_expand(name: str, workflow: object) -> str | None:
             """Inline-expand *name* into the originating pane (modal ``Ctrl+I``).
 
             Decides whether the selected entry can be rendered as plain text and
@@ -453,7 +453,7 @@ class PromptBarRequestsMixin:
                 return f"Could not inline-expand #{name}."
 
             # Pass the live frontmatter locals so a selected local helper (or a
-            # global xprompt that references one) resolves recursively the same
+            # global macro that references one) resolves recursively the same
             # way it would at launch (Phase 5 catalog parity).
             result = expand_inline_macro(
                 name, workflow, local_macros=local_macros, project=project
@@ -471,7 +471,7 @@ class PromptBarRequestsMixin:
             # auto-staged inputs to this body edit -- undoing the splice then
             # unstages them, and redo restages them (Phase: undo-staged-inputs).
             before_text = getattr(origin_text_area, "text", "") or ""
-            applied = origin_bar.expand_xprompt_at_target(
+            applied = origin_bar.expand_macro_at_target(
                 origin_text_area,
                 origin_pane_id,
                 trigger_range,
@@ -497,7 +497,7 @@ class PromptBarRequestsMixin:
             MacroSelectModal(
                 project=project,
                 extra_prompts=extra_prompts,
-                expand_callback=on_xprompt_expand,
+                expand_callback=on_macro_expand,
             ),
             on_macro_select,
         )

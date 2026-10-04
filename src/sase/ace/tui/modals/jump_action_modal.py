@@ -92,7 +92,7 @@ class JumpActionModal(ModalScreen[JumpChoice | None]):
             return "  [bold]e[/]   [bold]Open in this pane[/]\n      [dim]Suspend the TUI, edit, then return here.[/]"
         if choice == "config":
             return "  [bold]c[/]   [bold]Open declaration[/]\n      [dim]Open where this is declared instead.[/]"
-        return "  [bold]l[/]   [bold]Load into prompt input[/]\n      [dim]Stash this bar, then edit the xprompt here.[/]"
+        return "  [bold]l[/]   [bold]Load into prompt input[/]\n      [dim]Stash this bar, then edit the macro here.[/]"
 
     @staticmethod
     def _choice_tone(choice: JumpChoice) -> str:

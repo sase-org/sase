@@ -15,8 +15,8 @@ from ..agent_header_settings import agent_header_settings_for
 from ..keymaps import key_display_name
 from .agent_header_preview import (
     PREVIEW_TAB_ROWS,
-    XpromptPreviewFit,
-    fit_xprompt_preview,
+    MacroPreviewFit,
+    fit_raw_prompt_preview,
     pending_preview_rows,
     preview_card,
     preview_row_budget,
@@ -29,7 +29,7 @@ from .prompt_panel._identity_header import IdentityHeader
 
 # Width used before the first layout, when the content widget has no size yet.
 _FALLBACK_CONTENT_WIDTH = 76
-# A node without an xprompt shows exactly the two chip rows inside the border.
+# A node without a macro shows exactly the two chip rows inside the border.
 _COMPACT_ROW_COUNT = 2
 
 
@@ -147,7 +147,7 @@ class AgentHeaderPanel(VerticalScroll):
 
     def _collapsed_content(
         self, identity: IdentityHeader, width: int, budget: int
-    ) -> tuple[RenderableType, XpromptPreviewFit | None, int]:
+    ) -> tuple[RenderableType, MacroPreviewFit | None, int]:
         """Return the collapsed renderable, its fit, and shown preview body rows.
 
         The preview is an ``RAW PROMPT`` card: the returned row count covers its
@@ -156,17 +156,17 @@ class AgentHeaderPanel(VerticalScroll):
         collapsed = identity.compact.copy()
         if budget <= 0:
             return collapsed, None, 0
-        if identity.xprompt_pending and identity.xprompt is None:
+        if identity.raw_prompt_pending and identity.raw_prompt is None:
             hold = self._pending_hold_rows(budget)
             if hold <= 0:
                 return collapsed, None, 0
             collapsed.append("\n")
             collapsed.append_text(preview_card(pending_preview_rows(hold), width=width))
             return collapsed, None, hold
-        xprompt = identity.xprompt
-        if xprompt is None or not xprompt.plain.strip():
+        raw_prompt = identity.raw_prompt
+        if raw_prompt is None or not raw_prompt.plain.strip():
             return collapsed, None, 0
-        fit = fit_xprompt_preview(xprompt, width=width, max_rows=budget)
+        fit = fit_raw_prompt_preview(raw_prompt, width=width, max_rows=budget)
         if fit.rows <= 0:
             return collapsed, fit, 0
         collapsed.append("\n")
@@ -188,8 +188,8 @@ class AgentHeaderPanel(VerticalScroll):
         if plain is not None:
             return plain.count("\n") + 1
         rows = _COMPACT_ROW_COUNT + 2
-        if identity.xprompt is not None:
-            rows += identity.xprompt.plain.count("\n") + 1
+        if identity.raw_prompt is not None:
+            rows += identity.raw_prompt.plain.count("\n") + 1
         return rows
 
     def _apply_chrome(
@@ -231,10 +231,10 @@ class AgentHeaderPanel(VerticalScroll):
         shown_expanded = bool(self._expanded)
         width = self._content_width()
         budget = self._preview_budget()
-        pending = bool(header.xprompt_pending and header.xprompt is None)
+        pending = bool(header.raw_prompt_pending and header.raw_prompt is None)
         if shown_expanded:
             shown: RenderableType = header.expanded_renderable()
-            fit: XpromptPreviewFit | None = None
+            fit: MacroPreviewFit | None = None
             preview_rows = 0
             hidden_lines = 0
             subtitle = self._subtitle_for(True)

@@ -12,10 +12,10 @@ if TYPE_CHECKING:
     from ...modals import SelectionItem
 
 
-def resolve_vcs_xprompt_mru_head(
+def resolve_vcs_macro_mru_head(
     pairs: Sequence[tuple[str, str]] | None,
 ) -> tuple[str, str, str] | None:
-    """Resolve the VCS xprompt MRU head into a ready-to-mount prefill.
+    """Resolve the VCS macro MRU head into a ready-to-mount prefill.
 
     Takes the ``(canonical_prefix, display_prefix)`` pairs instead of
     loading them, so `<space>` and the other MRU-head entry points serve
@@ -60,7 +60,7 @@ class EntryCustomMixin:
         ) -> str | None: ...
 
     def action_start_agent_from_patch(self) -> None:
-        """Repeat the most recently launched VCS xprompt, or open a blank home prompt."""
+        """Repeat the most recently launched VCS macro, or open a blank home prompt."""
         perf_begin = getattr(self, "_jk_perf_begin", None)
         if callable(perf_begin):
             perf_begin("prompt_space")
@@ -85,7 +85,7 @@ class EntryCustomMixin:
             # Warm snapshot: prefill with no I/O. An empty MRU opens a
             # blank bar, matching the legacy empty-store behavior.
             drop_pending_space_prefill(self)
-            resolved = resolve_vcs_xprompt_mru_head(pairs)
+            resolved = resolve_vcs_macro_mru_head(pairs)
             if resolved is None:
                 # Phase ``space-hot-spare``: plain home reveal, else fresh.
                 try:
@@ -149,7 +149,7 @@ class EntryCustomMixin:
             return
         from sase.history.vcs_macro_mru import load_launchable_vcs_macro_mru_pairs
 
-        resolved = resolve_vcs_xprompt_mru_head(
+        resolved = resolve_vcs_macro_mru_head(
             load_launchable_vcs_macro_mru_pairs(prune=False)
         )
         if resolved is None:
@@ -180,8 +180,8 @@ class EntryCustomMixin:
         """Legacy alias for :meth:`action_start_agent_from_patch`."""
         self.action_start_agent_from_patch()
 
-    def action_start_last_vcs_xprompt_in_editor(self) -> None:
-        """Open editor with the most recently used launchable VCS xprompt."""
+    def action_start_last_vcs_macro_in_editor(self) -> None:
+        """Open editor with the most recently used launchable VCS macro."""
         from ._space_prefill import peek_ready_mru_pairs
 
         pairs = peek_ready_mru_pairs(self)
@@ -194,9 +194,9 @@ class EntryCustomMixin:
             )
 
             pairs = list(load_launchable_vcs_macro_mru_pairs(prune=False))
-        resolved = resolve_vcs_xprompt_mru_head(pairs)
+        resolved = resolve_vcs_macro_mru_head(pairs)
         if resolved is None:
-            self.notify("No previous VCS xprompt", severity="warning")  # type: ignore[attr-defined]
+            self.notify("No previous VCS macro", severity="warning")  # type: ignore[attr-defined]
             return
         initial_text, display_name, history_sort_key = resolved
 

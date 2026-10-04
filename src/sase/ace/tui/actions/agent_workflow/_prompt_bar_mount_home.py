@@ -1,4 +1,4 @@
-"""Home-mode prompt context and xprompt loading for the prompt input bar."""
+"""Home-mode prompt context and macro loading for the prompt input bar."""
 
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ from ._types import (
 if TYPE_CHECKING:
     from sase.macro.models import InputArg
     from ...widgets.prompt_input_bar import PromptInputBar
-    from ...widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
+    from ...widgets.prompt_stack import MacroBinding, MacroReadonlyTarget
 
 
 class PromptBarHomeMixin:
-    """Home-directory prompt context, bar mounting, and xprompt loading."""
+    """Home-directory prompt context, bar mounting, and macro loading."""
 
     _prompt_context: PromptContext | None
     _active_prompt_bar: PromptInputBar | None
@@ -72,8 +72,8 @@ class PromptBarHomeMixin:
     def _load_editor_markdown_into_bar(self, markdown: str) -> None:
         """Reload the mounted prompt bar from cleaned editor markdown.
 
-        Uses editor-file (xprompt markdown) semantics via
-        :meth:`PromptInputBar.load_stack_from_macro_markdown`: leading xprompt
+        Uses editor-file (macro markdown) semantics via
+        :meth:`PromptInputBar.load_stack_from_macro_markdown`: leading macro
         frontmatter is lifted into the frontmatter panel and real ``---`` body
         separators split into one prompt pane per agent segment.  Used only for
         ` @`-marker editor returns and whole-stack editor returns — never for
@@ -95,10 +95,10 @@ class PromptBarHomeMixin:
         display_name: str = "~",
         history_sort_key: str = "home",
         *,
-        as_xprompt_markdown: bool = False,
+        as_macro_markdown: bool = False,
         frontmatter_inputs: list[InputArg] | None = None,
-        binding: XPromptBinding | None = None,
-        read_only_target: XPromptReadonlyTarget | None = None,
+        binding: MacroBinding | None = None,
+        read_only_target: MacroReadonlyTarget | None = None,
         initial_selected_pane: int | None = None,
         initial_cursor: tuple[int, int] | None = None,
     ) -> None:
@@ -111,14 +111,14 @@ class PromptBarHomeMixin:
             initial_text: Pre-populated text for the prompt input bar.
             display_name: Display name shown in the prompt context.
             history_sort_key: Launch context label propagated to spawned agents.
-            as_xprompt_markdown: When True, seed the bar with editor-file
+            as_macro_markdown: When True, seed the bar with editor-file
                 semantics (lift leading frontmatter, split ``---`` into panes)
                 rather than verbatim history-load semantics.  Used by the
                 ` @`-marker editor-return remount path.
-            frontmatter_inputs: Declared xprompt inputs to stage into the bar's
+            frontmatter_inputs: Declared macro inputs to stage into the bar's
                 prompt frontmatter before mount, so the frontmatter panel
-                auto-shows on mount.  Used by the Config XPrompts child
-                ``Ctrl+I`` load (parity with the Select XPrompt ``Ctrl+I`` path).
+                auto-shows on mount.  Used by the Config Macros child
+                ``Ctrl+I`` load (parity with the Select Macro ``Ctrl+I`` path).
             initial_selected_pane: Optional zero-based pane to focus after
                 parsing *initial_text*. Used by prompt-stash restore.
             initial_cursor: Optional zero-based ``(row, column)`` applied to
@@ -143,9 +143,9 @@ class PromptBarHomeMixin:
         )
 
         # Show prompt input bar
-        if as_xprompt_markdown:
+        if as_macro_markdown:
             bar = PromptInputBar(
-                initial_xprompt_markdown=initial_text,
+                initial_raw_prompt_markdown=initial_text,
                 initial_selected_pane=initial_selected_pane,
                 initial_cursor=initial_cursor,
                 id="prompt-input-bar",
@@ -181,7 +181,7 @@ class PromptBarHomeMixin:
         was already rendered via :func:`expand_inline_macro`, so this pops the
         Admin Center modal and opens a fresh home-mode prompt bar carrying the
         rendered *expanded_text* for editing/submission.  Declared *inputs* are
-        staged into prompt frontmatter (parity with the Select XPrompt
+        staged into prompt frontmatter (parity with the Select Macro
         ``Ctrl+I`` path), which needs no project/Patch selection.
 
         Mounting is deferred until after the modal pops so the new bar's
@@ -208,7 +208,7 @@ class PromptBarHomeMixin:
         markdown: str,
         *,
         display_name: str,
-        binding: XPromptBinding | None,
+        binding: MacroBinding | None,
         read_only: bool = False,
         read_only_path: str | None = None,
         has_comments: bool = False,
@@ -216,13 +216,13 @@ class PromptBarHomeMixin:
         """Close the browser and author a raw simple macro definition."""
         from textual.screen import ModalScreen
 
-        from ...widgets.prompt_stack import XPromptReadonlyTarget
+        from ...widgets.prompt_stack import MacroReadonlyTarget
 
         if isinstance(self.screen, ModalScreen):  # type: ignore[attr-defined]
             self.pop_screen()  # type: ignore[attr-defined]
 
         read_only_target = (
-            XPromptReadonlyTarget(reference=display_name, path=read_only_path)
+            MacroReadonlyTarget(reference=display_name, path=read_only_path)
             if read_only
             else None
         )
@@ -232,7 +232,7 @@ class PromptBarHomeMixin:
                 initial_text=markdown,
                 display_name=display_name,
                 history_sort_key="home",
-                as_xprompt_markdown=True,
+                as_macro_markdown=True,
                 binding=binding,
                 read_only_target=read_only_target,
             )
@@ -282,7 +282,7 @@ class PromptBarHomeMixin:
                     initial_text=cleaned,
                     display_name=display_name,
                     history_sort_key=history_sort_key,
-                    as_xprompt_markdown=True,
+                    as_macro_markdown=True,
                 )
             else:
                 self._finish_agent_launch(prompt)  # type: ignore[attr-defined]

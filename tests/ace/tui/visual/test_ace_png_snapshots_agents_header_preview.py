@@ -24,7 +24,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-_LONG_PROSE_XPROMPT = (
+_LONG_PROSE_MACRO = (
     "Can you help me start rendering the `AGENT RAW PROMPT` section in the\n"
     "sticky header above the agent data deck panel? Make sure that we\n"
     "provide a good preview (use as much space as is available) of the\n"
@@ -36,7 +36,7 @@ _LONG_PROSE_XPROMPT = (
     "- show how many lines are hidden\n"
     "\n"
     "```python\n"
-    "fit = fit_xprompt_preview(text, width=width, max_rows=budget)\n"
+    "fit = fit_raw_prompt_preview(text, width=width, max_rows=budget)\n"
     "```\n"
     "\n"
     "Then verify the result with live screenshots at two terminal sizes.\n"
@@ -48,14 +48,14 @@ _LONG_PROSE_XPROMPT = (
     for index in range(1, 25)
 )
 
-_SHORT_DIRECTIVE_XPROMPT = (
+_SHORT_DIRECTIVE_MACRO = (
     "+sase\n%auto\n%model:opus\n#pr:my_change\nSummarize the header preview.\n"
 )
 
 
-def _preview_agent(artifacts_dir: Path, *, name: str, raw_xprompt: str) -> Agent:
+def _preview_agent(artifacts_dir: Path, *, name: str, raw_prompt: str) -> Agent:
     artifacts_dir.mkdir()
-    (artifacts_dir / "raw_xprompt.md").write_text(raw_xprompt, encoding="utf-8")
+    (artifacts_dir / "raw_prompt.md").write_text(raw_prompt, encoding="utf-8")
     (artifacts_dir / "01_prompt.md").write_text(
         "Render the AGENT RAW PROMPT preview in the sticky header.\n",
         encoding="utf-8",
@@ -73,30 +73,30 @@ def _preview_agent(artifacts_dir: Path, *, name: str, raw_xprompt: str) -> Agent
 
 
 @pytest.mark.parametrize(
-    ("raw_xprompt", "truncated", "tokens", "snapshot_name", "title"),
+    ("raw_prompt", "truncated", "tokens", "snapshot_name", "title"),
     [
         (
-            _LONG_PROSE_XPROMPT,
+            _LONG_PROSE_MACRO,
             True,
             ("▎", "RAW PROMPT", "sticky header", "…"),
             "agents_header_preview_truncated_160x50",
-            "ACE agents collapsed header xprompt preview, truncated",
+            "ACE agents collapsed header macro preview, truncated",
         ),
         (
-            _SHORT_DIRECTIVE_XPROMPT,
+            _SHORT_DIRECTIVE_MACRO,
             False,
             ("▎", "RAW PROMPT", "%auto", "my_change", "Summarize"),
             "agents_header_preview_fits_160x50",
-            "ACE agents collapsed header xprompt preview, fits",
+            "ACE agents collapsed header macro preview, fits",
         ),
     ],
     ids=["truncated", "fits"],
 )
-async def test_agents_header_xprompt_preview_png_snapshot(
+async def test_agents_header_macro_preview_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    raw_xprompt: str,
+    raw_prompt: str,
     truncated: bool,
     tokens: tuple[str, ...],
     snapshot_name: str,
@@ -105,7 +105,7 @@ async def test_agents_header_xprompt_preview_png_snapshot(
     agent = _preview_agent(
         tmp_path / "header-preview-artifacts",
         name="header-preview",
-        raw_xprompt=raw_xprompt,
+        raw_prompt=raw_prompt,
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
 

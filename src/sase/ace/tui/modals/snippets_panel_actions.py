@@ -15,6 +15,7 @@ from sase.ace.tui.snippets_panel_catalog import (
     SnippetProjectSnapshot,
     invalidate_snippet_project,
 )
+from sase.snippet.models import is_macro_derived_kind
 from sase.snippet.text_filter import filter_snippet_entries
 
 from .confirm_action_modal import ConfirmActionModal
@@ -90,7 +91,7 @@ class SnippetsPanelActionsMixin(_MixinBase):
         if entry is None:
             return
         if not snippet_entry_is_mutable(entry):
-            if entry.origin.kind == "xprompt":
+            if is_macro_derived_kind(entry.origin.kind):
                 self.action_open_source()
                 return
             source = entry.origin.display_path or entry.origin.kind

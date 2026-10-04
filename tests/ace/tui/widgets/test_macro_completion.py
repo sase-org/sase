@@ -6,7 +6,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
-    append_xprompt_completion_row,
+    append_macro_completion_row,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -291,9 +291,9 @@ def test_reference_row_advertises_the_slash_name_and_the_slash_row_does_not() ->
     )[0][0]
 
     hash_row = Text()
-    append_xprompt_completion_row(hash_row, hash_candidate, False)
+    append_macro_completion_row(hash_row, hash_candidate, False)
     slash_row = Text()
-    append_xprompt_completion_row(slash_row, slash_candidate, False)
+    append_macro_completion_row(slash_row, slash_candidate, False)
 
     assert "#skill/sase_plan" in hash_row.plain
     assert "skill" in hash_row.plain
@@ -598,13 +598,13 @@ async def test_second_ctrl_t_redispatches_macro_menu() -> None:
         await pilot.press("ctrl+t")
 
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._completion_kind == "macro"
 
         await pilot.press("ctrl+t")
 
         assert ta.text == "#m"
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._completion_kind == "macro"
 
 
 async def test_ctrl_t_required_text_before_existing_text_keeps_single_space() -> None:
@@ -658,6 +658,6 @@ async def test_slash_skill_multiple_candidates_opens_completion_panel() -> None:
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
         assert ta._file_completion_active is True
-        assert ta._completion_kind == "xprompt"
+        assert ta._completion_kind == "macro"
         assert "/sase_plan  skill" in rendered.plain
         assert "/sase_questions  skill" in rendered.plain

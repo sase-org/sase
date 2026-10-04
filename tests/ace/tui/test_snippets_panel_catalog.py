@@ -14,7 +14,7 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
 )
 from sase.snippet.models import SnippetCatalog
-from sase.macro import glossary_catalog as xprompt_catalog
+from sase.macro import glossary_catalog as macro_catalog
 
 
 def _record(
@@ -79,7 +79,7 @@ def _install_records(
     monkeypatch: pytest.MonkeyPatch, records: list[ProjectRecordWire]
 ) -> None:
     monkeypatch.setattr(
-        xprompt_catalog, "list_project_records", lambda *_a, **_kw: records
+        macro_catalog, "list_project_records", lambda *_a, **_kw: records
     )
 
 

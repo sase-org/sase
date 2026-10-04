@@ -77,11 +77,11 @@ async def test_auto_keyword_arg_menu_uses_declaration_order_and_metadata() -> No
         ta.cursor_location = (0, len("#review("))
         seed_entries(ta, [rich_review_entry()])
 
-        assert ta._try_auto_xprompt_arg_completion() is True
+        assert ta._try_auto_macro_arg_completion() is True
 
         assert ta._file_completion_active is True
         assert ta._completion_kind == "macro_arg_name"
-        assert ta._xprompt_arg_completion_trigger == "auto"
+        assert ta._macro_arg_completion_trigger == "auto"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "path=",
             "enabled=",
@@ -115,7 +115,7 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
         seed_entries(ta, [rich_review_entry()])
         ta.load_text("#review(")
         ta.cursor_location = (0, len("#review("))
-        assert ta._try_auto_xprompt_arg_completion() is True
+        assert ta._try_auto_macro_arg_completion() is True
 
         await pilot.press("enter")
         assert submitted == 1
@@ -124,7 +124,7 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
 
         ta.load_text("#review(")
         ta.cursor_location = (0, len("#review("))
-        assert ta._try_auto_xprompt_arg_completion() is True
+        assert ta._try_auto_macro_arg_completion() is True
         await pilot.press("ctrl+f")
         assert submitted == 1
         assert ta.text == "#review(path="
@@ -132,14 +132,14 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
 
         ta.load_text("#review(")
         ta.cursor_location = (0, len("#review("))
-        assert ta._try_auto_xprompt_arg_completion() is True
+        assert ta._try_auto_macro_arg_completion() is True
         await pilot.press("e", "ctrl+f")
 
     assert submitted == 1
     assert ta.text == "#review(enabled="
     assert ta._file_completion_active is True
     assert ta._completion_kind == "macro_arg_value"
-    assert ta._xprompt_arg_completion_trigger == "manual"
+    assert ta._macro_arg_completion_trigger == "manual"
 
 
 async def test_keyword_arg_selection_movement_hands_ctrl_f_to_menu() -> None:
@@ -156,7 +156,7 @@ async def test_keyword_arg_selection_movement_hands_ctrl_f_to_menu() -> None:
         seed_entries(ta, [rich_review_entry()])
         ta.load_text("#review(")
         ta.cursor_location = (0, len("#review("))
-        assert ta._try_auto_xprompt_arg_completion() is True
+        assert ta._try_auto_macro_arg_completion() is True
 
         await pilot.press("ctrl+n", "ctrl+f", "ctrl+f")
 
@@ -183,7 +183,7 @@ async def test_keyword_arg_enter_submits_even_after_selection_moves() -> None:
         seed_entries(ta, [rich_review_entry()])
         ta.load_text("#review(")
         ta.cursor_location = (0, len("#review("))
-        assert ta._try_auto_xprompt_arg_completion() is True
+        assert ta._try_auto_macro_arg_completion() is True
 
         await pilot.press("ctrl+n", "enter")
 

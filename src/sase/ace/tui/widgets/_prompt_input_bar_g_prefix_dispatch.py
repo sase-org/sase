@@ -154,9 +154,9 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
     ),
     _PromptGPrefixBinding(
         "w",
-        "request_write_xprompt",
-        "_g_prefix_label_write_xprompt",
-        "_g_prefix_available_write_xprompt",
+        "request_write_macro",
+        "_g_prefix_label_write_macro",
+        "_g_prefix_available_write_macro",
     ),
     _PromptGPrefixBinding(
         "x",
@@ -167,15 +167,15 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
     ),
     _PromptGPrefixBinding(
         "X",
-        "request_save_as_xprompt",
-        "_g_prefix_label_save_xprompt",
-        "_g_prefix_available_save_xprompt",
+        "request_save_as_macro",
+        "_g_prefix_label_save_macro",
+        "_g_prefix_available_save_macro",
     ),
     _PromptGPrefixBinding(
         "L",
-        "convert_active_pane_to_local_xprompt",
-        "_g_prefix_label_convert_local_xprompt",
-        "_g_prefix_available_convert_local_xprompt",
+        "convert_active_pane_to_local_macro",
+        "_g_prefix_label_convert_local_macro",
+        "_g_prefix_available_convert_local_macro",
         uses_target_mode=True,
     ),
     _PromptGPrefixBinding(

@@ -88,7 +88,7 @@ class EditorMixin:
         """Suspend TUI and open editor for ad-hoc workflow YAML.
 
         Creates a YAML template, opens it in the user's editor, then saves the
-        result to ~/sase/xprompts/ for execution.
+        result to ~/sase/macros/ for execution.
 
         Returns:
             A (workflow_name, file_path) tuple, or None if cancelled/invalid.

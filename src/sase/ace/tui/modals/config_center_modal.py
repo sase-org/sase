@@ -8,7 +8,7 @@ strip. Mounted panes are cached for the lifetime of the modal, so returning
 to a tab preserves its selection and other pane-local state.
 
 The Config section hosts the nested All, Flags, Glossary, Launch, Memory,
-Snippets, and XPrompts catalog. Direct-entry actions may still pass ``initial_tab`` to
+Snippets, and Macros catalog. Direct-entry actions may still pass ``initial_tab`` to
 open exactly one pane. Pane-local sub-tabs continue to use ``]`` / ``[`` where
 provided.
 """

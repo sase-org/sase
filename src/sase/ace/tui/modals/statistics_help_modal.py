@@ -27,7 +27,7 @@ from .statistics_pane_data import (
     PerfGroupBy,
     ProjectsGroupBy,
     StatisticsView,
-    XPromptsGroupBy,
+    MacrosGroupBy,
     statistics_view_supports_grouping,
 )
 from .statistics_pane_legends import VIEW_LEGENDS
@@ -58,10 +58,10 @@ class StatisticsHelpModal(ModalScreen[None]):
         current_view: StatisticsView,
         selected_range: StatsRange,
         projects_group_by: ProjectsGroupBy,
-        xprompts_group_by: XPromptsGroupBy,
+        macros_group_by: MacrosGroupBy,
         perf_group_by: PerfGroupBy = "subsystem",
         project_label: str,
-        xprompt_focus_label: str = "All xprompts",
+        macro_focus_label: str = "All macros",
         generated_at: float | None,
         keymaps: StatisticsPaneKeymaps,
     ) -> None:
@@ -69,10 +69,10 @@ class StatisticsHelpModal(ModalScreen[None]):
         self._current_view = current_view
         self._selected_range = selected_range
         self._projects_group_by = projects_group_by
-        self._xprompts_group_by = xprompts_group_by
+        self._macros_group_by = macros_group_by
         self._perf_group_by = perf_group_by
         self._project_label = project_label
-        self._xprompt_focus_label = xprompt_focus_label
+        self._macro_focus_label = macro_focus_label
         self._generated_at = generated_at
         self._keymaps = keymaps
         self._bindings = BindingsMap(
@@ -116,8 +116,8 @@ class StatisticsHelpModal(ModalScreen[None]):
             self._section("Runner methodology", self._runner_methodology_text()),
             Text(""),
             self._section(
-                "XPrompt methodology",
-                self._xprompt_methodology_text(),
+                "Macro methodology",
+                self._macro_methodology_text(),
             ),
             Text(""),
             self._section("Perf methodology", self._perf_methodology_text()),
@@ -153,8 +153,8 @@ class StatisticsHelpModal(ModalScreen[None]):
             ):
                 continue
             if (
-                action in {"focus_xprompt", "clear_xprompt_focus"}
-                and self._current_view != "xprompts"
+                action in {"focus_macro", "clear_macro_focus"}
+                and self._current_view != "macros"
             ):
                 continue
             if visible_count:
@@ -185,8 +185,8 @@ class StatisticsHelpModal(ModalScreen[None]):
         if action == "custom_range":
             return "enter a relative, calendar, or exact date range"
         if action == "cycle_group":
-            if self._current_view == "xprompts":
-                return f"XPrompts · {self._xprompts_group_label()}"
+            if self._current_view == "macros":
+                return f"Macros · {self._macros_group_label()}"
             if self._current_view == "perf":
                 return f"Perf · {self._perf_group_label()}"
             return f"Projects · {self._projects_group_label()}"
@@ -194,10 +194,10 @@ class StatisticsHelpModal(ModalScreen[None]):
             return f"next ranked project (seeded); current: {self._project_label}"
         if action == "cycle_project_filter_reverse":
             return f"previous ranked project (seeded); current: {self._project_label}"
-        if action == "focus_xprompt":
-            return f"choose from loaded xprompts; current: {self._xprompt_focus_label}"
-        if action == "clear_xprompt_focus":
-            return f"return to All xprompts; current: {self._xprompt_focus_label}"
+        if action == "focus_macro":
+            return f"choose from loaded macros; current: {self._macro_focus_label}"
+        if action == "clear_macro_focus":
+            return f"return to All macros; current: {self._macro_focus_label}"
         if action in {"scroll_down", "scroll_up"}:
             return "move the Statistics body by half of its visible height"
         if action == "refresh":
@@ -213,12 +213,12 @@ class StatisticsHelpModal(ModalScreen[None]):
             return "By Patch"
         return "Project → Patch"
 
-    def _xprompts_group_label(self) -> str:
-        if self._xprompts_group_by == "usage":
+    def _macros_group_label(self) -> str:
+        if self._macros_group_by == "usage":
             return "By Usage"
-        if self._xprompts_group_by == "model":
+        if self._macros_group_by == "model":
             return "By Model"
-        if self._xprompts_group_by == "project":
+        if self._macros_group_by == "project":
             return "By Project"
         return "Used With"
 
@@ -367,7 +367,7 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "Counts",
                 "Perf counts come from the telemetry store and the TUI logs, not "
                 "the artifact index, so they are not comparable with the run "
-                "counts on Overview, Projects, or XPrompts.",
+                "counts on Overview, Projects, or Macros.",
             ),
             (
                 "Retention",
@@ -391,12 +391,12 @@ class StatisticsHelpModal(ModalScreen[None]):
             text.append(meaning, style="dim")
         return text
 
-    def _xprompt_methodology_text(self) -> Text:
-        """Explain the launch-boundary xprompt counting contract."""
+    def _macro_methodology_text(self) -> Text:
+        """Explain the launch-boundary macro counting contract."""
         rows = (
             (
                 "Source",
-                "Counts come from the launch-boundary xprompts.json written before "
+                "Counts come from the launch-boundary macros.json written before "
                 "prompt expansion.",
             ),
             (
@@ -405,12 +405,12 @@ class StatisticsHelpModal(ModalScreen[None]):
             ),
             (
                 "Runs vs Refs",
-                "A run counts once per xprompt name; Refs counts argument variants "
+                "A run counts once per macro name; Refs counts argument variants "
                 "separately.",
             ),
             (
                 "Partners",
-                "Partners are other xprompts referenced in the same run.",
+                "Partners are other macros referenced in the same run.",
             ),
             (
                 "Swarms",

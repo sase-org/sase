@@ -98,7 +98,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
-        def expand_xprompt_at_target(
+        def expand_macro_at_target(
             self,
             target_text_area: object,
             pane_id: str,
@@ -110,9 +110,9 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         ) -> PromptTextArea | None: ...
 
     # Cache of (scope key, frontmatter string -> assist entries) so completion
-    # reads the active scope's live local xprompts without reparsing YAML on each
+    # reads the active scope's live local macros without reparsing YAML on each
     # keystroke.  Mini panes have their own scope; agent panes share the stack.
-    _local_xprompt_cache: tuple[str, str, list[MacroAssistEntry]] | None = None
+    _local_macro_cache: tuple[str, str, list[MacroAssistEntry]] | None = None
 
     # -- scope ---------------------------------------------------------------
 
@@ -149,8 +149,8 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
     def jinja_scope_for_text_area(self, text_area: object | None = None) -> JinjaScope:
         """Return the Jinja engine scope for a prompt *text_area*.
 
-        A mini-macro pane uses ``xprompt`` scope with the pane's own
-        frontmatter; a stack bound to an xprompt target uses ``xprompt``
+        A mini-macro pane uses ``macro`` scope with the pane's own
+        frontmatter; a stack bound to a macro target uses ``macro``
         scope with the stack frontmatter; any other prompt-mode pane uses
         ``prompt`` scope with the stack frontmatter. Feedback and approve
         modes use ``prompt`` scope without frontmatter.
@@ -195,24 +195,24 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         else:
             self._stack.set_frontmatter_model(model)
 
-    # -- local xprompt completion parity --------------------------------------
+    # -- local macro completion parity --------------------------------------
 
-    def local_xprompt_assist_entries(
+    def local_macro_assist_entries(
         self, text_area: object | None = None
     ) -> list[MacroAssistEntry]:
-        """Assist entries for the local xprompts declared in the live frontmatter.
+        """Assist entries for the local macros declared in the live frontmatter.
 
         Parses the stack's current ``frontmatter`` string into the structured
-        model and converts each ``xprompts:`` helper into an
+        model and converts each ``macros:`` helper into an
         :class:`MacroAssistEntry`, so panes can merge them into ``<ctrl+t>`` /
         ``<ctrl+l>`` completion and the argument-hint resolver.  Returns ``[]``
-        when there is no frontmatter or it declares no local xprompts.
+        when there is no frontmatter or it declares no local macros.
         """
         scope = self._frontmatter_scope(text_area)
         frontmatter = scope.raw
         if not frontmatter:
             return []
-        cached = self._local_xprompt_cache
+        cached = self._local_macro_cache
         if cached is not None and cached[0] == scope.key and cached[1] == frontmatter:
             return cached[2]
         try:
@@ -223,26 +223,26 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             entries: list[MacroAssistEntry] = []
         else:
             entries = [
-                macro_assist_entry_from_local_macro(name, xprompt)
-                for name, xprompt in model.macros.items()
+                macro_assist_entry_from_local_macro(name, macro)
+                for name, macro in model.macros.items()
             ]
-        self._local_xprompt_cache = (scope.key, frontmatter, entries)
+        self._local_macro_cache = (scope.key, frontmatter, entries)
         return entries
 
     def local_macros(self, text_area: object | None = None) -> dict[str, Macro]:
-        """Local xprompts from the live frontmatter, as real ``XPrompt`` objects.
+        """Local macros from the live frontmatter, as real ``Macro`` objects.
 
         Parses the stack's current ``frontmatter`` string with
-        :meth:`PromptFrontmatter.parse` and returns its ``xprompts:`` helpers
+        :meth:`PromptFrontmatter.parse` and returns its ``macros:`` helpers
         keyed by ``_``-prefixed name.  Unlike
-        :meth:`local_xprompt_assist_entries` (display-only completion entries),
-        this yields the underlying :class:`~sase.macro.models.XPrompt`
+        :meth:`local_macro_assist_entries` (display-only completion entries),
+        this yields the underlying :class:`~sase.macro.models.Macro`
         objects so the ``#@`` selector can both project them into the catalog
-        (via ``xprompt_to_workflow``) and hand them to the ``Ctrl+I``
+        (via ``macro_to_workflow``) and hand them to the ``Ctrl+I``
         inline-expansion helper for recursive resolution.
 
         Returns ``{}`` when there is no frontmatter or it declares no local
-        xprompts; an invalid / mid-edit block (e.g. a non-underscore name)
+        macros; an invalid / mid-edit block (e.g. a non-underscore name)
         contributes nothing rather than raising, so the selector simply omits
         local entries it cannot parse.
         """
@@ -348,7 +348,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         self._schedule_height_update()
 
     def toggle_frontmatter_panel(self) -> None:
-        """Toggle the xprompt properties panel (the ``g=`` keymap).
+        """Toggle the macro properties panel (the ``g=`` keymap).
 
         Prompt mode only, and only when a panel is mounted — feedback /
         approve-prompt bars mount none, so the keymap is a no-op there.  Transient
@@ -374,7 +374,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         self.focus_frontmatter_panel()
 
     def auto_show_frontmatter_panel(self) -> None:
-        """Auto-show properties for frontmatter or xprompt target editing."""
+        """Auto-show properties for frontmatter or macro target editing."""
         if self._mode != "prompt":
             return
         scope = self._frontmatter_scope()
@@ -409,7 +409,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         *,
         target_text_area: object | None = None,
     ) -> list[str]:
-        """Stage undeclared xprompt inputs in prompt-level frontmatter.
+        """Stage undeclared macro inputs in prompt-level frontmatter.
 
         Existing prompt declarations win on name collisions so inline expansion
         cannot clobber user-authored input types, defaults, or descriptions.

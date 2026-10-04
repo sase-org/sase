@@ -84,11 +84,11 @@ async def test_reorder_and_undo_input_items() -> None:
         assert [arg.name for arg in panel.model.inputs] == ["a", "b"]
 
 
-async def test_xprompt_content_uses_bounded_multiline_editor() -> None:
+async def test_macro_content_uses_bounded_multiline_editor() -> None:
     app = _PromptBarApp("")
     async with app.run_test(size=(100, 34)) as pilot:
         panel = await _open_panel(pilot, app)
-        panel.begin_add("xprompts")
+        panel.begin_add("macros")
         editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
         editor.text = "rules"
         panel._move_cell(1)

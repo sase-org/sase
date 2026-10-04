@@ -17,7 +17,9 @@ from sase.content_layout import (
 )
 from sase.main.plugin_discovery import (
     LEGACY_PLUGIN_MACROS_DIR,
+    discover_macro_plugin_modules,
     discover_plugin_resources,
+    macro_plugin_definition_dirname,
 )
 from sase.project_display_names import project_display_name_for
 from sase.macro.loader import (
@@ -242,11 +244,14 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
             module_name, filename = remainder.split("/", 1)
         else:
             return None
-        for module in discover_plugin_resources("sase_xprompts"):
+        for module in discover_macro_plugin_modules():
             if module.__name__ == module_name:
                 try:
+                    resource_dir = macro_plugin_definition_dirname(module)
+                    if resource_dir is None:
+                        continue
                     macros_dir = importlib.resources.files(module).joinpath(
-                        LEGACY_PLUGIN_MACROS_DIR
+                        resource_dir
                     )
                     return str(Path(str(macros_dir)) / filename)
                 except (TypeError, AttributeError):

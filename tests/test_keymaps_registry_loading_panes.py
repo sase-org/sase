@@ -21,8 +21,8 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
                     "cycle_group": "f7",
                     "cycle_project_filter": "f6",
                     "cycle_project_filter_reverse": "f1",
-                    "focus_xprompt": "home",
-                    "clear_xprompt_focus": "end",
+                    "focus_macro": "home",
+                    "clear_macro_focus": "end",
                     "scroll_down": "f5",
                     "scroll_up": "f4",
                     "refresh": "f3",
@@ -41,8 +41,8 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
     assert reg.statistics.cycle_group == "f7"
     assert reg.statistics.cycle_project_filter == "f6"
     assert reg.statistics.cycle_project_filter_reverse == "f1"
-    assert reg.statistics.focus_xprompt == "home"
-    assert reg.statistics.clear_xprompt_focus == "end"
+    assert reg.statistics.focus_macro == "home"
+    assert reg.statistics.clear_macro_focus == "end"
     assert reg.statistics.scroll_down == "f5"
     assert reg.statistics.scroll_up == "f4"
     assert reg.statistics.refresh == "f3"

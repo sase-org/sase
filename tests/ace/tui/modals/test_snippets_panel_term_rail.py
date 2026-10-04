@@ -26,7 +26,7 @@ async def test_filter_matches_triggers_aliases_and_source_labels(
         snippet_entry(
             "other",
             kind="xprompt",
-            path="xprompts/other.md",
+            path="macros/other.md",
             macro_name="other",
             writable=False,
         ),
@@ -51,7 +51,7 @@ async def test_filter_matches_triggers_aliases_and_source_labels(
         await wait_for(pilot, lambda: len(panel._entries) == 3)
         await pilot.press("slash")
         await wait_for(pilot, lambda: panel._filter_input().display)
-        for char in "xprompt":
+        for char in "macro":
             await pilot.press(char)
         await wait_for(pilot, lambda: [e.trigger for e in panel._entries] == ["other"])
 

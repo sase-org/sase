@@ -57,7 +57,7 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
         "projects": "Success = completed ÷ all runs",
         "providers": "Avg runtime = mean among runs with a valid finish/stop duration",
         "activity": "Agents = distinct agent names that used the skill or memory",
-        "xprompts": (
+        "macros": (
             "Scope = launch-boundary references only; workflow step templates excluded"
         ),
         "plans_questions": (

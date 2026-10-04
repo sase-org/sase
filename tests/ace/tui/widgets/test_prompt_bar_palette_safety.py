@@ -14,7 +14,7 @@ from rich.color import ColorSystem
 from textual.color import Color
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from tests.ace.tui.widgets.test_prompt_stack_snippet_pane_frame import (
     _StyledCaptureApp,
@@ -45,7 +45,7 @@ def _assert_palette_safe(label: str, color: Color) -> None:
 async def test_prompt_bar_resolved_colors_are_palette_safe(tmp_path: Path) -> None:
     source = tmp_path / "review.md"
     source.write_text("first\n---\nsecond\n", encoding="utf-8")
-    binding = XPromptBinding.for_file(source, reference="#review")
+    binding = MacroBinding.for_file(source, reference="#review")
     app = _StyledCaptureApp("first\n---\nsecond")
     fill_styles: list[tuple[str, Color]] = []
     flattened_fills: list[tuple[str, Color]] = []

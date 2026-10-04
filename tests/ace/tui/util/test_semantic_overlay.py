@@ -81,7 +81,7 @@ def test_overlay_marks_glossary_and_repo_roles(
     assert glossary != repo
 
 
-def test_overlay_skips_code_literals_and_xprompt_tokens(
+def test_overlay_skips_code_literals_and_macro_tokens(
     tmp_path: Path,
 ) -> None:
     source = "#git:sase Run `Agent Clan` then Agent Clan"

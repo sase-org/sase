@@ -303,7 +303,7 @@ def init_late_startup_state(
     user_snippets: dict[str, str] = (
         ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
     )
-    # Defer the xprompt snippet scan (which walks disk-backed xprompt
+    # Defer the macro snippet scan (which walks disk-backed macro
     # definitions) until the prompt entry / help modal asks for it.
     # Cold startup's first paint never needs snippets, so skipping
     # this on the mount path keeps the stopwatch tight.

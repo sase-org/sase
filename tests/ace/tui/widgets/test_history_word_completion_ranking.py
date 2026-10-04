@@ -137,23 +137,23 @@ async def test_smart_mode_case_variants_collapse_to_one_auto_accept_row() -> Non
 async def test_smart_mode_shared_extension_uses_typed_case() -> None:
     index = seeded_index(
         [
-            ("xprompt", "260814_000000"),
-            ("xprompts", "260813_000000"),
+            ("macro", "260814_000000"),
+            ("macros", "260813_000000"),
         ]
     )
     app = RankedHistoryCompletionTestApp(index)
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        ta.load_text("XPROMP")
-        ta.cursor_location = (0, len("XPROMP"))
+        ta.load_text("MACR")
+        ta.cursor_location = (0, len("MACR"))
 
         await pilot.press("ctrl+t")
 
-        assert ta.text == "XPROMPT"
+        assert ta.text == "MACRO"
         assert ta._completion_kind == HISTORY_WORD_COMPLETION_KIND
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["XPROMPTS"]
+        ] == ["MACROS"]
 
 
 async def test_smart_mode_preserves_intrinsic_casing() -> None:

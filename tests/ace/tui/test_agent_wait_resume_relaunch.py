@@ -19,7 +19,7 @@ from tests.ace.tui._agent_wait_resume_helpers import (
 def test_apply_wait_with_time_relaunches_with_replacement_directive(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "raw_xprompt.md").write_text(
+    (tmp_path / "raw_prompt.md").write_text(
         "%w:old #t:5m do the thing",
         encoding="utf-8",
     )
@@ -54,7 +54,7 @@ def test_apply_wait_with_time_relaunches_with_replacement_directive(
 def test_apply_wait_running_relaunches_with_canonical_wait_and_name(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "raw_xprompt.md").write_text("%id:kept do the thing", encoding="utf-8")
+    (tmp_path / "raw_prompt.md").write_text("%id:kept do the thing", encoding="utf-8")
     agent = make_waiting_agent(
         status="RUNNING",
         artifacts_dir=str(tmp_path),
@@ -78,7 +78,7 @@ def test_apply_wait_running_relaunches_with_canonical_wait_and_name(
 def test_apply_wait_running_holds_launch_until_cleanup_settles(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "raw_xprompt.md").write_text("Do the work", encoding="utf-8")
+    (tmp_path / "raw_prompt.md").write_text("Do the work", encoding="utf-8")
     agent = make_waiting_agent(
         status="RUNNING",
         artifacts_dir=str(tmp_path),

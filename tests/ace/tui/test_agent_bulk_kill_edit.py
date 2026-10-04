@@ -179,7 +179,7 @@ def _artifact_waiting_agent(
     concrete_name: str,
 ) -> Agent:
     artifacts_dir.mkdir(parents=True)
-    (artifacts_dir / "raw_xprompt.md").write_text(prompt, encoding="utf-8")
+    (artifacts_dir / "raw_prompt.md").write_text(prompt, encoding="utf-8")
     (artifacts_dir / "agent_meta.json").write_text(
         json.dumps({"name": concrete_name}),
         encoding="utf-8",

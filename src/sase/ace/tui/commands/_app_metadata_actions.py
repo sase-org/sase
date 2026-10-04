@@ -233,7 +233,7 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("home", "repeat", "last vcs macro", "run agent"),
     ),
     (
-        "start_last_vcs_xprompt_in_editor",
+        "start_last_vcs_macro_in_editor",
         "Edit last VCS macro",
         "Agents",
         ALL_TABS,

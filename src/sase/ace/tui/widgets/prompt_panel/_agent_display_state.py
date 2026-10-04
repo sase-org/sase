@@ -91,7 +91,7 @@ type DetailContextLane = Literal[
     "workspaces",
     "slow-tools",
     "tool-runs",
-    "xprompts",
+    "macros",
     "page-url",
     "wait-beads",
 ]
@@ -114,7 +114,7 @@ ALL_DETAIL_CONTEXT_LANES: frozenset[DetailContextLane] = frozenset(
         "workspaces",
         "slow-tools",
         "tool-runs",
-        "xprompts",
+        "macros",
         "page-url",
         "wait-beads",
     }

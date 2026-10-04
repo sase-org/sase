@@ -1,9 +1,9 @@
-"""Local-xprompt completion parity for the prompt input bar (Phase 4).
+"""Local-macro completion parity for the prompt input bar (Phase 4).
 
-A ``#_helper`` declared in the Frontmatter Panel's ``xprompts:`` field must light
+A ``#_helper`` declared in the Frontmatter Panel's ``macros:`` field must light
 up ``<ctrl+t>`` / ``<ctrl+l>`` completion and argument hints in every prompt pane
-exactly like a global xprompt.  These tests cover the pure conversion + merge
-helpers, the bar's live ``local_xprompt_assist_entries`` source, and the pane-level
+exactly like a global macro.  These tests cover the pure conversion + merge
+helpers, the bar's live ``local_macro_assist_entries`` source, and the pane-level
 injection into the completion-candidate and argument-assist surfaces.
 """
 
@@ -41,7 +41,7 @@ def _global_entry(name: str, *, description: str | None = None) -> MacroAssistEn
         name=name,
         insertion=f"#{name}",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(),
         content_preview=None,
@@ -52,9 +52,9 @@ def _global_entry(name: str, *, description: str | None = None) -> MacroAssistEn
 # --- pure conversion + merge ----------------------------------------------
 
 
-def test_local_xprompt_entry_mirrors_global_shape() -> None:
+def test_local_macro_entry_mirrors_global_shape() -> None:
     """A simple local helper becomes a ``#``-prefixed entry with its inputs."""
-    xprompt = Macro(
+    macro = Macro(
         name="_rules",
         content="Follow the team review checklist",
         source_path=LOCAL_MACRO_SOURCE,
@@ -64,7 +64,7 @@ def test_local_xprompt_entry_mirrors_global_shape() -> None:
             InputArg(name="dry_run", type=InputType.BOOL, default=False),
         ],
     )
-    entry = macro_assist_entry_from_local_macro("_rules", xprompt)
+    entry = macro_assist_entry_from_local_macro("_rules", macro)
 
     assert entry.name == "_rules"
     assert entry.insertion == "#_rules"
@@ -77,14 +77,14 @@ def test_local_xprompt_entry_mirrors_global_shape() -> None:
     ]
 
 
-def test_local_xprompt_entry_uses_inline_marker_for_segments() -> None:
+def test_local_macro_entry_uses_inline_marker_for_segments() -> None:
     """A helper whose body carries ``---`` segments still inserts as ``#``."""
-    xprompt = Macro(
+    macro = Macro(
         name="_multi",
         content="first agent\n---\nsecond agent",
         source_path=LOCAL_MACRO_SOURCE,
     )
-    entry = macro_assist_entry_from_local_macro("_multi", xprompt)
+    entry = macro_assist_entry_from_local_macro("_multi", macro)
 
     assert entry.reference_prefix == "#"
     assert entry.insertion == "#_multi"
@@ -111,16 +111,16 @@ def test_merge_empty_local_returns_base_unchanged() -> None:
 # --- bar: live local entries ----------------------------------------------
 
 
-async def test_bar_exposes_live_local_xprompt_entries() -> None:
-    """The bar surfaces local xprompts parsed from its live frontmatter string."""
+async def test_bar_exposes_live_local_macro_entries() -> None:
+    """The bar surfaces local macros parsed from its live frontmatter string."""
     app = _PromptBarApp("body")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar._stack.frontmatter = "---\nxprompts:\n  _rules: Follow the checklist\n---"
+        bar._stack.frontmatter = "---\nmacros:\n  _rules: Follow the checklist\n---"
 
-        entries = bar.local_xprompt_assist_entries()
+        entries = bar.local_macro_assist_entries()
         assert [e.name for e in entries] == ["_rules"]
         assert entries[0].insertion == "#_rules"
 
@@ -133,15 +133,15 @@ async def test_bar_local_entries_track_frontmatter_edits() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        assert bar.local_xprompt_assist_entries() == []
+        assert bar.local_macro_assist_entries() == []
 
-        bar._stack.frontmatter = "---\nxprompts:\n  _helper: do the thing\n---"
-        assert [e.name for e in bar.local_xprompt_assist_entries()] == ["_helper"]
+        bar._stack.frontmatter = "---\nmacros:\n  _helper: do the thing\n---"
+        assert [e.name for e in bar.local_macro_assist_entries()] == ["_helper"]
 
         bar._stack.frontmatter = (
-            "---\nxprompts:\n  _helper: do the thing\n  _other: another\n---"
+            "---\nmacros:\n  _helper: do the thing\n  _other: another\n---"
         )
-        assert [e.name for e in bar.local_xprompt_assist_entries()] == [
+        assert [e.name for e in bar.local_macro_assist_entries()] == [
             "_helper",
             "_other",
         ]
@@ -155,8 +155,8 @@ async def test_bar_local_entries_empty_for_invalid_frontmatter() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        bar._stack.frontmatter = "---\nxprompts:\n  bad: missing underscore\n---"
-        assert bar.local_xprompt_assist_entries() == []
+        bar._stack.frontmatter = "---\nmacros:\n  bad: missing underscore\n---"
+        assert bar.local_macro_assist_entries() == []
 
 
 # --- pane: <ctrl+t> completion + arg assist --------------------------------
@@ -169,16 +169,16 @@ async def test_pane_ctrl_t_completion_lists_local_helper() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar._stack.frontmatter = "---\nxprompts:\n  _rules: Follow the checklist\n---"
+        bar._stack.frontmatter = "---\nmacros:\n  _rules: Follow the checklist\n---"
         pane = app.query_one(PromptTextArea)
         # Seed the warm project catalog so the merge takes the deterministic fast
         # path rather than building the real global catalog.
         pane._macro_arg_assist_entries_by_project[None] = [_global_entry("commit")]
 
-        candidates, _shared = pane._build_xprompt_completion_candidates("#_")
+        candidates, _shared = pane._build_macro_completion_candidates("#_")
         assert [c.insertion for c in candidates] == ["#_rules"]
 
-        candidates, _shared = pane._build_xprompt_completion_candidates("#")
+        candidates, _shared = pane._build_macro_completion_candidates("#")
         names = {c.name for c in candidates}
         assert {"commit", "_rules"} <= names
 
@@ -190,13 +190,13 @@ async def test_pane_ctrl_t_local_overrides_stale_global() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar._stack.frontmatter = "---\nxprompts:\n  _rules: live body\n---"
+        bar._stack.frontmatter = "---\nmacros:\n  _rules: live body\n---"
         pane = app.query_one(PromptTextArea)
         pane._macro_arg_assist_entries_by_project[None] = [
             _global_entry("_rules", description="STALE")
         ]
 
-        candidates, _shared = pane._build_xprompt_completion_candidates("#_rules")
+        candidates, _shared = pane._build_macro_completion_candidates("#_rules")
         assert len(candidates) == 1
         # The metadata carried into completion is the live local entry.
         metadata = candidates[0].metadata
@@ -208,7 +208,7 @@ async def test_pane_arg_assist_entries_include_local_with_inputs() -> None:
     """Local helpers with inputs reach the argument-hint resolver in each pane."""
     frontmatter = (
         "---\n"
-        "xprompts:\n"
+        "macros:\n"
         "  _svc:\n"
         "    content: refactor the service\n"
         "    input:\n"

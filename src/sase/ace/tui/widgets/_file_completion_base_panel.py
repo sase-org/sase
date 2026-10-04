@@ -73,7 +73,7 @@ class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):
         # placeholder menu so refresh and accept keep resolving the same
         # candidate set the user is looking at.
         _placeholder_completion_trigger: str | None
-        _xprompt_arg_completion_trigger: str | None
+        _macro_arg_completion_trigger: str | None
         _agent_completion_candidates: list[AgentCompletionCandidate] | None
         _active_macro_arg_hint: ActiveMacroArgHint | None
         _vcs_repo_completion_key: tuple[str, str] | None
@@ -132,7 +132,7 @@ class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):
             self,
         ) -> list[MacroAssistEntry] | None: ...
         def _macro_arg_assist_project_from_text(self) -> str | None: ...
-        def _build_warm_xprompt_completion_candidates(
+        def _build_warm_macro_completion_candidates(
             self,
             token: str,
             *,
@@ -329,7 +329,7 @@ class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):
         )
         return has_artifacts and has_files
 
-    def _clear_file_completion(self, *, clear_xprompt_arg_hint: bool = True) -> None:
+    def _clear_file_completion(self, *, clear_macro_arg_hint: bool = True) -> None:
         """Reset manual completion state and hide its panel."""
         self._file_completion_active = False
         self._file_completion_candidates = []
@@ -341,7 +341,7 @@ class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):
         self._artifact_ref_files_revealed = False
         self._artifact_ref_files_suppressed = False
         self._placeholder_completion_trigger = None
-        self._xprompt_arg_completion_trigger = None
+        self._macro_arg_completion_trigger = None
         self._agent_completion_candidates = None
         self._vcs_repo_completion_key = None
         self._vcs_repo_completion_result = None
@@ -349,5 +349,5 @@ class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):
         self._prompt_path_completion_directory_key = None
         self._model_completion_catalog_request = None
         self._update_file_completion_panel("")
-        if clear_xprompt_arg_hint:
+        if clear_macro_arg_hint:
             self._clear_macro_arg_hint()

@@ -103,7 +103,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "start_custom_agent",
         "start_agent_from_patch",
         "start_agent_from_changespec",  # legacy compatibility alias
-        "start_last_vcs_xprompt_in_editor",
+        "start_last_vcs_macro_in_editor",
         "restore_prompt_stash",
         "show_notifications",
         "show_help",
@@ -218,7 +218,7 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
 def _artifacts_current_project_key() -> str | None:
     """Resolve the current project on a worker thread.
 
-    Prefer the VCS xprompt MRU derivation. When that store is empty, fall
+    Prefer the VCS macro MRU derivation. When that store is empty, fall
     back to the cwd-derived project so a first-run user still gets today's
     scope. Never call this on the UI thread.
     """

@@ -45,7 +45,7 @@ class PromptTextAreaBarMixin(_MixinBase):
     def _notify_host_text_undo(self, before_text: str, after_text: str) -> None:
         """Tell the parent bar a NORMAL-mode undo changed this pane's text.
 
-        Lets the bar unstage xprompt inputs an inline expansion auto-staged when
+        Lets the bar unstage macro inputs an inline expansion auto-staged when
         (and only when) this undo reversed that expansion's body splice. A pane
         with no parent bar -- or an undo that matches no expansion transaction --
         is a no-op. Overrides :class:`VimTextArea`'s no-op host hook.

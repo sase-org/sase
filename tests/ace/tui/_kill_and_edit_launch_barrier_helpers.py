@@ -212,7 +212,7 @@ def prompt_bar_ready(app: LaunchBarrierApp | PromptLifecycleApp) -> bool:
 
 def _write_prompt(directory: Path, prompt: str) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "raw_xprompt.md").write_text(prompt, encoding="utf-8")
+    (directory / "raw_prompt.md").write_text(prompt, encoding="utf-8")
     return directory
 
 

@@ -154,7 +154,7 @@ def test_delete_subject_lists_backlinks_and_reveal() -> None:
     hidden = snippet_entry(
         "todo",
         kind="xprompt",
-        path="/tmp/xprompt.md",
+        path="/tmp/macro.md",
         writable=False,
         macro_name="todo",
     )
@@ -170,7 +170,7 @@ def test_delete_subject_lists_backlinks_and_reveal() -> None:
     assert "Trigger: todo" in subject
     assert "File: /tmp/sase.yml" in subject
     assert "1 snippet calls this trigger: greet" in subject
-    assert "Reveals: /tmp/xprompt.md" in subject
+    assert "Reveals: /tmp/macro.md" in subject
 
 
 def test_neighbor_trigger_after_delete_middle_and_last() -> None:
@@ -232,7 +232,7 @@ async def test_valid_add_writes_through_engine_and_selects_trigger(
     assert any("Added" in message for message, _sev in app.notifications)
 
 
-async def test_edit_on_xprompt_opens_source(
+async def test_edit_on_macro_opens_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ref = project_ref("sase", "sase")

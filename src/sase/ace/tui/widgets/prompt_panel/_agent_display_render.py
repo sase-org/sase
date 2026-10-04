@@ -60,8 +60,8 @@ from ._agent_display_hints import clear_agent_hint_render_cache
 from ._live_reply_follow import is_live_reply_agent, live_reply_region
 from ._agent_display_step_render import AgentStepDisplayMixin
 from ._agent_display_macro import (
-    attach_xprompt_to_identity,
-    memoize_xprompt,
+    attach_raw_prompt_to_identity,
+    memoize_raw_prompt,
 )
 from ._agent_finalizer_receipt import append_finalizer_receipt
 from ._agent_gate_section import build_gate_phase
@@ -77,8 +77,8 @@ from ._traceback_section import build_traceback_block
 
 _HUMANIZED_TEXT_CACHE_LIMIT = 24
 _HumanizedTextCacheKey = tuple[int, int, tuple[tuple[str, str], ...], object]
-_XPROMPT_HIGHLIGHT_CACHE_LIMIT = 24
-_XPromptHighlightCacheKey = tuple[int, int, tuple[object, ...]]
+_RAW_PROMPT_HIGHLIGHT_CACHE_LIMIT = 24
+_RawPromptHighlightCacheKey = tuple[int, int, tuple[object, ...]]
 _AGENT_PROMPT_HIGHLIGHT_CACHE_LIMIT = 24
 _AgentPromptHighlightCacheKey = tuple[int, int, tuple[object, ...]]
 
@@ -113,18 +113,18 @@ class AgentDisplayRenderMixin(
             humanize_cache = getattr(self, "_agent_humanized_text_cache", None)
             if humanize_cache is not None:
                 humanize_cache.clear()
-            xprompt_cache = getattr(self, "_agent_xprompt_highlight_cache", None)
-            if xprompt_cache is not None:
-                xprompt_cache.clear()
+            raw_prompt_cache = getattr(self, "_agent_raw_prompt_highlight_cache", None)
+            if raw_prompt_cache is not None:
+                raw_prompt_cache.clear()
             prompt_cache = getattr(self, "_agent_authored_prompt_highlight_cache", None)
             if prompt_cache is not None:
                 prompt_cache.clear()
             clear_agent_hint_render_cache(self)
             self._agent_markdown_render_cache_identity = identity
 
-    def _display_raw_xprompt(self, agent: Agent, raw_xprompt: str) -> str:
+    def _display_raw_prompt(self, agent: Agent, raw_prompt: str) -> str:
         del agent
-        return self._humanize_display_text(raw_xprompt)
+        return self._humanize_display_text(raw_prompt)
 
     def _humanized_text_cache(self) -> dict[_HumanizedTextCacheKey, str]:
         cache = getattr(self, "_agent_humanized_text_cache", None)
@@ -133,11 +133,11 @@ class AgentDisplayRenderMixin(
             self._agent_humanized_text_cache = cache
         return cache
 
-    def _xprompt_highlight_cache(self) -> dict[_XPromptHighlightCacheKey, Text]:
-        cache = getattr(self, "_agent_xprompt_highlight_cache", None)
+    def _raw_prompt_highlight_cache(self) -> dict[_RawPromptHighlightCacheKey, Text]:
+        cache = getattr(self, "_agent_raw_prompt_highlight_cache", None)
         if cache is None:
             cache = {}
-            self._agent_xprompt_highlight_cache = cache
+            self._agent_raw_prompt_highlight_cache = cache
         return cache
 
     def _agent_prompt_highlight_cache(
@@ -152,40 +152,40 @@ class AgentDisplayRenderMixin(
     def _prompt_highlight_context(
         self,
         agent: Agent,
-        raw_xprompt: str = "",
+        raw_prompt: str = "",
         *,
         schedule: bool = True,
     ) -> AgentPromptHighlightContext:
         return agent_prompt_highlight_context(
             self,
             agent,
-            raw_xprompt,
+            raw_prompt,
             schedule=schedule,
         )
 
-    def _render_xprompt(
+    def _render_raw_prompt(
         self,
         agent: Agent,
-        raw_xprompt: str,
-        humanized_xprompt: str,
+        raw_prompt: str,
+        humanized_raw_prompt: str,
         *,
         context: AgentPromptHighlightContext | None = None,
     ) -> Text:
         if context is None:
-            context = self._prompt_highlight_context(agent, raw_xprompt)
+            context = self._prompt_highlight_context(agent, raw_prompt)
         key = (
-            len(humanized_xprompt),
-            hash(humanized_xprompt),
+            len(humanized_raw_prompt),
+            hash(humanized_raw_prompt),
             context.fingerprint,
         )
-        cache = self._xprompt_highlight_cache()
+        cache = self._raw_prompt_highlight_cache()
         cached = cache.pop(key, None)
         if cached is not None:
             cache[key] = cached
             return cached
 
         highlighted = highlight_prompt_text(
-            humanized_xprompt,
+            humanized_raw_prompt,
             known_skills=context.known_skills,
             glossary_catalog=context.glossary_catalog,
             repo_catalog=context.repo_catalog,
@@ -194,7 +194,7 @@ class AgentDisplayRenderMixin(
             artifact_ref_styles=context.artifact_ref_styles,
         )
         cache[key] = highlighted
-        if len(cache) > _XPROMPT_HIGHLIGHT_CACHE_LIMIT:
+        if len(cache) > _RAW_PROMPT_HIGHLIGHT_CACHE_LIMIT:
             cache.pop(next(iter(cache)))
         return highlighted
 
@@ -440,28 +440,28 @@ class AgentDisplayRenderMixin(
             return
 
         # AGENT RAW PROMPT section
-        raw_xprompt = agent.get_raw_prompt_content()
+        raw_prompt = agent.get_raw_prompt_content()
         highlight_context = self._prompt_highlight_context(
             agent,
-            raw_xprompt or "",
+            raw_prompt or "",
         )
-        xprompt: Text | None = None
-        if raw_xprompt:
-            humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
-            xprompt = self._render_xprompt(
+        raw_prompt_text: Text | None = None
+        if raw_prompt:
+            humanized_raw_prompt = self._display_raw_prompt(agent, raw_prompt)
+            raw_prompt_text = self._render_raw_prompt(
                 agent,
-                raw_xprompt,
-                humanized_xprompt,
+                raw_prompt,
+                humanized_raw_prompt,
                 context=highlight_context,
             )
-            if not attach_xprompt_to_identity(self, header_text, xprompt):
+            if not attach_raw_prompt_to_identity(self, header_text, raw_prompt_text):
                 append_section_heading(header_text, "AGENT RAW PROMPT")
-                header_text.append_text(xprompt)
+                header_text.append_text(raw_prompt_text)
                 header_text.append("\n")
                 header_text.append("\n")
                 header_text.append("\u2500" * 50 + "\n", style="dim")
                 header_text.append("\n")
-        memoize_xprompt(self, agent, xprompt)
+        memoize_raw_prompt(self, agent, raw_prompt_text)
 
         # AGENT PROMPT section
         append_section_heading(header_text, "AGENT PROMPT")

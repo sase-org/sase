@@ -37,7 +37,7 @@ async def test_confirm_dialog_neutral_png_snapshot(
             ConfirmActionModal(
                 "Commit & Push",
                 "Commit and push your saved changes?",
-                subject="xprompts/review.md",
+                subject="macros/review.md",
                 icon="↑",
                 confirm_label="Commit & push",
                 cancel_label="Skip",

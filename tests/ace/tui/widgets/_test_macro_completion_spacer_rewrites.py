@@ -224,7 +224,7 @@ async def test_optional_agent_spacer_colon_respects_disabled_auto_menu() -> None
         with patch.object(
             type(ta),
             "_prompt_completion_settings",
-            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+            return_value=PromptCompletionSettings(auto_macro_menu=False),
         ):
             await pilot.press(":")
 

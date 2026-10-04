@@ -122,7 +122,7 @@ def _prompt_source_token(projects: Iterable[str | None]) -> tuple[Any, ...]:
         directory
         for project in project_tuple
         if project is not None
-        for directory in _project_xprompt_dirs(project)
+        for directory in _project_macro_dirs(project)
     ]
     memory_dirs = [
         directory
@@ -132,7 +132,7 @@ def _prompt_source_token(projects: Iterable[str | None]) -> tuple[Any, ...]:
     return (
         ("projects", project_tuple),
         ("config", current_config_token()),
-        ("xprompt_files", _prompt_file_tokens(get_macro_search_paths())),
+        ("macro_files", _prompt_file_tokens(get_macro_search_paths())),
         ("project_files", _project_prompt_file_tokens(project_dirs)),
         ("memory_files", _prompt_file_tokens(memory_dirs)),
     )
@@ -147,7 +147,7 @@ def prompt_source_watch_paths(projects: Iterable[str | None]) -> list[Path]:
             directory
             for project in _normalize_prompt_catalog_projects(projects)
             if project is not None
-            for directory in _project_xprompt_dirs(project)
+            for directory in _project_macro_dirs(project)
         ],
         *[
             directory
@@ -174,7 +174,7 @@ def prompt_source_change_touches_config(changed_paths: Iterable[Path]) -> bool:
 
     This intentionally uses only path names so the UI-thread watcher callback
     never discovers project roots, stats files, or loads configuration.  A
-    conservatively classified xprompt named ``sase.yml`` merely causes one
+    conservatively classified macro named ``sase.yml`` merely causes one
     extra fresh config read in the catalog worker.
     """
     for raw_path in changed_paths:
@@ -210,8 +210,8 @@ def _project_prompt_file_tokens(dirs: Iterable[Path]) -> tuple[Any, ...]:
     return _prompt_file_tokens(dirs)
 
 
-def _project_xprompt_dirs(project: str) -> tuple[Path, ...]:
-    """Return per-project xprompt source directories to token/watch.
+def _project_macro_dirs(project: str) -> tuple[Path, ...]:
+    """Return per-project macro source directories to token/watch.
 
     The project string is normalized first: these directories are named after
     the canonical user-facing project namespace, so a caller passing a

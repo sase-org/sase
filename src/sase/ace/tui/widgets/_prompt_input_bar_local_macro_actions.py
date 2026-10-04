@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._local_macro_conversion import (
-    build_local_xprompt,
-    infer_local_xprompt_inputs,
-    local_xprompt_invocation_skeleton,
+    build_local_macro,
+    infer_local_macro_inputs,
+    local_macro_invocation_skeleton,
 )
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 
@@ -21,7 +21,7 @@ else:
     _MixinBase = object
 
 
-class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
+class PromptInputBarLocalMacroActionsMixin(_MixinBase):
     """Prompt pane conversion to frontmatter-local macros."""
 
     if TYPE_CHECKING:
@@ -35,7 +35,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         def local_macros(self, text_area: object | None = None) -> dict[str, Macro]: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
 
-    def convert_active_pane_to_local_xprompt(
+    def convert_active_pane_to_local_macro(
         self, *, target_mode: str = "normal"
     ) -> None:
         """Convert the active pane into a local macro (the ``gL`` keymap).
@@ -64,7 +64,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
                 severity="warning",
             )
             return
-        conversion = infer_local_xprompt_inputs(body)
+        conversion = infer_local_macro_inputs(body)
         if conversion is None:
             self.app.notify(
                 "Active pane has invalid Jinja — fix it before saving as a "
@@ -77,20 +77,20 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         if panel is None:
             return
         self._show_frontmatter_panel(focus=False)  # type: ignore[attr-defined]
-        xprompt = build_local_xprompt(
+        macro = build_local_macro(
             "_",
             conversion.body,
             conversion.inputs,
         )
 
         def _on_commit(saved: Macro) -> None:
-            skeleton = local_xprompt_invocation_skeleton(saved)
+            skeleton = local_macro_invocation_skeleton(saved)
             enter_insert = bool(saved.inputs) or target_mode == "insert"
             self._replace_active_pane_with_skeleton(skeleton, enter_insert=enter_insert)
 
-        panel.begin_prefilled_xprompt("xprompts", xprompt, on_commit=_on_commit)
+        panel.begin_prefilled_macro("macros", macro, on_commit=_on_commit)
 
-    def _store_local_xprompt_and_replace_pane(
+    def _store_local_macro_and_replace_pane(
         self,
         name: str,
         body: str,
@@ -104,16 +104,16 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         reference it) and the active pane's whole body is replaced with the
         invocation skeleton expanded through the snippet engine.
         """
-        xprompt = build_local_xprompt(name, body, inputs)
+        macro = build_local_macro(name, body, inputs)
         try:
             model = PromptFrontmatter.parse(self._stack.frontmatter)
         except Exception:
             model = PromptFrontmatter()
-        model.set_macro(xprompt)
+        model.set_macro(macro)
         self._stack.set_frontmatter_model(model)
         self.refresh_frontmatter_panel_from_stack()
 
-        skeleton = local_xprompt_invocation_skeleton(xprompt)
+        skeleton = local_macro_invocation_skeleton(macro)
         enter_insert = bool(inputs) or target_mode == "insert"
         self._replace_active_pane_with_skeleton(skeleton, enter_insert=enter_insert)
 

@@ -246,7 +246,7 @@ class TestAgentSessionTurnMetadata:
         assert "         ↳ Full-suite verification before landing\n" in header.plain
         assert "CLAUDE(sonnet)" not in header.plain
 
-    def test_turns_still_sits_between_auto_and_xprompts_for_agent_session_row(
+    def test_turns_still_sits_between_auto_and_macros_for_agent_session_row(
         self,
     ) -> None:
         agent = _agent_session(
@@ -263,8 +263,8 @@ class TestAgentSessionTurnMetadata:
 
         auto_index = header.plain.index("Auto:")
         model_index = header.plain.index("Turns:")
-        xprompts_index = header.plain.index("Macros:")
-        assert auto_index < model_index < xprompts_index
+        macros_index = header.plain.index("Macros:")
+        assert auto_index < model_index < macros_index
 
     def test_non_agent_session_agent_keeps_unchanged_single_line_model(self) -> None:
         agent = make_agent(model="opus", llm_provider="claude", followup_agents=[])
@@ -348,7 +348,7 @@ class TestAgentAutoApproveMetadata:
         assert "Mode:" not in header.plain
         assert "Auto-Approve" not in header.plain
 
-    def test_auto_field_renders_before_xprompts_without_model(self) -> None:
+    def test_auto_field_renders_before_macros_without_model(self) -> None:
         # No-model agent: ``Model:`` is omitted, so ``Auto:`` is adjacent to
         # ``Macros:`` with nothing rendered between them.
         agent = make_agent(approve=True)
@@ -362,16 +362,16 @@ class TestAgentAutoApproveMetadata:
         assert "Macros:" in header.plain
         assert "Model:" not in header.plain
         auto_index = header.plain.index("Auto:")
-        xprompts_index = header.plain.index("Macros:")
-        assert auto_index < xprompts_index
-        # Nothing renders between the Auto field and the Xprompts section.
-        between = header.plain[auto_index:xprompts_index]
+        macros_index = header.plain.index("Macros:")
+        assert auto_index < macros_index
+        # Nothing renders between the Auto field and the Macros section.
+        between = header.plain[auto_index:macros_index]
         assert between == "Auto: ⚡ PLAN\n"
         assert "Mode:" not in header.plain
         assert "Auto-Approve" not in header.plain
 
-    def test_auto_model_xprompts_render_in_order(self) -> None:
-        # With auto-approval, a renderable model, and xprompt metadata the
+    def test_auto_model_macros_render_in_order(self) -> None:
+        # With auto-approval, a renderable model, and macro metadata the
         # rows render as Auto: then Model: then Macros:.
         agent = make_agent(approve=True, model="opus", llm_provider="claude")
         summary = DetailHeaderSummary(
@@ -385,15 +385,15 @@ class TestAgentAutoApproveMetadata:
         assert "Macros:" in header.plain
         auto_index = header.plain.index("Auto:")
         model_index = header.plain.index("Model:")
-        xprompts_index = header.plain.index("Macros:")
-        assert auto_index < model_index < xprompts_index
-        # Only the Model row renders between Auto and Xprompts.
-        between = header.plain[auto_index:xprompts_index]
+        macros_index = header.plain.index("Macros:")
+        assert auto_index < model_index < macros_index
+        # Only the Model row renders between Auto and Macros.
+        between = header.plain[auto_index:macros_index]
         assert between == "Auto: ⚡ PLAN\nModel: CLAUDE(opus)\n"
         assert "Mode:" not in header.plain
         assert "Auto-Approve" not in header.plain
 
-    def test_model_renders_before_xprompts_without_auto(self) -> None:
+    def test_model_renders_before_macros_without_auto(self) -> None:
         # Without auto-approval, ``Model:`` still renders before the
         # ``Macros:`` section.
         agent = make_agent(model="opus", llm_provider="claude")
@@ -407,5 +407,5 @@ class TestAgentAutoApproveMetadata:
         assert "Model: CLAUDE(opus)\n" in header.plain
         assert "Macros:" in header.plain
         model_index = header.plain.index("Model:")
-        xprompts_index = header.plain.index("Macros:")
-        assert model_index < xprompts_index
+        macros_index = header.plain.index("Macros:")
+        assert model_index < macros_index

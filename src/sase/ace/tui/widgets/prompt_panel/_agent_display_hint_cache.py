@@ -47,7 +47,7 @@ class AgentHintRenderCacheKey:
     attempt_view_mode: str
     attempt_pinned_number: int | None
     detaches_identity_header: bool = False
-    detaches_xprompt: bool = False
+    detaches_raw_prompt: bool = False
     identity_header_hints: bool = True
 
 
@@ -105,7 +105,7 @@ def _source_digest_parts(agent: Agent) -> list[tuple[str, object]]:
                 ("identity", candidate.identity),
                 ("finalizer_status", repr(candidate.finalizer_status)),
                 ("error_traceback", candidate.error_traceback),
-                ("raw_xprompt", candidate.get_raw_prompt_content()),
+                ("raw_prompt", candidate.get_raw_prompt_content()),
                 ("prompt", get_prompt_content(candidate)),
                 ("reply_chunks", candidate.get_timestamped_reply_chunks()),
                 ("live_reply", candidate.get_live_reply_content()),
@@ -187,7 +187,7 @@ def _fold_overrides_key(
 def _hint_context_digest(
     widget: object,
     agent: Agent,
-    raw_xprompt: str | None,
+    raw_prompt: str | None,
 ) -> str:
     """Digest warm in-memory header and styling context outside ``agent``."""
     try:
@@ -218,11 +218,11 @@ def _hint_context_digest(
             except Exception:
                 clan_neighbor_identities = ()
     highlight_fingerprint: tuple[object, ...] = ()
-    if raw_xprompt is not None or not agent.is_clan_container:
+    if raw_prompt is not None or not agent.is_clan_container:
         highlight_fingerprint = agent_prompt_highlight_context(
             widget,
             agent,
-            raw_xprompt or "",
+            raw_prompt or "",
             schedule=False,
         ).fingerprint
     return _digest_parts(
@@ -258,7 +258,7 @@ def agent_hint_render_cache_key(
         )
         source_digest = _digest_parts(agent.clan_summary)
         summary_key = None
-        raw_xprompt = None
+        raw_prompt = None
     else:
         roster_container = agent_session_roster_container(agent)
         if roster_container is not None:
@@ -271,7 +271,7 @@ def agent_hint_render_cache_key(
             agent_state_digest = _digest_parts(agent)
         source_digest = _source_digest_cached(widget, agent)
         summary_key = detail_header_summary_cache_key(widget, agent)
-        raw_xprompt = agent.get_raw_prompt_content()
+        raw_prompt = agent.get_raw_prompt_content()
     return AgentHintRenderCacheKey(
         agent_identity=cast(tuple[object, ...], agent.identity),
         agent_state_digest=agent_state_digest,
@@ -279,7 +279,7 @@ def agent_hint_render_cache_key(
         summary_key=summary_key,
         fold_level=fold_level,
         fold_overrides=_fold_overrides_key(fold_overrides),
-        context_digest=_hint_context_digest(widget, agent, raw_xprompt),
+        context_digest=_hint_context_digest(widget, agent, raw_prompt),
         cap_parameters=(
             HintContentBudget().remaining_bytes,
             HintContentBudget().remaining_lines,
@@ -289,7 +289,7 @@ def agent_hint_render_cache_key(
         detaches_identity_header=bool(
             getattr(widget, "detaches_identity_header", False)
         ),
-        detaches_xprompt=bool(getattr(widget, "detaches_xprompt", False)),
+        detaches_raw_prompt=bool(getattr(widget, "detaches_raw_prompt", False)),
         identity_header_hints=bool(
             getattr(widget, "identity_header_hints_enabled", True)
         ),

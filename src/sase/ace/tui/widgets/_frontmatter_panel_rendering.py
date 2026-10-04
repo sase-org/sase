@@ -181,7 +181,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
         """Flat list of navigable rows: field headers and unfolded sub-items.
 
         Each entry is ``("field", name)`` for a property row, or
-        ``("input", arg_name)`` / ``("xprompt", name)`` for a sub-item of an
+        ``("input", arg_name)`` / ``("macro", name)`` for a sub-item of an
         unfolded structured field.  Selection (:attr:`_selected`) indexes into
         this list so ``j``/``k`` step through items as well as fields.
         """
@@ -197,7 +197,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
             if item_kind == "input":
                 rows.extend(("input", arg.name) for arg in self._model.inputs)
             else:
-                rows.extend(("xprompt", name) for name in self._model.macros)
+                rows.extend(("macro", name) for name in self._model.macros)
             if (
                 self._cell_edit is not None
                 and self._cell_edit.field == field
@@ -264,7 +264,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
     def _render_sub_items(
         self, field: str, *, selected: tuple[str, str] | None
     ) -> list[Text]:
-        """Render the sub-item lines for ``input`` / ``xprompts``."""
+        """Render the sub-item lines for ``input`` / ``macros``."""
         lines: list[Text] = []
         item_kind = self._structured_item_kind(field)
         if item_kind == "input":
@@ -300,7 +300,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
                         )
                     )
         else:
-            for name, xprompt in self._model.macros.items():
+            for name, macro in self._model.macros.items():
                 if (
                     self._cell_edit is not None
                     and self._cell_edit.original_name == name
@@ -308,8 +308,8 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
                     lines.append(self._cell_item_line(self._cell_edit, selected=True))
                 else:
                     lines.append(
-                        self._xprompt_item_line(
-                            name, xprompt, selected=selected == ("xprompt", name)
+                        self._macro_item_line(
+                            name, macro, selected=selected == ("macro", name)
                         )
                     )
         if (
@@ -348,13 +348,11 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
         return line
 
     @staticmethod
-    def _xprompt_item_line(
-        name: str, xprompt: Macro, *, selected: bool = False
-    ) -> Text:
-        """One ``xprompts`` sub-item: name and a content/description preview."""
+    def _macro_item_line(name: str, macro: Macro, *, selected: bool = False) -> Text:
+        """One ``macros`` sub-item: name and a content/description preview."""
         line = Text("    • ")
         line.append(name, style="reverse #87D7FF" if selected else "#87D7FF")
-        preview = xprompt.description or xprompt.content
+        preview = macro.description or macro.content
         preview = " ".join(preview.split())
         if len(preview) > 48:
             preview = f"{preview[:45]}…"

@@ -425,7 +425,7 @@ class StartupPromptCatalogSemanticsMixin:
                     invalidate_artifact_refs()
                 if getattr(
                     text_area, "_file_completion_active", False
-                ) and completion_kind.startswith(("xprompt", "macro_arg_")):
+                ) and completion_kind.startswith(("macro", "macro_arg_")):
                     text_area._refresh_file_completion_from_cursor()
                 if getattr(text_area, "_active_macro_arg_hint", None) is not None:
                     text_area._refresh_macro_arg_hint_from_cursor()

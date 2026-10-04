@@ -13,16 +13,16 @@ class _ConvertApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
     def __init__(
-        self, initial_value: str = "", *, initial_xprompt_markdown: str | None = None
+        self, initial_value: str = "", *, initial_raw_prompt_markdown: str | None = None
     ) -> None:
         super().__init__()
         self._initial_value = initial_value
-        self._markdown = initial_xprompt_markdown
+        self._markdown = initial_raw_prompt_markdown
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
             initial_value=self._initial_value,
-            initial_xprompt_markdown=self._markdown,
+            initial_raw_prompt_markdown=self._markdown,
             id="prompt-input-bar",
         )
 
@@ -76,8 +76,8 @@ async def test_gL_converts_placeholders_to_inputs_and_invocation_slots() -> None
 
 
 async def test_gL_preserves_existing_helpers() -> None:
-    markdown = "---\nxprompts:\n  _existing: old helper\n---\nBrand new body"
-    app = _ConvertApp(initial_xprompt_markdown=markdown)
+    markdown = "---\nmacros:\n  _existing: old helper\n---\nBrand new body"
+    app = _ConvertApp(initial_raw_prompt_markdown=markdown)
     async with app.run_test(size=(100, 32)) as pilot:
         _bar, panel = await _open_ghost(app, pilot)
         panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = "new"

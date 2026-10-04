@@ -71,7 +71,7 @@ class PreviewPanelModal(
     PreviewPanelGeometryMixin,
     ModalScreen[None],
 ):
-    """Presentational modal for resolved xprompt/file previews and their properties."""
+    """Presentational modal for resolved macro/file previews and their properties."""
 
     BINDINGS = [
         ("escape", "escape", "Clear search / close"),
@@ -519,7 +519,7 @@ class PreviewPanelModal(
     def action_toggle_properties(self) -> None:
         if not self._properties_available():
             self.notify(
-                "This preview has no xprompt properties",
+                "This preview has no macro properties",
                 severity="warning",
             )
             return

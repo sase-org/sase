@@ -1,4 +1,4 @@
-"""Pure-function tests for prompt VCS xprompt deletion and MRU cycling."""
+"""Pure-function tests for prompt VCS macro deletion and MRU cycling."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 from sase.ace.tui.widgets._vcs_mru_cycling import (
     _VcsMruCycleEdit,
-    _VcsXPromptDeleteEdit,
+    _VcsMacroDeleteEdit,
     _cycle_vcs_mru_text,
-    _delete_vcs_xprompt_text,
+    _delete_vcs_macro_text,
 )
 
 _TEST_EMBEDDED_VCS_PATTERN = re.compile(
@@ -98,9 +98,9 @@ def _delete(
     *,
     cursor_offset: int | None = None,
     catalog: object | None = None,
-) -> _VcsXPromptDeleteEdit:
+) -> _VcsMacroDeleteEdit:
     with _patched_vcs_parsing():
-        edit = _delete_vcs_xprompt_text(
+        edit = _delete_vcs_macro_text(
             text,
             len(text) if cursor_offset is None else cursor_offset,
             catalog,  # type: ignore[arg-type]
@@ -113,9 +113,9 @@ def _delete_or_none(
     text: str,
     *,
     cursor_offset: int | None = None,
-) -> _VcsXPromptDeleteEdit | None:
+) -> _VcsMacroDeleteEdit | None:
     with _patched_vcs_parsing():
-        return _delete_vcs_xprompt_text(
+        return _delete_vcs_macro_text(
             text,
             len(text) if cursor_offset is None else cursor_offset,
         )
@@ -144,7 +144,7 @@ def test_current_tag_lookup_advances_forward() -> None:
 def test_prefilled_humanized_tag_resumes_ring_at_matching_index() -> None:
     """A prompt prefilled with a humanized tag resumes the (humanized) ring.
 
-    Because ``load_launchable_vcs_xprompt_mru`` now returns humanized entries
+    Because ``load_launchable_vcs_macro_mru`` now returns humanized entries
     and the widget inserts those humanized tags, the current prompt tag and the
     MRU entries are in the same (display) form, so the current tag is found by
     normalized equality and the cycle advances from its position rather than
@@ -230,10 +230,10 @@ def test_second_prepend_press_continues_from_previous_index() -> None:
 
 
 def test_prepend_inserts_after_frontmatter_whitespace_and_directives() -> None:
-    text = "---\nxprompts: {}\n---\n  %i:a %wait Fix it"
+    text = "---\nmacros: {}\n---\n  %i:a %wait Fix it"
     edit = _cycle(text)
-    assert edit.text == "---\nxprompts: {}\n---\n  %i:a %wait #git:foo Fix it"
-    assert edit.start_offset == len("---\nxprompts: {}\n---\n  %i:a %wait ")
+    assert edit.text == "---\nmacros: {}\n---\n  %i:a %wait #git:foo Fix it"
+    assert edit.start_offset == len("---\nmacros: {}\n---\n  %i:a %wait ")
 
 
 def test_cursor_before_replaced_span_is_unchanged() -> None:
@@ -258,9 +258,9 @@ def test_cursor_after_replaced_span_shifts_by_length_delta() -> None:
 
 
 def test_cursor_before_prepend_point_is_unchanged() -> None:
-    text = "---\nxprompts: {}\n---\nFix it"
+    text = "---\nmacros: {}\n---\nFix it"
     edit = _cycle(text, cursor_offset=4)
-    assert edit.text == "---\nxprompts: {}\n---\n#git:foo Fix it"
+    assert edit.text == "---\nmacros: {}\n---\n#git:foo Fix it"
     assert edit.cursor_offset == 4
 
 
@@ -367,9 +367,9 @@ def test_deletes_only_first_tag() -> None:
 
 
 def test_deletes_tag_after_frontmatter_and_directives() -> None:
-    text = "---\nxprompts: {}\n---\n  %i:a %wait #git:foo Fix it"
+    text = "---\nmacros: {}\n---\n  %i:a %wait #git:foo Fix it"
     edit = _delete(text)
-    assert edit.text == "---\nxprompts: {}\n---\n  %i:a %wait Fix it"
+    assert edit.text == "---\nmacros: {}\n---\n  %i:a %wait Fix it"
 
 
 def test_tag_only_prompt_deletes_to_empty() -> None:

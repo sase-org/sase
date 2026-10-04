@@ -33,14 +33,14 @@ _AGENT_SESSION_NAME = "visual-prompts-build"
 _STARTED = datetime(2026, 7, 18, 14, 0, 0)
 
 
-def _write_xprompt(directory: Path, raw: str) -> None:
+def _write_macro(directory: Path, raw: str) -> None:
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "raw_xprompt.md").write_text(raw, encoding="utf-8")
+    (directory / "raw_prompt.md").write_text(raw, encoding="utf-8")
 
 
 def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
     plan_dir = tmp_path / "prompts-plan"
-    _write_xprompt(
+    _write_macro(
         plan_dir,
         "%id(3, tribe=epic)\n"
         "%model:@medium\n"
@@ -65,7 +65,7 @@ def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
         tribe="epic",
     )
     code_dir = tmp_path / "prompts-code"
-    _write_xprompt(
+    _write_macro(
         code_dir,
         "%id(4, tribe=epic)\n#bd/work_phase_bead:sase-16t.2\n",
     )
@@ -91,7 +91,7 @@ def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
     rows = [root, child]
     for suffix, bead in (("one", "sase-16t.1"), ("two", "sase-16t.2")):
         member_dir = tmp_path / f"prompts-clan-{suffix}"
-        _write_xprompt(member_dir, f"#bd/work_phase_bead:{bead}\n")
+        _write_macro(member_dir, f"#bd/work_phase_bead:{bead}\n")
         rows.append(
             Agent(
                 agent_type=AgentType.RUNNING,
@@ -114,7 +114,7 @@ def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
         ("second", "%id(6, tribe=epic)\n%wait:30\n"),
     ):
         standalone_dir = tmp_path / f"prompts-{slug}"
-        _write_xprompt(
+        _write_macro(
             standalone_dir,
             f"{preamble}Inspect the documentation changes made by the update "
             "agent for sase.\n",
@@ -136,9 +136,9 @@ def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
             )
         )
     mon_dir = tmp_path / "prompts-monitor"
-    _write_xprompt(
+    _write_macro(
         mon_dir,
-        "%xprompts_enabled:false\n# Monitored command finished\nAll checks passed.\n",
+        "%macros_enabled:false\n# Monitored command finished\nAll checks passed.\n",
     )
     mon_started = datetime(2026, 7, 18, 14, 10, 0)
     rows.append(

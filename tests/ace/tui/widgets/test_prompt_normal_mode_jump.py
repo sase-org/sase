@@ -30,7 +30,7 @@ def _skill_entry(name: str = "sase_plan") -> MacroAssistEntry:
         skill_name=name,
         insertion=f"#skill/{name}",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(),
         content_preview=None,
@@ -42,7 +42,7 @@ async def test_ctrl_bracket_on_resolvable_token_pushes_jump_modal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = JumpTarget(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#foo",
         source_path="/tmp/foo.md",
@@ -311,7 +311,7 @@ async def test_ctrl_bracket_on_plain_text_does_not_resolve(
         assert page.ta._prompt_jump_request_id == 0
         assert notifications == [
             (
-                "Move the cursor onto an xprompt, skill, file path, glossary term, "
+                "Move the cursor onto a macro, skill, file path, glossary term, "
                 "or repo name to jump to its definition",
                 "warning",
             )
@@ -324,7 +324,7 @@ async def test_ctrl_bracket_resolution_error_toasts_distinct_message(
     notifications: list[tuple[str, str | None]] = []
 
     def fake_resolve(*_args: object, **_kwargs: object) -> JumpTarget:
-        raise JumpError("No xprompt or skill named '#missing' found")
+        raise JumpError("No macro or skill named '#missing' found")
 
     monkeypatch.setattr(
         "sase.ace.tui.widgets._prompt_jump.resolve_jump_target",
@@ -342,7 +342,7 @@ async def test_ctrl_bracket_resolution_error_toasts_distinct_message(
         await page.pause()
 
         assert notifications == [
-            ("No xprompt or skill named '#missing' found", "warning")
+            ("No macro or skill named '#missing' found", "warning")
         ]
         assert not _top_is_jump_modal(page)
 
@@ -375,7 +375,7 @@ async def test_ctrl_bracket_does_not_overwrite_dot_repeat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = JumpTarget(
-        kind_label="xprompt",
+        kind_label="macro",
         icon="#",
         title="#foo",
         source_path="/tmp/foo.md",

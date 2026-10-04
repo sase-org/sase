@@ -104,7 +104,7 @@ def _visual_glossary_catalog() -> EditorGlossaryCatalog:
         ),
         _visual_glossary_entry(
             index=2,
-            term="xprompt",
+            term="macro",
             definition="Prompt shortcut expanded by SASE.",
             config_path=config_path,
             line=24,

@@ -22,7 +22,7 @@ from tests.ace.tui.widgets._agent_display_helpers import (
 )
 
 __all__ = [
-    "LONG_XPROMPT",
+    "LONG_RAW_PROMPT",
     "DetailApp",
     "artifact_agent",
     "header_panel",
@@ -32,7 +32,7 @@ __all__ = [
     "solo_agent",
 ]
 
-LONG_XPROMPT = (
+LONG_RAW_PROMPT = (
     "Can you help me start rendering the AGENT RAW PROMPT section in the sticky "
     "header above the agent data deck panel? Make sure that we provide a good "
     "preview of the contents in this section.\n"
@@ -66,10 +66,10 @@ async def show_agent_full(detail: AgentDetail, agent: Any, pilot: Any) -> None:
     await pilot.pause()
 
 
-def artifact_agent(tmp_path: Any, name: str, raw_xprompt: str) -> Any:
+def artifact_agent(tmp_path: Any, name: str, raw_prompt: str) -> Any:
     subdir = tmp_path / name
     subdir.mkdir(exist_ok=True)
-    agent = make_artifact_agent(subdir, status="DONE", raw_xprompt=raw_xprompt)
+    agent = make_artifact_agent(subdir, status="DONE", raw_prompt=raw_prompt)
     return dataclasses.replace(agent, cl_name=f"cl-{name}", raw_suffix=name)
 
 

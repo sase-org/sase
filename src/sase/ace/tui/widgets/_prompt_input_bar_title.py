@@ -1,4 +1,4 @@
-"""Title and xprompt target chrome for ``PromptInputBar``."""
+"""Title and macro target chrome for ``PromptInputBar``."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from rich.markup import escape
 
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackState,
-    XPromptReadonlyTarget,
+    MacroReadonlyTarget,
 )
 
 if TYPE_CHECKING:
@@ -61,12 +61,12 @@ class PromptInputBarTitleMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _mode: str
-        _readonly_macro_target: XPromptReadonlyTarget | None
+        _readonly_macro_target: MacroReadonlyTarget | None
         _stack: PromptStackState
         _title_mode_suffix: str
         _macro_source_stale: bool
-        _xprompt_stale_check_in_flight: bool
-        _xprompt_stale_checked_mono: float
+        _macro_stale_check_in_flight: bool
+        _macro_stale_checked_mono: float
         _macro_target_generation: int
 
         def _active_jinja_chip_markup(self) -> str: ...
@@ -230,7 +230,7 @@ class PromptInputBarTitleMixin(_MixinBase):
         verb = "save as" if self._readonly_macro_target is not None else "save"
         return f"  [^G w] {verb} {_middle_elide_cells(reference, 24)}"
 
-    def mark_readonly_macro_target(self, target: XPromptReadonlyTarget) -> None:
+    def mark_readonly_macro_target(self, target: MacroReadonlyTarget) -> None:
         """Show a persistent read-only source state without binding writes."""
         self._stack.unbind()
         self._readonly_macro_target = target
@@ -241,7 +241,7 @@ class PromptInputBarTitleMixin(_MixinBase):
         self._refresh_prompt_mode_subtitle()
         self.refresh_frontmatter_panel_from_stack()
 
-    def _mark_xprompt_source_fresh(self) -> None:
+    def _mark_macro_source_fresh(self) -> None:
         """Clear the display-only stale flag after a successful write/reload."""
         self._macro_source_stale = False
         self._macro_target_generation += 1
@@ -257,31 +257,31 @@ class PromptInputBarTitleMixin(_MixinBase):
         now = time.monotonic()
         if (
             not force
-            and self._xprompt_stale_checked_mono > 0.0
-            and now - self._xprompt_stale_checked_mono
+            and self._macro_stale_checked_mono > 0.0
+            and now - self._macro_stale_checked_mono
             < _TARGET_STALE_CHECK_INTERVAL_SECONDS
         ):
             return
-        if self._xprompt_stale_check_in_flight:
+        if self._macro_stale_check_in_flight:
             return
         generation = self._macro_target_generation
         write_path = binding.write_path
         fingerprint = binding.loaded_fingerprint
-        self._xprompt_stale_check_in_flight = True
+        self._macro_stale_check_in_flight = True
 
         def _check() -> None:
             stale = not fingerprint.matches_stat(write_path)
             completed = time.monotonic()
             try:
                 self.app.call_from_thread(
-                    self._complete_xprompt_stale_check,
+                    self._complete_macro_stale_check,
                     generation,
                     write_path,
                     stale,
                     completed,
                 )
             except Exception:
-                self._xprompt_stale_check_in_flight = False
+                self._macro_stale_check_in_flight = False
 
         try:
             self.run_worker(
@@ -292,9 +292,9 @@ class PromptInputBarTitleMixin(_MixinBase):
                 group="macro-target-stale-check",
             )
         except Exception:
-            self._xprompt_stale_check_in_flight = False
+            self._macro_stale_check_in_flight = False
 
-    def _complete_xprompt_stale_check(
+    def _complete_macro_stale_check(
         self,
         generation: int,
         write_path: str,
@@ -302,8 +302,8 @@ class PromptInputBarTitleMixin(_MixinBase):
         completed_mono: float,
     ) -> None:
         """Apply a worker staleness result if it still matches this target."""
-        self._xprompt_stale_check_in_flight = False
-        self._xprompt_stale_checked_mono = completed_mono
+        self._macro_stale_check_in_flight = False
+        self._macro_stale_checked_mono = completed_mono
         binding = self._stack.binding
         if binding is None:
             return

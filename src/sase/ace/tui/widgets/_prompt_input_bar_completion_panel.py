@@ -38,7 +38,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     model_completion_subtitle,
     placeholder_completion_subtitle,
     prompt_word_completion_subtitle,
-    xprompt_arg_name_completion_subtitle,
+    macro_arg_name_completion_subtitle,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows_simple import (
     jinja_row_styles,
@@ -247,14 +247,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 selected_index,
                 max(0, panel.size.width - 2),
             )
-        elif kinds.directive_arg_agent or kinds.xprompt_arg_agent:
+        elif kinds.directive_arg_agent or kinds.macro_arg_agent:
             panel.border_subtitle = agent_completion_subtitle(
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),
             )
-        elif kinds.xprompt_arg_name:
-            panel.border_subtitle = xprompt_arg_name_completion_subtitle(
+        elif kinds.macro_arg_name:
+            panel.border_subtitle = macro_arg_name_completion_subtitle(
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),
@@ -556,7 +556,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         _clear_jinja_panel_classes(panel)
         panel.remove_class("hidden")
         self._completion_visible = True
-        self._completion_panel_kind = "xprompt_arg_hint"
+        self._completion_panel_kind = "macro_arg_hint"
         self._completion_line_count = _reserved_panel_rows(_content_line_count(content))
         self._update_height()
 

@@ -27,9 +27,9 @@ from ._agent_session_reply_blocks import build_session_reply_blocks
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
 from ._agent_display_macro import (
-    attach_xprompt_to_identity,
-    memoize_xprompt,
-    xprompt_hints_enabled,
+    attach_raw_prompt_to_identity,
+    memoize_raw_prompt,
+    raw_prompt_hints_enabled,
 )
 from ._agent_gate_section import GateTextAnnotator, build_gate_phase
 from ._agent_monitor_section import MonitorTextAnnotator, build_monitor_phase
@@ -43,7 +43,7 @@ from ._container_hint_text import container_text_with_file_hints
 from ._file_path_hints import (
     has_file_path,
     iter_container_file_path_matches,
-    iter_xprompt_container_file_path_matches,
+    iter_raw_prompt_container_file_path_matches,
     resolve_agent_workspace_dir,
 )
 from ._hint_caps import HintContentBudget
@@ -59,17 +59,17 @@ class AgentSessionDisplayMixin:
 
     if TYPE_CHECKING:
 
-        def _display_raw_xprompt(self, agent: Agent, raw_xprompt: str) -> str: ...
+        def _display_raw_prompt(self, agent: Agent, raw_prompt: str) -> str: ...
 
         def _humanize_display_text(self, content: str) -> str: ...
 
         def _render_markdown(self, content: str) -> object: ...
 
-        def _render_xprompt(
+        def _render_raw_prompt(
             self,
             agent: Agent,
-            raw_xprompt: str,
-            humanized_xprompt: str,
+            raw_prompt: str,
+            humanized_raw_prompt: str,
             *,
             context: AgentPromptHighlightContext | None = None,
         ) -> Text: ...
@@ -94,7 +94,7 @@ class AgentSessionDisplayMixin:
     ) -> None:
         """Render an agent-session container and its always-open conversation.
 
-        Agent-session metadata still follows the shared two-level fold, while xprompt,
+        Agent-session metadata still follows the shared two-level fold, while raw_prompt,
         prompt, and reply bodies remain fully visible at every level.
         ``hint_state`` only changes how that content is annotated.
         """
@@ -116,49 +116,51 @@ class AgentSessionDisplayMixin:
             traceback_parts = build_traceback_block(error_tb_syntax)
 
         rendered_content_section = False
-        raw_xprompt = agent.get_raw_prompt_content()
+        raw_prompt = agent.get_raw_prompt_content()
         highlight_context = agent_prompt_highlight_context(
             self,
             agent,
-            raw_xprompt or "",
+            raw_prompt or "",
         )
-        xprompt: Text | None = None
-        if raw_xprompt:
-            humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
-            xprompt_hinting = hint_state is not None and xprompt_hints_enabled(self)
-            xprompt = (
-                self._render_xprompt(
+        raw_prompt_text: Text | None = None
+        if raw_prompt:
+            humanized_raw_prompt = self._display_raw_prompt(agent, raw_prompt)
+            raw_prompt_hinting = hint_state is not None and raw_prompt_hints_enabled(
+                self
+            )
+            raw_prompt_text = (
+                self._render_raw_prompt(
                     agent,
-                    raw_xprompt,
-                    humanized_xprompt,
+                    raw_prompt,
+                    humanized_raw_prompt,
                     context=highlight_context,
                 )
-                if not xprompt_hinting
-                else Text(humanized_xprompt)
+                if not raw_prompt_hinting
+                else Text(humanized_raw_prompt)
             )
-            if xprompt_hinting:
+            if raw_prompt_hinting:
                 assert hint_state is not None
-                xprompt = self._agent_session_text_with_hints(
-                    xprompt,
+                raw_prompt_text = self._agent_session_text_with_hints(
+                    raw_prompt_text,
                     hint_state,
                     workspace_dir=hint_state.workspace_dir,
                     budget=hint_budget,
-                    xprompt_agent=agent,
-                    raw_xprompt=raw_xprompt,
+                    raw_prompt_agent=agent,
+                    raw_prompt=raw_prompt,
                     semantic_context=highlight_context,
                 )
-            xprompt_detached = attach_xprompt_to_identity(
+            raw_prompt_detached = attach_raw_prompt_to_identity(
                 self,
                 header_text,
-                xprompt,
+                raw_prompt_text,
             )
-            if not xprompt_detached:
+            if not raw_prompt_detached:
                 append_section_heading(header_text, "AGENT RAW PROMPT")
-                header_text.append_text(xprompt)
+                header_text.append_text(raw_prompt_text)
                 header_text.append("\n")
                 rendered_content_section = True
         if hint_state is None:
-            memoize_xprompt(self, agent, xprompt)
+            memoize_raw_prompt(self, agent, raw_prompt_text)
 
         prompt_content = get_prompt_content(agent)
         if prompt_content:
@@ -297,29 +299,29 @@ class AgentSessionDisplayMixin:
         *,
         workspace_dir: str | None,
         budget: HintContentBudget | None,
-        xprompt_agent: Agent | None = None,
-        raw_xprompt: str | None = None,
+        raw_prompt_agent: Agent | None = None,
+        raw_prompt: str | None = None,
         semantic_context: AgentPromptHighlightContext | None = None,
     ) -> Text:
         """Return one visible agent-session content fragment with numbered paths."""
-        include_xprompt = xprompt_agent is not None and raw_xprompt is not None
+        include_raw_prompt = raw_prompt_agent is not None and raw_prompt is not None
         text = container_text_with_file_hints(
             content,
             hint_state,
             workspace_dir=workspace_dir,
             budget=budget,
             matcher=(
-                iter_xprompt_container_file_path_matches
-                if include_xprompt
+                iter_raw_prompt_container_file_path_matches
+                if include_raw_prompt
                 else iter_container_file_path_matches
             ),
         )
         context = semantic_context
-        if context is None and include_xprompt and xprompt_agent is not None:
+        if context is None and include_raw_prompt and raw_prompt_agent is not None:
             context = agent_prompt_highlight_context(
                 self,
-                xprompt_agent,
-                raw_xprompt or "",
+                raw_prompt_agent,
+                raw_prompt or "",
             )
         if context is None:
             return text
@@ -329,7 +331,7 @@ class AgentSessionDisplayMixin:
             text,
             text.plain,
             context,
-            include_xprompt=include_xprompt,
+            include_macro=include_raw_prompt,
             hint_spans=hint_spans,
         )
         return text

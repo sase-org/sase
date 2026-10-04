@@ -191,6 +191,13 @@ def build_app_keymaps(ace_cfg: dict) -> tuple[AppKeymaps, dict, frozenset[str]]:
         app_overrides = {}
     else:
         app_overrides = dict(app_overrides)
+        if app_overrides:
+            from sase.legacy_xprompt_syntax import normalize_keymap_actions
+
+            app_overrides = normalize_keymap_actions(
+                app_overrides,
+                source="ace.keymaps.app",
+            )
         app_overrides = migrate_key_aliases(
             app_overrides,
             LEGACY_APP_KEY_ALIASES,

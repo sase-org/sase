@@ -8,8 +8,8 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets._local_macro_conversion import (
-    normalize_local_xprompt_name,
-    validate_local_xprompt_name,
+    normalize_local_macro_name,
+    validate_local_macro_name,
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
@@ -116,14 +116,12 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             }
             cells = ("name", "type", "default", "description")
         else:
-            xprompt = prefill or self._model.get_macro(item_name or "")
+            macro = prefill or self._model.get_macro(item_name or "")
             values = {
-                "name": xprompt.name if xprompt else "_",
-                "description": xprompt.description or "" if xprompt else "",
-                "inputs": self._format_compact_inputs(xprompt.inputs)
-                if xprompt
-                else "",
-                "content": xprompt.content if xprompt else "",
+                "name": macro.name if macro else "_",
+                "description": macro.description or "" if macro else "",
+                "inputs": self._format_compact_inputs(macro.inputs) if macro else "",
+                "content": macro.content if macro else "",
             }
             cells = ("name", "description", "inputs", "content")
         self._cell_edit = _CellEdit(
@@ -141,15 +139,15 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             self._select_nav((item_kind, "__ghost__"))
         self._activate_cell()
 
-    def begin_prefilled_xprompt(
+    def begin_prefilled_macro(
         self,
         field: str,
-        xprompt: Macro,
+        macro: Macro,
         *,
         on_commit: Callable[[Macro], None] | None = None,
     ) -> None:
         """Public bridge used by ``gL`` to enter the same ghost-row flow."""
-        self._begin_cell_edit(field, ghost=True, prefill=xprompt, on_commit=on_commit)
+        self._begin_cell_edit(field, ghost=True, prefill=macro, on_commit=on_commit)
 
     def _activate_cell(self) -> None:
         cell = self._cell_edit
@@ -191,8 +189,8 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             value = self.query_one("#frontmatter-content", VimTextArea).text
         else:
             value = self.query_one("#frontmatter-inline", SingleLineVimTextArea).text
-        if cell.item_kind == "xprompt" and cell.active_cell == "name":
-            value = normalize_local_xprompt_name(value)
+        if cell.item_kind == "macro" and cell.active_cell == "name":
+            value = normalize_local_macro_name(value)
         cell.values[cell.active_cell] = value
 
     def _move_cell(self, delta: int) -> None:
@@ -272,18 +270,18 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                 self._model.remove_input(cell.original_name)
             self._model.set_input(result)
             selected = ("input", result.name)
-        elif cell.item_kind == "xprompt":
+        elif cell.item_kind == "macro":
             assert isinstance(result, Macro)
             if cell.original_name and cell.original_name != result.name:
                 self._model.remove_macro(cell.original_name)
             self._model.set_macro(result)
-            selected = ("xprompt", result.name)
+            selected = ("macro", result.name)
         else:
             assert isinstance(result, FrontmatterStateValue)
             self._model.set_value_state(cell.field, result)
             selected = ("field", cell.field)
         callback = cell.on_commit
-        xprompt_result = result if isinstance(result, Macro) else None
+        macro_result = result if isinstance(result, Macro) else None
         self._cell_edit = None
         self._adding_field = None
         self._edit_mode = "rows"
@@ -295,8 +293,8 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
         self.call_after_refresh(self.focus)
         self._schedule_layout_update()  # type: ignore[attr-defined]
         self._emit_changed()
-        if callback is not None and xprompt_result is not None:
-            callback(xprompt_result)
+        if callback is not None and macro_result is not None:
+            callback(macro_result)
 
     def _build_cell_result(
         self,
@@ -352,11 +350,11 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                 description=cell.values["description"].strip() or None,
             ), ""
 
-        name = normalize_local_xprompt_name(name)
+        name = normalize_local_macro_name(name)
         used = set(self._model.macros) - (
             {cell.original_name} if cell.original_name else set()
         )
-        error = validate_local_xprompt_name(name, used)
+        error = validate_local_macro_name(name, used)
         if error:
             return None, error
         content = cell.values["content"].strip()

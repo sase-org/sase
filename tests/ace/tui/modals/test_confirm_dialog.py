@@ -41,14 +41,14 @@ def test_styled_subject_text_uses_single_line_fallback() -> None:
     modal = ConfirmDialog(
         "Commit & Push",
         "Commit and push your saved changes?",
-        subject="xprompts/review.md",
+        subject="macros/review.md",
         kind=ConfirmKind.NEUTRAL,
     )
 
     text = modal._styled_subject_text()
 
-    assert text.plain == "xprompts/review.md"
-    assert _styled_segments(text) == [("xprompts/review.md", "cyan")]
+    assert text.plain == "macros/review.md"
+    assert _styled_segments(text) == [("macros/review.md", "cyan")]
 
 
 def test_styled_subject_header_without_count_degrades_gracefully() -> None:

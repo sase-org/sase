@@ -51,8 +51,8 @@ _WORKSPACE_STYLE = "#5FD7FF"
 _BEAD_STYLE = "bold #FFAF00"
 _PATCH_STYLE = "#00D7AF"
 _RETRY_FIELD_STYLE = "#FF8700"
-_XPROMPT_GLYPHS = {"workflow": ("⌘", "bold #FFAF5F"), "swarm": ("❋", "bold #FF87D7")}
-_XPROMPT_DEFAULT_GLYPH = ("▣", "bold #87FFAF")
+_MACRO_GLYPHS = {"workflow": ("⌘", "bold #FFAF5F"), "swarm": ("❋", "bold #FF87D7")}
+_MACRO_DEFAULT_GLYPH = ("▣", "bold #87FFAF")
 
 _TIME_COLUMN_WIDTH = 9
 _IDENTITY_COLUMN_WIDTH = 24
@@ -249,7 +249,7 @@ def alias_history_detail_text(
             style=_HIDDEN_ROW_STYLE,
         )
     if run.used_macros:
-        text.append_text(_xprompts_line(run))
+        text.append_text(_macros_line(run))
     return text
 
 
@@ -292,13 +292,13 @@ def _append_field(text: Text, label: str, value: str, *, style: str) -> None:
     text.append(f"{value}\n", style=style)
 
 
-def _xprompts_line(run: AliasHistoryRun) -> Text:
+def _macros_line(run: AliasHistoryRun) -> Text:
     text = Text(no_wrap=False)
     text.append("Macros: ", style=_LABEL_STYLE)
     for index, used in enumerate(run.used_macros):
         if index:
             text.append("  ")
-        glyph, style = _XPROMPT_GLYPHS.get(used.kind, _XPROMPT_DEFAULT_GLYPH)
+        glyph, style = _MACRO_GLYPHS.get(used.kind, _MACRO_DEFAULT_GLYPH)
         text.append(f"{glyph} ", style=style)
         text.append(f"#{used.name}", style=style)
     text.append("\n")

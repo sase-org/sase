@@ -239,7 +239,7 @@ def _snippet_origin(site: SnippetDefinitionSite) -> str:
         if not module and site.path:
             module = Path(site.path).stem
         return f"plugin {module or 'plugin'}"
-    if site.kind == "xprompt":
+    if site.kind in ("macro", "xprompt"):
         return f"from #{site.macro_name or site.trigger}"
     return site.kind
 
@@ -257,7 +257,7 @@ def _macro_read_only_origin(definition: MiniMacroDefinition) -> str:
 
 def _snippet_chip(site: SnippetDefinitionSite, status: ExistingStatus) -> str:
     if status == "read_only":
-        if site.kind == "xprompt":
+        if site.kind in ("macro", "xprompt"):
             return "from #macro"
         if site.kind == "plugin":
             return "plugin"

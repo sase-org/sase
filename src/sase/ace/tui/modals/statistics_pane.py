@@ -30,7 +30,7 @@ from .statistics_pane_data import (
     ProjectsGroupBy,
     StatisticsView,
     StatisticsViewData,
-    XPromptsGroupBy,
+    MacrosGroupBy,
     load_statistics_view,
 )
 
@@ -58,7 +58,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._custom_range_value: str | None = None
         self._range = resolve_preset(DEFAULT_PRESET)
         self._projects_group_by: ProjectsGroupBy = "project"
-        self._xprompts_group_by: XPromptsGroupBy = "usage"
+        self._macros_group_by: MacrosGroupBy = "usage"
         self._perf_group_by: PerfGroupBy = "subsystem"
         self._project_filter: str | None = None
         self._project_filter_options: tuple[str, ...] = ()
@@ -67,8 +67,8 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._current_project_resolved = False
         self._current_project_key: str | None = None
         self._current_project_seed_worker: Worker[Any] | None = None
-        self._xprompt_focus: str | None = None
-        self._xprompt_focus_options: tuple[str, ...] = ()
+        self._macro_focus: str | None = None
+        self._macro_focus_options: tuple[str, ...] = ()
         self._auto_load = auto_load
         self._loading = False
         self._loaded_once = False
@@ -169,7 +169,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         view = self._view
         selected_range = self._range
         project_filter = self._project_filter
-        macro_focus = self._xprompt_focus
+        macro_focus = self._macro_focus
         perf_group_by = self._perf_group_by
         self._loading = True
         self._last_error = ""
@@ -248,7 +248,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                 result.view != self._view
                 or result.selected_range != self._range
                 or result.project_filter != self._project_filter
-                or result.macro_focus != self._xprompt_focus
+                or result.macro_focus != self._macro_focus
                 or (
                     self._view == "perf"
                     and (
@@ -267,7 +267,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                 self._project_filter_options_ready = True
                 self._maybe_seed_project_filter()
             if result.macro_focus is None:
-                self._xprompt_focus_options = tuple(
+                self._macro_focus_options = tuple(
                     row.name for row in result.views.macros.rows
                 )
             self._paint_current_view()

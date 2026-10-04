@@ -115,7 +115,7 @@ def test_jump_to_node_command_is_agents_only_with_finder_aliases() -> None:
 def test_last_vcs_macro_editor_command_is_all_tab_agent_command() -> None:
     """The Ctrl+G MRU editor action is discoverable on every tab."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}
-    spec = by_id["app.start_last_vcs_xprompt_in_editor"]
+    spec = by_id["app.start_last_vcs_macro_in_editor"]
     assert spec.label == "Edit last VCS macro"
     assert spec.category == "Agents"
     assert spec.tabs == ("artifacts", "agents", "services")

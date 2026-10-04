@@ -217,12 +217,12 @@ def try_apply_pending_space_prefill(
         return False
     try:
         from sase.ace.tui.actions.agent_workflow._entry_custom import (
-            resolve_vcs_xprompt_mru_head,
+            resolve_vcs_macro_mru_head,
         )
     except Exception:  # noqa: BLE001 - unresolvable head leaves a blank bar.
         return False
     try:
-        resolved = resolve_vcs_xprompt_mru_head(pairs)
+        resolved = resolve_vcs_macro_mru_head(pairs)
     except Exception:  # noqa: BLE001 - resolution failure leaves blank.
         return False
     if resolved is None:

@@ -51,8 +51,7 @@ async def test_action_open_editor_on_stacked_bar_requests_whole_stack() -> None:
         assert len(app.all_editor_requests) == 1
         assert app.editor_requests == []
         assert (
-            bar.xprompt_markdown_for_editor()
-            == "first\n\n---\n\nsecond\n\n---\n\nthird"
+            bar.macro_markdown_for_editor() == "first\n\n---\n\nsecond\n\n---\n\nthird"
         )
 
 
@@ -84,7 +83,7 @@ async def test_focused_pane_ctrl_g_starts_prefix_and_shadows_global_binding() ->
         await pilot.pause()
 
         # The focused prompt owns the prefix, so the app-level "edit last VCS
-        # xprompt" action never runs and no editor opens until a continuation.
+        # macro" action never runs and no editor opens until a continuation.
         assert app.editor_requests == []
         assert app.all_editor_requests == []
         assert app.global_editor_calls == 0
@@ -105,7 +104,7 @@ async def test_focused_normal_mode_ctrl_g_starts_prefix_and_shadows_global_bindi
 
         # NORMAL-mode ``Ctrl+G`` opens the same prompt-local ``^G`` prefix that
         # INSERT-mode ``Ctrl+G`` does instead of being swallowed: the app-level
-        # "edit last VCS xprompt" binding stays shadowed and no editor opens
+        # "edit last VCS macro" binding stays shadowed and no editor opens
         # until a continuation key.
         text_area = bar.active_text_area()
         assert text_area._vim_mode == "normal"

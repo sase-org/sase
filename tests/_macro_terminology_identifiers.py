@@ -149,22 +149,9 @@ _MACRO_NAME_ALLOWLIST = {
     ),
     ("src/sase/doctor/checks_config.py", "check_config_retired_xprompt_names"),
     ("src/sase/doctor/checks_config.py", "_check_config_retired_xprompt_names"),
-    # TUI-local helpers followed by project-tag tests.
-    ("tests/test_project_tags_expansion.py", "submitted_vcs_xprompt_prefix"),
-    ("tests/test_project_tag_surfaces.py", "_tag_styled_xprompt_body"),
-    ("tests/test_embedded_workflows_per_step.py", "load_xprompts_used"),
-    ("tests/test_legacy_macro_names.py", "load_xprompts_used"),
     # Config-frontmatter follows of TUI-owned spellings kept verbatim for
-    # the TUI phase (sase-1eq.5 owns the rename); remove with that phase.
+    # the both-states matrix.
     ("tests/test_config_macro_frontmatter.py", "auto_xprompt_menu"),
-    ("tests/test_config_macro_frontmatter.py", "_xprompt_placeholder_args_enabled"),
-    # TUI keymap action and field spellings, which stay verbatim.
-    ("tests/test_keymaps_defaults_panels.py", "start_last_vcs_xprompt_in_editor"),
-    ("tests/test_keymaps_registry_loading_panes.py", "focus_xprompt"),
-    ("tests/test_keymaps_registry_loading_panes.py", "clear_xprompt_focus"),
-    ("tests/test_keymaps_validation.py", "focus_xprompt"),
-    ("tests/test_keymaps_validation.py", "clear_xprompt_focus"),
-    ("tests/test_timezone_display_tui.py", "xprompts_group_by"),
 }
 
 

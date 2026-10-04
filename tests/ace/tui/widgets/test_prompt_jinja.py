@@ -237,7 +237,7 @@ async def test_completion_panel_entrypoints_noop_when_panel_pruned() -> None:
             name="review",
             insertion="#review",
             reference_prefix="#",
-            kind="xprompt",
+            kind="macro",
             input_signature=None,
             inputs=(input_hint,),
             content_preview=None,

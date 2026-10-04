@@ -38,7 +38,7 @@ class _CollapsedDetachedSessionPanel(FakePromptPanel):
         return True
 
     @property
-    def detaches_xprompt(self) -> bool:
+    def detaches_raw_prompt(self) -> bool:
         return True
 
     @property
@@ -120,10 +120,10 @@ def test_agent_session_content_hints_are_full_at_both_levels_and_use_phase_works
 
     root_dir = Path(root.artifacts_dir or "")
     child_dir = Path(child.artifacts_dir or "")
-    (root_dir / "raw_xprompt.md").write_text(
-        "@docs/visible-xprompt.md\n"
-        + "\n".join(f"xprompt filler {index}" for index in range(2, 15))
-        + "\n@docs/hidden-xprompt.md\n",
+    (root_dir / "raw_prompt.md").write_text(
+        "@docs/visible-macro.md\n"
+        + "\n".join(f"macro filler {index}" for index in range(2, 15))
+        + "\n@docs/hidden-macro.md\n",
         encoding="utf-8",
     )
     (root_dir / "01_prompt.md").write_text(
@@ -144,8 +144,8 @@ def test_agent_session_content_hints_are_full_at_both_levels_and_use_phase_works
     )
 
     expected_paths = {
-        str(root_workspace / "docs/visible-xprompt.md"),
-        str(root_workspace / "docs/hidden-xprompt.md"),
+        str(root_workspace / "docs/visible-macro.md"),
+        str(root_workspace / "docs/hidden-macro.md"),
         str(root_workspace / "src/visible-prompt.py"),
         str(root_workspace / "src/hidden-prompt.py"),
         str(root_workspace / "root/hidden-reply.txt"),
@@ -265,14 +265,14 @@ def test_agent_session_reply_resolves_workspace_once_for_all_chunks(
     }
 
 
-def test_session_collapsed_detached_xprompt_skips_markers(tmp_path: Path) -> None:
+def test_session_collapsed_detached_macro_skips_markers(tmp_path: Path) -> None:
     root, _child = make_agent_session(tmp_path)
     workspace = tmp_path / "workspace"
     (workspace / "src").mkdir(parents=True)
     (workspace / "src" / "example.py").write_text("", encoding="utf-8")
     (workspace / "src" / "body.py").write_text("", encoding="utf-8")
     root.workspace_dir = str(workspace)
-    Path(str(root.artifacts_dir)).joinpath("raw_xprompt.md").write_text(
+    Path(str(root.artifacts_dir)).joinpath("raw_prompt.md").write_text(
         "Read @src/example.py\n", encoding="utf-8"
     )
     Path(str(root.artifacts_dir)).joinpath("01_prompt.md").write_text(
@@ -284,8 +284,8 @@ def test_session_collapsed_detached_xprompt_skips_markers(tmp_path: Path) -> Non
 
     identity = find_identity_header(panel.captured[-1])
     assert identity is not None
-    assert identity.xprompt is not None
-    assert "[1]" not in identity.xprompt.plain
-    assert "Read @src/example.py" in identity.xprompt.plain
+    assert identity.raw_prompt is not None
+    assert "[1]" not in identity.raw_prompt.plain
+    assert "Read @src/example.py" in identity.raw_prompt.plain
     assert str(workspace / "src/example.py") not in result.file_hints.values()
     assert result.file_hints[1] == str(workspace / "src/body.py")

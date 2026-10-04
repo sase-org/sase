@@ -1,6 +1,6 @@
 """Leading list-marker highlighting overlay for ``PromptTextArea``.
 
-Extends the shared overlay approach used by the Jinja/alt/xprompt highlighters:
+Extends the shared overlay approach used by the Jinja/alt/macro highlighters:
 the bullet color is layered onto the same ``sase-jinja-prompt`` theme, and the
 marker spans are appended to ``self._highlights`` after the base markdown and
 code-block spans so a list marker stays visible even inside a fenced block.

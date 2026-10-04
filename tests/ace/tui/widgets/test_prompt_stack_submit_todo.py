@@ -10,7 +10,7 @@ from textual.widgets import Button
 from sase.ace.tui.modals import ConfirmActionModal
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import (
     CaptureApp,
     submit_current_pane,
@@ -157,7 +157,7 @@ async def test_selected_pane_todo_confirmation_preserves_then_commits(
         bar = app.query_one(PromptInputBar)
         source = tmp_path / "bound.md"
         source.write_text(prompt, encoding="utf-8")
-        binding = XPromptBinding.for_file(source)
+        binding = MacroBinding.for_file(source)
         bar._stack.bind(binding, source_markdown=prompt)
         original_texts = bar.all_prompt_texts()
         original_selection = bar._stack.selected_index

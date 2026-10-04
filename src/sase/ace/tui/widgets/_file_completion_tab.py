@@ -90,7 +90,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         # ``Some`` (possibly with empty items for a ``none`` slot) for any
         # in-tag cursor and ``None`` only outside tags, so checking first
         # gives Jinja precedence over placeholders, VCS, directives,
-        # xprompt args, model shortcuts, ``@``, and ``#`` without changing
+        # macro args, model shortcuts, ``@``, and ``#`` without changing
         # behavior outside tags.
         cursor_offset = self._absolute_offset(self.cursor_location)
         jinja_result = build_jinja_completion_result(
@@ -126,9 +126,9 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                 clause
             )
         else:
-            arg_ctx = self._get_xprompt_arg_completion_context()
+            arg_ctx = self._get_macro_arg_completion_context()
             if arg_ctx is not None:
-                return self._try_xprompt_arg_completion_tab(arg_ctx)
+                return self._try_macro_arg_completion_tab(arg_ctx)
             if self._try_artifact_ref_completion_tab():
                 return True
             if self._try_model_shortcut_completion(force=True):
@@ -143,13 +143,13 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                     token
                 )
             else:
-                xprompt_ctx = self._get_xprompt_token_context()
-                if xprompt_ctx is not None:
-                    self._completion_kind = "xprompt"
-                    row, span = xprompt_ctx
+                macro_ctx = self._get_macro_token_context()
+                if macro_ctx is not None:
+                    self._completion_kind = "macro"
+                    row, span = macro_ctx
                     start, end, token = span.start, span.end, span.token
                     candidates, shared_extension = (
-                        self._build_xprompt_completion_candidates(
+                        self._build_macro_completion_candidates(
                             token,
                             inline_reference_only=span.clamped,
                         )
@@ -187,9 +187,9 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         if len(candidates) == 1 and not is_directive_catalog_placeholder(candidates[0]):
             selected = candidates[0]
             accepted_kind = self._completion_kind
-            used_xprompt_skeleton = (
-                accepted_kind == "xprompt"
-                and self._accept_xprompt_completion_candidate(selected, row, start, end)
+            used_macro_skeleton = (
+                accepted_kind == "macro"
+                and self._accept_macro_completion_candidate(selected, row, start, end)
             )
             used_directive_template = (
                 accepted_kind == "directive"
@@ -197,19 +197,19 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                     selected, row, start, end
                 )
             )
-            if not (used_xprompt_skeleton or used_directive_template):
+            if not (used_macro_skeleton or used_directive_template):
                 self._replace_token_text(row, start, end, selected.insertion)
             if selected.is_dir and accepted_kind == "directive_arg":
                 self._file_completion_active = False
                 self._file_completion_candidates = []
                 self._file_completion_index = 0
                 if not self._try_auto_directive_arg_completion():
-                    self._clear_file_completion(clear_xprompt_arg_hint=False)
+                    self._clear_file_completion(clear_macro_arg_hint=False)
                 return True
-            self._clear_file_completion(clear_xprompt_arg_hint=False)
-            if accepted_kind == "xprompt":
-                if used_xprompt_skeleton:
-                    self._refresh_xprompt_completion_skeleton_hint(selected)
+            self._clear_file_completion(clear_macro_arg_hint=False)
+            if accepted_kind == "macro":
+                if used_macro_skeleton:
+                    self._refresh_macro_completion_skeleton_hint(selected)
                 else:
                     self._clear_macro_arg_hint()
             elif accepted_kind.startswith("macro_arg_"):
@@ -219,14 +219,14 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         if shared_extension:
             next_token = f"{token}{shared_extension}"
             self._replace_token_text(row, start, end, next_token)
-            if self._completion_kind == "xprompt":
-                xprompt_ctx = self._get_xprompt_token_context()
-                if xprompt_ctx is None:
+            if self._completion_kind == "macro":
+                macro_ctx = self._get_macro_token_context()
+                if macro_ctx is None:
                     self._clear_file_completion()
                     return True
-                row, span = xprompt_ctx
+                row, span = macro_ctx
                 start, end, token = span.start, span.end, span.token
-                candidates, _ = self._build_xprompt_completion_candidates(
+                candidates, _ = self._build_macro_completion_candidates(
                     token,
                     inline_reference_only=span.clamped,
                 )
@@ -236,7 +236,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                     self._clear_file_completion()
                     return True
                 row, start, end, token = ctx
-            if self._completion_kind != "xprompt":
+            if self._completion_kind != "macro":
                 if self._completion_kind == "directive":
                     candidates, _ = build_directive_completion_candidates(token)
                 elif self._completion_kind == "directive_arg":
@@ -248,7 +248,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                     start, end, token = clause.start, clause.end, clause.token
                     candidates, _ = self._build_live_directive_arg_candidates(clause)
                 elif self._completion_kind.startswith("macro_arg_"):
-                    arg_ctx = self._get_xprompt_arg_completion_context()
+                    arg_ctx = self._get_macro_arg_completion_context()
                     if arg_ctx is None:
                         self._clear_file_completion()
                         return True
@@ -428,11 +428,11 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         self._update_file_completion_panel(jinja_result.prefix)
         return True
 
-    def _try_xprompt_arg_completion_tab(
+    def _try_macro_arg_completion_tab(
         self,
         ctx: MacroArgCompletionContext,
     ) -> bool:
-        """Handle Ctrl+T-driven completion inside xprompt argument syntax."""
+        """Handle Ctrl+T-driven completion inside macro argument syntax."""
         base_dir = self._prompt_completion_base_dir()
         candidates, shared_extension = build_macro_arg_completion_candidates(
             ctx,
@@ -446,7 +446,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         self._completion_kind = ctx.completion_kind
 
         if not candidates:
-            self._clear_file_completion(clear_xprompt_arg_hint=False)
+            self._clear_file_completion(clear_macro_arg_hint=False)
             self._refresh_macro_arg_hint_from_cursor()
             return True
 
@@ -457,10 +457,10 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             )
             if (
                 ctx.completion_kind == "macro_arg_name"
-                and self._try_chain_xprompt_arg_completion()
+                and self._try_chain_macro_arg_completion()
             ):
                 return True
-            self._clear_file_completion(clear_xprompt_arg_hint=False)
+            self._clear_file_completion(clear_macro_arg_hint=False)
             self._refresh_macro_arg_hint_from_cursor()
             return True
 
@@ -468,9 +468,9 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         if shared_extension:
             next_token = f"{token}{shared_extension}"
             self._replace_absolute_range(ctx.value_start, ctx.value_end, next_token)
-            next_ctx = self._get_xprompt_arg_completion_context()
+            next_ctx = self._get_macro_arg_completion_context()
             if next_ctx is None:
-                self._clear_file_completion(clear_xprompt_arg_hint=False)
+                self._clear_file_completion(clear_macro_arg_hint=False)
                 self._refresh_macro_arg_hint_from_cursor()
                 return True
             candidates, _ = build_macro_arg_completion_candidates(
@@ -486,12 +486,12 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             token = effective_macro_arg_token(ctx)
             self._completion_kind = ctx.completion_kind
             if not candidates:
-                self._clear_file_completion(clear_xprompt_arg_hint=False)
+                self._clear_file_completion(clear_macro_arg_hint=False)
                 self._refresh_macro_arg_hint_from_cursor()
                 return True
 
         self._file_completion_active = True
-        self._xprompt_arg_completion_trigger = "manual"
+        self._macro_arg_completion_trigger = "manual"
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._completion_selection_moved = False

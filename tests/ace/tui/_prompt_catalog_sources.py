@@ -33,11 +33,11 @@ def _config_contributions(
     return (contributions, (), (("user", "ace.snippets"),))
 
 
-def test_prompt_source_token_changes_for_xprompt_file_create(
+def test_prompt_source_token_changes_for_macro_file_create(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    macro_dir = tmp_path / ".xprompts"
+    macro_dir = tmp_path / ".macros"
     macro_dir.mkdir()
     config_dir = tmp_path / "config"
     config_dir.mkdir()
@@ -57,7 +57,7 @@ def test_prompt_source_token_changes_for_project_file(
     monkeypatch,
 ) -> None:
     config_dir = tmp_path / "config"
-    project_dir = config_dir / "xprompts" / "sase"
+    project_dir = config_dir / "macros" / "sase"
     project_dir.mkdir(parents=True)
     monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
     monkeypatch.setattr(prompt_catalog, "get_macro_search_paths", lambda: [])
@@ -142,7 +142,7 @@ def test_build_prompt_catalog_snapshot_short_circuits_unchanged_token(
     )
 
 
-def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
+def test_build_prompt_catalog_snapshot_merges_macro_and_user_snippets(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -213,9 +213,9 @@ def test_prompt_catalog_preserves_explicit_capitalized_collisions(
     monkeypatch.setattr(
         "sase.macro.loader.get_all_macros",
         lambda project=None: {
-            "foo": Macro(name="foo", content="xprompt lower", snippet=True),
-            "Foo": Macro(name="Foo", content="xprompt capital", snippet=True),
-            "bar": Macro(name="bar", content="xprompt bar", snippet=True),
+            "foo": Macro(name="foo", content="macro lower", snippet=True),
+            "Foo": Macro(name="Foo", content="macro capital", snippet=True),
+            "bar": Macro(name="bar", content="macro bar", snippet=True),
         },
     )
     monkeypatch.setattr(
@@ -243,15 +243,15 @@ def test_prompt_catalog_preserves_explicit_capitalized_collisions(
     assert snapshot is not None
     assert snapshot.explicit_snippets == {
         "foo": "user lower",
-        "Foo": "xprompt capital$0",
-        "bar": "xprompt bar$0",
+        "Foo": "macro capital$0",
+        "bar": "macro bar$0",
         "Bar": "user capital",
         "User_only": "authored capital",
         "user_only": "user lowercase",
     }
     assert snapshot.snippets["foo"] == "user lower"
-    assert snapshot.snippets["Foo"] == "xprompt capital$0"
-    assert snapshot.snippets["bar"] == "xprompt bar$0"
+    assert snapshot.snippets["Foo"] == "macro capital$0"
+    assert snapshot.snippets["bar"] == "macro bar$0"
     assert snapshot.snippets["Bar"] == "user capital"
     assert snapshot.snippets["user_only"] == "user lowercase"
     assert snapshot.snippets["User_only"] == "authored capital"
@@ -306,12 +306,12 @@ def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
 
 def test_compose_pending_snippet_saves_preserves_existing_and_resolves_refs() -> None:
     composed = prompt_catalog.compose_pending_snippet_saves(
-        {"xprompt": "Existing $1$0", "user": "User"},
-        {"saved": "#[xprompt] then $1"},
+        {"macro": "Existing $1$0", "user": "User"},
+        {"saved": "#[macro] then $1"},
     )
 
-    assert composed["xprompt"] == "Existing $1$0"
-    assert composed["Xprompt"] == "Existing $1$0"
+    assert composed["macro"] == "Existing $1$0"
+    assert composed["Macro"] == "Existing $1$0"
     assert composed["user"] == "User"
     assert composed["User"] == "User"
     assert composed["saved"] == "Existing $1 then $2$0"

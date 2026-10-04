@@ -165,7 +165,7 @@ class AgentDetailDisplayMixin:
     def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
         """Re-render the prompt panel with file path hints.
 
-        Scans xprompt, prompt, and chat sections for file paths and
+        Scans macro, prompt, and chat sections for file paths and
         inserts numbered ``[N]`` markers.  Returns the hint mappings so
         the caller can process user selections.  Advancing the detail
         generation first prevents deferred work from the preceding plain

@@ -142,7 +142,7 @@ def test_partial_lane_request_resolves_only_the_requested_lane(
     assert summary.ready_lanes == frozenset({"memory"})
     assert summary.memory_reads == (_MEMORY_EVENT,)
     # Every other lane was not requested, so it stays unresolved rather than
-    # paying for xprompts, plan/bead lookups, artifacts, skills, etc.
+    # paying for macros, plan/bead lookups, artifacts, skills, etc.
     assert summary.skill_uses == ()
     assert summary.artifact_file_paths is None
     assert summary.associated_plan is None

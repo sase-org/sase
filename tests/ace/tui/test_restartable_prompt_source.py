@@ -40,11 +40,11 @@ def _agent(
     )
 
 
-def test_restartable_prompt_prefers_raw_xprompt(tmp_path: Path) -> None:
+def test_restartable_prompt_prefers_raw_prompt(tmp_path: Path) -> None:
     get_global_cache().clear()
     artifacts = tmp_path / "raw"
     agent = _agent(artifacts, suffix="20260723120000")
-    (artifacts / "raw_xprompt.md").write_text(
+    (artifacts / "raw_prompt.md").write_text(
         "#gh:feature\nraw launch prompt",
         encoding="utf-8",
     )
@@ -69,7 +69,7 @@ def test_restartable_prompt_uses_matching_cached_fallback_and_restores_context(
         suffix="20260723120000",
         cl_name="feature",
     )
-    (parent_dir / "raw_xprompt.md").write_text(
+    (parent_dir / "raw_prompt.md").write_text(
         "#gh:project #propose\nPlan the change",
         encoding="utf-8",
     )

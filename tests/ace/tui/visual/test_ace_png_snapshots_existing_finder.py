@@ -153,7 +153,7 @@ def _snippet_entries():
             ),
             SnippetDefinitionSite(
                 trigger="review",
-                kind="xprompt",
+                kind="macro",
                 path=None,
                 display="#review (macro snippet)",
                 template="From the review macro",

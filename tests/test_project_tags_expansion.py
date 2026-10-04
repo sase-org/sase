@@ -168,7 +168,7 @@ def test_launch_toast_prefix_never_loads_catalog(
     tag_catalog: ProjectTagCatalog,
 ) -> None:
     from sase.ace.tui.actions.agent_workflow._launch_submit_helpers import (
-        submitted_vcs_xprompt_prefix,
+        submitted_vcs_prompt_prefix,
     )
 
     with (
@@ -182,7 +182,7 @@ def test_launch_toast_prefix_never_loads_catalog(
             return_value=tag_catalog,
         ),
     ):
-        assert submitted_vcs_xprompt_prefix("+sase do x") == "#gh:sase"
+        assert submitted_vcs_prompt_prefix("+sase do x") == "#gh:sase"
     with (
         patch.object(
             tag_catalog_module,
@@ -191,7 +191,7 @@ def test_launch_toast_prefix_never_loads_catalog(
         ),
         patch("sase.project_tags.peek_project_tag_catalog", return_value=None),
     ):
-        assert submitted_vcs_xprompt_prefix("+sase do x") is None
+        assert submitted_vcs_prompt_prefix("+sase do x") is None
 
 
 def test_project_tag_for_spellings() -> None:

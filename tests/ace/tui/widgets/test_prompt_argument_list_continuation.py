@@ -146,7 +146,7 @@ def _ordinary_pair_result(marked: str) -> tuple[str, int]:
         "#foo(a<cursor>",
         "`#foo(a)<cursor>`",
         "```\n#foo(a)<cursor>\n```",
-        "%xprompts_enabled:false\n#foo(a)<cursor>\n%xprompts_enabled:true\n",
+        "%macros_enabled:false\n#foo(a)<cursor>\n%macros_enabled:true\n",
         "---\nname: #foo(a)<cursor>\n---\n#foo(a)",
         "{{ #foo(a)<cursor> }}",
         "{% set value = '#foo(a)<cursor>' %}",
@@ -280,7 +280,7 @@ async def test_continuation_edit_works_when_auto_menu_is_disabled() -> None:
         with patch.object(
             type(ta),
             "_prompt_completion_settings",
-            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+            return_value=PromptCompletionSettings(auto_macro_menu=False),
         ):
             await pilot.press("(")
 

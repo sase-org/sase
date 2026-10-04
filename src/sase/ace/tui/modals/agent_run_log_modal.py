@@ -38,7 +38,7 @@ def _load_agents_for_cl(
     """Load agents for a specific Patch, including dismissed ones.
 
     Also includes agents that created this PR via meta_new_cl or
-    meta_new_pr output variables in embedded xprompt workflows.
+    meta_new_pr output variables in embedded macro workflows.
 
     Returns:
         Tuple of (agents, dismissed_identities) where agents includes both
@@ -437,22 +437,22 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append(f"{agent.error_message}\n", style="red")
 
         # AGENT RAW PROMPT section
-        xprompt_content = agent.get_raw_prompt_content()
-        if xprompt_content:
+        macro_content = agent.get_raw_prompt_content()
+        if macro_content:
             text.append("\n")
             text.append("\u2500" * 40 + "\n", style="dim")
             text.append("AGENT RAW PROMPT\n", style="bold underline #87D7FF")
             # Truncate if very long
-            lines = xprompt_content.split("\n")
+            lines = macro_content.split("\n")
             if len(lines) > 50:
-                xprompt_content = "\n".join(lines[:50]) + "\n... (truncated)"
-            xprompt_content = humanize_vcs_refs_in_text(xprompt_content)
+                macro_content = "\n".join(lines[:50]) + "\n... (truncated)"
+            macro_content = humanize_vcs_refs_in_text(macro_content)
             try:
                 from sase.project_tag_style import append_tagified_text
 
-                append_tagified_text(text, f"{xprompt_content}\n")
+                append_tagified_text(text, f"{macro_content}\n")
             except Exception:
-                text.append(f"{xprompt_content}\n")
+                text.append(f"{macro_content}\n")
 
         # AGENT CHAT section
         response_content = agent.get_response_content()

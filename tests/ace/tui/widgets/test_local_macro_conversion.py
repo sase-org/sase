@@ -1,4 +1,4 @@
-"""Unit tests for the pure local-xprompt conversion helpers (``gL``).
+"""Unit tests for the pure local-macro conversion helpers (``gL``).
 
 These cover the conversion *decisions* without a Textual app: name normalization
 and validation, Jinja input inference, and invocation skeleton generation.
@@ -10,23 +10,23 @@ import pytest
 
 import sase.ace.tui.widgets._local_macro_conversion as conversion_module
 from sase.ace.tui.widgets._local_macro_conversion import (
-    build_local_xprompt,
+    build_local_macro,
     convert_placeholders_to_inputs,
-    infer_local_xprompt_inputs,
-    local_xprompt_invocation_skeleton,
-    normalize_local_xprompt_name,
-    validate_local_xprompt_name,
+    infer_local_macro_inputs,
+    local_macro_invocation_skeleton,
+    normalize_local_macro_name,
+    validate_local_macro_name,
 )
 from sase.macro.models import InputType
 from sase.macro.prompt_frontmatter import LOCAL_MACRO_SOURCE
 
 
 def _disable_placeholder_args(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Turn off ``ace.prompt_inputs.xprompt_placeholder_args``."""
+    """Turn off ``ace.prompt_inputs.macro_placeholder_args``."""
     monkeypatch.setattr(
         conversion_module,
         "load_merged_config",
-        lambda: {"ace": {"prompt_inputs": {"xprompt_placeholder_args": False}}},
+        lambda: {"ace": {"prompt_inputs": {"macro_placeholder_args": False}}},
     )
 
 
@@ -34,38 +34,38 @@ def _disable_placeholder_args(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_normalize_adds_underscore_prefix() -> None:
-    assert normalize_local_xprompt_name("rules") == "_rules"
+    assert normalize_local_macro_name("rules") == "_rules"
 
 
 def test_normalize_keeps_existing_underscore_without_doubling() -> None:
-    assert normalize_local_xprompt_name("_rules") == "_rules"
+    assert normalize_local_macro_name("_rules") == "_rules"
 
 
 def test_normalize_strips_surrounding_whitespace() -> None:
-    assert normalize_local_xprompt_name("  rules  ") == "_rules"
+    assert normalize_local_macro_name("  rules  ") == "_rules"
 
 
 def test_normalize_blank_is_empty() -> None:
-    assert normalize_local_xprompt_name("   ") == ""
+    assert normalize_local_macro_name("   ") == ""
 
 
 # -- name validation --------------------------------------------------------
 
 
 def test_validate_accepts_underscore_name() -> None:
-    assert validate_local_xprompt_name("_rules", set()) == ""
+    assert validate_local_macro_name("_rules", set()) == ""
 
 
 def test_validate_rejects_empty() -> None:
-    assert validate_local_xprompt_name("", set()) == "name is required"
+    assert validate_local_macro_name("", set()) == "name is required"
 
 
 def test_validate_rejects_non_identifier() -> None:
-    assert validate_local_xprompt_name("_my rules", set()) != ""
+    assert validate_local_macro_name("_my rules", set()) != ""
 
 
 def test_validate_rejects_duplicate() -> None:
-    error = validate_local_xprompt_name("_rules", {"_rules"})
+    error = validate_local_macro_name("_rules", {"_rules"})
     assert "already exists" in error
 
 
@@ -73,7 +73,7 @@ def test_validate_rejects_duplicate() -> None:
 
 
 def test_infer_no_jinja_yields_no_inputs() -> None:
-    conversion = infer_local_xprompt_inputs("Plain prompt body")
+    conversion = infer_local_macro_inputs("Plain prompt body")
     assert conversion is not None
     assert conversion.body == "Plain prompt body"
     assert conversion.inputs == []
@@ -81,7 +81,7 @@ def test_infer_no_jinja_yields_no_inputs() -> None:
 
 
 def test_infer_unknown_variables_become_text_inputs() -> None:
-    conversion = infer_local_xprompt_inputs("Review {{ topic }} with {{ details }}")
+    conversion = infer_local_macro_inputs("Review {{ topic }} with {{ details }}")
     assert conversion is not None
     assert [arg.name for arg in conversion.inputs] == ["details", "topic"]
     assert all(arg.type is InputType.TEXT for arg in conversion.inputs)
@@ -93,7 +93,7 @@ def test_infer_unknown_variables_become_text_inputs() -> None:
 
 def test_infer_known_globals_are_not_inputs() -> None:
     # ``root`` is a known top-level global, so it is never inferred as an input.
-    conversion = infer_local_xprompt_inputs("Path is {{ root }}")
+    conversion = infer_local_macro_inputs("Path is {{ root }}")
     assert conversion is not None
     assert conversion.inputs == []
 
@@ -101,19 +101,19 @@ def test_infer_known_globals_are_not_inputs() -> None:
 def test_infer_known_globals_without_runtime_value(monkeypatch) -> None:
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
 
-    conversion = infer_local_xprompt_inputs("Path is {{ root }}")
+    conversion = infer_local_macro_inputs("Path is {{ root }}")
     assert conversion is not None
     assert conversion.inputs == []
 
 
 def test_infer_invalid_jinja_returns_none() -> None:
-    assert infer_local_xprompt_inputs("Broken {{ unclosed ") is None
+    assert infer_local_macro_inputs("Broken {{ unclosed ") is None
 
 
 def test_infer_runtime_builtins_are_not_inputs() -> None:
     # Run builtins, conditionals, and positionals render from the agent run,
     # so they are never inferred as helper inputs.
-    conversion = infer_local_xprompt_inputs(
+    conversion = infer_local_macro_inputs(
         "{{ wait.chats }} {{ patch_name }} {{ n }} {{ _1 }} for {{ topic }}"
     )
     assert conversion is not None
@@ -124,18 +124,16 @@ def test_infer_runtime_builtins_are_not_inputs() -> None:
 
 
 def test_skeleton_without_inputs_is_bare_reference() -> None:
-    xprompt = build_local_xprompt("_rules", "do the thing", [])
-    assert xprompt.source_path == LOCAL_MACRO_SOURCE
-    assert local_xprompt_invocation_skeleton(xprompt) == "#_rules"
+    macro = build_local_macro("_rules", "do the thing", [])
+    assert macro.source_path == LOCAL_MACRO_SOURCE
+    assert local_macro_invocation_skeleton(macro) == "#_rules"
 
 
 def test_skeleton_with_inputs_uses_named_args_and_tabstops() -> None:
-    conversion = infer_local_xprompt_inputs("Review {{ topic }} with {{ details }}")
+    conversion = infer_local_macro_inputs("Review {{ topic }} with {{ details }}")
     assert conversion is not None
-    xprompt = build_local_xprompt("_rules", "body", conversion.inputs)
-    assert (
-        local_xprompt_invocation_skeleton(xprompt) == "#_rules(details=$1, topic=$2)$0"
-    )
+    macro = build_local_macro("_rules", "body", conversion.inputs)
+    assert local_macro_invocation_skeleton(macro) == "#_rules(details=$1, topic=$2)$0"
 
 
 # -- raw placeholder conversion --------------------------------------------
@@ -185,7 +183,7 @@ def test_local_inference_disabled_keeps_only_jinja_inputs(
 ) -> None:
     _disable_placeholder_args(monkeypatch)
 
-    converted = infer_local_xprompt_inputs("Deploy {{ target }} with <service>")
+    converted = infer_local_macro_inputs("Deploy {{ target }} with <service>")
 
     assert converted is not None
     assert converted.body == "Deploy {{ target }} with <service>"
@@ -198,7 +196,7 @@ def test_local_inference_disabled_invalid_jinja_still_returns_none(
 ) -> None:
     _disable_placeholder_args(monkeypatch)
 
-    assert infer_local_xprompt_inputs("Broken {{ unclosed with <service>") is None
+    assert infer_local_macro_inputs("Broken {{ unclosed with <service>") is None
 
 
 def test_placeholder_conversion_config_failure_falls_back_to_enabled(
@@ -221,7 +219,7 @@ def test_placeholder_conversion_config_failure_falls_back_to_enabled(
 
 
 def test_local_inference_appends_placeholder_inputs_after_jinja_inputs() -> None:
-    converted = infer_local_xprompt_inputs(
+    converted = infer_local_macro_inputs(
         "Use {{ zulu }} with <the plan> and {{ alpha }}"
     )
     assert converted is not None
@@ -234,7 +232,7 @@ def test_local_inference_appends_placeholder_inputs_after_jinja_inputs() -> None
 
 
 def test_local_inference_reuses_matching_jinja_input() -> None:
-    converted = infer_local_xprompt_inputs("Use <service> and {{ service }}")
+    converted = infer_local_macro_inputs("Use <service> and {{ service }}")
     assert converted is not None
     assert converted.body == "Use {{ service }} and {{ service }}"
     assert [arg.name for arg in converted.inputs] == ["service"]

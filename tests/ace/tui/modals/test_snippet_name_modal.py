@@ -344,7 +344,7 @@ async def test_derived_only_collision_returns_composed_template(tmp_path: Path) 
                             trigger="todo",
                             template="derived $0",
                             macro_name="project/todo",
-                            source_path_display="xprompts/todo.md",
+                            source_path_display="macros/todo.md",
                         ),
                     ),
                 ),

@@ -90,12 +90,12 @@ def append_agent_metadata_fields(
         and summary is not None
         and (not cheap or detach_identity)
     ):
-        from ._agent_macros import append_agent_xprompts_section
+        from ._agent_macros import append_agent_macros_section
 
         project_key = (
             Path(agent.project_file).parent.name if agent.project_file else None
         )
-        append_agent_xprompts_section(
+        append_agent_macros_section(
             text,
             summary.xprompts_used,
             project_key=project_key,

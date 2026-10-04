@@ -340,12 +340,12 @@ def _read_metadata_list(path: Path) -> list[dict[str, Any]] | None:
     return data
 
 
-def load_xprompts_used(agent: Agent) -> list[dict[str, Any]] | None:
-    """Load xprompt metadata from macros.json.
+def load_macros_used(agent: Agent) -> list[dict[str, Any]] | None:
+    """Load macro metadata from macros.json.
 
     Uses the step-specific file ``macros_{step_name}.json``
     when the agent has a ``step_name``; falls back to the shared file
-    only when ``step_name`` is None. Pre-rename ``xprompts.json``
+    only when ``step_name`` is None. Pre-rename ``macros.json``
     spellings read as equal.
 
     Args:
@@ -376,7 +376,7 @@ def load_xprompts_used(agent: Agent) -> list[dict[str, Any]] | None:
             data = _read_metadata_list(artifacts_path / step_name)
             if data is not None:
                 return data
-        # Step has no xprompts — don't fall back to shared file
+        # Step has no macros — don't fall back to shared file
         return None
 
     # Fall back to shared file (only for agents without step_name)

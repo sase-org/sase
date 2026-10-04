@@ -74,7 +74,7 @@ from sase.ace.tui.widgets._prompt_input_bar_title import (
 from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackState,
-    XPromptReadonlyTarget,
+    MacroReadonlyTarget,
 )
 from sase.macro.models import InputArg
 
@@ -128,7 +128,7 @@ class PromptInputBar(
         mode: str = "prompt",
         *,
         initial_panes: list[str] | None = None,
-        initial_xprompt_markdown: str | None = None,
+        initial_raw_prompt_markdown: str | None = None,
         initial_selected_pane: int | None = None,
         initial_cursor: tuple[int, int] | None = None,
         **kwargs: Any,
@@ -164,10 +164,10 @@ class PromptInputBar(
         self._next_word_hint_visible = False
         self._next_word_hint_text = ""
         self._title_mode_suffix = ""
-        self._readonly_macro_target: XPromptReadonlyTarget | None = None
+        self._readonly_macro_target: MacroReadonlyTarget | None = None
         self._macro_source_stale = False
-        self._xprompt_stale_check_in_flight = False
-        self._xprompt_stale_checked_mono = 0.0
+        self._macro_stale_check_in_flight = False
+        self._macro_stale_checked_mono = 0.0
         self._macro_target_generation = 0
         # Monotonic per-rebuild id namespace so a fresh stack mounted while the
         # previous panes are still being detached never collides on widget ids.
@@ -175,7 +175,7 @@ class PromptInputBar(
         self._snippet_focus_restore: PromptFocusRestore | None = None
         self._mini_macro_focus_restore: PromptFocusRestore | None = None
         self._placeholder = ""
-        # ``#@`` + ``Ctrl+I`` inline expansions that auto-staged xprompt inputs,
+        # ``#@`` + ``Ctrl+I`` inline expansions that auto-staged macro inputs,
         # coupled to the body splice so NORMAL-mode ``u`` / ``Ctrl+R`` unstage /
         # restage them. ``_auto_staged_inputs`` maps a currently auto-owned input
         # name to its persisted declaration (to detect later user edits).
@@ -186,15 +186,15 @@ class PromptInputBar(
             # an embedded ``---`` or lifted frontmatter. Used by bulk
             # kill-and-edit so each killed agent maps to exactly one pane.
             self._stack = PromptStackState.from_panes(initial_panes)
-        elif initial_xprompt_markdown is not None:
-            # Editor-file semantics: lift leading xprompt frontmatter into the
+        elif initial_raw_prompt_markdown is not None:
+            # Editor-file semantics: lift leading macro frontmatter into the
             # shared stack frontmatter and split real ``---`` body separators
             # into one pane per agent segment. Used when a ` @`-review-marker
             # editor return remounts the bar for review (frontmatter auto-shows
             # on mount). Compared with ``initial_value`` history-load semantics,
             # this path also normalizes a lone body pane through the canonical
             # splitter instead of keeping the body text verbatim.
-            self._stack = PromptStackState.from_text(initial_xprompt_markdown)
+            self._stack = PromptStackState.from_text(initial_raw_prompt_markdown)
         else:
             self._stack = self._state_from_text(initial_value)
         if initial_selected_pane is not None:

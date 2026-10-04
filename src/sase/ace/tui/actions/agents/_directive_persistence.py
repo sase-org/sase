@@ -1,4 +1,4 @@
-"""Worker-safe persistence for TUI edits to xprompt-backed agent properties."""
+"""Worker-safe persistence for TUI edits to macro-backed agent properties."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ class ReadyMarkerPatch:
 
 @dataclass(frozen=True)
 class AgentDirectivePersistenceSpec:
-    """All disk mutations for one xprompt directive-backed property edit."""
+    """All disk mutations for one macro directive-backed property edit."""
 
     artifacts_dir: str | Path | None
     prompt_mutator: Callable[[str], str] | None = None

@@ -57,6 +57,15 @@ RETIRED_PATH_TARGETS: tuple[tuple[str, str], ...] = (
     ("xprompts-collection-schema", "macros-collection-schema"),
 )
 
+#: Retired TUI keymap actions paired with their canonical replacements.
+#: Authored keymap aliases are flag-gated; both spellings in one mapping
+#: are an error in both flag states.
+RETIRED_KEYMAP_ACTIONS: tuple[tuple[str, str], ...] = (
+    ("focus_xprompt", "focus_macro"),
+    ("clear_xprompt_focus", "clear_macro_focus"),
+    ("start_last_vcs_xprompt_in_editor", "start_last_vcs_macro_in_editor"),
+)
+
 _RETIRED_PATH_TARGET_MAP = dict(RETIRED_PATH_TARGETS)
 
 
@@ -99,6 +108,42 @@ def normalize_config_layer(
         raise ValueError("normalize_macro_config_layer returned no mapping")
     diagnostics = result.get("diagnostics", [])
     return canonical, list(diagnostics)
+
+
+def normalize_keymap_actions(
+    mapping: Mapping[str, Any] | None,
+    *,
+    source: str = "",
+    accept_legacy: bool | None = None,
+) -> dict[str, Any]:
+    """Rewrite retired keymap action keys to their canonical names.
+
+    Flag on accepts a legacy key as its macro action. Flag off rejects it
+    with an error that names the replacement. Both spellings in one mapping
+    are an error in both flag states. Presence (not truthiness) decides.
+    Resolve the flag only when a retired key is present so empty and
+    canonical-only mappings stay in-memory.
+    """
+    if not isinstance(mapping, dict):
+        return {}
+    result = dict(mapping)
+    suffix = f" ({source})" if source else ""
+    resolved_accept_legacy = accept_legacy
+    for old, new in RETIRED_KEYMAP_ACTIONS:
+        has_old = old in result
+        has_new = new in result
+        if has_old and has_new:
+            raise ValueError(
+                f"{old} and {new} cannot be combined; use only {new}{suffix}"
+            )
+        if not has_old:
+            continue
+        if resolved_accept_legacy is None:
+            resolved_accept_legacy = legacy_xprompt_syntax_enabled()
+        if not resolved_accept_legacy:
+            raise ValueError(f"{old} is retired; use {new}{suffix}")
+        result[new] = result.pop(old)
+    return result
 
 
 def normalize_frontmatter_macros(
@@ -202,6 +247,7 @@ __all__ = [
     "RETIRED_CONFIG_KEYS",
     "RETIRED_ENV_VARS",
     "RETIRED_FRONTMATTER_KEY",
+    "RETIRED_KEYMAP_ACTIONS",
     "RETIRED_LSP_BINARY",
     "RETIRED_PATH_TARGETS",
     "RETIRED_PLUGIN_GROUP",
@@ -209,5 +255,6 @@ __all__ = [
     "legacy_xprompt_syntax_enabled",
     "normalize_config_layer",
     "normalize_frontmatter_macros",
+    "normalize_keymap_actions",
     "normalize_legacy_root_args",
 ]

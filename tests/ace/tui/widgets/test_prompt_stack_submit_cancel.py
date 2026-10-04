@@ -22,17 +22,17 @@ import pytest
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+from sase.ace.tui.widgets.prompt_stack import MacroBinding
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 
 
 # --- <enter>: submit-choice modal ------------------------------------------
 
 
-def _target_binding(tmp_path: Path, body: str = "draft\n") -> XPromptBinding:
+def _target_binding(tmp_path: Path, body: str = "draft\n") -> MacroBinding:
     source = tmp_path / "draft.md"
     source.write_text(body, encoding="utf-8")
-    return XPromptBinding.for_file(source, reference="#draft")
+    return MacroBinding.for_file(source, reference="#draft")
 
 
 def _submit_choice_rows(modal: PromptSubmitChoiceModal) -> list[str]:
@@ -340,7 +340,7 @@ async def test_ctrl_g_enter_submits_selected_pane_from_insert() -> None:
 
 async def test_g_enter_reattaches_frontmatter_to_single_pane_submit() -> None:
     # Prompt-level YAML frontmatter is held on the stack, not as a pane; a lone
-    # pane submit must carry it so referenced local xprompts still resolve.
+    # pane submit must carry it so referenced local macros still resolve.
     app = CaptureApp("---\nmodel: opus\n---\nalpha\n---\nbeta")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -566,8 +566,8 @@ async def test_ctrl_g_ctrl_c_cancels_all_panes_from_normal() -> None:
         assert event.record_segments is False
 
 
-async def test_ctrl_g_ctrl_c_cancel_all_preserves_frontmatter_xprompts() -> None:
-    prompt = "---\nxprompts:\n  _rules: Follow the checklist\n---\nfirst\n---\nsecond"
+async def test_ctrl_g_ctrl_c_cancel_all_preserves_frontmatter_macros() -> None:
+    prompt = "---\nmacros:\n  _rules: Follow the checklist\n---\nfirst\n---\nsecond"
     app = CaptureApp(prompt)
 
     async with app.run_test(size=(80, 30)) as pilot:

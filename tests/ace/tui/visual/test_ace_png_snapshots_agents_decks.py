@@ -50,7 +50,7 @@ def _reply_agent(tmp_path: Path) -> Agent:
     """Build a fixture agent whose Main deck has Context and Reply cards."""
     artifacts_dir = tmp_path / "visual-decks-artifacts"
     artifacts_dir.mkdir()
-    (artifacts_dir / "raw_xprompt.md").write_text(
+    (artifacts_dir / "raw_prompt.md").write_text(
         "Launch visual decks\n", encoding="utf-8"
     )
     (artifacts_dir / "01_prompt.md").write_text(
@@ -92,7 +92,7 @@ def _live_reply_agent(tmp_path: Path) -> Agent:
     """Build an in-flight Muse reply whose artifact can grow between frames."""
     artifacts_dir = tmp_path / "live-reply-artifacts"
     artifacts_dir.mkdir()
-    (artifacts_dir / "raw_xprompt.md").write_text(
+    (artifacts_dir / "raw_prompt.md").write_text(
         "Launch live reply fixture\n", encoding="utf-8"
     )
     (artifacts_dir / "01_prompt.md").write_text(

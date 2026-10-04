@@ -24,7 +24,7 @@ from sase.macro.models import UNSET, InputArg, Macro
 from sase.macro.properties import MacroProperties, macro_properties
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
-PreviewKind = Literal["xprompt", "file"]
+PreviewKind = Literal["macro", "file"]
 PreviewDefaultView = Literal["source", "rendered"]
 PreviewMedia = Literal["text", "image"]
 
@@ -81,9 +81,9 @@ def _cursor_in_shorthand_argument_text(ref: MacroReference, offset: int) -> bool
     return start is not None and start <= offset < ref.end
 
 
-def _preview_token_from_xprompt_reference(ref: MacroReference) -> PreviewToken:
+def _preview_token_from_macro_reference(ref: MacroReference) -> PreviewToken:
     return PreviewToken(
-        kind="xprompt",
+        kind="macro",
         raw=ref.raw,
         target=ref.name,
         start=ref.start,
@@ -97,7 +97,7 @@ def detect_preview_target_at_cursor(
     *,
     known_skills: frozenset[str] = frozenset(),
 ) -> PreviewToken | None:
-    """Return the xprompt or file token under *cursor_offset*, if any."""
+    """Return the macro or file token under *cursor_offset*, if any."""
     offset = max(0, min(cursor_offset, len(text)))
 
     if known_skills and "/" in text:
@@ -105,7 +105,7 @@ def detect_preview_target_at_cursor(
             if span.kind == "skill" and span.start <= offset < span.end:
                 raw = text[span.start : span.end]
                 return PreviewToken(
-                    kind="xprompt",
+                    kind="macro",
                     raw=raw,
                     target=raw[1:],
                     start=span.start,
@@ -117,7 +117,7 @@ def detect_preview_target_at_cursor(
         if ref.start <= offset < ref.end:
             if _cursor_in_shorthand_argument_text(ref, offset):
                 continue
-            return _preview_token_from_xprompt_reference(ref)
+            return _preview_token_from_macro_reference(ref)
 
     for match in iter_file_path_matches(text):
         at_prefix = match.group(1)
@@ -147,7 +147,7 @@ def detect_preview_target_at_cursor(
 def detect_shorthand_argument_owner_at_cursor(
     text: str, cursor_offset: int
 ) -> PreviewToken | None:
-    """Return the xprompt whose ``: ``/``:: `` argument text holds the cursor."""
+    """Return the macro whose ``: ``/``:: `` argument text holds the cursor."""
     offset = max(0, min(cursor_offset, len(text)))
     owner: MacroReference | None = None
     for ref in iter_macro_references(text):
@@ -157,7 +157,7 @@ def detect_shorthand_argument_owner_at_cursor(
             owner = ref
     if owner is None:
         return None
-    return _preview_token_from_xprompt_reference(owner)
+    return _preview_token_from_macro_reference(owner)
 
 
 def is_slash_skill_candidate_at_cursor(text: str, cursor_offset: int) -> bool:
@@ -200,33 +200,33 @@ def resolve_preview_target(
     base_dir: str,
 ) -> PreviewPayload:
     """Resolve *token* to preview content, raising :class:`PreviewError`."""
-    if token.kind == "xprompt":
-        return _resolve_xprompt_preview(token, project=project)
+    if token.kind == "macro":
+        return _resolve_macro_preview(token, project=project)
     return _resolve_file_preview(token, base_dir=base_dir)
 
 
-def _resolve_xprompt_preview(
+def _resolve_macro_preview(
     token: PreviewToken,
     *,
     project: str | None,
 ) -> PreviewPayload:
-    reference = _xprompt_reference(token)
+    reference = _macro_reference(token)
     slash_skill = reference.startswith("/")
     # ``/foo`` is the provider skill name; its definition lives under the
-    # canonical ``skill/foo`` xprompt reference.
+    # canonical ``skill/foo`` macro reference.
     lookup = skill_reference_name(token.target) if slash_skill else token.target
     obj = get_macro_or_workflow(lookup, project=project)
     if obj is None:
         if slash_skill:
             raise PreviewError(f"No skill named '{reference}' found")
-        raise PreviewError(f"No xprompt or skill named '{reference}' found")
+        raise PreviewError(f"No macro or skill named '{reference}' found")
 
     if slash_skill and (not isinstance(obj, Macro) or not obj.skill):
         raise PreviewError(f"No skill named '{reference}' found")
 
     if isinstance(obj, Macro):
-        kind_label = "skill" if obj.skill else "xprompt"
-        fallback_content = _xprompt_fallback_preview(obj)
+        kind_label = "skill" if obj.skill else "macro"
+        fallback_content = _macro_fallback_preview(obj)
         fallback_lexer = "markdown"
         source_id = obj.source_path
     elif isinstance(obj, Workflow):
@@ -252,7 +252,7 @@ def _resolve_xprompt_preview(
         source_path=source_path,
         content=content,
         lexer=lexer,
-        properties=_resolve_xprompt_properties(
+        properties=_resolve_macro_properties(
             obj,
             reference=reference,
             kind=kind_label,
@@ -263,7 +263,7 @@ def _resolve_xprompt_preview(
     )
 
 
-def _resolve_xprompt_properties(
+def _resolve_macro_properties(
     obj: Macro | Workflow,
     *,
     reference: str,
@@ -293,7 +293,7 @@ def _resolve_xprompt_properties(
         return None
 
 
-def _xprompt_reference(token: PreviewToken) -> str:
+def _macro_reference(token: PreviewToken) -> str:
     prefix = token.reference_prefix
     if prefix is None:
         prefix = "/" if token.raw.startswith("/") else "#"
@@ -431,20 +431,20 @@ def _lexer_for_path(
     return result.language or "text"
 
 
-def _xprompt_fallback_preview(xprompt: Macro) -> str:
-    inputs = [inp for inp in xprompt.inputs if not inp.is_step_input]
+def _macro_fallback_preview(macro: Macro) -> str:
+    inputs = [inp for inp in macro.inputs if not inp.is_step_input]
     has_input_descriptions = any(inp.description for inp in inputs)
-    if not xprompt.description and not has_input_descriptions:
-        return xprompt.content
+    if not macro.description and not has_input_descriptions:
+        return macro.content
 
-    lines: list[str] = [f"# XPrompt: {xprompt.name}", ""]
-    if xprompt.description:
-        lines.extend([xprompt.description, ""])
+    lines: list[str] = [f"# Macro: {macro.name}", ""]
+    if macro.description:
+        lines.extend([macro.description, ""])
     if inputs:
         lines.append("## Inputs")
         lines.extend(_input_preview_lines(inputs))
         lines.append("")
-    lines.extend(["## Content", xprompt.content])
+    lines.extend(["## Content", macro.content])
     return "\n".join(lines)
 
 
@@ -456,7 +456,7 @@ def _workflow_fallback_preview(workflow: Workflow) -> str:
         if not workflow.description and not has_input_descriptions:
             return content
 
-        lines: list[str] = [f"# XPrompt: {workflow.name}", ""]
+        lines: list[str] = [f"# Macro: {workflow.name}", ""]
         if workflow.description:
             lines.extend([workflow.description, ""])
         if inputs:

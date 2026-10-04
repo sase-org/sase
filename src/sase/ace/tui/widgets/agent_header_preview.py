@@ -1,8 +1,8 @@
-"""Pure fitting of a highlighted xprompt into the collapsed agent-header preview.
+"""Pure fitting of a highlighted raw_prompt into the collapsed agent-header preview.
 
 The collapsed :class:`AgentHeaderPanel` shows a dense preview of the selected
-agent's xprompt below its two chip rows. This module turns the highlighted,
-humanized xprompt ``Text`` into that preview: it reflows the source
+agent's raw_prompt below its two chip rows. This module turns the highlighted,
+humanized raw_prompt ``Text`` into that preview: it reflows the source
 Markdown-style (soft line breaks join with a space, hard breaks become a dim
 ``¶``), wraps the result to a width, and keeps at most a row budget of rows
 behind a quote bar. :func:`preview_card` then sets the fitted rows apart from
@@ -56,7 +56,7 @@ _WORD = re.compile(r"\S+")
 
 
 @dataclass(frozen=True, slots=True)
-class XpromptPreviewFit:
+class MacroPreviewFit:
     """A fitted preview: quote-barred rows plus what was left out."""
 
     text: Text
@@ -81,9 +81,9 @@ def preview_row_budget(column_rows: int, share: float, *, max_rows: int) -> int:
     return min(max_rows, max(1, cap - _CHROME_ROWS))
 
 
-def fit_xprompt_preview(
+def fit_raw_prompt_preview(
     source: Text, *, width: int, max_rows: int
-) -> XpromptPreviewFit:
+) -> MacroPreviewFit:
     """Reflow ``source`` and fit it into at most ``max_rows`` rows.
 
     Every row starts with the styled ``▎ `` gutter and is at most ``width``
@@ -125,7 +125,7 @@ def fit_xprompt_preview(
         shown[-1], kept = _ellipsize(shown[-1], content_width)
         visible = bisect_right(line_ends, shown_starts[-1] + kept)
         hidden_lines = total_lines - visible
-    return XpromptPreviewFit(
+    return MacroPreviewFit(
         text=_with_gutters(shown),
         rows=len(shown),
         truncated=truncated,
@@ -174,8 +174,8 @@ def preview_card(body: Text, *, width: int) -> Text:
     return out
 
 
-def _empty_fit() -> XpromptPreviewFit:
-    return XpromptPreviewFit(text=Text(), rows=0, truncated=False, hidden_lines=0)
+def _empty_fit() -> MacroPreviewFit:
+    return MacroPreviewFit(text=Text(), rows=0, truncated=False, hidden_lines=0)
 
 
 def _with_gutters(rows: list[Text]) -> Text:
@@ -309,8 +309,8 @@ __all__ = [
     "PREVIEW_TAB_LABEL",
     "PREVIEW_TAB_LABEL_STYLE",
     "PREVIEW_TAB_ROWS",
-    "XpromptPreviewFit",
-    "fit_xprompt_preview",
+    "MacroPreviewFit",
+    "fit_raw_prompt_preview",
     "pending_preview_rows",
     "preview_card",
     "preview_row_budget",

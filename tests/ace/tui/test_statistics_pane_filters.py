@@ -127,7 +127,7 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
 
-        grouping_views = {"projects", "xprompts", "perf"}
+        grouping_views = {"projects", "macros", "perf"}
         for view in VIEW_ORDER:
             pane._set_view(view)
             await page.pause()
@@ -163,18 +163,18 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
             pane.query_one("#statistics-hints", Static).render().plain
         )
 
-        pane._set_view("xprompts")
+        pane._set_view("macros")
         pane.action_cycle_group()
         await page.pause()
-        assert pane._xprompts_group_by == "model"
+        assert pane._macros_group_by == "model"
         assert len(calls) == cached_calls
-        assert "XPrompts · By Model" in _scope_plain(pane, "group")
+        assert "Macros · By Model" in _scope_plain(pane, "group")
 
         pane._set_view("providers")
         pane.action_cycle_group()
         await page.pause()
         assert pane._projects_group_by == "patch"
-        assert pane._xprompts_group_by == "model"
+        assert pane._macros_group_by == "model"
         assert pane._perf_group_by == "subsystem"
         assert len(calls) == cached_calls
         assert pane.query_one("#statistics-scope-group", Static).display is False

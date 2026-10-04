@@ -25,7 +25,7 @@ __all__ = [
     "test_confirm_restores_into_mounted_bar_in_order",
     "test_confirm_restores_bundle_row_into_mounted_bar",
     "test_confirm_without_bar_mounts_home_with_combined_text",
-    "test_confirm_without_bar_mounts_single_body_as_xprompt_markdown",
+    "test_confirm_without_bar_mounts_single_body_as_macro_markdown",
     "test_confirm_delete_only_pops_without_loading",
     "test_confirm_restore_and_delete_mixed_summary",
     "test_confirm_none_is_noop",

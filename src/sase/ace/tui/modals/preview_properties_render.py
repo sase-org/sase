@@ -1,7 +1,7 @@
-"""Pure Rich renderers for the xprompt properties band and full properties view.
+"""Pure Rich renderers for the macro properties band and full properties view.
 
 Neither function touches Textual: both take an already-projected
-:class:`~sase.macro.properties.XPromptProperties` and return a Rich
+:class:`~sase.macro.properties.MacroProperties` and return a Rich
 renderable, so they are unit-testable without an app.
 """
 
@@ -61,8 +61,8 @@ def build_properties_view(properties: MacroProperties) -> RenderableType:
         )
     if properties.local_macros:
         sections.append(Rule(style="dim"))
-        sections.append(_section_title("LOCAL XPROMPTS"))
-        sections.append(_local_xprompts_table(properties.local_macros))
+        sections.append(_section_title("LOCAL MACROS"))
+        sections.append(_local_macros_table(properties.local_macros))
     if properties.steps:
         sections.append(Rule(style="dim"))
         sections.append(_section_title("WORKFLOW STEPS"))
@@ -153,7 +153,7 @@ def _chips(properties: MacroProperties) -> str:
         chips.append(f"memory · {properties.memory_type}")
     if properties.local_macros:
         count = len(properties.local_macros)
-        chips.append(f"{count} local xprompt{'' if count == 1 else 's'}")
+        chips.append(f"{count} local macro{'' if count == 1 else 's'}")
     if properties.steps:
         count = len(properties.steps)
         chips.append(f"{count} step{'' if count == 1 else 's'}")
@@ -224,7 +224,7 @@ def _properties_summary(properties: MacroProperties) -> RenderableType:
     return table
 
 
-def _local_xprompts_table(items: list[ShowLocalMacro]) -> RenderableType:
+def _local_macros_table(items: list[ShowLocalMacro]) -> RenderableType:
     table = Table.grid(padding=(0, 2))
     table.add_column(style=_role_style("macro.invocation_arg"), no_wrap=True)
     table.add_column(style="dim", no_wrap=True)

@@ -20,23 +20,23 @@ _SWARM_GLYPH = "❋"
 _ARG_VALUE_LIMIT = 40
 
 
-def append_agent_xprompts_section(
+def append_agent_macros_section(
     text: Text,
     xprompts_used: list[dict[str, Any]] | None,
     *,
     project_key: str | None = None,
     project_display_name: str | None = None,
 ) -> None:
-    """Append the selected agent's xprompt reference summary when available."""
-    xprompts = xprompts_used or []
-    if not xprompts:
+    """Append the selected agent's prompt reference summary when available."""
+    macros = xprompts_used or []
+    if not macros:
         return
 
     text.append("Macros: ", style=_COLOR_HEADER)
-    text.append(_summary(xprompts), style=_COLOR_SUMMARY)
+    text.append(_summary(macros), style=_COLOR_SUMMARY)
     text.append("\n")
 
-    for item in xprompts:
+    for item in macros:
         kind = item.get("kind")
         if kind == "workflow":
             glyph = _WORKFLOW_GLYPH
@@ -63,10 +63,10 @@ def append_agent_xprompts_section(
         text.append("\n")
 
 
-def _summary(xprompts: list[dict[str, Any]]) -> str:
-    swarm_count = sum(1 for item in xprompts if item.get("kind") == "swarm")
-    workflow_count = sum(1 for item in xprompts if item.get("kind") == "workflow")
-    part_count = sum(1 for item in xprompts if item.get("kind") == "part")
+def _summary(macros: list[dict[str, Any]]) -> str:
+    swarm_count = sum(1 for item in macros if item.get("kind") == "swarm")
+    workflow_count = sum(1 for item in macros if item.get("kind") == "workflow")
+    part_count = sum(1 for item in macros if item.get("kind") == "part")
     parts: list[str] = []
     if swarm_count:
         parts.append(count_phrase(swarm_count, "swarm"))
@@ -74,7 +74,7 @@ def _summary(xprompts: list[dict[str, Any]]) -> str:
         parts.append(count_phrase(workflow_count, "workflow"))
     if part_count:
         parts.append(count_phrase(part_count, "part"))
-    return " · ".join(parts) if parts else count_phrase(len(xprompts), "macro")
+    return " · ".join(parts) if parts else count_phrase(len(macros), "macro")
 
 
 def _format_args(

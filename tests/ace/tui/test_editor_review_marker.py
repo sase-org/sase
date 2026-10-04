@@ -3,7 +3,7 @@
 ``strip_editor_review_markers`` is the editor-only successor to the removed
 ``%edit`` directive: any line of text returned from ``$EDITOR`` that ends with
 the exact ` @` suffix triggers a reload-for-review, with the marker stripped
-from every matching line before xprompt-markdown parsing.
+from every matching line before macro-markdown parsing.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def test_non_marked_text_with_at_sign_elsewhere_is_unchanged() -> None:
 
 
 def test_marked_separator_becomes_real_separator_for_stack_parsing() -> None:
-    # ``--- @`` is stripped to a real ``---`` separator before xprompt parsing.
+    # ``--- @`` is stripped to a real ``---`` separator before macro parsing.
     marked = "Fix auth\n--- @\nFix API"
     assert strip_editor_review_markers(marked) == (True, "Fix auth\n---\nFix API")
 

@@ -1,4 +1,4 @@
-"""Shared helpers for terminal agent xprompt display tests."""
+"""Shared helpers for terminal agent raw_prompt display tests."""
 
 from __future__ import annotations
 

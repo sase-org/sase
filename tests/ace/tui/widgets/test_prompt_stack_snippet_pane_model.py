@@ -55,7 +55,7 @@ async def test_snippet_pane_is_mounted_but_not_an_agent_stack() -> None:
         assert bar.border_title == "Prompt"
         assert bar.all_prompt_texts() == ["agent prompt"]
         assert bar.current_prompt_text() == "agent prompt"
-        assert bar.xprompt_markdown_for_editor() == "agent prompt"
+        assert bar.macro_markdown_for_editor() == "agent prompt"
         assert (
             bar.insert_mode_subtitle()
             == "[Enter] save ⇥ todo  [Esc] normal  [^C] discard  [^G t] rename"
@@ -92,7 +92,7 @@ async def test_save_as_and_stash_payloads_ignore_snippet_body() -> None:
         bar.focus_item(0)
         await pilot.pause()
 
-        bar.request_save_as_xprompt()
+        bar.request_save_as_macro()
         bar.stash_all_panes()
         await pilot.pause()
 

@@ -192,7 +192,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     d(a.start_agent_from_patch),
                     "Repeat last launched VCS macro",
                 ),
-                (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS macro"),
+                (d(a.start_last_vcs_macro_in_editor), "Edit last VCS macro"),
                 (d(a.restore_prompt_stash), "Restore stashed prompt"),
                 (d(a.agents_retry), "Retry local or remote agent"),
                 (

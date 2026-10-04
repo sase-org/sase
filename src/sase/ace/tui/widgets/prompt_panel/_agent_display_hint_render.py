@@ -55,7 +55,7 @@ class AgentHintRenderMixin:
     def _update_display_with_hints_impl(self, agent: Agent) -> AgentHintRender:
         """Render agent display with ``[N]`` file path hints.
 
-        Same visual structure as ``update_display`` but scans xprompt, prompt,
+        Same visual structure as ``update_display`` but scans macro, prompt,
         and chat sections for file paths and inserts numbered hint markers.
         Syntax highlighting is temporarily replaced with plain text so that
         hint markers can be inserted inline.
