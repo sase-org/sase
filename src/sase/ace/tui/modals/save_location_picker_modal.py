@@ -345,13 +345,15 @@ class SaveLocationPickerModal(ModalScreen[SaveLocationPick | None]):
             (
                 choice.choice_id
                 for choice in choices
-                if choice.is_default and choice.disabled_reason is None
+                if choice.is_default
+                and choice.disabled_reason is None
+                and choice.kind != "existing"
             ),
             next(
                 (
                     choice.choice_id
                     for choice in choices
-                    if choice.disabled_reason is None
+                    if choice.disabled_reason is None and choice.kind != "existing"
                 ),
                 None,
             ),
@@ -493,7 +495,10 @@ class SaveLocationPickerModal(ModalScreen[SaveLocationPick | None]):
                     disabled=True,
                 )
             ]
-        if not any(choice.disabled_reason is None for choice in self._choices):
+        if not any(
+            choice.disabled_reason is None and choice.kind != "existing"
+            for choice in self._choices
+        ):
             options: list[Option] = [
                 Option(
                     Text("No writable destinations found", style="dim"),
@@ -571,8 +576,16 @@ class SaveLocationPickerModal(ModalScreen[SaveLocationPick | None]):
         selectable = [c for c in self._choices if c.disabled_reason is None]
         if not selectable:
             return "esc cancel"
-        letters = " ".join(c.hotkey for c in selectable if c.hotkey)
+        existing = next(
+            (c for c in selectable if c.kind == "existing" and c.hotkey),
+            None,
+        )
+        letters = " ".join(
+            c.hotkey for c in selectable if c.hotkey and c.kind != "existing"
+        )
         parts: list[str] = []
+        if existing is not None:
+            parts.append(f"{existing.hotkey} existing")
         if letters:
             parts.append(f"{letters} pick")
         default = next((c for c in selectable if c.choice_id == self._default_id), None)
@@ -598,6 +611,8 @@ def _badge_style(badge: str) -> str:
         return "bold #FFD700"
     if badge.startswith("● "):
         return "#87D7FF"
+    if badge.startswith("⚠ "):
+        return "bold #D7AF5F"
     if badge.startswith("has "):
         return "#D7AF5F"
     if badge == "new":
@@ -607,15 +622,34 @@ def _badge_style(badge: str) -> str:
     return "dim"
 
 
+def _choice_icon(choice: SaveLocationChoice) -> str:
+    if choice.kind == "existing":
+        return "✎"
+    if choice.kind == "directory":
+        return "📁"
+    return "📄"
+
+
+def _choice_label_style(choice: SaveLocationChoice) -> str:
+    if choice.kind == "existing":
+        return "bold #D7AFFF"
+    return "bold #87D7FF"
+
+
+def _append_path(text: Text, choice: SaveLocationChoice) -> None:
+    if choice.display_path:
+        text.append("  ", style="")
+        text.append(choice.display_path, style="dim")
+
+
 def _choice_text(choice: SaveLocationChoice) -> Text:
     text = Text()
-    icon = "📁" if choice.kind == "directory" else "📄"
+    icon = _choice_icon(choice)
     if choice.disabled_reason is not None:
         text.append("·  ", style="dim")
         text.append(f"{icon} ", style="dim")
         text.append(choice.label, style="dim")
-        text.append("  ", style="")
-        text.append(choice.display_path, style="dim")
+        _append_path(text, choice)
         text.append("  ", style="")
         text.append(choice.disabled_reason, style="italic #D7AF5F")
         for badge in choice.badges:
@@ -624,9 +658,8 @@ def _choice_text(choice: SaveLocationChoice) -> Text:
         return text
     text.append(f"{choice.hotkey or ' '}  ", style="bold #00D7AF")
     text.append(f"{icon} ", style="")
-    text.append(choice.label, style="bold #87D7FF")
-    text.append("  ", style="")
-    text.append(choice.display_path, style="dim")
+    text.append(choice.label, style=_choice_label_style(choice))
+    _append_path(text, choice)
     for badge in choice.badges:
         text.append("  ", style="")
         text.append(badge, style=_badge_style(badge))

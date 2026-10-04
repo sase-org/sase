@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.ace.tui.modals import save_location_choices as choices_mod
+from sase.ace.tui.modals import _save_location_choice_format as format_mod
 from sase.ace.tui.modals.save_location_choices import (
+    EXISTING_CHOICE_ID,
+    ExistingRowSpec,
     snippet_location_choices,
     macro_location_choices,
 )
@@ -219,7 +221,7 @@ def test_macro_current_matches_resolved_write_path(tmp_path: Path, monkeypatch) 
     rows = _standard_macro_rows(tmp_path)
     project_dir = str(rows[0].location.path)
     monkeypatch.setattr(
-        choices_mod,
+        format_mod,
         "resolve_macro_write_target",
         lambda path: type(
             "_Target", (), {"write_path": "SOURCE", "via_chezmoi": False}
@@ -475,3 +477,163 @@ def test_unified_save_has_single_canonical_project_and_home_dirs(
     assert by_label["Project macros"].hotkey == "p"
     assert by_label["Home macros"].hotkey == "h"
     assert by_label["Project macros"].hotkey != by_label["Home macros"].hotkey
+
+
+def test_existing_row_prepended_with_count_and_preview(tmp_path: Path) -> None:
+    rows = _standard_macro_rows(tmp_path)
+    choices, default = macro_location_choices(
+        rows, project="sase", existing=ExistingRowSpec(count=148)
+    )
+
+    existing = choices[0]
+    assert existing.choice_id == EXISTING_CHOICE_ID
+    assert existing.hotkey == "e"
+    assert existing.kind == "existing"
+    assert existing.section == "Existing"
+    assert existing.label == "Edit existing macro…"
+    assert existing.badges == ("148 macros",)
+    assert existing.disabled_reason is None
+    assert not existing.is_default
+    assert "fuzzy-find 148 macros across 6 files" in existing.preview
+    assert default == str(rows[0].location.path)
+    assert default != EXISTING_CHOICE_ID
+    assert _by_label(choices)["Project, personal"].hotkey == "1"
+
+
+def test_existing_row_switching_label(tmp_path: Path) -> None:
+    choices, _default = macro_location_choices(
+        _standard_macro_rows(tmp_path),
+        project="sase",
+        existing=ExistingRowSpec(count=3, switching=True),
+    )
+    assert choices[0].label == "Switch to existing macro…"
+
+
+def test_existing_row_disabled_when_empty(tmp_path: Path) -> None:
+    rows = _standard_macro_rows(tmp_path)
+    choices, default = macro_location_choices(
+        rows,
+        project="sase",
+        existing=ExistingRowSpec(count=0),
+    )
+    assert choices[0].disabled_reason == "no macros yet"
+    assert not choices[0].is_selectable
+    assert not choices[0].is_default
+    assert default == str(rows[0].location.path)
+
+
+def test_existing_row_never_default_on_empty_destinations() -> None:
+    choices, default = macro_location_choices([], existing=ExistingRowSpec(count=5))
+    assert [c.choice_id for c in choices] == [EXISTING_CHOICE_ID]
+    assert default is None
+    assert not choices[0].is_default
+
+
+def test_override_omits_existing_and_filters_namespace(tmp_path: Path) -> None:
+    rows = _standard_macro_rows(tmp_path)
+    project_dir = str(rows[0].location.path)
+    project_cfg = str(rows[1].location.path)
+    home_dir = str(rows[3].location.path)
+    choices, default = macro_location_choices(
+        rows,
+        project="sase",
+        existing=ExistingRowSpec(count=12),
+        override_name="review",
+        shadowed_by={project_cfg: "~/sase/macros/review.md"},
+    )
+
+    assert all(c.choice_id != EXISTING_CHOICE_ID for c in choices)
+    by_label = _by_label(choices)
+    project_macros = by_label["Project macros"]
+    assert project_macros.disabled_reason == (
+        "saves as #sase/review — can't override #review"
+    )
+    assert "⚠ shadowed by ~/sase/macros/review.md" in by_label["Project config"].badges
+    assert by_label["Project config"].is_selectable
+    assert default != project_dir
+    default_choice = next(c for c in choices if c.choice_id == default)
+    assert "★ override" in default_choice.badges
+    assert default_choice.choice_id != project_cfg
+    assert by_label["Home macros"].disabled_reason is None
+    assert home_dir in {c.choice_id for c in choices}
+
+
+def test_override_default_prefers_current_then_unshadowed(tmp_path: Path) -> None:
+    rows = _standard_macro_rows(tmp_path)
+    home_dir = str(rows[3].location.path)
+    project_cfg = str(rows[1].location.path)
+    choices, default = macro_location_choices(
+        rows,
+        project="sase",
+        override_name="review",
+        current_path=home_dir,
+        shadowed_by={home_dir: "plugin copy"},
+    )
+    assert default == home_dir
+    assert _by_label(choices)["Home macros"].badges[0] == "★ override"
+    assert "⚠ shadowed by plugin copy" in _by_label(choices)["Home macros"].badges
+
+    choices, default = macro_location_choices(
+        rows,
+        project="sase",
+        override_name="review",
+        last_used_path=project_cfg,
+        shadowed_by={project_cfg: "winner"},
+    )
+    assert default == project_cfg
+    assert "★ override" in _by_label(choices)["Project config"].badges
+
+
+def test_snippet_existing_row_and_override(tmp_path: Path) -> None:
+    locations = _standard_slocs(tmp_path)
+    target = _starget(tmp_path / "sase.yml")
+    user = str(tmp_path / "sase.yml")
+    project_cfg = str(tmp_path / "project.yml")
+    choices, default = snippet_location_choices(
+        locations,
+        resolved_target=target,
+        names_by_path={},
+        project="sase",
+        existing=ExistingRowSpec(count=9),
+    )
+    existing = choices[0]
+    assert existing.choice_id == EXISTING_CHOICE_ID
+    assert existing.label == "Edit existing snippet…"
+    assert existing.badges == ("9 snippets",)
+    assert "fuzzy-find 9 snippets across 3 files" in existing.preview
+    assert default == user
+    assert default != EXISTING_CHOICE_ID
+    assert _by_label(choices)["sase_work.yml"].hotkey == "1"
+
+    choices, default = snippet_location_choices(
+        locations,
+        resolved_target=target,
+        names_by_path={},
+        project="sase",
+        existing=ExistingRowSpec(count=0, switching=True),
+        override_name="todo",
+        shadowed_by={user: "./sase/sase.yml"},
+    )
+    assert all(c.choice_id != EXISTING_CHOICE_ID for c in choices)
+    by_label = _by_label(choices)
+    assert "⚠ shadowed by ./sase/sase.yml" in by_label["User config"].badges
+    assert default == project_cfg
+    assert by_label["Project config"].badges[0] == "★ override"
+
+
+def test_snippet_override_keeps_configured_after_current(tmp_path: Path) -> None:
+    locations = _standard_slocs(tmp_path)
+    custom = tmp_path / "custom.yml"
+    custom.write_text("{}")
+    target = _starget(custom, source="configured")
+    user = str(tmp_path / "sase.yml")
+    choices, default = snippet_location_choices(
+        locations,
+        resolved_target=target,
+        names_by_path={},
+        project="sase",
+        last_used_path=user,
+        override_name="todo",
+    )
+    assert default == str(custom)
+    assert _by_label(choices)["Configured snippet config"].badges[0] == "★ override"

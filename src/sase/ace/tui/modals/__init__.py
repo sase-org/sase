@@ -212,6 +212,8 @@ __all__ = [
     "SavedAgentGroupRevivalResult",
     "SaveAgentGroupModal",
     "SaveAgentGroupResult",
+    "EXISTING_CHOICE_ID",
+    "ExistingRowSpec",
     "SaveLocationChoice",
     "SaveLocationPick",
     "ChangeSaveLocationRequest",

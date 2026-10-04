@@ -13,9 +13,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from sase.ace.tui.modals._save_location_choice_format import (
+    badges,
+    macro_preview,
+    matches_path,
+    project_section as project_section_label,
+    short_label,
+    snippet_preview,
+    via_chezmoi,
+)
 from sase.ace.tui.modals.mini_macro_target_catalog import (
     destination_defines_name,
-    destination_target_for_name,
+    rebase_name_for_destination,
 )
 from sase.ace.tui.modals.unified_macro_save_support import UnifiedSaveLocation
 from sase.ace.tui.modals.macro_location_modal import (
@@ -25,7 +34,6 @@ from sase.ace.tui.modals.macro_location_modal import (
     MACRO_PROJECT_HOME_LABEL_PREFIX,
     MACRO_USER_CONFIG_LABEL,
     MACRO_USER_OVERLAY_LABEL_PREFIX,
-    shorten_macro_location_path,
 )
 from sase.macro.snippet_targets import (
     SNIPPET_PROJECT_CONFIG_LABEL,
@@ -34,15 +42,25 @@ from sase.macro.snippet_targets import (
     SnippetConfigLocation,
     SnippetSaveTarget,
 )
-from sase.macro.write_targets import resolve_macro_write_target
 
-SaveLocationKind = Literal["directory", "config"]
+SaveLocationKind = Literal["directory", "config", "existing"]
+
+#: Synthetic id for the Existing action row. Never a destination path.
+EXISTING_CHOICE_ID = "__existing__"
 
 #: Synthetic section for a configured snippet file outside discovery.
 SNIPPET_CONFIGURED_SECTION = "Configured"
 
 #: Synthetic label for a configured snippet file outside discovery.
 SNIPPET_CONFIGURED_LABEL = "Configured snippet config"
+
+
+@dataclass(frozen=True, slots=True)
+class ExistingRowSpec:
+    """Optional Existing action row rendered at the top of the picker."""
+
+    count: int
+    switching: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,131 +109,63 @@ class ChangeSaveLocationRequest:
     text: str
 
 
-def _short_label(discovery_label: str) -> str:
-    """Return the compact picker label for a discovery label."""
-    if discovery_label == MACRO_PROJECT_DIR_LABEL:
-        return "Project macros"
-    if discovery_label in (
-        MACRO_PROJECT_CONFIG_LABEL,
-        SNIPPET_PROJECT_CONFIG_LABEL,
-    ):
-        return "Project config"
-    if discovery_label.startswith(MACRO_PROJECT_HOME_LABEL_PREFIX):
-        return "Project, personal"
-    if discovery_label == MACRO_HOME_DIR_LABEL:
-        return "Home macros"
-    if discovery_label in (MACRO_USER_CONFIG_LABEL, SNIPPET_USER_CONFIG_LABEL):
-        return "User config"
-    if discovery_label.startswith(
-        MACRO_USER_OVERLAY_LABEL_PREFIX
-    ) or discovery_label.startswith(SNIPPET_USER_OVERLAY_LABEL_PREFIX):
-        return discovery_label.removeprefix("User ")
-    return discovery_label
+def _namespace_override_reason(
+    row: UnifiedSaveLocation, override_name: str
+) -> str | None:
+    """Return a disable reason when *row* would rebase *override_name*."""
+    rebased = rebase_name_for_destination(override_name, row)
+    if rebased != override_name:
+        return f"saves as #{rebased} — can't override #{override_name}"
+    return None
 
 
-def _write_path_for(path: str) -> str:
-    """Return the resolved write path for *path*, falling back to *path*."""
-    try:
-        return str(resolve_macro_write_target(path).write_path)
-    except Exception:
-        return path
-
-
-def _via_chezmoi(path: str) -> bool:
-    """Return whether edits to *path* redirect through a chezmoi source."""
-    try:
-        return resolve_macro_write_target(path).via_chezmoi
-    except Exception:
-        return False
-
-
-def _matches_path(row_path: str, wanted: str | None) -> bool:
-    """Return whether *wanted* names *row_path* or its resolved write path."""
-    if not wanted:
-        return False
-    return wanted == row_path or wanted == _write_path_for(row_path)
-
-
-def _project_section(project: str | None) -> str:
-    return f"Project · {project}" if project else "Project"
-
-
-def _callable_reference(namespace: str | None, name: str) -> str:
-    """Return the ``#`` reference previewed for *name* at a destination."""
-    if not name:
-        return f"#{namespace}/<name>" if namespace else "#<name>"
-    if namespace and "/" not in name:
-        return f"#{namespace}/{name}"
-    return f"#{name}"
-
-
-def _storage_name(namespace: str | None, name: str) -> str:
-    """Return the physical entry name written for callable *name*."""
-    if namespace:
-        prefix = f"{namespace}/"
-        if name.startswith(prefix):
-            return name.removeprefix(prefix)
-    return name
-
-
-def _macro_preview(
-    row: UnifiedSaveLocation,
-    rows: Sequence[UnifiedSaveLocation],
+def _existing_choice(
+    spec: ExistingRowSpec,
     *,
-    name: str,
-) -> str:
-    """Return the footer preview for one macro destination row."""
-    count = len(row.names)
-    noun = "macro" if count == 1 else "macros"
-    if row.location.location_type == "directory":
-        reference = _callable_reference(row.namespace, name)
-        if name:
-            try:
-                target = destination_target_for_name(row, name, destinations=rows)
-                concrete = shorten_macro_location_path(
-                    target.path, str(Path.cwd()), str(Path.home())
-                )
-            except Exception:
-                concrete = f"{row.display_path}/<name>.md"
-            return f"→ {concrete} · called as {reference} · {count} {noun} here"
-        return (
-            f"→ {row.display_path}/<name>.md · called as {reference} "
-            f"· {count} {noun} here"
-        )
-    entry = _storage_name(row.namespace, name) if name else "<name>"
-    return f"→ {row.display_path} · macros.{entry}"
-
-
-def _snippet_preview(display_path: str, *, trigger: str, count: int) -> str:
-    """Return the footer preview for one snippet destination row."""
-    return (
-        f"→ {display_path} · ace.snippets.{trigger or '<trigger>'} "
-        f"· {count} snippets here"
+    kind: Literal["macro", "snippet"],
+    file_count: int,
+) -> SaveLocationChoice:
+    """Build the Existing action row. Never the default."""
+    noun = "macros" if kind == "macro" else "snippets"
+    singular = "macro" if kind == "macro" else "snippet"
+    label = (
+        f"Switch to existing {singular}…"
+        if spec.switching
+        else f"Edit existing {singular}…"
+    )
+    return SaveLocationChoice(
+        choice_id=EXISTING_CHOICE_ID,
+        hotkey="e",
+        section="Existing",
+        kind="existing",
+        label=label,
+        display_path="",
+        badges=(f"{spec.count} {noun}",),
+        disabled_reason=None if spec.count else f"no {noun} yet",
+        preview=(
+            f"→ fuzzy-find {spec.count} {noun} across {file_count} files "
+            "· edit in place or override read-only ones"
+        ),
+        is_default=False,
+        collapsed_group=False,
     )
 
 
-def _badges(
+def _finish_choices(
+    choices: list[SaveLocationChoice],
+    default_id: str | None,
     *,
-    default_reason: str | None,
-    is_current: bool,
-    has_name: bool,
-    has_label: str,
-    is_new: bool,
-    chezmoi: bool,
-) -> tuple[str, ...]:
-    """Assemble picker badges in display order."""
-    badges: list[str] = []
-    if default_reason is not None:
-        badges.append(f"★ {default_reason}")
-    elif is_current:
-        badges.append("● current")
-    if has_name:
-        badges.append(has_label)
-    if is_new:
-        badges.append("new")
-    if chezmoi:
-        badges.append("chezmoi")
-    return tuple(badges)
+    existing: ExistingRowSpec | None,
+    override_name: str | None,
+    kind: Literal["macro", "snippet"],
+) -> tuple[tuple[SaveLocationChoice, ...], str | None]:
+    """Prepend the Existing row unless override mode is on."""
+    if existing is not None and override_name is None:
+        choices = [
+            _existing_choice(existing, kind=kind, file_count=len(choices)),
+            *choices,
+        ]
+    return tuple(choices), default_id
 
 
 _MACRO_CANONICAL_HOTKEYS = {
@@ -238,6 +188,9 @@ def macro_location_choices(
     home_mode: bool = False,
     project: str | None = None,
     name: str = "",
+    existing: ExistingRowSpec | None = None,
+    override_name: str | None = None,
+    shadowed_by: Mapping[str, str] | None = None,
 ) -> tuple[tuple[SaveLocationChoice, ...], str | None]:
     """Build picker choices for mini-macro destinations.
 
@@ -247,7 +200,7 @@ def macro_location_choices(
     for the remaining Project/Home rows in display order.
     """
     rows = tuple(rows)
-    project_section = _project_section(project)
+    project_section = project_section_label(project)
 
     visible: list[tuple[UnifiedSaveLocation, str]] = []
     for row in rows:
@@ -294,28 +247,49 @@ def macro_location_choices(
         else:
             hotkeys[index] = None
 
+    override_reasons: dict[str, str] = {}
+    if override_name is not None:
+        for row, _section in ordered:
+            reason = _namespace_override_reason(row, override_name)
+            if reason is not None:
+                override_reasons[row.location.path] = reason
+
+    selectable_indices = [
+        index
+        for index, (row, _section) in enumerate(ordered)
+        if row.is_selectable and row.location.path not in override_reasons
+    ]
     default_index = _macro_default_index(
         ordered,
         rows,
         last_used_path=last_used_path,
         current_path=current_path,
         home_mode=home_mode,
+        selectable=selectable_indices,
+        shadowed_ids=frozenset(shadowed_by or ())
+        if override_name is not None
+        else frozenset(),
+        override=override_name is not None,
     )
 
     default_reason: str | None = None
     if default_index is not None:
-        default_row = ordered[default_index][0]
-        if _matches_path(default_row.location.path, current_path):
-            default_reason = "current"
-        elif _matches_path(default_row.location.path, last_used_path):
-            default_reason = "last used"
+        if override_name is not None:
+            default_reason = "override"
         else:
-            default_reason = "default"
+            default_row = ordered[default_index][0]
+            if matches_path(default_row.location.path, current_path):
+                default_reason = "current"
+            elif matches_path(default_row.location.path, last_used_path):
+                default_reason = "last used"
+            else:
+                default_reason = "default"
 
+    shadow_map = shadowed_by if override_name is not None else None
     choices: list[SaveLocationChoice] = []
     for index, (row, section) in enumerate(ordered):
         is_default = index == default_index
-        is_current = _matches_path(row.location.path, current_path)
+        is_current = matches_path(row.location.path, current_path)
         has_name = bool(name) and destination_defines_name(row, name)
         choices.append(
             SaveLocationChoice(
@@ -323,24 +297,32 @@ def macro_location_choices(
                 hotkey=hotkeys[index],
                 section=section,
                 kind=row.location.location_type,  # type: ignore[arg-type]
-                label=_short_label(row.location.label),
+                label=short_label(row.location.label),
                 display_path=row.display_path,
-                badges=_badges(
+                badges=badges(
                     default_reason=default_reason if is_default else None,
                     is_current=is_current,
                     has_name=has_name,
                     has_label=f"has #{name}" if has_name else "",
                     is_new=row.will_create,
-                    chezmoi=_via_chezmoi(row.location.path),
+                    chezmoi=via_chezmoi(row.location.path),
+                    shadowed_by=(shadow_map or {}).get(row.location.path),
                 ),
-                disabled_reason=row.disabled_reason,
-                preview=_macro_preview(row, rows, name=name),
+                disabled_reason=row.disabled_reason
+                or override_reasons.get(row.location.path),
+                preview=macro_preview(row, rows, name=name),
                 is_default=is_default,
                 collapsed_group=_is_plugin_row(row),
             )
         )
     default_id = choices[default_index].choice_id if default_index is not None else None
-    return tuple(choices), default_id
+    return _finish_choices(
+        choices,
+        default_id,
+        existing=existing,
+        override_name=override_name,
+        kind="macro",
+    )
 
 
 def _order_macro_sections(
@@ -378,20 +360,29 @@ def _macro_default_index(
     last_used_path: str | None,
     current_path: str | None,
     home_mode: bool,
+    selectable: list[int] | None = None,
+    shadowed_ids: frozenset[str] = frozenset(),
+    override: bool = False,
 ) -> int | None:
     """Return the display-order index of the default macro row."""
     del rows
-    selectable = [
-        index for index, (row, _section) in enumerate(ordered) if row.is_selectable
-    ]
+    if selectable is None:
+        selectable = [
+            index for index, (row, _section) in enumerate(ordered) if row.is_selectable
+        ]
     if not selectable:
         return None
     for index in selectable:
-        if _matches_path(ordered[index][0].location.path, current_path):
+        if matches_path(ordered[index][0].location.path, current_path):
             return index
     for index in selectable:
-        if _matches_path(ordered[index][0].location.path, last_used_path):
+        if matches_path(ordered[index][0].location.path, last_used_path):
             return index
+    if override:
+        for index in selectable:
+            if ordered[index][0].location.path not in shadowed_ids:
+                return index
+        return selectable[0]
     if not home_mode:
         for index in selectable:
             if ordered[index][0].location.label == MACRO_PROJECT_DIR_LABEL:
@@ -411,6 +402,9 @@ def snippet_location_choices(
     current_path: str | None = None,
     project: str | None = None,
     trigger: str = "",
+    existing: ExistingRowSpec | None = None,
+    override_name: str | None = None,
+    shadowed_by: Mapping[str, str] | None = None,
 ) -> tuple[tuple[SaveLocationChoice, ...], str | None]:
     """Build picker choices for snippet config destinations.
 
@@ -420,7 +414,7 @@ def snippet_location_choices(
     discovered files.
     """
     locations = tuple(locations)
-    project_section = _project_section(project)
+    project_section = project_section_label(project)
     known_paths = {location.path for location in locations}
     configured_path = str(resolved_target.write_path)
     configured_read = str(resolved_target.read_path)
@@ -521,7 +515,7 @@ def snippet_location_choices(
     default_index: int | None = None
     if selectable:
         for index in selectable:
-            if _matches_path(ordered[index].path, current_path):
+            if matches_path(ordered[index].path, current_path):
                 default_index = index
                 break
         if default_index is None and resolved_target.source == "configured":
@@ -531,10 +525,19 @@ def snippet_location_choices(
                     break
         if default_index is None:
             for index in selectable:
-                if _matches_path(ordered[index].path, last_used_path):
+                if matches_path(ordered[index].path, last_used_path):
                     default_index = index
                     break
-        if default_index is None:
+        if override_name is not None:
+            if default_index is None:
+                shadowed_ids = set(shadowed_by or ())
+                for index in selectable:
+                    if ordered[index].path not in shadowed_ids:
+                        default_index = index
+                        break
+            if default_index is None:
+                default_index = selectable[0]
+        elif default_index is None:
             for index in selectable:
                 if ordered[index].path in (configured_path, configured_read):
                     default_index = index
@@ -544,28 +547,32 @@ def snippet_location_choices(
                     if ordered[index].label == SNIPPET_USER_CONFIG_LABEL:
                         default_index = index
                         break
-        if default_index is None:
-            default_index = selectable[0]
+            if default_index is None:
+                default_index = selectable[0]
 
     snippet_default_reason: str | None = None
     if default_index is not None:
-        default_entry = ordered[default_index]
-        if _matches_path(default_entry.path, current_path):
-            snippet_default_reason = "current"
-        elif (
-            resolved_target.source == "configured"
-            and default_entry.path == configured_path
-        ):
-            snippet_default_reason = "configured"
-        elif _matches_path(default_entry.path, last_used_path):
-            snippet_default_reason = "last used"
+        if override_name is not None:
+            snippet_default_reason = "override"
         else:
-            snippet_default_reason = "default"
+            default_entry = ordered[default_index]
+            if matches_path(default_entry.path, current_path):
+                snippet_default_reason = "current"
+            elif (
+                resolved_target.source == "configured"
+                and default_entry.path == configured_path
+            ):
+                snippet_default_reason = "configured"
+            elif matches_path(default_entry.path, last_used_path):
+                snippet_default_reason = "last used"
+            else:
+                snippet_default_reason = "default"
 
+    shadow_map = shadowed_by if override_name is not None else None
     choices: list[SaveLocationChoice] = []
     for index, entry in enumerate(ordered):
         is_default = index == default_index
-        is_current = _matches_path(entry.path, current_path)
+        is_current = matches_path(entry.path, current_path)
         has_trigger = bool(trigger) and trigger in entry.names
         try:
             is_new = not Path(entry.path).exists()
@@ -577,18 +584,19 @@ def snippet_location_choices(
                 hotkey=hotkeys[index],
                 section=_entry_section(entry),
                 kind="config",
-                label=_short_label(entry.label),
+                label=short_label(entry.label),
                 display_path=entry.display_path,
-                badges=_badges(
+                badges=badges(
                     default_reason=snippet_default_reason if is_default else None,
                     is_current=is_current,
                     has_name=has_trigger,
                     has_label=f"has ⇥ {trigger}" if has_trigger else "",
                     is_new=is_new,
-                    chezmoi=_via_chezmoi(entry.path),
+                    chezmoi=via_chezmoi(entry.path),
+                    shadowed_by=(shadow_map or {}).get(entry.path),
                 ),
                 disabled_reason=entry.disabled_reason,
-                preview=_snippet_preview(
+                preview=snippet_preview(
                     entry.display_path,
                     trigger=trigger,
                     count=len(entry.names),
@@ -600,11 +608,19 @@ def snippet_location_choices(
     final_default = (
         choices[default_index].choice_id if default_index is not None else None
     )
-    return tuple(choices), final_default
+    return _finish_choices(
+        choices,
+        final_default,
+        existing=existing,
+        override_name=override_name,
+        kind="snippet",
+    )
 
 
 __all__ = [
     "ChangeSaveLocationRequest",
+    "EXISTING_CHOICE_ID",
+    "ExistingRowSpec",
     "SNIPPET_CONFIGURED_LABEL",
     "SNIPPET_CONFIGURED_SECTION",
     "SaveLocationChoice",

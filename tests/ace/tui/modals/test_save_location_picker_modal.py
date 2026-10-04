@@ -7,6 +7,7 @@ from textual.widgets import OptionList, Static
 
 from sase.ace.testing.wait import wait_for as wait_for_pilot
 from sase.ace.tui.modals.save_location_choices import (
+    EXISTING_CHOICE_ID,
     SaveLocationChoice,
     SaveLocationPick,
 )
@@ -25,26 +26,53 @@ def _choice(
     hotkey: str | None,
     section: str = "Home",
     *,
+    kind: str = "config",
     label: str = "User config",
     badges: tuple[str, ...] = (),
     disabled_reason: str | None = None,
     preview: str = "preview",
     is_default: bool = False,
     collapsed_group: bool = False,
+    display_path: str | None = None,
 ) -> SaveLocationChoice:
     return SaveLocationChoice(
         choice_id=choice_id,
         hotkey=hotkey,
         section=section,
-        kind="config",
+        kind=kind,  # type: ignore[arg-type]
         label=label,
-        display_path=choice_id,
+        display_path=choice_id if display_path is None else display_path,
         badges=badges,
         disabled_reason=disabled_reason,
         preview=preview,
         is_default=is_default,
         collapsed_group=collapsed_group,
     )
+
+
+def _existing_choice(
+    *,
+    count: int = 12,
+    disabled: bool = False,
+) -> SaveLocationChoice:
+    return _choice(
+        EXISTING_CHOICE_ID,
+        "e",
+        "Existing",
+        kind="existing",
+        label="Edit existing macro…",
+        badges=(f"{count} macros",),
+        disabled_reason="no macros yet" if disabled else None,
+        preview=(
+            f"→ fuzzy-find {count} macros across 3 files "
+            "· edit in place or override read-only ones"
+        ),
+        display_path="",
+    )
+
+
+def _choices_with_existing() -> tuple[SaveLocationChoice, ...]:
+    return (_existing_choice(), *_standard_choices())
 
 
 def _standard_choices() -> tuple[SaveLocationChoice, ...]:
@@ -371,3 +399,98 @@ async def test_hints_line_reflects_hotkeys_and_default() -> None:
         assert "↵ default" in hints
         assert "j/k move" in hints
         assert "esc cancel" in hints
+
+
+async def test_existing_hotkey_dismisses_with_existing_id() -> None:
+    results: list[SaveLocationPick | None] = []
+    app = _ModalApp()
+    async with app.run_test(size=(110, 30)) as pilot:
+        app.push_screen(
+            SaveLocationPickerModal("macro", "Pick", _choices_with_existing()),
+            results.append,
+        )
+        await pilot.pause()
+        await pilot.press("e")
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
+
+    assert results == [SaveLocationPick(EXISTING_CHOICE_ID, "")]
+
+
+async def test_existing_hints_and_enter_still_picks_default() -> None:
+    results: list[SaveLocationPick | None] = []
+    app = _ModalApp()
+    async with app.run_test(size=(110, 30)) as pilot:
+        modal = SaveLocationPickerModal("macro", "Pick", _choices_with_existing())
+        app.push_screen(modal, results.append)
+        await pilot.pause()
+        hints = _hints_text(modal)
+        assert hints.startswith("e existing")
+        assert "p h 1 pick" in hints
+        assert "e p h 1 pick" not in hints
+        assert "e existing" in hints
+        assert modal.highlighted_id == "/user"
+        option_list = modal.query_one("#save-location-picker-list", OptionList)
+        prompt = next(
+            option.prompt
+            for option in option_list.options
+            if option.id == f"choice__{EXISTING_CHOICE_ID}"
+        )
+        plain = prompt.plain if hasattr(prompt, "plain") else str(prompt)
+        assert "✎" in plain
+        assert "Edit existing macro…" in plain
+        await pilot.press("enter")
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
+
+    assert results == [SaveLocationPick("/user", "")]
+
+
+async def test_loading_buffers_existing_hotkey_and_typeahead() -> None:
+    results: list[SaveLocationPick | None] = []
+    app = _ModalApp()
+    async with app.run_test(size=(110, 30)) as pilot:
+        modal = SaveLocationPickerModal("macro", "Pick", None)
+        app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("e", "r", "e", "v")
+        await pilot.pause()
+        assert modal.pending_pick == "e"
+        assert modal.typeahead == "rev"
+        modal.set_choices(_choices_with_existing())
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
+
+    assert results == [SaveLocationPick(EXISTING_CHOICE_ID, "rev")]
+
+
+async def test_existing_row_is_not_writable_destination_fallback() -> None:
+    results: list[SaveLocationPick | None] = []
+    choices = (
+        _existing_choice(),
+        _choice(
+            "/locked",
+            "p",
+            "Project · sase",
+            label="Project config",
+            disabled_reason="read-only",
+        ),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(110, 30)) as pilot:
+        modal = SaveLocationPickerModal("macro", "Pick", choices)
+        app.push_screen(modal, results.append)
+        await pilot.pause()
+        option_list = modal.query_one("#save-location-picker-list", OptionList)
+        plains = [
+            option.prompt.plain
+            if hasattr(option.prompt, "plain")
+            else str(option.prompt)
+            for option in option_list.options
+        ]
+        assert any("No writable destinations found" in text for text in plains)
+        assert modal.highlighted_id != EXISTING_CHOICE_ID
+        await pilot.press("enter")
+        await pilot.pause()
+        assert results == []
+        await pilot.press("e")
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
+
+    assert results == [SaveLocationPick(EXISTING_CHOICE_ID, "")]

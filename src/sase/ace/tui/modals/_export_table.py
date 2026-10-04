@@ -312,6 +312,8 @@ _LAZY_EXPORTS = {
         ".saved_agent_group_revival_modal",
         "SavedAgentGroupRevivalResult",
     ),
+    "EXISTING_CHOICE_ID": (".save_location_choices", "EXISTING_CHOICE_ID"),
+    "ExistingRowSpec": (".save_location_choices", "ExistingRowSpec"),
     "SaveLocationChoice": (".save_location_choices", "SaveLocationChoice"),
     "SaveLocationPick": (".save_location_choices", "SaveLocationPick"),
     "ChangeSaveLocationRequest": (
