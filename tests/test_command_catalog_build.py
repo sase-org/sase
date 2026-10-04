@@ -150,6 +150,59 @@ def test_deck_picker_other_panel_commands_follow_rebound_and_unbound_picker() ->
     assert unbound_spec.executor.kind == "app_action"
 
 
+def test_last_deck_commands_use_opener_chord() -> None:
+    catalog = build_command_catalog(_registry())
+    by_id = {c.id: c for c in catalog}
+
+    last = by_id["agents.show_last_deck"]
+    assert last.label == "Show last deck in focused panel"
+    assert last.key_sequence == ("p", "p")
+    assert last.key_display == "p p"
+    assert last.category == "Navigation"
+    assert last.tabs == ("agents",)
+    assert last.executor.kind == "app_action"
+    assert last.executor.action == "show_last_deck"
+    assert last.executor.digit is None
+    assert "last deck" in last.aliases
+    assert "previous deck" in last.aliases
+
+    other = by_id["agents.show_last_deck_other"]
+    assert other.label == "Show last deck in other panel"
+    assert other.key_sequence == ("p", "P")
+    assert other.key_display == "p P"
+    assert other.category == "Navigation"
+    assert other.tabs == ("agents",)
+    assert other.executor.kind == "app_action"
+    assert other.executor.action == "show_last_deck_other"
+    assert other.executor.digit is None
+    assert "other panel" in other.aliases
+    assert "split" in other.aliases
+
+
+def test_last_deck_commands_follow_rebound_and_unbound_picker() -> None:
+    rebound = build_command_catalog(
+        load_keymap_registry({"keymaps": {"app": {"pick_deck": "f12"}}})
+    )
+    rebound_by_id = {c.id: c for c in rebound}
+    rebound_last = rebound_by_id["agents.show_last_deck"]
+
+    assert rebound_last.key_sequence == ("f12", "f12")
+    assert rebound_last.key_display == "f12 f12"
+    assert "agents.show_last_deck_other" not in rebound_by_id
+
+    unbound = build_command_catalog(
+        load_keymap_registry({"keymaps": {"app": {"pick_deck": "unbound"}}})
+    )
+    unbound_by_id = {c.id: c for c in unbound}
+    unbound_last = unbound_by_id["agents.show_last_deck"]
+
+    assert unbound_last.key_sequence == ()
+    assert unbound_last.key_display == ""
+    assert unbound_last.executor.kind == "app_action"
+    assert unbound_last.executor.action == "show_last_deck"
+    assert "agents.show_last_deck_other" not in unbound_by_id
+
+
 def test_agent_panel_layout_command_follows_rebound_and_unbound_picker() -> None:
     rebound = build_command_catalog(
         load_keymap_registry({"keymaps": {"app": {"choose_agent_grouping": "f12"}}})

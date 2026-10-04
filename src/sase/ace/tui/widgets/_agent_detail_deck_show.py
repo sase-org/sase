@@ -306,6 +306,26 @@ class AgentDetailDeckShowMixin:
                             except Exception:
                                 other = None
                             break
+            try:
+                previous = state.panels[panel_index].previous_deck
+            except Exception:
+                previous = None
+            opener_display = "p"
+            try:
+                from ..keymaps import key_display_name, split_key_alternatives
+                from ..keymaps.key_validation import is_unbound_key
+
+                registry = getattr(self.app, "_keymap_registry", None)  # type: ignore[attr-defined]
+                configured = getattr(getattr(registry, "app", None), "pick_deck", "")
+                raw = str(configured) if configured else ""
+                alts = tuple(
+                    k
+                    for k in split_key_alternatives(raw)
+                    if k and not is_unbound_key(k)
+                )
+                opener_display = key_display_name(alts[0]) if alts else ""
+            except Exception:
+                opener_display = "p"
             return DeckPickerState(
                 panel_index=panel_index,
                 panel_label=panel_label,
@@ -314,6 +334,8 @@ class AgentDetailDeckShowMixin:
                 availability=availability,
                 accents=accents,
                 other_target=other_panel_target(state, panel_index),
+                previous=previous,
+                opener_display=opener_display,
             )
         except Exception:
             return None

@@ -11,6 +11,7 @@ from sase.ace.tui.widgets.decks.model import DeckId
 from sase.ace.tui.widgets.decks.picker import (
     DeckPick,
     DeckPickerState,
+    build_deck_picker_back,
     build_deck_picker_rows,
     deck_picker_heading,
 )
@@ -19,8 +20,10 @@ from sase.ace.tui.widgets.decks.picker import (
 def _modal(
     *,
     current: DeckId = DeckId.MAIN,
-    close_keys: tuple[str, ...] = ("p",),
+    previous: DeckId | None = None,
+    back_keys: tuple[str, ...] = ("p",),
     other_hint: str | None = None,
+    opener_display: str = "p",
 ) -> DeckPickerModal:
     state = DeckPickerState(
         panel_index=0,
@@ -39,11 +42,14 @@ def _modal(
             DeckId.TOOLS: "#87D7FF",
             DeckId.FINAL: "#FF87D7",
         },
+        previous=previous,
+        opener_display=opener_display,
     )
     return DeckPickerModal(
         build_deck_picker_rows(state),
         deck_picker_heading(state),
-        close_keys,
+        build_deck_picker_back(state),
+        back_keys,
         other_hint,
     )
 
@@ -77,7 +83,7 @@ async def test_deck_picker_capitals_swallowed_without_other_hint() -> None:
         page.app.push_screen(_modal(other_hint=None), results.append)
         await page.expect_modal("DeckPickerModal")
 
-        for key in ("F", "M", "T", "N", "J", "K", "Q"):
+        for key in ("F", "M", "T", "N", "J", "K", "Q", "P"):
             await page.press(key)
             await page.pause()
             assert page.state["modal"] == "DeckPickerModal"
@@ -107,7 +113,7 @@ async def test_deck_picker_other_hint_line() -> None:
         page.app.push_screen(modal, [].append)
         await page.expect_modal("DeckPickerModal")
         assert _plain(modal, "#deck-picker-other-hint") == (
-            "   M/F/T/N  open in a new bottom panel"
+            "   P/M/F/T/N  open in a new bottom panel"
         )
 
     async with AcePage() as page:
@@ -135,7 +141,7 @@ async def test_deck_picker_stray_printable_keeps_modal_open() -> None:
 
 
 async def test_deck_picker_cancel_keys_dismiss_with_none() -> None:
-    for key in ("escape", "q", "p"):
+    for key in ("escape", "q"):
         results: list[DeckPick | None] = []
         async with AcePage() as page:
             page.app.push_screen(_modal(), results.append)
@@ -145,25 +151,47 @@ async def test_deck_picker_cancel_keys_dismiss_with_none() -> None:
             assert results == [None]
 
 
-async def test_deck_picker_close_key_dropped_on_collision() -> None:
-    # A close key colliding with a deck letter or j/k is dropped: `m`
-    # still picks Main instead of cancelling.
+async def test_deck_picker_p_selects_return_deck_for_this_panel() -> None:
     results: list[DeckPick | None] = []
     async with AcePage() as page:
-        page.app.push_screen(_modal(close_keys=("m", "j")), results.append)
+        page.app.push_screen(_modal(), results.append)
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert results == [DeckPick(DeckId.FINAL, False)]
+
+
+async def test_deck_picker_capital_p_selects_return_deck_for_other_panel() -> None:
+    results: list[DeckPick | None] = []
+    async with AcePage() as page:
+        page.app.push_screen(
+            _modal(other_hint="open in a new bottom panel"), results.append
+        )
+        await page.expect_modal("DeckPickerModal")
+        await page.press("P")
+        await page.expect_no_modal()
+        assert results == [DeckPick(DeckId.FINAL, True)]
+
+
+async def test_deck_picker_back_key_dropped_on_collision() -> None:
+    # A back key colliding with a deck letter or j/k is dropped: `m`
+    # still picks Main instead of the return row.
+    results: list[DeckPick | None] = []
+    async with AcePage() as page:
+        page.app.push_screen(_modal(back_keys=("m", "j")), results.append)
         await page.expect_modal("DeckPickerModal")
         await page.press("m")
         await page.expect_no_modal()
         assert results == [DeckPick(DeckId.MAIN, False)]
 
 
-async def test_deck_picker_close_key_rebound_to_capital_deck_letter_dropped() -> None:
+async def test_deck_picker_back_key_rebound_to_capital_deck_letter_dropped() -> None:
     # `pick_deck` rebound to a capital deck letter is still dropped from the
-    # close keys, so `F` keeps picking Files for the other panel.
+    # back keys, so `F` keeps picking Files for the other panel.
     results: list[DeckPick | None] = []
     async with AcePage() as page:
         page.app.push_screen(
-            _modal(close_keys=("F",), other_hint="show in the top panel"),
+            _modal(back_keys=("F",), other_hint="show in the top panel"),
             results.append,
         )
         await page.expect_modal("DeckPickerModal")
@@ -179,13 +207,19 @@ async def test_deck_picker_jk_wrap_and_enter() -> None:
         page.app.push_screen(modal, results.append)
         await page.expect_modal("DeckPickerModal")
 
-        # Cursor starts on the current deck (Main, row 0).
+        # Cursor starts on the current deck (Main), not the return row.
         assert modal.query_one("#deck-picker-row-0").has_class("focused")
+        assert not modal.query_one("#deck-picker-back").has_class("focused")
 
-        # `k` wraps from the first row to the last (FINAL).
+        # `k` from Main moves to the return row above it.
+        await page.press("k")
+        assert modal.query_one("#deck-picker-back").has_class("focused")
+        # `k` wraps from the return row to the last deck (FINAL).
         await page.press("k")
         assert modal.query_one("#deck-picker-row-3").has_class("focused")
-        # `j` wraps back to the first row.
+        # `j` wraps back to the return row, then to Main.
+        await page.press("j")
+        assert modal.query_one("#deck-picker-back").has_class("focused")
         await page.press("j")
         assert modal.query_one("#deck-picker-row-0").has_class("focused")
 
@@ -194,6 +228,31 @@ async def test_deck_picker_jk_wrap_and_enter() -> None:
         await page.press("enter")
         await page.expect_no_modal()
         assert results == [DeckPick(DeckId.TOOLS, False)]
+
+
+async def test_deck_picker_return_row_text() -> None:
+    async with AcePage() as page:
+        modal = _modal()
+        page.app.push_screen(modal, [].append)
+        await page.expect_modal("DeckPickerModal")
+        back = _plain(modal, "#deck-picker-back")
+        assert "p" in back
+        assert "\u21a9" in back
+        assert "FINAL" in back
+        assert "previous" in back
+        assert "Context, prompt, and reply" not in back
+        assert "how this node's turns landed" not in back
+
+    async with AcePage() as page:
+        modal = _modal(current=DeckId.FILES, previous=DeckId.MAIN)
+        page.app.push_screen(modal, [].append)
+        await page.expect_modal("DeckPickerModal")
+        back = _plain(modal, "#deck-picker-back")
+        assert "p" in back
+        assert "\u21a9" in back
+        assert "MAIN" in back
+        assert "last deck" in back
+        assert "Context, prompt, and reply" not in back
 
 
 async def test_deck_picker_row_text_and_click() -> None:

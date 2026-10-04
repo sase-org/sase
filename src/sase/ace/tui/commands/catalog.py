@@ -148,10 +148,58 @@ def _iter_deck_picker_commands(
     picker's lowercase and capital letter).
     """
     from sase.ace.tui.keymaps.loader import key_display_name
+    from sase.ace.tui.widgets.decks.picker import pick_deck_capital
     from sase.ace.tui.widgets.decks.spec import active_deck_cycle
     from sase.ace.tui.widgets.decks.titles import DECK_PICKER_KEYS
 
     opener = registry.app.pick_deck
+    if is_unbound_key(opener):
+        last_sequence: tuple[str, ...] = ()
+        last_display = ""
+    else:
+        last_sequence = (opener, opener)
+        last_display = " ".join(key_display_name(k) for k in last_sequence)
+    yield CommandSpec(
+        id="agents.show_last_deck",
+        label="Show last deck in focused panel",
+        key_sequence=last_sequence,
+        key_display=last_display,
+        category="Navigation",
+        tabs=AGENTS_ONLY,
+        executor=CommandExecutor(
+            kind="app_action",
+            action="show_last_deck",
+        ),
+        aliases=(
+            "deck",
+            "last deck",
+            "previous deck",
+            "switch deck",
+        ),
+    )
+    capital = None if is_unbound_key(opener) else pick_deck_capital(opener)
+    if capital is not None:
+        other_last_sequence = (opener, capital)
+        other_last_display = " ".join(key_display_name(k) for k in other_last_sequence)
+        yield CommandSpec(
+            id="agents.show_last_deck_other",
+            label="Show last deck in other panel",
+            key_sequence=other_last_sequence,
+            key_display=other_last_display,
+            category="Navigation",
+            tabs=AGENTS_ONLY,
+            executor=CommandExecutor(
+                kind="app_action",
+                action="show_last_deck_other",
+            ),
+            aliases=(
+                "deck",
+                "last deck",
+                "previous deck",
+                "other panel",
+                "split",
+            ),
+        )
     for index, deck in enumerate(active_deck_cycle()):
         letter = DECK_PICKER_KEYS[deck]
         if is_unbound_key(opener):

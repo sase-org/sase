@@ -14,14 +14,18 @@ from sase.ace.tui.widgets.decks.model import (
     DeckPanelState,
 )
 from sase.ace.tui.widgets.decks.picker import (
+    BackOrigin,
     DeckPickerState,
     _OtherPanelTarget,
     _deck_count_label,
+    build_deck_picker_back,
     build_deck_picker_rows,
     deck_picker_heading,
     deck_picker_other_hint,
     other_panel_target,
     panel_position_label,
+    resolve_back_deck,
+    usable_back_keys,
 )
 from sase.ace.tui.widgets.decks.titles import (
     DECK_BLURBS,
@@ -55,6 +59,7 @@ def _state(
     layout: DeckLayout = DeckLayout.SINGLE,
     focused: int = 0,
     other: tuple[DeckId, str] | None = None,
+    previous: DeckId | None = None,
 ) -> DeckPickerState:
     return DeckPickerState(
         panel_index=focused,
@@ -65,7 +70,62 @@ def _state(
         other=other,
         availability=_availability(),
         accents=_accents(),
+        previous=previous,
     )
+
+
+def test_resolve_back_deck_fresh_main_uses_cycle_previous() -> None:
+    assert resolve_back_deck(DeckId.MAIN, None) == (DeckId.FINAL, BackOrigin.PREVIOUS)
+
+
+def test_resolve_back_deck_remembers_last() -> None:
+    assert resolve_back_deck(DeckId.FILES, DeckId.MAIN) == (
+        DeckId.MAIN,
+        BackOrigin.LAST,
+    )
+
+
+def test_resolve_back_deck_unusable_previous_falls_back() -> None:
+    assert resolve_back_deck(DeckId.FILES, DeckId.FILES) == (
+        DeckId.MAIN,
+        BackOrigin.PREVIOUS,
+    )
+    assert resolve_back_deck(DeckId.TOOLS, None) == (DeckId.FILES, BackOrigin.PREVIOUS)
+
+
+def test_resolve_back_deck_current_outside_cycle_returns_main() -> None:
+    from sase.ace.tui.widgets.decks import picker as deck_picker
+
+    original = deck_picker.active_deck_cycle
+    deck_picker.active_deck_cycle = lambda: (DeckId.MAIN, DeckId.FILES)  # type: ignore[method-assign]
+    try:
+        assert resolve_back_deck(DeckId.TOOLS, None) == (
+            DeckId.MAIN,
+            BackOrigin.PREVIOUS,
+        )
+        assert resolve_back_deck(DeckId.TOOLS, DeckId.FINAL) == (
+            DeckId.MAIN,
+            BackOrigin.PREVIOUS,
+        )
+    finally:
+        deck_picker.active_deck_cycle = original  # type: ignore[method-assign]
+
+
+def test_build_deck_picker_back_uses_helper() -> None:
+    fresh = build_deck_picker_back(_state())
+    assert fresh.deck is DeckId.FINAL
+    assert fresh.origin is BackOrigin.PREVIOUS
+    assert fresh.key == "p"
+    assert fresh.name == "FINAL"
+    remembered = build_deck_picker_back(_state(DeckId.FILES, previous=DeckId.MAIN))
+    assert remembered.deck is DeckId.MAIN
+    assert remembered.origin is BackOrigin.LAST
+    assert remembered.count_label == "2 cards"
+
+
+def test_usable_back_keys_drop_collisions() -> None:
+    assert usable_back_keys(("p",)) == ("p",)
+    assert usable_back_keys(("m", "j", "p", "q", "f12")) == ("p", "f12")
 
 
 def test_picker_catalog_covers_every_deck() -> None:

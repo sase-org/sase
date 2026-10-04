@@ -132,6 +132,7 @@ class DeckPanelState:
     deck: DeckId
     preferred_cards: dict[DeckId, str] = field(default_factory=dict)
     views: DeckViewPolicies = DeckViewPolicies()
+    previous_deck: DeckId | None = None
 
     @property
     def preferred_card(self) -> str | None:
@@ -193,10 +194,20 @@ def panel_state(state: DeckAreaState, pane_id: int) -> DeckPanelState:
 
 
 def with_panel_deck(state: DeckAreaState, pane_id: int, deck: DeckId) -> DeckAreaState:
-    """Return a new state with ``pane_id`` showing ``deck``."""
+    """Return a new state with ``pane_id`` showing ``deck``.
+
+    Records the deck being left as ``previous_deck`` only when the value
+    actually changes. A same-deck call returns ``state`` unchanged so a
+    follow-up ``show_deck`` of the deck a panel already has cannot invent
+    history.
+    """
     current = panel_state(state, pane_id)
+    if current.deck is deck:
+        return state
     panels = dict(state.panels)
-    panels[pane_id] = dataclasses.replace(current, deck=deck)
+    panels[pane_id] = dataclasses.replace(
+        current, deck=deck, previous_deck=current.deck
+    )
     return dataclasses.replace(state, panels=panels)
 
 

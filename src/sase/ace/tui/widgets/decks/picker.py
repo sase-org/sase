@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.util.pane_grid import focus_pane, free_pane_id, other_target
@@ -11,7 +12,7 @@ from sase.ace.tui.util.pane_grid import position_glyph as _position_glyph
 from sase.ace.tui.util.pane_grid import position_name as _position_name
 
 from .layout import is_zoomed
-from .model import DeckAreaState, DeckId, DeckLayout
+from .model import DeckAreaState, DeckId, DeckLayout, cycle_deck_id
 from .spec import active_deck_cycle
 from .titles import (
     DECK_BLURBS,
@@ -20,6 +21,8 @@ from .titles import (
     DECK_NAMES,
     DECK_PICKER_KEYS,
 )
+
+_BACK_KEY_RESERVED = frozenset({"j", "k", "q", "enter", "escape"})
 
 if TYPE_CHECKING:
     from .availability import DeckAvailability
@@ -102,6 +105,48 @@ class DeckPick:
     other_panel: bool
 
 
+class BackOrigin(StrEnum):
+    """Where :func:`resolve_back_deck` got the return target."""
+
+    LAST = "last"
+    PREVIOUS = "previous"
+
+
+def resolve_back_deck(
+    current: DeckId, previous: DeckId | None
+) -> tuple[DeckId, BackOrigin]:
+    """Return the deck a return-row press should show.
+
+    ``LAST`` when ``previous`` is in the active cycle and is not
+    ``current``. Otherwise one step backward in the cycle (the same step
+    as ``action_prev_deck``), tagged ``PREVIOUS``. A ``current`` outside
+    the cycle returns Main / ``PREVIOUS`` and never raises.
+    """
+    cycle = active_deck_cycle()
+    if previous is not None and previous in cycle and previous is not current:
+        return previous, BackOrigin.LAST
+    if current not in cycle:
+        return DeckId.MAIN, BackOrigin.PREVIOUS
+    return cycle_deck_id(current, -1), BackOrigin.PREVIOUS
+
+
+def usable_back_keys(keys: tuple[str, ...]) -> tuple[str, ...]:
+    """Drop opener alternatives that collide with picker navigation or letters."""
+    reserved = set(_BACK_KEY_RESERVED)
+    reserved.update(key.lower() for key in DECK_PICKER_KEYS.values())
+    return tuple(key for key in keys if key.lower() not in reserved)
+
+
+def pick_deck_capital(opener: str) -> str | None:
+    """Return the distinct capital of a single-letter opener, else None."""
+    if len(opener) != 1 or not opener.isalpha():
+        return None
+    capital = opener.upper()
+    if capital == opener.lower():
+        return None
+    return capital
+
+
 @dataclass(frozen=True)
 class DeckPickerState:
     """Snapshot the picker acts on."""
@@ -113,6 +158,8 @@ class DeckPickerState:
     availability: Mapping[DeckId, DeckAvailability]
     accents: Mapping[DeckId, str]
     other_target: _OtherPanelTarget | None = None
+    previous: DeckId | None = None
+    opener_display: str = "p"
 
 
 @dataclass(frozen=True)
@@ -129,6 +176,20 @@ class DeckPickerRow:
     has_content: bool | None
     is_current: bool
     other_panel_label: str | None
+
+
+@dataclass(frozen=True)
+class DeckPickerBackRow:
+    """The return row above the deck catalog."""
+
+    deck: DeckId
+    origin: BackOrigin
+    key: str
+    glyph: str
+    name: str
+    accent: str
+    count_label: str
+    has_content: bool | None
 
 
 def _deck_count_label(deck: DeckId, availability: object | None) -> str:
@@ -188,13 +249,36 @@ def build_deck_picker_rows(state: DeckPickerState) -> tuple[DeckPickerRow, ...]:
     return tuple(rows)
 
 
+def build_deck_picker_back(state: DeckPickerState) -> DeckPickerBackRow:
+    """Build the return row for ``state``."""
+    deck, origin = resolve_back_deck(state.current, state.previous)
+    avail = state.availability.get(deck)
+    has_content = getattr(avail, "has_content", None)
+    return DeckPickerBackRow(
+        deck=deck,
+        origin=origin,
+        key=state.opener_display,
+        glyph=DECK_GLYPHS[deck],
+        name=DECK_NAMES[deck],
+        accent=state.accents.get(deck, ""),
+        count_label=_deck_count_label(deck, avail),
+        has_content=has_content,
+    )
+
+
 __all__ = [
+    "BackOrigin",
     "DeckPick",
+    "DeckPickerBackRow",
     "DeckPickerRow",
     "DeckPickerState",
+    "build_deck_picker_back",
     "build_deck_picker_rows",
     "deck_picker_heading",
     "deck_picker_other_hint",
     "other_panel_target",
     "panel_position_label",
+    "pick_deck_capital",
+    "resolve_back_deck",
+    "usable_back_keys",
 ]

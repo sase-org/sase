@@ -5586,32 +5586,41 @@ skips legacy dismissal-prefixed candidates so it anchors on a live, visible agen
 ### Agents Deck Picker
 
 On the Agents tab, `p` opens a small centered deck picker for the focused deck panel.
-One more keypress picks the deck directly: `m` Main, `f` Files, `t` Tools, `n` FINAL
-(`pp` or `Esc` closes without changing anything). `j`/`k` move the highlight (wrapping)
-and `Enter` picks the highlighted row; any other printable key is swallowed so nothing
-leaks through to the tab. The picker heading names the focused panel (`deck panel`
-single, `top` / `bottom` or `left` / `right` in a split, `zoomed` while zoomed), each
-row shows its deck letter, glyph, count, and whether it is already showing (or shown in
-the other split panel), and the palette offers the same jumps as
-`Show <Main|Files|Tools> deck in focused panel`. The old detail-view picker is retired:
-the Agents tab now always shows
-[agent data decks and cards](#agent-data-decks-and-cards). The in-picker deck letters
-are fixed and not configurable. `p` keeps its unrelated Artifacts project-scope meaning
-on the Artifacts tab.
+One more keypress picks the deck directly: `m` Main, `f` Files, `t` Tools, `n` FINAL.
+Pressing the opener again (`pp` with the default binding) switches the focused panel to
+the last deck that panel showed, or to the cycle-previous deck when that panel has no
+history yet, and closes the picker. The return row names the destination and badges it
+`last deck` or `previous`. `Esc` and `q` close without changing anything. `j`/`k` move
+the highlight (wrapping across the return row and the four deck rows) and `Enter` picks
+the highlighted row; any other printable key is swallowed so nothing leaks through to
+the tab. History is one deck deep per panel, updated by every real deck change (picker
+letters, palette jumps, `Ctrl+N` / `Ctrl+P`, and a capital letter that changes the other
+panel), and restored with the deck layout. The picker heading names the focused panel
+(`deck panel` single, `top` / `bottom` or `left` / `right` in a split, `zoomed` while
+zoomed), each deck row shows its letter, glyph, count, and whether it is already showing
+(or shown in the other split panel), and the palette offers the same jumps as
+`Show <Main|Files|Tools|FINAL> deck in focused panel` plus
+`Show last deck in focused panel`. The old detail-view picker is retired: the Agents tab
+now always shows [agent data decks and cards](#agent-data-decks-and-cards). The
+in-picker deck letters are fixed and not configurable. `p` keeps its unrelated Artifacts
+project-scope meaning on the Artifacts tab.
 
 The capital deck letters (`M` / `F` / `T` / `N`) show that deck in the most recently
-focused other panel instead of the focused one. From a single panel they open a new
-panel below (top-bottom) showing the picked deck; in an existing top-bottom or
-left-right split they target the MRU other panel and keep the layout as is (a left-right
-split is never rotated). While zoomed, the zoom ends first, the way `Z` ends it, and the
-split comes back in its original orientation (or a new bottom panel opens when the zoom
-came from a single panel). Focus always stays on the panel the picker was opened from,
-unlike `\`, which moves focus into the new panel; `Ctrl+F` moves it if you want. A muted
-hint line at the bottom of the picker names the MRU target with its position glyph (for
-example `show in the ◲ bottom-right panel`) and says where the capital letter will go.
-Picking a capital letter for the deck the other panel already shows changes nothing.
-`Enter` and mouse clicks keep their focused-panel meaning. The palette offers the same
-jumps as `Show <Main|Files|Tools> deck in other panel`.
+focused other panel instead of the focused one. When the opener is a single letter, its
+capital (`P` by default) shows the same resolved return deck in the other panel, with
+the existing split and zoom rules. From a single panel they open a new panel below
+(top-bottom) showing the picked deck; in an existing top-bottom or left-right split they
+target the MRU other panel and keep the layout as is (a left-right split is never
+rotated). While zoomed, the zoom ends first, the way `Z` ends it, and the split comes
+back in its original orientation (or a new bottom panel opens when the zoom came from a
+single panel). Focus always stays on the panel the picker was opened from, unlike `\`,
+which moves focus into the new panel; `Ctrl+F` moves it if you want. A muted hint line
+at the bottom of the picker names the MRU target with its position glyph (for example
+`show in the ◲ bottom-right panel`) and says where the capital letter will go. Picking a
+capital letter for the deck the other panel already shows changes nothing. `Enter` and
+mouse clicks keep their focused-panel meaning. The palette offers the same jumps as
+`Show <Main|Files|Tools|FINAL> deck in other panel` plus
+`Show last deck in other panel`.
 
 ### Agent Data Decks and Cards
 
@@ -5619,8 +5628,9 @@ The Agents tab detail column shows one to three deck panels between the sticky h
 panel and the jump panel. Each deck panel shows one agent data deck, a named ordered set
 of agent data cards about the selected node. `Ctrl+N` / `Ctrl+P` cycle the focused panel
 through the Main, Files, Tools, and FINAL decks (wrapping, nothing skipped), and `p`
-opens the [deck picker](#agents-deck-picker) for a two-key jump to any deck; `Ctrl+J` /
-`Ctrl+K` move to the next / previous card in the focused panel.
+opens the [deck picker](#agents-deck-picker) for a two-key jump to any deck (`pp`
+returns to the last deck, or to the cycle-previous deck when the focused panel has no
+history); `Ctrl+J` / `Ctrl+K` move to the next / previous card in the focused panel.
 
 - **Main deck.** `Context` (details and prompt; the default card) and `Reply` — titled
   `Output` for named procs, monitors, gates, and workflow steps — plus a leading

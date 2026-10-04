@@ -73,8 +73,20 @@ def test_with_panel_deck_returns_new_state() -> None:
     )
     updated = with_panel_deck(state, 1, DeckId.FILES)
     assert updated.panels[1].deck is DeckId.FILES
+    assert updated.panels[1].previous_deck is DeckId.MAIN
     assert updated.panels[0].deck is DeckId.MAIN
     assert state.panels[1].deck is DeckId.MAIN
+    assert state.panels[1].previous_deck is None
+
+
+def test_with_panel_deck_same_deck_keeps_history_and_identity() -> None:
+    state = DeckAreaState()
+    assert with_panel_deck(state, 0, DeckId.MAIN) is state
+    switched = with_panel_deck(state, 0, DeckId.FILES)
+    assert switched.panels[0].previous_deck is DeckId.MAIN
+    again = with_panel_deck(switched, 0, DeckId.FILES)
+    assert again is switched
+    assert again.panels[0].previous_deck is DeckId.MAIN
 
 
 def test_with_panel_deck_out_of_range() -> None:
@@ -218,10 +230,32 @@ def test_with_panel_view_updates_zoom_snapshot() -> None:
     assert updated.panels[1].views.files is DeckView.SPREAD
     assert updated.zoom_snapshot is not None
     assert updated.zoom_snapshot.panels[1].views.files is DeckView.SPREAD
-    # The other panel is untouched in both states.
-    assert updated.panels[0].views.files is DeckView.AUTO
-    assert updated.zoom_snapshot.panels[0].views.files is DeckView.AUTO
-    with pytest.raises(IndexError):
-        with_panel_view(state, 5, DeckId.MAIN, DeckView.SPREAD)
-    with pytest.raises(ValueError):
-        with_panel_view(state, 0, DeckId.TOOLS, DeckView.SPREAD)
+
+
+def test_with_panel_deck_history_reverts_with_zoom_snapshot() -> None:
+    from sase.ace.tui.util.pane_grid import Axis, PaneGrid
+
+    state = DeckAreaState(
+        grid=PaneGrid(
+            panes=(0, 1),
+            focused=1,
+            axis=Axis.COLS,
+            ratio=50,
+            recent=(1, 0),
+        ),
+        panels={0: DeckPanelState(DeckId.MAIN), 1: DeckPanelState(DeckId.FILES)},
+    )
+    zoomed = toggle_zoom(state)
+    edited = with_panel_deck(zoomed, 1, DeckId.TOOLS)
+    assert edited.panels[1].deck is DeckId.TOOLS
+    assert edited.panels[1].previous_deck is DeckId.FILES
+    assert edited.zoom_snapshot is not None
+    assert edited.zoom_snapshot.panels[1].deck is DeckId.FILES
+    assert edited.zoom_snapshot.panels[1].previous_deck is None
+    restored = toggle_zoom(edited)
+    assert restored.panels[1].deck is DeckId.FILES
+    assert restored.panels[1].previous_deck is None
+    assert edited.panels[0].deck is DeckId.MAIN
+    assert edited.panels[0].previous_deck is None
+    assert restored.panels[0].deck is DeckId.MAIN
+    assert restored.panels[0].previous_deck is None

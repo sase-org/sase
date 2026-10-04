@@ -1474,11 +1474,15 @@ leader binding. Old `ace.keymaps.modes.leader_mode.keys.toggle_agent_panel_group
 overrides are ignored with a warning instead of being remapped onto the picker opener.
 
 The Agents deck picker works the same way: configure `ace.keymaps.app.pick_deck`
-(default `p`) to change the opener, while the in-picker deck letters (`m` / `f` / `t`)
-and their capitals (`M` / `F` / `T`, which show the deck in the most recently focused
-other panel with a position glyph hint) are fixed and not configurable. `p` is shared
-with the Artifacts `pick_artifacts_project` action; the two are disambiguated by tab
-(see the allowlist below).
+(default `p`) to change the opener. Pressing that opener again inside the picker is the
+return gesture (last deck, or cycle-previous when the panel has no history) and is not
+its own binding. The in-picker deck letters (`m` / `f` / `t` / `n` for Main, Files,
+Tools, and FINAL) and their capitals (`M` / `F` / `T` / `N`, which show the deck in the
+most recently focused other panel with a position glyph hint) are fixed and not
+configurable. When the opener is a single letter, its capital (`P` by default) sits next
+to `M` / `F` / `T` / `N` and shows the same resolved return deck in the other panel. `p`
+is shared with the Artifacts `pick_artifacts_project` action; the two are disambiguated
+by tab (see the allowlist below).
 
 The leader update keys are separate remappable actions. `update_sase` opens the cached
 Update panel, while `update_everything` directly runs the same previewed Everything flow

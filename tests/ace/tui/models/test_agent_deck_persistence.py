@@ -58,6 +58,70 @@ def test_deterministic_round_trip_covers_layout_and_panels(tmp_path: Path) -> No
     assert '"layout":"left-right"' in first
     assert '"nodes_collapsed":true' in first
     assert '"preferred_card":"reply"' in first
+    assert "previous_deck" not in first
+
+
+def test_previous_deck_round_trips_when_set(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    snapshot = AgentsDeckStateSnapshot(
+        panels=(_DeckPanelSnapshot(deck=DeckId.FILES, previous_deck=DeckId.MAIN),)
+    )
+    save_agents_deck_state(snapshot, path)
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].previous_deck is DeckId.MAIN
+    assert '"previous_deck":"main"' in path.read_text()
+    rebuilt = area_state_from_snapshot(loaded)
+    assert rebuilt.panels[0].previous_deck is DeckId.MAIN
+    assert snapshot_from_area_state(rebuilt).panels[0].previous_deck is DeckId.MAIN
+
+
+def test_previous_deck_unusable_values_fail_open(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [
+                    {
+                        "deck": "files",
+                        "preferred_card": None,
+                        "previous_deck": "telemetry",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].deck is DeckId.FILES
+    assert loaded.panels[0].previous_deck is None
+
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [
+                    {
+                        "deck": "files",
+                        "preferred_card": None,
+                        "previous_deck": "files",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].deck is DeckId.FILES
+    assert loaded.panels[0].previous_deck is None
 
 
 def test_empty_state_round_trips_to_single_main(tmp_path: Path) -> None:
@@ -165,6 +229,7 @@ def test_snapshot_from_area_state_unwraps_zoom() -> None:
     assert kept.layout is DeckLayout.TOP_BOTTOM
     assert kept.focused == 1
     assert kept.panels[1].deck is DeckId.TOOLS
+    assert kept.panels[1].previous_deck is DeckId.FILES
     assert kept.panels[0].deck is DeckId.MAIN
 
 

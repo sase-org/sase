@@ -194,6 +194,19 @@ def test_pick_deck_palette_entry_is_agents_only() -> None:
         )
         assert not is_command_available(other, CommandContext(tab="axe"))
 
+    last = catalog["agents.show_last_deck"]
+    last_other = catalog["agents.show_last_deck_other"]
+    assert is_command_available(last, CommandContext(tab="agents"))
+    assert is_command_available(last_other, CommandContext(tab="agents"))
+    assert not is_command_available(
+        last, CommandContext(tab="artifacts", artifacts_subtab="patches")
+    )
+    assert not is_command_available(last, CommandContext(tab="axe"))
+    assert not is_command_available(
+        last_other, CommandContext(tab="artifacts", artifacts_subtab="patches")
+    )
+    assert not is_command_available(last_other, CommandContext(tab="axe"))
+
 
 def test_grouping_cycle_palette_commands_follow_grouping_capability() -> None:
     catalog = _catalog_by_id()

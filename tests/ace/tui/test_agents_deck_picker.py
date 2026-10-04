@@ -68,10 +68,16 @@ async def test_agents_p_opens_picker_and_f_switches_deck() -> None:
         assert calls, "switching decks schedules the deck-state save"
 
 
-async def test_agents_pp_closes_picker_without_change() -> None:
+async def test_agents_pp_from_fresh_main_lands_on_final_then_main() -> None:
     async with AcePage(initial_tab="agents") as page:
         await _seed_agents(page)
         detail = _detail(page)
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.FINAL
 
         await page.press("p")
         await page.expect_modal("DeckPickerModal")
@@ -212,7 +218,7 @@ async def test_agents_p_capital_f_opens_files_below_and_keeps_focus() -> None:
             await page.press("p")
             await page.expect_modal("DeckPickerModal")
             assert _plain(page, "#deck-picker-other-hint") == (
-                "   M/F/T/N  open in a new bottom panel"
+                "   P/M/F/T/N  open in a new bottom panel"
             )
 
             await page.press("F")
@@ -245,7 +251,7 @@ async def test_agents_p_capital_t_in_left_right_split_fills_left_panel() -> None
             "Choose what the right panel shows"
         )
         assert _plain(page, "#deck-picker-other-hint") == (
-            "   M/F/T/N  show in the ◧ left panel"
+            "   P/M/F/T/N  show in the ◧ left panel"
         )
         assert left_deck is not DeckId.TOOLS
 
@@ -275,7 +281,7 @@ async def test_agents_p_capital_for_other_panels_deck_changes_nothing() -> None:
             await page.press("p")
             await page.expect_modal("DeckPickerModal")
             assert _plain(page, "#deck-picker-other-hint") == (
-                "   M/F/T/N  show in the ⬓ bottom panel"
+                "   P/M/F/T/N  show in the ⬓ bottom panel"
             )
             await page.press("F")
             await page.expect_no_modal()
@@ -296,4 +302,191 @@ async def test_agents_palette_show_deck_other_command() -> None:
         assert state.layout is DeckLayout.TOP_BOTTOM
         assert state.panels[0].deck is DeckId.MAIN
         assert state.panels[1].deck is DeckId.FILES
+        assert state.focused == 0
+
+
+async def test_agents_pp_after_tools_returns_to_main_then_tools() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("t")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.TOOLS
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.MAIN
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.TOOLS
+
+
+async def test_agents_ctrl_n_updates_return_partner() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("t")
+        await page.expect_no_modal()
+        await page.press("p", "p")
+        await page.expect_no_modal()
+        await page.press("p", "p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.TOOLS
+
+        page.app.action_next_deck()
+        await page.pause()
+        left = detail.deck_area.panel(0).deck
+        assert left is not DeckId.TOOLS
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.TOOLS
+
+
+async def test_agents_repicking_current_letter_keeps_partner() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("t")
+        await page.expect_no_modal()
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("t")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.TOOLS
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.MAIN
+
+
+async def test_agents_split_panels_keep_independent_history() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("t")
+        await page.expect_no_modal()
+
+        await page.press("backslash")
+        await page.pause()
+        assert detail.deck_area.state.focused == 1
+        bottom_deck = detail.deck_area.panel(1).deck
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.TOOLS
+        assert detail.deck_area.panel(1).deck is not bottom_deck
+
+        page.app.action_toggle_deck_focus()
+        await page.pause()
+        assert detail.deck_area.state.focused == 0
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(0).deck is DeckId.MAIN
+
+
+async def test_agents_p_capital_p_opens_resolved_deck_below() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("P")
+        await page.expect_no_modal()
+        state = detail.deck_area.state
+        assert state.layout is DeckLayout.TOP_BOTTOM
+        assert state.panels[0].deck is DeckId.MAIN
+        assert state.panels[0].previous_deck is None
+        assert state.panels[1].deck is DeckId.FINAL
+        assert state.panels[1].previous_deck is None
+        assert state.focused == 0
+
+        page.app.action_toggle_deck_focus()
+        await page.pause()
+        assert detail.deck_area.state.focused == 1
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("p")
+        await page.expect_no_modal()
+        assert detail.deck_area.panel(1).deck is DeckId.TOOLS
+        assert detail.deck_area.panel(0).deck is DeckId.MAIN
+
+
+async def test_agents_p_capital_p_noop_when_other_already_shows_target() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("P")
+        await page.expect_no_modal()
+        before = detail.deck_area.state
+
+        calls: list[None] = []
+        original = page.app._agents_deck_state_changed
+        page.app._agents_deck_state_changed = lambda: calls.append(None)  # type: ignore[method-assign]
+        try:
+            await page.press("p")
+            await page.expect_modal("DeckPickerModal")
+            await page.press("P")
+            await page.expect_no_modal()
+        finally:
+            page.app._agents_deck_state_changed = original  # type: ignore[method-assign]
+        assert detail.deck_area.state == before
+        assert not calls, "a no-op capital last-deck pick saves nothing"
+
+
+async def test_agents_palette_show_last_deck_matches_picker() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        page.app.action_show_last_deck()
+        await page.pause()
+        assert detail.deck_area.panel(0).deck is DeckId.FINAL
+
+        page.app.action_show_last_deck()
+        await page.pause()
+        assert detail.deck_area.panel(0).deck is DeckId.MAIN
+
+
+async def test_agents_palette_show_last_deck_other_matches_picker() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        page.app.action_show_last_deck_other()
+        await page.pause()
+        state = detail.deck_area.state
+        assert state.layout is DeckLayout.TOP_BOTTOM
+        assert state.panels[0].deck is DeckId.MAIN
+        assert state.panels[1].deck is DeckId.FINAL
         assert state.focused == 0

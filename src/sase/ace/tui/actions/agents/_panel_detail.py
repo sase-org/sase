@@ -282,9 +282,11 @@ class AgentPanelDetailMixin:
         from ...widgets import AgentDetail
         from ...widgets.decks.picker import (
             DeckPick,
+            build_deck_picker_back,
             build_deck_picker_rows,
             deck_picker_heading,
             deck_picker_other_hint,
+            usable_back_keys,
         )
 
         if isinstance(getattr(self, "screen", None), ModalScreen):
@@ -296,25 +298,31 @@ class AgentPanelDetailMixin:
             return
         if state is None:
             return
+        from dataclasses import replace
+
+        from ...keymaps import key_display_name, split_key_alternatives
+        from ...keymaps.key_validation import is_unbound_key
+
+        try:
+            registry = getattr(self, "_keymap_registry", None)
+            configured = getattr(getattr(registry, "app", None), "pick_deck", "")
+            raw = str(configured) if configured else ""
+            opener_keys = tuple(
+                k for k in split_key_alternatives(raw) if k and not is_unbound_key(k)
+            )
+        except Exception:
+            opener_keys = ()
+        back_keys = usable_back_keys(opener_keys)
+        opener_display = key_display_name(back_keys[0]) if back_keys else ""
+        state = replace(state, opener_display=opener_display)
         rows = build_deck_picker_rows(state)
+        back = build_deck_picker_back(state)
         heading = deck_picker_heading(state)
         other_hint = (
             deck_picker_other_hint(state.other_target)
             if state.other_target is not None
             else None
         )
-        try:
-            from ...keymaps import split_key_alternatives
-            from ...keymaps.key_validation import is_unbound_key
-
-            registry = getattr(self, "_keymap_registry", None)
-            configured = getattr(getattr(registry, "app", None), "pick_deck", "")
-            raw = str(configured) if configured else ""
-            close_keys = tuple(
-                k for k in split_key_alternatives(raw) if k and not is_unbound_key(k)
-            )
-        except Exception:
-            close_keys = ()
 
         def _on_choice(chosen: DeckPick | None) -> None:
             if chosen is None or self.current_tab != "agents":
@@ -339,7 +347,7 @@ class AgentPanelDetailMixin:
                 pass
 
         self.push_screen(  # type: ignore[attr-defined]
-            DeckPickerModal(rows, heading, close_keys, other_hint), _on_choice
+            DeckPickerModal(rows, heading, back, back_keys, other_hint), _on_choice
         )
 
     def action_show_deck_at(self, index: int) -> None:
@@ -387,6 +395,62 @@ class AgentPanelDetailMixin:
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             changed = agent_detail.show_deck_in_other_panel(None, cycle[position])
+        except Exception:
+            return
+        if not changed:
+            return
+        try:
+            refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            pass
+
+    def action_show_last_deck(self) -> None:
+        """Show the resolved return deck in the focused panel."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+        from ...widgets.decks.picker import resolve_back_deck
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            state = agent_detail.deck_picker_state()
+        except Exception:
+            return
+        if state is None:
+            return
+        deck, _origin = resolve_back_deck(state.current, state.previous)
+        try:
+            changed = agent_detail.apply_picked_deck(None, deck)
+        except Exception:
+            return
+        if not changed:
+            return
+        try:
+            refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            pass
+
+    def action_show_last_deck_other(self) -> None:
+        """Show the resolved return deck in the other panel."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+        from ...widgets.decks.picker import resolve_back_deck
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            state = agent_detail.deck_picker_state()
+        except Exception:
+            return
+        if state is None:
+            return
+        deck, _origin = resolve_back_deck(state.current, state.previous)
+        try:
+            changed = agent_detail.show_deck_in_other_panel(None, deck)
         except Exception:
             return
         if not changed:

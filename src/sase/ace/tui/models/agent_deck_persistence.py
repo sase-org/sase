@@ -7,9 +7,13 @@ all file and JSON work through ``asyncio.to_thread``.
 Schema version 1 stores ``{layout, ratio, focused, nodes_collapsed, panels}``
 where each panel entry is ``{deck, preferred_card, preferred_cards, views}``
 with the additive optional ``preferred_cards`` object mapping deck names to
-card ids and the additive optional ``views`` object ``{main, files}`` holding
-per-deck view policies. A three-panel state also writes the additive
-optional ``pair`` object ``{region, ratio}`` naming the inner split. The
+card ids, the additive optional ``views`` object ``{main, files}`` holding
+per-deck view policies, and the additive optional ``previous_deck`` naming
+the one-slot return partner. A missing ``previous_deck`` is ``None``; an
+unknown deck, a deck outside the active cycle, or a value equal to that
+panel's current deck becomes ``None`` and does not fail the file. A
+three-panel state also writes the additive optional ``pair`` object
+``{region, ratio}`` naming the inner split. The
 legacy ``preferred_card`` key is still written and read as Main's preference
 so older files keep their sticky Main card. A zoomed session persists its
 restored geometry plus the edits made while zoomed. Loading fails
@@ -60,6 +64,7 @@ class _DeckPanelSnapshot:
     deck: DeckId = DeckId.MAIN
     preferred_cards: dict[DeckId, str] = field(default_factory=dict)
     views: DeckViewPolicies = DeckViewPolicies()
+    previous_deck: DeckId | None = None
 
     @property
     def preferred_card(self) -> str | None:
@@ -155,6 +160,23 @@ def _decode_preferred_cards(raw: Any) -> dict[DeckId, str]:
     return cards
 
 
+def _decode_previous_deck(raw: Any, current: DeckId) -> DeckId | None:
+    """Decode optional ``previous_deck``, failing open to None."""
+    from ..widgets.decks.spec import active_deck_cycle
+
+    if raw is None:
+        return None
+    try:
+        previous = DeckId(str(raw))
+    except ValueError:
+        log.warning("Ignoring unusable previous_deck in persisted deck state: %r", raw)
+        return None
+    if previous not in active_deck_cycle() or previous is current:
+        log.warning("Ignoring unusable previous_deck in persisted deck state: %r", raw)
+        return None
+    return previous
+
+
 def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
     from ..widgets.decks.spec import active_deck_cycle
 
@@ -171,7 +193,13 @@ def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
     if legacy is not None and DeckId.MAIN not in cards:
         cards[DeckId.MAIN] = legacy
     views = _decode_views(raw.get("views", None))
-    return _DeckPanelSnapshot(deck=deck, preferred_cards=cards, views=views)
+    previous_deck = _decode_previous_deck(raw.get("previous_deck", None), deck)
+    return _DeckPanelSnapshot(
+        deck=deck,
+        preferred_cards=cards,
+        views=views,
+        previous_deck=previous_deck,
+    )
 
 
 def _decode_pair(raw: Any) -> tuple[int, int] | None:
@@ -272,6 +300,7 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
             deck=effective.panels[pane_id].deck,
             preferred_cards=dict(effective.panels[pane_id].preferred_cards),
             views=effective.panels[pane_id].views,
+            previous_deck=effective.panels[pane_id].previous_deck,
         )
         for pane_id in order
         if pane_id in effective.panels
@@ -321,6 +350,7 @@ def area_state_from_snapshot(snapshot: AgentsDeckStateSnapshot) -> DeckAreaState
             deck=item.deck,
             preferred_cards=dict(item.preferred_cards),
             views=item.views,
+            previous_deck=item.previous_deck,
         )
         for pane_id, item in zip(order, items, strict=True)
     }
@@ -384,6 +414,11 @@ def _serialize_agents_deck_state(snapshot: AgentsDeckStateSnapshot) -> str:
                     "main": item.views.main.value,
                     "files": item.views.files.value,
                 },
+                **(
+                    {"previous_deck": item.previous_deck.value}
+                    if item.previous_deck is not None
+                    else {}
+                ),
             }
             for item in snapshot.panels
         ],

@@ -51,11 +51,27 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     deck_capitals = "/".join(
         DECK_PICKER_KEYS[deck].upper() for deck in active_deck_cycle()
     )
-    pick_deck_other_rows = (
-        [(f"{d(a.pick_deck)} {deck_capitals}", "Show deck in other panel (decks)")]
-        if d(a.pick_deck)
-        else []
-    )
+    pick_display = d(a.pick_deck)
+    opener_capital = None
+    if (
+        len(pick_display) == 1
+        and pick_display.isalpha()
+        and pick_display.upper() != pick_display.lower()
+    ):
+        opener_capital = pick_display.upper()
+    if pick_display and opener_capital is not None:
+        pick_deck_other_rows = [
+            (
+                f"{pick_display} {opener_capital}/{deck_capitals}",
+                "Show last deck or a deck in the other panel (decks)",
+            )
+        ]
+    elif pick_display:
+        pick_deck_other_rows = [
+            (f"{pick_display} {deck_capitals}", "Show deck in other panel (decks)")
+        ]
+    else:
+        pick_deck_other_rows = []
     panel_layout_rows = (
         [
             (
@@ -106,7 +122,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.pick_deck),
-                    "Pick deck for focused panel (decks)",
+                    "Pick a deck; press it again for the last deck",
                 ),
                 *pick_deck_other_rows,
                 (
