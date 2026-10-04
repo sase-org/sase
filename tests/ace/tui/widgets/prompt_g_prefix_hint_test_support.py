@@ -32,9 +32,9 @@ class GPrefixHintApp(App[None]):
         self.glossary_requests: list[PromptInputBar.GlossaryPanelRequested] = []
         self.memory_requests: list[PromptInputBar.MemoryPanelRequested] = []
         self.snippet_panel_requests: list[PromptInputBar.SnippetPanelRequested] = []
-        self.mini_xprompt_requests: list[PromptInputBar.MiniXPromptTargetRequested] = []
+        self.mini_macro_requests: list[PromptInputBar.MiniMacroTargetRequested] = []
         self.update_requests: list[PromptInputBar.UpdatePinnedRequested] = []
-        self.save_xprompt_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
+        self.save_macro_requests: list[PromptInputBar.SaveAsMacroRequested] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -72,20 +72,20 @@ class GPrefixHintApp(App[None]):
     ) -> None:
         self.snippet_panel_requests.append(event)
 
-    def on_prompt_input_bar_mini_xprompt_target_requested(
-        self, event: PromptInputBar.MiniXPromptTargetRequested
+    def on_prompt_input_bar_mini_macro_target_requested(
+        self, event: PromptInputBar.MiniMacroTargetRequested
     ) -> None:
-        self.mini_xprompt_requests.append(event)
+        self.mini_macro_requests.append(event)
 
     def on_prompt_input_bar_update_pinned_requested(
         self, event: PromptInputBar.UpdatePinnedRequested
     ) -> None:
         self.update_requests.append(event)
 
-    def on_prompt_input_bar_save_as_xprompt_requested(
-        self, event: PromptInputBar.SaveAsXpromptRequested
+    def on_prompt_input_bar_save_as_macro_requested(
+        self, event: PromptInputBar.SaveAsMacroRequested
     ) -> None:
-        self.save_xprompt_requests.append(event)
+        self.save_macro_requests.append(event)
 
     def on_prompt_input_bar_cancelled(self, event: PromptInputBar.Cancelled) -> None:
         self.cancelled.append(event)

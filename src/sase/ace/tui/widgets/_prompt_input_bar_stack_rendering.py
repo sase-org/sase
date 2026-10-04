@@ -16,12 +16,12 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_lifecycle import (
 )
 from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
 from sase.ace.tui.widgets._prompt_input_bar_stack_separator import (
-    MiniXPromptSeparatorInfo,
+    MiniMacroSeparatorInfo,
     PromptStackSeparator,
     SnippetSeparatorInfo,
 )
-from sase.ace.tui.widgets._prompt_input_bar_stack_xprompt import (
-    PromptInputBarStackXPromptMixin,
+from sase.ace.tui.widgets._prompt_input_bar_stack_macro import (
+    PromptInputBarStackMacroMixin,
 )
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
@@ -32,7 +32,7 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
 class PromptInputBarStackRenderingMixin(
-    PromptInputBarStackXPromptMixin,
+    PromptInputBarStackMacroMixin,
     PromptInputBarStackLifecycleMixin,
 ):
     """Prompt stack model, rendering, focus, and height helpers."""
@@ -84,8 +84,8 @@ class PromptInputBarStackRenderingMixin(
         for index, item in enumerate(self._stack.items):
             if item.is_snippet_pane:
                 label = "snippet"
-            elif item.is_mini_xprompt_pane:
-                label = "mini xprompt"
+            elif item.is_mini_macro_pane:
+                label = "mini macro"
             else:
                 agent_number += 1
                 label = f"agent {agent_number}"
@@ -94,23 +94,23 @@ class PromptInputBarStackRenderingMixin(
                 state = "active" if active else "inactive"
                 classes = f"prompt-stack-separator {state}"
                 snippet_info = None
-                mini_xprompt_info = None
+                mini_macro_info = None
                 if item.is_snippet_pane:
                     classes += " snippet"
                     snippet_info = self._snippet_separator_info(item)
                     if snippet_info.state == "dirty":
                         classes += " snippet-dirty"
-                elif item.is_mini_xprompt_pane:
-                    classes += " mini-xprompt"
-                    mini_xprompt_info = self._mini_xprompt_separator_info(item)
-                    if mini_xprompt_info.state in {"dirty", "stale"}:
-                        classes += " mini-xprompt-dirty"
+                elif item.is_mini_macro_pane:
+                    classes += " mini-macro"
+                    mini_macro_info = self._mini_macro_separator_info(item)
+                    if mini_macro_info.state in {"dirty", "stale"}:
+                        classes += " mini-macro-dirty"
                 widgets.append(
                     PromptStackSeparator(
                         label,
                         active=active,
                         snippet=snippet_info,
-                        mini_xprompt=mini_xprompt_info,
+                        mini_macro=mini_macro_info,
                         id=self._sep_id(item),
                         classes=classes,
                     )
@@ -137,8 +137,8 @@ class PromptInputBarStackRenderingMixin(
         classes = f"prompt-input prompt-pane {state}"
         if self._stack.items[index].is_snippet_pane:
             classes += " snippet-target"
-        elif self._stack.items[index].is_mini_xprompt_pane:
-            classes += " mini-xprompt-target"
+        elif self._stack.items[index].is_mini_macro_pane:
+            classes += " mini-macro-target"
         return classes
 
     def _snippet_separator_info(self, item: PromptStackItem) -> SnippetSeparatorInfo:
@@ -157,21 +157,21 @@ class PromptInputBarStackRenderingMixin(
             state=state,
         )
 
-    def _mini_xprompt_separator_info(
+    def _mini_macro_separator_info(
         self, item: PromptStackItem
-    ) -> MiniXPromptSeparatorInfo:
-        """Return the chip/destination/marker state for the mini-xprompt rule."""
-        target = item.mini_xprompt_target
+    ) -> MiniMacroSeparatorInfo:
+        """Return the chip/destination/marker state for the mini-macro rule."""
+        target = item.mini_macro_target
         assert target is not None
         if not target.exists:
             state = "new"
-        elif self._stack.mini_xprompt_is_dirty:
+        elif self._stack.mini_macro_is_dirty:
             state = "dirty"
         elif target.changed_on_disk:
             state = "stale"
         else:
             state = "clean"
-        return MiniXPromptSeparatorInfo(
+        return MiniMacroSeparatorInfo(
             name=target.name,
             destination=target.display_path,
             state=state,
@@ -186,7 +186,7 @@ class PromptInputBarStackRenderingMixin(
         """Re-render the prompt stack to match ``self._stack`` from scratch.
 
         Used by deliberate whole-stack replacements
-        (``load_stack_from_xprompt_markdown``), the inline history load
+        (``load_stack_from_macro_markdown``), the inline history load
         (``load_prompt_into_pane``), and the structural keymaps (reorder, add
         pane).  Bumps the generation so freshly mounted panes never share ids
         with the panes still being detached asynchronously.  *enter_mode*
@@ -331,8 +331,8 @@ class PromptInputBarStackRenderingMixin(
                 if self._snippet_separator_info(item).state == "dirty"
                 else "safe"
             )
-        if item.is_mini_xprompt_pane and item.mini_xprompt_target is not None:
-            state = self._mini_xprompt_separator_info(item).state
+        if item.is_mini_macro_pane and item.mini_macro_target is not None:
+            state = self._mini_macro_separator_info(item).state
             return "dirty" if state in {"dirty", "stale"} else "safe"
         return None
 
@@ -343,10 +343,10 @@ class PromptInputBarStackRenderingMixin(
         self.set_class(state == "safe", "snippet-safe")
         self.set_class(state == "dirty", "snippet-dirty")
         item = self._stack.selected_item
-        mini = state is not None and item.is_mini_xprompt_pane
-        self.set_class(mini, "mini-xprompt-mode")
-        self.set_class(mini and state == "safe", "mini-xprompt-safe")
-        self.set_class(mini and state == "dirty", "mini-xprompt-dirty")
+        mini = state is not None and item.is_mini_macro_pane
+        self.set_class(mini, "mini-macro-mode")
+        self.set_class(mini and state == "safe", "mini-macro-safe")
+        self.set_class(mini and state == "dirty", "mini-macro-dirty")
 
     def refresh_cursor_readouts(self) -> None:
         """Sync the active pane's subtitle readout and each parked separator's rule.
@@ -371,12 +371,12 @@ class PromptInputBarStackRenderingMixin(
                 snippet_info = self._snippet_separator_info(item)
                 separator.set_snippet_info(snippet_info)
                 separator.set_class(snippet_info.state == "dirty", "snippet-dirty")
-            elif item.is_mini_xprompt_pane:
-                mini_info = self._mini_xprompt_separator_info(item)
-                separator.set_mini_xprompt_info(mini_info)
+            elif item.is_mini_macro_pane:
+                mini_info = self._mini_macro_separator_info(item)
+                separator.set_mini_macro_info(mini_info)
                 separator.set_class(
                     mini_info.state in {"dirty", "stale"},
-                    "mini-xprompt-dirty",
+                    "mini-macro-dirty",
                 )
             if index == self._stack.selected_index:
                 separator.set_position(None)
@@ -441,7 +441,7 @@ class PromptInputBarStackRenderingMixin(
         leaves no stray ``---\\n---`` block).  This editor-friendly spacing is
         scoped to the buffer multi-pane ``^G`` opens; the launch payload from
         :meth:`current_prompt_text` keeps the compact ``\\n---\\n`` form.  The
-        edited result is reloaded via :meth:`load_stack_from_xprompt_markdown`,
+        edited result is reloaded via :meth:`load_stack_from_macro_markdown`,
         whose splitter drops the surrounding blank segments.  Leading
         frontmatter lives on the stack and is re-attached here, not kept inside
         a body pane.

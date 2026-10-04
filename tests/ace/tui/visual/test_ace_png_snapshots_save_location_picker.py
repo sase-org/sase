@@ -47,18 +47,17 @@ def _choice(
     )
 
 
-def _xprompt_choices() -> tuple[SaveLocationChoice, ...]:
+def _macro_choices() -> tuple[SaveLocationChoice, ...]:
     return (
         _choice(
             "./sase/macros/",
             "p",
             "Project · sase",
             kind="directory",
-            label="Project xprompts",
+            label="Project macros",
             badges=("★ last used",),
             preview=(
-                "→ ./sase/xprompts/<name>.md · called as #sase/<name> "
-                "· 24 xprompts here"
+                "→ ./sase/macros/<name>.md · called as #sase/<name> · 24 macros here"
             ),
             is_default=True,
         ),
@@ -67,29 +66,27 @@ def _xprompt_choices() -> tuple[SaveLocationChoice, ...]:
             "P",
             "Project · sase",
             label="Project config",
-            preview="→ ./sase/sase.yml · xprompts.<name>",
+            preview="→ ./sase/sase.yml · macros.<name>",
         ),
         _choice(
-            "~/sase/xprompts/sase/",
+            "~/sase/macros/sase/",
             "1",
             "Project · sase",
             kind="directory",
             label="Project, personal",
             badges=("new",),
             preview=(
-                "→ ~/sase/xprompts/sase/<name>.md · called as #<name> · 0 xprompts here"
+                "→ ~/sase/macros/sase/<name>.md · called as #<name> · 0 macros here"
             ),
         ),
         _choice(
-            "~/sase/xprompts/",
+            "~/sase/macros/",
             "h",
             "Home",
             kind="directory",
-            label="Home xprompts",
+            label="Home macros",
             badges=("chezmoi",),
-            preview=(
-                "→ ~/sase/xprompts/<name>.md · called as #<name> · 3 xprompts here"
-            ),
+            preview=("→ ~/sase/macros/<name>.md · called as #<name> · 3 macros here"),
         ),
         _choice(
             "~/.config/sase/sase.yml",
@@ -97,22 +94,22 @@ def _xprompt_choices() -> tuple[SaveLocationChoice, ...]:
             "Home",
             label="User config",
             badges=("chezmoi",),
-            preview="→ ~/.config/sase/sase.yml · xprompts.<name>",
+            preview="→ ~/.config/sase/sase.yml · macros.<name>",
         ),
         _choice(
             "~/.config/sase/sase_work.yml",
             "2",
             "Home",
             label="sase_work.yml",
-            preview="→ ~/.config/sase/sase_work.yml · xprompts.<name>",
+            preview="→ ~/.config/sase/sase_work.yml · macros.<name>",
         ),
         _choice(
-            "/pkg/xprompts",
+            "/pkg/macros",
             None,
             "Plugins & built-in",
             kind="directory",
-            label="Built-in xprompts/",
-            preview="→ /pkg/xprompts/<name>.md · 2 xprompts here",
+            label="Built-in macros/",
+            preview="→ /pkg/macros/<name>.md · 2 macros here",
             collapsed_group=True,
         ),
     )
@@ -147,15 +144,15 @@ def _snippet_choices() -> tuple[SaveLocationChoice, ...]:
     )
 
 
-async def test_save_location_picker_xprompt_png_snapshot(
+async def test_save_location_picker_macro_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
     modal = SaveLocationPickerModal(
-        "xprompt",
-        "New mini-xprompt · where should it live?",
-        _xprompt_choices(),
+        "macro",
+        "New mini-macro · where should it live?",
+        _macro_choices(),
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -164,13 +161,13 @@ async def test_save_location_picker_xprompt_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(modal)
         await page.expect_modal("SaveLocationPickerModal")
-        await wait_for_svg_contains(page, "Project xprompts")
+        await wait_for_svg_contains(page, "Project macros")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "save_location_picker_xprompt_120x40",
-            title="ACE save location picker — mini-xprompt destinations",
+            title="ACE save location picker — mini-macro destinations",
         )
 
 
@@ -207,7 +204,7 @@ async def test_save_location_picker_loading_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     modal = SaveLocationPickerModal(
-        "xprompt", "New mini-xprompt · where should it live?", None
+        "macro", "New mini-macro · where should it live?", None
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:

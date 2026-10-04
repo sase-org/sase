@@ -20,7 +20,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_config_view,
     _patch_plugins_catalog,
     _patch_project_records,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -40,7 +40,7 @@ def _patch_admin_center(
 ) -> None:
     """Stub every Admin Center pane so the whole modal renders deterministically."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_project_records(monkeypatch, current_project=current_project)

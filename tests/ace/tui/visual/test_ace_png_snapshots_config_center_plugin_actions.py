@@ -36,7 +36,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _open_plugins_modal,
     _patch_config_view,
     _patch_plugins_catalog,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
     _wait_for_plugins_detail,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -56,7 +56,7 @@ async def test_config_center_plugins_install_preview_png_snapshot(
 ) -> None:
     """The install confirm-preview modal: exact uv argv + source toggle."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     monkeypatch.setattr(
@@ -90,7 +90,7 @@ async def test_config_center_plugins_marked_install_png_snapshot(
 ) -> None:
     """The Updates tab with a marked install row and marked-count hints."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -120,7 +120,7 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
 ) -> None:
     """A non-uv-tool install surfaces the unavailable banner; no ``i install``."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     # The unavailable banner steals one list row. Keep a single agent CLI so
     # the inventory is not sitting on the OptionList overflow boundary, which
@@ -158,7 +158,7 @@ async def test_config_center_plugins_update_preview_png_snapshot(
 ) -> None:
     """The single-plugin update confirm-preview modal: exact uv upgrade argv."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     plan = _update_ready(("github",))
@@ -192,7 +192,7 @@ async def test_config_center_plugins_long_update_preview_png_snapshot(
 ) -> None:
     """A compact update preview contains its scrollable incoming commits."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     plan = _update_ready(("github",))
@@ -258,7 +258,7 @@ async def test_config_center_plugins_uninstall_preview_png_snapshot(
 ) -> None:
     """The uninstall confirm-preview modal: exact uv re-install (minus target)."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     plan = _uninstall_ready("github")
@@ -292,7 +292,7 @@ async def test_config_center_comprehensive_update_preview_png_snapshot(
 ) -> None:
     """The wide comprehensive preview leads with grouped incoming commits."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     user_home = os.environ.get("HOME", "/home/visual")

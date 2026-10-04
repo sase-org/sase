@@ -33,7 +33,7 @@ def build_config_commit_offer(
     Repository discovery and status inspection run subprocesses, so callers
     must invoke this helper off Textual's event loop.
     """
-    from sase.ace.tui.modals.xprompt_browser_helpers import (
+    from sase.ace.tui.modals.macro_browser_helpers import (
         get_git_root,
         has_git_changes,
     )
@@ -94,7 +94,7 @@ def submit_config_commit_task(
         durable_request_payload,
         sase_argv,
     )
-    from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
+    from sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_git import (
         git_index_lock_retry_message,
     )
     from sase.ace.tui.actions.proc_actions import (

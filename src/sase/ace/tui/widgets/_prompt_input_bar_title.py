@@ -61,13 +61,13 @@ class PromptInputBarTitleMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _mode: str
-        _readonly_xprompt_target: XPromptReadonlyTarget | None
+        _readonly_macro_target: XPromptReadonlyTarget | None
         _stack: PromptStackState
         _title_mode_suffix: str
-        _xprompt_source_stale: bool
+        _macro_source_stale: bool
         _xprompt_stale_check_in_flight: bool
         _xprompt_stale_checked_mono: float
-        _xprompt_target_generation: int
+        _macro_target_generation: int
 
         def _active_jinja_chip_markup(self) -> str: ...
         def _refresh_target_classes(self) -> None: ...
@@ -95,7 +95,7 @@ class PromptInputBarTitleMixin(_MixinBase):
         if self._mode == "prompt" and self._stack.agent_count > 1:
             title = f"{title} · {self._stack.agent_count} agents"
         if self._mode == "prompt" and (
-            self._stack.binding is not None or self._readonly_xprompt_target is not None
+            self._stack.binding is not None or self._readonly_macro_target is not None
         ):
             try:
                 self._sync_state_from_widgets()
@@ -119,13 +119,13 @@ class PromptInputBarTitleMixin(_MixinBase):
 
     def _target_title_payload(self) -> tuple[str, str | None, str] | None:
         """Return ``(reference, path, state)`` for the target title chrome."""
-        readonly = self._readonly_xprompt_target
+        readonly = self._readonly_macro_target
         if readonly is not None:
             return readonly.reference, readonly.path, "readonly"
         binding = self._stack.binding
         if binding is None:
             return None
-        if self._xprompt_source_stale:
+        if self._macro_source_stale:
             state = "stale"
         elif self._stack.is_dirty:
             state = "dirty"
@@ -217,7 +217,7 @@ class PromptInputBarTitleMixin(_MixinBase):
         return fallback
 
     def _target_hint_reference(self) -> str | None:
-        readonly = self._readonly_xprompt_target
+        readonly = self._readonly_macro_target
         if readonly is not None:
             return readonly.reference
         binding = self._stack.binding
@@ -227,15 +227,15 @@ class PromptInputBarTitleMixin(_MixinBase):
         reference = self._target_hint_reference()
         if reference is None:
             return ""
-        verb = "save as" if self._readonly_xprompt_target is not None else "save"
+        verb = "save as" if self._readonly_macro_target is not None else "save"
         return f"  [^G w] {verb} {_middle_elide_cells(reference, 24)}"
 
-    def mark_readonly_xprompt_target(self, target: XPromptReadonlyTarget) -> None:
+    def mark_readonly_macro_target(self, target: XPromptReadonlyTarget) -> None:
         """Show a persistent read-only source state without binding writes."""
         self._stack.unbind()
-        self._readonly_xprompt_target = target
-        self._xprompt_source_stale = False
-        self._xprompt_target_generation += 1
+        self._readonly_macro_target = target
+        self._macro_source_stale = False
+        self._macro_target_generation += 1
         self._refresh_target_classes()
         self._refresh_title()
         self._refresh_prompt_mode_subtitle()
@@ -243,14 +243,14 @@ class PromptInputBarTitleMixin(_MixinBase):
 
     def _mark_xprompt_source_fresh(self) -> None:
         """Clear the display-only stale flag after a successful write/reload."""
-        self._xprompt_source_stale = False
-        self._xprompt_target_generation += 1
+        self._macro_source_stale = False
+        self._macro_target_generation += 1
         self._refresh_target_classes()
 
-    def _schedule_xprompt_stale_check(self, *, force: bool = False) -> None:
+    def _schedule_macro_stale_check(self, *, force: bool = False) -> None:
         """Schedule one stat-only source staleness check in a worker thread."""
         binding = self._stack.binding
-        if binding is None or self._readonly_xprompt_target is not None:
+        if binding is None or self._readonly_macro_target is not None:
             return
         if not self.is_mounted:
             return
@@ -264,7 +264,7 @@ class PromptInputBarTitleMixin(_MixinBase):
             return
         if self._xprompt_stale_check_in_flight:
             return
-        generation = self._xprompt_target_generation
+        generation = self._macro_target_generation
         write_path = binding.write_path
         fingerprint = binding.loaded_fingerprint
         self._xprompt_stale_check_in_flight = True
@@ -286,10 +286,10 @@ class PromptInputBarTitleMixin(_MixinBase):
         try:
             self.run_worker(
                 _check,
-                name="xprompt-target-stale-check",
+                name="macro-target-stale-check",
                 thread=True,
                 exclusive=True,
-                group="xprompt-target-stale-check",
+                group="macro-target-stale-check",
             )
         except Exception:
             self._xprompt_stale_check_in_flight = False
@@ -308,13 +308,13 @@ class PromptInputBarTitleMixin(_MixinBase):
         if binding is None:
             return
         if (
-            generation != self._xprompt_target_generation
+            generation != self._macro_target_generation
             or binding.write_path != write_path
         ):
             return
-        if self._xprompt_source_stale == stale:
+        if self._macro_source_stale == stale:
             return
-        self._xprompt_source_stale = stale
+        self._macro_source_stale = stale
         self._refresh_target_classes()
         self._refresh_title(self._title_mode_suffix)
 

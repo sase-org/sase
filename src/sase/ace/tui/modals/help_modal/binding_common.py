@@ -67,7 +67,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("gj/gk (panel)", "Top / bottom prompt pane"),
         ("Ctrl+S", "Stash pane (panel if empty)"),
         ("gs / Ctrl+G s", "Stash all panes"),
-        ("gx / Ctrl+G x / Ctrl+G Ctrl+X", "Open mini-xprompt pane"),
+        ("gx / Ctrl+G x / Ctrl+G Ctrl+X", "Open mini-macro pane"),
         ("gt / Ctrl+G t / Ctrl+G Ctrl+T", "New/edit snippet pane"),
         ("gX / Ctrl+G X", "Open xprompt/snippet save panel"),
         ("gL / Ctrl+G L", "Save pane as local xprompt"),

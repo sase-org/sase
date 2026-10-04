@@ -47,7 +47,7 @@ def patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
         ),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",
+        "sase.ace.tui.modals.macro_browser_pane.get_all_prompts",
         lambda project=None: {},
     )
     monkeypatch.setattr(

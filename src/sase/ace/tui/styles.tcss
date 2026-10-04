@@ -4197,16 +4197,16 @@ PromptInputBar {
     padding: 0 1;
 }
 
-PromptInputBar.xprompt-target {
+PromptInputBar.macro-target {
     border: double $secondary;
 }
 
-PromptInputBar.xprompt-target.dirty,
-PromptInputBar.xprompt-target.stale {
+PromptInputBar.macro-target.dirty,
+PromptInputBar.macro-target.stale {
     border: double $warning;
 }
 
-PromptInputBar.xprompt-target.readonly {
+PromptInputBar.macro-target.readonly {
     border: double $foreground 50%;
 }
 
@@ -4218,11 +4218,11 @@ PromptInputBar.snippet-mode.snippet-dirty {
     border: double $warning;
 }
 
-PromptInputBar.mini-xprompt-mode.mini-xprompt-safe {
+PromptInputBar.mini-macro-mode.mini-macro-safe {
     border: double $secondary;
 }
 
-PromptInputBar.mini-xprompt-mode.mini-xprompt-dirty {
+PromptInputBar.mini-macro-mode.mini-macro-dirty {
     border: double $warning;
 }
 
@@ -4300,29 +4300,29 @@ PromptInputBar #frontmatter-panel:focus {
     border: round $accent;
 }
 
-PromptInputBar.xprompt-target #frontmatter-panel {
+PromptInputBar.macro-target #frontmatter-panel {
     border: round $secondary;
 }
 
-PromptInputBar.xprompt-target.dirty #frontmatter-panel,
-PromptInputBar.xprompt-target.stale #frontmatter-panel {
+PromptInputBar.macro-target.dirty #frontmatter-panel,
+PromptInputBar.macro-target.stale #frontmatter-panel {
     border: round $warning;
 }
 
-PromptInputBar.xprompt-target.readonly #frontmatter-panel {
+PromptInputBar.macro-target.readonly #frontmatter-panel {
     border: round $foreground 50%;
 }
 
-PromptInputBar.xprompt-target #frontmatter-panel:focus {
+PromptInputBar.macro-target #frontmatter-panel:focus {
     border: round $secondary;
 }
 
-PromptInputBar.xprompt-target.dirty #frontmatter-panel:focus,
-PromptInputBar.xprompt-target.stale #frontmatter-panel:focus {
+PromptInputBar.macro-target.dirty #frontmatter-panel:focus,
+PromptInputBar.macro-target.stale #frontmatter-panel:focus {
     border: round $warning;
 }
 
-PromptInputBar.xprompt-target.readonly #frontmatter-panel:focus {
+PromptInputBar.macro-target.readonly #frontmatter-panel:focus {
     border: round $foreground 50%;
 }
 
@@ -4558,14 +4558,14 @@ PromptInputBar .prompt-pane.snippet-target.inactive {
     border-left: vkey $primary;
 }
 
-/* Mini-xprompt panes use the xprompt accent family and keep the same pane fill
+/* Mini-macro panes use the macro accent family and keep the same pane fill
    as ordinary agent panes. */
-PromptInputBar .prompt-pane.mini-xprompt-target.active,
-PromptInputBar .prompt-pane.mini-xprompt-target.active:focus {
+PromptInputBar .prompt-pane.mini-macro-target.active,
+PromptInputBar .prompt-pane.mini-macro-target.active:focus {
     border-left: thick $secondary;
 }
 
-PromptInputBar .prompt-pane.mini-xprompt-target.inactive {
+PromptInputBar .prompt-pane.mini-macro-target.inactive {
     border-left: vkey $secondary;
 }
 
@@ -4596,11 +4596,11 @@ PromptInputBar .prompt-stack-separator.snippet.snippet-dirty {
     color: $warning;
 }
 
-PromptInputBar .prompt-stack-separator.mini-xprompt {
+PromptInputBar .prompt-stack-separator.mini-macro {
     color: $secondary;
 }
 
-PromptInputBar .prompt-stack-separator.mini-xprompt.mini-xprompt-dirty {
+PromptInputBar .prompt-stack-separator.mini-macro.mini-macro-dirty {
     color: $warning;
 }
 
@@ -4996,12 +4996,12 @@ AxeNewEntryIdentityModal #axe-identity-hints {
     margin-top: 1;
 }
 
-/* Structured input / xprompts sub-form modals for the frontmatter panel */
-XPromptWriteConflictModal {
+/* Structured input / macros sub-form modals for the frontmatter panel */
+MacroWriteConflictModal {
     align: center middle;
 }
 
-XPromptWriteConflictModal > Container {
+MacroWriteConflictModal > Container {
     width: 64;
     height: auto;
     border: thick $warning;
@@ -5009,27 +5009,27 @@ XPromptWriteConflictModal > Container {
     padding: 1 2;
 }
 
-XPromptWriteConflictModal #xprompt-conflict-title {
+MacroWriteConflictModal #macro-conflict-title {
     text-style: bold;
     text-align: center;
 }
 
-XPromptWriteConflictModal #xprompt-conflict-path,
-XPromptWriteConflictModal #xprompt-conflict-hints {
+MacroWriteConflictModal #macro-conflict-path,
+MacroWriteConflictModal #macro-conflict-hints {
     color: $text-muted;
     text-align: center;
 }
 
-XPromptWriteConflictModal #xprompt-conflict-options {
+MacroWriteConflictModal #macro-conflict-options {
     height: 5;
     margin: 1 0;
 }
 
-UnifiedXPromptSaveModal {
+UnifiedMacroSaveModal {
     align: center middle;
 }
 
-UnifiedXPromptSaveModal > Container {
+UnifiedMacroSaveModal > Container {
     width: 94%;
     height: 86%;
     border: thick $primary;
@@ -5037,82 +5037,82 @@ UnifiedXPromptSaveModal > Container {
     padding: 1 2;
 }
 
-UnifiedXPromptSaveModal #unified-save-title {
+UnifiedMacroSaveModal #unified-save-title {
     text-style: bold;
     text-align: center;
     height: 1;
     margin-bottom: 1;
 }
 
-UnifiedXPromptSaveModal .unified-save-field {
+UnifiedMacroSaveModal .unified-save-field {
     height: 3;
 }
 
-UnifiedXPromptSaveModal .unified-save-field-label {
+UnifiedMacroSaveModal .unified-save-field-label {
     width: 13;
     color: $text-muted;
     padding-top: 1;
 }
 
-UnifiedXPromptSaveModal .unified-save-field Input {
+UnifiedMacroSaveModal .unified-save-field Input {
     width: 1fr;
 }
 
-UnifiedXPromptSaveModal #unified-save-panels {
+UnifiedMacroSaveModal #unified-save-panels {
     height: 1fr;
 }
 
-UnifiedXPromptSaveModal #unified-save-locations-panel {
+UnifiedMacroSaveModal #unified-save-locations-panel {
     width: 44%;
     padding-right: 1;
 }
 
-UnifiedXPromptSaveModal .unified-save-panel-title,
-UnifiedXPromptSaveModal #unified-save-preview-header {
+UnifiedMacroSaveModal .unified-save-panel-title,
+UnifiedMacroSaveModal #unified-save-preview-header {
     height: 2;
     text-style: bold;
 }
 
-UnifiedXPromptSaveModal #unified-save-locations {
+UnifiedMacroSaveModal #unified-save-locations {
     height: 1fr;
     border: solid $secondary;
 }
 
-UnifiedXPromptSaveModal #unified-save-preview-panel {
+UnifiedMacroSaveModal #unified-save-preview-panel {
     width: 56%;
     border-left: solid $secondary;
     padding-left: 1;
 }
 
-UnifiedXPromptSaveModal #unified-save-preview-scroll {
+UnifiedMacroSaveModal #unified-save-preview-scroll {
     height: 1fr;
     border: solid $secondary;
     padding: 0 1;
 }
 
-UnifiedXPromptSaveModal #unified-save-preview {
+UnifiedMacroSaveModal #unified-save-preview {
     height: auto;
 }
 
-UnifiedXPromptSaveModal #unified-save-verdict {
+UnifiedMacroSaveModal #unified-save-verdict {
     height: 2;
     margin-top: 1;
     text-style: bold;
 }
 
-UnifiedXPromptSaveModal .unified-save-verdict-success {
+UnifiedMacroSaveModal .unified-save-verdict-success {
     color: $success;
 }
 
-UnifiedXPromptSaveModal .unified-save-verdict-warning {
+UnifiedMacroSaveModal .unified-save-verdict-warning {
     color: $warning;
 }
 
-UnifiedXPromptSaveModal .unified-save-verdict-error {
+UnifiedMacroSaveModal .unified-save-verdict-error {
     color: $error;
 }
 
-UnifiedXPromptSaveModal #unified-save-hints {
+UnifiedMacroSaveModal #unified-save-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
@@ -5212,11 +5212,11 @@ SnippetNameModal #snippet-name-hints {
     text-align: center;
 }
 
-MiniXPromptNameModal {
+MiniMacroNameModal {
     align: center middle;
 }
 
-MiniXPromptNameModal > Container {
+MiniMacroNameModal > Container {
     width: 88%;
     height: 54%;
     border: thick $primary;
@@ -5224,77 +5224,77 @@ MiniXPromptNameModal > Container {
     padding: 1 2;
 }
 
-MiniXPromptNameModal #mini-xprompt-name-title {
+MiniMacroNameModal #mini-macro-name-title {
     text-style: bold;
     text-align: center;
     height: 1;
     margin-bottom: 1;
 }
 
-MiniXPromptNameModal .mini-xprompt-name-field {
+MiniMacroNameModal .mini-macro-name-field {
     height: 3;
 }
 
-MiniXPromptNameModal .mini-xprompt-name-field-label {
+MiniMacroNameModal .mini-macro-name-field-label {
     width: 13;
     color: $text-muted;
     padding-top: 1;
 }
 
-MiniXPromptNameModal .mini-xprompt-name-field Input {
+MiniMacroNameModal .mini-macro-name-field Input {
     width: 1fr;
 }
 
-MiniXPromptNameModal #mini-xprompt-name-body {
+MiniMacroNameModal #mini-macro-name-body {
     height: 1fr;
 }
 
-MiniXPromptNameModal #mini-xprompt-name-matches-panel {
+MiniMacroNameModal #mini-macro-name-matches-panel {
     width: 62%;
     padding-right: 1;
 }
 
-MiniXPromptNameModal #mini-xprompt-name-destination-panel {
+MiniMacroNameModal #mini-macro-name-destination-panel {
     width: 38%;
     border-left: solid $secondary;
     padding-left: 1;
 }
 
-MiniXPromptNameModal .mini-xprompt-name-panel-title {
+MiniMacroNameModal .mini-macro-name-panel-title {
     height: 2;
     text-style: bold;
 }
 
-MiniXPromptNameModal #mini-xprompt-name-matches {
+MiniMacroNameModal #mini-macro-name-matches {
     height: 1fr;
     border: solid $secondary;
 }
 
-MiniXPromptNameModal #mini-xprompt-name-destination {
+MiniMacroNameModal #mini-macro-name-destination {
     height: auto;
     border: solid $secondary;
     padding: 1;
 }
 
-MiniXPromptNameModal #mini-xprompt-name-verdict {
+MiniMacroNameModal #mini-macro-name-verdict {
     height: 2;
     margin-top: 1;
     text-style: bold;
 }
 
-MiniXPromptNameModal .mini-xprompt-name-verdict-success {
+MiniMacroNameModal .mini-macro-name-verdict-success {
     color: $success;
 }
 
-MiniXPromptNameModal .mini-xprompt-name-verdict-warning {
+MiniMacroNameModal .mini-macro-name-verdict-warning {
     color: $warning;
 }
 
-MiniXPromptNameModal .mini-xprompt-name-verdict-error {
+MiniMacroNameModal .mini-macro-name-verdict-error {
     color: $error;
 }
 
-MiniXPromptNameModal #mini-xprompt-name-hints {
+MiniMacroNameModal #mini-macro-name-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
@@ -5363,11 +5363,11 @@ SnippetSaveConfirmModal #snippet-save-confirm-hints {
     text-align: center;
 }
 
-MiniXPromptSaveConfirmModal {
+MiniMacroSaveConfirmModal {
     align: center middle;
 }
 
-MiniXPromptSaveConfirmModal > Container {
+MiniMacroSaveConfirmModal > Container {
     width: 86%;
     height: 72%;
     border: thick $primary;
@@ -5375,64 +5375,64 @@ MiniXPromptSaveConfirmModal > Container {
     padding: 1 2;
 }
 
-MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-title {
+MiniMacroSaveConfirmModal #mini-macro-save-confirm-title {
     text-style: bold;
     text-align: center;
     height: 1;
     margin-bottom: 1;
 }
 
-MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-header {
+MiniMacroSaveConfirmModal #mini-macro-save-confirm-header {
     height: 2;
     text-style: bold;
 }
 
-MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-warning {
+MiniMacroSaveConfirmModal #mini-macro-save-confirm-warning {
     height: 1;
     color: $warning;
 }
 
-MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-preview-scroll {
+MiniMacroSaveConfirmModal #mini-macro-save-confirm-preview-scroll {
     height: 1fr;
     border: solid $secondary;
     padding: 0 1;
 }
 
-MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-preview {
+MiniMacroSaveConfirmModal #mini-macro-save-confirm-preview {
     height: auto;
 }
 
-MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-verdict {
+MiniMacroSaveConfirmModal #mini-macro-save-confirm-verdict {
     height: 2;
     margin-top: 1;
     text-style: bold;
 }
 
-MiniXPromptSaveConfirmModal .mini-xprompt-save-confirm-verdict-success {
+MiniMacroSaveConfirmModal .mini-macro-save-confirm-verdict-success {
     color: $success;
 }
 
-MiniXPromptSaveConfirmModal .mini-xprompt-save-confirm-verdict-warning {
+MiniMacroSaveConfirmModal .mini-macro-save-confirm-verdict-warning {
     color: $warning;
 }
 
-MiniXPromptSaveConfirmModal .mini-xprompt-save-confirm-verdict-error {
+MiniMacroSaveConfirmModal .mini-macro-save-confirm-verdict-error {
     color: $error;
 }
 
-MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-hints {
+MiniMacroSaveConfirmModal #mini-macro-save-confirm-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
 }
 
 InputItemModal,
-XPromptItemModal {
+MacroItemModal {
     align: center middle;
 }
 
 InputItemModal > Container,
-XPromptItemModal > Container {
+MacroItemModal > Container {
     width: 70;
     height: auto;
     max-height: 90%;
@@ -5442,23 +5442,23 @@ XPromptItemModal > Container {
 }
 
 InputItemModal #modal-title,
-XPromptItemModal #modal-title {
+MacroItemModal #modal-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
 InputItemModal .input-item-field-label,
-XPromptItemModal .input-item-field-label {
+MacroItemModal .input-item-field-label {
     color: $text-muted;
     margin-top: 1;
 }
 
 InputItemModal SingleLineVimTextArea,
-XPromptItemModal SingleLineVimTextArea {
+MacroItemModal SingleLineVimTextArea {
     width: 100%;
 }
 
-XPromptItemModal #xprompt-item-content {
+MacroItemModal #macro-item-content {
     height: 5;
     border: solid $secondary;
 }
@@ -5468,23 +5468,23 @@ InputItemModal #input-item-type-rule {
 }
 
 InputItemModal #input-item-error,
-XPromptItemModal #xprompt-item-error {
+MacroItemModal #macro-item-error {
     color: $error;
     margin-top: 1;
 }
 
 InputItemModal #input-item-footer,
-XPromptItemModal #xprompt-item-footer {
+MacroItemModal #macro-item-footer {
     color: $text-muted;
     margin-top: 1;
 }
 
-/* XPrompt select modal styling */
-XPromptSelectModal {
+/* Macro select modal styling */
+MacroSelectModal {
     align: center middle;
 }
 
-XPromptSelectModal > Container {
+MacroSelectModal > Container {
     width: 90%;
     height: 80%;
     border: thick $primary;
@@ -5492,60 +5492,60 @@ XPromptSelectModal > Container {
     padding: 1 2;
 }
 
-XPromptSelectModal #modal-title {
+MacroSelectModal #modal-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
-XPromptSelectModal #xprompt-filter-input {
+MacroSelectModal #macro-filter-input {
     width: 100%;
     margin-bottom: 1;
 }
 
-XPromptSelectModal #xprompt-panels {
+MacroSelectModal #macro-panels {
     width: 100%;
     height: 1fr;
 }
 
-XPromptSelectModal #xprompt-list-panel {
+MacroSelectModal #macro-list-panel {
     width: 40;
     height: 100%;
 }
 
-XPromptSelectModal #xprompt-list-label {
+MacroSelectModal #macro-list-label {
     color: $text-muted;
     text-style: bold;
     height: 1;
 }
 
-XPromptSelectModal OptionList {
+MacroSelectModal OptionList {
     height: 1fr;
     border: solid $secondary;
 }
 
-XPromptSelectModal #xprompt-preview-panel {
+MacroSelectModal #macro-preview-panel {
     width: 1fr;
     height: 100%;
     margin-left: 1;
 }
 
-XPromptSelectModal #xprompt-preview-label {
+MacroSelectModal #macro-preview-label {
     color: $text-muted;
     text-style: bold;
     height: 1;
 }
 
-XPromptSelectModal #xprompt-preview-scroll {
+MacroSelectModal #macro-preview-scroll {
     height: 1fr;
     border: solid $secondary;
     padding: 0 1;
 }
 
-XPromptSelectModal #xprompt-preview {
+MacroSelectModal #macro-preview {
     height: auto;
 }
 
-XPromptSelectModal #xprompt-hints {
+MacroSelectModal #macro-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
@@ -8222,7 +8222,7 @@ SavedAgentGroupRevivalModal #saved-agent-group-hints {
     margin-top: 1;
 }
 
-/* Config Center modal styling (config editor + xprompt browser) */
+/* Config Center modal styling (config editor + macro browser) */
 ConfigCenterModal {
     align: center middle;
 }
@@ -8326,7 +8326,7 @@ ConfigHubPane #config-hub-empty {
 
 ConfigHubPane MemoryPane,
 ConfigHubPane SnippetsPane,
-ConfigHubPane XPromptBrowserPane,
+ConfigHubPane MacroBrowserPane,
 ConfigHubPane ConfigPane,
 ConfigHubPane HoldsPane {
     width: 100%;
@@ -8342,7 +8342,7 @@ ConfigHubPane SnippetsPane.-embedded {
     padding: 0;
 }
 
-ConfigHubPane XPromptBrowserPane.-embedded #browser-title,
+ConfigHubPane MacroBrowserPane.-embedded #browser-title,
 ConfigHubPane ConfigPane.-embedded #config-pane-title {
     display: none;
 }
@@ -8465,7 +8465,7 @@ ConfigCenterModal MachinesPane,
 ConfigCenterModal ProjectsPane,
 ConfigCenterModal StatisticsPane,
 ConfigCenterModal PluginsBrowserPane,
-ConfigCenterModal XPromptBrowserPane {
+ConfigCenterModal MacroBrowserPane {
     width: 100%;
     height: 100%;
 }
@@ -9578,56 +9578,56 @@ InitPlanModal Button {
     margin: 0 1;
 }
 
-/* Config XPrompts child (migrated XPrompt Browser body) */
-XPromptBrowserPane #browser-title {
+/* Config Macros child (migrated Macro Browser body) */
+MacroBrowserPane #browser-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
-XPromptBrowserPane #browser-filter-input {
+MacroBrowserPane #browser-filter-input {
     width: 100%;
     margin-bottom: 1;
     border: tall $accent;
 }
 
-XPromptBrowserPane #browser-panels {
+MacroBrowserPane #browser-panels {
     width: 100%;
     height: 1fr;
 }
 
-XPromptBrowserPane #browser-list-panel {
+MacroBrowserPane #browser-list-panel {
     width: 40;
     height: 100%;
 }
 
-XPromptBrowserPane OptionList {
+MacroBrowserPane OptionList {
     height: 1fr;
     border: solid $secondary;
 }
 
-XPromptBrowserPane #browser-preview-panel {
+MacroBrowserPane #browser-preview-panel {
     width: 1fr;
     height: 100%;
     margin-left: 1;
 }
 
-XPromptBrowserPane #browser-preview-scroll {
+MacroBrowserPane #browser-preview-scroll {
     height: 1fr;
     border: solid $secondary;
     padding: 0 1;
 }
 
-XPromptBrowserPane #browser-preview {
+MacroBrowserPane #browser-preview {
     height: auto;
 }
 
-XPromptBrowserPane #browser-meta {
+MacroBrowserPane #browser-meta {
     height: auto;
     padding: 1 1 0 1;
     max-height: 8;
 }
 
-XPromptBrowserPane #browser-hints {
+MacroBrowserPane #browser-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
@@ -9690,12 +9690,12 @@ AgentRunLogModal #agent-log-hints {
     margin-top: 1;
 }
 
-/* Add xprompt modal styling */
-AddXPromptModal {
+/* Add macro modal styling */
+AddMacroModal {
     align: center middle;
 }
 
-AddXPromptModal > Container {
+AddMacroModal > Container {
     width: 60;
     height: auto;
     border: thick $primary;
@@ -9703,26 +9703,26 @@ AddXPromptModal > Container {
     padding: 1 2;
 }
 
-AddXPromptModal #modal-title {
+AddMacroModal #modal-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
-AddXPromptModal #add-xprompt-hint {
+AddMacroModal #add-macro-hint {
     color: $text-muted;
     margin-bottom: 1;
 }
 
-AddXPromptModal #add-xprompt-input {
+AddMacroModal #add-macro-input {
     width: 100%;
 }
 
-/* XPrompt filename input modal styling */
-XPromptFilenameModal {
+/* Macro filename input modal styling */
+MacroFilenameModal {
     align: center middle;
 }
 
-XPromptFilenameModal > Container {
+MacroFilenameModal > Container {
     width: 60;
     height: auto;
     border: thick $primary;
@@ -9730,36 +9730,36 @@ XPromptFilenameModal > Container {
     padding: 1 2;
 }
 
-XPromptFilenameModal #modal-title {
+MacroFilenameModal #modal-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
-XPromptFilenameModal #filename-dir-label {
+MacroFilenameModal #filename-dir-label {
     color: #87D7FF;
     margin-bottom: 0;
 }
 
-XPromptFilenameModal #filename-hint {
+MacroFilenameModal #filename-hint {
     color: $text-muted;
     margin-bottom: 1;
 }
 
-XPromptFilenameModal #filename-input {
+MacroFilenameModal #filename-input {
     width: 100%;
 }
 
-XPromptFilenameModal #filename-error {
+MacroFilenameModal #filename-error {
     color: $error;
     margin-top: 1;
 }
 
-/* XPrompt location selector modal styling */
-XPromptLocationModal {
+/* Macro location selector modal styling */
+MacroLocationModal {
     align: center middle;
 }
 
-XPromptLocationModal > Container {
+MacroLocationModal > Container {
     width: 92%;
     height: 80%;
     border: thick $primary;
@@ -9767,65 +9767,65 @@ XPromptLocationModal > Container {
     padding: 1 2;
 }
 
-XPromptLocationModal #location-title {
+MacroLocationModal #location-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
-XPromptLocationModal #location-hint {
+MacroLocationModal #location-hint {
     color: $text-muted;
     margin-bottom: 1;
 }
 
-XPromptLocationModal #location-filter-input {
+MacroLocationModal #location-filter-input {
     width: 100%;
     margin-bottom: 1;
 }
 
-XPromptLocationModal #location-panels {
+MacroLocationModal #location-panels {
     width: 100%;
     height: 1fr;
 }
 
-XPromptLocationModal #location-list-panel {
+MacroLocationModal #location-list-panel {
     width: 52;
     height: 100%;
 }
 
-XPromptLocationModal #location-list {
+MacroLocationModal #location-list {
     height: 1fr;
     border: solid $secondary;
 }
 
-XPromptLocationModal #location-preview-panel {
+MacroLocationModal #location-preview-panel {
     width: 1fr;
     height: 100%;
     margin-left: 1;
 }
 
-XPromptLocationModal #location-preview-scroll {
+MacroLocationModal #location-preview-scroll {
     height: 1fr;
     border: solid $secondary;
     padding: 0 1;
 }
 
-XPromptLocationModal #location-preview {
+MacroLocationModal #location-preview {
     height: auto;
 }
 
-XPromptLocationModal #location-hints {
+MacroLocationModal #location-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
     margin-top: 1;
 }
 
-/* Local xprompt name modal (gL / Ctrl+G L) styling */
-LocalXPromptNameModal {
+/* Local macro name modal (gL / Ctrl+G L) styling */
+LocalMacroNameModal {
     align: center middle;
 }
 
-LocalXPromptNameModal > Container {
+LocalMacroNameModal > Container {
     width: 60;
     height: auto;
     border: thick $primary;
@@ -9833,36 +9833,36 @@ LocalXPromptNameModal > Container {
     padding: 1 2;
 }
 
-LocalXPromptNameModal #local-xprompt-name-title {
+LocalMacroNameModal #local-macro-name-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
-LocalXPromptNameModal #local-xprompt-name-hint {
+LocalMacroNameModal #local-macro-name-hint {
     color: $text-muted;
     margin-bottom: 1;
 }
 
-LocalXPromptNameModal #local-xprompt-name-input {
+LocalMacroNameModal #local-macro-name-input {
     width: 100%;
 }
 
-LocalXPromptNameModal #local-xprompt-name-note {
+LocalMacroNameModal #local-macro-name-note {
     color: #87D7FF;
     margin-top: 1;
 }
 
-LocalXPromptNameModal #local-xprompt-name-error {
+LocalMacroNameModal #local-macro-name-error {
     color: $error;
     margin-top: 1;
 }
 
-/* XPrompt config entry modal styling */
-XPromptConfigEntryModal {
+/* Macro config entry modal styling */
+MacroConfigEntryModal {
     align: center middle;
 }
 
-XPromptConfigEntryModal > Container {
+MacroConfigEntryModal > Container {
     width: 70;
     height: auto;
     border: thick $primary;
@@ -9870,45 +9870,45 @@ XPromptConfigEntryModal > Container {
     padding: 1 2;
 }
 
-XPromptConfigEntryModal #modal-title {
+MacroConfigEntryModal #modal-title {
     text-style: bold;
     margin-bottom: 1;
 }
 
-XPromptConfigEntryModal #config-entry-file-label {
+MacroConfigEntryModal #config-entry-file-label {
     color: #87D7FF;
     margin-bottom: 0;
 }
 
-XPromptConfigEntryModal #config-entry-name-label {
+MacroConfigEntryModal #config-entry-name-label {
     color: $text-muted;
     margin-bottom: 0;
 }
 
-XPromptConfigEntryModal #config-entry-name-input {
+MacroConfigEntryModal #config-entry-name-input {
     width: 100%;
 }
 
-XPromptConfigEntryModal #config-entry-phase-label {
+MacroConfigEntryModal #config-entry-phase-label {
     color: $text-muted;
     margin-top: 1;
     margin-bottom: 0;
 }
 
-XPromptConfigEntryModal #config-entry-input-input {
+MacroConfigEntryModal #config-entry-input-input {
     width: 100%;
 }
 
-XPromptConfigEntryModal #config-entry-inputs-display {
+MacroConfigEntryModal #config-entry-inputs-display {
     margin-top: 1;
 }
 
-XPromptConfigEntryModal #config-entry-error {
+MacroConfigEntryModal #config-entry-error {
     color: $error;
     margin-top: 1;
 }
 
-XPromptConfigEntryModal #config-entry-hints {
+MacroConfigEntryModal #config-entry-hints {
     height: 1;
     color: $text-muted;
     text-align: center;

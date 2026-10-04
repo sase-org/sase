@@ -1,0 +1,578 @@
+"""Macro location selector modal for choosing where to create new macros."""
+
+from __future__ import annotations
+
+import importlib.resources
+import os
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal
+
+from rich.syntax import Syntax
+from rich.text import Text
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
+from textual.widgets import Input, Label, OptionList, Static
+from textual.widgets.option_list import Option
+
+from sase.ace.hints import build_editor_args
+from sase.config import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
+from sase.content_layout import (
+    discover_project_root,
+    resolve_chezmoi_layout,
+    resolve_home_layout,
+    resolve_project_layout,
+)
+from sase.main.plugin_discovery import (
+    discover_macro_plugin_modules,
+    discover_plugin_resources,
+    is_plugin_disabled,
+    macro_plugin_definition_dirname,
+    macro_plugins_disabled,
+)
+from sase.macro.loader import (
+    detect_project,
+    get_sase_package_default_macros_dir,
+    get_sase_package_macros_dir,
+)
+
+from .base import FilterInput, OptionListNavigationMixin
+
+
+#: Canonical discovery labels matched by the save-location picker.
+#: The picker imports these instead of duplicating the literals below.
+MACRO_PROJECT_DIR_LABEL = "Project sase/macros/"
+MACRO_HOME_DIR_LABEL = "Home ~/sase/macros/"
+MACRO_PROJECT_HOME_LABEL_PREFIX = "Project home ("
+MACRO_PROJECT_CONFIG_LABEL = "Project sase/sase.yml"
+MACRO_USER_CONFIG_LABEL = "User sase.yml"
+MACRO_USER_OVERLAY_LABEL_PREFIX = "User sase_"
+
+
+def shorten_macro_location_path(path: str, cwd: str, home: str) -> str:
+    """Shorten a path for display in the location selector.
+
+    Paths under CWD become ``./relative``.  Other home-relative paths use
+    ``~/…/last/segments`` when they exceed the column budget.
+    """
+    if path.startswith(cwd + "/"):
+        return "./" + path[len(cwd) + 1 :]
+    if path.startswith(home + "/") or path == home:
+        display = "~" + path[len(home) :]
+        if len(display) <= 42:
+            return display
+        parts = display.split("/")
+        if len(parts) > 3:
+            return parts[0] + "/…/" + "/".join(parts[-2:])
+        return display
+    return path
+
+
+@dataclass
+class MacroLocation:
+    """A location where macros can be created or edited."""
+
+    label: str
+    path: str
+    location_type: Literal["directory", "config"]
+
+
+def get_all_macro_locations(
+    project: str | None = None,
+) -> list[tuple[str, list[MacroLocation]]]:
+    """Discover all macro locations grouped by category.
+
+    Returns a list of ``(group_label, locations)`` tuples in display order.
+    """
+    effective_project = project if project is not None else detect_project()
+    cwd = Path.cwd()
+    home = Path.home()
+    chezmoi = get_use_chezmoi()
+    project_root = discover_project_root() or cwd
+    project_layout = resolve_project_layout(project_root, home_root=home)
+    home_macros = (
+        resolve_chezmoi_layout(CHEZMOI_HOME, home_root=home).macros.write_path
+        if chezmoi
+        else resolve_home_layout(home).macros.write_path
+    )
+
+    directories: list[MacroLocation] = []
+    configs: list[MacroLocation] = []
+    plugin_dirs: list[MacroLocation] = []
+    builtin: list[MacroLocation] = []
+
+    # --- 1. Canonical macro directories ---
+    directories.append(
+        MacroLocation(
+            label=MACRO_PROJECT_DIR_LABEL,
+            path=str(project_layout.macros.write_path),
+            location_type="directory",
+        )
+    )
+    directories.append(
+        MacroLocation(
+            label=MACRO_HOME_DIR_LABEL,
+            path=str(home_macros),
+            location_type="directory",
+        )
+    )
+    if effective_project:
+        directories.append(
+            MacroLocation(
+                label=f"{MACRO_PROJECT_HOME_LABEL_PREFIX}{effective_project})",
+                path=str(home_macros / effective_project),
+                location_type="directory",
+            )
+        )
+
+    # --- 2. Config files ---
+    # ~/.config/sase/sase.yml — always show (remapped when chezmoi enabled)
+    chezmoi_config_dir = CHEZMOI_HOME / "dot_config" / "sase"
+    user_sase_yml = (
+        chezmoi_config_dir / "sase.yml" if chezmoi else CONFIG_DIR / "sase.yml"
+    )
+    configs.append(
+        MacroLocation(
+            label=MACRO_USER_CONFIG_LABEL,
+            path=str(user_sase_yml),
+            location_type="config",
+        )
+    )
+    # Each sase_*.yml overlay — only existing ones (remapped when chezmoi enabled)
+    overlay_glob_dir = chezmoi_config_dir if chezmoi else CONFIG_DIR
+    if overlay_glob_dir.is_dir():
+        for overlay_path in sorted(overlay_glob_dir.glob("sase_*.yml")):
+            configs.append(
+                MacroLocation(
+                    label=f"User {overlay_path.name}",
+                    path=str(overlay_path),
+                    location_type="config",
+                )
+            )
+    configs.append(
+        MacroLocation(
+            label=MACRO_PROJECT_CONFIG_LABEL,
+            path=str(project_layout.config.write_path),
+            location_type="config",
+        )
+    )
+
+    # --- 3. Plugin macros directories ---
+    if not macro_plugins_disabled():
+        for module in discover_macro_plugin_modules():
+            try:
+                resource_dir = macro_plugin_definition_dirname(module)
+                if resource_dir is None:
+                    continue
+                macros_ref = importlib.resources.files(module).joinpath(resource_dir)
+                plugin_path = str(macros_ref)
+                short_name = getattr(module, "__name__", str(module)).replace("_", "-")
+                plugin_dirs.append(
+                    MacroLocation(
+                        label=f"Plugin ({short_name}) macros/",
+                        path=plugin_path,
+                        location_type="directory",
+                    )
+                )
+            except (TypeError, AttributeError):
+                continue
+
+    # --- 4. Built-in locations ---
+    # sase package macros dir
+    pkg_macros = get_sase_package_macros_dir()
+    builtin.append(
+        MacroLocation(
+            label="Built-in macros/",
+            path=str(pkg_macros),
+            location_type="directory",
+        )
+    )
+    pkg_default_macros = get_sase_package_default_macros_dir()
+    builtin.append(
+        MacroLocation(
+            label="Built-in default_macros/",
+            path=str(pkg_default_macros),
+            location_type="directory",
+        )
+    )
+    # sase default_config.yml
+    try:
+        default_cfg = str(
+            importlib.resources.files("sase").joinpath("default_config.yml")
+        )
+        builtin.append(
+            MacroLocation(
+                label="Built-in default_config.yml",
+                path=default_cfg,
+                location_type="config",
+            )
+        )
+    except Exception:
+        pass
+    # Plugin default_config.yml files
+    if not is_plugin_disabled("CONFIG"):
+        for module in discover_plugin_resources("sase_config"):
+            try:
+                ref = importlib.resources.files(module).joinpath("default_config.yml")
+                plugin_cfg_path = str(ref)
+                short_name = getattr(module, "__name__", str(module)).replace("_", "-")
+                builtin.append(
+                    MacroLocation(
+                        label=f"Plugin ({short_name}) default_config.yml",
+                        path=plugin_cfg_path,
+                        location_type="config",
+                    )
+                )
+            except Exception:
+                continue
+
+    groups: list[tuple[str, list[MacroLocation]]] = []
+    if directories:
+        groups.append(("Directories", directories))
+    if configs:
+        groups.append(("Config Files", configs))
+    if plugin_dirs:
+        groups.append(("Plugin Directories", plugin_dirs))
+    if builtin:
+        groups.append(("Built-in", builtin))
+    return groups
+
+
+class _LocationFilterInput(FilterInput):
+    """Filter input with forwarding for location modal actions."""
+
+    BINDINGS = [
+        *FilterInput.BINDINGS,
+        ("ctrl+d", "scroll_preview_down", "Scroll Down"),
+        ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
+        ("ctrl+n", "forward('next_option')", "Next"),
+        ("ctrl+p", "forward('prev_option')", "Prev"),
+        ("enter", "forward('select_location')", "Select"),
+        ("ctrl+g", "forward('open_in_editor')", "Open in Editor"),
+    ]
+
+    def action_forward(self, action_name: str) -> None:
+        modal = self.screen
+        if isinstance(modal, MacroLocationModal):
+            getattr(modal, f"action_{action_name}")()
+
+    def action_scroll_preview_down(self) -> None:
+        modal = self.screen
+        if isinstance(modal, MacroLocationModal):
+            modal.scroll_preview_down()
+
+    def action_scroll_preview_up_or_clear(self) -> None:
+        modal = self.screen
+        if isinstance(modal, MacroLocationModal):
+            scroll = modal.query_one("#location-preview-scroll", VerticalScroll)
+            if scroll.scroll_y > 0:
+                modal.scroll_preview_up()
+            elif self.cursor_position > 0:
+                self.value = self.value[self.cursor_position :]
+                self.cursor_position = 0
+
+
+class MacroLocationModal(OptionListNavigationMixin, ModalScreen[MacroLocation | None]):
+    """Modal for selecting a macro location."""
+
+    _option_list_id = "location-list"
+    BINDINGS = [
+        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        ("enter", "select_location", "Select"),
+        ("ctrl+g", "open_in_editor", "Open in Editor"),
+    ]
+
+    def __init__(self, project: str | None = None) -> None:
+        super().__init__()
+        self._project = project
+        self._groups = get_all_macro_locations(project=project)
+        self._flat: list[MacroLocation] = []
+        for _, locs in self._groups:
+            self._flat.extend(locs)
+
+    def compose(self) -> ComposeResult:
+        with Container(id="location-container"):
+            yield Label("Select Location", id="location-title")
+            yield Label(
+                "Choose where to create the new macro:",
+                id="location-hint",
+            )
+            yield _LocationFilterInput(
+                placeholder="Type to filter...",
+                id="location-filter-input",
+            )
+            with Horizontal(id="location-panels"):
+                with Vertical(id="location-list-panel"):
+                    yield OptionList(
+                        *self._create_options(),
+                        id="location-list",
+                    )
+                with Vertical(id="location-preview-panel"):
+                    with VerticalScroll(id="location-preview-scroll"):
+                        yield Static("", id="location-preview")
+            yield Static(
+                "^n/^p: navigate  enter: select  ^g: open  ^d/^u: scroll  Esc: cancel",
+                id="location-hints",
+            )
+
+    def _create_options(self, filter_text: str = "") -> list[Option]:
+        filter_lower = filter_text.lower()
+        home = str(Path.home())
+        cwd = str(Path.cwd())
+        options: list[Option] = []
+        for group_label, locations in self._groups:
+            filtered = (
+                [
+                    loc
+                    for loc in locations
+                    if not filter_lower
+                    or filter_lower in loc.label.lower()
+                    or filter_lower in loc.path.lower()
+                ]
+                if filter_lower
+                else locations
+            )
+            if not filtered:
+                continue
+            header = Text(f"── {group_label} ──", style="bold dim")
+            options.append(Option(header, id=f"__header__{group_label}", disabled=True))
+            for loc in filtered:
+                text = Text()
+                display_path = shorten_macro_location_path(loc.path, cwd, home)
+                exists = Path(loc.path).exists()
+                if loc.location_type == "directory":
+                    text.append("  📁 ", style="bold")
+                else:
+                    text.append("  📄 ", style="bold")
+                text.append(loc.label, style="bold #87D7FF")
+                text.append(f"\n     {display_path}", style="dim")
+                if not exists:
+                    text.append(" (new)", style="italic #FFD700")
+                options.append(Option(text, id=f"loc__{id(loc)}"))
+        return options
+
+    def _get_filtered_flat(self, filter_text: str = "") -> list[MacroLocation]:
+        if not filter_text:
+            return self._flat
+        filter_lower = filter_text.lower()
+        return [
+            loc
+            for loc in self._flat
+            if filter_lower in loc.label.lower() or filter_lower in loc.path.lower()
+        ]
+
+    def on_mount(self) -> None:
+        inp = self.query_one("#location-filter-input", _LocationFilterInput)
+        inp.focus()
+        option_list = self.query_one("#location-list", OptionList)
+        self._skip_to_first_item(option_list)
+        if self._flat:
+            self._update_preview(self._flat[0])
+
+    def _skip_to_first_item(self, option_list: OptionList) -> None:
+        for i in range(option_list.option_count):
+            try:
+                opt = option_list.get_option_at_index(i)
+                if opt.id and not str(opt.id).startswith("__header__"):
+                    option_list.highlighted = i
+                    return
+            except Exception:
+                continue
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        option_list = self.query_one("#location-list", OptionList)
+        option_list.clear_options()
+        for opt in self._create_options(event.value):
+            option_list.add_option(opt)
+        filtered = self._get_filtered_flat(event.value)
+        if filtered:
+            self._skip_to_first_item(option_list)
+            self._update_preview(filtered[0])
+        else:
+            self._clear_preview()
+
+    def action_next_option(self) -> None:
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        current = option_list.highlighted
+        if current is None:
+            self._skip_to_first_item(option_list)
+            return
+        for i in range(current + 1, option_list.option_count):
+            try:
+                opt = option_list.get_option_at_index(i)
+                if opt.id and not str(opt.id).startswith("__header__"):
+                    option_list.highlighted = i
+                    return
+            except Exception:
+                continue
+
+    def action_prev_option(self) -> None:
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        current = option_list.highlighted
+        if current is None:
+            return
+        for i in range(current - 1, -1, -1):
+            try:
+                opt = option_list.get_option_at_index(i)
+                if opt.id and not str(opt.id).startswith("__header__"):
+                    option_list.highlighted = i
+                    return
+            except Exception:
+                continue
+
+    def _get_highlighted_location(self) -> MacroLocation | None:
+        option_list = self.query_one("#location-list", OptionList)
+        highlighted = option_list.highlighted
+        if highlighted is None:
+            return None
+        try:
+            opt = option_list.get_option_at_index(highlighted)
+            if not opt.id or str(opt.id).startswith("__header__"):
+                return None
+        except Exception:
+            return None
+        # Match by position: count non-header items up to highlighted
+        filter_input = self.query_one("#location-filter-input", _LocationFilterInput)
+        filtered = self._get_filtered_flat(filter_input.value)
+        idx = 0
+        for i in range(option_list.option_count):
+            try:
+                o = option_list.get_option_at_index(i)
+                if o.id and not str(o.id).startswith("__header__"):
+                    if i == highlighted:
+                        return filtered[idx] if idx < len(filtered) else None
+                    idx += 1
+            except Exception:
+                continue
+        return None
+
+    def action_select_location(self) -> None:
+        loc = self._get_highlighted_location()
+        if loc is not None:
+            self.dismiss(loc)
+
+    def action_open_in_editor(self) -> None:
+        loc = self._get_highlighted_location()
+        if loc is None:
+            return
+        if loc.location_type != "config":
+            self.notify("Cannot open a directory in editor", severity="warning")
+            return
+        editor = os.environ.get("EDITOR") or "nvim"
+        editor_args = build_editor_args(editor, [loc.path])
+        with self.app.suspend():  # type: ignore[attr-defined]
+            subprocess.run(editor_args, check=False)
+
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        loc = self._get_highlighted_location()
+        if loc is not None:
+            self._update_preview(loc)
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        loc = self._get_highlighted_location()
+        if loc is not None:
+            self.dismiss(loc)
+
+    # -- Preview rendering ---------------------------------------------------
+
+    def _update_preview(self, loc: MacroLocation) -> None:
+        """Update the preview panel for the given location."""
+        try:
+            preview = self.query_one("#location-preview", Static)
+        except Exception:
+            return
+
+        p = Path(loc.path)
+        if not p.exists():
+            preview.update(Text("(path does not exist yet)", style="italic dim"))
+            return
+
+        if loc.location_type == "directory":
+            preview.update(self._render_directory_tree(p))
+        else:
+            preview.update(self._render_file_preview(p))
+
+    def _render_directory_tree(self, directory: Path) -> Syntax | Text:
+        """Render a pretty tree of directory contents."""
+        try:
+            entries = sorted(
+                directory.iterdir(), key=lambda e: (not e.is_dir(), e.name)
+            )
+        except PermissionError:
+            return Text("(permission denied)", style="italic dim")
+
+        if not entries:
+            return Text("(empty directory)", style="italic dim")
+
+        lines: list[str] = [f"{directory.name}/"]
+        self._build_tree_lines(entries, "", lines)
+        return Syntax("\n".join(lines), "text", theme="monokai", word_wrap=True)
+
+    def _build_tree_lines(
+        self,
+        entries: list[Path],
+        prefix: str,
+        lines: list[str],
+        *,
+        max_depth: int = 2,
+        _depth: int = 0,
+    ) -> None:
+        """Recursively build tree lines up to *max_depth*."""
+        for i, entry in enumerate(entries):
+            is_last = i == len(entries) - 1
+            connector = "└── " if is_last else "├── "
+            suffix = "/" if entry.is_dir() else ""
+            lines.append(f"{prefix}{connector}{entry.name}{suffix}")
+
+            if entry.is_dir() and _depth < max_depth:
+                try:
+                    children = sorted(
+                        entry.iterdir(), key=lambda e: (not e.is_dir(), e.name)
+                    )
+                except PermissionError:
+                    children = []
+                extension = "    " if is_last else "│   "
+                self._build_tree_lines(
+                    children,
+                    prefix + extension,
+                    lines,
+                    max_depth=max_depth,
+                    _depth=_depth + 1,
+                )
+
+    def _render_file_preview(self, filepath: Path) -> Syntax | Text:
+        """Render syntax-highlighted file contents."""
+        try:
+            content = filepath.read_text(encoding="utf-8", errors="replace")
+        except PermissionError:
+            return Text("(permission denied)", style="italic dim")
+        except Exception:
+            return Text("(unable to read file)", style="italic dim")
+
+        lexer = "yaml" if filepath.suffix in (".yml", ".yaml") else "text"
+        return Syntax(
+            content, lexer, theme="monokai", word_wrap=True, line_numbers=True
+        )
+
+    def _clear_preview(self) -> None:
+        """Clear the preview panel."""
+        try:
+            self.query_one("#location-preview", Static).update("")
+        except Exception:
+            pass
+
+    # -- Preview scrolling ---------------------------------------------------
+
+    def scroll_preview_down(self) -> None:
+        scroll = self.query_one("#location-preview-scroll", VerticalScroll)
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=height // 2, animate=False)
+
+    def scroll_preview_up(self) -> None:
+        scroll = self.query_one("#location-preview-scroll", VerticalScroll)
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=-(height // 2), animate=False)

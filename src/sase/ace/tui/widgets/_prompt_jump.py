@@ -265,7 +265,7 @@ class PromptJumpMixin(_MixinBase):
         if bar is None:
             self.notify("No prompt input bar is available", severity="warning")
             return
-        load = getattr(bar, "stash_all_and_load_xprompt_markdown", None)
+        load = getattr(bar, "stash_all_and_load_macro_markdown", None)
         if not callable(load):
             self.notify("Prompt input bar cannot load this target", severity="error")
             return

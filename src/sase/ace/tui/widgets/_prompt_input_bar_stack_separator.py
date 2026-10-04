@@ -60,8 +60,8 @@ class SnippetSeparatorInfo:
 
 
 @dataclass(frozen=True)
-class MiniXPromptSeparatorInfo:
-    """The chip/destination/state data the mini-xprompt separator renders."""
+class MiniMacroSeparatorInfo:
+    """The chip/destination/state data the mini-macro separator renders."""
 
     name: str
     destination: str
@@ -77,14 +77,14 @@ class PromptStackSeparator(Static):
         *,
         active: bool = False,
         snippet: SnippetSeparatorInfo | None = None,
-        mini_xprompt: MiniXPromptSeparatorInfo | None = None,
+        mini_macro: MiniMacroSeparatorInfo | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__("", **kwargs)
         self.label = label
         self.active = active
         self.snippet = snippet
-        self.mini_xprompt = mini_xprompt
+        self.mini_macro = mini_macro
         self.position: tuple[int, int] | None = None
         self.vim_mode: str = "insert"
 
@@ -102,11 +102,11 @@ class PromptStackSeparator(Static):
         self.snippet = info
         self.refresh()
 
-    def set_mini_xprompt_info(self, info: MiniXPromptSeparatorInfo | None) -> None:
-        """Replace the mini-xprompt chip/destination/marker when changed."""
-        if self.mini_xprompt == info:
+    def set_mini_macro_info(self, info: MiniMacroSeparatorInfo | None) -> None:
+        """Replace the mini-macro chip/destination/marker when changed."""
+        if self.mini_macro == info:
             return
-        self.mini_xprompt = info
+        self.mini_macro = info
         self.refresh()
 
     def set_position(
@@ -124,8 +124,8 @@ class PromptStackSeparator(Static):
         width = max(0, int(self.size.width))
         if self.snippet is not None:
             return self._render_snippet(width)
-        if self.mini_xprompt is not None:
-            return self._render_mini_xprompt(width)
+        if self.mini_macro is not None:
+            return self._render_mini_macro(width)
 
         label = self.label
         if self.active:
@@ -168,9 +168,9 @@ class PromptStackSeparator(Static):
             return "●", f"bold {self._theme_color('warning', 'yellow')}"
         return "✓", "dim"
 
-    def _mini_xprompt_marker(self) -> tuple[str, str]:
-        """Return ``(text, style)`` for the mini-xprompt pane's state marker."""
-        info = self.mini_xprompt
+    def _mini_macro_marker(self) -> tuple[str, str]:
+        """Return ``(text, style)`` for the mini-macro pane's state marker."""
+        info = self.mini_macro
         assert info is not None
         if info.state == "new":
             return "new", f"bold {self._theme_color('success', 'green')}"
@@ -232,14 +232,14 @@ class PromptStackSeparator(Static):
         text.append_text(self._render_right_rule(right_width))
         return text
 
-    def _render_mini_xprompt(self, width: int) -> Text:
-        """Render the name-labeled title bar for a pinned mini-xprompt pane."""
-        info = self.mini_xprompt
+    def _render_mini_macro(self, width: int) -> Text:
+        """Render the name-labeled title bar for a pinned mini-macro pane."""
+        info = self.mini_macro
         assert info is not None
         chip_prefix = f"{_STACK_SEPARATOR_ACTIVE_MARKER} " if self.active else ""
         chip = f"{chip_prefix}#{info.name}"
         chip_style = "bold" if self.active else "dim"
-        marker_text, marker_style = self._mini_xprompt_marker()
+        marker_text, marker_style = self._mini_macro_marker()
 
         fixed_width = cell_len(f"  {chip}   {marker_text}  ")
         dest_budget = max(0, width - fixed_width)

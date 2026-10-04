@@ -24,7 +24,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_config_view,
     _agent_cli_history,
     _patch_plugins_catalog,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
     _wait_for_plugins_detail,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -44,7 +44,7 @@ async def test_config_center_plugins_tab_png_snapshot(
 ) -> None:
     """Populated list + the built-in plugin's ``show``-equivalent detail panel."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -69,7 +69,7 @@ async def test_config_center_updates_core_update_available_png_snapshot(
 ) -> None:
     """Core panel highlights an available SASE update above the plugin browser."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(
         monkeypatch,
@@ -98,7 +98,7 @@ async def test_config_center_updates_digest_png_snapshot(
 ) -> None:
     """The Updates header summarizes all source counts and freshness."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(
         monkeypatch,
@@ -129,7 +129,7 @@ async def test_config_center_updates_failed_source_header_png_snapshot(
 ) -> None:
     """The Updates header shows failed source errors instead of all-current."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(
         monkeypatch,
@@ -159,7 +159,7 @@ async def test_config_center_updates_all_current_png_snapshot(
 ) -> None:
     """All-current banner renders above the SASE Core panel."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(
         monkeypatch,
@@ -190,7 +190,7 @@ async def test_config_center_agent_clis_marked_png_snapshot(
 ) -> None:
     """Agent CLIs master/detail browser shows provider colors and update marks."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -218,7 +218,7 @@ async def test_config_center_agent_clis_history_png_snapshot(
 ) -> None:
     """Agent CLI history shows selected CLI update and failure rows."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(
         monkeypatch,
@@ -249,7 +249,7 @@ async def test_config_center_agent_clis_history_all_png_snapshot(
 ) -> None:
     """Agent CLI history all-CLIs scope groups rows by update run."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(
         monkeypatch,
@@ -281,7 +281,7 @@ async def test_config_center_agent_clis_history_empty_png_snapshot(
 ) -> None:
     """Agent CLI history empty state explains how updates enter the journal."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(
         monkeypatch,
@@ -312,7 +312,7 @@ async def test_config_center_agent_clis_update_preview_png_snapshot(
 ) -> None:
     """Agent CLI update confirmation previews exact commands and all skips."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -339,7 +339,7 @@ async def test_config_center_plugins_dev_update_available_png_snapshot(
 ) -> None:
     """Editable installs show current/latest dev versions and update state."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     github = _entry(
         "github",
@@ -388,7 +388,7 @@ async def test_config_center_plugins_community_detail_png_snapshot(
 ) -> None:
     """A highlighted community plugin leads its detail with the warning panel."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -415,7 +415,7 @@ async def test_config_center_plugins_long_description_png_snapshot(
 ) -> None:
     """A long plugin description wraps cleanly in the detail panel."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
     long_description = (
@@ -464,7 +464,7 @@ async def test_config_center_plugins_offline_png_snapshot(
 ) -> None:
     """Offline toggle surfaces the header OFFLINE badge; detail still renders."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -491,7 +491,7 @@ async def test_config_center_plugins_verbose_png_snapshot(
 ) -> None:
     """Verbose toggle adds the stars / updated columns to the list rows."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -523,7 +523,7 @@ async def test_config_center_plugins_empty_png_snapshot(
 ) -> None:
     """Empty catalog shows the no-plugins placeholder."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
     empty = PluginCatalog(
@@ -550,7 +550,7 @@ async def test_config_center_plugins_loading_png_snapshot(
 ) -> None:
     """Suppressing the worker keeps the pane in its initial loading state."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     monkeypatch.setattr(
@@ -578,7 +578,7 @@ async def test_config_center_updates_outdated_scope_cli_only_png_snapshot(
 ) -> None:
     """Outdated scope with only the Agent CLIs section behind."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch, catalog=_all_current_catalog())
 
@@ -602,7 +602,7 @@ async def test_config_center_updates_outdated_scope_plugin_only_png_snapshot(
 ) -> None:
     """Outdated scope with only a Plugins row behind."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch, agent_cli_statuses=())
 
@@ -626,7 +626,7 @@ async def test_config_center_updates_outdated_scope_all_current_png_snapshot(
 ) -> None:
     """Outdated scope shows zero rows and the all-current banner, never a blank lie."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(
         monkeypatch,
@@ -655,7 +655,7 @@ async def test_config_center_updates_marks_hidden_by_filter_png_snapshot(
 ) -> None:
     """A filter that hides marked rows still counts them in the hint aggregate."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch, uv_tool=_uv_tool())
 

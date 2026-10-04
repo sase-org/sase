@@ -75,7 +75,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             bar, "request_snippet_target_pane", lambda: calls.append("t")
         )
         monkeypatch.setattr(
-            bar, "request_mini_xprompt_target_pane", lambda: calls.append("x")
+            bar, "request_mini_macro_target_pane", lambda: calls.append("x")
         )
         monkeypatch.setattr(bar, "request_save_as_xprompt", lambda: calls.append("X"))
         monkeypatch.setattr(
@@ -119,8 +119,8 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         assert bar.dispatch_g_prefix_key("ctrl+x", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("ctrl+t") is False
         assert bar.dispatch_g_prefix_key("ctrl+t", via_ctrl_g=True) is True
-        assert app.mini_xprompt_requests == []
-        assert app.save_xprompt_requests == []
+        assert app.mini_macro_requests == []
+        assert app.save_macro_requests == []
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
         # Bare ``gr`` stays vim-owned; only ``Ctrl+G r`` opens recent files.

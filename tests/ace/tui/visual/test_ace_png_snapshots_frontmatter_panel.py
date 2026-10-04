@@ -2,7 +2,7 @@
 
 Pin how :class:`FrontmatterPanel` renders above the prompt stack in three states
 the design calls out: a populated panel (scalar rows, the status chip, and the
-read-only ``input`` / ``xprompts`` sub-trees), the just-triggered empty panel,
+read-only ``input`` / ``macros`` sub-trees), the just-triggered empty panel,
 and an error state where a bad ``input`` type surfaces the core ``⟨! N⟩`` chip
 plus the inline red diagnostic.  The bar is mounted directly over the Patches
 tab so the full ``styles.tcss`` styling applies exactly as it does at runtime.
@@ -15,7 +15,7 @@ from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.input_item_modal import InputItemModal
-from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
+from sase.ace.tui.modals.macro_item_modal import MacroItemModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
@@ -335,7 +335,7 @@ async def test_frontmatter_input_item_modal_png_snapshot(
         )
 
 
-async def test_frontmatter_xprompt_item_modal_png_snapshot(
+async def test_frontmatter_macro_item_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -347,9 +347,9 @@ async def test_frontmatter_xprompt_item_modal_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
 
-        # The structured ``xprompts`` editor, prefilled with a local helper that
+        # The structured ``macros`` editor, prefilled with a local helper that
         # declares an input, so the compact inputs field is pinned too.
-        modal = XPromptItemModal(
+        modal = MacroItemModal(
             existing=(
                 "_rules",
                 Macro(
@@ -361,7 +361,7 @@ async def test_frontmatter_xprompt_item_modal_png_snapshot(
             )
         )
         page.app.push_screen(modal)
-        await page.expect_modal("XPromptItemModal")
+        await page.expect_modal("MacroItemModal")
         await wait_for_svg_contains(page, "team review rules")
         await wait_for_visual_idle(page)
 

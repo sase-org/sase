@@ -35,7 +35,7 @@ class MacroWriteTarget:
 class WrittenFileKind(StrEnum):
     """Kind of source file written by a macro save surface."""
 
-    MACRO = "xprompt"
+    MACRO = "macro"
     MEMORY_NOTE = "memory_note"
     SKILL_SOURCE = "skill_source"
     CONFIG_ENTRY = "config_entry"
@@ -174,8 +174,8 @@ def build_post_write_action_offers(
     kind: WrittenFileKind,
     is_new: bool,
     macro_name: str,
-    noun: str = "xprompt",
-    commit_type: str = "xprompt",
+    noun: str = "macro",
+    commit_type: str = "macro",
 ) -> tuple[PostWriteActionOffer, ...]:
     """Return the ordered follow-up actions that apply to *target*.
 

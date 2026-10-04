@@ -9,7 +9,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _open_logs_modal,
     _patch_config_view,
     _patch_plugins_catalog,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
     _seed_focused_error_log,
     _seed_logs_tab_files,
 )
@@ -29,7 +29,7 @@ async def test_config_center_logs_tab_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
     _seed_logs_tab_files()
@@ -55,7 +55,7 @@ async def test_config_center_logs_tab_toasts_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
     _seed_logs_tab_files()
@@ -90,7 +90,7 @@ async def test_config_center_logs_tab_focused_error_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
     target = _seed_focused_error_log()

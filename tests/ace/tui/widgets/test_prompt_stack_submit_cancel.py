@@ -89,10 +89,7 @@ async def test_untargeted_multi_pane_choice_rows_are_unchanged() -> None:
 
         assert isinstance(app.screen, PromptSubmitChoiceModal)
         assert _submit_choice_rows(app.screen) == [
-            (
-                "  enter/a   Submit all\n"
-                "      Launch all 2 prompts as one xprompt swarm."
-            ),
+            ("  enter/a   Submit all\n      Launch all 2 prompts as one macro swarm."),
             (
                 "  c   Submit current\n"
                 "      Launch only the selected prompt as a single agent."
@@ -109,7 +106,7 @@ async def test_enter_on_targeted_single_pane_pushes_submit_choice_modal(
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar.target_xprompt(_target_binding(tmp_path), source_markdown="draft")
+        bar.target_macro(_target_binding(tmp_path), source_markdown="draft")
 
         await pilot.press("enter")
         await pilot.pause()
@@ -119,7 +116,7 @@ async def test_enter_on_targeted_single_pane_pushes_submit_choice_modal(
         assert any("Launch agent" in row for row in rows)
         assert any("Save to" in row and "#draft" in row for row in rows)
         assert any("No unsaved changes since the last save." in row for row in rows)
-        assert any("Save as a new xprompt" in row for row in rows)
+        assert any("Save as a new macro" in row for row in rows)
         assert not any("Submit all" in row for row in rows)
         assert app.submitted == []
 
@@ -130,7 +127,7 @@ async def test_targeted_single_choice_send_submits_draft(tmp_path: Path) -> None
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar.target_xprompt(_target_binding(tmp_path), source_markdown="draft")
+        bar.target_macro(_target_binding(tmp_path), source_markdown="draft")
 
         await pilot.press("enter")
         await pilot.pause()
@@ -138,7 +135,7 @@ async def test_targeted_single_choice_send_submits_draft(tmp_path: Path) -> None
         await pilot.pause()
 
         assert [event.value for event in app.submitted] == ["draft"]
-        assert app.write_xprompt_requested == []
+        assert app.write_macro_requested == []
 
 
 async def test_targeted_single_choice_write_posts_write_request(
@@ -150,7 +147,7 @@ async def test_targeted_single_choice_write_posts_write_request(
         await pilot.pause()
         binding = _target_binding(tmp_path)
         bar = app.query_one(PromptInputBar)
-        bar.target_xprompt(binding, source_markdown="draft")
+        bar.target_macro(binding, source_markdown="draft")
 
         await pilot.press("enter")
         await pilot.pause()
@@ -158,9 +155,9 @@ async def test_targeted_single_choice_write_posts_write_request(
         await pilot.pause()
 
         assert app.submitted == []
-        assert len(app.write_xprompt_requested) == 1
-        assert app.write_xprompt_requested[0].binding == binding
-        assert [pane.text for pane in app.write_xprompt_requested[0].panes] == ["draft"]
+        assert len(app.write_macro_requested) == 1
+        assert app.write_macro_requested[0].binding == binding
+        assert [pane.text for pane in app.write_macro_requested[0].panes] == ["draft"]
 
 
 async def test_targeted_single_choice_save_as_posts_save_as_request(
@@ -171,7 +168,7 @@ async def test_targeted_single_choice_save_as_posts_save_as_request(
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar.target_xprompt(_target_binding(tmp_path), source_markdown="draft")
+        bar.target_macro(_target_binding(tmp_path), source_markdown="draft")
 
         await pilot.press("enter")
         await pilot.pause()
@@ -179,10 +176,8 @@ async def test_targeted_single_choice_save_as_posts_save_as_request(
         await pilot.pause()
 
         assert app.submitted == []
-        assert len(app.save_as_xprompt_requested) == 1
-        assert [pane.text for pane in app.save_as_xprompt_requested[0].panes] == [
-            "draft"
-        ]
+        assert len(app.save_as_macro_requested) == 1
+        assert [pane.text for pane in app.save_as_macro_requested[0].panes] == ["draft"]
 
 
 async def test_targeted_multi_pane_choice_rows_include_launch_and_save(
@@ -193,7 +188,7 @@ async def test_targeted_multi_pane_choice_rows_include_launch_and_save(
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar.target_xprompt(
+        bar.target_macro(
             _target_binding(tmp_path),
             source_markdown="first\n---\nsecond",
         )
@@ -206,7 +201,7 @@ async def test_targeted_multi_pane_choice_rows_include_launch_and_save(
         assert any("Launch all 2" in row for row in rows)
         assert any("Launch current" in row for row in rows)
         assert any("Save to" in row and "#draft" in row for row in rows)
-        assert any("Save as a new xprompt" in row for row in rows)
+        assert any("Save as a new macro" in row for row in rows)
         assert (
             rows[-1]
             == "  enter/a/^S all · c current · w save · X save as · esc/q cancel"
@@ -222,7 +217,7 @@ async def test_targeted_submit_choice_dirty_copy_names_write_path(
         await pilot.pause()
         binding = _target_binding(tmp_path)
         bar = app.query_one(PromptInputBar)
-        bar.target_xprompt(binding, source_markdown="draft")
+        bar.target_macro(binding, source_markdown="draft")
         bar.active_text_area().text = "edited"
 
         await pilot.press("enter")

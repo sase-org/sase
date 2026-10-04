@@ -30,8 +30,8 @@ class CaptureApp(App[None]):
         self.submitted: list[PromptInputBar.Submitted] = []
         self.cancelled: list[PromptInputBar.Cancelled] = []
         self.stashed: list[PromptInputBar.Stashed] = []
-        self.save_as_xprompt_requested: list[PromptInputBar.SaveAsXpromptRequested] = []
-        self.write_xprompt_requested: list[PromptInputBar.WriteXpromptRequested] = []
+        self.save_as_macro_requested: list[PromptInputBar.SaveAsMacroRequested] = []
+        self.write_macro_requested: list[PromptInputBar.WriteMacroRequested] = []
         self.editor_requested: list[PromptInputBar.EditorRequested] = []
         self.all_editor_requested: list[PromptInputBar.AllEditorRequested] = []
         self.history_requested: list[PromptInputBar.HistoryRequested] = []
@@ -39,11 +39,11 @@ class CaptureApp(App[None]):
         self.snippet_pane_save_requested: list[
             PromptInputBar.SnippetPaneSaveRequested
         ] = []
-        self.mini_xprompt_target_requested: list[
-            PromptInputBar.MiniXPromptTargetRequested
+        self.mini_macro_target_requested: list[
+            PromptInputBar.MiniMacroTargetRequested
         ] = []
-        self.mini_xprompt_pane_save_requested: list[
-            PromptInputBar.MiniXPromptPaneSaveRequested
+        self.mini_macro_pane_save_requested: list[
+            PromptInputBar.MiniMacroPaneSaveRequested
         ] = []
 
     def compose(self) -> ComposeResult:
@@ -66,17 +66,17 @@ class CaptureApp(App[None]):
     def on_prompt_input_bar_stashed(self, event: PromptInputBar.Stashed) -> None:
         self.stashed.append(event)
 
-    def on_prompt_input_bar_save_as_xprompt_requested(
+    def on_prompt_input_bar_save_as_macro_requested(
         self,
-        event: PromptInputBar.SaveAsXpromptRequested,
+        event: PromptInputBar.SaveAsMacroRequested,
     ) -> None:
-        self.save_as_xprompt_requested.append(event)
+        self.save_as_macro_requested.append(event)
 
-    def on_prompt_input_bar_write_xprompt_requested(
+    def on_prompt_input_bar_write_macro_requested(
         self,
-        event: PromptInputBar.WriteXpromptRequested,
+        event: PromptInputBar.WriteMacroRequested,
     ) -> None:
-        self.write_xprompt_requested.append(event)
+        self.write_macro_requested.append(event)
 
     def on_prompt_input_bar_editor_requested(
         self,
@@ -108,17 +108,17 @@ class CaptureApp(App[None]):
     ) -> None:
         self.snippet_pane_save_requested.append(event)
 
-    def on_prompt_input_bar_mini_xprompt_target_requested(
+    def on_prompt_input_bar_mini_macro_target_requested(
         self,
-        event: PromptInputBar.MiniXPromptTargetRequested,
+        event: PromptInputBar.MiniMacroTargetRequested,
     ) -> None:
-        self.mini_xprompt_target_requested.append(event)
+        self.mini_macro_target_requested.append(event)
 
-    def on_prompt_input_bar_mini_xprompt_pane_save_requested(
+    def on_prompt_input_bar_mini_macro_pane_save_requested(
         self,
-        event: PromptInputBar.MiniXPromptPaneSaveRequested,
+        event: PromptInputBar.MiniMacroPaneSaveRequested,
     ) -> None:
-        self.mini_xprompt_pane_save_requested.append(event)
+        self.mini_macro_pane_save_requested.append(event)
 
 
 async def submit_current_pane(

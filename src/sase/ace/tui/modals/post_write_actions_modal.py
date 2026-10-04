@@ -1,4 +1,4 @@
-"""Post-write action chooser for saved xprompt sources."""
+"""Post-write action chooser for saved macro sources."""
 
 from __future__ import annotations
 

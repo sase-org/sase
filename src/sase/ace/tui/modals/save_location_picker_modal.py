@@ -22,7 +22,7 @@ from textual.widgets.option_list import Option
 
 from .save_location_choices import SaveLocationChoice, SaveLocationPick
 
-SaveLocationPickerKind = Literal["xprompt", "snippet"]
+SaveLocationPickerKind = Literal["macro", "snippet"]
 
 STEPPER_TEXT = "● Location › ○ Name"
 
@@ -37,7 +37,7 @@ def _choice_option_id(choice_id: str) -> str:
 
 
 class SaveLocationPickerModal(ModalScreen[SaveLocationPick | None]):
-    """Pick where a new mini-xprompt or snippet will live.
+    """Pick where a new mini-macro or snippet will live.
 
     Push synchronously, then feed loaded choices with :meth:`set_choices`.
     Keys typed while loading are buffered: the first hotkey (or Enter)

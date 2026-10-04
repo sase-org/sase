@@ -96,8 +96,8 @@ async def test_save_as_and_stash_payloads_ignore_snippet_body() -> None:
         bar.stash_all_panes()
         await pilot.pause()
 
-        assert len(app.save_as_xprompt_requested) == 1
-        save_event = app.save_as_xprompt_requested[0]
+        assert len(app.save_as_macro_requested) == 1
+        save_event = app.save_as_macro_requested[0]
         assert [pane.text for pane in save_event.panes] == ["agent prompt"]
         assert save_event.single_pane is True
         assert save_event.snippet_body == "agent prompt"

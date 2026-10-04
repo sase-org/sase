@@ -277,7 +277,7 @@ def _definition_file_for_source(source_path: str | None, reference: str) -> Path
         raise JumpError(f"No definition file found for {reference}")
 
     try:
-        from sase.ace.tui.modals.xprompt_browser_helpers import (
+        from sase.ace.tui.modals.macro_browser_helpers import (
             resolve_source_to_file_path,
         )
 
@@ -312,7 +312,7 @@ def _loadable_markdown(
     is_simple: bool,
 ) -> str | None:
     try:
-        from sase.ace.tui.modals.xprompt_browser_helpers import is_yaml_backed_source
+        from sase.ace.tui.modals.macro_browser_helpers import is_yaml_backed_source
 
         is_yaml = is_yaml_backed_source(source_id)
     except Exception:
@@ -343,7 +343,7 @@ def _is_config_source(source_id: str | None) -> bool:
 
 def _source_is_editable(source_id: str | None) -> bool:
     try:
-        from sase.ace.tui.modals.xprompt_browser_helpers import classify_source
+        from sase.ace.tui.modals.macro_browser_helpers import classify_source
 
         return classify_source(source_id)[2]
     except Exception:

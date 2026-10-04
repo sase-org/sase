@@ -250,7 +250,7 @@ def test_resolves_config_source_to_real_yaml_file(
         ),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.xprompt_browser_helpers.resolve_source_to_file_path",
+        "sase.ace.tui.modals.macro_browser_helpers.resolve_source_to_file_path",
         lambda source_path: str(source) if source_path == "config" else None,
     )
 

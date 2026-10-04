@@ -168,16 +168,16 @@ class UpdatePinnedRequested(Message, namespace="prompt_input_bar"):
         self.panes = panes
 
 
-class SaveAsXpromptRequested(Message, namespace="prompt_input_bar"):
-    """Message sent when the user asks to save the draft as an xprompt.
+class SaveAsMacroRequested(Message, namespace="prompt_input_bar"):
+    """Message sent when the user asks to save the draft as a macro.
 
     The message carries two distinct save sources:
 
-    - ``panes`` is the *xprompt* body source: every non-empty prompt pane plus
+    - ``panes`` is the *macro* body source: every non-empty prompt pane plus
       shared frontmatter (the stack stays mounted and unchanged). A
       frontmatter-only draft is carried as one empty pane with frontmatter so
       the app can still serialize it. The app joins these panes with
-      ``\n---\n`` for xprompt creation / overwrite.
+      ``\n---\n`` for macro creation / overwrite.
     - ``snippet_body`` is the *snippet* body source: only the active pane's
       stripped text, so switching the unified panel to snippet mode saves that
       single pane even when the stack holds several ``---`` panes. ``None`` marks
@@ -205,7 +205,7 @@ class SaveAsXpromptRequested(Message, namespace="prompt_input_bar"):
         self.origin_bar = origin_bar
 
 
-class WriteXpromptRequested(Message, namespace="prompt_input_bar"):
+class WriteMacroRequested(Message, namespace="prompt_input_bar"):
     """Request a conflict-checked write to the stack's bound source."""
 
     def __init__(
@@ -252,8 +252,8 @@ class SnippetPaneSaveRequested(Message, namespace="prompt_input_bar"):
         self.origin_pane_id = origin_pane_id
 
 
-class MiniXPromptTargetRequested(Message, namespace="prompt_input_bar"):
-    """Request the location-first flow for a pane-scoped mini-xprompt target."""
+class MiniMacroTargetRequested(Message, namespace="prompt_input_bar"):
+    """Request the location-first flow for a pane-scoped mini-macro target."""
 
     def __init__(
         self,
@@ -270,8 +270,8 @@ class MiniXPromptTargetRequested(Message, namespace="prompt_input_bar"):
         self.current_location_path = current_location_path
 
 
-class MiniXPromptPaneSaveRequested(Message, namespace="prompt_input_bar"):
-    """Request the save-review flow for the active mini-xprompt pane."""
+class MiniMacroPaneSaveRequested(Message, namespace="prompt_input_bar"):
+    """Request the save-review flow for the active mini-macro pane."""
 
     def __init__(
         self,

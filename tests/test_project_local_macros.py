@@ -272,7 +272,7 @@ class TestGetAllProjectLocalPrompts:
         project_display_case,
     ) -> None:
         """The browser merge must not list a file once per project spelling."""
-        from sase.ace.tui.modals.xprompt_browser_catalog import load_browser_items
+        from sase.ace.tui.modals.macro_browser_catalog import load_browser_items
         from sase.macro.models import macro_to_workflow
 
         self._register_display_name_project(tmp_path, monkeypatch, project_display_case)
@@ -306,7 +306,7 @@ class TestGetAllProjectLocalPrompts:
         monkeypatch: pytest.MonkeyPatch,
         project_display_case,
     ) -> None:
-        from sase.ace.tui.modals.xprompt_browser_helpers import (
+        from sase.ace.tui.modals.macro_browser_helpers import (
             resolve_source_to_file_path,
         )
 
@@ -328,11 +328,11 @@ class TestGetAllProjectLocalPrompts:
             ),
         )
         monkeypatch.setattr(
-            "sase.ace.tui.modals.xprompt_browser_helpers.known_project_namespaces",
+            "sase.ace.tui.modals.macro_browser_helpers.known_project_namespaces",
             lambda: namespaces,
         )
         monkeypatch.setattr(
-            "sase.ace.tui.modals.xprompt_browser_helpers.canonical_macro_project",
+            "sase.ace.tui.modals.macro_browser_helpers.canonical_macro_project",
             lambda ref: (
                 project_display_case.project_label
                 if ref == project_display_case.project_key
@@ -464,7 +464,7 @@ class TestRegistryBackedProjectResolution:
 
 class TestClassifySourceProjectLocal:
     def test_project_local_config_source(self) -> None:
-        from sase.ace.tui.modals.xprompt_browser_helpers import classify_source
+        from sase.ace.tui.modals.macro_browser_helpers import classify_source
 
         cat, display, editable = classify_source("project_local_config:sase")
         assert cat == "Project (sase) sase.yml"
@@ -476,7 +476,7 @@ class TestClassifySourceProjectLocal:
         monkeypatch,
         project_display_case,
     ) -> None:
-        from sase.ace.tui.modals import xprompt_browser_helpers as helpers
+        from sase.ace.tui.modals import macro_browser_helpers as helpers
 
         monkeypatch.setattr(
             helpers,
@@ -496,12 +496,12 @@ class TestClassifySourceProjectLocal:
         assert project_display_case.project_key not in category
 
     def test_project_local_config_resolve(self, tmp_path: Path) -> None:
-        from sase.ace.tui.modals.xprompt_browser_helpers import (
+        from sase.ace.tui.modals.macro_browser_helpers import (
             resolve_source_to_file_path,
         )
 
         with patch(
-            "sase.ace.tui.modals.xprompt_browser_helpers.known_project_namespaces",
+            "sase.ace.tui.modals.macro_browser_helpers.known_project_namespaces",
             return_value={"myproj": tmp_path},
         ):
             result = resolve_source_to_file_path("project_local_config:myproj")

@@ -72,7 +72,7 @@ class PromptInputBarSubmissionActionsMixin(_MixinBase):
             self,
             proceed: Callable[[], None],
         ) -> bool: ...
-        def request_save_mini_xprompt_target_pane(
+        def request_save_mini_macro_target_pane(
             self,
             origin_text_area: PromptTextArea | None = None,
         ) -> None: ...
@@ -155,8 +155,8 @@ class PromptInputBarSubmissionActionsMixin(_MixinBase):
         if self._mode == "prompt" and self._stack.selected_item.is_snippet_pane:
             self.request_save_snippet_target_pane(origin_text_area)
             return None
-        if self._mode == "prompt" and self._stack.selected_item.is_mini_xprompt_pane:
-            self.request_save_mini_xprompt_target_pane(origin_text_area)
+        if self._mode == "prompt" and self._stack.selected_item.is_mini_macro_pane:
+            self.request_save_mini_macro_target_pane(origin_text_area)
             return None
 
         if self._mode != "prompt" or self._stack.agent_count <= 1:

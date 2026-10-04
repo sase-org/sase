@@ -22,7 +22,7 @@ from sase.macro.models import InputArg, InputType
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 from ._completion_helpers import CompletionTestApp
-from ._prompt_stack_helpers import mini_xprompt_target
+from ._prompt_stack_helpers import mini_macro_target
 
 PROMPT_SCOPE = JinjaScope(kind="prompt", frontmatter=None)
 
@@ -59,7 +59,7 @@ async def test_mini_pane_offers_own_inputs_plus_args() -> None:
     async with app.run_test():
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
-        bar._stack.selected_item.mini_xprompt_target = mini_xprompt_target(
+        bar._stack.selected_item.mini_macro_target = mini_macro_target(
             name="review",
             frontmatter="input:\n  topic: line\n",
         )

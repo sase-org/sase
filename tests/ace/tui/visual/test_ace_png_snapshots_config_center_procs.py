@@ -16,7 +16,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _open_procs_modal,
     _patch_config_view,
     _patch_plugins_catalog,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
     _seed_tasks_tab_queue,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -71,7 +71,7 @@ async def test_config_center_procs_tab_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
     _freeze_procs_clock(monkeypatch)
@@ -119,7 +119,7 @@ async def test_config_center_procs_tab_monitors_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
     _freeze_procs_clock(monkeypatch)
@@ -161,7 +161,7 @@ async def test_config_center_procs_tab_filtered_png_snapshot(
 ) -> None:
     """The teal filter bar, its highlighted closed display, and `N/M shown`."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
     _freeze_procs_clock(monkeypatch)

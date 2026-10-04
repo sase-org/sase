@@ -211,11 +211,11 @@ async def test_flags_off_prefix_keeps_six_child_numbering(
             await wait_for(pilot, lambda: hub._active_subtab == "misc")
             _assert_hub_caption(hub, "misc")
             await pilot.press("0", "6")
-            await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
+            await wait_for(pilot, lambda: hub._active_subtab == "macros")
             await pilot.press("0", "7")
             await pilot.pause()
-            assert hub._active_subtab == "xprompts"
-            _assert_hub_caption(hub, "xprompts")
+            assert hub._active_subtab == "macros"
+            _assert_hub_caption(hub, "macros")
 
 
 async def test_flags_direct_entry_shows_flags_caption(

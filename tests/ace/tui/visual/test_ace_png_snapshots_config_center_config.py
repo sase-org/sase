@@ -2,7 +2,7 @@
 
 The Config tab is fed a deterministic fixture inventory by patching
 ``config_pane._load_config_view`` so no real config files are read.
-XPrompts are injected deterministically by patching the pane module's prompt
+Macros are injected deterministically by patching the pane module's prompt
 loaders.
 """
 
@@ -13,8 +13,8 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.config_pane import ConfigPane
-from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
-from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
+from sase.ace.tui.modals.macro_browser_filter_input import BrowserFilterInput
+from sase.ace.tui.modals.macro_browser_pane import MacroBrowserPane
 from sase.feature_flags import override_flags
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _build_view,
@@ -24,7 +24,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _open_modal,
     _patch_config_view,
     _patch_plugins_catalog,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -42,7 +42,7 @@ async def test_config_center_config_tab_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
@@ -64,7 +64,7 @@ async def test_config_center_config_tab_flags_off_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
@@ -87,7 +87,7 @@ async def test_config_center_config_empty_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     empty_schema = {"type": "object", "additionalProperties": False, "properties": {}}
     _patch_config_view(monkeypatch, _build_view(empty_schema, _config_layers()))
@@ -112,7 +112,7 @@ async def test_config_center_config_loading_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     # Suppress the worker so the pane stays in its initial loading state.
     monkeypatch.setattr(ConfigPane, "_start_load", lambda self, *, force=False: None)
@@ -135,7 +135,7 @@ async def test_config_center_config_long_value_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     view = _build_view(_config_schema(), _config_layers(long_value=True))
     _patch_config_view(monkeypatch, view)
@@ -162,7 +162,7 @@ async def test_config_center_config_object_value_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     view = _build_view(
         _config_schema(object_value=True),
@@ -186,12 +186,12 @@ async def test_config_center_config_object_value_png_snapshot(
         )
 
 
-async def test_config_center_xprompts_tab_png_snapshot(
+async def test_config_center_macros_tab_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
@@ -199,23 +199,21 @@ async def test_config_center_xprompts_tab_png_snapshot(
         await wait_for_startup(page)
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
-        await _open_modal(
-            page, "config", config_entry=ConfigHubEntry(subtab="xprompts")
-        )
+        await _open_modal(page, "config", config_entry=ConfigHubEntry(subtab="macros"))
 
         ace_png_visual.assert_page_png(
             page,
-            "config_center_xprompts_tab_120x40",
-            title="ACE SASE Admin Center — Config XPrompts child",
+            "config_center_macros_tab_120x40",
+            title="ACE SASE Admin Center — Config Macros child",
         )
 
 
-async def test_config_center_xprompts_filter_png_snapshot(
+async def test_config_center_macros_filter_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
 
@@ -224,9 +222,9 @@ async def test_config_center_xprompts_filter_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         modal = await _open_modal(
-            page, "config", config_entry=ConfigHubEntry(subtab="xprompts")
+            page, "config", config_entry=ConfigHubEntry(subtab="macros")
         )
-        pane = modal.query_one("#xprompts", XPromptBrowserPane)
+        pane = modal.query_one("#macros", MacroBrowserPane)
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
         await page.press("slash")
         await page.wait_for(
@@ -238,6 +236,6 @@ async def test_config_center_xprompts_filter_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "config_center_xprompts_filter_120x40",
-            title="ACE SASE Admin Center — Config XPrompts child (filter)",
+            "config_center_macros_filter_120x40",
+            title="ACE SASE Admin Center — Config Macros child (filter)",
         )

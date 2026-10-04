@@ -219,7 +219,7 @@ async def test_prompt_stack_targeted_clean_png_snapshot(
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "placeholder")
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
-        bar.load_stack_from_xprompt_markdown(
+        bar.load_stack_from_macro_markdown(
             TARGETED_MARKDOWN,
             binding=XPromptBinding.for_file(source, reference="#visual-clean"),
         )
@@ -248,7 +248,7 @@ async def test_prompt_stack_targeted_dirty_png_snapshot(
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "placeholder")
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
-        bar.load_stack_from_xprompt_markdown(
+        bar.load_stack_from_macro_markdown(
             TARGETED_MARKDOWN,
             binding=XPromptBinding.for_file(source, reference="#visual-dirty"),
         )
@@ -282,7 +282,7 @@ async def test_prompt_stack_targeted_readonly_png_snapshot(
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "placeholder")
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
-        bar.load_stack_from_xprompt_markdown(
+        bar.load_stack_from_macro_markdown(
             TARGETED_MARKDOWN,
             read_only_target=XPromptReadonlyTarget(
                 reference="#visual-readonly",

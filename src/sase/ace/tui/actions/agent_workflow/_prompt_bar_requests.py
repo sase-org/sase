@@ -93,7 +93,7 @@ class PromptBarRequestsMixin:
             # paths, then reload the whole bar from the edited markdown. The
             # all-stack editor never launches — it only re-stacks the bar.
             marked, cleaned = strip_editor_review_markers(prompt)
-            bar.load_stack_from_xprompt_markdown(
+            bar.load_stack_from_macro_markdown(
                 cleaned if marked else prompt,
                 preserve_target=True,
             )
@@ -311,8 +311,8 @@ class PromptBarRequestsMixin:
         if not isinstance(event, PromptInputBar.SnippetRequested):
             return
 
-        from ...modals import XPromptSelectModal
-        from ...modals.xprompt_select_modal import XPromptSelection
+        from ...modals import MacroSelectModal
+        from ...modals.macro_select_modal import MacroSelection
 
         # The trigger pane captured its own origin (Phase 1), so target it
         # directly instead of re-querying the generic ``#prompt-input-bar`` after
@@ -325,11 +325,11 @@ class PromptBarRequestsMixin:
         origin_pane_id = event.origin_pane_id
         trigger_range = event.trigger_range
 
-        def on_xprompt_select(result: XPromptSelection | str | None) -> None:
+        def on_macro_select(result: MacroSelection | str | None) -> None:
             if not result or origin_bar is None:
                 return
-            suffix = result.suffix if isinstance(result, XPromptSelection) else result
-            entry = result.entry if isinstance(result, XPromptSelection) else None
+            suffix = result.suffix if isinstance(result, MacroSelection) else result
+            entry = result.entry if isinstance(result, MacroSelection) else None
             inserted = origin_bar.insert_snippet_at_target(
                 origin_text_area,
                 origin_pane_id,
@@ -494,12 +494,12 @@ class PromptBarRequestsMixin:
             return None
 
         self.push_screen(  # type: ignore[attr-defined]
-            XPromptSelectModal(
+            MacroSelectModal(
                 project=project,
                 extra_prompts=extra_prompts,
                 expand_callback=on_xprompt_expand,
             ),
-            on_xprompt_select,
+            on_macro_select,
         )
 
     def on_prompt_input_bar_workflow_editor_requested(self, event: object) -> None:

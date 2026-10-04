@@ -281,7 +281,7 @@ def test_followup_commit_offer_stamps_sase_type_macro(
 
     assert offers[0].kind is write_targets.PostWriteActionKind.COMMIT_PUSH
     assert offers[0].commit_message is not None
-    assert "SASE_TYPE=xprompt" in offers[0].commit_message
+    assert "SASE_TYPE=macro" in offers[0].commit_message
 
 
 def test_followup_memory_init_has_message_and_cwd(

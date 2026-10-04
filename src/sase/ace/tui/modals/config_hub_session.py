@@ -8,7 +8,7 @@ from typing import Any, Literal
 from .catalog_pane_contract import CatalogPaneSession
 
 ConfigSubTab = Literal[
-    "flags", "holds", "launch", "memory", "misc", "snippets", "xprompts"
+    "flags", "holds", "launch", "macros", "memory", "misc", "snippets"
 ]
 CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
     "misc",
@@ -17,7 +17,7 @@ CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
     "launch",
     "memory",
     "snippets",
-    "xprompts",
+    "macros",
 )
 CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS: tuple[ConfigSubTab, ...] = tuple(
     subtab for subtab in CONFIG_SUBTAB_ORDER if subtab != "flags"
@@ -43,8 +43,10 @@ def _admin_center_flags_enabled() -> bool:
 
 def validated_config_subtab(value: object) -> ConfigSubTab | None:
     """Return a catalog-backed Config sub-tab identity, if valid."""
-    if isinstance(value, str) and value in config_subtab_order():
-        return value  # type: ignore[return-value]
+    if isinstance(value, str):
+        migrated = "macros" if value == "xprompts" else value
+        if migrated in config_subtab_order():
+            return migrated  # type: ignore[return-value]
     return None
 
 

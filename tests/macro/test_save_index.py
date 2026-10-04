@@ -54,7 +54,7 @@ def test_config_index_loads_keys_without_reconstructing_definitions(
         "sase.macro.save_index.load_config_macro_markdown",
         side_effect=AssertionError("definition reconstruction must stay lazy"),
     ):
-        assert names_for_location("xprompt_config", str(config)) == {"alpha", "beta"}
+        assert names_for_location("macro_config", str(config)) == {"alpha", "beta"}
         assert names_for_location("snippet_config", str(config)) == {"trig"}
 
 

@@ -124,7 +124,7 @@ async def test_disabling_rollout_flag_omits_flags_from_post_restart_catalog() ->
             "launch",
             "memory",
             "snippets",
-            "xprompts",
+            "macros",
         )
 
         fresh = ConfigCenterModal(initial_tab="config")

@@ -24,7 +24,7 @@ from sase.ace.tui.modals.snippet_name_modal import (
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
 
-from ._prompt_save_xprompt_helpers import _SaveFlowApp
+from ._prompt_save_macro_helpers import _SaveFlowApp
 
 
 class _SnippetFlowApp(PromptBarSnippetPaneMixin, _SaveFlowApp):

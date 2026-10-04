@@ -39,7 +39,7 @@ class _CaptureApp(App[None]):
         self.stashed: list[PromptInputBar.Stashed] = []
         self.restore_requests: list[PromptInputBar.RestoreRequested] = []
         self.update_requests: list[PromptInputBar.UpdatePinnedRequested] = []
-        self.save_xprompt_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
+        self.save_macro_requests: list[PromptInputBar.SaveAsMacroRequested] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -61,10 +61,10 @@ class _CaptureApp(App[None]):
     ) -> None:
         self.update_requests.append(event)
 
-    def on_prompt_input_bar_save_as_xprompt_requested(
-        self, event: PromptInputBar.SaveAsXpromptRequested
+    def on_prompt_input_bar_save_as_macro_requested(
+        self, event: PromptInputBar.SaveAsMacroRequested
     ) -> None:
-        self.save_xprompt_requests.append(event)
+        self.save_macro_requests.append(event)
 
 
 async def _add_local_xprompt_from_panel(
@@ -386,8 +386,8 @@ async def test_g_upper_x_captures_all_non_empty_panes_without_clearing_bar() -> 
         await pilot.press("g", "X")
         await pilot.pause()
 
-        assert len(app.save_xprompt_requests) == 1
-        event = app.save_xprompt_requests[0]
+        assert len(app.save_macro_requests) == 1
+        event = app.save_macro_requests[0]
         assert [p.text for p in event.panes] == ["alpha", "beta"]
         assert [p.pane_index for p in event.panes] == [0, 1]
         assert all(
@@ -407,8 +407,8 @@ async def test_g_upper_x_single_pane_marks_event_single_pane() -> None:
         await pilot.press("g", "X")
         await pilot.pause()
 
-        assert len(app.save_xprompt_requests) == 1
-        event = app.save_xprompt_requests[0]
+        assert len(app.save_macro_requests) == 1
+        event = app.save_macro_requests[0]
         assert event.single_pane is True
         assert [p.text for p in event.panes] == ["solo draft"]
         # The active pane is also captured as the snippet source.
@@ -425,8 +425,8 @@ async def test_g_upper_x_multi_pane_is_not_marked_single_pane() -> None:
         await pilot.press("g", "X")
         await pilot.pause()
 
-        assert len(app.save_xprompt_requests) == 1
-        assert app.save_xprompt_requests[0].single_pane is False
+        assert len(app.save_macro_requests) == 1
+        assert app.save_macro_requests[0].single_pane is False
 
 
 async def test_g_upper_x_multi_pane_captures_active_pane_as_snippet_body() -> None:
@@ -445,8 +445,8 @@ async def test_g_upper_x_multi_pane_captures_active_pane_as_snippet_body() -> No
         await pilot.press("g", "X")
         await pilot.pause()
 
-        assert len(app.save_xprompt_requests) == 1
-        event = app.save_xprompt_requests[0]
+        assert len(app.save_macro_requests) == 1
+        event = app.save_macro_requests[0]
         # The xprompt source still carries every non-empty pane in launch order.
         assert [p.text for p in event.panes] == ["first", "second", "third"]
         assert [p.pane_index for p in event.panes] == [0, 1, 2]
@@ -468,8 +468,8 @@ async def test_g_upper_x_multi_pane_with_one_empty_pane_is_not_single_pane() -> 
         await pilot.press("g", "X")
         await pilot.pause()
 
-        assert len(app.save_xprompt_requests) == 1
-        event = app.save_xprompt_requests[0]
+        assert len(app.save_macro_requests) == 1
+        event = app.save_macro_requests[0]
         # Only one pane has text, but the stack holds two panes -> not single.
         assert event.single_pane is False
         assert [p.text for p in event.panes] == ["alpha"]
@@ -491,8 +491,8 @@ async def test_ctrl_g_upper_x_captures_frontmatter_only_draft() -> None:
         await pilot.press("ctrl+g", "X")
         await pilot.pause()
 
-        assert len(app.save_xprompt_requests) == 1
-        event = app.save_xprompt_requests[0]
+        assert len(app.save_macro_requests) == 1
+        event = app.save_macro_requests[0]
         assert len(event.panes) == 1
         assert event.panes[0].text == ""
         assert event.panes[0].frontmatter == "---\ndescription: frontmatter only\n---"
@@ -520,7 +520,7 @@ async def test_stash_is_noop_in_feedback_mode() -> None:
         # Feedback bars are not stashable: no message posted, text intact.
         assert app.stashed == []
         assert app.update_requests == []
-        assert app.save_xprompt_requests == []
+        assert app.save_macro_requests == []
         assert bar.all_prompt_texts() == ["plan note"]
 
 

@@ -44,13 +44,13 @@ def _flags_factory(hub: ConfigHubPane) -> Widget:
     return pane
 
 
-def _xprompts_factory(hub: ConfigHubPane) -> Widget:
-    from .xprompt_browser_pane import XPromptBrowserPane
+def _macros_factory(hub: ConfigHubPane) -> Widget:
+    from .macro_browser_pane import MacroBrowserPane
 
-    pane = XPromptBrowserPane(
+    pane = MacroBrowserPane(
         hub._project,
-        bookmark=hub._session_state.xprompts,
-        id="xprompts",
+        bookmark=hub._session_state.macros,
+        id="macros",
     )
     pane.add_class("-embedded")
     return pane
@@ -178,7 +178,7 @@ CONFIG_SUBTAB_SPECS: tuple[ConfigSubTabSpec, ...] = (
     ConfigSubTabSpec(
         "memory",
         "Memory",
-        "Memory",
+        "Mem",
         "Mem",
         "Browse, edit, and publish the durable context agents receive.",
         "Manage the durable context agents receive.",
@@ -194,13 +194,13 @@ CONFIG_SUBTAB_SPECS: tuple[ConfigSubTabSpec, ...] = (
         _snippets_factory,
     ),
     ConfigSubTabSpec(
-        "xprompts",
-        "XPrompts",
-        "XP",
-        "XP",
-        "Browse, preview, create, and edit reusable agent prompts and workflows.",
-        "Manage reusable agent prompts and workflows.",
-        _xprompts_factory,
+        "macros",
+        "Macros",
+        "Macros",
+        "Ma",
+        "Browse, preview, create, and edit reusable agent macros and workflows.",
+        "Manage reusable agent macros and workflows.",
+        _macros_factory,
     ),
 )
 CONFIG_SUBTAB_BY_ID: dict[ConfigSubTab, ConfigSubTabSpec] = {

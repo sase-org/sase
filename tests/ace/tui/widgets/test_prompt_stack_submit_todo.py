@@ -255,7 +255,7 @@ async def test_submit_choice_fails_closed_after_stack_rebuild() -> None:
         await pilot.pause()
         assert isinstance(app.screen, PromptSubmitChoiceModal)
 
-        bar.load_stack_from_xprompt_markdown("replacement\n---\nother")
+        bar.load_stack_from_macro_markdown("replacement\n---\nother")
         await pilot.pause()
         await pilot.press("enter")
         await pilot.pause()
@@ -299,7 +299,7 @@ async def test_todo_confirmation_fails_closed_after_stack_rebuild() -> None:
         await pilot.pause()
         assert isinstance(app.screen, ConfirmActionModal)
 
-        bar.load_stack_from_xprompt_markdown("replacement\n---\nother")
+        bar.load_stack_from_macro_markdown("replacement\n---\nother")
         await pilot.pause()
         await pilot.press("y")
         await pilot.pause()

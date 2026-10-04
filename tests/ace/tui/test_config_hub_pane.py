@@ -62,26 +62,26 @@ async def test_opening_config_constructs_only_the_active_child(
     async with AcePage(initial_tab="agents") as page:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         await page.wait_for(lambda _s: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await page.wait_for(lambda _s: "xprompts" in hub._panes)
+        await page.wait_for(lambda _s: "macros" in hub._panes)
 
-        assert calls == ["xprompts"]
-        assert tuple(hub._panes) == ("xprompts",)
-        assert created["xprompts"][0].focus_count >= 1
+        assert calls == ["macros"]
+        assert tuple(hub._panes) == ("macros",)
+        assert created["macros"][0].focus_count >= 1
         assert hub.query_one("#config-hub-switcher", ContentSwitcher).current == (
-            "xprompts"
+            "macros"
         )
         assert hub.query_one("#config-hub-tabs", PanelTabStrip)._active_tab == (
-            "xprompts"
+            "macros"
         )
-        spec = hub._subtab_by_id["xprompts"]
+        spec = hub._subtab_by_id["macros"]
         assert _caption_text(hub).plain == f"› {spec.description}"
-        _assert_hub_caption(hub, "xprompts")
+        _assert_hub_caption(hub, "macros")
 
 
 async def test_subtab_cycle_caches_children_and_does_not_reload(
@@ -91,21 +91,21 @@ async def test_subtab_cycle_caches_children_and_does_not_reload(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
 
         await hub._switch_to("snippets")
         _assert_hub_caption(hub, "snippets")
-        await hub._switch_to("xprompts")
+        await hub._switch_to("macros")
 
-        assert calls == ["xprompts", "snippets"]
-        assert hub._panes["xprompts"] is created["xprompts"][0]
-        assert created["xprompts"][0].visibility[-3:] == [True, False, True]
-        _assert_hub_caption(hub, "xprompts")
+        assert calls == ["macros", "snippets"]
+        assert hub._panes["macros"] is created["macros"][0]
+        assert created["macros"][0].visibility[-3:] == [True, False, True]
+        _assert_hub_caption(hub, "macros")
 
 
 async def test_failed_child_mount_leaves_previous_child_visible(
@@ -123,23 +123,23 @@ async def test_failed_child_mount_leaves_previous_child_visible(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
         before = _caption_text(hub).plain
 
         await pilot.press("0", "4")
         await pilot.pause()
 
-        assert hub._active_subtab == "xprompts"
+        assert hub._active_subtab == "macros"
         assert "launch" not in hub._panes
-        assert calls == ["xprompts"]
-        assert created["xprompts"][0].visibility[-1] is True
+        assert calls == ["macros"]
+        assert created["macros"][0].visibility[-1] is True
         assert _caption_text(hub).plain == before
-        _assert_hub_caption(hub, "xprompts")
+        _assert_hub_caption(hub, "macros")
 
 
 async def test_direct_entry_opens_requested_child_once(
@@ -147,7 +147,7 @@ async def test_direct_entry_opens_requested_child_once(
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
     state = AdminCenterSessionState()
-    state.config_hub.active_subtab = "xprompts"
+    state.config_hub.active_subtab = "macros"
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
@@ -207,16 +207,16 @@ async def test_resize_switches_caption_variant_without_reloading_children(
     async with AcePage(initial_tab="agents", size=(120, 40)) as page:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         await page.wait_for(lambda _s: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await page.wait_for(lambda _s: "xprompts" in hub._panes)
+        await page.wait_for(lambda _s: "macros" in hub._panes)
 
-        spec = hub._subtab_by_id["xprompts"]
-        child = hub._panes["xprompts"]
+        spec = hub._subtab_by_id["macros"]
+        child = hub._panes["macros"]
         await page.wait_for(lambda _s: page.app.focused is child)
         assert _caption_text(hub).plain == f"› {spec.description}"
         before = list(calls)

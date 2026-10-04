@@ -73,14 +73,14 @@ async def test_all_editor_markdown_omits_empty_frontmatter_block() -> None:
         assert not markdown.startswith("---")
 
 
-async def test_load_stack_from_xprompt_markdown_lifts_frontmatter_and_splits() -> None:
+async def test_load_stack_from_macro_markdown_lifts_frontmatter_and_splits() -> None:
     app = _PromptBarApp("only one")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_xprompt_markdown("---\ndescription: hi\n---\nuno\n---\ndos")
+        bar.load_stack_from_macro_markdown("---\ndescription: hi\n---\nuno\n---\ndos")
         await pilot.pause()
         await pilot.pause()
 
@@ -94,7 +94,7 @@ async def test_load_stack_from_xprompt_markdown_lifts_frontmatter_and_splits() -
         )
 
 
-async def test_load_stack_from_xprompt_markdown_lifts_single_body_pane() -> None:
+async def test_load_stack_from_macro_markdown_lifts_single_body_pane() -> None:
     """The all-editor reload lifts frontmatter from a lone body pane."""
     app = _PromptBarApp("only one")
 
@@ -102,7 +102,7 @@ async def test_load_stack_from_xprompt_markdown_lifts_single_body_pane() -> None
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_xprompt_markdown("---\ndescription: hi\n---\njust body")
+        bar.load_stack_from_macro_markdown("---\ndescription: hi\n---\njust body")
         await pilot.pause()
         await pilot.pause()
 
@@ -121,24 +121,24 @@ async def test_prompt_bar_target_api_sets_and_clears_binding(tmp_path: Path) -> 
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_xprompt_markdown("body\n", binding=binding)
+        bar.load_stack_from_macro_markdown("body\n", binding=binding)
         await pilot.pause()
 
-        assert bar.xprompt_target() == binding
+        assert bar.macro_target() == binding
         assert bar.active_text() == "body"
         assert not bar._stack.is_dirty
-        assert bar.has_class("xprompt-target")
+        assert bar.has_class("macro-target")
         assert "✎ #review" in _plain_title(bar)
         assert "✓" in _plain_title(bar)
         assert not app.query_one("#frontmatter-panel", FrontmatterPanel).has_class(
             "hidden"
         )
 
-        bar.clear_xprompt_target()
+        bar.clear_macro_target()
         await pilot.pause()
 
-        assert bar.xprompt_target() is None
-        assert not bar.has_class("xprompt-target")
+        assert bar.macro_target() is None
+        assert not bar.has_class("macro-target")
 
 
 async def test_preserve_target_reload_keeps_binding_and_dirty_baseline(
@@ -153,19 +153,19 @@ async def test_preserve_target_reload_keeps_binding_and_dirty_baseline(
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_xprompt_markdown("body\n", binding=binding)
+        bar.load_stack_from_macro_markdown("body\n", binding=binding)
         await pilot.pause()
-        assert bar.xprompt_target() == binding
+        assert bar.macro_target() == binding
         assert not bar._stack.is_dirty
 
-        bar.load_stack_from_xprompt_markdown(
+        bar.load_stack_from_macro_markdown(
             "edited\n---\nsecond",
             preserve_target=True,
         )
         await pilot.pause()
         await pilot.pause()
 
-        assert bar.xprompt_target() == binding
+        assert bar.macro_target() == binding
         assert bar.all_prompt_texts() == ["edited", "second"]
         assert bar._stack.is_dirty
         assert bar.has_class("dirty")
@@ -183,7 +183,7 @@ async def test_prompt_bar_target_dirty_state_updates_title_and_classes(
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_xprompt_markdown("body\n", binding=binding)
+        bar.load_stack_from_macro_markdown("body\n", binding=binding)
         await pilot.pause()
         bar.active_text_area().text = "edited"
         bar._sync_state_from_widgets()
@@ -200,7 +200,7 @@ async def test_prompt_bar_readonly_target_state_is_persistent() -> None:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_xprompt_markdown(
+        bar.load_stack_from_macro_markdown(
             "body\n",
             read_only_target=XPromptReadonlyTarget(
                 reference="#builtin/review",
@@ -209,8 +209,8 @@ async def test_prompt_bar_readonly_target_state_is_persistent() -> None:
         )
         await pilot.pause()
 
-        assert bar.xprompt_target() is None
-        assert bar.has_class("xprompt-target")
+        assert bar.macro_target() is None
+        assert bar.has_class("macro-target")
         assert bar.has_class("readonly")
         assert "✎ #builtin/review" in _plain_title(bar)
         assert "🔒 read-only" in _plain_title(bar)
@@ -232,10 +232,10 @@ async def test_prompt_bar_stale_state_renders_changed_on_disk(
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_xprompt_markdown("body\n", binding=binding)
+        bar.load_stack_from_macro_markdown("body\n", binding=binding)
         await pilot.pause()
         bar._complete_xprompt_stale_check(
-            bar._xprompt_target_generation,
+            bar._macro_target_generation,
             binding.write_path,
             True,
             1.0,
@@ -245,7 +245,7 @@ async def test_prompt_bar_stale_state_renders_changed_on_disk(
         assert "⚠ changed on disk" in _plain_title(bar)
 
 
-async def test_load_stack_from_xprompt_markdown_clears_frontmatter_panel() -> None:
+async def test_load_stack_from_macro_markdown_clears_frontmatter_panel() -> None:
     app = _PromptBarApp("only one")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -253,7 +253,7 @@ async def test_load_stack_from_xprompt_markdown_clears_frontmatter_panel() -> No
 
         bar = app.query_one(PromptInputBar)
         # A first reload lifts frontmatter and reveals the panel...
-        bar.load_stack_from_xprompt_markdown("---\ndescription: hi\n---\nbody")
+        bar.load_stack_from_macro_markdown("---\ndescription: hi\n---\nbody")
         await pilot.pause()
         await pilot.pause()
         assert not app.query_one("#frontmatter-panel", FrontmatterPanel).has_class(
@@ -261,7 +261,7 @@ async def test_load_stack_from_xprompt_markdown_clears_frontmatter_panel() -> No
         )
 
         # ...a later reload with no frontmatter hides the panel again.
-        bar.load_stack_from_xprompt_markdown("plain body\n---\nsecond")
+        bar.load_stack_from_macro_markdown("plain body\n---\nsecond")
         await pilot.pause()
         await pilot.pause()
 

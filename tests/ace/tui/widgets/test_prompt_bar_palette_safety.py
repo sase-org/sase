@@ -67,13 +67,13 @@ async def test_prompt_bar_resolved_colors_are_palette_safe(tmp_path: Path) -> No
         record_pane("agent inactive", _pane(bar, 0))
         record_frame("plain frame", bar)
 
-        bar.load_stack_from_xprompt_markdown(
+        bar.load_stack_from_macro_markdown(
             "first\n---\nsecond",
             binding=binding,
         )
         await pilot.pause()
         await pilot.pause()
-        record_frame("xprompt-target frame", bar)
+        record_frame("macro-target frame", bar)
 
         await _open_snippet(pilot, bar, _name_result(tmp_path))
         record_pane("snippet active", bar.active_text_area())

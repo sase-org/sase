@@ -103,7 +103,7 @@ tests/test_core_vcs_log.py::test_classify_origin_matches_python_golden[fix: trac
 tests/test_core_vcs_log.py::test_parse_computes_auto_origin_from_footer
 tests/test_core_vcs_log.py::test_parse_computes_origin_from_footer
 # sase-nf
-tests/ace/tui/test_xprompt_browser_load_keymap.py::test_enter_returns_while_xprompt_file_read_is_blocked
+tests/ace/tui/test_macro_browser_load_keymap.py::test_enter_returns_while_macro_file_read_is_blocked
 # sase-oh
 tests/test_models_panel_edit_outcomes.py::test_on_alias_edited_offers_commit_when_in_repo
 # sase-rm.10 (sase-oz): AcePage now cancels and awaits Textual workers as well

@@ -234,11 +234,11 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/test_preprocessing_jinja_context.py", '"%xprompts_enabled:true\\n"'),
     (
         "tests/test_project_local_macros.py",
-        '"sase.ace.tui.modals.xprompt_browser_helpers.canonical_macro_project"',
+        '"sase.ace.tui.modals.macro_browser_helpers.canonical_macro_project"',
     ),
     (
         "tests/test_project_local_macros.py",
-        '"sase.ace.tui.modals.xprompt_browser_helpers.known_project_namespaces"',
+        '"sase.ace.tui.modals.macro_browser_helpers.known_project_namespaces"',
     ),
     ("tests/test_project_local_macros.py", '"xprompts"'),
     ("tests/test_project_local_macros.py", "\"xprompts:\\n  bar: 'Bar content'\\n\""),

@@ -59,7 +59,7 @@ class _FakeBar:
         self._stacked = stacked
         self._markdown = markdown
         self._binding = binding
-        self._readonly_xprompt_target = readonly_target
+        self._readonly_macro_target = readonly_target
         self.updated_panes: list[str] = []
         self.loaded_markdown: list[str] = []
         self.loaded_preserve_target: list[bool] = []
@@ -75,10 +75,10 @@ class _FakeBar:
     def xprompt_markdown_for_editor(self) -> str:
         return self._markdown
 
-    def xprompt_target(self) -> Any:
+    def macro_target(self) -> Any:
         return self._binding
 
-    def load_stack_from_xprompt_markdown(
+    def load_stack_from_macro_markdown(
         self,
         text: str,
         *,

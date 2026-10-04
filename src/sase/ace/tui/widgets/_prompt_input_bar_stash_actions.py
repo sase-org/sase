@@ -27,8 +27,8 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         Stashed: Any
         RestoreRequested: Any
         UpdatePinnedRequested: Any
-        SaveAsXpromptRequested: Any
-        WriteXpromptRequested: Any
+        SaveAsMacroRequested: Any
+        WriteMacroRequested: Any
         _mode: str
         _stack: PromptStackState
 
@@ -37,7 +37,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             self,
             proceed: Callable[[], None],
         ) -> bool: ...
-        def load_stack_from_xprompt_markdown(
+        def load_stack_from_macro_markdown(
             self,
             text: str,
             *,
@@ -45,7 +45,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             preserve_target: bool = False,
             read_only_target: object | None = None,
         ) -> None: ...
-        def _load_stack_from_xprompt_markdown_after_snippet_guard(
+        def _load_stack_from_macro_markdown_after_snippet_guard(
             self,
             text: str,
             *,
@@ -183,7 +183,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         self._clear_active_completion_state()
         self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
 
-    def stash_all_and_load_xprompt_markdown(
+    def stash_all_and_load_macro_markdown(
         self,
         markdown: str,
         *,
@@ -196,7 +196,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         self._sync_state_from_widgets()
         if self._stack.auxiliary_is_dirty:
             self._confirm_discard_dirty_snippet(
-                lambda: self._stash_all_and_load_xprompt_markdown_after_snippet_guard(
+                lambda: self._stash_all_and_load_macro_markdown_after_snippet_guard(
                     markdown,
                     binding=binding,
                     read_only_target=read_only_target,
@@ -204,13 +204,13 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             )
             return
 
-        self._stash_all_and_load_xprompt_markdown_after_snippet_guard(
+        self._stash_all_and_load_macro_markdown_after_snippet_guard(
             markdown,
             binding=binding,
             read_only_target=read_only_target,
         )
 
-    def _stash_all_and_load_xprompt_markdown_after_snippet_guard(
+    def _stash_all_and_load_macro_markdown_after_snippet_guard(
         self,
         markdown: str,
         *,
@@ -227,7 +227,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             XPromptReadonlyTarget,
         )
 
-        self._load_stack_from_xprompt_markdown_after_snippet_guard(
+        self._load_stack_from_macro_markdown_after_snippet_guard(
             markdown,
             binding=binding if isinstance(binding, XPromptBinding) else None,
             read_only_target=(
@@ -266,7 +266,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if panes:
             self._clear_active_completion_state()
         self.post_message(
-            self.SaveAsXpromptRequested(
+            self.SaveAsMacroRequested(
                 panes,
                 single_pane=single_pane,
                 snippet_body=snippet_body,
@@ -284,7 +284,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             self.request_save_as_xprompt()
             return
         panes = self.capture_stashable_panes()
-        self.post_message(self.WriteXpromptRequested(panes, binding, self))
+        self.post_message(self.WriteMacroRequested(panes, binding, self))
 
     def request_open_prompt_stash(self) -> None:
         """Ask the app to open the unified prompt-stash panel.

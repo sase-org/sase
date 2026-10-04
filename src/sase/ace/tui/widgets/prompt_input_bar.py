@@ -25,8 +25,8 @@ from sase.ace.tui.widgets._prompt_input_bar_g_prefix_hints import (
 from sase.ace.tui.widgets._prompt_input_bar_lifecycle import (
     PromptInputBarLifecycleMixin,
 )
-from sase.ace.tui.widgets._prompt_input_bar_mini_xprompt_pane import (
-    PromptInputBarMiniXPromptPaneMixin,
+from sase.ace.tui.widgets._prompt_input_bar_mini_macro_pane import (
+    PromptInputBarMiniMacroPaneMixin,
 )
 from sase.ace.tui.widgets._prompt_input_bar_messages import (
     AllEditorRequested as _AllEditorRequested,
@@ -35,11 +35,11 @@ from sase.ace.tui.widgets._prompt_input_bar_messages import (
     GlossaryPanelRequested as _GlossaryPanelRequested,
     HistoryRequested as _HistoryRequested,
     MemoryPanelRequested as _MemoryPanelRequested,
-    MiniXPromptPaneSaveRequested as _MiniXPromptPaneSaveRequested,
-    MiniXPromptTargetRequested as _MiniXPromptTargetRequested,
+    MiniMacroPaneSaveRequested as _MiniMacroPaneSaveRequested,
+    MiniMacroTargetRequested as _MiniMacroTargetRequested,
     SnippetPanelRequested as _SnippetPanelRequested,
     RestoreRequested as _RestoreRequested,
-    SaveAsXpromptRequested as _SaveAsXpromptRequested,
+    SaveAsMacroRequested as _SaveAsMacroRequested,
     SnippetPaneSaveRequested as _SnippetPaneSaveRequested,
     SnippetRequested as _SnippetRequested,
     SnippetTargetRequested as _SnippetTargetRequested,
@@ -47,7 +47,7 @@ from sase.ace.tui.widgets._prompt_input_bar_messages import (
     Submitted as _Submitted,
     UpdatePinnedRequested as _UpdatePinnedRequested,
     WorkflowEditorRequested as _WorkflowEditorRequested,
-    WriteXpromptRequested as _WriteXpromptRequested,
+    WriteMacroRequested as _WriteMacroRequested,
 )
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
     PromptInputBarStackActionsMixin,
@@ -88,7 +88,7 @@ class PromptInputBar(
     PromptInputBarSubtitlesMixin,
     PromptInputBarFrontmatterMixin,
     PromptInputBarSnippetPaneMixin,
-    PromptInputBarMiniXPromptPaneMixin,
+    PromptInputBarMiniMacroPaneMixin,
     PromptInputBarStackActionsMixin,
     PromptInputBarGPrefixHintsMixin,
     PromptInputBarSearchMixin,
@@ -108,17 +108,17 @@ class PromptInputBar(
     MemoryPanelRequested = _MemoryPanelRequested
     SnippetPanelRequested = _SnippetPanelRequested
     UpdatePinnedRequested = _UpdatePinnedRequested
-    SaveAsXpromptRequested = _SaveAsXpromptRequested
+    SaveAsMacroRequested = _SaveAsMacroRequested
     EditorRequested = _EditorRequested
     AllEditorRequested = _AllEditorRequested
     HistoryRequested = _HistoryRequested
     SnippetRequested = _SnippetRequested
     SnippetTargetRequested = _SnippetTargetRequested
     SnippetPaneSaveRequested = _SnippetPaneSaveRequested
-    MiniXPromptTargetRequested = _MiniXPromptTargetRequested
-    MiniXPromptPaneSaveRequested = _MiniXPromptPaneSaveRequested
+    MiniMacroTargetRequested = _MiniMacroTargetRequested
+    MiniMacroPaneSaveRequested = _MiniMacroPaneSaveRequested
     WorkflowEditorRequested = _WorkflowEditorRequested
-    WriteXpromptRequested = _WriteXpromptRequested
+    WriteMacroRequested = _WriteMacroRequested
 
     BINDINGS = []  # type: ignore[assignment]
 
@@ -164,16 +164,16 @@ class PromptInputBar(
         self._next_word_hint_visible = False
         self._next_word_hint_text = ""
         self._title_mode_suffix = ""
-        self._readonly_xprompt_target: XPromptReadonlyTarget | None = None
-        self._xprompt_source_stale = False
+        self._readonly_macro_target: XPromptReadonlyTarget | None = None
+        self._macro_source_stale = False
         self._xprompt_stale_check_in_flight = False
         self._xprompt_stale_checked_mono = 0.0
-        self._xprompt_target_generation = 0
+        self._macro_target_generation = 0
         # Monotonic per-rebuild id namespace so a fresh stack mounted while the
         # previous panes are still being detached never collides on widget ids.
         self._generation = 0
         self._snippet_focus_restore: PromptFocusRestore | None = None
-        self._mini_xprompt_focus_restore: PromptFocusRestore | None = None
+        self._mini_macro_focus_restore: PromptFocusRestore | None = None
         self._placeholder = ""
         # ``#@`` + ``Ctrl+I`` inline expansions that auto-staged xprompt inputs,
         # coupled to the body splice so NORMAL-mode ``u`` / ``Ctrl+R`` unstage /

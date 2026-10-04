@@ -160,9 +160,9 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
     ),
     _PromptGPrefixBinding(
         "x",
-        "request_mini_xprompt_target_pane",
-        "_g_prefix_label_mini_xprompt_target",
-        "_g_prefix_available_mini_xprompt_target",
+        "request_mini_macro_target_pane",
+        "_g_prefix_label_mini_macro_target",
+        "_g_prefix_available_mini_macro_target",
         ctrl_g_aliases=("ctrl+x",),
     ),
     _PromptGPrefixBinding(

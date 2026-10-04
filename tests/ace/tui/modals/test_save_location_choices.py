@@ -7,14 +7,14 @@ from pathlib import Path
 from sase.ace.tui.modals import save_location_choices as choices_mod
 from sase.ace.tui.modals.save_location_choices import (
     snippet_location_choices,
-    xprompt_location_choices,
+    macro_location_choices,
 )
-from sase.ace.tui.modals.unified_xprompt_save_support import UnifiedSaveLocation
-from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
+from sase.ace.tui.modals.unified_macro_save_support import UnifiedSaveLocation
+from sase.ace.tui.modals.macro_location_modal import MacroLocation
 from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
 
 
-def _xrow(
+def _macro_row(
     path: Path,
     label: str,
     *,
@@ -27,7 +27,7 @@ def _xrow(
     builtin: bool = False,
 ) -> UnifiedSaveLocation:
     return UnifiedSaveLocation(
-        location=XPromptLocation(label, str(path), location_type),  # type: ignore[arg-type]
+        location=MacroLocation(label, str(path), location_type),  # type: ignore[arg-type]
         group=group,
         display_path=str(path),
         names=names,
@@ -38,7 +38,7 @@ def _xrow(
     )
 
 
-def _standard_xrows(tmp_path: Path) -> list[UnifiedSaveLocation]:
+def _standard_macro_rows(tmp_path: Path) -> list[UnifiedSaveLocation]:
     proj = tmp_path / "proj"
     proj.mkdir()
     home = tmp_path / "home"
@@ -46,22 +46,22 @@ def _standard_xrows(tmp_path: Path) -> list[UnifiedSaveLocation]:
     personal = tmp_path / "personal"
     personal.mkdir()
     return [
-        _xrow(proj, "Project sase/macros/", namespace="sase"),
-        _xrow(
+        _macro_row(proj, "Project sase/macros/", namespace="sase"),
+        _macro_row(
             tmp_path / "sase.yml",
             "Project sase/sase.yml",
             location_type="config",
             group="Config files",
         ),
-        _xrow(personal, "Project home (sase)"),
-        _xrow(home, "Home ~/sase/macros/"),
-        _xrow(
+        _macro_row(personal, "Project home (sase)"),
+        _macro_row(home, "Home ~/sase/macros/"),
+        _macro_row(
             tmp_path / "u.yml",
             "User sase.yml",
             location_type="config",
             group="Config files",
         ),
-        _xrow(
+        _macro_row(
             tmp_path / "w.yml",
             "User sase_work.yml",
             location_type="config",
@@ -75,35 +75,35 @@ def _by_label(choices):  # type: ignore[no-untyped-def]
 
 
 def test_canonical_letters_shift_variants_and_digit_order(tmp_path: Path) -> None:
-    choices, default = xprompt_location_choices(
-        _standard_xrows(tmp_path), project="sase"
+    choices, default = macro_location_choices(
+        _standard_macro_rows(tmp_path), project="sase"
     )
 
     by_label = _by_label(choices)
-    assert by_label["Project xprompts"].hotkey == "p"
+    assert by_label["Project macros"].hotkey == "p"
     assert by_label["Project config"].hotkey == "P"
-    assert by_label["Home xprompts"].hotkey == "h"
+    assert by_label["Home macros"].hotkey == "h"
     assert by_label["User config"].hotkey == "H"
     assert by_label["Project, personal"].hotkey == "1"
     assert by_label["sase_work.yml"].hotkey == "2"
     assert [choice.section for choice in choices].index("Home") > 0
-    assert default == by_label["Project xprompts"].choice_id
-    assert by_label["Project xprompts"].badges == ("★ default",)
+    assert default == by_label["Project macros"].choice_id
+    assert by_label["Project macros"].badges == ("★ default",)
 
 
 def test_digits_stop_after_nine(tmp_path: Path) -> None:
-    rows = _standard_xrows(tmp_path)
+    rows = _standard_macro_rows(tmp_path)
     for index in range(11):
         overlay = tmp_path / f"extra_{index}.yml"
         rows.append(
-            _xrow(
+            _macro_row(
                 overlay,
                 f"User sase_extra_{index}.yml",
                 location_type="config",
                 group="Config files",
             )
         )
-    choices, _default = xprompt_location_choices(rows, project="sase")
+    choices, _default = macro_location_choices(rows, project="sase")
 
     digits = [c.hotkey for c in choices if c.hotkey and c.hotkey.isdigit()]
     assert digits == [str(n) for n in range(1, 10)]
@@ -115,15 +115,15 @@ def test_digits_stop_after_nine(tmp_path: Path) -> None:
 def test_disabled_canonical_keeps_letter_but_renders_without_key(
     tmp_path: Path,
 ) -> None:
-    rows = _standard_xrows(tmp_path)
-    rows[1] = _xrow(
+    rows = _standard_macro_rows(tmp_path)
+    rows[1] = _macro_row(
         tmp_path / "sase.yml",
         "Project sase/sase.yml",
         location_type="config",
         group="Config files",
         disabled_reason="migrate legacy project config first",
     )
-    choices, _default = xprompt_location_choices(rows, project="sase")
+    choices, _default = macro_location_choices(rows, project="sase")
 
     by_label = _by_label(choices)
     project_config = by_label["Project config"]
@@ -135,9 +135,9 @@ def test_disabled_canonical_keeps_letter_but_renders_without_key(
 
 
 def test_hidden_non_canonical_disabled_rows(tmp_path: Path) -> None:
-    rows = _standard_xrows(tmp_path)
+    rows = _standard_macro_rows(tmp_path)
     rows.append(
-        _xrow(
+        _macro_row(
             tmp_path / "broken.yml",
             "User sase_broken.yml",
             location_type="config",
@@ -145,33 +145,33 @@ def test_hidden_non_canonical_disabled_rows(tmp_path: Path) -> None:
             disabled_reason="read-only",
         )
     )
-    choices, _default = xprompt_location_choices(rows, project="sase")
+    choices, _default = macro_location_choices(rows, project="sase")
 
     assert "sase_broken.yml" not in _by_label(choices)
 
 
 def test_plugin_rows_collapsed_without_hotkeys(tmp_path: Path) -> None:
-    rows = _standard_xrows(tmp_path)
+    rows = _standard_macro_rows(tmp_path)
     plugin = tmp_path / "plugin"
     plugin.mkdir()
     rows.append(
-        _xrow(
+        _macro_row(
             plugin,
-            "Plugin (demo) xprompts/",
+            "Plugin (demo) macros/",
             group="Plugin directories",
         )
     )
     builtin = tmp_path / "builtin"
     builtin.mkdir()
     rows.append(
-        _xrow(
+        _macro_row(
             builtin,
-            "Built-in xprompts/",
+            "Built-in macros/",
             group="Built-in (dev)",
             builtin=True,
         )
     )
-    choices, _default = xprompt_location_choices(rows, project="sase")
+    choices, _default = macro_location_choices(rows, project="sase")
 
     plugin_choices = [c for c in choices if c.collapsed_group]
     assert len(plugin_choices) == 2
@@ -180,45 +180,43 @@ def test_plugin_rows_collapsed_without_hotkeys(tmp_path: Path) -> None:
     assert choices[-2].section == "Plugins & built-in"
 
 
-def test_xprompt_default_ladder_current_then_last_used(tmp_path: Path) -> None:
-    rows = _standard_xrows(tmp_path)
+def test_macro_default_ladder_current_then_last_used(tmp_path: Path) -> None:
+    rows = _standard_macro_rows(tmp_path)
     project_dir = str(rows[0].location.path)
     home_dir = str(rows[3].location.path)
 
-    choices, default = xprompt_location_choices(
+    choices, default = macro_location_choices(
         rows, project="sase", last_used_path=home_dir
     )
     assert default == home_dir
-    assert _by_label(choices)["Home xprompts"].badges == ("★ last used",)
+    assert _by_label(choices)["Home macros"].badges == ("★ last used",)
 
-    choices, default = xprompt_location_choices(
+    choices, default = macro_location_choices(
         rows, project="sase", last_used_path=home_dir, current_path=project_dir
     )
     assert default == project_dir
-    assert _by_label(choices)["Project xprompts"].badges == ("★ current",)
+    assert _by_label(choices)["Project macros"].badges == ("★ current",)
 
 
-def test_xprompt_home_mode_skips_project_default(tmp_path: Path) -> None:
-    rows = _standard_xrows(tmp_path)
-    choices, default = xprompt_location_choices(rows, project="sase", home_mode=True)
+def test_macro_home_mode_skips_project_default(tmp_path: Path) -> None:
+    rows = _standard_macro_rows(tmp_path)
+    choices, default = macro_location_choices(rows, project="sase", home_mode=True)
 
     assert default == str(rows[3].location.path)
-    assert _by_label(choices)["Home xprompts"].badges == ("★ default",)
+    assert _by_label(choices)["Home macros"].badges == ("★ default",)
 
 
-def test_xprompt_stale_last_used_falls_through(tmp_path: Path) -> None:
-    rows = _standard_xrows(tmp_path)
-    choices, default = xprompt_location_choices(
+def test_macro_stale_last_used_falls_through(tmp_path: Path) -> None:
+    rows = _standard_macro_rows(tmp_path)
+    choices, default = macro_location_choices(
         rows, project="sase", last_used_path="/nonexistent/path"
     )
 
     assert default == str(rows[0].location.path)
 
 
-def test_xprompt_current_matches_resolved_write_path(
-    tmp_path: Path, monkeypatch
-) -> None:
-    rows = _standard_xrows(tmp_path)
+def test_macro_current_matches_resolved_write_path(tmp_path: Path, monkeypatch) -> None:
+    rows = _standard_macro_rows(tmp_path)
     project_dir = str(rows[0].location.path)
     monkeypatch.setattr(
         choices_mod,
@@ -227,33 +225,33 @@ def test_xprompt_current_matches_resolved_write_path(
             "_Target", (), {"write_path": "SOURCE", "via_chezmoi": False}
         )(),
     )
-    choices, default = xprompt_location_choices(
+    choices, default = macro_location_choices(
         rows, project="sase", current_path="SOURCE"
     )
 
     assert default == project_dir
-    assert _by_label(choices)["Project xprompts"].badges == ("★ current",)
+    assert _by_label(choices)["Project macros"].badges == ("★ current",)
 
 
-def test_xprompt_has_name_badges_and_previews(tmp_path: Path) -> None:
-    rows = _standard_xrows(tmp_path)
-    rows[0] = _xrow(
+def test_macro_has_name_badges_and_previews(tmp_path: Path) -> None:
+    rows = _standard_macro_rows(tmp_path)
+    rows[0] = _macro_row(
         tmp_path / "proj",
         "Project sase/macros/",
         names=frozenset({"review"}),
         namespace="sase",
     )
-    choices, _default = xprompt_location_choices(rows, project="sase", name="review")
+    choices, _default = macro_location_choices(rows, project="sase", name="review")
 
     by_label = _by_label(choices)
-    assert "has #review" in by_label["Project xprompts"].badges
-    assert "called as #sase/review" in by_label["Project xprompts"].preview
-    assert "1 xprompts here" in by_label["Project xprompts"].preview
-    assert "xprompts.review" in by_label["Project config"].preview
+    assert "has #review" in by_label["Project macros"].badges
+    assert "called as #sase/review" in by_label["Project macros"].preview
+    assert "1 macro here" in by_label["Project macros"].preview
+    assert "macros.review" in by_label["Project config"].preview
 
-    choices, _default = xprompt_location_choices(rows, project="sase")
-    assert "called as #sase/<name>" in _by_label(choices)["Project xprompts"].preview
-    assert "xprompts.<name>" in _by_label(choices)["Project config"].preview
+    choices, _default = macro_location_choices(rows, project="sase")
+    assert "called as #sase/<name>" in _by_label(choices)["Project macros"].preview
+    assert "macros.<name>" in _by_label(choices)["Project config"].preview
 
 
 def _sloc(
@@ -389,30 +387,30 @@ def test_unified_save_has_single_canonical_project_and_home_dirs(
     tmp_path: Path,
 ) -> None:
     """Canonical macro dirs appear exactly once with unique hotkeys."""
-    from sase.ace.tui.modals.unified_xprompt_save_support import (
+    from sase.ace.tui.modals.unified_macro_save_support import (
         _with_missing_standard_directories,
     )
-    from sase.ace.tui.modals.xprompt_location_modal import (
-        XPROMPT_HOME_DIR_LABEL,
-        XPROMPT_PROJECT_DIR_LABEL,
+    from sase.ace.tui.modals.macro_location_modal import (
+        MACRO_HOME_DIR_LABEL,
+        MACRO_PROJECT_DIR_LABEL,
     )
 
     project_dir = tmp_path / "proj-macros"
     project_dir.mkdir()
     home_dir = tmp_path / "home-macros"
     home_dir.mkdir()
-    locations: list[tuple[str, XPromptLocation]] = [
+    locations: list[tuple[str, MacroLocation]] = [
         (
             "Directories",
-            XPromptLocation(XPROMPT_PROJECT_DIR_LABEL, str(project_dir), "directory"),
+            MacroLocation(MACRO_PROJECT_DIR_LABEL, str(project_dir), "directory"),
         ),
         (
             "Directories",
-            XPromptLocation(XPROMPT_HOME_DIR_LABEL, str(home_dir), "directory"),
+            MacroLocation(MACRO_HOME_DIR_LABEL, str(home_dir), "directory"),
         ),
     ]
 
-    import sase.ace.tui.modals.unified_xprompt_save_support as support_mod
+    import sase.ace.tui.modals.unified_macro_save_support as support_mod
 
     def _fake_project_layout(root: object) -> object:
         class _Paths:
@@ -460,22 +458,20 @@ def test_unified_save_has_single_canonical_project_and_home_dirs(
     project_rows = [
         location
         for _, location in completed
-        if location.label == XPROMPT_PROJECT_DIR_LABEL
+        if location.label == MACRO_PROJECT_DIR_LABEL
     ]
     home_rows = [
-        location
-        for _, location in completed
-        if location.label == XPROMPT_HOME_DIR_LABEL
+        location for _, location in completed if location.label == MACRO_HOME_DIR_LABEL
     ]
     assert len(project_rows) == 1
     assert len(home_rows) == 1
 
     rows = [
-        _xrow(project_dir, XPROMPT_PROJECT_DIR_LABEL, namespace="sase"),
-        _xrow(home_dir, XPROMPT_HOME_DIR_LABEL, group="Home directories"),
+        _macro_row(project_dir, MACRO_PROJECT_DIR_LABEL, namespace="sase"),
+        _macro_row(home_dir, MACRO_HOME_DIR_LABEL, group="Home directories"),
     ]
-    choices, _default = xprompt_location_choices(rows, project="sase")
+    choices, _default = macro_location_choices(rows, project="sase")
     by_label = _by_label(choices)
-    assert by_label["Project xprompts"].hotkey == "p"
-    assert by_label["Home xprompts"].hotkey == "h"
-    assert by_label["Project xprompts"].hotkey != by_label["Home xprompts"].hotkey
+    assert by_label["Project macros"].hotkey == "p"
+    assert by_label["Home macros"].hotkey == "h"
+    assert by_label["Project macros"].hotkey != by_label["Home macros"].hotkey

@@ -49,7 +49,7 @@ def log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     plugins_result = pbp._PluginsLoadResult(catalog=None, error="stub", now=0.0)
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: plugins_result)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",
+        "sase.ace.tui.modals.macro_browser_pane.get_all_prompts",
         lambda project=None: {},
     )
     monkeypatch.setattr(

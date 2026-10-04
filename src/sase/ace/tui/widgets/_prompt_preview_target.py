@@ -275,7 +275,7 @@ def _resolve_xprompt_properties(
     source_bucket: str | None = None
     if source_id is not None:
         try:
-            from sase.ace.tui.modals.xprompt_browser_helpers import classify_source
+            from sase.ace.tui.modals.macro_browser_helpers import classify_source
 
             source_bucket = classify_source(source_id)[0]
         except Exception:
@@ -358,7 +358,7 @@ def _source_file_for_preview(source_path: str | None) -> Path | None:
         return None
 
     try:
-        from sase.ace.tui.modals.xprompt_browser_helpers import (
+        from sase.ace.tui.modals.macro_browser_helpers import (
             resolve_source_to_file_path,
         )
 
@@ -376,7 +376,7 @@ def _source_display_path(source_path: str | None) -> str | None:
     if source_path is None:
         return None
     try:
-        from sase.ace.tui.modals.xprompt_browser_helpers import (
+        from sase.ace.tui.modals.macro_browser_helpers import (
             resolve_source_to_file_path,
         )
 
@@ -386,7 +386,7 @@ def _source_display_path(source_path: str | None) -> str | None:
     if resolved:
         return str(Path(resolved).expanduser())
     try:
-        from sase.ace.tui.modals.xprompt_browser_helpers import classify_source
+        from sase.ace.tui.modals.macro_browser_helpers import classify_source
 
         _category, display_path, _editable = classify_source(source_path)
     except Exception:

@@ -188,13 +188,13 @@ async def test_plus_toggles_collapsed_section() -> None:
             "/plugin",
             None,
             "Plugins & built-in",
-            label="Plugin xprompts",
+            label="Plugin macros",
             collapsed_group=True,
         ),
     )
     app = _ModalApp()
     async with app.run_test(size=(110, 30)) as pilot:
-        modal = SaveLocationPickerModal("xprompt", "Pick", choices)
+        modal = SaveLocationPickerModal("macro", "Pick", choices)
         app.push_screen(modal)
         await pilot.pause()
         option_list = modal.query_one("#save-location-picker-list", OptionList)
@@ -214,7 +214,7 @@ async def test_collapsed_starts_expanded_for_default_inside() -> None:
             "/plugin",
             None,
             "Plugins & built-in",
-            label="Plugin xprompts",
+            label="Plugin macros",
             badges=("★ default",),
             is_default=True,
             collapsed_group=True,
@@ -222,7 +222,7 @@ async def test_collapsed_starts_expanded_for_default_inside() -> None:
     )
     app = _ModalApp()
     async with app.run_test(size=(110, 30)) as pilot:
-        modal = SaveLocationPickerModal("xprompt", "Pick", choices)
+        modal = SaveLocationPickerModal("macro", "Pick", choices)
         app.push_screen(modal)
         await pilot.pause()
         assert modal.highlighted_id == "/plugin"

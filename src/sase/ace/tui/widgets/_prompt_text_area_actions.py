@@ -248,7 +248,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         prompt_count = sum(1 for text in prompt_texts if text.strip())
         if prompt_count <= 0:
             return
-        target = bar.xprompt_target()
+        target = bar.macro_target()
         origin = self._capture_submit_choice_origin(bar)
 
         self._clear_file_completion()
@@ -300,8 +300,8 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             selected_item_id=stack.selected_item.item_id,
             frontmatter=stack.frontmatter,
             binding=stack.binding,
-            readonly_target=getattr(bar, "_readonly_xprompt_target", None),
-            target_generation=getattr(bar, "_xprompt_target_generation", 0),
+            readonly_target=getattr(bar, "_readonly_macro_target", None),
+            target_generation=getattr(bar, "_macro_target_generation", 0),
             panes=tuple(
                 _SubmitChoicePaneOrigin(
                     item_id=item.item_id,
@@ -325,9 +325,9 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             or bar._stack.selected_item.item_id != origin.selected_item_id
             or bar._stack.frontmatter != origin.frontmatter
             or bar._stack.binding is not origin.binding
-            or getattr(bar, "_readonly_xprompt_target", None)
+            or getattr(bar, "_readonly_macro_target", None)
             is not origin.readonly_target
-            or getattr(bar, "_xprompt_target_generation", 0) != origin.target_generation
+            or getattr(bar, "_macro_target_generation", 0) != origin.target_generation
         ):
             return False
         panes = tuple(

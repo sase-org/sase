@@ -115,15 +115,15 @@ async def test_apply_memory_badge_labels_and_hides(
     try:
         hub._apply_memory_badge(3)
         assert hub._memory_badge_count == 3
-        assert _memory_tab_labels(hub) == ("●3 Memory", "●3 Memory", "●3 Mem")
+        assert _memory_tab_labels(hub) == ("●3 Memory", "●3 Mem", "●3 Mem")
         # A second identical apply is a no-op (no strip repaint needed).
         hub._apply_memory_badge(3)
-        assert _memory_tab_labels(hub) == ("●3 Memory", "●3 Memory", "●3 Mem")
+        assert _memory_tab_labels(hub) == ("●3 Memory", "●3 Mem", "●3 Mem")
         hub._apply_memory_badge(None)
         assert hub._memory_badge_count is None
-        assert _memory_tab_labels(hub) == ("Memory", "Memory", "Mem")
+        assert _memory_tab_labels(hub) == ("Memory", "Mem", "Mem")
         hub._apply_memory_badge(0)
-        assert _memory_tab_labels(hub) == ("Memory", "Memory", "Mem")
+        assert _memory_tab_labels(hub) == ("Memory", "Mem", "Mem")
     finally:
         await pilot_context.__aexit__(None, None, None)
 
@@ -135,7 +135,7 @@ async def test_badge_worker_sets_strip(monkeypatch: pytest.MonkeyPatch) -> None:
     try:
         await _wait_badge_idle(pilot, hub)
         assert hub._memory_badge_count == 2
-        assert _memory_tab_labels(hub) == ("●2 Memory", "●2 Memory", "●2 Mem")
+        assert _memory_tab_labels(hub) == ("●2 Memory", "●2 Mem", "●2 Mem")
     finally:
         await pilot_context.__aexit__(None, None, None)
 
@@ -149,7 +149,7 @@ async def test_badge_worker_hides_at_zero_and_unmarked(
     try:
         await _wait_badge_idle(pilot, hub)
         assert hub._memory_badge_count is None
-        assert _memory_tab_labels(hub) == ("Memory", "Memory", "Mem")
+        assert _memory_tab_labels(hub) == ("Memory", "Mem", "Mem")
     finally:
         await pilot_context.__aexit__(None, None, None)
 

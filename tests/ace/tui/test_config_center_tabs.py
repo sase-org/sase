@@ -54,7 +54,7 @@ def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
         key=lambda tab: dict(_TAB_LABELS)[tab].casefold(),
     )
     assert [spec.description for spec in _TAB_SPECS] == [
-        "Browse flags, glossary, launch, memory, snippets, XPrompts, and settings.",
+        "Browse flags, glossary, launch, memory, snippets, Macros, and settings.",
         "Inspect TUI activity, launch failures, and notification history.",
         "Connect, inspect, repair, rename, and remove dispatch machines.",
         "Follow procs, inspect live output, and manage running jobs.",
@@ -248,7 +248,7 @@ def test_importing_lightweight_modal_does_not_import_concrete_panes() -> None:
         "statistics_pane",
         "procs_pane",
         "plugins_browser_pane",
-        "xprompt_browser_pane",
+        "macro_browser_pane",
         "config_hub_pane",
     ]
     script = "\n".join(

@@ -106,7 +106,7 @@ async def test_stack_title_and_separator_surface_agent_count() -> None:
         bar.active_text_area()._enter_normal_mode()
         assert bar.border_title == "Prompt · 2 agents [NORMAL]"
 
-        bar.load_stack_from_xprompt_markdown("collapsed")
+        bar.load_stack_from_macro_markdown("collapsed")
         await pilot.pause()
         await pilot.pause()
 
@@ -424,7 +424,7 @@ async def test_load_prompt_into_pane_stale_target_returns_false() -> None:
 
         # A whole-stack rebuild bumps the generation and remounts panes under a
         # fresh id, orphaning the captured reference.
-        bar.load_stack_from_xprompt_markdown("rebuilt")
+        bar.load_stack_from_macro_markdown("rebuilt")
         await pilot.pause()
 
         loaded = bar.load_prompt_into_pane(stale_pane, stale_id, "should be dropped")
@@ -491,7 +491,7 @@ async def test_is_stacked_reflects_pane_count() -> None:
         bar = app.query_one(PromptInputBar)
         assert bar.is_stacked() is False
 
-        bar.load_stack_from_xprompt_markdown("a\n---\nb")
+        bar.load_stack_from_macro_markdown("a\n---\nb")
         await pilot.pause()
         await pilot.pause()
         assert bar.is_stacked() is True

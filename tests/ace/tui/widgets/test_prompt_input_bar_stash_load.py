@@ -25,7 +25,7 @@ class _RecordingPromptBarApp(App[None]):
         self.stashed.append(event)
 
 
-async def test_stash_all_and_load_xprompt_markdown_stashes_preload_bundle(
+async def test_stash_all_and_load_macro_markdown_stashes_preload_bundle(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -40,7 +40,7 @@ async def test_stash_all_and_load_xprompt_markdown_stashes_preload_bundle(
 
         bar = app.query_one(PromptInputBar)
         bar._stack.frontmatter = "---\ndescription: draft\n---"
-        bar.stash_all_and_load_xprompt_markdown(markdown)
+        bar.stash_all_and_load_macro_markdown(markdown)
         await pilot.pause()
         await pilot.pause()
 
@@ -56,7 +56,7 @@ async def test_stash_all_and_load_xprompt_markdown_stashes_preload_bundle(
         assert bar._stack.frontmatter == "---\ndescription: loaded\n---"
 
 
-async def test_stash_all_and_load_xprompt_markdown_empty_bar_posts_nothing(
+async def test_stash_all_and_load_macro_markdown_empty_bar_posts_nothing(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -69,7 +69,7 @@ async def test_stash_all_and_load_xprompt_markdown_empty_bar_posts_nothing(
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.stash_all_and_load_xprompt_markdown("loaded")
+        bar.stash_all_and_load_macro_markdown("loaded")
         await pilot.pause()
 
         assert app.stashed == []

@@ -42,8 +42,8 @@ from tests.ace.tui.visual._ace_config_center_statistics_helpers import (
     _patch_statistics_perf_degraded,
     _patch_statistics_populated,
 )
-from tests.ace.tui.visual._ace_config_center_xprompt_helpers import (
-    _patch_xprompt_sources,
+from tests.ace.tui.visual._ace_config_center_macro_helpers import (
+    _patch_macro_sources,
 )
 
 __all__ = [
@@ -68,7 +68,7 @@ __all__ = [
     "_patch_statistics_loading",
     "_patch_statistics_perf_degraded",
     "_patch_statistics_populated",
-    "_patch_xprompt_sources",
+    "_patch_macro_sources",
     "_seed_focused_error_log",
     "_seed_logs_tab_files",
     "_seed_tasks_tab_queue",

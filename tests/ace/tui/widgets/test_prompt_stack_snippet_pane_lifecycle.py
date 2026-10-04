@@ -368,9 +368,9 @@ async def test_dirty_snippet_guard_confirms_stack_replacement_paths(
         elif action_name == "stash_all":
             bar.stash_all_panes()
         elif action_name == "stash_all_and_load":
-            bar.stash_all_and_load_xprompt_markdown("replacement")
+            bar.stash_all_and_load_macro_markdown("replacement")
         else:
-            bar.load_stack_from_xprompt_markdown("replacement")
+            bar.load_stack_from_macro_markdown("replacement")
         await pilot.pause()
 
         assert isinstance(app.screen, ConfirmActionModal)

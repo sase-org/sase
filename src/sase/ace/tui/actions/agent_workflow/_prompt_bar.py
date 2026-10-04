@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._prompt_bar_memory_panel import PromptBarMemoryPanelMixin
-from ._prompt_bar_mini_xprompt_pane import PromptBarMiniXPromptPaneMixin
+from ._prompt_bar_mini_macro_pane import PromptBarMiniMacroPaneMixin
 from ._prompt_bar_snippets_panel import PromptBarSnippetsPanelMixin
 from ._prompt_bar_mount import PromptBarMountMixin
 from ._prompt_bar_requests import PromptBarRequestsMixin
-from ._prompt_bar_save_xprompt import PromptBarSaveXpromptMixin
+from ._prompt_bar_save_macro import PromptBarSaveMacroMixin
 from ._prompt_bar_snippet_pane import PromptBarSnippetPaneMixin
 from ._prompt_bar_stash import PromptBarStashMixin
 from ._prompt_bar_submit import PromptBarSubmitMixin
@@ -26,9 +26,9 @@ class PromptBarMixin(
     PromptBarMountMixin,
     PromptBarSubmitMixin,
     PromptBarStashMixin,
-    PromptBarSaveXpromptMixin,
+    PromptBarSaveMacroMixin,
     PromptBarSnippetPaneMixin,
-    PromptBarMiniXPromptPaneMixin,
+    PromptBarMiniMacroPaneMixin,
     PromptBarRequestsMixin,
     PromptBarMemoryPanelMixin,
     PromptBarSnippetsPanelMixin,

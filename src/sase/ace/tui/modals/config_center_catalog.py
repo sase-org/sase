@@ -41,10 +41,10 @@ class CenterTabSpec:
 
 
 _CONFIG_TAB_DESCRIPTION_WITH_FLAGS = (
-    "Browse flags, glossary, launch, memory, snippets, XPrompts, and settings."
+    "Browse flags, glossary, launch, memory, snippets, Macros, and settings."
 )
 _CONFIG_TAB_DESCRIPTION_WITHOUT_FLAGS = (
-    "Browse glossary, launch, memory, snippets, XPrompts, and settings."
+    "Browse glossary, launch, memory, snippets, Macros, and settings."
 )
 
 

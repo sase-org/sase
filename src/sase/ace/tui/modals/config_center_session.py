@@ -138,7 +138,7 @@ class AdminCenterSessionState:
     projects: ProjectsSessionState = field(default_factory=ProjectsSessionState)
     tools: ToolRunsSessionState = field(default_factory=ToolRunsSessionState)
     updates: UpdatesSessionState = field(default_factory=UpdatesSessionState)
-    xprompts: SelectionBookmark = field(default_factory=SelectionBookmark)
+    macros: SelectionBookmark = field(default_factory=SelectionBookmark)
     config_hub: ConfigHubSessionState = field(default_factory=ConfigHubSessionState)
 
 

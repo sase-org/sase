@@ -4,7 +4,7 @@ from __future__ import annotations
 
 _LAZY_EXPORTS = {
     "AddPropertyModal": (".add_property_modal", "AddPropertyModal"),
-    "AddXPromptModal": (".add_xprompt_modal", "AddXPromptModal"),
+    "AddMacroModal": (".add_macro_modal", "AddMacroModal"),
     "AddableProperty": (".add_property_modal", "AddableProperty"),
     "AgentActionChoice": (
         ".agent_action_chooser_modal",
@@ -211,25 +211,25 @@ _LAZY_EXPORTS = {
     "JumpChoice": (".jump_action_modal", "JumpChoice"),
     "LaunchApprovalModal": (".launch_approval_modal", "LaunchApprovalModal"),
     "LaunchApprovalResult": (".launch_approval_modal", "LaunchApprovalResult"),
-    "LocalXPromptNameModal": (".local_xprompt_name_modal", "LocalXPromptNameModal"),
+    "LocalMacroNameModal": (".local_macro_name_modal", "LocalMacroNameModal"),
     "MemoryPanel": (".memory_panel", "MemoryPanel"),
     "MemoryPane": (".memory_pane", "MemoryPane"),
     "MemoryPaneSession": (".memory_pane", "MemoryPaneSession"),
-    "MiniXPromptNameModal": (
-        ".mini_xprompt_name_modal",
-        "MiniXPromptNameModal",
+    "MiniMacroNameModal": (
+        ".mini_macro_name_modal",
+        "MiniMacroNameModal",
     ),
-    "MiniXPromptNameResult": (
-        ".mini_xprompt_name_modal",
-        "MiniXPromptNameResult",
+    "MiniMacroNameResult": (
+        ".mini_macro_name_modal",
+        "MiniMacroNameResult",
     ),
-    "MiniXPromptSaveConfirmModal": (
-        ".mini_xprompt_save_confirm_modal",
-        "MiniXPromptSaveConfirmModal",
+    "MiniMacroSaveConfirmModal": (
+        ".mini_macro_save_confirm_modal",
+        "MiniMacroSaveConfirmModal",
     ),
-    "MiniXPromptSaveConfirmState": (
-        ".mini_xprompt_save_confirm_modal",
-        "MiniXPromptSaveConfirmState",
+    "MiniMacroSaveConfirmState": (
+        ".mini_macro_save_confirm_modal",
+        "MiniMacroSaveConfirmState",
     ),
     "MentorApplyResult": (".mentor_review_models", "MentorApplyResult"),
     "MentorInfo": (".mentor_review_models", "MentorInfo"),
@@ -326,9 +326,9 @@ _LAZY_EXPORTS = {
         ".save_location_choices",
         "snippet_location_choices",
     ),
-    "xprompt_location_choices": (
+    "macro_location_choices": (
         ".save_location_choices",
-        "xprompt_location_choices",
+        "macro_location_choices",
     ),
     "SavedQueryPickerModal": (".saved_query_picker", "SavedQueryPickerModal"),
     "SaveAgentGroupModal": (".save_agent_group_modal", "SaveAgentGroupModal"),
@@ -384,14 +384,14 @@ _LAZY_EXPORTS = {
     "TrashPane": (".trash_pane", "TrashPane"),
     "TrashRequested": (".stash_pane", "TrashRequested"),
     "TrashRestoreRequested": (".trash_pane", "TrashRestoreRequested"),
-    "UnifiedSaveLocation": (".unified_xprompt_save_modal", "UnifiedSaveLocation"),
-    "UnifiedXPromptSaveModal": (
-        ".unified_xprompt_save_modal",
-        "UnifiedXPromptSaveModal",
+    "UnifiedSaveLocation": (".unified_macro_save_modal", "UnifiedSaveLocation"),
+    "UnifiedMacroSaveModal": (
+        ".unified_macro_save_modal",
+        "UnifiedMacroSaveModal",
     ),
-    "UnifiedXPromptSaveResult": (
-        ".unified_xprompt_save_modal",
-        "UnifiedXPromptSaveResult",
+    "UnifiedMacroSaveResult": (
+        ".unified_macro_save_modal",
+        "UnifiedMacroSaveResult",
     ),
     "UpdateFailureChoice": (
         ".update_failure_modal",
@@ -417,21 +417,21 @@ _LAZY_EXPORTS = {
     "WorkflowHITLModal": (".workflow_hitl_modal", "WorkflowHITLModal"),
     "WorkflowSelectModal": (".workflow_select_modal", "WorkflowSelectModal"),
     "WorkspaceInputModal": (".workspace_input_modal", "WorkspaceInputModal"),
-    "XPromptConfigEntry": (".xprompt_config_modal", "XPromptConfigEntry"),
-    "XPromptConfigEntryModal": (".xprompt_config_modal", "XPromptConfigEntryModal"),
-    "XPromptFilenameModal": (".xprompt_filename_modal", "XPromptFilenameModal"),
+    "MacroConfigEntry": (".macro_config_modal", "MacroConfigEntry"),
+    "MacroConfigEntryModal": (".macro_config_modal", "MacroConfigEntryModal"),
+    "MacroFilenameModal": (".macro_filename_modal", "MacroFilenameModal"),
     "XPromptFocusChoice": (
         ".statistics_xprompt_picker_modal",
         "XPromptFocusChoice",
     ),
-    "XPromptItemModal": (".xprompt_item_modal", "XPromptItemModal"),
-    "XPromptLocation": (".xprompt_location_modal", "XPromptLocation"),
-    "XPromptLocationModal": (".xprompt_location_modal", "XPromptLocationModal"),
-    "XPromptSelectModal": (".xprompt_select_modal", "XPromptSelectModal"),
-    "XPromptSelection": (".xprompt_select_modal", "XPromptSelection"),
-    "XPromptWriteConflictModal": (
-        ".xprompt_write_conflict_modal",
-        "XPromptWriteConflictModal",
+    "MacroItemModal": (".macro_item_modal", "MacroItemModal"),
+    "MacroLocation": (".macro_location_modal", "MacroLocation"),
+    "MacroLocationModal": (".macro_location_modal", "MacroLocationModal"),
+    "MacroSelectModal": (".macro_select_modal", "MacroSelectModal"),
+    "MacroSelection": (".macro_select_modal", "MacroSelection"),
+    "MacroWriteConflictModal": (
+        ".macro_write_conflict_modal",
+        "MacroWriteConflictModal",
     ),
     "axe_entry_schema": (".axe_entry_editor_modal", "axe_entry_schema"),
     "build_agent_workspace_tmux_choices": (

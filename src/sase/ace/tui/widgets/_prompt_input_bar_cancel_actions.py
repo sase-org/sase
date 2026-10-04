@@ -41,7 +41,7 @@ class PromptInputBarCancelActionsMixin(_MixinBase):
             self,
             reason: Literal["saved", "discarded", "replaced"],
         ) -> bool: ...
-        def close_mini_xprompt_target(
+        def close_mini_macro_target(
             self,
             reason: Literal["saved", "discarded", "replaced"],
         ) -> bool: ...
@@ -68,12 +68,12 @@ class PromptInputBarCancelActionsMixin(_MixinBase):
 
                 self._confirm_discard_dirty_snippet(_close_snippet)
                 return
-            if self._stack.selected_item.is_mini_xprompt_pane:
+            if self._stack.selected_item.is_mini_macro_pane:
 
-                def _close_mini_xprompt() -> None:
-                    self.close_mini_xprompt_target("discarded")
+                def _close_mini_macro() -> None:
+                    self.close_mini_macro_target("discarded")
 
-                self._confirm_discard_dirty_snippet(_close_mini_xprompt)
+                self._confirm_discard_dirty_snippet(_close_mini_macro)
                 return
             cancelled_text = self._stack.selected_item.text.strip()
             removed = self._stack.remove_selected()

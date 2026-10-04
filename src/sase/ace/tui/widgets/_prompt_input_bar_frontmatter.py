@@ -130,7 +130,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
                     if candidate_id == text_area_id:
                         item = candidate
                         break
-        target = item.mini_xprompt_target
+        target = item.mini_macro_target
         if target is not None:
             return _FrontmatterScope(
                 key=f"mini:{item.item_id}:{target.name}",
@@ -143,13 +143,13 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             raw=self._stack.frontmatter,
             label=None,
             has_target=self._stack.binding is not None
-            or (getattr(self, "_readonly_xprompt_target", None) is not None),
+            or (getattr(self, "_readonly_macro_target", None) is not None),
         )
 
     def jinja_scope_for_text_area(self, text_area: object | None = None) -> JinjaScope:
         """Return the Jinja engine scope for a prompt *text_area*.
 
-        A mini-xprompt pane uses ``xprompt`` scope with the pane's own
+        A mini-macro pane uses ``xprompt`` scope with the pane's own
         frontmatter; a stack bound to an xprompt target uses ``xprompt``
         scope with the stack frontmatter; any other prompt-mode pane uses
         ``prompt`` scope with the stack frontmatter. Feedback and approve
@@ -189,9 +189,9 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
                             break
                     except Exception:
                         continue
-        target = item.mini_xprompt_target
+        target = item.mini_macro_target
         if target is not None:
-            item.mini_xprompt_target = replace(target, frontmatter=raw)
+            item.mini_macro_target = replace(target, frontmatter=raw)
         else:
             self._stack.set_frontmatter_model(model)
 

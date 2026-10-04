@@ -29,7 +29,7 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
         SnippetPaneSaveRequested: Any
         SnippetTargetRequested: Any
         _generation: int
-        _mini_xprompt_focus_restore: PromptFocusRestore | None
+        _mini_macro_focus_restore: PromptFocusRestore | None
         _mode: str
         _snippet_focus_restore: PromptFocusRestore | None
         _stack: PromptStackState
@@ -137,7 +137,7 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
             if self._stack.auxiliary_is_dirty:
                 return False
             self._stack.remove_auxiliary_pane()
-            self._mini_xprompt_focus_restore = None
+            self._mini_macro_focus_restore = None
         self._snippet_focus_restore = restore
         self._clear_active_completion_state()
         self._stack.append_snippet_pane(result.existing_body or "", target)
@@ -294,10 +294,10 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
                 f"Discard unsaved snippet ⇥ {item.snippet_target.trigger}?",
                 "This snippet draft has unsaved changes.",
             )
-        if item.mini_xprompt_target is not None:
+        if item.mini_macro_target is not None:
             return (
-                f"Discard unsaved mini-xprompt #{item.mini_xprompt_target.name}?",
-                "This mini-xprompt draft has unsaved changes.",
+                f"Discard unsaved mini-macro #{item.mini_macro_target.name}?",
+                "This mini-macro draft has unsaved changes.",
             )
         return ("Discard unsaved draft?", "This draft has unsaved changes.")
 

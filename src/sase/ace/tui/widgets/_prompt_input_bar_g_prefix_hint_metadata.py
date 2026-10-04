@@ -135,8 +135,8 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
         """Whether ``gt`` can open or retarget a snippet target pane."""
         return self._mode == "prompt"
 
-    def _g_prefix_available_mini_xprompt_target(self) -> bool:
-        """Whether ``gx`` can open or retarget a mini-xprompt target pane."""
+    def _g_prefix_available_mini_macro_target(self) -> bool:
+        """Whether ``gx`` can open or retarget a mini-macro target pane."""
         return self._mode == "prompt"
 
     def _g_prefix_available_save_xprompt(self) -> bool:
@@ -189,8 +189,8 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
         """Return the context-sensitive ``g<enter>`` label."""
         if self._stack.selected_item.is_snippet_pane:
             return "save snippet"
-        if self._stack.selected_item.is_mini_xprompt_pane:
-            return "save mini-xprompt"
+        if self._stack.selected_item.is_mini_macro_pane:
+            return "save mini-macro"
         if self._stack.agent_count > 1:
             return "launch this pane"
         return "submit this draft"
@@ -243,19 +243,19 @@ class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
             return f"rename ⇥ {snippet.snippet_target.trigger}…"
         return "new snippet…"
 
-    def _g_prefix_label_mini_xprompt_target(self) -> str:
+    def _g_prefix_label_mini_macro_target(self) -> str:
         """Return the ``gx`` label."""
-        mini = self._stack.mini_xprompt_item
-        if mini is not None and mini.mini_xprompt_target is not None:
-            return f"retarget #{mini.mini_xprompt_target.name}…"
-        return "open mini-xprompt…"
+        mini = self._stack.mini_macro_item
+        if mini is not None and mini.mini_macro_target is not None:
+            return f"retarget #{mini.mini_macro_target.name}…"
+        return "open mini-macro…"
 
     def _g_prefix_label_save_xprompt(self) -> str:
         """Return the ``gX`` label."""
         return "save as xprompt/snippet"
 
     def _g_prefix_label_write_xprompt(self) -> str:
-        readonly = getattr(self, "_readonly_xprompt_target", None)
+        readonly = getattr(self, "_readonly_macro_target", None)
         if readonly is not None:
             return f"save as {readonly.reference}"
         binding = self._stack.binding

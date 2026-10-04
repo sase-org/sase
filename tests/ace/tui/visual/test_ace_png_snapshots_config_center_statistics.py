@@ -13,7 +13,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_statistics_loading,
     _patch_statistics_perf_degraded,
     _patch_statistics_populated,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -28,7 +28,7 @@ pytestmark = pytest.mark.visual
 
 def _patch_siblings(monkeypatch: pytest.MonkeyPatch) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
 

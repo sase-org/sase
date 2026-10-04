@@ -43,8 +43,8 @@ from .memory_pane_review import (
 )
 
 _EMPTY_ID = "config-hub-empty"
-# Five-child strip (Flags off: All/Launch/Memory/Snippets/XPrompts): full
-# labels are 68 cells and compact labels (.../Snip/XP) are 48, so each tier
+# Five-child strip (Flags off: All/Launch/Memory/Snippets/Macros): full
+# labels are 68 cells and compact labels (.../Mem/Snip/Macros) fit at 71, so each tier
 # starts one cell above the widest strip it has to render.
 _CONFIG_TABS_COMPACT_BELOW_WIDTH = 69
 _CONFIG_TABS_MICRO_BELOW_WIDTH = 49

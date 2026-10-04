@@ -39,7 +39,7 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
-        assert "gx   open mini-xprompt…" in plain
+        assert "gx   open mini-macro…" in plain
         assert "g^X" not in plain
         # The always-on launch-tab entry pushes the surface to 13 entries;
         # the fixed-height panel shows 11 plus a remainder.
@@ -107,7 +107,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt / ^G^T   new snippet…" in plain
-        assert "^Gx   open mini-xprompt…" not in plain
+        assert "^Gx   open mini-macro…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
         assert "... +6 more" in plain
@@ -148,7 +148,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt / ^G^T   new snippet…" in plain
-        assert "^Gx   open mini-xprompt…" not in plain
+        assert "^Gx   open mini-macro…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "... +5 more" in plain
         assert ("b", "launch tab…") in entry_pairs(bar, via_ctrl_g=True)
@@ -159,7 +159,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
 
 
 @pytest.mark.parametrize("start_normal", [False, True], ids=["insert", "normal"])
-async def test_ctrl_g_hints_group_ctrl_x_with_mini_xprompt(
+async def test_ctrl_g_hints_group_ctrl_x_with_mini_macro(
     start_normal: bool,
 ) -> None:
     app = GPrefixHintApp("")
@@ -175,7 +175,7 @@ async def test_ctrl_g_hints_group_ctrl_x_with_mini_xprompt(
         await pilot.pause()
 
         plain = panel.render().plain
-        # The appended recent-files row pushes the mini-xprompt row below
+        # The appended recent-files row pushes the mini-macro row below
         # the panel fold in this empty-prompt config, so the ``ctrl+x``
         # grouping is covered through the entries instead of the pixels.
         assert "... +2 more" in plain
@@ -185,7 +185,7 @@ async def test_ctrl_g_hints_group_ctrl_x_with_mini_xprompt(
             if entry.key == "x"
         )
         assert mini.aliases == ("ctrl+x",)
-        assert mini.label == "open mini-xprompt…"
+        assert mini.label == "open mini-macro…"
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^GX   save as xprompt/snippet" not in plain
 
@@ -231,8 +231,8 @@ async def test_ctrl_g_save_continuations_preserve_draft_and_clear_prefix(
         await pilot.press("ctrl+g", "X")
         await pilot.pause()
 
-        assert len(app.save_xprompt_requests) == 1
-        assert [pane.text for pane in app.save_xprompt_requests[0].panes] == [
+        assert len(app.save_macro_requests) == 1
+        assert [pane.text for pane in app.save_macro_requests[0].panes] == [
             "reusable draft"
         ]
         assert bar.all_prompt_texts() == ["reusable draft"]
@@ -244,7 +244,7 @@ async def test_ctrl_g_save_continuations_preserve_draft_and_clear_prefix(
 
 @pytest.mark.parametrize("continuation", ["x", "ctrl+x"])
 @pytest.mark.parametrize("start_normal", [False, True], ids=["insert", "normal"])
-async def test_ctrl_g_x_continuations_request_mini_xprompt_target_and_clear_prefix(
+async def test_ctrl_g_x_continuations_request_mini_macro_target_and_clear_prefix(
     continuation: str,
     start_normal: bool,
 ) -> None:
@@ -260,8 +260,8 @@ async def test_ctrl_g_x_continuations_request_mini_xprompt_target_and_clear_pref
         await pilot.press("ctrl+g", continuation)
         await pilot.pause()
 
-        assert len(app.mini_xprompt_requests) == 1
-        assert app.save_xprompt_requests == []
+        assert len(app.mini_macro_requests) == 1
+        assert app.save_macro_requests == []
         assert bar.all_prompt_texts() == ["mini draft"]
         assert text_area._insert_g_prefix_pending is False
         assert text_area._normal_g_prefix_pending is False

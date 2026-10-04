@@ -14,7 +14,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _open_config_modal,
     _patch_config_view,
     _patch_plugins_catalog,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -59,7 +59,7 @@ async def test_config_center_edit_modal_png_snapshot(
 ) -> None:
     """The edit stage: scope selector + typed editor for a string field."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
@@ -84,7 +84,7 @@ async def test_config_center_edit_preview_png_snapshot(
 ) -> None:
     """The preview stage: target file, effective merge, validation, and diff."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
@@ -116,7 +116,7 @@ async def test_config_center_edit_normal_mode_png_snapshot(
 ) -> None:
     """The string editor after Escape: the ``[NORMAL]`` border + vim cursor."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
@@ -149,7 +149,7 @@ async def test_config_center_edit_enum_png_snapshot(
 ) -> None:
     """The edit stage for a key-driven enum option list."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
@@ -174,7 +174,7 @@ async def test_config_center_edit_object_value_png_snapshot(
 ) -> None:
     """Large object values show a capped current block plus the YAML editor."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
     _patch_config_view(

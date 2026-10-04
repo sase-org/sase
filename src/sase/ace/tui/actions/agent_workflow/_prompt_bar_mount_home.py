@@ -73,7 +73,7 @@ class PromptBarHomeMixin:
         """Reload the mounted prompt bar from cleaned editor markdown.
 
         Uses editor-file (xprompt markdown) semantics via
-        :meth:`PromptInputBar.load_stack_from_xprompt_markdown`: leading xprompt
+        :meth:`PromptInputBar.load_stack_from_macro_markdown`: leading xprompt
         frontmatter is lifted into the frontmatter panel and real ``---`` body
         separators split into one prompt pane per agent segment.  Used only for
         ` @`-marker editor returns and whole-stack editor returns — never for
@@ -85,7 +85,7 @@ class PromptBarHomeMixin:
         if bar is None:
             return
         try:
-            bar.load_stack_from_xprompt_markdown(markdown, preserve_target=True)
+            bar.load_stack_from_macro_markdown(markdown, preserve_target=True)
         except Exception:
             pass
 
@@ -158,9 +158,9 @@ class PromptBarHomeMixin:
                 id="prompt-input-bar",
             )
         if binding is not None:
-            bar.target_xprompt(binding, source_markdown=initial_text)
+            bar.target_macro(binding, source_markdown=initial_text)
         elif read_only_target is not None:
-            bar.mark_readonly_xprompt_target(read_only_target)
+            bar.mark_readonly_macro_target(read_only_target)
         # Stage declared inputs into the stack's frontmatter pre-mount: the
         # panel refresh is a no-op until the bar mounts, and ``on_mount`` then
         # auto-shows the frontmatter panel from the seeded stack.
@@ -168,17 +168,17 @@ class PromptBarHomeMixin:
             bar.merge_frontmatter_inputs(frontmatter_inputs)
         self.mount(bar)  # type: ignore[attr-defined]
 
-    def load_xprompt_into_home_prompt_bar(
+    def load_macro_into_home_prompt_bar(
         self,
         expanded_text: str,
         *,
         display_name: str,
         inputs: list[InputArg] | None = None,
     ) -> None:
-        """Close the Admin Center and load an inline-expanded xprompt into a bar.
+        """Close the Admin Center and load an inline-expanded macro into a bar.
 
-        Drives the Config XPrompts child ``Ctrl+I`` load: the selected row
-        was already rendered via :func:`expand_inline_xprompt`, so this pops the
+        Drives the Config Macros child ``Ctrl+I`` load: the selected row
+        was already rendered via :func:`expand_inline_macro`, so this pops the
         Admin Center modal and opens a fresh home-mode prompt bar carrying the
         rendered *expanded_text* for editing/submission.  Declared *inputs* are
         staged into prompt frontmatter (parity with the Select XPrompt
@@ -203,7 +203,7 @@ class PromptBarHomeMixin:
 
         self.call_after_refresh(_mount)  # type: ignore[attr-defined]
 
-    def load_xprompt_definition_into_home_prompt_bar(
+    def load_macro_definition_into_home_prompt_bar(
         self,
         markdown: str,
         *,
@@ -213,7 +213,7 @@ class PromptBarHomeMixin:
         read_only_path: str | None = None,
         has_comments: bool = False,
     ) -> None:
-        """Close the browser and author a raw simple xprompt definition."""
+        """Close the browser and author a raw simple macro definition."""
         from textual.screen import ModalScreen
 
         from ...widgets.prompt_stack import XPromptReadonlyTarget

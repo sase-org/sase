@@ -13,8 +13,8 @@ from .save import load_config_macro_markdown
 from .config_yaml import generate_macro_yaml
 from .snippet_config_yaml import generate_snippet_yaml
 
-IndexKind = Literal["directory", "xprompt_config", "snippet_config"]
-DefinitionKind = Literal["markdown", "xprompt_config", "snippet_config"]
+IndexKind = Literal["directory", "macro_config", "snippet_config"]
+DefinitionKind = Literal["markdown", "macro_config", "snippet_config"]
 
 _INDEX_CACHE: dict[tuple[IndexKind, str], tuple[tuple[int, int], frozenset[str]]] = {}
 _DEFINITION_CACHE: dict[
@@ -96,7 +96,7 @@ def load_definition(
 
     if kind == "markdown":
         text = source.read_text(encoding="utf-8")
-    elif kind == "xprompt_config":
+    elif kind == "macro_config":
         markdown = load_config_macro_markdown(source, name)
         frontmatter, body = _split_markdown(markdown)
         lines = [

@@ -88,7 +88,7 @@ async def test_targeted_single_pane_insert_subtitle_uses_submit_hint(
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar.target_xprompt(
+        bar.target_macro(
             XPromptBinding.for_file(source, reference="#draft"),
             source_markdown="solo",
         )

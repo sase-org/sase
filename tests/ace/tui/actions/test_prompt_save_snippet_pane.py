@@ -26,7 +26,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
 from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
 
-from ._prompt_save_xprompt_helpers import _SaveFlowApp, _wait_save_tasks
+from ._prompt_save_macro_helpers import _SaveFlowApp, _wait_save_tasks
 
 
 class _SnippetFlowApp(PromptBarSnippetPaneMixin, _SaveFlowApp):
@@ -339,7 +339,7 @@ async def test_snippet_pane_failed_write_keeps_draft(tmp_path: Path) -> None:
         await _wait_save_tasks(app)
         await pilot.pause()
         with patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_snippets.write_snippet_sync",
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_snippets.write_snippet_sync",
             side_effect=RuntimeError("boom"),
         ):
             await pilot.press("enter")
@@ -371,7 +371,7 @@ async def test_snippet_pane_no_change_closes_without_write(tmp_path: Path) -> No
         await _wait_save_tasks(app)
         await pilot.pause()
         with patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_snippets.write_snippet_sync"
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_snippets.write_snippet_sync"
         ) as write_sync:
             await pilot.press("enter")
             await _wait_save_tasks(app)

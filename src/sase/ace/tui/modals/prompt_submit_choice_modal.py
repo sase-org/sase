@@ -71,8 +71,8 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
         Binding("a", "choose_all", "Submit all", show=False),
         Binding("ctrl+s", "choose_all", "Submit all", show=False),
         Binding("c", "choose_current", "Submit current", show=False),
-        Binding("w", "choose_write", "Write xprompt", show=False),
-        Binding("X", "choose_save_as", "Save as xprompt", show=False),
+        Binding("w", "choose_write", "Write macro", show=False),
+        Binding("X", "choose_save_as", "Save as macro", show=False),
         Binding("escape", "cancel", "Cancel", show=False),
         Binding("q", "cancel", "Cancel", show=False),
     ]
@@ -195,7 +195,7 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
                     ),
                     _PromptSubmitChoiceRow(
                         "X",
-                        "Save as a new xprompt…",
+                        "Save as a new macro…",
                         "Fork this definition to a new location.",
                         "save_as",
                         summary="X save as",
@@ -206,7 +206,7 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
 
     def _all_subtitle(self) -> str:
         noun = "prompt" if self._prompt_count == 1 else "prompts"
-        return f"Launch all {self._prompt_count} {noun} as one xprompt swarm."
+        return f"Launch all {self._prompt_count} {noun} as one macro swarm."
 
     def _target_chip(self) -> str:
         if self._target is None:
@@ -290,12 +290,12 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
             self.dismiss("current")
 
     def action_choose_write(self) -> None:
-        """Write the targeted xprompt definition."""
+        """Write the targeted macro definition."""
         if self._target is not None:
             self.dismiss("write")
 
     def action_choose_save_as(self) -> None:
-        """Fork the targeted definition to a new xprompt."""
+        """Fork the targeted definition to a new macro."""
         if self._target is not None:
             self.dismiss("save_as")
 

@@ -61,9 +61,9 @@ _REVIEWED_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "Build reusable prompt fragments and preview their composed output.",
         "Manage reusable prompt fragments and compositions.",
     ),
-    "xprompts": (
-        "Browse, preview, create, and edit reusable agent prompts and workflows.",
-        "Manage reusable agent prompts and workflows.",
+    "macros": (
+        "Browse, preview, create, and edit reusable agent macros and workflows.",
+        "Manage reusable agent macros and workflows.",
     ),
 }
 
@@ -97,7 +97,7 @@ def test_registered_catalog_is_alphabetized_with_all_first() -> None:
         "launch",
         "memory",
         "snippets",
-        "xprompts",
+        "macros",
     )
     assert CONFIG_SUBTAB_ORDER == SESSION_SUBTAB_ORDER
     assert CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS == (
@@ -106,7 +106,7 @@ def test_registered_catalog_is_alphabetized_with_all_first() -> None:
         "launch",
         "memory",
         "snippets",
-        "xprompts",
+        "macros",
     )
 
 
@@ -133,6 +133,7 @@ def test_config_subtab_order_includes_flags_when_rollout_is_on() -> None:
         assert flags_spec.label == "Flags"
         assert flags_spec.micro_label == "Flag"
         assert validated_config_subtab("flags") == "flags"
+        assert validated_config_subtab("xprompts") == "macros"
         launch_spec = next(
             spec for spec in config_subtab_specs() if spec.id == "launch"
         )
@@ -149,6 +150,11 @@ def test_registered_specs_carry_reviewed_full_and_compact_copy() -> None:
         assert spec.description == full
         assert spec.compact_description == compact
         assert CONFIG_SUBTAB_BY_ID[spec.id] is spec
+
+    macro_spec = CONFIG_SUBTAB_BY_ID["macros"]
+    assert macro_spec.label == "Macros"
+    assert macro_spec.compact_label == "Macros"
+    assert macro_spec.micro_label == "Ma"
 
 
 def test_active_specs_keep_catalog_derived_description_order() -> None:

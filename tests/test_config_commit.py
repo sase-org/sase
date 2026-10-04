@@ -111,7 +111,7 @@ def test_build_config_commit_offer_skips_git_inspection_error(
         raise OSError("git unavailable")
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.xprompt_browser_helpers.get_git_root",
+        "sase.ace.tui.modals.macro_browser_helpers.get_git_root",
         fail_git_root,
     )
 

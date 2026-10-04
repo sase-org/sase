@@ -55,7 +55,7 @@ def run_in_terminal(
 ) -> int:
     """Run *argv* in the real terminal with the TUI suspended.
 
-    Follows ``modals/xprompt_select_modal.py``: ``app.suspend()`` hands the
+    Follows ``modals/macro_select_modal.py``: ``app.suspend()`` hands the
     terminal back, then ``subprocess.run`` executes synchronously. Returns
     the process exit code. Raises ``OSError`` when the spawn fails.
     """

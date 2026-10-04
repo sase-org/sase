@@ -44,7 +44,7 @@ def _patch_panes(
     config_result = cp._LoadResult(view=None, error=None, token=("tok", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: config_result)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",
+        "sase.ace.tui.modals.macro_browser_pane.get_all_prompts",
         lambda project=None: {},
     )
     monkeypatch.setattr(

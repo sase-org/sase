@@ -18,7 +18,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 )
 from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import mount_prompt_bar
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
-from tests.ace.tui.widgets._prompt_stack_helpers import mini_xprompt_target
+from tests.ace.tui.widgets._prompt_stack_helpers import mini_macro_target
 
 pytestmark = pytest.mark.visual
 
@@ -42,14 +42,14 @@ def _show_engine_menu(
 ) -> None:
     """Build the engine menu for *text* and show it on *bar*.
 
-    With *mini_scope* the active pane becomes a mini-xprompt pane, so the
+    With *mini_scope* the active pane becomes a mini-macro pane, so the
     menu runs in ``xprompt`` scope with the pane's own frontmatter: the
     grid then shows inputs, sase names, conditional rows, Jinja globals,
     and legacy aliases together, with the ``#name`` scope label.
     """
     raw = PromptFrontmatter(inputs=list(_STACK_INPUTS)).serialize()
     if mini_scope:
-        bar._stack.selected_item.mini_xprompt_target = mini_xprompt_target(
+        bar._stack.selected_item.mini_macro_target = mini_macro_target(
             name="review",
             frontmatter=raw,
         )
@@ -108,7 +108,7 @@ async def test_jinja_variable_completion_png_snapshot(
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, "draft ")
 
-        # A mini-xprompt pane runs in ``xprompt`` scope with its own
+        # A mini-macro pane runs in ``xprompt`` scope with its own
         # inputs: one grid shows inputs, sase names, the conditional
         # ``n`` row, Jinja globals, and a legacy alias together.
         _show_engine_menu(bar, "{{ n", 0, mini_scope=True)

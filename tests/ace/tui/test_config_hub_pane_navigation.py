@@ -45,7 +45,7 @@ async def test_home_digits_stop_at_eight(
 
         landing = modal.query_one("#admin-center-home-hint", Static)
         assert "1-8" in str(landing.render().plain)
-        assert list(modal.query("#xprompts")) == []
+        assert list(modal.query("#macros")) == []
 
 
 async def test_filter_brackets_cycle_config_subtabs(
@@ -61,17 +61,17 @@ async def test_filter_brackets_cycle_config_subtabs(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
         await wait_for(pilot, lambda: isinstance(pilot.app.focused, Input))
 
         await pilot.press("right_square_bracket")
         await wait_for(pilot, lambda: hub._active_subtab == "misc")
-        assert calls == ["xprompts", "misc"]
+        assert calls == ["macros", "misc"]
         _assert_hub_caption(hub, "misc")
 
 
@@ -82,12 +82,12 @@ async def test_config_number_prefix_selects_alphabetic_subtabs(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
 
         await pilot.press("0", "2")
         await wait_for(pilot, lambda: hub._active_subtab == "flags")
@@ -99,11 +99,11 @@ async def test_config_number_prefix_selects_alphabetic_subtabs(
         await wait_for(pilot, lambda: hub._active_subtab == "memory")
         _assert_hub_caption(hub, "memory")
         await pilot.press("0", "7")
-        await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
+        await wait_for(pilot, lambda: hub._active_subtab == "macros")
 
-        assert calls == ["xprompts", "flags", "memory"]
-        assert modal._session_state.config_hub.active_subtab == "xprompts"
-        _assert_hub_caption(hub, "xprompts")
+        assert calls == ["macros", "flags", "memory"]
+        assert modal._session_state.config_hub.active_subtab == "macros"
+        _assert_hub_caption(hub, "macros")
 
 
 async def test_config_prefix_repeats_out_of_range_and_non_digit_cancel(
@@ -113,12 +113,12 @@ async def test_config_prefix_repeats_out_of_range_and_non_digit_cancel(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
 
         await pilot.press("0", "0", "4")
         await wait_for(pilot, lambda: hub._active_subtab == "launch")
@@ -145,12 +145,12 @@ async def test_configured_config_prefix_selects_subtab(
         pilot.app._keymap_registry = registry  # type: ignore[attr-defined]
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
 
         await pilot.press("f4", "6")
         await wait_for(pilot, lambda: hub._active_subtab == "snippets")
@@ -172,22 +172,22 @@ async def test_bare_child_digit_stays_local_until_config_prefix(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
 
         await pilot.press("1")
         await pilot.pause()
         assert modal._active_tab == "config"
-        assert hub._active_subtab == "xprompts"
-        assert created["xprompts"].digits == [1]
+        assert hub._active_subtab == "macros"
+        assert created["macros"].digits == [1]
 
         await pilot.press("0", "1")
         await wait_for(pilot, lambda: hub._active_subtab == "misc")
-        assert created["xprompts"].digits == [1]
+        assert created["macros"].digits == [1]
 
 
 async def test_config_filter_keeps_prefix_digits_as_text(
@@ -200,21 +200,21 @@ async def test_config_filter_keeps_prefix_digits_as_text(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
         await wait_for(pilot, lambda: isinstance(pilot.app.focused, Input))
 
         input_widget = hub.query_one("#hub-filter", Input)
         await pilot.press("0", "1")
 
         assert input_widget.value == "01"
-        assert hub._active_subtab == "xprompts"
+        assert hub._active_subtab == "macros"
         assert hub._pending_subtab_select is False
-        _assert_hub_caption(hub, "xprompts")
+        _assert_hub_caption(hub, "macros")
 
 
 async def test_relationship_children_own_tab_keys(
@@ -224,12 +224,12 @@ async def test_relationship_children_own_tab_keys(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
 
         assert modal.check_action("next_center_tab", ()) is not False
 
@@ -246,7 +246,7 @@ async def test_busy_child_blocks_config_subtab_switch(
 
     def create(_self: ConfigHubPane, subtab: str) -> _HubChild:
         nonlocal busy
-        if subtab == "xprompts":
+        if subtab == "macros":
             busy = _BusyHubChild(subtab)
             return busy
         return _HubChild(subtab)
@@ -255,22 +255,22 @@ async def test_busy_child_blocks_config_subtab_switch(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        await wait_for(pilot, lambda: "macros" in hub._panes)
         before = _caption_text(hub).plain
 
         await pilot.press("0", "5")
         await pilot.pause()
-        assert hub._active_subtab == "xprompts"
-        assert tuple(hub._panes) == ("xprompts",)
+        assert hub._active_subtab == "macros"
+        assert tuple(hub._panes) == ("macros",)
         assert busy is not None
         assert busy.deactivate_checks == 1
         assert _caption_text(hub).plain == before
-        _assert_hub_caption(hub, "xprompts")
+        _assert_hub_caption(hub, "macros")
 
 
 async def test_busy_config_child_blocks_top_level_switch_and_close(
@@ -287,7 +287,7 @@ async def test_busy_config_child_blocks_top_level_switch_and_close(
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(
             initial_tab="config",
-            config_entry=ConfigHubEntry(subtab="xprompts"),
+            config_entry=ConfigHubEntry(subtab="macros"),
         )
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")

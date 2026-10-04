@@ -24,7 +24,7 @@ from sase.ace.tui.modals.project_inventory_panes import (
 )
 from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
-from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
+from sase.ace.tui.modals.macro_browser_pane import MacroBrowserPane
 from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
 from sase.ace.tui.util.selection import restore_selection_by_identity
 
@@ -42,7 +42,7 @@ from tests.ace.tui._procs_pane_helpers import (
     store_task as _store_task,
     task as _task,
 )
-from tests.ace.tui.test_xprompt_browser_load_keymap import _md_xprompt
+from tests.ace.tui.test_macro_browser_load_keymap import _md_macro
 
 
 class _NoopProcObserver:
@@ -144,7 +144,7 @@ def _patch_all_surfaces(
     for index, path in enumerate(prompt_paths):
         path.write_text(f"Prompt {index}.", encoding="utf-8")
     prompts = {
-        f"prompt-{index}": _md_xprompt(
+        f"prompt-{index}": _md_macro(
             f"prompt-{index}",
             f"Prompt {index}.",
             source_path=str(path),
@@ -152,7 +152,7 @@ def _patch_all_surfaces(
         for index, path in enumerate(prompt_paths)
     }
     monkeypatch.setattr(
-        "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",
+        "sase.ace.tui.modals.macro_browser_pane.get_all_prompts",
         lambda project=None: dict(prompts),
     )
     monkeypatch.setattr(
@@ -185,7 +185,7 @@ def _surface_selection(modal: ConfigCenterModal, surface: str) -> str | None:
         pane = modal.query_one(PluginsBrowserPane)
         option_list = pane.query_one("#updates-list", OptionList)
     else:
-        pane = modal.query_one(XPromptBrowserPane)
+        pane = modal.query_one(MacroBrowserPane)
         option_list = pane.query_one("#browser-list", OptionList)
     highlighted = option_list.highlighted
     if highlighted is None:
@@ -210,7 +210,7 @@ def _detail_selection(modal: ConfigCenterModal, surface: str) -> str | None:
         return modal.query_one(ProcsPane)._selected_task_identity()
     if surface == "updates":
         return modal.query_one(PluginsBrowserPane)._detail_key
-    item = modal.query_one(XPromptBrowserPane)._get_highlighted_item()
+    item = modal.query_one(MacroBrowserPane)._get_highlighted_item()
     return item.name if item is not None else None
 
 
@@ -297,7 +297,7 @@ async def test_real_opener_resume_restores_visible_selection(
         if case.surface == "config":
             await modal.query_one(ConfigHubPane)._switch_to("misc")
         if case.surface == "xprompts":
-            await modal.query_one(ConfigHubPane)._switch_to("xprompts")
+            await modal.query_one(ConfigHubPane)._switch_to("macros")
         if case.setup_keys:
             await page.press(*case.setup_keys)
         if case.surface == "procs":
@@ -329,7 +329,7 @@ async def test_real_opener_resume_restores_visible_selection(
             )
         if case.surface == "xprompts":
             await page.wait_for(
-                lambda _s: resumed.query_one(ConfigHubPane)._active_subtab == "xprompts"
+                lambda _s: resumed.query_one(ConfigHubPane)._active_subtab == "macros"
             )
         if case.surface == "procs":
             _seed_proc_projection(page.app, tasks)

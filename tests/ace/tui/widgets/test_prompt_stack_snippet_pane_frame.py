@@ -141,7 +141,7 @@ async def test_snippet_frame_escalates_only_existing_dirty_target(
         assert not bar.has_class("snippet-dirty")
 
 
-async def test_snippet_frame_takes_precedence_over_xprompt_target(
+async def test_snippet_frame_takes_precedence_over_macro_target(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "review.md"
@@ -152,7 +152,7 @@ async def test_snippet_frame_takes_precedence_over_xprompt_target(
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_xprompt_markdown("agent prompt\n", binding=binding)
+        bar.load_stack_from_macro_markdown("agent prompt\n", binding=binding)
         await pilot.pause()
         await pilot.pause()
         await _open_snippet(
@@ -162,7 +162,7 @@ async def test_snippet_frame_takes_precedence_over_xprompt_target(
             destination_exists=True,
         )
 
-        assert bar.has_class("xprompt-target")
+        assert bar.has_class("macro-target")
         assert bar.styles.border_top[0] == "double"
         assert _border_color(bar) == Color.parse(app.get_css_variables()["primary"])
 

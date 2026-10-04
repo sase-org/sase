@@ -7,21 +7,21 @@ from sase.ace.tui._proc_producer_site import ProcProducerSite, site
 
 WORKFLOW_PRODUCERS: tuple[ProcProducerSite, ...] = (
     site(
-        "xprompt.commit",
-        "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt_git.py",
-        "_submit_xprompt_commit_task",
+        "macro.commit",
+        "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_macro_git.py",
+        "_submit_macro_commit_task",
         "duck_submit_durable",
         "GIT_POST_WRITE",
         "durable",
-        "_submit_xprompt_commit_task",
+        "_submit_macro_commit_task",
         "sase stitch create",
         identifiers=("git_root", "rel_path"),
         result_kind="git.commit",
         concurrency_keys=("{noun}-commit:{git_root}:{rel_path}",),
     ),
     site(
-        "xprompt.post_write",
-        "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt_git.py",
+        "macro.post_write",
+        "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_macro_git.py",
         "_submit_post_write_action",
         "duck_submit_durable",
         "GIT_POST_WRITE",

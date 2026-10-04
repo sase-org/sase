@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
+from sase.ace.tui.actions.agent_workflow._prompt_bar_save_macro_git import (
     GitCommitPushResult,
 )
 from sase.ace.tui.modals import config_pane as cp

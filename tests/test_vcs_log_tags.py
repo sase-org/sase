@@ -115,6 +115,7 @@ def test_linked_lane_agent_tag_displays_the_lane_label() -> None:
         ("bead_work", "#00D7AF"),
         ("memory", "#AF87FF"),
         ("skills", "#D787AF"),
+        ("macro", "#FFAF5F"),
         ("xprompt", "#FFAF5F"),
         ("config", "#D7AF5F"),
     ],

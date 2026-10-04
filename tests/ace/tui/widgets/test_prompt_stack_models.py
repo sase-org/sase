@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.prompt_stack import (
 from sase.macro.models import InputArg, InputType
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from tests.ace.tui.widgets._prompt_stack_helpers import (
-    mini_xprompt_target as _mini_xprompt_target,
+    mini_macro_target as _mini_macro_target,
     snippet_target as _snippet_target,
 )
 
@@ -143,34 +143,34 @@ def test_retarget_snippet_pane_keeps_body() -> None:
     assert state.snippet_item.snippet_target is new_target
 
 
-def test_mini_xprompt_target_accessors_and_dirty_state() -> None:
+def test_mini_macro_target_accessors_and_dirty_state() -> None:
     state = PromptStackState.single("agent")
-    target = _mini_xprompt_target(body="loaded", frontmatter="---\ninput: {}\n---")
-    mini = state.append_mini_xprompt_pane("loaded", target)
+    target = _mini_macro_target(body="loaded", frontmatter="---\ninput: {}\n---")
+    mini = state.append_mini_macro_pane("loaded", target)
 
-    assert state.mini_xprompt_item is mini
-    assert state.mini_xprompt_index == 1
-    assert state.has_mini_xprompt_pane is True
+    assert state.mini_macro_item is mini
+    assert state.mini_macro_index == 1
+    assert state.has_mini_macro_pane is True
     assert state.has_auxiliary_pane is True
     assert state.agent_count == 1
-    assert state.mini_xprompt_is_dirty is False
+    assert state.mini_macro_is_dirty is False
 
     mini.text = "changed"
-    assert state.mini_xprompt_is_dirty is True
+    assert state.mini_macro_is_dirty is True
     assert state.auxiliary_is_dirty is True
 
 
-def test_retarget_mini_xprompt_pane_keeps_body_and_clean_hash() -> None:
+def test_retarget_mini_macro_pane_keeps_body_and_clean_hash() -> None:
     state = PromptStackState.single("agent")
-    old_target = _mini_xprompt_target("old", body="loaded")
-    state.append_mini_xprompt_pane("draft body", old_target)
+    old_target = _mini_macro_target("old", body="loaded")
+    state.append_mini_macro_pane("draft body", old_target)
 
-    new_target = _mini_xprompt_target("new", body="other")
-    state.retarget_mini_xprompt_pane(new_target)
+    new_target = _mini_macro_target("new", body="other")
+    state.retarget_mini_macro_pane(new_target)
 
-    assert state.mini_xprompt_item is not None
-    assert state.mini_xprompt_item.text == "draft body"
-    assert state.mini_xprompt_item.mini_xprompt_target is new_target
+    assert state.mini_macro_item is not None
+    assert state.mini_macro_item.text == "draft body"
+    assert state.mini_macro_item.mini_macro_target is new_target
 
 
 def test_prompt_stack_item_rejects_two_auxiliary_roles() -> None:
@@ -179,7 +179,7 @@ def test_prompt_stack_item_rejects_two_auxiliary_roles() -> None:
             text="x",
             item_id="p0",
             snippet_target=_snippet_target(),
-            mini_xprompt_target=_mini_xprompt_target(),
+            mini_macro_target=_mini_macro_target(),
         )
 
 

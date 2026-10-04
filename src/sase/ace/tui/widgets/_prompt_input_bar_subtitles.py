@@ -35,14 +35,14 @@ class PromptInputBarSubtitlesMixin(_MixinBase):
             return None
         return item.snippet_target.trigger
 
-    def _mini_xprompt_pane_name(self) -> str | None:
-        """Return the active pane's mini-xprompt name, or ``None`` off it."""
+    def _mini_macro_pane_name(self) -> str | None:
+        """Return the active pane's mini-macro name, or ``None`` off it."""
         if self._mode != "prompt":
             return None
         item = self._stack.selected_item
-        if not item.is_mini_xprompt_pane or item.mini_xprompt_target is None:
+        if not item.is_mini_macro_pane or item.mini_macro_target is None:
             return None
-        return item.mini_xprompt_target.name
+        return item.mini_macro_target.name
 
     def _confirm_prompt_submission_on_enter(self) -> bool:
         """Return cached plain-Enter confirmation behavior."""
@@ -70,7 +70,7 @@ class PromptInputBarSubtitlesMixin(_MixinBase):
             return (
                 f"[Enter] save ⇥ {trigger}  [Esc] normal  [^C] discard  [^G t] rename"
             )
-        mini_name = self._mini_xprompt_pane_name()
+        mini_name = self._mini_macro_pane_name()
         if mini_name is not None:
             return (
                 f"[Enter] save #{mini_name}  [Esc] normal  [^C] discard  "
@@ -111,7 +111,7 @@ class PromptInputBarSubtitlesMixin(_MixinBase):
             return (
                 f"[g<enter>] save ⇥ {trigger}  [i] insert  [^C] discard  [^G t] rename"
             )
-        mini_name = self._mini_xprompt_pane_name()
+        mini_name = self._mini_macro_pane_name()
         if mini_name is not None:
             return (
                 f"[g<enter>] save #{mini_name}  [i] insert  [^C] discard  "

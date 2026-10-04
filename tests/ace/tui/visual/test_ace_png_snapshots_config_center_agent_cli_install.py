@@ -26,7 +26,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _open_plugins_modal,
     _patch_config_view,
     _patch_plugins_catalog,
-    _patch_xprompt_sources,
+    _patch_macro_sources,
     _wait_for_plugins_detail,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -88,7 +88,7 @@ async def test_config_center_agent_cli_install_detail_png_snapshot(
 ) -> None:
     """Missing npm CLI rows render the install detail panel and CTA."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -115,7 +115,7 @@ async def test_config_center_agent_cli_install_preview_png_snapshot(
 ) -> None:
     """Install confirmation previews npm + script sections with digest and skips."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     _stub_install_plan(monkeypatch)
@@ -143,7 +143,7 @@ async def test_config_center_agent_cli_install_marked_png_snapshot(
 ) -> None:
     """Marked CLI installs render checkmarks plus the aggregate marked line."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -171,7 +171,7 @@ async def test_config_center_updates_available_scope_png_snapshot(
 ) -> None:
     """Available scope lists only not-installed rows with live counts."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -195,7 +195,7 @@ async def test_config_center_updates_mark_all_clis_png_snapshot(
 ) -> None:
     """`*` marks every visible Agent CLI install with the aggregate line."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
 
@@ -221,7 +221,7 @@ async def test_config_center_agent_cli_install_mixed_preview_png_snapshot(
 ) -> None:
     """A mixed marked set previews agent-CLI sections plus a Plugins section."""
     patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
+    _patch_macro_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     _stub_install_plan(monkeypatch)

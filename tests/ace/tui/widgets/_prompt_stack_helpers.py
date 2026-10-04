@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from sase.ace.tui.widgets.prompt_stack import (
-    MiniXPromptPaneTarget,
+    MiniMacroPaneTarget,
     SnippetPaneTarget,
-    mini_xprompt_draft_hash,
+    mini_macro_draft_hash,
 )
 from sase.macro.save import SaveTargetFormat
 
@@ -28,14 +28,14 @@ def snippet_target(
     )
 
 
-def mini_xprompt_target(
+def mini_macro_target(
     name: str = "review",
     *,
     body: str = "body",
     frontmatter: str = "",
     exists: bool = True,
-) -> MiniXPromptPaneTarget:
-    return MiniXPromptPaneTarget(
+) -> MiniMacroPaneTarget:
+    return MiniMacroPaneTarget(
         name=name,
         reference=f"#{name}",
         location_path="/tmp/xprompts",
@@ -52,5 +52,5 @@ def mini_xprompt_target(
         loaded_body=body if exists else None,
         loaded_markdown=None,
         loaded_fingerprint=None,
-        clean_hash=mini_xprompt_draft_hash(frontmatter, body),
+        clean_hash=mini_macro_draft_hash(frontmatter, body),
     )

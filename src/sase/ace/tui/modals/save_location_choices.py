@@ -13,19 +13,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from sase.ace.tui.modals.mini_xprompt_target_catalog import (
+from sase.ace.tui.modals.mini_macro_target_catalog import (
     destination_defines_name,
     destination_target_for_name,
 )
-from sase.ace.tui.modals.unified_xprompt_save_support import UnifiedSaveLocation
-from sase.ace.tui.modals.xprompt_location_modal import (
-    XPROMPT_HOME_DIR_LABEL,
-    XPROMPT_PROJECT_CONFIG_LABEL,
-    XPROMPT_PROJECT_DIR_LABEL,
-    XPROMPT_PROJECT_HOME_LABEL_PREFIX,
-    XPROMPT_USER_CONFIG_LABEL,
-    XPROMPT_USER_OVERLAY_LABEL_PREFIX,
-    shorten_xprompt_location_path,
+from sase.ace.tui.modals.unified_macro_save_support import UnifiedSaveLocation
+from sase.ace.tui.modals.macro_location_modal import (
+    MACRO_HOME_DIR_LABEL,
+    MACRO_PROJECT_CONFIG_LABEL,
+    MACRO_PROJECT_DIR_LABEL,
+    MACRO_PROJECT_HOME_LABEL_PREFIX,
+    MACRO_USER_CONFIG_LABEL,
+    MACRO_USER_OVERLAY_LABEL_PREFIX,
+    shorten_macro_location_path,
 )
 from sase.macro.snippet_targets import (
     SNIPPET_PROJECT_CONFIG_LABEL,
@@ -93,21 +93,21 @@ class ChangeSaveLocationRequest:
 
 def _short_label(discovery_label: str) -> str:
     """Return the compact picker label for a discovery label."""
-    if discovery_label == XPROMPT_PROJECT_DIR_LABEL:
-        return "Project xprompts"
+    if discovery_label == MACRO_PROJECT_DIR_LABEL:
+        return "Project macros"
     if discovery_label in (
-        XPROMPT_PROJECT_CONFIG_LABEL,
+        MACRO_PROJECT_CONFIG_LABEL,
         SNIPPET_PROJECT_CONFIG_LABEL,
     ):
         return "Project config"
-    if discovery_label.startswith(XPROMPT_PROJECT_HOME_LABEL_PREFIX):
+    if discovery_label.startswith(MACRO_PROJECT_HOME_LABEL_PREFIX):
         return "Project, personal"
-    if discovery_label == XPROMPT_HOME_DIR_LABEL:
-        return "Home xprompts"
-    if discovery_label in (XPROMPT_USER_CONFIG_LABEL, SNIPPET_USER_CONFIG_LABEL):
+    if discovery_label == MACRO_HOME_DIR_LABEL:
+        return "Home macros"
+    if discovery_label in (MACRO_USER_CONFIG_LABEL, SNIPPET_USER_CONFIG_LABEL):
         return "User config"
     if discovery_label.startswith(
-        XPROMPT_USER_OVERLAY_LABEL_PREFIX
+        MACRO_USER_OVERLAY_LABEL_PREFIX
     ) or discovery_label.startswith(SNIPPET_USER_OVERLAY_LABEL_PREFIX):
         return discovery_label.removeprefix("User ")
     return discovery_label
@@ -158,31 +158,32 @@ def _storage_name(namespace: str | None, name: str) -> str:
     return name
 
 
-def _xprompt_preview(
+def _macro_preview(
     row: UnifiedSaveLocation,
     rows: Sequence[UnifiedSaveLocation],
     *,
     name: str,
 ) -> str:
-    """Return the footer preview for one xprompt destination row."""
+    """Return the footer preview for one macro destination row."""
     count = len(row.names)
+    noun = "macro" if count == 1 else "macros"
     if row.location.location_type == "directory":
         reference = _callable_reference(row.namespace, name)
         if name:
             try:
                 target = destination_target_for_name(row, name, destinations=rows)
-                concrete = shorten_xprompt_location_path(
+                concrete = shorten_macro_location_path(
                     target.path, str(Path.cwd()), str(Path.home())
                 )
             except Exception:
                 concrete = f"{row.display_path}/<name>.md"
-            return f"→ {concrete} · called as {reference} · {count} xprompts here"
+            return f"→ {concrete} · called as {reference} · {count} {noun} here"
         return (
             f"→ {row.display_path}/<name>.md · called as {reference} "
-            f"· {count} xprompts here"
+            f"· {count} {noun} here"
         )
     entry = _storage_name(row.namespace, name) if name else "<name>"
-    return f"→ {row.display_path} · xprompts.{entry}"
+    return f"→ {row.display_path} · macros.{entry}"
 
 
 def _snippet_preview(display_path: str, *, trigger: str, count: int) -> str:
@@ -217,11 +218,11 @@ def _badges(
     return tuple(badges)
 
 
-_XPROMPT_CANONICAL_HOTKEYS = {
-    XPROMPT_PROJECT_DIR_LABEL: "p",
-    XPROMPT_PROJECT_CONFIG_LABEL: "P",
-    XPROMPT_HOME_DIR_LABEL: "h",
-    XPROMPT_USER_CONFIG_LABEL: "H",
+_MACRO_CANONICAL_HOTKEYS = {
+    MACRO_PROJECT_DIR_LABEL: "p",
+    MACRO_PROJECT_CONFIG_LABEL: "P",
+    MACRO_HOME_DIR_LABEL: "h",
+    MACRO_USER_CONFIG_LABEL: "H",
 }
 
 
@@ -229,7 +230,7 @@ def _is_plugin_row(row: UnifiedSaveLocation) -> bool:
     return row.builtin or row.group in ("Plugin directories", "Built-in (dev)")
 
 
-def xprompt_location_choices(
+def macro_location_choices(
     rows: Sequence[UnifiedSaveLocation],
     *,
     last_used_path: str | None = None,
@@ -238,7 +239,7 @@ def xprompt_location_choices(
     project: str | None = None,
     name: str = "",
 ) -> tuple[tuple[SaveLocationChoice, ...], str | None]:
-    """Build picker choices for mini-xprompt destinations.
+    """Build picker choices for mini-macro destinations.
 
     Returns the choices in display order plus the default choice id (``None``
     when nothing is selectable). Hotkeys are mnemonic and scope-first:
@@ -255,15 +256,15 @@ def xprompt_location_choices(
             if not row.is_selectable:
                 continue
             visible.append((row, "Plugins & built-in"))
-        elif label in _XPROMPT_CANONICAL_HOTKEYS:
+        elif label in _MACRO_CANONICAL_HOTKEYS:
             section = (
                 project_section
-                if label in (XPROMPT_PROJECT_DIR_LABEL, XPROMPT_PROJECT_CONFIG_LABEL)
+                if label in (MACRO_PROJECT_DIR_LABEL, MACRO_PROJECT_CONFIG_LABEL)
                 else "Home"
             )
             visible.append((row, section))
         elif label.startswith("Project") or label.startswith(
-            XPROMPT_PROJECT_HOME_LABEL_PREFIX
+            MACRO_PROJECT_HOME_LABEL_PREFIX
         ):
             if not row.is_selectable:
                 continue
@@ -277,12 +278,12 @@ def xprompt_location_choices(
                 continue
             visible.append((row, "Home"))
 
-    ordered = _order_xprompt_sections(visible)
+    ordered = _order_macro_sections(visible)
 
     digit = 1
     hotkeys: dict[int, str | None] = {}
     for index, (row, _section) in enumerate(ordered):
-        canonical = _XPROMPT_CANONICAL_HOTKEYS.get(row.location.label)
+        canonical = _MACRO_CANONICAL_HOTKEYS.get(row.location.label)
         if canonical is not None:
             hotkeys[index] = canonical
         elif _is_plugin_row(row):
@@ -293,7 +294,7 @@ def xprompt_location_choices(
         else:
             hotkeys[index] = None
 
-    default_index = _xprompt_default_index(
+    default_index = _macro_default_index(
         ordered,
         rows,
         last_used_path=last_used_path,
@@ -333,7 +334,7 @@ def xprompt_location_choices(
                     chezmoi=_via_chezmoi(row.location.path),
                 ),
                 disabled_reason=row.disabled_reason,
-                preview=_xprompt_preview(row, rows, name=name),
+                preview=_macro_preview(row, rows, name=name),
                 is_default=is_default,
                 collapsed_group=_is_plugin_row(row),
             )
@@ -342,7 +343,7 @@ def xprompt_location_choices(
     return tuple(choices), default_id
 
 
-def _order_xprompt_sections(
+def _order_macro_sections(
     visible: list[tuple[UnifiedSaveLocation, str]],
 ) -> list[tuple[UnifiedSaveLocation, str]]:
     """Order rows as displayed: Project, Home, then Plugins & built-in."""
@@ -355,13 +356,13 @@ def _order_xprompt_sections(
     def _section_key(item: tuple[UnifiedSaveLocation, str]) -> tuple[int, int]:
         row = item[0]
         label = row.location.label
-        if label == XPROMPT_PROJECT_DIR_LABEL:
+        if label == MACRO_PROJECT_DIR_LABEL:
             return (0, 0)
-        if label == XPROMPT_PROJECT_CONFIG_LABEL:
+        if label == MACRO_PROJECT_CONFIG_LABEL:
             return (0, 1)
-        if label == XPROMPT_HOME_DIR_LABEL:
+        if label == MACRO_HOME_DIR_LABEL:
             return (0, 0)
-        if label == XPROMPT_USER_CONFIG_LABEL:
+        if label == MACRO_USER_CONFIG_LABEL:
             return (0, 1)
         return (1, 0)
 
@@ -370,7 +371,7 @@ def _order_xprompt_sections(
     return [*project, *home, *plugins]
 
 
-def _xprompt_default_index(
+def _macro_default_index(
     ordered: list[tuple[UnifiedSaveLocation, str]],
     rows: Sequence[UnifiedSaveLocation],
     *,
@@ -378,7 +379,7 @@ def _xprompt_default_index(
     current_path: str | None,
     home_mode: bool,
 ) -> int | None:
-    """Return the display-order index of the default xprompt row."""
+    """Return the display-order index of the default macro row."""
     del rows
     selectable = [
         index for index, (row, _section) in enumerate(ordered) if row.is_selectable
@@ -393,10 +394,10 @@ def _xprompt_default_index(
             return index
     if not home_mode:
         for index in selectable:
-            if ordered[index][0].location.label == XPROMPT_PROJECT_DIR_LABEL:
+            if ordered[index][0].location.label == MACRO_PROJECT_DIR_LABEL:
                 return index
     for index in selectable:
-        if ordered[index][0].location.label == XPROMPT_HOME_DIR_LABEL:
+        if ordered[index][0].location.label == MACRO_HOME_DIR_LABEL:
             return index
     return selectable[0]
 
@@ -610,5 +611,5 @@ __all__ = [
     "SaveLocationKind",
     "SaveLocationPick",
     "snippet_location_choices",
-    "xprompt_location_choices",
+    "macro_location_choices",
 ]

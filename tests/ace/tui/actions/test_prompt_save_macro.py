@@ -1,0 +1,374 @@
+"""Opening and initializing the unified macro/snippet save panel."""
+
+from __future__ import annotations
+
+import asyncio
+import threading
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from sase.ace.testing import wait_for
+import sase.ace.tui.widgets._local_xprompt_conversion as conversion_module
+from sase.ace.tui.modals import UnifiedSaveLocation, UnifiedMacroSaveModal
+from sase.ace.tui.modals.macro_location_modal import MacroLocation
+from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.macro.models import InputArg, InputType
+from sase.macro.snippet_targets import SnippetSaveTarget
+
+from ._prompt_save_macro_helpers import (
+    _SaveFlowApp,
+    _SaveHarness,
+    _wait_save_tasks,
+)
+
+
+async def test_empty_save_request_toasts_noop() -> None:
+    harness = _SaveHarness()
+    await harness.on_prompt_input_bar_save_as_macro_requested(
+        PromptInputBar.SaveAsMacroRequested([])
+    )
+    await _wait_save_tasks(harness)
+    assert harness.notifications == [("Nothing to save as a macro", "warning")]
+    assert harness.pushed == []
+
+
+async def test_request_opens_one_screen_with_active_pane_snippet_source() -> None:
+    harness = _SaveHarness()
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_save_locations",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_macro_requested(
+            PromptInputBar.SaveAsMacroRequested(
+                [
+                    StashedPromptPane(text="alpha", frontmatter=""),
+                    StashedPromptPane(text="beta", frontmatter=""),
+                ],
+                snippet_body="beta",
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedMacroSaveModal)
+    assert modal._body == "alpha\n---\nbeta"
+    assert modal._snippet_body == "beta"
+    assert modal._pane_count == 2
+
+
+async def test_request_adds_configured_snippet_target_to_unified_picker(
+    tmp_path: Path,
+) -> None:
+    macro_directory = tmp_path / "macros"
+    macro_directory.mkdir()
+    discovered = tmp_path / "sase.yml"
+    discovered.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    configured = tmp_path / "custom_snippets.yml"
+    configured.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    macro_location = UnifiedSaveLocation(
+        location=MacroLocation("Macros", str(macro_directory), "directory"),
+        group="CWD directories",
+        display_path=str(macro_directory),
+        names=frozenset(),
+    )
+    snippet_location = UnifiedSaveLocation(
+        location=MacroLocation("User sase.yml", str(discovered), "config"),
+        group="Config files",
+        display_path=str(discovered),
+        names=frozenset(),
+    )
+    snippet_target = SnippetSaveTarget(
+        read_path=configured,
+        write_path=configured,
+        apply_target=None,
+        via_chezmoi=False,
+        display_path=str(configured),
+        source="configured",
+        fallback_reason=None,
+    )
+    harness = _SaveHarness()
+
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_save_locations",
+            return_value=[macro_location],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_snippet_locations",
+            return_value=[snippet_location],
+        ),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
+        patch(
+            "sase.macro.snippet_targets.resolve_snippet_save_target",
+            return_value=snippet_target,
+        ),
+    ):
+        await harness.on_prompt_input_bar_save_as_macro_requested(
+            PromptInputBar.SaveAsMacroRequested(
+                [StashedPromptPane(text="snippet body")],
+                snippet_body="snippet body",
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedMacroSaveModal)
+    assert [row.location.path for row in modal._locations_by_mode["snippet"]] == [
+        str(configured),
+        str(discovered),
+    ]
+    assert modal._preferred_snippet_path == str(configured)
+
+
+async def test_request_converts_placeholders_for_macro_preview_only() -> None:
+    harness = _SaveHarness()
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_save_locations",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_macro_requested(
+            PromptInputBar.SaveAsMacroRequested(
+                [
+                    StashedPromptPane(
+                        text="Deploy <service> to <target file>",
+                        frontmatter=(
+                            "---\n"
+                            "input:\n"
+                            "  service:\n"
+                            "    type: path\n"
+                            "    default: api\n"
+                            "---"
+                        ),
+                    )
+                ],
+                snippet_body="Deploy <service> to <target file>",
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedMacroSaveModal)
+    assert modal._body == "Deploy {{ service }} to {{ target_file }}"
+    assert modal._snippet_body == "Deploy <service> to <target file>"
+    service = modal._frontmatter.get_input("service")
+    assert service is not None
+    assert service.type is InputType.PATH
+    assert service.default == "api"
+    target = modal._frontmatter.get_input("target_file")
+    assert target == InputArg(name="target_file", type=InputType.TEXT)
+
+
+async def test_request_keeps_placeholders_when_conversion_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = _SaveHarness()
+    monkeypatch.setattr(
+        conversion_module,
+        "load_merged_config",
+        lambda: {"ace": {"prompt_inputs": {"macro_placeholder_args": False}}},
+    )
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_save_locations",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_macro_requested(
+            PromptInputBar.SaveAsMacroRequested(
+                [StashedPromptPane(text="Deploy <service> now")],
+                snippet_body="Deploy <service> now",
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedMacroSaveModal)
+    assert modal._body == "Deploy <service> now"
+    assert modal._frontmatter.inputs == []
+
+
+async def test_request_reuses_undeclared_jinja_name_without_duplicate_input() -> None:
+    harness = _SaveHarness()
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_save_locations",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_macro_requested(
+            PromptInputBar.SaveAsMacroRequested(
+                [StashedPromptPane(text="Deploy <service> with {{ service }}")]
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, UnifiedMacroSaveModal)
+    assert modal._body == "Deploy {{ service }} with {{ service }}"
+    assert modal._frontmatter.inputs == []
+
+
+async def test_ctrl_g_x_then_panel_ctrl_x_switches_to_snippet_mode(
+    tmp_path: Path,
+) -> None:
+    macro_directory = tmp_path / "macros"
+    macro_directory.mkdir()
+    snippet_config = tmp_path / "sase.yml"
+    snippet_config.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    macro_location = UnifiedSaveLocation(
+        location=MacroLocation("Macros", str(macro_directory), "directory"),
+        group="CWD directories",
+        display_path=str(macro_directory),
+        names=frozenset(),
+    )
+    snippet_location = UnifiedSaveLocation(
+        location=MacroLocation("Snippets", str(snippet_config), "config"),
+        group="Config files",
+        display_path=str(snippet_config),
+        names=frozenset(),
+    )
+    app = _SaveFlowApp("draft to reuse")
+
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_save_locations",
+            return_value=[macro_location],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_snippet_locations",
+            return_value=[snippet_location],
+        ),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
+    ):
+        async with app.run_test(size=(105, 36)) as pilot:
+            await pilot.pause()
+            bar = app.query_one(PromptInputBar)
+            text_area = bar.active_text_area()
+
+            await pilot.press("ctrl+g", "X")
+            await wait_for(pilot, lambda: isinstance(app.screen, UnifiedMacroSaveModal))
+
+            modal = app.screen
+            assert isinstance(modal, UnifiedMacroSaveModal)
+            assert len(app.save_requests) == 1
+            assert bar.all_prompt_texts() == ["draft to reuse"]
+            assert text_area._insert_g_prefix_pending is False
+            assert bar._g_prefix_hints_visible is False
+
+            await pilot.press("ctrl+x")
+            assert modal._mode == "snippet"
+            assert bar.all_prompt_texts() == ["draft to reuse"]
+
+    # Opening and toggling the deterministic panel never writes either target.
+    assert list(macro_directory.iterdir()) == []
+    assert snippet_config.read_text(encoding="utf-8") == "ace:\n  snippets: {}\n"
+
+
+async def test_save_request_returns_while_location_reads_are_stuck() -> None:
+    harness = _SaveHarness()
+    entered = threading.Event()
+    release = threading.Event()
+
+    def _slow_locations(*_args: object, **_kwargs: object) -> list[object]:
+        entered.set()
+        release.wait(timeout=1.0)
+        return []
+
+    def _slow_last_used() -> dict[str, str]:
+        entered.set()
+        release.wait(timeout=1.0)
+        return {}
+
+    try:
+        with (
+            patch(
+                "sase.ace.tui.modals.unified_macro_save_modal.load_unified_save_locations",
+                side_effect=_slow_locations,
+            ),
+            patch(
+                "sase.ace.tui.modals.unified_macro_save_modal.load_unified_snippet_locations",
+                side_effect=_slow_locations,
+            ),
+            patch(
+                "sase.macro.save_state.load_last_used_locations",
+                side_effect=_slow_last_used,
+            ),
+        ):
+            await asyncio.wait_for(
+                harness.on_prompt_input_bar_save_as_macro_requested(
+                    PromptInputBar.SaveAsMacroRequested(
+                        [StashedPromptPane(text="draft")]
+                    )
+                ),
+                timeout=0.05,
+            )
+            await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+    finally:
+        release.set()
+        await _wait_save_tasks(harness)
+
+
+async def test_skill_draft_requests_canonical_skill_destinations() -> None:
+    harness = _SaveHarness()
+    requested: list[bool] = []
+
+    def _locations(_project: object, *, skill: bool = False) -> list[object]:
+        requested.append(skill)
+        return []
+
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_save_locations",
+            side_effect=_locations,
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_macro_save_modal.load_unified_snippet_locations",
+            return_value=[],
+        ),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
+    ):
+        await harness.on_prompt_input_bar_save_as_macro_requested(
+            PromptInputBar.SaveAsMacroRequested(
+                [
+                    StashedPromptPane(
+                        text="draft",
+                        frontmatter="---\nname: foo\nskill: true\n---",
+                    )
+                ]
+            )
+        )
+        await _wait_save_tasks(harness)
+
+    # A ``skill:`` draft may only be written to a canonical ``skills/``
+    # directory, so the picker never offers ``sase/macros/``.
+    assert requested == [True]

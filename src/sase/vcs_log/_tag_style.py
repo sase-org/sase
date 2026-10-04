@@ -15,6 +15,7 @@ _TYPE_COLORS = {
     "memory": "#AF87FF",
     "skills": "#D787AF",
     "xprompt": "#FFAF5F",
+    "macro": "#FFAF5F",
     "config": "#D7AF5F",
     "revert": "#D75F5F",
 }

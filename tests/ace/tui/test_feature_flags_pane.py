@@ -471,5 +471,5 @@ async def test_flags_pane_forwards_config_prefix(
 
         monkeypatch.setattr(ConfigHubPane, "_create_pane", create)
         await pilot.press("0", "7")
-        await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
+        await wait_for(pilot, lambda: hub._active_subtab == "macros")
         assert hub._pending_subtab_select is False

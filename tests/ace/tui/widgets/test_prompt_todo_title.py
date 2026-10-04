@@ -155,7 +155,7 @@ async def test_todo_title_updates_through_history_and_editor_rebuilds() -> None:
         await pilot.pause()
         assert "TODO 1" in _plain_title(bar)
 
-        bar.load_stack_from_xprompt_markdown(
+        bar.load_stack_from_macro_markdown(
             "TODO(owner): returned from the whole-stack editor\n"
             "~~~text\n"
             "TODO: fenced literal\n"

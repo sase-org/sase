@@ -1,6 +1,6 @@
 """Tests for the Frontmatter Panel structured sub-form modals (Phase 4).
 
-Covers the ``input`` and ``xprompts`` item editors: the pure compact-input-spec
+Covers the ``input`` and ``macros`` item editors: the pure compact-input-spec
 parser/serializer and local-name validator, plus interactive build → save → cancel
 flows with live validation gating.
 """
@@ -11,11 +11,11 @@ import pytest
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.modals.input_item_modal import InputItemModal, default_to_text
-from sase.ace.tui.modals.xprompt_item_modal import (
-    XPromptItemModal,
+from sase.ace.tui.modals.macro_item_modal import (
+    MacroItemModal,
     _format_compact_input_specs,
     _parse_compact_input_specs,
-    _validate_local_xprompt_name,
+    _validate_local_macro_name,
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
@@ -75,13 +75,13 @@ def test_default_to_text_renders_bool_and_scalar() -> None:
     assert default_to_text(UNSET) == ""
 
 
-# --- pure: local xprompt name validation -----------------------------------
+# --- pure: local macro name validation -----------------------------------
 
 
-def test_validate_local_xprompt_name_enforces_underscore() -> None:
-    assert _validate_local_xprompt_name("_rules") == ""
-    assert "must start with '_'" in _validate_local_xprompt_name("rules")
-    assert _validate_local_xprompt_name("") == "name is required"
+def test_validate_local_macro_name_enforces_underscore() -> None:
+    assert _validate_local_macro_name("_rules") == ""
+    assert "must start with '_'" in _validate_local_macro_name("rules")
+    assert _validate_local_macro_name("") == "name is required"
 
 
 # --- interactive: input item modal -----------------------------------------
@@ -197,10 +197,10 @@ async def test_input_modal_rejects_duplicate_name() -> None:
     assert result is None
 
 
-# --- interactive: xprompt item modal ---------------------------------------
+# --- interactive: macro item modal ---------------------------------------
 
 
-async def test_xprompt_modal_saves_helper_with_inputs() -> None:
+async def test_macro_modal_saves_helper_with_inputs() -> None:
     result: object = None
     async with _TestApp().run_test() as pilot:
 
@@ -208,34 +208,34 @@ async def test_xprompt_modal_saves_helper_with_inputs() -> None:
             nonlocal result
             result = value
 
-        modal = XPromptItemModal()
+        modal = MacroItemModal()
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "_rules"
+        modal.query_one("#macro-item-name", SingleLineVimTextArea).text = "_rules"
         modal.query_one(
-            "#xprompt-item-content", VimTextArea
+            "#macro-item-content", VimTextArea
         ).text = "Follow the checklist"
         modal.query_one(
-            "#xprompt-item-inputs", SingleLineVimTextArea
+            "#macro-item-inputs", SingleLineVimTextArea
         ).text = "service:word"
         modal.query_one(
-            "#xprompt-item-description", SingleLineVimTextArea
+            "#macro-item-description", SingleLineVimTextArea
         ).text = "team rules"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
 
     assert isinstance(result, tuple)
-    name, xprompt = result
+    name, macro = result
     assert name == "_rules"
-    assert isinstance(xprompt, Macro)
-    assert xprompt.content == "Follow the checklist"
-    assert xprompt.description == "team rules"
-    assert [a.name for a in xprompt.inputs] == ["service"]
+    assert isinstance(macro, Macro)
+    assert macro.content == "Follow the checklist"
+    assert macro.description == "team rules"
+    assert [a.name for a in macro.inputs] == ["service"]
 
 
-async def test_xprompt_modal_refuses_non_underscore_name() -> None:
+async def test_macro_modal_refuses_non_underscore_name() -> None:
     result: object = "sentinel"
     async with _TestApp().run_test() as pilot:
 
@@ -243,18 +243,18 @@ async def test_xprompt_modal_refuses_non_underscore_name() -> None:
             nonlocal result
             result = value
 
-        modal = XPromptItemModal()
+        modal = MacroItemModal()
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "rules"
-        modal.query_one("#xprompt-item-content", VimTextArea).text = "body"
+        modal.query_one("#macro-item-name", SingleLineVimTextArea).text = "rules"
+        modal.query_one("#macro-item-content", VimTextArea).text = "body"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
         assert result == "sentinel"
 
-        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "_rules"
+        modal.query_one("#macro-item-name", SingleLineVimTextArea).text = "_rules"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
@@ -263,7 +263,7 @@ async def test_xprompt_modal_refuses_non_underscore_name() -> None:
     assert result[0] == "_rules"
 
 
-async def test_xprompt_modal_refuses_empty_content() -> None:
+async def test_macro_modal_refuses_empty_content() -> None:
     result: object = "sentinel"
     async with _TestApp().run_test() as pilot:
 
@@ -271,11 +271,11 @@ async def test_xprompt_modal_refuses_empty_content() -> None:
             nonlocal result
             result = value
 
-        modal = XPromptItemModal()
+        modal = MacroItemModal()
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "_rules"
+        modal.query_one("#macro-item-name", SingleLineVimTextArea).text = "_rules"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()

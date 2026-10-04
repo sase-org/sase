@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     # file; without an explicit re-export here, symvision can't see that they
     # are used (via the dynamic __getattr__ lazy export below) and flags them
     # as dead public code.
-    from .add_xprompt_modal import AddXPromptModal as AddXPromptModal
+    from .add_macro_modal import AddMacroModal as AddMacroModal
     from .axe_add_modals import (
         validate_axe_new_entry_identity as validate_axe_new_entry_identity,
     )
@@ -21,14 +21,14 @@ if TYPE_CHECKING:
         ConfigTransactionConflict as ConfigTransactionConflict,
     )
     from .input_item_modal import InputItemModal as InputItemModal
-    from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
+    from .local_macro_name_modal import LocalMacroNameModal as LocalMacroNameModal
     from .memory_panel import MemoryPanel as MemoryPanel
     from .project_select_modal import ProjectSelectModal as ProjectSelectModal
     from .refresh_panel_modal import RefreshRow as RefreshRow
     from .refresh_panel_modal import UsageRowStatus as UsageRowStatus
     from .schema_object_form import SchemaFieldDiagnostic as SchemaFieldDiagnostic
     from .snippets_panel import SnippetsPanel as SnippetsPanel
-    from .xprompt_item_modal import XPromptItemModal as XPromptItemModal
+    from .macro_item_modal import MacroItemModal as MacroItemModal
 
 __all__ = [
     "BeadCloseModal",
@@ -83,8 +83,8 @@ __all__ = [
     "MemoryPanel",
     "MemoryPane",
     "MemoryPaneSession",
-    "MiniXPromptNameModal",
-    "MiniXPromptNameResult",
+    "MiniMacroNameModal",
+    "MiniMacroNameResult",
     "MentorApplyResult",
     "MentorInfo",
     "MentorKillResult",
@@ -93,7 +93,7 @@ __all__ = [
     "MentorReviewModal",
     "MentorRunResult",
     "build_mentor_review_data",
-    "AddXPromptModal",
+    "AddMacroModal",
     "ApproveOptionsEditPrompt",
     "ApproveOptionsModal",
     "ApproveOptionsResult",
@@ -164,9 +164,9 @@ __all__ = [
     "LaunchApprovalModal",
     "LaunchApprovalResult",
     "GateDebugModal",
-    "LocalXPromptNameModal",
-    "MiniXPromptSaveConfirmModal",
-    "MiniXPromptSaveConfirmState",
+    "LocalMacroNameModal",
+    "MiniMacroSaveConfirmModal",
+    "MiniMacroSaveConfirmState",
     "RecursiveFileFinderModal",
     "ModelPickerModal",
     "NodeFinderModal",
@@ -217,7 +217,7 @@ __all__ = [
     "ChangeSaveLocationRequest",
     "SaveLocationPickerModal",
     "snippet_location_choices",
-    "xprompt_location_choices",
+    "macro_location_choices",
     "BackgroundProcEntry",
     "RunnerJumpTarget",
     "RunnersModal",
@@ -270,18 +270,18 @@ __all__ = [
     "InitPlanAction",
     "InitPlanDecision",
     "InitPlanModal",
-    "XPromptItemModal",
-    "XPromptConfigEntry",
-    "XPromptConfigEntryModal",
-    "XPromptFilenameModal",
-    "XPromptLocation",
-    "XPromptLocationModal",
-    "XPromptWriteConflictModal",
+    "MacroItemModal",
+    "MacroConfigEntry",
+    "MacroConfigEntryModal",
+    "MacroFilenameModal",
+    "MacroLocation",
+    "MacroLocationModal",
+    "MacroWriteConflictModal",
     "UnifiedSaveLocation",
-    "UnifiedXPromptSaveModal",
-    "UnifiedXPromptSaveResult",
-    "XPromptSelection",
-    "XPromptSelectModal",
+    "UnifiedMacroSaveModal",
+    "UnifiedMacroSaveResult",
+    "MacroSelection",
+    "MacroSelectModal",
     "WorkflowHITLInput",
     "WorkflowHITLModal",
     "CustomGateModal",

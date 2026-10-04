@@ -1,7 +1,7 @@
 """Typing surface for the lazy runtime package exports."""
 
 from .add_property_modal import AddPropertyModal as AddPropertyModal
-from .add_xprompt_modal import AddXPromptModal as AddXPromptModal
+from .add_macro_modal import AddMacroModal as AddMacroModal
 from .add_property_modal import AddableProperty as AddableProperty
 from .agent_action_chooser_modal import AgentActionChoice as AgentActionChoice
 from .agent_action_chooser_modal import (
@@ -167,17 +167,17 @@ from .jump_all_modal import JumpAllResult as JumpAllResult
 from .jump_action_modal import JumpChoice as JumpChoice
 from .launch_approval_modal import LaunchApprovalModal as LaunchApprovalModal
 from .launch_approval_modal import LaunchApprovalResult as LaunchApprovalResult
-from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
+from .local_macro_name_modal import LocalMacroNameModal as LocalMacroNameModal
 from .memory_panel import MemoryPanel as MemoryPanel
 from .memory_pane import MemoryPane as MemoryPane
 from .memory_pane import MemoryPaneSession as MemoryPaneSession
-from .mini_xprompt_name_modal import MiniXPromptNameModal as MiniXPromptNameModal
-from .mini_xprompt_name_modal import MiniXPromptNameResult as MiniXPromptNameResult
-from .mini_xprompt_save_confirm_modal import (
-    MiniXPromptSaveConfirmModal as MiniXPromptSaveConfirmModal,
+from .mini_macro_name_modal import MiniMacroNameModal as MiniMacroNameModal
+from .mini_macro_name_modal import MiniMacroNameResult as MiniMacroNameResult
+from .mini_macro_save_confirm_modal import (
+    MiniMacroSaveConfirmModal as MiniMacroSaveConfirmModal,
 )
-from .mini_xprompt_save_confirm_modal import (
-    MiniXPromptSaveConfirmState as MiniXPromptSaveConfirmState,
+from .mini_macro_save_confirm_modal import (
+    MiniMacroSaveConfirmState as MiniMacroSaveConfirmState,
 )
 from .mentor_review_models import MentorApplyResult as MentorApplyResult
 from .mentor_review_models import MentorInfo as MentorInfo
@@ -293,12 +293,12 @@ from .trash_pane import TrashCopyRequested as TrashCopyRequested
 from .trash_pane import TrashPane as TrashPane
 from .stash_pane import TrashRequested as TrashRequested
 from .trash_pane import TrashRestoreRequested as TrashRestoreRequested
-from .unified_xprompt_save_modal import UnifiedSaveLocation as UnifiedSaveLocation
-from .unified_xprompt_save_modal import (
-    UnifiedXPromptSaveModal as UnifiedXPromptSaveModal,
+from .unified_macro_save_modal import UnifiedSaveLocation as UnifiedSaveLocation
+from .unified_macro_save_modal import (
+    UnifiedMacroSaveModal as UnifiedMacroSaveModal,
 )
-from .unified_xprompt_save_modal import (
-    UnifiedXPromptSaveResult as UnifiedXPromptSaveResult,
+from .unified_macro_save_modal import (
+    UnifiedMacroSaveResult as UnifiedMacroSaveResult,
 )
 from .update_panel import UpdatePanel as UpdatePanel
 from .update_panel import UpdatePanelResult as UpdatePanelResult
@@ -312,17 +312,17 @@ from .workflow_hitl_modal import WorkflowHITLInput as WorkflowHITLInput
 from .workflow_hitl_modal import WorkflowHITLModal as WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal as WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal as WorkspaceInputModal
-from .xprompt_config_modal import XPromptConfigEntry as XPromptConfigEntry
-from .xprompt_config_modal import XPromptConfigEntryModal as XPromptConfigEntryModal
-from .xprompt_filename_modal import XPromptFilenameModal as XPromptFilenameModal
+from .macro_config_modal import MacroConfigEntry as MacroConfigEntry
+from .macro_config_modal import MacroConfigEntryModal as MacroConfigEntryModal
+from .macro_filename_modal import MacroFilenameModal as MacroFilenameModal
 from .statistics_xprompt_picker_modal import XPromptFocusChoice as XPromptFocusChoice
-from .xprompt_item_modal import XPromptItemModal as XPromptItemModal
-from .xprompt_location_modal import XPromptLocation as XPromptLocation
-from .xprompt_location_modal import XPromptLocationModal as XPromptLocationModal
-from .xprompt_select_modal import XPromptSelectModal as XPromptSelectModal
-from .xprompt_select_modal import XPromptSelection as XPromptSelection
-from .xprompt_write_conflict_modal import (
-    XPromptWriteConflictModal as XPromptWriteConflictModal,
+from .macro_item_modal import MacroItemModal as MacroItemModal
+from .macro_location_modal import MacroLocation as MacroLocation
+from .macro_location_modal import MacroLocationModal as MacroLocationModal
+from .macro_select_modal import MacroSelectModal as MacroSelectModal
+from .macro_select_modal import MacroSelection as MacroSelection
+from .macro_write_conflict_modal import (
+    MacroWriteConflictModal as MacroWriteConflictModal,
 )
 from .axe_entry_editor_modal import axe_entry_schema as axe_entry_schema
 from .agent_workspace_tmux_modal import (

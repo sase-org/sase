@@ -108,7 +108,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/test_command_catalog.py", '"app.start_last_vcs_xprompt_in_editor"'),
     (
         "tests/test_config_commit.py",
-        '"sase.ace.tui.modals.xprompt_browser_helpers.get_git_root"',
+        '"sase.ace.tui.modals.macro_browser_helpers.get_git_root"',
     ),
     ("tests/test_config_edit_yaml.py", '"xprompts:\\n"'),
     (
@@ -347,7 +347,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
         '"Repeat last launched VCS xprompt"',
     ),
     ("tests/test_keymaps_display_help_panels.py", '"Jump to xprompt/skill/file/repo"'),
-    ("tests/test_keymaps_display_help_panels.py", '"Open mini-xprompt pane"'),
     ("tests/test_keymaps_display_help_panels.py", '"Open xprompt/snippet save panel"'),
     ("tests/test_keymaps_display_help_panels.py", '"Preview xprompt/skill/file/word"'),
     ("tests/test_keymaps_display_help_panels.py", '"Save pane as local xprompt"'),
