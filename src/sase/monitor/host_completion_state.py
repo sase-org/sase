@@ -104,8 +104,7 @@ def install_prepared_declaration(
     if not envelope["plan_digest"]:
         plan = authenticate_resolved_finalizer_plan(artifacts_dir)
         envelope["plan_digest"] = plan.plan_digest
-    os.environ.setdefault("SASE_AGENT_TIMESTAMP", Path(artifacts_dir).name)
-    os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+    _bind_finalizer_process_identity(artifacts_dir)
     submit_final_manifest(envelope, artifacts_dir=artifacts_dir)
 
 
@@ -116,6 +115,7 @@ def snapshot_execution_context(
     """Recompute plan, observations, obligations, and fingerprints."""
 
     del meta
+    _bind_finalizer_process_identity(artifacts_dir)
     plan = ensure_finalizer_plan(artifacts_dir)
     observations = [
         dict(item)
@@ -135,6 +135,12 @@ def snapshot_execution_context(
         obligation_ids=obligation_ids,
         observation_fingerprint=_observation_fingerprint(observations),
     )
+
+
+def _bind_finalizer_process_identity(artifacts_dir: str) -> None:
+    """Bind this monitor member's process identity for finalizer calls."""
+    os.environ.setdefault("SASE_AGENT_TIMESTAMP", Path(artifacts_dir).name)
+    os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
 
 
 def evaluate_intent(

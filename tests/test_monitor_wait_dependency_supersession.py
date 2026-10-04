@@ -16,6 +16,104 @@ from tests._agent_names_fixtures import make_agent
 from tests._monitor_wait_dependency_helpers import _update_meta, _write_monitor_done
 
 
+def _host_completion_recovery_session(
+    tmp_path: Path,
+    *,
+    followup_outcome: str | None,
+) -> tuple[Path, Path, Path]:
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813085800",
+        "monitor-recovery--plan",
+        workflow_name="monitor-recovery",
+        agent_session="monitor-recovery",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    monitor_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090000",
+        "monitor-recovery--mon",
+        workflow_name="monitor-recovery",
+        agent_session="monitor-recovery",
+        role_suffix="--mon",
+        parent_timestamp=root_dir.name,
+    )
+    _update_meta(
+        monitor_dir,
+        monitor_state="failed",
+        monitor_host_completion_status="recovery",
+        monitor_followup_agent="monitor-recovery--1",
+    )
+    monitor_meta_path = monitor_dir / "agent_meta.json"
+    monitor_meta = json.loads(monitor_meta_path.read_text(encoding="utf-8"))
+    if followup_outcome is None:
+        monitor_meta.pop("monitor_followup_outcome", None)
+    else:
+        monitor_meta["monitor_followup_outcome"] = followup_outcome
+    monitor_meta_path.write_text(json.dumps(monitor_meta), encoding="utf-8")
+    _write_monitor_done(
+        monitor_dir,
+        monitor_state="failed",
+        followup_outcome=followup_outcome,
+        followup_agent=None,
+    )
+    followup_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090100",
+        "monitor-recovery--1",
+        workflow_name="monitor-recovery",
+        agent_session="monitor-recovery",
+        role_suffix="--1",
+        parent_timestamp=monitor_dir.name,
+        done=True,
+        outcome="completed",
+    )
+    return root_dir, monitor_dir, followup_dir
+
+
+def test_recovery_monitor_with_recorded_launch_resolves_agent_session(
+    tmp_path: Path,
+) -> None:
+    _root_dir, monitor_dir, followup_dir = _host_completion_recovery_session(
+        tmp_path,
+        followup_outcome="launched",
+    )
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    monitor = index.artifacts_by_dir[str(monitor_dir)]
+    assert monitor.outcome == "failed"
+    assert index.artifacts_by_dir[str(followup_dir)].is_resolved
+    assert dependency_resolution_status(index, ["monitor-recovery"]).resolved
+
+
+def test_recovery_monitor_without_recorded_launch_keeps_agent_session_blocked(
+    tmp_path: Path,
+) -> None:
+    _root_dir, monitor_dir, _followup_dir = _host_completion_recovery_session(
+        tmp_path,
+        followup_outcome=None,
+    )
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    monitor = index.artifacts_by_dir[str(monitor_dir)]
+    assert monitor.outcome == "failed"
+    status = dependency_resolution_status(index, ["monitor-recovery"])
+    assert not status.resolved
+
+
 def test_start_failed_monitor_superseded_by_retry_resolves_agent_session(
     tmp_path: Path,
 ) -> None:

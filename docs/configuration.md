@@ -5091,7 +5091,7 @@ filenames, or that region alias.
 `agents_session_manifest_compat` applies when an owner-manifest hood entry still carries
 an explicit `files` list. Readers accept a missing list either way. On, a present list
 may be the current canonical set or the legacy set, which is that current set with every
-`sessions/` path removed and the `families/` redirect stubs kept. Off, only the current
+`sessions/` path removed and the legacy redirect stubs retained. Off, only the current
 canonical set matches. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).
 
 Run `sase flag list` for the live registry with effective and saved state.

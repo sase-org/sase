@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -28,6 +29,7 @@ from sase.monitor.host_completion import (
     HOST_COMPLETION_IDENTITY,
     settle_host_completion,
 )
+from sase.monitor.host_completion_state import install_prepared_declaration
 from sase.monitor.output import OutputCapture
 from sase.turns.followup import FollowupLaunchResult
 from tests.core._continuation_facade_helpers import (
@@ -40,8 +42,8 @@ from tests.core._continuation_facade_helpers import (
 @pytest.fixture(autouse=True)
 def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "20260911120000")
-    monkeypatch.setenv("SASE_AGENT_NAME", "acme--1")
+    monkeypatch.delenv("SASE_AGENT_TIMESTAMP", raising=False)
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
 
 
 def _meta(**overrides: object) -> dict[str, Any]:
@@ -303,11 +305,16 @@ def _patch_success_path(
         "observe_completion_repositories",
         lambda *_a, **_k: [],
     )
-    _patch_mod(
-        monkeypatch,
-        "publish_final_context",
-        lambda **_k: publication,
-    )
+
+    def publish_context(**kwargs: object) -> MagicMock:
+        artifacts_dir = str(kwargs["artifacts_dir"])
+        run_id = Path(artifacts_dir).name
+        assert os.environ.get("SASE_AGENT_TIMESTAMP") == run_id
+        assert os.environ.get("SASE_ARTIFACTS_DIR") == artifacts_dir
+        publication.context.run_id = run_id
+        return publication
+
+    _patch_mod(monkeypatch, "publish_final_context", publish_context)
     monkeypatch.setattr(
         "sase.monitor.diagnostics.diagnostic_manifest",
         lambda *_a, **_k: {"stages": []},
@@ -355,6 +362,11 @@ def test_eligible_success_invokes_no_model_finalizers_and_zero_llm(
 
     def run_finalizers(**kwargs: object) -> InvokeResult:
         assert kwargs.get("mode") == "no_model"
+        from sase.finalizers.controller_context import should_skip_finalizers
+
+        assert os.environ.get("SASE_AGENT_TIMESTAMP") == artifacts.name
+        assert os.environ.get("SASE_ARTIFACTS_DIR") == str(artifacts)
+        assert not should_skip_finalizers(str(artifacts))
         provider = kwargs["provider"]
         with pytest.raises(RuntimeError, match="must not invoke a provider"):
             provider.invoke("prompt")
@@ -362,6 +374,20 @@ def test_eligible_success_invokes_no_model_finalizers_and_zero_llm(
         return InvokeResult(content="")
 
     finalizers.side_effect = run_finalizers
+    submitted: list[dict[str, Any]] = []
+
+    def submit_manifest(envelope: dict[str, Any], *, artifacts_dir: str) -> None:
+        assert os.environ.get("SASE_AGENT_TIMESTAMP") == Path(artifacts_dir).name
+        assert os.environ.get("SASE_ARTIFACTS_DIR") == artifacts_dir
+        submitted.append(envelope)
+
+    monkeypatch.setattr(
+        "sase.monitor.host_completion_state.submit_final_manifest", submit_manifest
+    )
+    monkeypatch.setattr(
+        "sase.monitor.host_completion_execute._install_prepared_declaration",
+        install_prepared_declaration,
+    )
     releases: list[str] = []
     recoveries: list[dict[str, Any]] = []
     meta = _meta()
@@ -382,6 +408,9 @@ def test_eligible_success_invokes_no_model_finalizers_and_zero_llm(
     assert releases == ["released"]
     assert meta["monitor_host_completion_status"] == COMPLETED_BY_HOST_STATUS
     assert meta["monitor_followup_outcome"] == HOST_COMPLETED_OUTCOME
+    assert os.environ["SASE_AGENT_TIMESTAMP"] == artifacts.name
+    assert len(submitted) == 1
+    assert submitted[0]["run_id"] == artifacts.name
     receipt = load_host_completion_receipt(artifacts)
     assert receipt is not None
     assert receipt["status"] == "completed"

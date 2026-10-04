@@ -54,7 +54,7 @@ def settle_turn_claim_and_followup(
     """Launch or record follow-up disposition and dispose of the shell claim."""
     next_action = meta.get(config.next_action_field)
     if next_action and shell_state == config.lost_state:
-        _record_followup_outcome(
+        record_turn_followup_outcome(
             artifacts_dir,
             meta,
             config=config,
@@ -85,7 +85,7 @@ def settle_turn_claim_and_followup(
             )
         if launch_result.launched:
             if launch_result.degraded_reason:
-                _record_followup_outcome(
+                record_turn_followup_outcome(
                     artifacts_dir,
                     meta,
                     config=config,
@@ -95,7 +95,7 @@ def settle_turn_claim_and_followup(
                 )
                 release_error = release_claim(meta, project_name)
                 return release_error
-            _record_followup_outcome(
+            record_turn_followup_outcome(
                 artifacts_dir,
                 meta,
                 config=config,
@@ -103,7 +103,7 @@ def settle_turn_claim_and_followup(
                 update_meta_field=update_meta_field,
             )
             return None
-        _record_followup_outcome(
+        record_turn_followup_outcome(
             artifacts_dir,
             meta,
             config=config,
@@ -162,7 +162,7 @@ def _record_followup_error(
     update_meta_field(artifacts_dir, config.error_field, message)
 
 
-def _record_followup_outcome(
+def record_turn_followup_outcome(
     artifacts_dir: str,
     meta: dict[str, Any],
     *,

@@ -15,6 +15,7 @@ from sase.turns.settlement import (
     TurnSettlementConfig,
     finalize_turn_workflow_state,
     project_name_from_artifacts_dir as shell_project_name_from_artifacts_dir,
+    record_turn_followup_outcome,
     settle_turn_claim_and_followup,
     touch_turn_refresh_pulse,
 )
@@ -159,19 +160,40 @@ def settle_claim_and_followup(
             transfer_from_pid=transfer_from_pid,
         )
         if host_settlement is not None:
-            captured_launch_result = (
-                host_settlement.launch_result or captured_launch_result
-            )
+            if captured_launch_result is None:
+                captured_launch_result = host_settlement.launch_result
+            settlement_launch_result = captured_launch_result
             if (
-                captured_launch_result is not None
-                and captured_launch_result.host_completed
+                settlement_launch_result is not None
+                and settlement_launch_result.host_completed
                 and not meta.get(_MONITOR_SETTLEMENT_CONFIG.outcome_field)
             ):
-                meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = HOST_COMPLETED_OUTCOME
-                update_meta_field(
+                record_turn_followup_outcome(
                     artifacts_dir,
-                    _MONITOR_SETTLEMENT_CONFIG.outcome_field,
-                    HOST_COMPLETED_OUTCOME,
+                    meta,
+                    outcome=HOST_COMPLETED_OUTCOME,
+                    config=_MONITOR_SETTLEMENT_CONFIG,
+                    update_meta_field=update_meta_field,
+                )
+            elif captured_launch_result is not None and not meta.get(
+                _MONITOR_SETTLEMENT_CONFIG.outcome_field
+            ):
+                if captured_launch_result.launched:
+                    outcome = (
+                        _MONITOR_SETTLEMENT_CONFIG.degraded_outcome
+                        if captured_launch_result.degraded_reason
+                        else "launched"
+                    )
+                else:
+                    outcome = "not-launchable"
+                record_turn_followup_outcome(
+                    artifacts_dir,
+                    meta,
+                    outcome=outcome,
+                    config=_MONITOR_SETTLEMENT_CONFIG,
+                    update_meta_field=update_meta_field,
+                    degraded_reason=captured_launch_result.degraded_reason,
+                    prompt_path=captured_launch_result.prompt_path,
                 )
             return _MonitorFollowupSettlementResult(
                 error=host_settlement.error, launch_result=captured_launch_result
