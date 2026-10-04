@@ -12,6 +12,7 @@ from ._prompt_bar_save_macro_mini_io import (
     MiniMacroSaveDiskState,
     load_mini_macro_save_disk_state,
     mini_macro_save_warning,
+    refresh_mini_macro_save_warning,
     write_mini_macro_sync,
 )
 
@@ -28,6 +29,20 @@ class _MiniMacroPaneSaveSnapshot:
     target: MiniMacroPaneTarget
     body: str
     frontmatter: str
+
+
+def _load_mini_macro_save_review(
+    target: MiniMacroPaneTarget,
+    project: str | None,
+) -> tuple[MiniMacroSaveDiskState, str | None]:
+    """Load disk state and refresh warnings together on a worker thread."""
+
+    disk_state = load_mini_macro_save_disk_state(target)
+    try:
+        warning = refresh_mini_macro_save_warning(project, target)
+    except Exception:
+        warning = mini_macro_save_warning(target)
+    return disk_state, warning
 
 
 class PromptBarMiniMacroSaveMixin:
@@ -63,10 +78,17 @@ class PromptBarMiniMacroSaveMixin:
         )
         if snapshot is None:
             return
+        context = getattr(self, "_prompt_context", None)
+        project = (
+            context.project_name
+            if context is not None and not context.is_home_mode
+            else None
+        )
         try:
-            disk_state = await asyncio.to_thread(
-                load_mini_macro_save_disk_state,
+            disk_state, save_warning = await asyncio.to_thread(
+                _load_mini_macro_save_review,
                 snapshot.target,
+                project,
             )
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
@@ -102,7 +124,7 @@ class PromptBarMiniMacroSaveMixin:
             exists=disk_state.existing_markdown is not None,
             existing_markdown=disk_state.existing_markdown,
             changed_on_disk=disk_state.changed_on_disk,
-            warning=mini_macro_save_warning(snapshot.target),
+            warning=save_warning,
         )
 
         def _on_confirm(choice: object | None) -> None:

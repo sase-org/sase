@@ -18,6 +18,7 @@ from sase.ace.tui.modals.unified_macro_save_modal import UnifiedSaveLocation
 from sase.ace.tui.modals.macro_location_modal import MacroLocation
 from sase.macro.models import Macro
 from sase.macro.save import SaveTargetFormat
+from sase.macro.write_targets import MacroWriteTarget
 
 
 def _row(
@@ -190,6 +191,150 @@ def test_catalog_only_workflows_skills_and_memory_are_incompatible(
     assert catalog.effective_definition("skill/review").workflow_kind == "skill"  # type: ignore[union-attr]
     assert catalog.effective_definition("skill/review").compatibility == "incompatible"  # type: ignore[union-attr]
     assert catalog.effective_definition("memory/obsidian").workflow_kind == "memory"  # type: ignore[union-attr]
+
+
+def test_catalog_includes_read_only_plain_macros_and_rejects_swarms(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    row = _row(tmp_path / "macros")
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "legacy": Macro(
+                name="legacy",
+                content="legacy body",
+                source_path=str(tmp_path / "legacy" / "legacy.md"),
+                discovery_rank=0,
+            ),
+            "swarm": Macro(
+                name="swarm",
+                content="one\n---\ntwo",
+                source_path=str(tmp_path / "legacy" / "swarm.md"),
+            ),
+        },
+    )
+    monkeypatch.setattr(catalog_mod, "get_all_workflows", lambda project=None: {})
+
+    catalog = load_mini_macro_target_catalog(locations=[row])
+
+    legacy = catalog.effective_definition("legacy")
+    assert legacy is not None
+    assert legacy.compatibility == "read_only"
+    assert legacy.origin_label == "read-only"
+    assert legacy.precedence > row.precedence
+    swarm = catalog.effective_definition("swarm")
+    assert swarm is not None
+    assert swarm.compatibility == "incompatible"
+    assert "swarms" in (swarm.incompatible_reason or "")
+
+
+def test_catalog_deduplicates_deployed_and_chezmoi_source_paths(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    deployed = tmp_path / "home" / "sase" / "macros" / "review.md"
+    chezmoi_source = (
+        tmp_path / "chezmoi" / "dot_config" / "sase" / "macros" / "review.md"
+    )
+    _write_macro(chezmoi_source, "review body")
+
+    def resolve(path: Path | str) -> MacroWriteTarget:
+        read_path = Path(path)
+        write_path = chezmoi_source if read_path == deployed else read_path
+        return MacroWriteTarget(
+            read_path=read_path,
+            write_path=write_path,
+            apply_target=None,
+            via_chezmoi=write_path != read_path,
+        )
+
+    monkeypatch.setattr(catalog_mod, "resolve_macro_write_target", resolve)
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "review": Macro(
+                name="review",
+                content="review body",
+                source_path=str(deployed),
+            )
+        },
+    )
+    monkeypatch.setattr(catalog_mod, "get_all_workflows", lambda project=None: {})
+
+    catalog = load_mini_macro_target_catalog(locations=[_row(chezmoi_source)])
+
+    assert len(catalog.definitions_for_name("review")) == 1
+
+
+def test_runtime_loader_source_overrides_row_precedence_for_effective_definition(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    higher_row_path = tmp_path / "row-first"
+    active_path = tmp_path / "runtime-active"
+    _write_macro(higher_row_path / "review.md", "row-first")
+    _write_macro(active_path / "review.md", "runtime active")
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "review": Macro(
+                name="review",
+                content="runtime active",
+                source_path=str(active_path / "review.md"),
+            )
+        },
+    )
+    monkeypatch.setattr(catalog_mod, "get_all_workflows", lambda project=None: {})
+
+    catalog = load_mini_macro_target_catalog(
+        locations=[
+            _row(higher_row_path, names=frozenset({"review"}), precedence=0),
+            _row(active_path, names=frozenset({"review"}), precedence=10),
+        ]
+    )
+
+    definitions = catalog.definitions_for_name("review")
+    assert definitions[0].source_path == str(active_path / "review.md")
+    assert definitions[0].effective is True
+    assert definitions[1].effective is False
+    assert definitions[1].shadowed_by == str(active_path / "review.md")
+
+
+def test_catalog_only_runtime_winner_orders_before_rows_but_keeps_late_rank(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    row_path = tmp_path / "row"
+    catalog_path = tmp_path / "catalog-only" / "review.md"
+    _write_macro(row_path / "review.md", "row body")
+    monkeypatch.setattr(
+        catalog_mod,
+        "get_all_macros",
+        lambda project=None: {
+            "review": Macro(
+                name="review",
+                content="runtime body",
+                source_path=str(catalog_path),
+                discovery_rank=0,
+            )
+        },
+    )
+    monkeypatch.setattr(catalog_mod, "get_all_workflows", lambda project=None: {})
+
+    catalog = load_mini_macro_target_catalog(
+        locations=[_row(row_path, names=frozenset({"review"}), precedence=4)]
+    )
+
+    definitions = catalog.definitions_for_name("review")
+    assert definitions[0].source_path == str(catalog_path)
+    assert definitions[0].effective is True
+    assert definitions[0].precedence > 4
+    assert definitions[1].effective is False
+    assert definitions[1].shadowed_by == str(catalog_path)
 
 
 def test_prefix_ranking_exact_then_lexical_then_compatibility(

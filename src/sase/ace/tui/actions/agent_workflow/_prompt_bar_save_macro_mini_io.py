@@ -184,9 +184,44 @@ def mini_macro_save_warning(target: MiniMacroPaneTarget) -> str | None:
     return None
 
 
+def refresh_mini_macro_save_warning(
+    project: str | None,
+    target: MiniMacroPaneTarget,
+) -> str | None:
+    """Recompute the redefinition warning from the current loader state.
+
+    A missing destination row is an error so the caller can retain the warning
+    captured when the name step opened the pane.
+    """
+
+    from sase.ace.tui.modals.mini_macro_redefinition import (
+        macro_redefinition,
+        macro_redefinition_warning,
+    )
+    from sase.ace.tui.modals.mini_macro_target_catalog import (
+        load_mini_macro_target_catalog,
+    )
+    from sase.ace.tui.modals.unified_macro_save_support import (
+        load_unified_save_locations,
+    )
+
+    rows = load_unified_save_locations(project)
+    row = next(
+        (item for item in rows if item.location.path == target.location_path),
+        None,
+    )
+    if row is None:
+        raise LookupError(
+            f"Mini-macro save destination is no longer available: {target.location_path}"
+        )
+    catalog = load_mini_macro_target_catalog(project, locations=rows)
+    return macro_redefinition_warning(macro_redefinition(catalog, target.name, row))
+
+
 __all__ = [
     "MiniMacroSaveDiskState",
     "load_mini_macro_save_disk_state",
     "mini_macro_save_warning",
+    "refresh_mini_macro_save_warning",
     "write_mini_macro_sync",
 ]

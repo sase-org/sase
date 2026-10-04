@@ -21,6 +21,7 @@ from sase.ace.tui.modals.mini_macro_target_catalog import (
 )
 from sase.ace.tui.modals.unified_macro_save_modal import UnifiedSaveLocation
 from sase.ace.tui.modals.macro_location_modal import MacroLocation
+from sase.ace.tui.modals.mini_macro_redefinition import macro_redefinition
 from sase.macro.save import SaveTargetFormat
 
 
@@ -555,26 +556,141 @@ async def test_fork_verdict_suggests_shift_tab_to_other_destination(
         )
         modal = app.screen
         assert isinstance(modal, MiniMacroNameModal)
-        verdict = await _wait_for_verdict(pilot, modal, "Fork #review")
-        assert "⇧tab to pick" in verdict
+        verdict = await _wait_for_verdict(pilot, modal, "would be shadowed by")
+        assert "already exists in" in verdict
+        assert "⇧tab to edit it in Test instead" in verdict
 
 
 def test_build_verdict_describes_shadowed_create(tmp_path: Path) -> None:
     high = _row(tmp_path / "high", names=frozenset({"review"}), precedence=0)
     low = _row(tmp_path / "low", precedence=10)
-    target = modal_mod.destination_target_for_name(
+    catalog = MiniMacroTargetCatalog(definitions=(), destinations=(high, low))
+    verdict = modal_mod._build_mini_macro_name_analysis(
+        catalog,
+        "review",
         low,
-        "review",
-        destinations=(high, low),
-    )
-
-    verdict = modal_mod._build_mini_macro_verdict(
-        "review",
-        target,
-        exact_definition=None,
-        destination_definition=None,
-    )
+    ).verdict
 
     assert verdict.action == "create"
     assert verdict.kind == "warning"
-    assert "will be shadowed" in verdict.message
+    assert "would be shadowed by" in verdict.message
+
+
+async def test_shadowed_destination_edit_is_a_warning_and_keeps_edit_action(
+    tmp_path: Path,
+) -> None:
+    high = tmp_path / "high"
+    low = tmp_path / "low"
+    high_row = _row(high, names=frozenset({"review"}), precedence=0)
+    low_row = _row(low, names=frozenset({"review"}), precedence=10)
+    active = _definition(
+        "review",
+        high / "review.md",
+        location_path=str(high),
+        precedence=0,
+    )
+    shadowed = _definition(
+        "review",
+        low / "review.md",
+        effective=False,
+        location_path=str(low),
+        precedence=10,
+    )
+    catalog = MiniMacroTargetCatalog(
+        definitions=(active, shadowed),
+        destinations=(high_row, low_row),
+    )
+    results: list[MiniMacroNameResult | None] = []
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 30)) as pilot:
+        app.push_screen(
+            MiniMacroNameModal(catalog, low_row, initial_name="review"),
+            results.append,
+        )
+        modal = app.screen
+        assert isinstance(modal, MiniMacroNameModal)
+        verdict = await _wait_for_verdict(pilot, modal, "is shadowed by")
+        assert "edits here won't take effect" in verdict
+        await pilot.press("enter")
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
+
+    result = results[0]
+    assert result is not None
+    assert result.action == "edit"
+    assert result.save_warning is not None
+    assert "is shadowed by" in result.save_warning
+
+
+def test_fork_warning_when_destination_wins_counts_other_definitions(
+    tmp_path: Path,
+) -> None:
+    destination = _row(
+        tmp_path / "destination",
+        names=frozenset(),
+        precedence=0,
+    )
+    active_row = _row(
+        tmp_path / "active",
+        names=frozenset({"review"}),
+        precedence=10,
+    )
+    other_row = _row(
+        tmp_path / "other",
+        names=frozenset({"review"}),
+        precedence=20,
+    )
+    active = _definition(
+        "review",
+        tmp_path / "active" / "review.md",
+        location_path=str(tmp_path / "active"),
+        precedence=10,
+    )
+    other = _definition(
+        "review",
+        tmp_path / "other" / "review.md",
+        effective=False,
+        location_path=str(tmp_path / "other"),
+        precedence=20,
+    )
+    catalog = MiniMacroTargetCatalog(
+        definitions=(active, other),
+        destinations=(destination, active_row, other_row),
+    )
+
+    verdict = modal_mod._build_mini_macro_name_analysis(
+        catalog,
+        "review",
+        destination,
+    ).verdict
+
+    assert verdict.action == "fork"
+    assert verdict.kind == "warning"
+    assert "(+1 more)" in verdict.message
+    assert "will override it" in verdict.message
+
+
+def test_read_only_override_warning_uses_active_outside_rows_copy(
+    tmp_path: Path,
+) -> None:
+    destination = _row(tmp_path / "destination", precedence=0)
+    active = _definition(
+        "review",
+        tmp_path / "legacy" / "review.md",
+        compatibility="read_only",
+        location_path=None,
+    )
+    catalog = MiniMacroTargetCatalog(
+        definitions=(active,),
+        destinations=(destination,),
+    )
+
+    verdict = modal_mod._build_mini_macro_name_analysis(
+        catalog,
+        "review",
+        destination,
+    ).verdict
+
+    assert verdict.action == "override"
+    assert "saving to" in verdict.message
+    assert "adds another definition" in verdict.message

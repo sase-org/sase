@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
@@ -16,6 +16,7 @@ from sase.macro.loader import (
 )
 from sase.macro.loader_parsing import parse_macro_entries
 from sase.macro.loader_sources import load_macro_from_file
+from sase.macro.models import Macro
 from sase.macro.naming import (
     ResolutionSource,
     SaveResolution,
@@ -55,6 +56,7 @@ class MiniMacroDefinition:
     location_path: str | None
     precedence: int
     compatibility: MiniMacroCompatibility
+    origin_label: str | None = None
     incompatible_reason: str | None = None
     effective: bool = False
     shadowed_by: str | None = None
@@ -117,6 +119,7 @@ class MiniMacroTargetCatalog:
                     sorted(
                         definitions,
                         key=lambda item: (
+                            not item.effective,
                             item.precedence,
                             item.display_path,
                             item.entry_name or "",
@@ -154,10 +157,17 @@ def load_mini_macro_target_catalog(
     destination_rows = tuple(
         locations or load_unified_save_locations(effective_project)
     )
+    macros = get_all_macros(project=effective_project)
     definitions = list(_load_destination_definitions(destination_rows))
-    definitions.extend(_load_catalog_only_definitions(effective_project, definitions))
+    definitions.extend(
+        _load_catalog_only_definitions(
+            effective_project,
+            definitions,
+            macros=macros,
+        )
+    )
     return MiniMacroTargetCatalog(
-        definitions=_annotate_precedence(definitions),
+        definitions=_annotate_precedence(definitions, macros=macros),
         destinations=destination_rows,
         project=effective_project,
     )
@@ -374,6 +384,7 @@ def _load_directory_definitions(
             location_path=row.location.path,
             precedence=row.precedence,
             compatibility=compatibility,
+            origin_label=_origin_label(row, compatibility),
             incompatible_reason=reason,
             read_path=_path_attr(target, "read_path"),
             write_path=_path_attr(target, "write_path"),
@@ -413,6 +424,7 @@ def _load_config_definitions(
             location_path=row.location.path,
             precedence=row.precedence,
             compatibility=compatibility,
+            origin_label=_origin_label(row, compatibility),
             incompatible_reason=reason,
             read_path=_path_attr(target, "read_path"),
             write_path=_path_attr(target, "write_path"),
@@ -424,12 +436,13 @@ def _load_config_definitions(
 def _load_catalog_only_definitions(
     project: str | None,
     existing: Sequence[MiniMacroDefinition],
+    *,
+    macros: Mapping[str, Macro] | None = None,
 ) -> Iterable[MiniMacroDefinition]:
-    existing_keys = {
-        (definition.name, definition.source_path, definition.workflow_kind)
-        for definition in existing
-    }
-    for name, macro in get_all_macros(project=project).items():
+    existing_keys = _normalized_definition_keys(existing)
+    loaded_macros = macros if macros is not None else get_all_macros(project=project)
+    ordinal = 0
+    for name, macro in loaded_macros.items():
         workflow_kind: MiniMacroWorkflowKind | None = None
         reason: str | None = None
         if macro.skill_name is not None:
@@ -438,11 +451,19 @@ def _load_catalog_only_definitions(
         elif macro.memory_type is not None:
             workflow_kind = "memory"
             reason = "memory definitions must be edited through memory notes"
+        has_swarm_separator = macro_has_segment_separators(macro)
         if workflow_kind is None:
-            continue
-        key = (name, macro.source_path, workflow_kind)
+            workflow_kind = "macro"
+            if has_swarm_separator:
+                reason = "macro swarms cannot be opened as mini targets"
+        key = (name, _normalized_path(macro.source_path))
         if key in existing_keys:
             continue
+        compatibility: MiniMacroCompatibility = (
+            "incompatible"
+            if workflow_kind in {"skill", "memory"} or has_swarm_separator
+            else "read_only"
+        )
         yield MiniMacroDefinition(
             name=name,
             workflow_kind=workflow_kind,
@@ -451,13 +472,20 @@ def _load_catalog_only_definitions(
             storage_format=None,
             entry_name=None,
             location_path=None,
-            precedence=macro.discovery_rank or 1000,
-            compatibility="incompatible",
+            precedence=_catalog_only_precedence(existing, ordinal),
+            compatibility=compatibility,
+            origin_label="read-only",
             incompatible_reason=reason,
         )
+        ordinal += 1
+    existing_workflow_keys = {
+        (definition.name, _normalized_path(definition.source_path))
+        for definition in existing
+        if definition.workflow_kind == "workflow"
+    }
     for name, workflow in get_all_workflows(project=project).items():
-        key = (name, workflow.source_path, "workflow")
-        if key in existing_keys:
+        key = (name, _normalized_path(workflow.source_path))
+        if key in existing_workflow_keys:
             continue
         yield MiniMacroDefinition(
             name=name,
@@ -467,26 +495,33 @@ def _load_catalog_only_definitions(
             storage_format=None,
             entry_name=None,
             location_path=None,
-            precedence=workflow.discovery_rank or 1000,
+            precedence=_catalog_only_precedence(existing, ordinal),
             compatibility="incompatible",
+            origin_label="read-only",
             incompatible_reason=(
                 "workflow graphs must be edited from the Macro Browser or source file"
             ),
         )
+        ordinal += 1
 
 
 def _annotate_precedence(
     definitions: Sequence[MiniMacroDefinition],
+    *,
+    macros: Mapping[str, Macro] | None = None,
 ) -> tuple[MiniMacroDefinition, ...]:
     by_name: dict[str, list[MiniMacroDefinition]] = {}
     for definition in definitions:
         by_name.setdefault(definition.name, []).append(definition)
 
     annotated: list[MiniMacroDefinition] = []
-    for name_definitions in by_name.values():
+    for name, name_definitions in by_name.items():
+        active_source = (macros or {}).get(name)
+        active_match = _loader_matching_definition(name_definitions, active_source)
         ordered = sorted(
             name_definitions,
             key=lambda item: (
+                0 if item is active_match else 1,
                 item.precedence,
                 item.display_path,
                 item.entry_name or "",
@@ -494,28 +529,17 @@ def _annotate_precedence(
         )
         for index, definition in enumerate(ordered):
             annotated.append(
-                MiniMacroDefinition(
-                    name=definition.name,
-                    workflow_kind=definition.workflow_kind,
-                    source_path=definition.source_path,
-                    display_path=definition.display_path,
-                    storage_format=definition.storage_format,
-                    entry_name=definition.entry_name,
-                    location_path=definition.location_path,
-                    precedence=definition.precedence,
-                    compatibility=definition.compatibility,
-                    incompatible_reason=definition.incompatible_reason,
+                replace(
+                    definition,
                     effective=index == 0,
-                    shadowed_by=ordered[index - 1].display_path if index > 0 else None,
+                    shadowed_by=(
+                        ordered[index - 1].display_path if index > 0 else None
+                    ),
                     shadows=(
                         ordered[index + 1].display_path
                         if index + 1 < len(ordered)
                         else None
                     ),
-                    read_path=definition.read_path,
-                    write_path=definition.write_path,
-                    apply_target=definition.apply_target,
-                    via_chezmoi=definition.via_chezmoi,
                 )
             )
     return tuple(
@@ -523,12 +547,79 @@ def _annotate_precedence(
             annotated,
             key=lambda item: (
                 item.name.casefold(),
+                not item.effective,
                 item.precedence,
                 item.display_path,
                 item.entry_name or "",
             ),
         )
     )
+
+
+def _normalized_path(path: str | None) -> str | None:
+    if path is None:
+        return None
+    write_path = resolve_macro_write_target(path).write_path
+    return str(write_path.expanduser().resolve(strict=False))
+
+
+def _normalized_definition_keys(
+    definitions: Sequence[MiniMacroDefinition],
+) -> set[tuple[str, str | None]]:
+    return {
+        (definition.name, _normalized_path(definition.source_path))
+        for definition in definitions
+    }
+
+
+def _catalog_only_precedence(
+    existing: Sequence[MiniMacroDefinition],
+    ordinal: int,
+) -> int:
+    after_rows = max((definition.precedence for definition in existing), default=-1) + 1
+    return max(1000, after_rows) + ordinal
+
+
+def _loader_matching_definition(
+    definitions: Sequence[MiniMacroDefinition],
+    active_macro: Macro | None,
+) -> MiniMacroDefinition | None:
+    if active_macro is None or active_macro.source_path is None:
+        return None
+    active_path = _normalized_path(active_macro.source_path)
+    matches = [
+        definition
+        for definition in definitions
+        if _normalized_path(definition.source_path) == active_path
+        and (
+            definition.storage_format is not SaveTargetFormat.CONFIG
+            or definition.entry_name == active_macro.name
+            or definition.entry_name == definition.name
+            or active_macro.name.endswith(f"/{definition.entry_name or ''}")
+        )
+    ]
+    return min(
+        matches,
+        key=lambda item: (
+            item.precedence,
+            item.display_path,
+            item.entry_name or "",
+        ),
+        default=None,
+    )
+
+
+def _origin_label(
+    row: UnifiedSaveLocation,
+    compatibility: MiniMacroCompatibility,
+) -> str | None:
+    if row.group == "Built-in (dev)":
+        return "built-in"
+    if row.group == "Plugin directories":
+        return "plugin"
+    if compatibility == "read_only":
+        return "read-only"
+    return None
 
 
 def _mini_compatibility(

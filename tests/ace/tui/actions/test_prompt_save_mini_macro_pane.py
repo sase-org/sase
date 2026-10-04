@@ -177,6 +177,7 @@ async def test_mini_macro_save_review_loads_disk_state_off_event_loop(
     worker_threads: list[int] = []
     loop_thread = threading.get_ident()
     original = mini_macro_save_mod.load_mini_macro_save_disk_state
+    warning_threads: list[int] = []
 
     def _slow_disk_state(target: object) -> object:
         worker_threads.append(threading.get_ident())
@@ -184,11 +185,22 @@ async def test_mini_macro_save_review_loads_disk_state_off_event_loop(
         release.wait(timeout=1.0)
         return original(target)  # type: ignore[arg-type]
 
+    def _refresh_warning(project: str | None, target: object) -> str | None:
+        warning_threads.append(threading.get_ident())
+        return None
+
     try:
-        with patch.object(
-            mini_macro_save_mod,
-            "load_mini_macro_save_disk_state",
-            side_effect=_slow_disk_state,
+        with (
+            patch.object(
+                mini_macro_save_mod,
+                "load_mini_macro_save_disk_state",
+                side_effect=_slow_disk_state,
+            ),
+            patch.object(
+                mini_macro_save_mod,
+                "refresh_mini_macro_save_warning",
+                side_effect=_refresh_warning,
+            ),
         ):
             async with app.run_test(size=(100, 30)) as pilot:
                 await pilot.pause()
@@ -212,8 +224,70 @@ async def test_mini_macro_save_review_loads_disk_state_off_event_loop(
 
                 release.set()
                 await _wait_save_tasks(app)
+                assert warning_threads
+                assert warning_threads[0] == worker_threads[0]
     finally:
         release.set()
+
+
+async def test_mini_macro_save_review_uses_refreshed_warning(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "review.md"
+    app = _SaveFlowApp("agent prompt")
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_mini_macro_pane(pilot, bar, path, body="draft body")
+        mini = bar._stack.mini_macro_item
+        assert mini is not None and mini.mini_macro_target is not None
+        mini.mini_macro_target = replace(
+            mini.mini_macro_target,
+            save_warning="stale warning",
+        )
+
+        with patch.object(
+            mini_macro_save_mod,
+            "refresh_mini_macro_save_warning",
+            return_value="fresh warning",
+        ):
+            await pilot.press("enter")
+            await _wait_save_tasks(app)
+            await pilot.pause()
+
+        assert isinstance(app.screen, MiniMacroSaveConfirmModal)
+        assert app.screen._state.warning == "fresh warning"
+
+
+async def test_mini_macro_save_review_falls_back_when_warning_refresh_fails(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "review.md"
+    app = _SaveFlowApp("agent prompt")
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_mini_macro_pane(pilot, bar, path, body="draft body")
+        mini = bar._stack.mini_macro_item
+        assert mini is not None and mini.mini_macro_target is not None
+        mini.mini_macro_target = replace(
+            mini.mini_macro_target,
+            save_warning="captured warning",
+        )
+
+        with patch.object(
+            mini_macro_save_mod,
+            "refresh_mini_macro_save_warning",
+            side_effect=RuntimeError("catalog unavailable"),
+        ):
+            await pilot.press("enter")
+            await _wait_save_tasks(app)
+            await pilot.pause()
+
+        assert isinstance(app.screen, MiniMacroSaveConfirmModal)
+        assert app.screen._state.warning == "captured warning"
 
 
 async def test_mini_macro_pane_failed_write_keeps_draft(tmp_path: Path) -> None:

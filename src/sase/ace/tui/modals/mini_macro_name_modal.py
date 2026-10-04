@@ -21,9 +21,13 @@ from .mini_macro_target_catalog import (
     MiniMacroDefinition,
     MiniMacroDestinationTarget,
     MiniMacroTargetCatalog,
-    destination_target_for_name,
     mini_macro_prefix_matches,
     validate_name_for_destination,
+)
+from .mini_macro_redefinition import (
+    MacroRedefinition,
+    macro_redefinition,
+    macro_redefinition_warning,
 )
 from .save_location_choices import ChangeSaveLocationRequest
 from .unified_macro_save_support import UnifiedSaveLocation
@@ -229,11 +233,11 @@ class MiniMacroNameModal(
         name = self._current_name()
         lines = []
         if name and validate_name_for_destination(name, self._destination) is None:
-            destination = destination_target_for_name(
-                self._destination,
+            destination = macro_redefinition(
+                self._catalog,
                 name,
-                destinations=self._catalog.destinations,
-            )
+                self._destination,
+            ).destination
             lines.append(f"→ {destination.display_path}")
             notes = []
             if self._destination.namespace:
@@ -456,27 +460,14 @@ def _build_mini_macro_name_analysis(
 ) -> _MiniMacroNameAnalysis:
     """Return the cached target-resolution analysis for one identity."""
 
-    destination_target = destination_target_for_name(
-        destination,
-        name,
-        destinations=catalog.destinations,
-    )
-    definitions = catalog.definitions_for_name(name)
-    exact = definitions[0] if definitions else None
-    destination_definition = next(
-        (
-            definition
-            for definition in definitions
-            if definition.location_path == destination.location.path
-        ),
-        None,
-    )
+    redefinition = macro_redefinition(catalog, name, destination)
+    destination_target = redefinition.destination
+    exact = redefinition.active
+    destination_definition = redefinition.destination_definition
     matches = mini_macro_prefix_matches(name, catalog)
     verdict = _build_mini_macro_verdict(
         name,
-        destination_target,
-        exact_definition=exact,
-        destination_definition=destination_definition,
+        redefinition,
         destinations=catalog.destinations,
     )
     return _MiniMacroNameAnalysis(
@@ -491,15 +482,16 @@ def _build_mini_macro_name_analysis(
 
 def _build_mini_macro_verdict(
     name: str,
-    destination: MiniMacroDestinationTarget,
+    redefinition: MacroRedefinition,
     *,
-    exact_definition: MiniMacroDefinition | None,
-    destination_definition: MiniMacroDefinition | None,
     destinations: Sequence[UnifiedSaveLocation] = (),
 ) -> _MiniMacroNameVerdict:
     """Return the exact Enter behavior for one mini-name analysis."""
 
     reference = f"#{name}"
+    destination = redefinition.destination
+    exact_definition = redefinition.active
+    destination_definition = redefinition.destination_definition
     if destination_definition is not None and not destination_definition.is_compatible:
         reason = destination_definition.incompatible_reason or "not a simple macro"
         return _MiniMacroNameVerdict(
@@ -520,16 +512,27 @@ def _build_mini_macro_verdict(
             can_open=False,
         )
     if destination_definition is not None and destination_definition.is_editable:
+        warning = macro_redefinition_warning(redefinition)
+        if warning is not None:
+            return _MiniMacroNameVerdict(
+                kind="warning",
+                message=warning,
+                action="edit",
+                can_open=True,
+                save_warning=warning,
+            )
         return _MiniMacroNameVerdict(
             kind="success",
-            message=f"Edit {reference} at {destination_definition.display_path}",
+            message=(
+                f"✓ Edit {reference} in place · {destination_definition.display_path}"
+            ),
             action="edit",
             can_open=True,
         )
     if exact_definition is not None and exact_definition.compatibility == "read_only":
-        message = (
-            f"Override read-only {reference} from "
-            f"{exact_definition.display_path} in {destination.display_path}"
+        message = macro_redefinition_warning(redefinition) or (
+            f"⚠ {reference} is {exact_definition.origin_label or exact_definition.display_path} "
+            "(read-only) — Enter picks where your override should live"
         )
         return _MiniMacroNameVerdict(
             kind="warning",
@@ -539,8 +542,15 @@ def _build_mini_macro_verdict(
             save_warning=message,
         )
     if exact_definition is not None:
-        message = f"Fork {reference} from {exact_definition.display_path} into {destination.display_path}"
-        if exact_definition.location_path:
+        message = macro_redefinition_warning(redefinition) or (
+            f"⚠ {reference} already exists in {exact_definition.display_path} — "
+            f"saving to {destination.display_path} adds another definition"
+        )
+        if (
+            exact_definition.location_path
+            and exact_definition.location_path != destination.location_path
+            and exact_definition.is_editable
+        ):
             other = next(
                 (
                     row
@@ -551,7 +561,7 @@ def _build_mini_macro_verdict(
                 None,
             )
             if other is not None:
-                message += f" · ⇧tab to pick {other.location.label}"
+                message += f" · ⇧tab to edit it in {other.location.label} instead"
         return _MiniMacroNameVerdict(
             kind="warning",
             message=message,
@@ -559,21 +569,18 @@ def _build_mini_macro_verdict(
             can_open=True,
             save_warning=message,
         )
-    message = f"Create {reference} at {destination.display_path}"
-    if destination.resolution.shadowed_by:
-        message += f" (will be shadowed by {destination.resolution.shadowed_by})"
+    warning = macro_redefinition_warning(redefinition)
+    if warning is not None:
         return _MiniMacroNameVerdict(
             kind="warning",
-            message=message,
+            message=warning,
             action="create",
             can_open=True,
-            save_warning=message,
+            save_warning=warning,
         )
-    if destination.resolution.shadows:
-        message += f" (shadows {destination.resolution.shadows})"
     return _MiniMacroNameVerdict(
         kind="success",
-        message=message,
+        message=f"✓ Create {reference} at {destination.display_path}",
         action="create",
         can_open=True,
     )
