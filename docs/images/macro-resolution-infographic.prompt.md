@@ -84,6 +84,41 @@ The deterministic label groups are:
   fan-out, and a visually separate developer-tools card for `sase macro graph` /
   `sase macro explain`.
 
+## Macro-Spelling Relabel (Deterministic Overlay)
+
+All 13 retired-spelling labels were replaced in place with macro-spelling text taken
+from the current `docs/macros.md` (Discovery Order table, `sase macro graph` /
+`sase macro explain` spellings), preserving position, size, weight, numbering, and the
+original `<pkg>` abbreviation of `<sase_package>`. Canvas kept at 1672×941 sRGB.
+
+- Inputs: `inline xprompt · embeddable workflow` → `inline macro · embeddable workflow`;
+  `· xprompt swarm` → `· macro swarm`.
+- Iterative title: `Iterative xprompt expansion · ≤100 passes` →
+  `Iterative macro expansion · ≤100 passes`.
+- Discovery rows: `1 <project>/sase/xprompts/` → `1 <project>/sase/macros/`;
+  `2 ~/sase/xprompts/` → `2 ~/sase/macros/`; `3 ~/sase/xprompts/{project}/` →
+  `3 ~/sase/macros/{project}/`; `(sase_xprompts EPs)` → `(sase_macros EPs)`;
+  `10 <pkg>/default_xprompts/` → `10 <pkg>/default_macros/`; `11 <pkg>/xprompts/` →
+  `11 <pkg>/macros/`.
+- Fences callout: `protected while xprompt references expand` →
+  `protected while macro references expand`.
+- Extract line: `after full xprompt expansion` → `after full macro expansion`.
+- Devtools card: `sase xprompt graph` → `sase macro graph`; `sase xprompt explain` →
+  `sase macro explain`.
+
+Method: local-bg cover of each label's ink span (per-column neighbor-clipped fill,
+borders/arrows untouched), then single-draw full-line overlay rendered locally with PIL
+using Inter for prose/bold titles and Fira Code for paths/commands (matched to the
+committed raster by template comparison), tinted from each label's own darkest-core
+pixels. Verified: full-PNG OCR reports zero `xprompt` residuals (base reported 6), all
+pixel changes lie inside the 13 label windows, borders/arrows/loop intact:
+
+```bash
+magick patched.png -colorspace sRGB -strip \
+  docs/images/macro-resolution-infographic.png
+sha256sum docs/images/macro-resolution-infographic.png
+```
+
 ## Final Review
 
 - Full-resolution inspection confirmed legible labels, uncropped panels, high-contrast
@@ -93,4 +128,4 @@ The deterministic label groups are:
   runtime outcomes.
 - Every technical label was compared with the launch/expansion pipelines and canonical
   entries in the discovery table in `docs/macros.md`.
-- Final SHA-256: `2c162d3c7f44f703fb8fc2e2a33cf75bd28ae5a32e8693ffd1c1a6e13fb8d002`.
+- Final SHA-256: `7529a15d0c2a77f0144d3804cef156b315949de0bf0ac59872ad5ccdd63f314e`.

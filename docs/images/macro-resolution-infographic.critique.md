@@ -60,4 +60,4 @@ preserve the diagram's scan path at normal documentation width.
 - Renamed the inline outcome and visually demoted graph/explain to developer tooling.
 - Removed all legacy compatibility paths from the discovery panel.
 
-Final SHA-256: `2c162d3c7f44f703fb8fc2e2a33cf75bd28ae5a32e8693ffd1c1a6e13fb8d002`.
+Final SHA-256: `7529a15d0c2a77f0144d3804cef156b315949de0bf0ac59872ad5ccdd63f314e`.
