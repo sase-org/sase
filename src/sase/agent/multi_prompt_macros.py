@@ -125,6 +125,26 @@ def serialize_local_macros(macros: dict[str, Macro]) -> str:
                     "type": inp.type.value,
                     "default": None if inp.default is _UNSET else inp.default,
                     "is_step_input": inp.is_step_input,
+                    "description": inp.description,
+                    "repeatable": inp.repeatable,
+                    "named_type": inp.named_type,
+                    "value_role": inp.value_role,
+                    "choices": [
+                        {
+                            "value": choice.value,
+                            **(
+                                {"label": choice.label}
+                                if choice.label is not None
+                                else {}
+                            ),
+                            **(
+                                {"description": choice.description}
+                                if choice.description is not None
+                                else {}
+                            ),
+                        }
+                        for choice in inp.choices
+                    ],
                 }
                 for inp in xp.inputs
             ],
@@ -149,7 +169,7 @@ def serialize_local_macros(macros: dict[str, Macro]) -> str:
 
 def deserialize_local_macros(path: str) -> dict[str, Macro]:
     """Read a local-macros JSON file and reconstruct Macro objects."""
-    from sase.macro.models import InputArg, InputType
+    from sase.macro.models import InputArg, InputChoice, InputType
     from sase.macro.tags import parse_tags
 
     with open(path, encoding="utf-8") as f:
@@ -163,12 +183,39 @@ def deserialize_local_macros(path: str) -> dict[str, Macro]:
             default = inp.get("default")
             if default is None:
                 default = _UNSET
+            choices_data = inp.get("choices", [])
+            choices = (
+                tuple(
+                    InputChoice(
+                        value=str(choice["value"]),
+                        label=(
+                            None
+                            if choice.get("label") is None
+                            else str(choice["label"])
+                        ),
+                        description=(
+                            None
+                            if choice.get("description") is None
+                            else str(choice["description"])
+                        ),
+                    )
+                    for choice in choices_data
+                    if isinstance(choice, dict) and "value" in choice
+                )
+                if isinstance(choices_data, list)
+                else ()
+            )
             inputs.append(
                 InputArg(
                     name=inp["name"],
                     type=InputType(inp.get("type", "line")),
                     default=default,
                     is_step_input=inp.get("is_step_input", False),
+                    description=inp.get("description"),
+                    repeatable=inp.get("repeatable", False),
+                    choices=choices,
+                    named_type=inp.get("named_type"),
+                    value_role=inp.get("value_role"),
                 )
             )
         nested_data = entry.get("local_xprompts", {})

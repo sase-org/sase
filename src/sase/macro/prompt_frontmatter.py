@@ -414,16 +414,18 @@ def _input_to_yaml(arg: InputArg) -> str | dict[str, Any]:
     """
     has_default = arg.default is not UNSET
     has_description = arg.description is not None
-    has_choices = bool(arg.choices)
+    has_choices = bool(arg.choices) and arg.named_type is None
+    input_type_name = arg.named_type or arg.type.value
     if (
         not has_default
         and not has_description
         and not arg.repeatable
         and not has_choices
+        and arg.named_type is None
     ):
-        return arg.type.value
+        return input_type_name
 
-    value: dict[str, Any] = {"type": arg.type.value}
+    value: dict[str, Any] = {"type": input_type_name}
     if has_default:
         value["default"] = arg.default
     if has_description:
@@ -431,13 +433,19 @@ def _input_to_yaml(arg: InputArg) -> str | dict[str, Any]:
     if arg.repeatable:
         value["repeatable"] = True
     if has_choices:
-        if any(choice.label is not None for choice in arg.choices):
-            value["choices"] = [
-                {"value": choice.value, "label": choice.label}
-                if choice.label is not None
-                else {"value": choice.value}
-                for choice in arg.choices
-            ]
+        if any(
+            choice.label is not None or choice.description is not None
+            for choice in arg.choices
+        ):
+            serialized_choices: list[dict[str, str]] = []
+            for choice in arg.choices:
+                item = {"value": choice.value}
+                if choice.label is not None:
+                    item["label"] = choice.label
+                if choice.description is not None:
+                    item["description"] = choice.description
+                serialized_choices.append(item)
+            value["choices"] = serialized_choices
         else:
             value["choices"] = [choice.value for choice in arg.choices]
     return value

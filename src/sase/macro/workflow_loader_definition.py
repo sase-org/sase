@@ -64,7 +64,10 @@ def load_workflow_from_mapping(
         wraps_all = True
 
     try:
-        inputs = parse_workflow_inputs(data.get("input"))
+        inputs = parse_workflow_inputs(
+            data.get("input"),
+            source_path=source_path,
+        )
     except MacroValidationError as exc:
         record_load_issue(source_path, exc, kind="workflow")
         return None

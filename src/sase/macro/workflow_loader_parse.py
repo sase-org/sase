@@ -4,8 +4,7 @@ import re
 from typing import Any
 
 from sase.macro.loader_parsing import (
-    parse_input_choices,
-    parse_input_type,
+    parse_input_definition,
     parse_output_from_front_matter,
     parse_shortform_inputs,
 )
@@ -20,7 +19,9 @@ from sase.macro.workflow_models import (
 
 
 def parse_workflow_inputs(
-    input_data: list[dict[str, Any]] | dict[str, str | dict[str, Any]] | None,
+    input_data: list[dict[str, Any]] | dict[str, Any] | None,
+    *,
+    source_path: str | None = None,
 ) -> list[InputArg]:
     """Parse input definitions from workflow YAML.
 
@@ -39,7 +40,7 @@ def parse_workflow_inputs(
 
     # Handle shortform dict syntax
     if isinstance(input_data, dict):
-        return parse_shortform_inputs(input_data)
+        return parse_shortform_inputs(input_data, source_path=source_path)
 
     # Handle longform list syntax. Workflow longform inputs historically
     # treated a missing default as explicit null; preserve that behavior.
@@ -49,24 +50,21 @@ def parse_workflow_inputs(
             continue
 
         name = str(item["name"])
-        type_str = str(item.get("type", "line"))
+        type_raw = item.get("type", "line")
         default = item.get("default")
         description_value = item.get("description")
         description = None if description_value is None else str(description_value)
         repeatable = item.get("repeatable", False) is True
         choices_value = item.get("choices")
-        choices = (
-            () if choices_value is None else parse_input_choices(choices_value, name)
-        )
-
         inputs.append(
-            InputArg(
+            parse_input_definition(
                 name=name,
-                type=parse_input_type(type_str),
+                type_raw=type_raw,
                 default=default,
                 description=description,
                 repeatable=repeatable,
-                choices=choices,
+                choices_raw=choices_value,
+                source_path=source_path,
             )
         )
 

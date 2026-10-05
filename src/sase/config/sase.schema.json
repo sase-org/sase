@@ -5979,6 +5979,12 @@
           "default": true,
           "deprecated": true
         },
+        "strict_macro_input_types": {
+          "type": "boolean",
+          "description": "Unknown macro input type names are a per-macro load error with suggestions.",
+          "default": true,
+          "deprecated": true
+        },
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",

@@ -37,6 +37,7 @@ class FeatureFlag(StrEnum):
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
+    strict_macro_input_types = "strict_macro_input_types"
     agents_session_manifest_compat = "agents_session_manifest_compat"
     typed_launch_units = "typed_launch_units"
 
@@ -222,6 +223,14 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="beta",
         description="Beta gate for typed launch units, %if, and %proc.",
         bead="sase-s7",
+    ),
+    FeatureFlag.strict_macro_input_types: FeatureFlagDefinition(
+        key=FeatureFlag.strict_macro_input_types,
+        kind="sunset",
+        description=(
+            "Unknown macro input type names are a per-macro load error with suggestions."
+        ),
+        bead="sase-1g9",
     ),
 }
 

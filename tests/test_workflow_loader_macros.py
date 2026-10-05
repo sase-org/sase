@@ -7,6 +7,7 @@ from unittest.mock import patch
 from sase.macro.loader_parsing import parse_macro_entries
 from sase.macro.models import Macro
 from sase.macro.workflow_loader import _load_workflow_from_file
+from sase.macro.workflow_loader_definition import load_workflow_from_mapping
 from sase.macro.workflow_validator import validate_workflow
 
 
@@ -84,6 +85,34 @@ steps:
     assert local.description == "Local helper prompt."
     assert local.inputs[0].name == "target"
     assert local.inputs[0].description == "Target name for the helper."
+
+
+def test_longform_workflow_enum_choice_descriptions_load() -> None:
+    workflow = load_workflow_from_mapping(
+        "enum_workflow",
+        {
+            "input": [
+                {
+                    "name": "mode",
+                    "type": "enum",
+                    "description": "How to run the workflow.",
+                    "choices": [
+                        {
+                            "value": "fast",
+                            "label": "Fast",
+                            "description": "Run quickly.",
+                        }
+                    ],
+                }
+            ],
+            "steps": [{"name": "run", "bash": "true"}],
+        },
+        "workflow.yml",
+    )
+
+    assert workflow is not None
+    assert workflow.inputs[0].description == "How to run the workflow."
+    assert workflow.inputs[0].choices[0].description == "Run quickly."
 
 
 def test_hidden_launcher_fixture_validates(tmp_path: Path) -> None:

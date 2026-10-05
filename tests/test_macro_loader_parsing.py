@@ -2,9 +2,10 @@
 
 import pytest
 
+from sase.feature_flags.snapshot import override_flags
+from sase.macro.load_issues import collect_macro_load_issues
 from sase.macro.loader_parsing import (
     _parse_shortform_output,
-    parse_input_choices,
     parse_inputs_from_front_matter,
     parse_macro_entries,
     parse_yaml_front_matter,
@@ -179,24 +180,86 @@ def test_parse_inputs_duplicate_choice_values_raises() -> None:
         )
 
 
+def test_parse_macro_entries_isolates_invalid_enum_default_from_siblings() -> None:
+    entries = {
+        "bad": {
+            "content": "bad",
+            "input": {
+                "mode": {
+                    "type": "enum",
+                    "choices": ["fast", "thorough"],
+                    "default": "quick",
+                }
+            },
+        },
+        "good": {"content": "good", "input": {"mode": "word"}},
+    }
+
+    with collect_macro_load_issues() as issues:
+        parsed = parse_macro_entries(entries, "config.yml")
+
+    assert set(parsed) == {"good"}
+    assert len(issues) == 1
+    assert issues[0].kind == "input_type"
+    assert "default `quick` is not one of fast | thorough" in issues[0].error
+
+
+def test_unknown_input_type_flag_controls_per_macro_fallback() -> None:
+    entries = {
+        "legacy": {"content": "legacy", "input": {"mode": {"type": "enmu"}}},
+        "sibling": {"content": "sibling", "input": {"mode": "word"}},
+    }
+
+    with override_flags(strict_macro_input_types=True):
+        with collect_macro_load_issues() as strict_issues:
+            strict = parse_macro_entries(entries, "config.yml")
+    assert set(strict) == {"sibling"}
+    assert strict_issues[0].kind == "input_type"
+    assert "enum" in strict_issues[0].error
+
+    with override_flags(strict_macro_input_types=False):
+        with collect_macro_load_issues() as legacy_issues:
+            legacy = parse_macro_entries(entries, "config.yml")
+    assert set(legacy) == {"legacy", "sibling"}
+    assert legacy["legacy"].inputs[0].type is InputType.LINE
+    assert legacy_issues == []
+
+
+def test_deprecated_string_input_type_records_warning_without_skipping() -> None:
+    with collect_macro_load_issues() as issues:
+        parsed = parse_macro_entries(
+            {"legacy": {"content": "legacy", "input": {"items": "string"}}},
+            "config.yml",
+        )
+
+    assert parsed["legacy"].inputs[0].type is InputType.LINE
+    assert len(issues) == 1
+    assert issues[0].kind == "input_type_warning"
+    assert "deprecated type `string`" in issues[0].error
+
+
 def test_parse_input_choices_rejects_non_list() -> None:
     with pytest.raises(MacroValidationError):
-        parse_input_choices("fast", "mode")
+        parse_inputs_from_front_matter({"mode": {"type": "enum", "choices": "fast"}})
 
 
 def test_parse_input_choices_rejects_empty_list() -> None:
     with pytest.raises(MacroValidationError):
-        parse_input_choices([], "mode")
+        parse_inputs_from_front_matter({"mode": {"type": "enum", "choices": []}})
 
 
 def test_parse_input_choices_rejects_mapping_without_value() -> None:
     with pytest.raises(MacroValidationError):
-        parse_input_choices([{"label": "Fast mode"}], "mode")
+        parse_inputs_from_front_matter(
+            {"mode": {"type": "enum", "choices": [{"label": "Fast mode"}]}}
+        )
 
 
 def test_parse_input_choices_rejects_bad_item_shape() -> None:
     with pytest.raises(MacroValidationError):
-        parse_input_choices([["fast"]], "mode")
+        parse_inputs_from_front_matter(
+            {"mode": {"type": "enum", "choices": [["fast"]]}}
+        )
 
 
 # Tests for _parse_shortform_output

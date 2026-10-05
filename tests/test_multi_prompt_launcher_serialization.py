@@ -1,6 +1,7 @@
 """Tests for multi-prompt local macro serialization."""
 
 import os
+import json
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from sase.agent.multi_prompt_launcher import (
     deserialize_local_macros,
 )
 from sase.core.paths import PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
-from sase.macro.models import InputArg, InputType, Macro
+from sase.macro.models import InputArg, InputChoice, InputType, Macro
 
 
 def test_serialize_deserialize_roundtrip_simple() -> None:
@@ -89,6 +90,81 @@ def test_serialize_deserialize_roundtrip_with_inputs() -> None:
         assert xp.inputs[1].default == 3
     finally:
         os.unlink(path)
+
+
+def test_enum_input_fields_survive_local_macro_handoff() -> None:
+    macros = {
+        "_review": Macro(
+            name="_review",
+            content="Review {{ mode }}",
+            inputs=[
+                InputArg(
+                    name="mode",
+                    type=InputType.ENUM,
+                    description="Review mode.",
+                    repeatable=True,
+                    choices=(
+                        InputChoice(
+                            value="fast",
+                            label="Fast",
+                            description="Quick pass.",
+                        ),
+                        InputChoice(value="thorough", label="Thorough"),
+                    ),
+                    named_type="review_mode",
+                    value_role="review_mode",
+                )
+            ],
+        )
+    }
+    path = _serialize_local_macros(macros)
+    try:
+        arg = deserialize_local_macros(path)["_review"].inputs[0]
+    finally:
+        os.unlink(path)
+
+    assert arg.description == "Review mode."
+    assert arg.repeatable is True
+    assert arg.named_type == "review_mode"
+    assert arg.value_role == "review_mode"
+    assert arg.choices == (
+        InputChoice(value="fast", label="Fast", description="Quick pass."),
+        InputChoice(value="thorough", label="Thorough"),
+    )
+
+
+def test_old_local_macro_json_without_new_input_fields_still_loads(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "legacy.json"
+    path.write_text(
+        json.dumps(
+            {
+                "_legacy": {
+                    "name": "_legacy",
+                    "content": "{{ count }}",
+                    "inputs": [
+                        {
+                            "name": "count",
+                            "type": "int",
+                            "default": None,
+                            "is_step_input": False,
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    arg = deserialize_local_macros(str(path))["_legacy"].inputs[0]
+
+    assert arg.type is InputType.INT
+    assert arg.description is None
+    assert arg.repeatable is False
+    assert arg.choices == ()
+    assert arg.named_type is None
+    assert arg.value_role is None
 
 
 def test_serialize_deserialize_multiple_macros() -> None:

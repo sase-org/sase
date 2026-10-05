@@ -333,21 +333,28 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             descriptor = self._resolve_input_type(cell.values["type"])
             if descriptor is None:
                 return None, f"unknown input type '{cell.values['type'].strip()}'"
-            input_type = parse_input_type(descriptor.name)
+            resolved = parse_input_type(descriptor.name, name=name)
             default_text = cell.values["default"].strip()
             default: Any = UNSET
             if default_text:
                 try:
-                    default = InputArg(name=name, type=input_type).validate_and_convert(
-                        default_text
-                    )
+                    default = InputArg(
+                        name=name,
+                        type=resolved.base,
+                        choices=resolved.choices,
+                        named_type=resolved.named_type,
+                        value_role=resolved.value_role,
+                    ).validate_and_convert(default_text)
                 except MacroValidationError as exc:
                     return None, str(exc)
             return InputArg(
                 name=name,
-                type=input_type,
+                type=resolved.base,
                 default=default,
                 description=cell.values["description"].strip() or None,
+                choices=resolved.choices,
+                named_type=resolved.named_type,
+                value_role=resolved.value_role,
             ), ""
 
         name = normalize_local_macro_name(name)
@@ -404,17 +411,23 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                 raise ValueError(f"duplicate input '{name}'")
             if descriptor is None:
                 raise ValueError(f"unknown input type '{type_text.strip()}'")
-            input_type = parse_input_type(descriptor.name)
+            resolved = parse_input_type(descriptor.name, name=name)
+            input_arg = InputArg(
+                name=name,
+                type=resolved.base,
+                choices=resolved.choices,
+                named_type=resolved.named_type,
+                value_role=resolved.value_role,
+            )
             default: Any = UNSET
             if has_default:
                 try:
-                    default = InputArg(name=name, type=input_type).validate_and_convert(
-                        default_text.strip()
-                    )
+                    default = input_arg.validate_and_convert(default_text.strip())
                 except MacroValidationError as exc:
                     raise ValueError(str(exc)) from None
             seen.add(name)
-            inputs.append(InputArg(name=name, type=input_type, default=default))
+            input_arg.default = default
+            inputs.append(input_arg)
         return inputs
 
     @staticmethod

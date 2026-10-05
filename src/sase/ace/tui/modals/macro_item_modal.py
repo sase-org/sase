@@ -80,19 +80,25 @@ def _parse_compact_input_specs(text: str) -> list[InputArg]:
             raise ValueError(f"duplicate input '{name}'")
         if type_text not in known_types:
             raise ValueError(f"unknown input type '{type_text}'")
-        input_type = parse_input_type(type_text)
+        resolved = parse_input_type(type_text, name=name)
+        input_arg = InputArg(
+            name=name,
+            type=resolved.base,
+            choices=resolved.choices,
+            named_type=resolved.named_type,
+            value_role=resolved.value_role,
+        )
         if sep:
             default_text = default_part.strip()
             try:
-                default = InputArg(name=name, type=input_type).validate_and_convert(
-                    default_text
-                )
+                default = input_arg.validate_and_convert(default_text)
             except MacroValidationError as exc:
                 raise ValueError(str(exc)) from None
         else:
             default = UNSET
         seen.add(name)
-        specs.append(InputArg(name=name, type=input_type, default=default))
+        input_arg.default = default
+        specs.append(input_arg)
     return specs
 
 

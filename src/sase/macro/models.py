@@ -74,10 +74,12 @@ class InputChoice:
     Attributes:
         value: The exact string a caller must supply to select this choice.
         label: Optional human-readable display text for the choice.
+        description: Optional detail shown alongside the choice label.
     """
 
     value: str
     label: str | None = None
+    description: str | None = None
 
 
 @dataclass
@@ -97,6 +99,8 @@ class InputArg:
             positional values as an ordered list.
         choices: Declared values for an ``InputType.ENUM`` input. Required and
             non-empty for ``ENUM``; must be empty for every other type.
+        named_type: Optional catalog name that resolved to ``type``.
+        value_role: Optional catalog role used by shared value validation.
     """
 
     name: str
@@ -107,6 +111,8 @@ class InputArg:
     description: str | None = None
     repeatable: bool = False
     choices: tuple[InputChoice, ...] = ()
+    named_type: str | None = None
+    value_role: str | None = None
 
     def __post_init__(self) -> None:
         if self.type is InputType.ENUM and not self.choices:
@@ -197,9 +203,24 @@ class InputArg:
                     "value": value,
                     "resolved": {
                         "base": "enum",
-                        "named_type": None,
-                        "value_role": None,
-                        "choices": [{"value": choice.value} for choice in self.choices],
+                        "named_type": self.named_type,
+                        "value_role": self.value_role,
+                        "choices": [
+                            {
+                                "value": choice.value,
+                                **(
+                                    {"label": choice.label}
+                                    if choice.label is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"description": choice.description}
+                                    if choice.description is not None
+                                    else {}
+                                ),
+                            }
+                            for choice in self.choices
+                        ],
                         "deprecated": False,
                     },
                 }

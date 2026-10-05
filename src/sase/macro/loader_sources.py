@@ -50,7 +50,7 @@ from .loader_skills import (
     reject_misplaced_skill,
     skill_destination_for_macro_dir,
 )
-from .models import InputArg, Macro
+from .models import InputArg, Macro, MacroValidationError
 from .reserved_namespaces import reject_reserved_memory_namespace
 from .tags import parse_tags
 
@@ -147,8 +147,16 @@ def load_macro_from_file(file_path: Path) -> Macro | None:
 
     # Parse inputs if present
     inputs: list[InputArg] = []
-    if front_matter and "input" in front_matter:
-        inputs = parse_inputs_from_front_matter(front_matter["input"])
+    try:
+        if front_matter and "input" in front_matter:
+            inputs = parse_inputs_from_front_matter(
+                front_matter["input"],
+                source_path=str(file_path),
+            )
+        local_macros = _parse_markdown_local_macros(front_matter, str(file_path))
+    except MacroValidationError as exc:
+        record_load_issue(file_path, exc, kind="input_type")
+        return None
 
     # Parse tags if present
     tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
@@ -160,8 +168,6 @@ def load_macro_from_file(file_path: Path) -> Macro | None:
     description = front_matter.get("description") if front_matter else None
     skill = front_matter.get("skill") if front_matter else None
     log_skill_use = front_matter.get("log_skill_use", True) if front_matter else True
-
-    local_macros = _parse_markdown_local_macros(front_matter, str(file_path))
 
     if reject_reserved_memory_namespace(name, source=file_path):
         return None
@@ -410,12 +416,19 @@ def load_plugin_markdown_macros(
         if front_matter and "name" in front_matter:
             name = str(front_matter["name"])
 
-        inputs: list[InputArg] = []
-        if front_matter and "input" in front_matter:
-            inputs = parse_inputs_from_front_matter(front_matter["input"])
+        source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
+        try:
+            inputs: list[InputArg] = []
+            if front_matter and "input" in front_matter:
+                inputs = parse_inputs_from_front_matter(
+                    front_matter["input"],
+                    source_path=source,
+                )
+        except MacroValidationError as exc:
+            record_load_issue(source, exc, kind="input_type")
+            continue
 
         tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
-        source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
         yield (
             source,
             Macro(

@@ -23,22 +23,17 @@ from textual.widgets import Label, Static, TextArea
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.macro.frontmatter_schema import input_type_schema
-from sase.macro.loader_parsing import parse_input_type
-from sase.macro.models import (
-    UNSET,
-    InputArg,
-    InputType,
-    MacroValidationError,
-)
+from sase.macro.loader_parsing import ResolvedInputType, parse_input_type
+from sase.macro.models import UNSET, InputArg, MacroValidationError
 
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
-def _input_type_names() -> dict[str, InputType]:
-    """Map every canonical type name and alias to its :class:`InputType`."""
-    mapping: dict[str, InputType] = {}
+def _input_type_names() -> dict[str, ResolvedInputType]:
+    """Map every catalog type name and alias to its resolved input metadata."""
+    mapping: dict[str, ResolvedInputType] = {}
     for descriptor in input_type_schema():
-        resolved = parse_input_type(descriptor.name)
+        resolved = parse_input_type(descriptor.name, name="input")
         mapping[descriptor.name] = resolved
         for alias in descriptor.aliases:
             mapping[alias] = resolved
@@ -184,8 +179,8 @@ class InputItemModal(ModalScreen[InputArg | None]):
             return None, f"input '{name}' already exists"
 
         type_text = self._field("input-item-type").strip().lower()
-        input_type = self._types.get(type_text)
-        if input_type is None:
+        resolved = self._types.get(type_text)
+        if resolved is None:
             return None, f"unknown type '{type_text}'"
 
         description = self._field("input-item-description").strip() or None
@@ -195,24 +190,34 @@ class InputItemModal(ModalScreen[InputArg | None]):
             return (
                 InputArg(
                     name=name,
-                    type=input_type,
+                    type=resolved.base,
                     default=UNSET,
                     description=description,
+                    choices=resolved.choices,
+                    named_type=resolved.named_type,
+                    value_role=resolved.value_role,
                 ),
                 "",
             )
         try:
-            default = InputArg(name=name, type=input_type).validate_and_convert(
-                default_text
-            )
+            default = InputArg(
+                name=name,
+                type=resolved.base,
+                choices=resolved.choices,
+                named_type=resolved.named_type,
+                value_role=resolved.value_role,
+            ).validate_and_convert(default_text)
         except MacroValidationError as exc:
             return None, str(exc)
         return (
             InputArg(
                 name=name,
-                type=input_type,
+                type=resolved.base,
                 default=default,
                 description=description,
+                choices=resolved.choices,
+                named_type=resolved.named_type,
+                value_role=resolved.value_role,
             ),
             "",
         )

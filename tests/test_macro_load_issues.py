@@ -73,6 +73,31 @@ def test_bad_markdown_frontmatter_records_and_keeps_body_fallback(
     assert "invalid YAML frontmatter" in issues[0].error
 
 
+def test_unquoted_yaml_boolean_enum_choice_skips_macro_with_core_message(
+    tmp_path: Path,
+) -> None:
+    macro_file = tmp_path / "bad_enum.md"
+    macro_file.write_text(
+        "---\n"
+        "name: bad_enum\n"
+        "input:\n"
+        "  mode:\n"
+        "    type: enum\n"
+        "    choices: [yes, no]\n"
+        "---\n"
+        "Body\n",
+        encoding="utf-8",
+    )
+
+    with collect_macro_load_issues() as issues:
+        macro_def = load_macro_from_file(macro_file)
+
+    assert macro_def is None
+    assert len(issues) == 1
+    assert issues[0].kind == "input_type"
+    assert "choice arrived as a boolean and must be quoted" in issues[0].error
+
+
 def test_skipped_config_entries_record_issues() -> None:
     entries = {
         "bad_content": {"content": ["not", "string"]},

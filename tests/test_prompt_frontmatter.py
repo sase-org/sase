@@ -304,6 +304,51 @@ def test_enum_input_labeled_choices_round_trip() -> None:
     )
 
 
+def test_enum_choice_description_round_trips() -> None:
+    model = PromptFrontmatter(
+        inputs=[
+            InputArg(
+                name="mode",
+                type=InputType.ENUM,
+                choices=(
+                    InputChoice(
+                        value="fast",
+                        label="Fast",
+                        description="Quick pass.",
+                    ),
+                ),
+            )
+        ]
+    )
+
+    reparsed = PromptFrontmatter.parse(model.serialize())
+    arg = reparsed.get_input("mode")
+
+    assert arg is not None
+    assert arg.choices == (
+        InputChoice(value="fast", label="Fast", description="Quick pass."),
+    )
+
+
+def test_named_input_type_is_written_without_resolved_choices() -> None:
+    model = PromptFrontmatter(
+        inputs=[
+            InputArg(
+                name="mode",
+                type=InputType.ENUM,
+                named_type="review_mode",
+                value_role="review_mode",
+                choices=(InputChoice(value="fast"),),
+            )
+        ]
+    )
+
+    serialized = model.serialize()
+
+    assert "type: review_mode" in serialized
+    assert "choices" not in serialized
+
+
 # --- macros --------------------------------------------------------------
 
 
