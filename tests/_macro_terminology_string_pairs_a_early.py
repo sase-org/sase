@@ -212,6 +212,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
         "src/sase/macro/macro_sources.py",
         "``xprompts/`` directory only while the ``legacy_xprompt_syntax`` flag",
     ),
+    ("src/sase/macro/plugin_input_types.py", '"SASE_DISABLE_PLUGIN_XPROMPTS"'),
     ("src/sase/macro/prompt_frontmatter.py", '"xprompts"'),
     ("src/sase/macro/save_state.py", '"xprompt"'),
     ("src/sase/macro/workflow_loader_sources.py", '".xprompts"'),
@@ -261,6 +262,10 @@ STRING_PAIRS: set[tuple[str, str]] = {
     (
         "src/sase/main/plugin_discovery.py",
         "``xprompts/`` directory only while the ``legacy_xprompt_syntax`` flag",
+    ),
+    (
+        "src/sase/main/plugin_discovery.py",
+        "enumeration (plus legacy ``sase_xprompts`` while enabled). Retains",
     ),
     (
         "src/sase/main/plugin_discovery.py",

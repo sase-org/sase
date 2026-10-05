@@ -101,6 +101,7 @@ _MACRO_SRC_STRING_REASONS: dict[str, str] = {
     "src/sase/macro/jinja_assist.py": "pre-flip wire/transport vocabulary; owned by sase-1eq.10",
     "src/sase/macro/loader_sources.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/macro/macro_sources.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
+    "src/sase/macro/plugin_input_types.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/macro/prompt_frontmatter.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/macro/save_state.py": "deliberate in-memory kind; on-disk file and key are canonical",
     "src/sase/macro/used_macros.py": "pre-flip wire/transport vocabulary; owned by sase-1eq.10",

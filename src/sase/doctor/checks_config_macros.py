@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import (
@@ -222,8 +222,15 @@ def check_config_macro_input_types(context: DoctorContext) -> DiagnosticCheck:
     """Surface input-type load errors and warnings across macro sources."""
     from sase.macro.load_issues import MacroLoadIssue, collect_macro_load_issues
     from sase.macro.loader import get_all_project_local_prompts, get_all_prompts
+    from sase.macro.plugin_input_types import get_plugin_input_type_registry
 
     with collect_macro_load_issues() as issues:
+        # Ensure registry diagnostics are emitted even when no macro uses
+        # a bad type; re-emission keeps cached failures visible to the doctor.
+        try:
+            get_plugin_input_type_registry()
+        except Exception:
+            pass
         prompts = get_all_prompts(context.project)
         project_local_prompts = get_all_project_local_prompts()
 
@@ -231,15 +238,44 @@ def check_config_macro_input_types(context: DoctorContext) -> DiagnosticCheck:
         issue for issue in issues if issue.kind in _INPUT_TYPE_ISSUE_KINDS
     ]
     loaded = len(prompts) + len(project_local_prompts)
-    rows = [
-        {
-            "source": issue.source,
-            "error": issue.error,
-            "kind": issue.kind,
-        }
-        for issue in issue_rows
-    ]
+    try:
+        snapshot = get_plugin_input_type_registry()
+        registry_diagnostics = list(snapshot.get("diagnostics", []))
+    except Exception:
+        registry_diagnostics = []
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for diagnostic in registry_diagnostics:
+        source = str(diagnostic.get("path", "") or diagnostic.get("distribution", ""))
+        error = str(diagnostic.get("message", ""))
+        severity = str(diagnostic.get("severity", "error")).lower()
+        kind = "input_type_warning" if severity == "warning" else "input_type"
+        key = (source, error)
+        if key in seen:
+            continue
+        seen.add(key)
+        row: dict[str, Any] = {"source": source, "error": error, "kind": kind}
+        if diagnostic.get("line") is not None:
+            row["line"] = diagnostic.get("line")
+        if diagnostic.get("distribution"):
+            row["distribution"] = diagnostic.get("distribution")
+        if diagnostic.get("type_id"):
+            row["type_id"] = diagnostic.get("type_id")
+        rows.append(row)
+    for issue in issue_rows:
+        key = (issue.source, issue.error)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                "source": issue.source,
+                "error": issue.error,
+                "kind": issue.kind,
+            }
+        )
     rows.extend(_model_default_warning_rows(prompts, project_local_prompts))
+    rows.extend(_undeclared_plugin_required_rows(context, prompts, issues))
     if not rows:
         return DiagnosticCheck(
             id="config.macro_input_types",
@@ -433,6 +469,131 @@ def _model_default_warning_rows(
                         "kind": "input_type_warning",
                     }
                 )
+    return rows
+
+
+def _undeclared_plugin_required_rows(
+    context: DoctorContext,
+    prompts: Mapping[str, object],
+    issues: Sequence[object],
+) -> list[dict[str, Any]]:
+    """Warn when project declarations use a distribution missing from required.
+
+    Covers project ``sase/macros/`` and project config declarations, including
+    references whose macros were skipped. Home, bundled, and plugin-owned
+    sources never warn. Each project's declarations compare against its own
+    config, not an aggregate.
+    """
+    import re
+    from pathlib import Path
+
+    from sase.plugins.required import required_plugin_distribution_names
+    from sase.version._utils import normalize_distribution_name
+
+    qualified_re = re.compile(r"([A-Za-z0-9._-]+)@([a-z0-9][a-z0-9_-]*)")
+    refs: list[tuple[str, str, str]] = []
+
+    def _is_plugin_owned(source: str) -> bool:
+        return source.startswith("plugin:")
+
+    def _is_home_or_bundled(source: str) -> bool:
+        try:
+            home = str(Path.home())
+            if source.startswith(home):
+                # Home macros live under ~/.sase or ~/.config; project
+                # workspaces never live there.
+                if "/.sase/" in source or "/.config/sase" in source:
+                    return True
+        except Exception:
+            pass
+        # Bundled package macros ship with sase itself.
+        if "src/sase/macros" in source or "sase/macros" in source:
+            try:
+                import importlib.resources
+
+                package_root = str(importlib.resources.files("sase"))
+                if source.startswith(package_root):
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _is_project_source(source: str) -> bool:
+        if _is_plugin_owned(source):
+            return False
+        if _is_home_or_bundled(source):
+            return False
+        return "sase/macros" in source or source.endswith((".yml", ".yaml"))
+
+    for mapping in (prompts,):
+        for macro_name, macro_def in mapping.items():
+            inputs = getattr(macro_def, "inputs", None)
+            if not inputs:
+                continue
+            source = str(getattr(macro_def, "source_path", None) or macro_name)
+            if not _is_project_source(source):
+                continue
+            for input_arg in inputs:
+                named = getattr(input_arg, "named_type", None)
+                if not isinstance(named, str) or "@" not in named:
+                    continue
+                plugin, _, _ = named.partition("@")
+                if plugin.casefold() == "builtin":
+                    continue
+                refs.append((plugin, str(macro_name), source))
+
+    for issue in issues:
+        source = str(getattr(issue, "source", ""))
+        error = str(getattr(issue, "error", ""))
+        if not _is_project_source(source):
+            continue
+        for match in qualified_re.finditer(error):
+            plugin = match.group(1)
+            if plugin.casefold() == "builtin":
+                continue
+            refs.append((plugin, source, source))
+
+    if not refs:
+        return []
+
+    # Load this project's own required config; aggregate merges stay out.
+    try:
+        from sase.plugins.required import load_project_required_plugins_config
+
+        config, _, _ = load_project_required_plugins_config(context.cwd)
+    except Exception:
+        return []
+    if config is None:
+        return []
+    try:
+        required = required_plugin_distribution_names(config)
+    except Exception:
+        return []
+
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for plugin, macro_name, source in refs:
+        try:
+            normalized = normalize_distribution_name(plugin)
+        except Exception:
+            normalized = plugin.lower()
+        if normalized in required:
+            continue
+        key = (normalized, source)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                "source": source,
+                "error": (
+                    f"macro `{macro_name}` uses plugin `{plugin}`, which is "
+                    f"missing from this project's `plugins.required`; add "
+                    f"`{plugin}` to `plugins.required` (declared in {source})"
+                ),
+                "kind": "input_type_warning",
+            }
+        )
     return rows
 
 

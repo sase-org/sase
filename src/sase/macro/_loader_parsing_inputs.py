@@ -25,6 +25,20 @@ class ResolvedInputType:
     warnings: tuple[str, ...] = ()
 
 
+def _plugin_registry_snapshot() -> dict[str, Any] | None:
+    """Return the cached plugin registry snapshot for the resolver."""
+    try:
+        from .plugin_input_types import get_plugin_input_type_registry
+    except Exception:
+        return None
+    try:
+        snapshot = get_plugin_input_type_registry()
+    except Exception:
+        return None
+    registry = snapshot.get("registry")
+    return registry if isinstance(registry, dict) else None
+
+
 def parse_input_type(
     raw: Any,
     *,
@@ -37,10 +51,12 @@ def parse_input_type(
     ``strict_macro_input_types`` sunset flag is disabled. Deprecated spellings
     are accepted and surfaced as load warnings regardless of that flag.
     """
+    request: dict[str, Any] = {"name": name, "raw": raw}
+    registry = _plugin_registry_snapshot()
+    if registry is not None:
+        request["registry"] = registry
     try:
-        resolved = require_rust_binding("resolve_input_type")(
-            {"name": name, "raw": raw}
-        )
+        resolved = require_rust_binding("resolve_input_type")(request)
     except ValueError as exc:
         message = str(exc)
         if "unknown type" in message.casefold():
@@ -152,6 +168,11 @@ def parse_input_definition(
         name=name,
         source_path=source_path,
     )
+    if choices_raw is not None and resolved.named_type is not None:
+        raise MacroValidationError(
+            f"input `{name}` uses type `{resolved.named_type}` which already "
+            "defines its values; remove `choices`"
+        )
     choices = resolved.choices
     if choices_raw is not None:
         choices = _parse_input_choices(

@@ -89,6 +89,29 @@ def register_macro_parser(subparsers: argparse._SubParsersAction) -> None:
         help="List all available macros and workflows as JSON",
     )
 
+    # macro types
+    types_parser = macro_subparsers.add_parser(
+        "types",
+        help="List macro input types, including plugin-shared enums",
+        description=(
+            "List macro input types: scalar keywords, builtin domain types, "
+            "and plugin-shared enums. With NAME, show one type's detail card."
+        ),
+    )
+    types_parser.add_argument(
+        "type_name",
+        nargs="?",
+        metavar="NAME",
+        help="Type name, alias, or plugin-qualified name (e.g. effort, sase-research-artifacts@audio_edition).",
+    )
+    types_parser.add_argument(
+        "-j",
+        "--json",
+        dest="json",
+        action="store_true",
+        help="Print the Rust catalog projection as JSON.",
+    )
+
     # macro show
     show_parser = macro_subparsers.add_parser(
         "show",

@@ -22,8 +22,10 @@ def handle_macro_command(args: argparse.Namespace) -> None:
         _handle_show(args)
     elif subcommand == "catalog":
         _handle_catalog(args)
+    elif subcommand == "types":
+        _handle_types(args)
     else:
-        print("Usage: sase macro {catalog,expand,explain,graph,list,show}")
+        print("Usage: sase macro {catalog,expand,explain,graph,list,show,types}")
         sys.exit(1)
 
 
@@ -249,6 +251,13 @@ def _handle_show(args: argparse.Namespace) -> None:
     from sase.macro.cli_show import handle_show
 
     sys.exit(handle_show(args))
+
+
+def _handle_types(args: argparse.Namespace) -> None:
+    """Handle 'sase macro types'."""
+    from sase.macro.cli_types import handle_types
+
+    sys.exit(handle_types(args))
 
 
 def _handle_explain(args: argparse.Namespace) -> None:

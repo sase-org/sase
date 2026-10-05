@@ -14,13 +14,21 @@ from tests.main.parser_help_helpers import (
 
 def test_macro_help_renders_show_in_sorted_subcommands() -> None:
     macro_parser = parser_for(("sase", "macro"))
-    expected_commands = {"catalog", "expand", "explain", "graph", "list", "show"}
+    expected_commands = {
+        "catalog",
+        "expand",
+        "explain",
+        "graph",
+        "list",
+        "show",
+        "types",
+    }
 
     help_text = macro_parser.format_help()
     help_commands = help_subcommand_rows(help_text, expected_commands)
 
     assert help_commands == sorted(expected_commands)
-    assert "{catalog,expand,explain,graph,list,show}" in help_text
+    assert "{catalog,expand,explain,graph,list,show,types}" in help_text
 
 
 def test_macro_show_help_documents_flags_and_examples() -> None:

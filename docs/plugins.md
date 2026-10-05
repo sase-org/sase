@@ -1182,3 +1182,36 @@ deck and `sase final status` (see
   before an attempt exists (plugin `describe`/`validate`) lands in
   `preflight.<op>.outcome.json` instead. Records are write-once and exclusive, exactly
   like the commit outcome record.
+
+## Shipping input types
+
+Plugins share closed enums with an `input_types.yml` manifest at the package root,
+beside `default_config.yml` and `macros/`:
+
+```yaml
+schema_version: 1
+types:
+  audio_edition:
+    description: Narration length for guide-backed audio editions.
+    choices:
+      - { value: brief, description: About 4 minutes }
+      - { value: full, label: Full edition, description: About 16 minutes }
+```
+
+Only static closed enums are supported. IDs match `[a-z0-9][a-z0-9_-]*`. The envelope
+accepts exactly `schema_version` and `types`; each type accepts exactly required
+`description` and `choices`. Values must be strings, nonempty words without whitespace,
+distinct, and different from literal `null`. Matching is exact and case-sensitive. A
+type with any error is wholly skipped while valid siblings remain usable; malformed
+files produce file diagnostics without breaking unrelated plugins or macros.
+
+Macros always use the qualified spelling `<distribution>@<id>`, for example
+`sase-research-artifacts@audio_edition`. Distributions use PEP 503 canonicalization.
+Missing plugins name the install command (`sase plugin install <dist>`); unknown IDs
+suggest known IDs and point to `sase macro types`. Named types reject an authored
+`choices` override because the type already defines its values. Serializers write the
+named type without copying resolved choices back.
+
+Project macros that reference a plugin type should list that distribution in the
+project's `plugins.required`; `sase doctor -C config.macro_input_types` warns with the
+exact requirement to add. See `sase macro types` for the installed catalog.

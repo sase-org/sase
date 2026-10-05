@@ -161,14 +161,35 @@ def frontmatter_field_schema() -> list[_FrontmatterFieldSchema]:
     return [_field_from_dict(item) for item in binding()]
 
 
+def _registry_argument() -> dict[str, Any] | None:
+    """Return the plugin registry argument for authoring callers."""
+    try:
+        from .plugin_input_types import get_plugin_input_type_registry
+    except Exception:
+        return None
+    try:
+        snapshot = get_plugin_input_type_registry()
+    except Exception:
+        return None
+    registry = snapshot.get("registry")
+    return registry if isinstance(registry, dict) else None
+
+
 def input_type_schema(*, include_internal: bool = False) -> list[_FrontmatterInputType]:
     """Return the supported ``input`` type catalog from core.
 
     Internal types such as ``code`` are parsed and transported but omitted
-    from public pickers until later authoring surfaces land.
+    from public pickers until later authoring surfaces land. Installed plugin
+    types are included through a thin adapter; static JSON schemas stay
+    builtin-only.
     """
     binding = require_rust_binding("frontmatter_input_type_schema")
-    types = [_input_type_from_dict(item) for item in binding()]
+    registry = _registry_argument()
+    try:
+        items = binding(registry) if registry is not None else binding()
+    except TypeError:
+        items = binding()
+    types = [_input_type_from_dict(item) for item in items]
     if include_internal:
         return types
     return [item for item in types if item.advertised]
@@ -185,4 +206,9 @@ def validate_frontmatter(text: str) -> list[FrontmatterDiagnostic]:
         Diagnostics matching the macro LSP output (same engine).
     """
     binding = require_rust_binding("validate_frontmatter")
-    return [_diagnostic_from_dict(item) for item in binding(text)]
+    registry = _registry_argument()
+    try:
+        items = binding(text, registry) if registry is not None else binding(text)
+    except TypeError:
+        items = binding(text)
+    return [_diagnostic_from_dict(item) for item in items]

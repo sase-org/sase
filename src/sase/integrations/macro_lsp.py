@@ -50,6 +50,7 @@ SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
 SASE_MACRO_ARTIFACT_REF_CATALOG_ENV = "SASE_MACRO_ARTIFACT_REF_CATALOG"
 SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
 SASE_MACRO_GLOSSARY_CATALOG_ENV = "SASE_MACRO_GLOSSARY_CATALOG"
+SASE_MACRO_PLUGIN_INPUT_TYPES_JSON_ENV = "SASE_MACRO_PLUGIN_INPUT_TYPES_JSON"
 SASE_TYPED_LAUNCH_UNITS_ENV = "SASE_TYPED_LAUNCH_UNITS"
 SASE_QUEUE_CAPACITY_BUDGET_ENV = "SASE_QUEUE_CAPACITY_BUDGET"
 SASE_AGENT_HOLDS_ENV = "SASE_AGENT_HOLDS"
@@ -420,6 +421,10 @@ def _prepare_macro_lsp_environment(
         SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV,
         environ[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV],
     )
+    if SASE_MACRO_PLUGIN_INPUT_TYPES_JSON_ENV not in environ:
+        environ[SASE_MACRO_PLUGIN_INPUT_TYPES_JSON_ENV] = json.dumps(
+            _discover_plugin_input_type_files()
+        )
     _materialize_vcs_project_catalog(environ)
     _materialize_model_catalog(environ)
     _materialize_machine_catalog(environ)
@@ -650,6 +655,23 @@ def _discover_plugin_resource_dirs(resource_dir: str) -> list[dict[str, str]]:
                 {"module": getattr(module, "__name__", str(module)), "path": str(path)}
             )
     return entries
+
+
+def _discover_plugin_input_type_files() -> list[dict[str, str]]:
+    """Return concrete plugin ``input_types.yml`` manifests for the Rust LSP.
+
+    Discovery records are exported directly; choices are never materialized
+    into another on-disk JSON catalog. Explicit caller environment values win;
+    this canonical variable has no legacy alias.
+    """
+    from sase.main.plugin_discovery import (
+        discover_macro_plugin_input_type_files,
+    )
+
+    try:
+        return discover_macro_plugin_input_type_files()
+    except Exception:
+        return []
 
 
 def _discover_plugin_config_paths() -> list[dict[str, str]]:

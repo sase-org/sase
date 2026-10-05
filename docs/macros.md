@@ -1026,6 +1026,23 @@ A value outside the declared `choices` fails validation, lists the allowed value
 includes a did-you-mean suggestion when a close match exists. A closed-set default that
 is not a string member of `choices` is a load error.
 
+### Named plugin input types
+
+Plugins share closed enums as named types referenced as `<distribution>@<id>`, for
+example `sase-research-artifacts@audio_edition`:
+
+```yaml
+input:
+  edition: sase-research-artifacts@audio_edition
+```
+
+Bare names belong to sase; qualified names belong to plugins. Distributions use PEP 503
+canonicalization, matching is exact and case-sensitive, and installing an unrelated
+plugin never changes what an existing macro means. A named type already defines its
+values, so an authored `choices` override is an error. Defaults must be string members
+of the resolved choices. See [Shipping input types](plugins.md#shipping-input-types) for
+the manifest and `sase macro types` for the installed catalog.
+
 ### Repeatable Inputs
 
 Set `repeatable: true` on the last user-facing positional input to let it collect every

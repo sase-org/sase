@@ -507,7 +507,9 @@ _VALUE_HINT_TABLE.update(
 #: plus ``PATH_OVERRIDES`` kinds on the exceptional paths. Kept beside
 #: ``PATH_OVERRIDES`` so a future split has a home that
 #: ``resolve_value_hint`` already consults.
-HINT_PATH_OVERRIDES: Final[dict[tuple[tuple[str, ...], str], str]] = {}
+HINT_PATH_OVERRIDES: Final[dict[tuple[tuple[str, ...], str], str]] = {
+    (("macro", "types"), "type_name"): "text",
+}
 
 
 def resolve_value_hint(

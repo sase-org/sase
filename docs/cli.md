@@ -630,6 +630,7 @@ skill.
 | `sase macro graph`                   | Generate a workflow DAG as Mermaid or text.                                       | [Workflow graphing](macros.md#cli-subcommands)                                             |
 | `sase macro catalog`                 | Render visible macros to a formatted PDF catalog.                                 | [Macro catalog](macros.md#cli-subcommands)                                                 |
 | `sase macro show`                    | Show one macro definition with properties, provenance, and syntax highlighting.   | [Macro show](macros.md#sase-macro-show)                                                    |
+| `sase macro types`                   | List macro input types, including plugin-shared enums, or show one type detail.   | [Macro input types](macros.md#named-plugin-input-types)                                    |
 | `sase lsp`                           | Start the macro language server over stdio.                                       | [Editor integration](editor.md#language-server)                                            |
 | `sase editor helper-bridge`          | JSON helper operations for editor integrations.                                   | [Editor helper bridge](editor.md#helper-bridge)                                            |
 | `sase file list`                     | Emit JSON filesystem completion candidates.                                       | [Editor completion commands](configuration.md#sase-file)                                   |

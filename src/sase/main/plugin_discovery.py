@@ -28,6 +28,8 @@ LEGACY_MACRO_PLUGIN_DISABLE_ENV = "SASE_DISABLE_PLUGIN_XPROMPTS"
 CANONICAL_PLUGIN_MACROS_DIR = "macros"
 #: Retired packaged macro resource directory probed only while the flag is on.
 LEGACY_PLUGIN_MACROS_DIR = "xprompts"
+#: Plugin-shared enum manifest probed at each macro-plugin package root.
+PLUGIN_INPUT_TYPES_FILENAME = "input_types.yml"
 
 
 def is_plugin_disabled(group_suffix: str) -> bool:
@@ -159,6 +161,102 @@ def discover_macro_plugin_modules(
                 exc_info=True,
             )
     return modules
+
+
+def discover_macro_plugin_input_type_files(
+    *,
+    accept_legacy: bool | None = None,
+) -> list[dict[str, str]]:
+    """Return concrete ``input_types.yml`` manifests with distributions.
+
+    Reuses the canonical-first, deduplicated ``sase_macros`` entry-point
+    enumeration (plus legacy ``sase_xprompts`` while enabled). Retains
+    ``ep.dist`` instead of guessing the distribution from the module name.
+    Locates the manifest at the package root with ``importlib.resources``.
+    Respects global/macro-plugin disable controls and logs failed imports
+    without crashing. Follows concrete-path conventions: only existing files
+    are returned.
+
+    Returns:
+        List of ``{"distribution", "module", "path"}`` dicts, sorted for
+        determinism.
+    """
+    if macro_plugins_disabled(accept_legacy=accept_legacy):
+        return []
+    records: list[dict[str, str]] = []
+    for ep in _discover_macro_plugin_entry_points(accept_legacy=accept_legacy):
+        try:
+            module = ep.load()
+        except Exception:
+            log.debug(
+                "Failed to load entry point %s:%s",
+                ep.group,
+                ep.name,
+                exc_info=True,
+            )
+            continue
+        dist = getattr(ep, "dist", None)
+        distribution = (
+            getattr(dist, "metadata", {}).get("Name") if dist is not None else None
+        )
+        if not distribution:
+            # Fall back to the entry-point name's distribution guess only
+            # when metadata is unavailable; prefer ep.dist always.
+            continue
+        try:
+            ref = importlib.resources.files(module).joinpath(
+                PLUGIN_INPUT_TYPES_FILENAME
+            )
+        except (TypeError, AttributeError):
+            continue
+        try:
+            path = Path(str(ref))
+        except (OSError, TypeError):
+            continue
+        if not path.is_file():
+            continue
+        records.append(
+            {
+                "distribution": str(distribution),
+                "module": getattr(module, "__name__", str(module)),
+                "path": str(path),
+            }
+        )
+    records.sort(
+        key=lambda item: (
+            item["distribution"].lower(),
+            item["path"],
+            item["module"],
+        )
+    )
+    return records
+
+
+def discover_macro_plugin_distributions(
+    *,
+    accept_legacy: bool | None = None,
+) -> list[str]:
+    """Return known macro-plugin distribution names, even without manifests.
+
+    Uses the same enumeration as
+    :func:`discover_macro_plugin_input_type_files` but keeps inventory
+    independently of whether a manifest exists.
+    """
+    if macro_plugins_disabled(accept_legacy=accept_legacy):
+        return []
+    names: set[str] = set()
+    for ep in _discover_macro_plugin_entry_points(accept_legacy=accept_legacy):
+        dist = getattr(ep, "dist", None)
+        metadata = getattr(dist, "metadata", None) if dist is not None else None
+        name = None
+        if metadata is not None:
+            try:
+                name = metadata.get("Name")
+            except Exception:
+                name = None
+        if name:
+            names.add(str(name))
+    return sorted(names, key=str.lower)
 
 
 def macro_plugin_definition_dirname(
