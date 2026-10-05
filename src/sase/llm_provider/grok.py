@@ -22,7 +22,12 @@ from ._subprocess import (
 from ._tool_calls import append_grok_tool_call_event
 from .base import LLMProvider
 from .model_manifest import provider_model_names, provider_tier_model
-from .types import InvokeResult, LLMInvocationOptions, ModelTier
+from .types import (
+    InvokeResult,
+    LLMInvocationError,
+    LLMInvocationOptions,
+    ModelTier,
+)
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
@@ -62,6 +67,75 @@ def _grok_executable_not_found_error(command: str) -> FileNotFoundError:
         "If PATH resolves to grok-dev or Homebrew's deprecated regex tool, "
         "point SASE_GROK_PATH at the @xai-official/grok binary."
     )
+
+
+_GROK_SINGLE_TURN_DIRECTIVE = (
+    "SASE single-turn instructions for Grok: this session is exactly one turn, "
+    "and nothing can wake you after you end it. Run commands synchronously in "
+    "the foreground with run_terminal_command; a yielded result before the "
+    "command exits means the command is still running, not done. Handoff "
+    "commands such as `sase monitor start`, `sase plan propose`, `sase pipe`, "
+    "and `sase questions` can take up to a minute before they hand off — wait "
+    "for the handoff command itself to exit. Never end your turn to wait on a "
+    "background task, a monitor watch, or a spawn_subagent subagent that has "
+    "not finished; anything still running when you give your final response "
+    "is lost."
+)
+# Linux rejects a single argv element above 128 KiB. Keep SASE's guard below
+# that so `--rules` fails with an actionable error before exec.
+_GROK_RULES_ARGV_BYTE_LIMIT = 120 * 1024
+
+
+def _grok_rules_delivery_enabled() -> bool:
+    """Return whether Grok runs should carry the `--rules` payload.
+
+    Falls back to the registry default (on) when the flag cannot be resolved,
+    so a broken flag snapshot fails closed toward delivering instructions.
+    """
+    try:
+        from sase.feature_flags import FeatureFlag, current_flags
+        from sase.feature_flags.models import FeatureFlagError
+
+        return current_flags().enabled(FeatureFlag.grok_rules_delivery)
+    except FeatureFlagError:
+        return True
+
+
+def _grok_rules_text(cwd: Path | str | None = None) -> str:
+    """Return the `--rules` payload for a Grok run from *cwd*.
+
+    In SASE-managed projects this is the single-turn directive, a blank line,
+    and the project root's ``AGENTS.md`` text exactly once. Elsewhere it is
+    the directive alone. The file is read on every call. The home layer and
+    ``CLAUDE.md`` are never included.
+    """
+    from sase.content_layout import discover_project_root
+    from sase.feature_flags.managed import project_is_sase_managed
+
+    start = Path(cwd).expanduser() if cwd is not None else None
+    agents_path: Path | None = None
+    if project_is_sase_managed(start):
+        root = discover_project_root(start)
+        if root is not None:
+            candidate = root / "AGENTS.md"
+            if candidate.is_file():
+                agents_path = candidate
+    if agents_path is None:
+        return _GROK_SINGLE_TURN_DIRECTIVE
+    agents_text = agents_path.read_text(encoding="utf-8")
+    rules = f"{_GROK_SINGLE_TURN_DIRECTIVE}\n\n{agents_text}"
+    size = len(rules.encode("utf-8"))
+    if size > _GROK_RULES_ARGV_BYTE_LIMIT:
+        raise LLMInvocationError(
+            "Grok (`grok`) --rules payload is too large for SASE's argv "
+            f"transport: {size} UTF-8 bytes exceeds the "
+            f"{_GROK_RULES_ARGV_BYTE_LIMIT}-byte guard. The project "
+            f"instructions file {agents_path} is too large to pass as one "
+            "argv element (Linux rejects a single argv element above 128 "
+            "KiB). Shrink that file, or run `sase flag disable "
+            "grok_rules_delivery` until E3 replaces this channel."
+        )
+    return rules
 
 
 def _log_interrupt(message: str | None, cycle: int) -> None:
@@ -351,6 +425,9 @@ class GrokProvider(LLMProvider):
                 "--no-leader",
                 *effort_args,
             ]
+
+            if _grok_rules_delivery_enabled():
+                command_args.extend(["--rules", _grok_rules_text(os.getcwd())])
 
             if extra_args_env:
                 for arg in extra_args_env.split():

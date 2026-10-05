@@ -27,6 +27,7 @@ class FeatureFlag(StrEnum):
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
+    grok_rules_delivery = "grok_rules_delivery"
     legacy_agent_family_syntax = "legacy_agent_family_syntax"
     legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
     legacy_xprompt_syntax = "legacy_xprompt_syntax"
@@ -152,6 +153,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "directive states that ceiling and the up-front monitor routing rules."
         ),
         bead="sase-178",
+    ),
+    FeatureFlag.grok_rules_delivery: FeatureFlagDefinition(
+        key=FeatureFlag.grok_rules_delivery,
+        kind="sunset",
+        description=(
+            "Grok root runs receive the SASE single-turn directive plus the "
+            "project root AGENTS.md through --rules."
+        ),
+        bead="sase-1gv",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,

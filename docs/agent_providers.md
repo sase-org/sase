@@ -241,13 +241,22 @@ ledger. Subagent turns can set an internal "usage incomplete" flag that the proj
 drops silently, and an interrupted turn can under-count. Text and tool records are
 unaffected, and cost reporting (`total_cost_usd`) does work on the OAuth login path.
 
-### Instruction double-load
+### Instruction delivery
 
-Grok reads `AGENTS.md` natively, so SASE generates no `GROK.md` shim. Grok also
-recognizes SASE's generated `CLAUDE.md` as project instructions and loads both files —
-duplicating the same content. `[compat.claude] agents = false` does not suppress this.
-SASE accepts the duplication for now rather than suppressing `CLAUDE.md` generation
-under a Grok provider, which would break any human running `claude` in the same tree.
+SASE runs Grok in untrusted workspaces with no `--trust` flag, so Grok loads no native
+instruction files (`agents_md_files` stays empty in the session's
+`prompt_context.json`). SASE generates no `GROK.md` shim. Instead, every Grok invocation
+passes `--rules`: the SASE single-turn directive (opening with
+`SASE single-turn instructions for Grok:`), followed by the project root `AGENTS.md`
+text exactly once in SASE-managed projects (the directive alone elsewhere). `CLAUDE.md`
+is never sent, so the content is delivered once, not twice. The home layer is not
+delivered; that arrives with the E3 bundle.
+
+Rules payloads larger than 120 KiB fail fast with an actionable error instead of a
+silent exec failure (Linux rejects a single argv element above 128 KiB). To restore the
+no-`--rules` argv while investigating a regression, run
+`sase flag disable grok_rules_delivery` on the execution host. That sunset kill switch
+is superseded once E3's delivery cutover lands.
 
 ### Privacy
 
