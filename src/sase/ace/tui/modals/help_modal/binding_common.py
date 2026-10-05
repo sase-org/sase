@@ -73,6 +73,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("gL / Ctrl+G L", "Save pane as local macro"),
         ("gw / Ctrl+G w", "Save to targeted macro"),
         ("Ctrl+G p / @", "Stashed prompts panel"),
+        ("y (Stash)", "Copy highlighted prompt"),
         ("Enter", "Submit; chooser when needed"),
         ("g<enter>", "Submit current pane only"),
         ("gj / gk", "Focus prompt panes (NORMAL)"),

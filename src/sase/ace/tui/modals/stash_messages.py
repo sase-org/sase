@@ -112,6 +112,7 @@ STASH_BINDINGS: list[Any] = [
     ("a", "toggle_all", "All"),
     ("d", "mark_delete", "Delete"),
     ("D", "mark_delete_all", "Delete All"),
+    ("y", "copy_prompt", "Copy"),
     Binding("ctrl+d", "scroll_preview_down", "Preview Down", priority=True),
     Binding("ctrl+u", "scroll_preview_up", "Preview Up", priority=True),
     *[

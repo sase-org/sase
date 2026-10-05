@@ -7309,7 +7309,13 @@ mark, `d` marks one row for discard, `D` marks every row for discard, `a` toggle
 restore marks on all rows, and `Enter` confirms the marked set; restores are pin-aware,
 so marked pinned rows stay stashed. With no explicit marks, `Enter` restores the
 highlighted row; pinned rows stay stashed when restored, while unpinned rows are removed
-from Stash and are not moved to Trash.
+from Stash and are not moved to Trash. Press `y` to copy the highlighted row's exact
+prompt body through the shared nonblocking clipboard path (OSC 52 plus a manual-copy
+fallback): the payload is the stored body verbatim — multiline and bundled `---`
+content, whitespace, Unicode, and raw references included, without frontmatter or
+preview metadata — and the panel stays open with its highlight, scroll position, pins,
+and staged marks intact. A row with an empty body copies that empty string; with no
+highlighted row, `y` is a no-op.
 
 Number keys `1`-`9` and `0` restore rows 1-10 directly with the same pin-aware behavior.
 `@` on the Stash tab restores the newest draft, so `@@` pops the latest stash when

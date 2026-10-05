@@ -149,6 +149,16 @@ def test_help_modal_lists_global_restore_prompt_stash() -> None:
         assert ("@", "Restore stashed prompt") in pairs
 
 
+def test_help_modal_lists_stash_copy_highlighted_prompt() -> None:
+    """Every main tab advertises Stash-scoped ``y`` as the stash copy key."""
+    reg = load_keymap_registry({})
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert ("y (Stash)", "Copy highlighted prompt") in pairs
+
+
 def test_help_copy_sections_advertise_copy_as_palette() -> None:
     reg = load_keymap_registry({})
     expected_section_counts = (

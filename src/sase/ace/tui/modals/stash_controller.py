@@ -111,11 +111,11 @@ class StashControllerMixin(StashControllerStateMixin):
         if self._trash_mode():
             return (
                 "1-9/0 restore · a all · j/k move · enter · esc/q · ^d/u\n"
-                f"space {PIN_GLYPH} pin · tab ✓ · d trash row · D trash all"
+                f"space {PIN_GLYPH} pin · tab ✓ · d trash row · D trash all · y copy"
             )
         return (
             "1-9/0 restore · a all · j/k move · enter · esc/q · ^d/u\n"
-            f"space {PIN_GLYPH} pin · tab ✓ · d delete row · D delete all"
+            f"space {PIN_GLYPH} pin · tab ✓ · d delete row · D delete all · y copy"
         )
 
     def _build_options(self, *, preview_width: int | None = None) -> list[Option]:
@@ -310,6 +310,20 @@ class StashControllerMixin(StashControllerStateMixin):
         self._deleted.update(entry_ids)
         self._pop.difference_update(entry_ids)
         self._refresh_rows()
+
+    def action_copy_prompt(self) -> None:
+        """Copy the highlighted stash body; the panel stays open."""
+        entry = self._highlighted_entry()
+        if entry is None:
+            return
+        from sase.ace.tui.actions.clipboard import schedule_copy_delivery
+
+        schedule_copy_delivery(
+            self,
+            entry.text,
+            copied_label="stashed prompt",
+            task_name="sase-copy-stashed-prompt",
+        )
 
     def _single_restore_result(self, entry: PromptStashEntryWire) -> StashRestoreResult:
         return single_restore_result(entry, pinned=entry.id in self._pinned)

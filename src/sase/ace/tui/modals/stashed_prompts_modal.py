@@ -5,7 +5,8 @@ age, an originating-project chip, bundle marker, persistent pin marker, and a
 one-line preview. ``1``-``9`` restore rows 1-9, ``0`` restores row 10, ``space``
 toggles any row's pin and posts an intent message for the app layer to persist
 immediately, ``tab`` marks it to restore, ``d`` marks one row for deletion,
-``D`` marks every row for deletion, and ``enter`` confirms. Pinned rows are
+``D`` marks every row for deletion, ``y`` copies the highlighted row's exact
+prompt body while the panel stays open, and ``enter`` confirms. Pinned rows are
 restored while staying stashed; unpinned rows are restored and popped. The
 modal never touches the store directly; restore/delete decisions are returned
 as :class:`StashRestoreResult`, except a delete-only confirm that leaves rows
