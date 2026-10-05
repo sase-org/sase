@@ -188,7 +188,7 @@ Missing tools degrade the specific feature listed; everything else keeps working
 | `rg` (ripgrep)                                | Fast file-reference search in prompt and commit workflows.                                                                           |
 | `delta`                                       | Syntax-highlighted diffs in commit/accept workflows.                                                                                 |
 | `pandoc`                                      | Markdown-to-PDF artifact rendering.                                                                                                  |
-| One of `wkhtmltopdf` / `xelatex` / `pdflatex` | PDF rendering from Markdown and xprompt catalogs.                                                                                    |
+| One of `wkhtmltopdf` / `xelatex` / `pdflatex` | PDF rendering from Markdown and macro catalogs.                                                                                      |
 | `pdftoppm` (poppler)                          | PDF and Markdown artifact paging in the TUI.                                                                                         |
 | `kitten` (kitty)                              | Terminal image artifact display.                                                                                                     |
 | `prettier`                                    | Prompt and generated-Markdown formatting.                                                                                            |

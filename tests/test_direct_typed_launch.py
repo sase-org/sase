@@ -36,6 +36,7 @@ from sase.feature_flags import override_flags
 from sase.notification_gates.paths import REQUEST_FILENAME
 from sase.ops.models import DurableOperationRequest
 from sase.ops.names import RUN_LAUNCH
+from sase.legacy_xprompt_names import PROMPT_PROC_ORIGIN
 from sase.macro.code_value import CodeValue
 
 
@@ -640,7 +641,7 @@ def test_isolated_direct_bash_proc_settles_without_agent(
     identity = payload["unit_results"][0]["identity"]
     finished = wait_for_proc(identity, timeout=10)
     assert finished.status == "success"
-    assert finished.origin == "xprompt-proc"
+    assert finished.origin == PROMPT_PROC_ORIGIN
     assert finished.lifecycle == "named-proc"
     assert marker.read_text(encoding="utf-8") == "ready"
     artifacts = tmp_path / "home" / "projects"

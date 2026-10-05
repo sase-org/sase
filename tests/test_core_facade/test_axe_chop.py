@@ -286,14 +286,13 @@ def test_strict_config_diagnostics_preserve_provenance() -> None:
             "lumberjacks": {
                 "bad": {
                     "interval": 0,
-                    "chops": [{"name": "audit", "xprompt": "#!audit"}],
+                    "chops": [{"name": "audit", "macro": "#!audit"}],
                 }
             }
         },
         provenance={"lumberjacks.bad": "overlay:athena"},
     )
     assert {item["code"] for item in diagnostics} >= {
-        "agent_chop_removed",
         "non_positive_integer",
     }
     assert {item["layer"] for item in diagnostics} == {"overlay:athena"}

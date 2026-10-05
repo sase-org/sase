@@ -31,7 +31,6 @@ from sase.ace.tui.widgets.macro_arg_assist import (
 from sase.config.core import load_merged_config
 from sase.macro.jinja_assist import JinjaScope
 from sase.macro.jinja_inspect import undeclared_variables
-from sase.legacy_xprompt_names import LEGACY_XPROMPT_JINJA_SCOPE_KIND
 from sase.legacy_xprompt_syntax import retired_config_key
 from sase.macro.loader_parsing import (
     LocalMacroNameError,
@@ -184,7 +183,7 @@ def infer_local_macro_inputs(body: str) -> _PlaceholderArgConversion | None:
     """
     unknown = undeclared_variables(
         body,
-        JinjaScope(kind=LEGACY_XPROMPT_JINJA_SCOPE_KIND, frontmatter=None),
+        JinjaScope(kind="macro", frontmatter=None),
     )
     if unknown is None:
         return None

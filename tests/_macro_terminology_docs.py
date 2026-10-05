@@ -28,6 +28,11 @@ _MACRO_DOCS_SCOPES = (
     "mkdocs.yml",
     "mkdocs-pdf.yml",
     "sase/memory",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    "OPENCODE.md",
+    "QWEN.md",
 )
 
 _MACRO_DOCS_DECISIONS = Path("sase/memory/decisions")
@@ -111,6 +116,26 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
         "sase/memory/glossary.md",
         "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
     ),
+    (
+        "AGENTS.md",
+        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+    ),
+    (
+        "CLAUDE.md",
+        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+    ),
+    (
+        "GEMINI.md",
+        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+    ),
+    (
+        "OPENCODE.md",
+        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+    ),
+    (
+        "QWEN.md",
+        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+    ),
     ("sase/memory/glossary/macro.md", "- xprompt"),
     (
         "sase/memory/glossary/macro.md",
@@ -138,6 +163,11 @@ _MACRO_DOCS_REASONS: dict[str, str] = {
     "mkdocs-pdf.yml": "mkdocs redirect keeps the retired page URL working",
     "mkdocs.yml": "mkdocs redirect keeps the retired page URL working",
     "sase/memory/glossary.md": "generated roster renders the Macro strand's xprompt alias",
+    "AGENTS.md": "generated roster renders the Macro strand's xprompt alias",
+    "CLAUDE.md": "generated roster renders the Macro strand's xprompt alias",
+    "GEMINI.md": "generated roster renders the Macro strand's xprompt alias",
+    "OPENCODE.md": "generated roster renders the Macro strand's xprompt alias",
+    "QWEN.md": "generated roster renders the Macro strand's xprompt alias",
     "sase/memory/glossary/macro.md": "glossary 'formerly' clause and alias keep old glossary:xprompt reads resolving",
     "sase/memory/macros.md": "memory discovery line names the retired directory spellings the sunset flag still reads",
 }

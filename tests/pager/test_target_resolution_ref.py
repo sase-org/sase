@@ -57,7 +57,7 @@ def test_target_resolution_ref_uses_semantic_scanned_target() -> None:
 def test_macro_skill_target_uses_hash_reference_for_resolution_and_copy() -> None:
     semantic = ArtifactRefDocumentTarget(
         schema_version=2,
-        target_kind="xprompt_skill",
+        target_kind="macro_skill",
         text="[plan](#skill/sase_plan)",
         target="skill/sase_plan",
         well_formed=True,

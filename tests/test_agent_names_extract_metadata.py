@@ -267,7 +267,7 @@ class TestExtractDirectivesMetadata:
                 os.environ,
                 {
                     "SASE_AGENT_AUTO_DISMISS": "1",
-                    "SASE_AGENT_LOCAL_XPROMPTS": macros_path,
+                    "SASE_AGENT_LOCAL_MACROS": macros_path,
                     SASE_AGENT_PREDECESSOR_CONTEXT_ENV: json.dumps(payload),
                 },
                 clear=False,
@@ -295,7 +295,7 @@ class TestExtractDirectivesMetadata:
                 str(artifacts),
             )
             assert SASE_AGENT_PREDECESSOR_CONTEXT_ENV not in os.environ
-            assert "SASE_AGENT_LOCAL_XPROMPTS" not in os.environ
+            assert "SASE_AGENT_LOCAL_MACROS" not in os.environ
 
         meta = json.loads((artifacts / "agent_meta.json").read_text(encoding="utf-8"))
         assert info.wait_names == []

@@ -2,7 +2,7 @@
 """Host-local cache for clean ``sase-core`` build artifacts.
 
 The cache holds both the release wheel used by ``rust-install`` and the
-``sase-xprompt-lsp`` binary used by ``rust-lsp-install``.  Entries are content
+``sase-macro-lsp`` binary used by ``rust-lsp-install``.  Entries are content
 addressed and include the artifact kind, so both artifacts can share pruning,
 root discovery, and per-identity build locks safely.
 """
@@ -551,18 +551,14 @@ def _copy_into_cache(
     return final_artifact
 
 
-def _lsp_package(core_dir: Path) -> str:
+def _lsp_package(_core_dir: Path) -> str:
     """Return the LSP crate name the core checkout provides."""
-    if (core_dir / "crates" / "sase_macro_lsp" / "Cargo.toml").is_file():
-        return "sase_macro_lsp"
-    return "sase_xprompt_lsp"
+    return "sase_macro_lsp"
 
 
-def _lsp_binary(target_dir: Path, profile: str) -> str:
-    """Return the preferred LSP binary the build produced, macro first."""
-    if (target_dir / profile / "sase-macro-lsp").is_file():
-        return "sase-macro-lsp"
-    return "sase-xprompt-lsp"
+def _lsp_binary(_target_dir: Path, _profile: str) -> str:
+    """Return the LSP binary the build produced."""
+    return "sase-macro-lsp"
 
 
 def _run_lsp_build(*, core_dir: Path, target_dir: Path, profile: str, cargo: str) -> Path:

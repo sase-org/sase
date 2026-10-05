@@ -26,10 +26,10 @@ pytestmark = pytest.mark.contract
 # Strings-guard widened scans (phase sase-1eq.4.1.5).
 #
 # Beyond identifiers/imports/paths, the guard inspects string literals,
-# comments, and non-Python text resources across all src/tests/smoke/demos
-# content, including the TUI trees. Skill sources under
-# src/sase/macros/skills/ and smoke/demo scripts carry no exceptions: they
-# must stay clean. Every other surviving hit is pinned below as a
+# comments, and non-Python text resources across every tracked file
+# (Justfile, tools/, .github/, smoke/, demos/, and the rest). Skill sources
+# under src/sase/macros/skills/ and smoke/demo scripts carry no exceptions:
+# they must stay clean. Every other surviving hit is pinned below as a
 # (file, literal-line) pair with a per-file reason; a newly introduced
 # xprompt string, comment, or resource line fails.
 # ---------------------------------------------------------------------------
@@ -64,7 +64,6 @@ _MACRO_SRC_STRING_REASONS: dict[str, str] = {
     "src/sase/ace/tui/modals/statistics_pane_data.py": "unconditional reader maps the retired Statistics view id to Macros",
     "src/sase/_sidecar_ref_constants.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/_sidecar_ref_normalization.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
-    "src/sase/agent/__init__.py": "temporary import shim (audit-deploy removes it)",
     "src/sase/agent/_macro_swarm_rendering.py": "pre-flip wire/transport vocabulary; owned by sase-1eq.10",
     "src/sase/agent/launch_guard.py": "pre-flip wire/transport vocabulary; owned by sase-1eq.10",
     "src/sase/agent/launch_proc_runtime.py": "pre-flip wire/transport vocabulary; owned by sase-1eq.10",
@@ -129,6 +128,10 @@ _MACRO_SRC_STRING_REASONS: dict[str, str] = {
     "src/sase/vcs_log/_tag_style.py": "color key matches the observed SASE_TYPE vocabulary new saves still emit",
 }
 
+_MACRO_OTHER_STRING_REASONS: dict[str, str] = {
+    "tools/validate_sase_core_rs": "pinned-core still emits package:xprompts/skills alongside package:macros/skills",
+}
+
 _MACRO_TEST_STRING_REASON_DEFAULT = "legacy-input evidence for the both-states compatibility matrix: writers are canonical and the suite is green, so surviving hits are reader inputs, stored fixtures, or deferred-surface pins"
 
 _MACRO_TEST_STRING_REASONS: dict[str, str] = {
@@ -160,10 +163,6 @@ _MACRO_TEST_STRING_REASONS: dict[str, str] = {
 _MACRO_STRING_ALLOWLIST: set[tuple[str, str]] = STRING_PAIRS_A | STRING_PAIRS_B
 
 _MACRO_COMMENT_ALLOWLIST: set[tuple[str, str]] = {
-    (
-        "src/sase/agent/__init__.py",
-        "# noqa: E402, F401  # TEMP(xprompt->macro shim): removed in audit-deploy.",
-    ),
     (
         "src/sase/agent/multi_prompt.py",
         "# retired ``xprompts`` gated by the sunset flag. Both spellings in one",
@@ -207,6 +206,10 @@ _MACRO_RESOURCE_ALLOWLIST: set[tuple[str, str]] = {
     (
         "tests/fixtures/macro_args_corpus.json",
         '"description": "Shared Python/Rust xprompt argument-list corpus. Each case.source is the inside of a parenthesized argument list. positional/named are the bound values after [[...]] stripping.",',
+    ),
+    (
+        "tools/validate_sase_core_rs",
+        '"package_skills": "package:xprompts/skills",',
     ),
 }
 
@@ -261,15 +264,12 @@ def _iter_py_comment_lines(path: Path) -> list[str]:
 
 def _iter_resource_files() -> list[Path]:
     found: list[Path] = []
-    for scope in ("src", "tests", "smoke", "demos"):
-        root = ROOT / scope
-        for path in sorted(root.rglob("*")):
-            if not path.is_file() or path.suffix == ".py":
-                continue
-            if "__pycache__" in path.parts:
-                continue
-            if path.relative_to(ROOT) not in _MACRO_RESOURCE_SKIPS:
-                found.append(path)
+    for path in iter_scope_files():
+        if path.suffix == ".py":
+            continue
+        relative = path.relative_to(ROOT)
+        if relative not in _MACRO_RESOURCE_SKIPS:
+            found.append(path)
     return found
 
 
@@ -331,22 +331,22 @@ def test_macro_resources_avoid_xprompt_terms() -> None:
     assert findings == []
 
 
+def _reason_for(relative: str) -> bool:
+    if relative.startswith("src/"):
+        return relative in _MACRO_SRC_STRING_REASONS
+    if relative.startswith("tests/"):
+        return relative in _MACRO_TEST_STRING_REASONS or bool(
+            _MACRO_TEST_STRING_REASON_DEFAULT
+        )
+    return relative in _MACRO_OTHER_STRING_REASONS
+
+
 def test_macro_string_allowlist_is_classified() -> None:
     for relative, _ in _MACRO_STRING_ALLOWLIST | _MACRO_COMMENT_ALLOWLIST:
-        if relative.startswith("src/"):
-            assert relative in _MACRO_SRC_STRING_REASONS, relative
-        else:
-            assert (
-                relative in _MACRO_TEST_STRING_REASONS
-                or _MACRO_TEST_STRING_REASON_DEFAULT
-            ), relative
+        assert _reason_for(relative), relative
     for relative, _ in _MACRO_RESOURCE_ALLOWLIST:
-        assert relative in _MACRO_SRC_STRING_REASONS or (
-            relative.startswith("tests/")
-            and (
-                relative in _MACRO_TEST_STRING_REASONS
-                or _MACRO_TEST_STRING_REASON_DEFAULT
-            )
-        ), relative
+        assert _reason_for(relative), relative
     for relative in _MACRO_SRC_STRING_REASONS:
+        assert (ROOT / relative).exists(), relative
+    for relative in _MACRO_OTHER_STRING_REASONS:
         assert (ROOT / relative).exists(), relative

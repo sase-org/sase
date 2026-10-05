@@ -7,6 +7,7 @@ from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     agent_scan_wire_from_dict,
 )
+from sase.core.agent_scan_wire_records import SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS
 
 from .agent_scan_golden import (
     EXPECTED_DECODE_ERRORS,
@@ -18,15 +19,16 @@ from .agent_scan_golden import (
 
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
-    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 10
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 34
+    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 12
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 36
 
 
 def test_scan_wire_rejects_stale_binding_schema() -> None:
+    stale = min(SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS) - 1
     with pytest.raises(ValueError, match="schema mismatch"):
         agent_scan_wire_from_dict(
             {
-                "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION - 1,
+                "schema_version": stale,
                 "projects_root": "/tmp/projects",
                 "records": [],
             }

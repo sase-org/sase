@@ -277,7 +277,7 @@ def test_launch_agents_from_cwd_passes_single_segment_swarm_provenance(
 ) -> None:
     """A one-segment swarm keeps provenance on the single-agent path."""
     from sase.agent.launcher import launch_agents_from_cwd
-    from sase.macro.used_macros import SASE_LAUNCH_SWARM_XPROMPTS
+    from sase.macro.used_macros import SASE_LAUNCH_SWARM_MACROS
 
     del mock_project, mock_timestamp
     mock_spawn.side_effect = spawn_result_with_planned_name
@@ -299,7 +299,7 @@ def test_launch_agents_from_cwd_passes_single_segment_swarm_provenance(
         launch_agents_from_cwd("#swarm")
 
     assert (
-        mock_spawn.call_args.kwargs["extra_env"][SASE_LAUNCH_SWARM_XPROMPTS]
+        mock_spawn.call_args.kwargs["extra_env"][SASE_LAUNCH_SWARM_MACROS]
         == '["swarm"]'
     )
 

@@ -12,7 +12,6 @@ sdd/plans/
 sase_plan_*.md
 
 # Prompt source syntax: bare macro references like #_helper are not Markdown headings.
-sase/xprompts/*.md
 sase/macros/*.md
 
 # Generated Markdown sources preserve output-sensitive prose and Jinja whitespace.

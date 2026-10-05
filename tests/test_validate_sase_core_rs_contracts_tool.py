@@ -239,7 +239,7 @@ def test_validate_sase_core_rs_requires_expected_finalizer_schema() -> None:
 
 def _skill_layout_payload(
     *,
-    schema_version: int = 5,
+    schema_version: int = 6,
     package_locator: str = "package:xprompts/skills",
 ) -> dict[str, object]:
     return {
@@ -254,6 +254,7 @@ def _skill_layout_payload(
                 "id": "home_project_skills",
                 "locator": "/home/alice/sase/skills/demo",
             },
+            {"id": "package_macro_skills", "locator": "package:macros/skills"},
             {"id": "package_skills", "locator": package_locator},
         ],
     }

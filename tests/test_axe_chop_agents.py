@@ -213,7 +213,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_macro_env(
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
-    macros_file = tmp_path / "xprompts.json"
+    macros_file = tmp_path / "macros.json"
     macros_file.write_text("{}")
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
@@ -247,7 +247,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_macro_env(
     assert env["GH_PRE_ALLOCATED"] == "1"
     assert env["GH_WORKSPACE_NUM"] == "8"
     assert env["GH_WORKSPACE_DIR"] == str(workspace_dir)
-    assert env["SASE_AGENT_LOCAL_XPROMPTS"] == str(macros_file)
+    assert env["SASE_AGENT_LOCAL_MACROS"] == str(macros_file)
     assert env["SASE_REPEAT_NAME"] == "task.1"
     mock_claim.assert_called_once()
     assert mock_claim.call_args.args[1] == 0

@@ -186,7 +186,7 @@ def test_rust_helpers_cover_workspace_cwd_and_env_contracts(tmp_path: Path) -> N
     assert "SASE_AGENT" not in env
     assert "HOME" not in env
     assert env["PATH"].endswith("/home/user/.cargo/bin:/usr/bin:/bin")
-    assert prompt_proc_origin() == "xprompt-proc"
+    assert prompt_proc_origin() == PROMPT_PROC_ORIGIN
 
 
 def test_bash_proc_runs_without_agent_artifacts(
@@ -212,7 +212,7 @@ def test_bash_proc_runs_without_agent_artifacts(
     assert identity is not None
     finished = wait_for_proc(identity, timeout=10)
     assert finished.status == "success"
-    assert finished.origin == "xprompt-proc"
+    assert finished.origin == PROMPT_PROC_ORIGIN
     assert finished.lifecycle == "named-proc"
     assert finished.proc_name == "checks"
     assert finished.prompt_proc is not None
@@ -482,7 +482,7 @@ def test_delayed_proc_after_wait_preserves_the_same_executable_environment(
     assert progress.summary.launched == 2
     from sase.procs.store import read_procs
 
-    rows = [row for row in read_procs() if row.origin == "xprompt-proc"]
+    rows = [row for row in read_procs() if row.origin == PROMPT_PROC_ORIGIN]
     assert len(rows) == 1
     finished = wait_for_proc(rows[0].proc_id, timeout=10)
     assert finished.status == "success", finished.message
@@ -598,7 +598,7 @@ def test_admission_launches_proc_and_mixed_wait_order(
     assert outcomes == {"unit-1": "launched", "unit-2": "launched"}
     from sase.procs.store import read_procs
 
-    rows = [row for row in read_procs() if row.origin == "xprompt-proc"]
+    rows = [row for row in read_procs() if row.origin == PROMPT_PROC_ORIGIN]
     assert len(rows) == 1
     finished = wait_for_proc(rows[0].proc_id, timeout=10)
     assert finished.status == "success"
@@ -639,7 +639,7 @@ def test_timeout_settles_without_agent_slots(monkeypatch: Any, tmp_path: Path) -
     assert identity is not None
     finished = wait_for_proc(identity, timeout=10)
     assert finished.status == "error"
-    assert finished.origin == "xprompt-proc"
+    assert finished.origin == PROMPT_PROC_ORIGIN
 
 
 def test_prepared_script_mode_is_private(tmp_path: Path) -> None:

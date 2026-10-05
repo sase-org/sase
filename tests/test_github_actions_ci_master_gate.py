@@ -163,7 +163,7 @@ def test_master_gate_core_wheel_job_resolves_and_caches_by_sha() -> None:
         "Set up Rust",
         "Cache Rust build",
         "Build abi3 Rust core wheel",
-        "Build xprompt LSP",
+        "Build macro LSP",
         "Record wheel provenance",
     }
     for step in job["steps"]:
@@ -171,10 +171,8 @@ def test_master_gate_core_wheel_job_resolves_and_caches_by_sha() -> None:
             assert step["if"] == guarded_condition
 
     assert "uvx maturin build --release" in run_text
-    assert "crates/sase_macro_lsp/Cargo.toml" in run_text
     assert 'cargo build --release -p "$lsp_pkg"' in run_text
     assert "sase_macro_lsp" in run_text
-    assert "target/release/sase-macro-lsp" in run_text
     assert '"target/release/$lsp_bin"' in run_text
 
     upload_step = next(

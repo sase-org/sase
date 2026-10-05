@@ -129,7 +129,7 @@ class TestLoadProjectLocalMacros:
     def test_loads_macros_from_sase_yml(self, tmp_path: Path) -> None:
         sase_yml = tmp_path / "sase.yml"
         sase_yml.write_text(
-            "xprompts:\n"
+            "macros:\n"
             "  docs: 'Write documentation for the code'\n"
             "  test: 'Write tests for the code'\n"
         )
@@ -142,7 +142,7 @@ class TestLoadProjectLocalMacros:
 
     def test_empty_macros_section(self, tmp_path: Path) -> None:
         sase_yml = tmp_path / "sase.yml"
-        sase_yml.write_text("xprompts:\n")
+        sase_yml.write_text("macros:\n")
 
         result = load_project_local_macros(tmp_path, "myproj")
         assert result == {}
@@ -161,10 +161,10 @@ class TestLoadProjectLocalMacros:
     def test_structured_macro_entry(self, tmp_path: Path) -> None:
         sase_yml = tmp_path / "sase.yml"
         sase_yml.write_text(
-            "xprompts:\n"
+            "macros:\n"
             "  review:\n"
             "    input:\n"
-            "      file: str\n"
+            "      file: word\n"
             "    content: 'Review the file {{file}}'\n"
         )
 
@@ -182,11 +182,11 @@ class TestGetAllProjectLocalPrompts:
         # Set up two project workspaces with sase.yml
         ws1 = tmp_path / "ws1"
         ws1.mkdir()
-        (ws1 / "sase.yml").write_text("xprompts:\n  foo: 'Foo content'\n")
+        (ws1 / "sase.yml").write_text("macros:\n  foo: 'Foo content'\n")
 
         ws2 = tmp_path / "ws2"
         ws2.mkdir()
-        (ws2 / "sase.yml").write_text("xprompts:\n  bar: 'Bar content'\n")
+        (ws2 / "sase.yml").write_text("macros:\n  bar: 'Bar content'\n")
 
         with patch(
             "sase.macro.loader.known_project_namespaces",
@@ -226,7 +226,7 @@ class TestGetAllProjectLocalPrompts:
         )
         config = workspace / "sase" / "sase.yml"
         config.parent.mkdir(parents=True, exist_ok=True)
-        config.write_text("xprompts:\n  docs: 'Project-local docs'\n")
+        config.write_text("macros:\n  docs: 'Project-local docs'\n")
         monkeypatch.setenv("SASE_HOME", str(sase_home))
         monkeypatch.setattr(
             project_aliases,
@@ -313,7 +313,7 @@ class TestGetAllProjectLocalPrompts:
         workspace = tmp_path / "workspace"
         config = workspace / "sase" / "sase.yml"
         config.parent.mkdir(parents=True)
-        config.write_text("xprompts:\n  docs: 'Project-local docs'\n")
+        config.write_text("macros:\n  docs: 'Project-local docs'\n")
         namespaces = {project_display_case.project_label: workspace}
         monkeypatch.setattr(
             "sase.macro._catalog_sources.known_project_namespaces",

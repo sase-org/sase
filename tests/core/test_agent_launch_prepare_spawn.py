@@ -38,7 +38,7 @@ def test_prepare_agent_launch_rust_writes_prompt_and_returns_process_shape(
         history_sort_key="feature/test",
         vcs_workflow_type="gh",
         vcs_ref="feature/test",
-        local_macros_file="/tmp/xprompts.json",
+        local_macros_file="/tmp/macros.json",
         extra_env={"SASE_AGENT": "caller", "SASE_REPEAT_NAME": "task.1"},
         retry_transfer_from_pid=99,
     )
@@ -85,7 +85,7 @@ def test_prepare_agent_launch_rust_writes_prompt_and_returns_process_shape(
     assert prepared.env_delta["SASE_AGENT"] == "1"
     assert prepared.env_delta["SASE_REPEAT_NAME"] == "task.1"
     assert prepared.env_delta["GH_PRE_ALLOCATED"] == "1"
-    assert prepared.env_delta["SASE_AGENT_LOCAL_XPROMPTS"] == "/tmp/xprompts.json"
+    assert prepared.env_delta["SASE_AGENT_LOCAL_MACROS"] == "/tmp/macros.json"
     assert "SASE_AGENT_VCS_WORKFLOW_TYPE" not in prepared.env_delta
     assert prepared.claim_request is not None
     assert prepared.claim_request.workspace_num == 4

@@ -26,6 +26,9 @@ MACROS_FILENAME = "macros.json"
 MACROS_DIRNAME = "macros"
 LEGACY_MACROS_FILENAME = "xprompts.json"
 LEGACY_XPROMPTS_DIRNAME = "xprompts"
+LOCAL_MACROS_NESTED_KEY = "local_macros"
+LEGACY_LOCAL_MACROS_NESTED_KEY = "local_xprompts"
+LEGACY_LAUNCH_SWARM_XPROMPTS_ENV = "SASE_LAUNCH_SWARM_XPROMPTS"
 LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME: Literal["xprompts_enabled"] = "xprompts_enabled"
 
 # The pinned core still accepts these Rust editor-scope and source-kind values,
@@ -167,6 +170,8 @@ def prompt_proc_payload(data: Mapping[str, Any]) -> Any | None:
 
 
 __all__ = [
+    "LEGACY_LAUNCH_SWARM_XPROMPTS_ENV",
+    "LEGACY_LOCAL_MACROS_NESTED_KEY",
     "LEGACY_MACROS_FILENAME",
     "LEGACY_RAW_XPROMPT_FILENAME",
     "LEGACY_SUBMITTED_XPROMPT_FILENAME",
@@ -182,6 +187,7 @@ __all__ = [
     "LEGACY_XPROMPT_SOURCE_KIND",
     "LEGACY_XPROMPT_SET_SHA256_KEY",
     "LEGACY_XPROMPTS_DIRNAME",
+    "LOCAL_MACROS_NESTED_KEY",
     "MACROS_CATALOG_DIRNAME",
     "MACROS_DIRNAME",
     "MACROS_FILENAME",

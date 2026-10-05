@@ -1088,10 +1088,10 @@ def _validate_skill_reference_contract(module: ModuleType) -> bool:
     if not isinstance(layout, dict):
         _error("sase_content_layout probe returned a non-dict payload")
         return False
-    if layout.get("schema_version") != 5:
+    if layout.get("schema_version") != 6:
         _error(
             "sase_content_layout probe returned stale schema: "
-            f"got {layout.get('schema_version')!r}, expected 5"
+            f"got {layout.get('schema_version')!r}, expected 6"
         )
         valid = False
 
@@ -1108,6 +1108,7 @@ def _validate_skill_reference_contract(module: ModuleType) -> bool:
         "project_skills": "/workspace/demo/sase/skills",
         "home_skills": "/home/alice/sase/skills",
         "home_project_skills": "/home/alice/sase/skills/demo",
+        "package_macro_skills": "package:macros/skills",
         "package_skills": "package:xprompts/skills",
     }
     for source_id, expected_locator in expected_locators.items():
@@ -1301,12 +1302,10 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     if not isinstance(snapshot, dict):
         _error("scan_agent_artifacts probe returned a non-dict payload")
         return False
-    # Accept the pre-flip (10) and contract-flip (11) schemas so this probe
-    # passes against either core; pin-bump moves the mirrors afterwards.
-    if snapshot.get("schema_version") not in (10, 11):
+    if snapshot.get("schema_version") != 12:
         _error(
             "scan_agent_artifacts probe returned stale schema: "
-            f"got {snapshot.get('schema_version')!r}, expected 10 or 11"
+            f"got {snapshot.get('schema_version')!r}, expected 12"
         )
         return False
 
@@ -1469,9 +1468,9 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     if not isinstance(payload, dict):
         _error("agent statistics work-schema probe returned a non-dict payload")
         return False
-    if payload.get("schema_version") != 7:
+    if payload.get("schema_version") != 8:
         _error(
-            "agent statistics work-schema probe requires schema version 7: "
+            "agent statistics work-schema probe requires schema version 8: "
             f"got {payload.get('schema_version')!r}"
         )
         return False

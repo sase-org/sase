@@ -1066,7 +1066,7 @@ rust-install-uv-tool:
      fi; \
      just rust-install "$TOOL_VENV"
 
-# Build the local `sase_core_rs` extension and `sase-xprompt-lsp` with the
+# Build the local `sase_core_rs` extension and `sase-macro-lsp` with the
 # dev-update Cargo profile and target-isolated caches, then install both into a venv.
 rust-dev-install VENV=venv_dir_abs: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
@@ -1157,16 +1157,16 @@ rust-dev-install-uv-tool:
      fi; \
      just rust-dev-install "$TOOL_VENV"
 
-# Build and install the xprompt LSP server into a venv (defaults to the
+# Build and install the macro LSP server into a venv (defaults to the
 # repo `.venv`). The binary is copied into the target venv's bin directory
 # so `sase lsp` can prefer the update-managed server over stale PATH copies.
 rust-lsp-install VENV=venv_dir_abs: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
-        printf "[rust-lsp-install] %s not found; skipping (xprompt LSP is optional).\n" "{{ sase_core_dir }}"; \
+        printf "[rust-lsp-install] %s not found; skipping (macro LSP is optional).\n" "{{ sase_core_dir }}"; \
         exit 0; \
     fi
     @if ! command -v cargo > /dev/null 2>&1; then \
-        printf "[rust-lsp-install] cargo not on PATH; install rustup to build the xprompt LSP server.\n"; \
+        printf "[rust-lsp-install] cargo not on PATH; install rustup to build the macro LSP server.\n"; \
         exit 1; \
     fi
     @if [ ! -x "{{ VENV }}/bin/python" ]; then \
@@ -1205,7 +1205,7 @@ rust-lsp-install VENV=venv_dir_abs: _venv
     mv -f "$tmp" "$dest"; \
     printf "[rust-lsp-install] installed %s\n" "$dest"
 
-# Build and install `sase-xprompt-lsp` into the uv-tool venv for `sase`
+# Build and install `sase-macro-lsp` into the uv-tool venv for `sase`
 # (typically ~/.local/share/uv/tools/sase).
 rust-lsp-install-uv-tool:
     @if ! command -v uv > /dev/null 2>&1; then \

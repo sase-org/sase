@@ -61,7 +61,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ),
     ("tests/test_agent_name_key_markers.py", '"%xprompts_enabled:true\\n"'),
     ("tests/test_agent_name_migration.py", '"raw_xprompt.md"'),
-    ("tests/test_agent_names_extract_metadata.py", '"SASE_AGENT_LOCAL_XPROMPTS"'),
     ("tests/test_agent_names_extract_naming.py", '"xprompt-proc"'),
     (
         "tests/test_agent_names_resume.py",
@@ -78,8 +77,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/test_agent_revive_names.py", '"raw_xprompt.md"'),
     ("tests/test_agent_tab_moves.py", '"raw_xprompt.md"'),
     ("tests/test_alias_history_modal.py", '"raw_xprompt.md"'),
-    ("tests/test_axe_chop_agents.py", '"SASE_AGENT_LOCAL_XPROMPTS"'),
-    ("tests/test_axe_chop_agents.py", '"xprompts.json"'),
     (
         "tests/test_axe_run_agent_exec_plan_followup_questions.py",
         '"%xprompts_enabled:false"',

@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-from sase.legacy_xprompt_names import MACROS_FILENAME, macros_step_filename
+from sase.legacy_xprompt_names import (
+    LEGACY_LAUNCH_SWARM_XPROMPTS_ENV,
+    MACROS_FILENAME,
+    macros_step_filename,
+)
 from sase.macro._literal_zones import literal_zone_ranges
 from sase.macro._parsing import (
     MacroReference,
@@ -63,7 +67,9 @@ def decode_launch_swarm_macros(
     environ: Mapping[str, str],
 ) -> list[str] | None:
     """Decode launch-boundary swarm provenance."""
-    raw = environ.get(SASE_LAUNCH_SWARM_MACROS)
+    raw = environ.get(SASE_LAUNCH_SWARM_MACROS) or environ.get(
+        LEGACY_LAUNCH_SWARM_XPROMPTS_ENV
+    )
     if not raw:
         return None
     decoded = json.loads(raw)
@@ -77,6 +83,7 @@ def decode_launch_swarm_macros(
 def pop_launch_swarm_env(environ: MutableMapping[str, str]) -> None:
     """Remove launch-boundary swarm provenance."""
     environ.pop(SASE_LAUNCH_SWARM_MACROS, None)
+    environ.pop(LEGACY_LAUNCH_SWARM_XPROMPTS_ENV, None)
 
 
 def scan_macro_references(

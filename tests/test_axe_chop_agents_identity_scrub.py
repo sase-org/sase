@@ -16,7 +16,7 @@ from sase.axe.chop_agents import (
 )
 from sase.detach_scope import _DetachScopeCommand
 from sase.running_field import ClaimResult
-from sase.macro.used_macros import SASE_LAUNCH_SWARM_XPROMPTS
+from sase.macro.used_macros import SASE_LAUNCH_SWARM_MACROS
 
 from tests._axe_chop_agents_helpers import _spawn_agent_for_env_test
 
@@ -181,7 +181,7 @@ def test_spawn_agent_subprocess_scopes_swarm_provenance_to_explicit_launch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A nested launch drops ambient provenance but keeps an explicit chain."""
-    monkeypatch.setenv(SASE_LAUNCH_SWARM_XPROMPTS, '["parent_swarm"]')
+    monkeypatch.setenv(SASE_LAUNCH_SWARM_MACROS, '["parent_swarm"]')
     inherited_case = tmp_path / "inherited"
     inherited_case.mkdir()
 
@@ -190,7 +190,7 @@ def test_spawn_agent_subprocess_scopes_swarm_provenance_to_explicit_launch(
         monkeypatch=monkeypatch,
         mock_spawn=mock_spawn,
     )
-    assert SASE_LAUNCH_SWARM_XPROMPTS not in mock_spawn.call_args.kwargs["env"]
+    assert SASE_LAUNCH_SWARM_MACROS not in mock_spawn.call_args.kwargs["env"]
 
     explicit_case = tmp_path / "explicit"
     explicit_case.mkdir()
@@ -198,10 +198,10 @@ def test_spawn_agent_subprocess_scopes_swarm_provenance_to_explicit_launch(
         tmp_path=explicit_case,
         monkeypatch=monkeypatch,
         mock_spawn=mock_spawn,
-        extra_env={SASE_LAUNCH_SWARM_XPROMPTS: '["child_swarm"]'},
+        extra_env={SASE_LAUNCH_SWARM_MACROS: '["child_swarm"]'},
     )
     assert (
-        mock_spawn.call_args.kwargs["env"][SASE_LAUNCH_SWARM_XPROMPTS]
+        mock_spawn.call_args.kwargs["env"][SASE_LAUNCH_SWARM_MACROS]
         == '["child_swarm"]'
     )
 

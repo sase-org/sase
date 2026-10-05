@@ -104,7 +104,7 @@ def test_preprocess_prompt_macros_captures_launch_boundary_usage(
     # Isolate from an ambient launch-boundary swarm (e.g. this test process
     # itself running as a swarm-launched agent); the catalog patched below
     # only knows about "plan".
-    monkeypatch.delenv(used_macros.SASE_LAUNCH_SWARM_XPROMPTS, raising=False)
+    monkeypatch.delenv(used_macros.SASE_LAUNCH_SWARM_MACROS, raising=False)
     monkeypatch.setattr(
         used_macros,
         "get_all_macros",
@@ -150,7 +150,7 @@ def test_preprocess_prompt_macros_captures_launch_swarm(
     from sase.macro.tags import MacroTag
 
     monkeypatch.setenv(
-        used_macros.SASE_LAUNCH_SWARM_XPROMPTS,
+        used_macros.SASE_LAUNCH_SWARM_MACROS,
         '["research_swarm"]',
     )
     monkeypatch.setattr(
@@ -325,7 +325,7 @@ def test_deferred_launch_macros_preserve_original_usage_metadata(
     # Isolate from an ambient launch-boundary swarm (e.g. this test process
     # itself running as a swarm-launched agent); the catalogs patched here
     # only know about "gh", "fork", "beau", and "plan".
-    monkeypatch.delenv(used_macros.SASE_LAUNCH_SWARM_XPROMPTS, raising=False)
+    monkeypatch.delenv(used_macros.SASE_LAUNCH_SWARM_MACROS, raising=False)
     monkeypatch.setattr(used_macros, "get_all_macros", lambda: parts)
     monkeypatch.setattr(used_macros, "get_all_workflows", lambda: workflows)
     monkeypatch.setattr(used_macros, "resolve_macro_aliases", lambda prompt: prompt)

@@ -117,8 +117,8 @@ def test_local_macros_env_var_cleanup_in_extract_directives() -> None:
     assert os.path.exists(macros_file)
 
     # Verify the code path: set env var, parse multi_prompt, pop env var, cleanup.
-    os.environ["SASE_AGENT_LOCAL_XPROMPTS"] = macros_file
-    env_macros_path = os.environ.pop("SASE_AGENT_LOCAL_XPROMPTS", None)
+    os.environ["SASE_AGENT_LOCAL_MACROS"] = macros_file
+    env_macros_path = os.environ.pop("SASE_AGENT_LOCAL_MACROS", None)
     assert env_macros_path is not None
     assert env_macros_path == macros_file
 

@@ -21,10 +21,10 @@ def test_macros_absent_section_is_explicitly_unavailable() -> None:
 
 def test_macros_present_empty_section_is_available() -> None:
     payload = run_payload()
-    payload["xprompts"] = {
-        "runs_with_xprompts": 0,
-        "runs_without_xprompts": 6,
-        "distinct_xprompts": 0,
+    payload["macros"] = {
+        "runs_with_macros": 0,
+        "runs_without_macros": 6,
+        "distinct_macros": 0,
         "total_references": 0,
         "rows": [],
         "truncated_rows": 0,
@@ -46,10 +46,10 @@ def test_macros_present_empty_section_is_available() -> None:
 
 def test_macros_populated_rows_build_shares_tags_and_project_labels() -> None:
     payload = run_payload()
-    payload["xprompts"] = {
-        "runs_with_xprompts": 4,
-        "runs_without_xprompts": 2,
-        "distinct_xprompts": 2,
+    payload["macros"] = {
+        "runs_with_macros": 4,
+        "runs_without_macros": 2,
+        "distinct_macros": 2,
         "total_references": 7,
         "truncated_rows": 0,
         "rows": [
@@ -139,10 +139,10 @@ def test_macros_populated_rows_build_shares_tags_and_project_labels() -> None:
 
 def test_macro_focus_builds_full_breakdowns_and_bucket_labels() -> None:
     payload = run_payload()
-    payload["xprompts"] = {
-        "runs_with_xprompts": 2,
-        "runs_without_xprompts": 4,
-        "distinct_xprompts": 1,
+    payload["macros"] = {
+        "runs_with_macros": 2,
+        "runs_without_macros": 4,
+        "distinct_macros": 1,
         "total_references": 3,
         "rows": [],
         "truncated_rows": 0,
@@ -199,10 +199,10 @@ def test_macro_focus_builds_full_breakdowns_and_bucket_labels() -> None:
 
 def test_macro_focus_preserves_not_found_state() -> None:
     payload = run_payload()
-    payload["xprompts"] = {
-        "runs_with_xprompts": 0,
-        "runs_without_xprompts": 6,
-        "distinct_xprompts": 0,
+    payload["macros"] = {
+        "runs_with_macros": 0,
+        "runs_without_macros": 6,
+        "distinct_macros": 0,
         "total_references": 0,
         "rows": [],
         "truncated_rows": 0,

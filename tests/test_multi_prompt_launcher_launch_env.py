@@ -11,7 +11,7 @@ from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planne
 from sase.agent.output_variable_context import SASE_AGENT_VAR_UPSTREAMS_ENV
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
-from sase.macro.used_macros import SASE_LAUNCH_SWARM_XPROMPTS
+from sase.macro.used_macros import SASE_LAUNCH_SWARM_MACROS
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -193,8 +193,8 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
     assert call1_env["SASE_CHOP_NAME"] == "split"
     assert call0_env["SASE_AGENT_PLANNED_NAME"] == "0"
     assert call1_env["SASE_AGENT_PLANNED_NAME"] == "1"
-    assert SASE_LAUNCH_SWARM_XPROMPTS not in call0_env
-    assert SASE_LAUNCH_SWARM_XPROMPTS not in call1_env
+    assert SASE_LAUNCH_SWARM_MACROS not in call0_env
+    assert SASE_LAUNCH_SWARM_MACROS not in call1_env
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -281,8 +281,8 @@ def test_launch_multi_prompt_injects_per_segment_swarm_provenance(
     )
 
     envs = [call.kwargs["extra_env"] for call in mock_spawn.call_args_list]
-    assert envs[0][SASE_LAUNCH_SWARM_XPROMPTS] == '["outer","inner"]'
-    assert envs[1][SASE_LAUNCH_SWARM_XPROMPTS] == '["outer"]'
+    assert envs[0][SASE_LAUNCH_SWARM_MACROS] == '["outer","inner"]'
+    assert envs[1][SASE_LAUNCH_SWARM_MACROS] == '["outer"]'
 
 
 def test_launch_multi_prompt_validates_swarm_provenance_length() -> None:

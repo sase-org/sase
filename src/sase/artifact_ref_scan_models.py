@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from sase.artifact_ref_wire import (
     ArtifactRefDocumentTargetKind,
+    canonical_document_target_kind,
     check_document_scan_record_schema,
     check_record_schema,
     optional_str,
@@ -104,12 +105,12 @@ class ArtifactRefDocumentTarget:
         check_document_scan_record_schema(
             raw, record="artifact-reference document target"
         )
-        target_kind = str(raw["target_kind"])
+        target_kind = canonical_document_target_kind(str(raw["target_kind"]))
         if target_kind not in {
             "artifact_ref",
             "url",
             "file_path",
-            "xprompt_skill",
+            "macro_skill",
         }:
             raise RuntimeError(
                 "sase_core_rs returned an unknown artifact-reference document "

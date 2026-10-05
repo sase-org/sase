@@ -11,7 +11,7 @@ from tests._validate_sase_core_rs_tool_helpers import load_validate_sase_core_rs
 pytestmark = pytest.mark.contract
 
 
-def test_validate_sase_core_rs_requires_stats_v7_commit_and_truncation_fields() -> None:
+def test_validate_sase_core_rs_requires_stats_v8_commit_and_truncation_fields() -> None:
     validator = load_validate_sase_core_rs()
 
     def module_with_payload(payload: object) -> SimpleNamespace:
@@ -21,10 +21,10 @@ def test_validate_sase_core_rs_requires_stats_v7_commit_and_truncation_fields() 
         )
 
     valid_payload = {
-        "schema_version": 7,
+        "schema_version": 8,
         "work": {"projects": [], "changespecs": []},  # legacy wire key
         "commits": {"committing_runs": 0, "committing_agents": 0},
-        "xprompts": {
+        "macros": {
             "rows": [
                 {
                     "models_truncated": 0,
@@ -77,7 +77,7 @@ def test_validate_sase_core_rs_requires_stats_v7_commit_and_truncation_fields() 
                 "schema_version": 6,
                 "work": {"projects": [], "changespecs": []},  # legacy wire key
                 "commits": {"committing_runs": 0, "committing_agents": 0},
-                "xprompts": {
+                "macros": {
                     "rows": [
                         {
                             "models_truncated": 0,
@@ -106,7 +106,7 @@ def test_validate_sase_core_rs_requires_stats_v7_commit_and_truncation_fields() 
         module_with_payload(
             {
                 **valid_payload,
-                "xprompts": {"rows": [{"models_truncated": 0}]},
+                "macros": {"rows": [{"models_truncated": 0}]},
             }
         )
     )

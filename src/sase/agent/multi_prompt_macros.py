@@ -7,6 +7,10 @@ import tempfile
 from collections.abc import Mapping, MutableMapping
 from typing import Any
 
+from sase.legacy_xprompt_names import (
+    LEGACY_LOCAL_MACROS_NESTED_KEY,
+    LOCAL_MACROS_NESTED_KEY,
+)
 from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
 from sase.macro.models import UNSET as _UNSET
 from sase.macro.models import Macro
@@ -32,10 +36,9 @@ def set_local_macros_path(environ: MutableMapping[str, str], path: str) -> None:
 def restore_local_macros_path(
     environ: MutableMapping[str, str], path: str | None
 ) -> None:
-    """Restore a previously saved local-macros file path, or clear both keys."""
+    """Restore a previously saved local-macros file path, or clear the key."""
     if path is None:
         environ.pop(LOCAL_MACROS_ENV, None)
-        environ.pop(LOCAL_XPROMPTS_ENV, None)
     else:
         set_local_macros_path(environ, path)
 
@@ -150,7 +153,7 @@ def serialize_local_macros(macros: dict[str, Macro]) -> str:
             ],
             "source_path": xp.source_path,
             "tags": [t.value for t in xp.tags],
-            "local_xprompts": {
+            LOCAL_MACROS_NESTED_KEY: {
                 name: serialize_macro(local) for name, local in xp.local_macros.items()
             },
         }
@@ -159,7 +162,7 @@ def serialize_local_macros(macros: dict[str, Macro]) -> str:
 
     fd, path = tempfile.mkstemp(
         suffix=".json",
-        prefix="sase_local_xprompts_",
+        prefix="sase_local_macros_",
         dir=get_sase_managed_tmpdir("handoff"),
     )
     with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -218,7 +221,9 @@ def deserialize_local_macros(path: str) -> dict[str, Macro]:
                     value_role=inp.get("value_role"),
                 )
             )
-        nested_data = entry.get("local_xprompts", {})
+        nested_data = entry.get(LOCAL_MACROS_NESTED_KEY)
+        if not isinstance(nested_data, dict):
+            nested_data = entry.get(LEGACY_LOCAL_MACROS_NESTED_KEY, {})
         nested = (
             {
                 name: deserialize_macro(local)

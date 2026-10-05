@@ -203,7 +203,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
         "tests/test_multi_prompt.py",
         "'---\\nxprompts:\\n  badname: \"content\"\\n---\\nbody'",
     ),
-    ("tests/test_multi_prompt_e2e.py", '"SASE_AGENT_LOCAL_XPROMPTS"'),
     (
         "tests/test_multi_prompt_e2e.py",
         "'---\\nxprompts:\\n  _ctx: \"extra context\"\\n---\\n'",

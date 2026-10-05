@@ -319,24 +319,25 @@ def test_prompt_panel_reader_accepts_legacy_step_files(tmp_path: Path) -> None:
 
 
 def test_swarm_env_prefers_macro_spelling() -> None:
+    from sase.legacy_xprompt_names import LEGACY_LAUNCH_SWARM_XPROMPTS_ENV
     from sase.macro.used_macros import (
         SASE_LAUNCH_SWARM_MACROS,
-        SASE_LAUNCH_SWARM_XPROMPTS,
         decode_launch_swarm_macros,
         launch_swarm_env_entries,
         pop_launch_swarm_env,
     )
 
     entries = launch_swarm_env_entries(["a"])
-    assert entries[SASE_LAUNCH_SWARM_MACROS] == '["a"]'
-    assert entries[SASE_LAUNCH_SWARM_XPROMPTS] == '["a"]'
+    assert entries == {SASE_LAUNCH_SWARM_MACROS: '["a"]'}
 
     assert decode_launch_swarm_macros(
-        {SASE_LAUNCH_SWARM_MACROS: '["m"]', SASE_LAUNCH_SWARM_XPROMPTS: '["x"]'}
+        {SASE_LAUNCH_SWARM_MACROS: '["m"]', LEGACY_LAUNCH_SWARM_XPROMPTS_ENV: '["x"]'}
     ) == ["m"]
-    assert decode_launch_swarm_macros({SASE_LAUNCH_SWARM_XPROMPTS: '["x"]'}) == ["x"]
+    assert decode_launch_swarm_macros({LEGACY_LAUNCH_SWARM_XPROMPTS_ENV: '["x"]'}) == [
+        "x"
+    ]
     assert decode_launch_swarm_macros({}) is None
 
-    env = {SASE_LAUNCH_SWARM_MACROS: "1", SASE_LAUNCH_SWARM_XPROMPTS: "2"}
+    env = {SASE_LAUNCH_SWARM_MACROS: "1", LEGACY_LAUNCH_SWARM_XPROMPTS_ENV: "2"}
     pop_launch_swarm_env(env)
     assert env == {}

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from sase.macro.jinja_assist import JinjaScope
 from sase.macro.jinja_inspect import undeclared_variables
-from sase.legacy_xprompt_names import LEGACY_XPROMPT_JINJA_SCOPE_KIND
 
 
 def test_save_inference_skips_engine_builtins() -> None:
@@ -12,7 +11,7 @@ def test_save_inference_skips_engine_builtins() -> None:
 
     unknown = undeclared_variables(
         body,
-        JinjaScope(kind=LEGACY_XPROMPT_JINJA_SCOPE_KIND, frontmatter=None),
+        JinjaScope(kind="macro", frontmatter=None),
     )
 
     assert unknown is not None

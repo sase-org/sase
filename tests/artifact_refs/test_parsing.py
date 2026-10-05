@@ -63,10 +63,10 @@ def test_document_scan_wrapper_accepts_macro_skill_targets() -> None:
     assert [
         (link.text, link.target, link.target_kind)
         for link in scan.links
-        if link.target_kind == "xprompt_skill"
+        if link.target_kind == "macro_skill"
     ] == [
-        ("#skill/sase_plan", "skill/sase_plan", "xprompt_skill"),
-        ("[repo](#skill/sase_repo)", "skill/sase_repo", "xprompt_skill"),
+        ("#skill/sase_plan", "skill/sase_plan", "macro_skill"),
+        ("[repo](#skill/sase_repo)", "skill/sase_repo", "macro_skill"),
     ]
 
 

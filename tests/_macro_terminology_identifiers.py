@@ -29,7 +29,6 @@ _SHIM_MARK = "# TEMP(xprompt->macro shim)"
 # here with a reason.
 _MACRO_TRANSPORT_SINGLETONS = frozenset(
     {
-        ("src/sase/agent/multi_prompt_macros.py", "LOCAL_XPROMPTS_ENV"),
         ("src/sase/doctor/checks_deep_macro_lsp.py", "SASE_XPROMPT_LSP_CMD_ENV"),
         ("src/sase/doctor/checks_deep_macro_lsp.py", "XPROMPT_LSP_BINARY"),
         ("src/sase/integrations/macro_lsp.py", "SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV"),
@@ -47,7 +46,6 @@ _MACRO_TRANSPORT_SINGLETONS = frozenset(
         ("src/sase/integrations/macro_lsp.py", "SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV"),
         ("src/sase/integrations/macro_lsp.py", "SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV"),
         ("src/sase/integrations/macro_lsp.py", "XPROMPT_LSP_BINARY"),
-        ("src/sase/macro/used_macros.py", "SASE_LAUNCH_SWARM_XPROMPTS"),
         ("src/sase/main/parser_macro.py", "xprompt_subcommand"),
         ("tests/doctor/test_checks_deep.py", "SASE_XPROMPT_LSP_CMD_ENV"),
         ("tests/main/test_lsp_handler.py", "SASE_XPROMPT_LSP_CMD_ENV"),
@@ -78,18 +76,6 @@ _MACRO_TRANSPORT_SINGLETONS = frozenset(
             "tests/main/test_lsp_handler_environment.py",
             "SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV",
         ),
-        ("tests/test_axe_chop_agents_identity_scrub.py", "SASE_LAUNCH_SWARM_XPROMPTS"),
-        ("tests/test_legacy_macro_names.py", "SASE_LAUNCH_SWARM_XPROMPTS"),
-        (
-            "tests/test_multi_prompt_launcher_launch_env.py",
-            "SASE_LAUNCH_SWARM_XPROMPTS",
-        ),
-        (
-            "tests/test_multi_prompt_launcher_macro_groups.py",
-            "SASE_LAUNCH_SWARM_XPROMPTS",
-        ),
-        ("tests/test_run_agent_runner_refresh.py", "LOCAL_XPROMPTS_ENV"),
-        ("tests/test_run_agent_runner_setup.py", "SASE_LAUNCH_SWARM_XPROMPTS"),
     }
 )
 

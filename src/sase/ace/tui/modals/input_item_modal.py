@@ -24,7 +24,7 @@ from textual.widgets import Label, Static, TextArea
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.macro.frontmatter_schema import input_type_schema
 from sase.macro.loader_parsing import ResolvedInputType, parse_input_type
-from sase.macro.models import UNSET, InputArg, MacroValidationError
+from sase.macro.models import UNSET, InputArg, InputType, MacroValidationError
 
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 

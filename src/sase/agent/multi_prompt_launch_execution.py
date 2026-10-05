@@ -287,7 +287,7 @@ def spawn_segments_into(
                 # Each sub-prompt gets its own copy of the local macros file
                 # (the agent runner deletes it after reading).
                 with timer.stage(
-                    "local_xprompts_serialize", segment_index=i, slot_index=j
+                    "local_macros_serialize", segment_index=i, slot_index=j
                 ):
                     slot_local_macros_files[j] = (
                         serialize_local_macros(segment_local_macros)

@@ -80,7 +80,7 @@ jobs:
         if: steps.restore-core-wheel.outputs.cache-hit != 'true'
         working-directory: sase-core/crates/sase_core_py
         run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
-      - name: Build xprompt LSP
+      - name: Build macro LSP
         if: steps.restore-core-wheel.outputs.cache-hit != 'true'
         working-directory: sase-core
         run: |

@@ -26,7 +26,7 @@ def test_setup_sase_action_installs_downloaded_core_artifacts() -> None:
     install_script = _setup_sase_install_script()
     assert 'SASE_CORE_WHEEL="${wheels[0]}" just "$INSTALL_RECIPE"' in install_script
     assert "sase-core-sha.txt" in install_script
-    assert "sase-xprompt-lsp" in install_script
+    assert "sase-macro-lsp" in install_script
     assert 'lsp_tmp="$(mktemp "${lsp_dest}.tmp.XXXXXX")"' in install_script
     assert '"$lsp_dest" --version' in install_script
 
@@ -54,7 +54,7 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
     wheel.touch()
     (artifact_dir / "sase-core-sha.txt").write_text("deadbeef\n", encoding="utf-8")
     _write_executable(
-        artifact_dir / "sase-xprompt-lsp",
+        artifact_dir / "sase-macro-lsp",
         '#!/bin/sh\nprintf "lsp %s\\n" "$1"\n',
     )
 
@@ -90,7 +90,7 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
 
     assert f"just install SASE_CORE_WHEEL={wheel}" in result.stdout
     assert "lsp --version" in result.stdout
-    installed_lsp = tmp_path / ".venv" / "bin" / "sase-xprompt-lsp"
+    installed_lsp = tmp_path / ".venv" / "bin" / "sase-macro-lsp"
     assert installed_lsp.is_file()
     assert installed_lsp.stat().st_mode & stat.S_IXUSR
 
@@ -153,13 +153,11 @@ def test_setup_sase_install_script_installs_macro_lsp_under_its_own_name(
     [
         (
             0,
-            "error: expected exactly one LSP binary "
-            "(sase-macro-lsp or sase-xprompt-lsp), found 0",
+            "error: expected exactly one LSP binary (sase-macro-lsp), found 0",
         ),
         (
             2,
-            "error: expected exactly one LSP binary "
-            "(sase-macro-lsp or sase-xprompt-lsp), found 2",
+            "error: expected exactly one LSP binary (sase-macro-lsp), found 2",
         ),
     ],
 )
@@ -174,7 +172,7 @@ def test_setup_sase_install_script_rejects_missing_or_duplicate_lsp_artifacts(
     (artifact_dir / "sase-core-sha.txt").write_text("deadbeef\n", encoding="utf-8")
     for index in range(lsp_count):
         _write_executable(
-            artifact_dir / f"lsp-{index}" / "sase-xprompt-lsp",
+            artifact_dir / f"lsp-{index}" / "sase-macro-lsp",
             '#!/bin/sh\nprintf "lsp\\n"\n',
         )
 
@@ -216,7 +214,7 @@ def test_setup_sase_install_script_rejects_missing_or_duplicate_provenance(
     artifact_dir.mkdir()
     (artifact_dir / "sase_core_rs-0.18.1-cp312-abi3-manylinux_2_39_x86_64.whl").touch()
     _write_executable(
-        artifact_dir / "sase-xprompt-lsp",
+        artifact_dir / "sase-macro-lsp",
         '#!/bin/sh\nprintf "lsp\\n"\n',
     )
     for index in range(provenance_count):

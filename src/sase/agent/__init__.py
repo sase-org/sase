@@ -71,5 +71,3 @@ def __dir__() -> list[str]:
 
 
 _PEP562_HOOKS = (__getattr__, __dir__)
-
-from sase import xprompt as xprompt  # noqa: E402, F401  # TEMP(xprompt->macro shim): removed in audit-deploy.

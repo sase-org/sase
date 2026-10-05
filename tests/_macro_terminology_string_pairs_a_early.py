@@ -39,14 +39,10 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("src/sase/agent/launch_proc_runtime.py", 'f"xprompt-proc:{proc.proc_id}"'),
     ("src/sase/agent/macro_swarm.py", 'f"xprompt:{name}:{next(group_counter)}"'),
     ("src/sase/agent/multi_prompt.py", '"xprompts"'),
-    ("src/sase/agent/multi_prompt_launch_execution.py", '"local_xprompts_serialize"'),
     (
         "src/sase/agent/multi_prompt_launch_execution.py",
         '"segment_swarm_xprompts must have one entry per multi-prompt segment"',
     ),
-    ("src/sase/agent/multi_prompt_macros.py", '"SASE_AGENT_LOCAL_XPROMPTS"'),
-    ("src/sase/agent/multi_prompt_macros.py", '"local_xprompts"'),
-    ("src/sase/agent/multi_prompt_macros.py", '"sase_local_xprompts_"'),
     ("src/sase/agents_sync/inventory_sources.py", '"raw_xprompt"'),
     ("src/sase/agents_sync/inventory_sources.py", '"raw_xprompt.md"'),
     ("src/sase/artifact_ref_scan_models.py", '"xprompt_skill"'),
@@ -218,7 +214,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ),
     ("src/sase/macro/prompt_frontmatter.py", '"xprompts"'),
     ("src/sase/macro/save_state.py", '"xprompt"'),
-    ("src/sase/macro/used_macros.py", '"SASE_LAUNCH_SWARM_XPROMPTS"'),
     ("src/sase/macro/workflow_loader_sources.py", '".xprompts"'),
     ("src/sase/macro/workflow_loader_sources.py", '"xprompts"'),
     (

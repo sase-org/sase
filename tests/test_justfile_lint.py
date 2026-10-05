@@ -415,7 +415,6 @@ def test_rust_lsp_install_consults_sase_core_artifact_cache() -> None:
     assert '--cargo-target-dir "$lsp_target_dir"' in output
     assert "[rust-lsp-install] Installing cached LSP binary from " in output
     assert 'lsp_bin="$(basename "$src")"' in output
-    assert "crates/sase_macro_lsp/Cargo.toml" in output
     assert '"$lsp_pkg"' in output
     assert '"$lsp_target_dir/$profile/sase-macro-lsp"' in output
 

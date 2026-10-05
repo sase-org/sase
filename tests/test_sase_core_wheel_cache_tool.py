@@ -81,7 +81,7 @@ def fake_cargo(tmp_path: Path) -> Path:
         "  shift\n"
         "done\n"
         'mkdir -p "$CARGO_TARGET_DIR/$profile"\n'
-        'printf lsp > "$CARGO_TARGET_DIR/$profile/sase-xprompt-lsp"\n',
+        'printf lsp > "$CARGO_TARGET_DIR/$profile/sase-macro-lsp"\n',
         encoding="utf-8",
     )
     cargo.chmod(0o755)

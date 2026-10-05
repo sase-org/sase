@@ -1,6 +1,6 @@
 name: Build Core
 
-# Builds the shared Rust core wheel and xprompt LSP binary once, as a reusable
+# Builds the shared Rust core wheel and macro LSP binary once, as a reusable
 # workflow, so both the correctness lane (ci.yml) and the measurement lane
 # (telemetry.yml) build the exact same artifact from the exact same steps
 # instead of drifting copies.
@@ -58,7 +58,7 @@ jobs:
       - name: Build abi3 Rust core wheel
         working-directory: sase-core/crates/sase_core_py
         run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
-      - name: Build xprompt LSP
+      - name: Build macro LSP
         working-directory: sase-core
         run: |
           lsp_pkg="sase_macro_lsp"

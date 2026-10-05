@@ -32,7 +32,6 @@ from sase.ace.tui.widgets.macro_arg_assist import (
     macro_assist_entry_from_local_macro,
 )
 from sase.macro.jinja_assist import JinjaScope
-from sase.legacy_xprompt_names import LEGACY_XPROMPT_JINJA_SCOPE_KIND
 from sase.macro.models import InputArg
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 
@@ -161,9 +160,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         scope = self._frontmatter_scope(text_area)
         raw = scope.raw or ""
         if scope.has_target:
-            return JinjaScope(
-                kind=LEGACY_XPROMPT_JINJA_SCOPE_KIND, frontmatter=raw or None
-            )
+            return JinjaScope(kind="macro", frontmatter=raw or None)
         return JinjaScope(kind="prompt", frontmatter=raw or None)
 
     def jinja_scope_label_for_text_area(

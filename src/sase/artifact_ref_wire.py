@@ -43,8 +43,18 @@ ArtifactRefDocumentTargetKind = Literal[
     "artifact_ref",
     "url",
     "file_path",
+    "macro_skill",
     "xprompt_skill",
 ]
+
+_LEGACY_DOCUMENT_TARGET_KINDS = {"xprompt_skill": "macro_skill"}
+
+
+def canonical_document_target_kind(target_kind: str) -> str:
+    """Return the canonical document-target kind, accepting the pre-rename spelling."""
+    return _LEGACY_DOCUMENT_TARGET_KINDS.get(target_kind, target_kind)
+
+
 ArtifactRefTargetFailureCategory = Literal[
     "missing_checkout",
     "unavailable_revision",

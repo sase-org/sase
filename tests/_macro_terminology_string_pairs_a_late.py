@@ -115,8 +115,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/core/test_agent_alias_history_wire.py", '"used_xprompts"'),
     ("tests/core/test_agent_launch_fanout_wire.py", '"%xprompts_enabled:false\\n"'),
     ("tests/core/test_agent_launch_fanout_wire.py", '"%xprompts_enabled:true\\n"'),
-    ("tests/core/test_agent_launch_prepare_spawn.py", '"/tmp/xprompts.json"'),
-    ("tests/core/test_agent_launch_prepare_spawn.py", '"SASE_AGENT_LOCAL_XPROMPTS"'),
     ("tests/core/test_revival_inputs.py", '"raw_xprompt.md"'),
     ("tests/core/test_revival_inputs.py", '"submitted_xprompt.md"'),
     ("tests/core/test_revival_inputs.py", '"xprompts.json"'),

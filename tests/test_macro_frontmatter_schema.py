@@ -26,7 +26,7 @@ def test_field_schema_is_non_empty_and_ordered() -> None:
         "description",
         "tags",
         "input",
-        "xprompts",
+        "macros",
         "skill",
         "snippet",
     ]
@@ -39,7 +39,7 @@ def test_field_schema_is_non_empty_and_ordered() -> None:
 def test_structured_and_bool_field_kinds() -> None:
     by_name = {field.name: field for field in frontmatter_field_schema()}
     assert by_name["input"].kind is FrontmatterFieldKind.STRUCTURED
-    assert by_name["xprompts"].kind is FrontmatterFieldKind.STRUCTURED
+    assert by_name["macros"].kind is FrontmatterFieldKind.STRUCTURED
     assert by_name["skill"].kind is FrontmatterFieldKind.BOOL_OR_LIST
     assert by_name["snippet"].kind is FrontmatterFieldKind.BOOL_OR_SCALAR
     assert by_name["skill"].allowed_values
@@ -77,9 +77,9 @@ def test_validate_frontmatter_accepts_internal_code_type() -> None:
 def test_validate_frontmatter_flags_known_bad_value() -> None:
     diagnostics = validate_frontmatter("---\ninput:\n  service: wordd\n---\n")
     codes = {d.code for d in diagnostics}
-    assert "invalid_xprompt_frontmatter_input_type" in codes
+    assert "invalid_macro_frontmatter_input_type" in codes
     offending = next(
-        d for d in diagnostics if d.code == "invalid_xprompt_frontmatter_input_type"
+        d for d in diagnostics if d.code == "invalid_macro_frontmatter_input_type"
     )
     assert offending.is_error
 
@@ -95,10 +95,10 @@ def test_validate_frontmatter_accepts_log_skill_use_boolean() -> None:
     )
     assert not [d for d in diagnostics if d.is_error], diagnostics
     codes = {d.code for d in diagnostics}
-    assert "unknown_xprompt_frontmatter_field" not in codes, diagnostics
+    assert "unknown_macro_frontmatter_field" not in codes, diagnostics
 
 
 def test_validate_frontmatter_flags_non_boolean_log_skill_use() -> None:
     diagnostics = validate_frontmatter('---\nlog_skill_use: "false"\n---\n')
     codes = {d.code for d in diagnostics}
-    assert "invalid_xprompt_frontmatter_log_skill_use" in codes
+    assert "invalid_macro_frontmatter_log_skill_use" in codes
