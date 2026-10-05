@@ -354,6 +354,12 @@ def main() -> NoReturn:
 
         parser.error(f"unknown init subcommand: {args.init_subcommand}")
 
+    # --- instructions ---
+    if args.command == "instructions":
+        from .instructions_handler import handle_instructions_command
+
+        handle_instructions_command(args)
+
     # --- launch ---
     if args.command == "launch":
         from .launch_handler import handle_launch_command

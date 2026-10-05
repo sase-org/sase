@@ -31,22 +31,21 @@ The legacy frontmatter values `type: short` and `type: long` are still accepted 
 `type: core` and `type: reference` respectively.
 
 Use [initialization](init.md#memory-initialization) to create or refresh the files. Use
-[`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and
-provider instruction file status. Initialization always generates the core
-`sase/memory/sase.md` workspace note — workspace naming, linked repositories, and the
-`/sase_final` terminal-action contract. For SASE-managed project repositories it
-additionally generates the core `sase/memory/task_types.md` catalog note
-(agent-creatable types, their `when_to_use` text, and field names),
-`sase/memory/sase_artifacts.md` for artifact-reference and indexed-file workflows,
-`sase/memory/sase_beads.md` for bead workflows, and `sase/memory/sase_sizes.md`
-size-scale guidance nested under `sase_beads.md` and surfaced through that note's
-`## Children` section on an audited read. The top-level reference notes are listed in
-the `## Reference Memory` section of managed agent instructions. The project-root
-task-type note and `sase/task_types.json` snapshot render from the committed catalog
-(builtins, `plugins.required` types, and `bead.task_types`). Day to day, the usual order
-is: inspect loaded context with `sase memory list`, have agents use `sase memory read`
-for audited reference reads, have agents route every memory write through
-`/sase_memory_write`.
+[`sase instructions list`](init.md#agent-documents) to inspect `AGENTS.md` and provider
+instruction file status. Initialization always generates the core `sase/memory/sase.md`
+workspace note — workspace naming, linked repositories, and the `/sase_final`
+terminal-action contract. For SASE-managed project repositories it additionally
+generates the core `sase/memory/task_types.md` catalog note (agent-creatable types,
+their `when_to_use` text, and field names), `sase/memory/sase_artifacts.md` for
+artifact-reference and indexed-file workflows, `sase/memory/sase_beads.md` for bead
+workflows, and `sase/memory/sase_sizes.md` size-scale guidance nested under
+`sase_beads.md` and surfaced through that note's `## Children` section on an audited
+read. The top-level reference notes are listed in the `## Reference Memory` section of
+managed agent instructions. The project-root task-type note and `sase/task_types.json`
+snapshot render from the committed catalog (builtins, `plugins.required` types, and
+`bead.task_types`). Day to day, the usual order is: inspect loaded context with
+`sase memory list`, have agents use `sase memory read` for audited reference reads, have
+agents route every memory write through `/sase_memory_write`.
 
 sase's TUI **Memory panel** is the interactive surface for browsing memory across every
 memory-bearing project plus Home. It can add/edit/delete flat-note metadata and

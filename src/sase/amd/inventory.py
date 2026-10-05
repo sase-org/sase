@@ -1,4 +1,4 @@
-"""Inventory and rendering for ``sase memory agent-docs list``."""
+"""Inventory and rendering for ``sase instructions list``."""
 
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ class _AmdDocumentEntry:
 
 @dataclass(frozen=True)
 class _AmdInventory:
-    """All ``AGENTS.md`` files visible to ``sase memory agent-docs list``."""
+    """All ``AGENTS.md`` files visible to ``sase instructions list``."""
 
     project_root: Path
     home_root: Path
@@ -157,7 +157,7 @@ def _iter_project_agents(root: Path) -> tuple[Path, ...]:
 
 
 def discover_project_agent_docs(root: Path) -> tuple[Path, ...]:
-    """Return project ``AGENTS.md`` files using agent-docs inventory pruning."""
+    """Return project ``AGENTS.md`` files using instructions inventory pruning."""
     return _iter_project_agents(root)
 
 

@@ -255,18 +255,16 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     memory_show_help = flat_help(parser_for(("sase", "memory", "show")).format_help())
     memory_log_help = flat_help(parser_for(("sase", "memory", "log")).format_help())
     init_alias_help = flat_help(parser_for(("sase", "init", "memory")).format_help())
-    agent_docs_help = flat_help(
-        parser_for(("sase", "memory", "agent-docs")).format_help()
-    )
-    agent_docs_list_help = flat_help(
-        parser_for(("sase", "memory", "agent-docs", "list")).format_help()
+    instructions_help = flat_help(parser_for(("sase", "instructions")).format_help())
+    instructions_list_help = flat_help(
+        parser_for(("sase", "instructions", "list")).format_help()
     )
 
     assert "`sase memory list`" in memory_help
-    assert "{agent-docs,history,init,list,log,read,show,web}" in memory_help
+    assert "{history,init,list,log,read,show,web}" in memory_help
     assert "sase memory show generated_skills.md" in memory_help
-    assert "`sase memory agent-docs list`" in agent_docs_help
-    assert "provider instruction shim status" in agent_docs_list_help
+    assert "`sase instructions list`" in instructions_help
+    assert "provider instruction shim status" in instructions_list_help
     assert "sase memory read generated_skills.md --reason" in memory_help
     assert "sase memory log --path generated_skills.md" in memory_help
     assert "sase memory log --id <read-id>" in memory_help

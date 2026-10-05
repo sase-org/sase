@@ -18680,6 +18680,76 @@
       },
       {
         "aliases": [],
+        "default_child": "list",
+        "description_digest": "1d4d20cf3ac8d002",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "instructions",
+        "options": [
+          {
+            "choices": null,
+            "default": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "metavar": null,
+            "repeatable": false,
+            "required": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false,
+            "value_hint": null
+          }
+        ],
+        "path": [
+          "instructions"
+        ],
+        "positionals": [],
+        "run_policy": [],
+        "stdin": false,
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "d00c0df3437da3a4",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "instructions",
+              "list"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          }
+        ],
+        "writes": false
+      },
+      {
+        "aliases": [],
         "default_child": null,
         "description_digest": "02819fdc39ad91d1",
         "hidden": false,
@@ -21284,78 +21354,6 @@
         "run_policy": [],
         "stdin": false,
         "subcommands": [
-          {
-            "aliases": [],
-            "default_child": "list",
-            "description_digest": "832736270e930af7",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "agent-docs",
-            "options": [
-              {
-                "choices": null,
-                "default": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false,
-                "value_hint": null
-              }
-            ],
-            "path": [
-              "memory",
-              "agent-docs"
-            ],
-            "positionals": [],
-            "run_policy": [],
-            "stdin": false,
-            "subcommands": [
-              {
-                "aliases": [],
-                "default_child": null,
-                "description_digest": "d00c0df3437da3a4",
-                "hidden": false,
-                "mutex_groups": [],
-                "name": "list",
-                "options": [
-                  {
-                    "choices": null,
-                    "default": null,
-                    "dest": "help",
-                    "hidden": false,
-                    "kind": null,
-                    "metavar": null,
-                    "repeatable": false,
-                    "required": false,
-                    "strings": [
-                      "-h",
-                      "--help"
-                    ],
-                    "takes_value": false,
-                    "value_hint": null
-                  }
-                ],
-                "path": [
-                  "memory",
-                  "agent-docs",
-                  "list"
-                ],
-                "positionals": [],
-                "run_policy": [],
-                "stdin": false,
-                "subcommands": [],
-                "writes": false
-              }
-            ],
-            "writes": false
-          },
           {
             "aliases": [],
             "default_child": null,

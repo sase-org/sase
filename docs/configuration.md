@@ -6223,14 +6223,14 @@ accept a bundle on piped stdin when `--bootstrap-file` is omitted.
 See the [Remote Dispatch Runbook](remote_dispatch.md) for gateway supervision, Tailscale
 Serve, enrollment, launch constraints, and sase's TUI machine-row operation.
 
-### `sase memory agent-docs`
+### `sase instructions`
 
-With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs list`.
+With no subcommand, `sase instructions` defaults to `sase instructions list`.
 
-| Form                          | Flags | Description                                                                        |
-| ----------------------------- | ----- | ---------------------------------------------------------------------------------- |
-| `sase memory agent-docs`      | -     | Show the same read-only agent-document inventory as `sase memory agent-docs list`. |
-| `sase memory agent-docs list` | -     | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.           |
+| Form                     | Flags | Description                                                                   |
+| ------------------------ | ----- | ----------------------------------------------------------------------------- |
+| `sase instructions`      | -     | Show the same read-only agent-document inventory as `sase instructions list`. |
+| `sase instructions list` | -     | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.      |
 
 ### `sase memory`
 

@@ -322,18 +322,19 @@ prefix needs at least three characters).
 Every command group with an exact `list` child defaults to that list view when invoked
 bare — `sase agent`, `sase agent-cli`, `sase artifact`, `sase bead`, `sase chat`,
 `sase completion`, `sase disk`, `sase file`, `sase file-history`, `sase file-hook`,
-`sase final`, `sase flag`, `sase gate`, `sase goal`, `sase machine`, `sase memory`,
-`sase migrate`, `sase monitor`, `sase notify`, `sase plan`, `sase plugin`, `sase proc`,
-`sase project`, `sase prompt`, `sase repo`, `sase skill`, `sase snippet`, `sase stitch`,
-`sase sudo`, `sase telemetry`, `sase tool`, `sase usage`, `sase var`, `sase workspace`,
-and `sase macro`. Nested groups such as `sase agent hold`, `sase agent prompts`,
-`sase agent tribe`, `sase artifact link`, `sase artifact link relation`,
-`sase artifact trash`, `sase axe job`, `sase axe routine`, `sase bead dep`,
-`sase bead ref`, `sase bead task-type`, `sase memory agent-docs`, `sase memory web`,
-`sase patch ref`, `sase plan links`, and `sase project alias` follow the same rule. A
-bare invocation prints a short notice naming the delegation, for example
-`No subcommand provided for 'sase repo'; delegating to 'sase repo list'.` Groups without
-a `list` child, such as `sase patch`, `sase axe`, or `sase bead pages`, do not delegate.
+`sase final`, `sase flag`, `sase gate`, `sase goal`, `sase instructions`,
+`sase machine`, `sase memory`, `sase migrate`, `sase monitor`, `sase notify`,
+`sase plan`, `sase plugin`, `sase proc`, `sase project`, `sase prompt`, `sase repo`,
+`sase skill`, `sase snippet`, `sase stitch`, `sase sudo`, `sase telemetry`, `sase tool`,
+`sase usage`, `sase var`, `sase workspace`, and `sase macro`. Nested groups such as
+`sase agent hold`, `sase agent prompts`, `sase agent tribe`, `sase artifact link`,
+`sase artifact link relation`, `sase artifact trash`, `sase axe job`,
+`sase axe routine`, `sase bead dep`, `sase bead ref`, `sase bead task-type`,
+`sase memory web`, `sase patch ref`, `sase plan links`, and `sase project alias` follow
+the same rule. A bare invocation prints a short notice naming the delegation, for
+example `No subcommand provided for 'sase repo'; delegating to 'sase repo list'.` Groups
+without a `list` child, such as `sase patch`, `sase axe`, or `sase bead pages`, do not
+delegate.
 
 This is a property of the parser, not a hand-maintained list: any group that gains an
 exact `list` child picks the behavior up automatically.
@@ -361,7 +362,7 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase machine`                                         | Discover, enroll, verify, repair, and operate remote dispatch machines.                                                                                                                                                                                                                                                              | [Remote Dispatch Runbook](remote_dispatch.md)                      |
 | `sase init machine`                                    | Compatibility alias for `sase machine init`.                                                                                                                                                                                                                                                                                         | [Initialization](init.md)                                          |
 | `sase memory` / `sase memory list`                     | Show loaded, referenced, available, and missing memory files.                                                                                                                                                                                                                                                                        | [Memory](memory.md#inspect-context)                                |
-| `sase memory agent-docs list`                          | Inventory project, home, and chezmoi `AGENTS.md` files plus nearby provider shims.                                                                                                                                                                                                                                                   | [Initialization](init.md#agent-documents)                          |
+| `sase instructions` / `sase instructions list`         | Inventory project, home, and chezmoi `AGENTS.md` files plus nearby provider shims.                                                                                                                                                                                                                                                   | [Initialization](init.md#agent-documents)                          |
 | `sase memory show`                                     | Print one or more memory selectors (a note, a bare web, or `web:keyword`) without recording an audited read.                                                                                                                                                                                                                         | [Memory](memory.md#show-a-note)                                    |
 | `sase memory read`                                     | Agent-side read of one or more memory selectors with an attributable audit event; `-r/--reason` is required.                                                                                                                                                                                                                         | [Memory](memory.md#audited-reads)                                  |
 | `sase memory log`                                      | Summarize audited memory reads; `--include glossary` folds in legacy pre-web glossary reads.                                                                                                                                                                                                                                         | [Memory](memory.md#audited-reads)                                  |

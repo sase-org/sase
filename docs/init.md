@@ -95,7 +95,6 @@ sase init config # compatibility alias
 sase machine init
 sase machine init --check
 sase init machine # compatibility alias
-sase memory agent-docs list
 sase memory init --no-commit
 sase memory init --enable-project-memory --no-commit
 sase memory init --check
@@ -111,6 +110,7 @@ sase service init --check
 sase service init --diff
 sase service init --yes
 sase init service # compatibility alias for sase service init
+sase instructions list
 sase skill list
 sase skill init --dry-run
 sase skill log
@@ -153,8 +153,8 @@ or `--yes` flag: unless you pass `--check`, it applies the service plan immediat
 | `sase init machine`                     | Compatibility alias for `sase machine init`.                                                                        |
 | `sase memory`                           | Alias for `sase memory list`.                                                                                       |
 | `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.                               |
-| `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                                            |
-| `sase memory agent-docs list`           | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files.                         |
+| `sase instructions`                     | Alias for `sase instructions list`.                                                                                 |
+| `sase instructions list`                | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files.                         |
 | `sase memory read <selector>... -r WHY` | Agent-side audited read of one or more notes, memory webs, or `web:keyword` strands.                                |
 | `sase memory show <selector>...`        | The same read without the audit event or reason, for humans.                                                        |
 | `sase memory log`                       | Summarize audited reference memory reads.                                                                           |
@@ -392,19 +392,19 @@ apply or issue a new bundle and run `sase machine repair`.
 
 ## Agent Documents
 
-`sase memory agent-docs list` is the read-only inventory for agent instruction
-documents: root `AGENTS.md` plus provider instruction files such as `CLAUDE.md`,
-`GEMINI.md`, `QWEN.md`, and `OPENCODE.md` (each a full copy of `AGENTS.md`).
+`sase instructions list` is the read-only inventory for agent instruction documents:
+root `AGENTS.md` plus provider instruction files such as `CLAUDE.md`, `GEMINI.md`,
+`QWEN.md`, and `OPENCODE.md` (each a full copy of `AGENTS.md`).
 
 ```bash
-sase memory agent-docs list
+sase instructions list
 ```
 
-With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs list`.
-The inventory shows project, subdirectory, home, and chezmoi-source `AGENTS.md` files,
-their H1 titles, whether they look managed, core/reference memory reference counts, and
-nearby provider instruction file status. It never writes files; `sase memory init` is
-the command that creates or refreshes these documents.
+With no subcommand, `sase instructions` defaults to `sase instructions list`. The
+inventory shows project, subdirectory, home, and chezmoi-source `AGENTS.md` files, their
+H1 titles, whether they look managed, core/reference memory reference counts, and nearby
+provider instruction file status. It never writes files; `sase memory init` is the
+command that creates or refreshes these documents.
 
 ## Memory Initialization
 
