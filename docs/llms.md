@@ -1566,6 +1566,19 @@ quietly reroutes a `#m_<provider>_*` preset to the default provider — `sase do
 The check is provider-neutral and read-only. For retired prompt directive syntax such as
 `%wait(priority=...)`, use `sase doctor -C config.macro_directives`.
 
+### Macro model inputs
+
+A macro input declared with `type: model` (see
+[Supported Types](macros.md#supported-types)) is valid exactly when `%model:<value>`
+would be accepted by the directive parser and would route to a provider without the
+default-provider fallback. Aliases need `@` (`@large` routes; bare `large` does not).
+`provider/model` is open for unknown model ids (`codex/new-model` routes) and closed for
+unknown providers (`cluade/opus` does not). A trailing `@<level>` peels only when
+`<level>` is one of the seven effort levels; any other `@suffix` is rejected unless the
+body before it would route on its own. Validation never moves the alias cursor, never
+checks provider availability, and never changes `%model` fallback: `%model:opsu` still
+parses and still falls back to the default provider at launch.
+
 #### Implicit role aliases
 
 On top of any aliases you configure, SASE always exposes a fixed set of **implicit role

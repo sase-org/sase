@@ -30,6 +30,41 @@ def test_input_type_values() -> None:
 # Tests for InputArg.validate_and_convert
 
 
+def _model_fixture_snapshot() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "providers": ["claude", "codex", "fakey"],
+        "models": {"opus": "claude", "fakey-large": "fakey"},
+        "aliases": ["large"],
+        "effort_levels": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+    }
+
+
+def test_input_arg_model_accepts_routing_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model input keeps an accepted token as a string."""
+    monkeypatch.setattr(
+        "sase.llm_provider.model_validity.model_validity_snapshot",
+        _model_fixture_snapshot,
+    )
+    arg = InputArg(name="claude_model", type=InputType.WORD, named_type="model")
+    assert arg.validate_and_convert("claude/opus@xhigh") == "claude/opus@xhigh"
+
+
+def test_input_arg_model_rejects_unroutable_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model input raises the classifier message for a rejected token."""
+    monkeypatch.setattr(
+        "sase.llm_provider.model_validity.model_validity_snapshot",
+        _model_fixture_snapshot,
+    )
+    arg = InputArg(name="claude_model", type=InputType.WORD, named_type="model")
+    with pytest.raises(MacroValidationError, match="expects a model"):
+        arg.validate_and_convert("opsu")
+
+
 def test_input_arg_word_rejects_whitespace() -> None:
     """Test that word type rejects values with whitespace."""
     arg = InputArg(name="test", type=InputType.WORD)

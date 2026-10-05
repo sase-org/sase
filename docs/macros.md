@@ -962,18 +962,20 @@ save-time conversion, and literal-zone rules.
 
 ### Supported Types
 
-| Type    | Aliases   | Validation                                              |
-| ------- | --------- | ------------------------------------------------------- |
-| `word`  | --        | No whitespace allowed                                   |
-| `line`  | --        | No newlines allowed (default type)                      |
-| `text`  | --        | Any content, no restrictions                            |
-| `path`  | --        | A single line; spaces are allowed, newlines are not     |
-| `agent` | --        | Non-empty, no whitespace; completes agent names         |
-| `int`   | `integer` | Must parse as an integer                                |
-| `bool`  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off` |
-| `float` | --        | Must parse as a float                                   |
-| `enum`  | --        | Must be one of the input's declared `choices`           |
-| `code`  | --        | Structured source plus language (default language bash) |
+| Type     | Aliases   | Validation                                              |
+| -------- | --------- | ------------------------------------------------------- |
+| `word`   | --        | No whitespace allowed                                   |
+| `line`   | --        | No newlines allowed (default type)                      |
+| `text`   | --        | Any content, no restrictions                            |
+| `path`   | --        | A single line; spaces are allowed, newlines are not     |
+| `agent`  | --        | Non-empty, no whitespace; completes agent names         |
+| `int`    | `integer` | Must parse as an integer                                |
+| `bool`   | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off` |
+| `float`  | --        | Must parse as a float                                   |
+| `enum`   | --        | Must be one of the input's declared `choices`           |
+| `code`   | --        | Structured source plus language (default language bash) |
+| `effort` | --        | One of the seven `%effort` levels, matched exactly      |
+| `model`  | --        | A model token `%model` would accept without fallback    |
 
 `string` is a deprecated alias of `line`. Loaders still accept it and emit an
 `input_type_warning`; new declarations should use `line`. An unknown type name is a
@@ -985,6 +987,12 @@ A `code` input is not a plain string with a convention. Binding yields a structu
 sase's TUI and the macro LSP treat the field as code rather than a scalar. Completing
 the type as an input is gated with the `typed_launch_units` beta flag, same as `%if::`
 and `%proc`.
+
+An `effort` input accepts exactly one of the seven `%effort` levels (`none`, `minimal`,
+`low`, `medium`, `high`, `xhigh`, `max`); anything else is rejected the same way a
+non-member `enum` value is. A `model` input accepts exactly the tokens the `%model`
+directive would accept _and_ route to a provider without the silent default-provider
+fallback (see [Macro model inputs](llms.md#macro-model-inputs)).
 
 ### Enum Choices
 

@@ -957,7 +957,9 @@
                       "boolean",
                       "code",
                       "enum",
-                      "agent"
+                      "agent",
+                      "effort",
+                      "model"
                     ]
                   },
                   {
@@ -1043,7 +1045,9 @@
                       "boolean",
                       "code",
                       "enum",
-                      "agent"
+                      "agent",
+                      "effort",
+                      "model"
                     ]
                   },
                   {
@@ -1078,7 +1082,9 @@
                           "boolean",
                           "code",
                           "enum",
-                          "agent"
+                          "agent",
+                          "effort",
+                          "model"
                         ]
                       },
                       {

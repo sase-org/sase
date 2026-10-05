@@ -102,3 +102,54 @@ def test_macro_input_types_check_is_registered() -> None:
 
     assert "config.macro_input_types" in spec_by_id
     assert spec_by_id["config.macro_input_types"].group == "config"
+
+
+def test_macro_input_types_warns_for_unroutable_model_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A loaded `model` input with a non-routing default warns, not errors."""
+    from types import SimpleNamespace
+
+    from sase.macro.models import InputArg, InputType
+
+    def load_prompts_with_model_default(
+        *_args: object, **_kwargs: object
+    ) -> dict[str, object]:
+        return {
+            "m_bad_default": SimpleNamespace(
+                source_path="m_bad_default.yml",
+                inputs=[
+                    InputArg(
+                        name="claude_model",
+                        type=InputType.WORD,
+                        named_type="model",
+                        default="opsu",
+                    ),
+                    InputArg(
+                        name="good_model",
+                        type=InputType.WORD,
+                        named_type="model",
+                        default="claude/opus",
+                    ),
+                ],
+            ),
+        }
+
+    monkeypatch.setattr(
+        "sase.macro.loader.get_all_prompts", load_prompts_with_model_default
+    )
+    monkeypatch.setattr(
+        "sase.macro.loader.get_all_project_local_prompts",
+        lambda: {},
+    )
+
+    check = check_config_macro_input_types(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        row["kind"] == "input_type_warning"
+        and "model default does not route" in row["error"]
+        and "`claude_model`" in row["error"]
+        for row in check.data["issues"]
+    )
+    assert not any("good_model" in row["error"] for row in check.data["issues"])

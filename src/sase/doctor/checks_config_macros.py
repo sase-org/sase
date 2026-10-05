@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -38,10 +39,22 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
     ``#m_fable``, ``#m_qwen``, or plugin-provided presets whose tokens stop
     resolving.
     """
-    from sase.llm_provider.config import model_alias_names
+    from sase.core.rust import require_rust_binding
+    from sase.llm_provider.model_validity import (
+        clear_model_validity_snapshot_cache,
+        model_validity_snapshot,
+    )
     from sase.macro.loader import get_all_macros
 
-    aliases = model_alias_names()
+    clear_model_validity_snapshot_cache()
+    try:
+        snapshot = model_validity_snapshot(use_cache=False)
+    except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
+        snapshot = None
+    classify = (
+        require_rust_binding("classify_model_value") if snapshot is not None else None
+    )
+
     macros = get_all_macros(context.project)
 
     problems: list[dict[str, str]] = []
@@ -60,20 +73,33 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
                 }
             )
         for token in scan.tokens:
-            if token not in aliases and token in REMOVED_IMPLICIT_ALIAS_GUIDANCE:
-                guidance = REMOVED_IMPLICIT_ALIAS_GUIDANCE[token]
+            bare = token.lstrip("@")
+            from sase.llm_provider.config import model_alias_names
+
+            aliases = model_alias_names()
+            if bare not in aliases and bare in REMOVED_IMPLICIT_ALIAS_GUIDANCE:
+                guidance = REMOVED_IMPLICIT_ALIAS_GUIDANCE[bare]
                 problems.append(
                     {
                         "macro": name,
                         "token": token,
                         "message": (
-                            f"{name} -> %model:@{token} uses the retired "
-                            f"'@{token}' alias; {guidance}"
+                            f"{name} -> %model:@{bare} uses the retired "
+                            f"'@{bare}' alias; {guidance}"
                         ),
                     }
                 )
                 continue
-            if _model_token_routes(token, aliases):
+            if classify is not None and snapshot is not None:
+                try:
+                    result = classify(
+                        {"name": name, "value": token, "snapshot": snapshot}
+                    )
+                except Exception:  # noqa: BLE001 - best-effort doctor check.
+                    result = {"ok": False}
+                if result.get("ok", False):
+                    continue
+            else:
                 continue
             problems.append(
                 {
@@ -86,7 +112,16 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
                 }
             )
         for alias, token in scan.override_tokens:
-            if _model_token_routes(token, aliases):
+            if classify is not None and snapshot is not None:
+                try:
+                    result = classify(
+                        {"name": name, "value": token, "snapshot": snapshot}
+                    )
+                except Exception:  # noqa: BLE001 - best-effort doctor check.
+                    result = {"ok": False}
+                if result.get("ok", False):
+                    continue
+            else:
                 continue
             problems.append(
                 {
@@ -204,6 +239,7 @@ def check_config_macro_input_types(context: DoctorContext) -> DiagnosticCheck:
         }
         for issue in issue_rows
     ]
+    rows.extend(_model_default_warning_rows(prompts, project_local_prompts))
     if not rows:
         return DiagnosticCheck(
             id="config.macro_input_types",
@@ -334,6 +370,72 @@ def _append_retired_directive_rows(
         )
 
 
+def _model_default_warning_rows(
+    prompts: Mapping[str, object],
+    project_local_prompts: Mapping[str, object],
+) -> list[dict[str, str]]:
+    """Warn for loaded `model` inputs whose string default would not route."""
+    from sase.core.rust import require_rust_binding
+    from sase.llm_provider.model_validity import (
+        clear_model_validity_snapshot_cache,
+        model_validity_snapshot,
+    )
+
+    clear_model_validity_snapshot_cache()
+    try:
+        snapshot = model_validity_snapshot(use_cache=False)
+    except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
+        return []
+    try:
+        classify = require_rust_binding("classify_model_value")
+    except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
+        return []
+
+    rows: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for mapping in (prompts, project_local_prompts):
+        for macro_name, macro_def in mapping.items():
+            inputs = getattr(macro_def, "inputs", None)
+            if not inputs:
+                continue
+            source = str(getattr(macro_def, "source_path", None) or macro_name)
+            for input_arg in inputs:
+                if getattr(input_arg, "named_type", None) != "model":
+                    continue
+                default = getattr(input_arg, "default", None)
+                if not isinstance(default, str):
+                    continue
+                key = (source, str(getattr(input_arg, "name", "")), default)
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    result = classify(
+                        {
+                            "name": str(getattr(input_arg, "name", "input")),
+                            "value": default,
+                            "snapshot": snapshot,
+                        }
+                    )
+                except Exception:  # noqa: BLE001 - best-effort doctor check.
+                    continue
+                if result.get("ok", False):
+                    continue
+                message = str(result.get("message", ""))
+                rows.append(
+                    {
+                        "source": source,
+                        "error": (
+                            f"macro `{macro_name}` input "
+                            f"`{getattr(input_arg, 'name', '')}` model "
+                            f"default does not route: {message}"
+                        ),
+                        "kind": "input_type_warning",
+                    }
+                )
+    return rows
+
+
 def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
     """Return the final model token(s) a model-preset macro expands to.
 
@@ -371,7 +473,9 @@ def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
         override_tokens: list[tuple[str, str]] = []
         for source in sources:
             _, directives = extract_prompt_directives(source)
-            if directives.model:
+            if directives.model_alias:
+                tokens.append(f"@{directives.model_alias}")
+            elif directives.model:
                 tokens.append(directives.model)
             override_tokens.extend(directives.model_alias_overrides.items())
     except DirectiveError as exc:
@@ -382,21 +486,3 @@ def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
         tokens=tuple(tokens),
         override_tokens=tuple(override_tokens),
     )
-
-
-def _model_token_routes(token: str, aliases: set[str]) -> bool:
-    """Return ``True`` when *token* routes to a concrete provider.
-
-    A token is routable when it resolves to a known provider, is a configured
-    alias (whose target provider plugin may simply be uninstalled on this
-    machine), or uses explicit ``provider/model`` syntax. Only a bare, unknown
-    token that is none of these silently falls back to the default provider.
-    """
-    from sase.llm_provider.registry import resolve_model_provider
-
-    provider, _ = resolve_model_provider(token)
-    if provider is not None:
-        return True
-    if token.removeprefix("@") in aliases:
-        return True
-    return "/" in token

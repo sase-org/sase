@@ -111,7 +111,7 @@ def peek_cached_model_completion_catalog(
 def model_completion_catalog_payload() -> dict[str, object]:
     """Return the launch-time JSON snapshot materialized for the Rust LSP."""
     context = resolve_provider_routing_context()
-    return {
+    payload: dict[str, object] = {
         "schema_version": MODEL_COMPLETION_CATALOG_SCHEMA_VERSION,
         "entries": [
             model_completion_entry_to_wire(entry)
@@ -121,6 +121,13 @@ def model_completion_catalog_payload() -> dict[str, object]:
             )
         ],
     }
+    try:
+        from sase.llm_provider.model_validity import model_validity_snapshot
+
+        payload["routing"] = model_validity_snapshot()
+    except Exception:  # noqa: BLE001 - never block LSP startup on routing errors.
+        pass
+    return payload
 
 
 def _build_static_catalog() -> list[ModelCompletionEntry]:

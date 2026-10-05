@@ -45,6 +45,8 @@ def test_advertised_catalog_names_include_enum_code_agent_and_aliases() -> None:
         "code",
         "enum",
         "agent",
+        "effort",
+        "model",
     ]
     assert type_schema["anyOf"][1]["const"] == "string"
     assert type_schema["anyOf"][1]["deprecated"] is True
@@ -79,6 +81,8 @@ def test_generated_type_field_accepts_plugin_pattern_and_deprecated_string() -> 
         "code",
         "enum",
         "agent",
+        "effort",
+        "model",
     ]
     assert branches[1]["const"] == "string"
     assert branches[1]["deprecated"] is True

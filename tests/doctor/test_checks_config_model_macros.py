@@ -124,17 +124,18 @@ def test_model_macros_flags_bare_alias_with_migration_hint(
     assert "did you mean @agy_flash" in check.details[0]
 
 
-def test_model_macros_ignores_explicit_provider_model_token(
+def test_model_macros_warns_for_unregistered_provider_model_token(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An explicit ``provider/model`` preset never warns, even if uninstalled.
+    """An explicit ``provider/model`` preset warns for an unregistered provider.
 
-    Presets like ``%model:jetski/jetski-default`` target a provider plugin that
-    may be absent on this machine; that is intentional and must not be confused
-    with the bare-token fallback bug the guard is for.
+    ``%model:jetski/jetski-default`` names a provider plugin that is not
+    installed, so at launch it would silently fall back to the default provider.
+    A registered prefix stays OK even when the model id is unknown.
     """
     macros = {
         "m_jet": Macro(name="m_jet", content="%model:jetski/jetski-default"),
+        "m_codex": Macro(name="m_codex", content="%model:codex/new-model"),
     }
     _patch_model_macro_env(
         monkeypatch, macros, {"provider": "codex", "model_aliases": {}}
@@ -142,8 +143,15 @@ def test_model_macros_ignores_explicit_provider_model_token(
 
     check = check_config_model_macros(_doctor_context(tmp_path))
 
-    assert check.status == "OK"
-    assert not check.data["problems"]
+    assert check.status == "WARN"
+    assert any(
+        row["macro"] == "m_jet"
+        and "jetski/jetski-default" in row["message"]
+        and "does not resolve to a provider" in row["message"]
+        and "fall back to the default provider" in row["message"]
+        for row in check.data["problems"]
+    )
+    assert not any(row["macro"] == "m_codex" for row in check.data["problems"])
 
 
 def test_model_macros_skips_multi_segment_agent_prompts(

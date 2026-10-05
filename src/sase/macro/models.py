@@ -144,6 +144,20 @@ class InputArg:
         Raises:
             MacroValidationError: If value cannot be converted to declared type.
         """
+        if self.named_type == "model":
+            from sase.core.rust import require_rust_binding
+            from sase.llm_provider.model_validity import model_validity_snapshot
+
+            result = require_rust_binding("classify_model_value")(
+                {
+                    "name": self.name,
+                    "value": value,
+                    "snapshot": model_validity_snapshot(),
+                }
+            )
+            if not result.get("ok", False):
+                raise MacroValidationError(result.get("message", ""))
+            return value
         if self.type in {InputType.WORD, InputType.AGENT}:
             if not value:
                 raise MacroValidationError(
