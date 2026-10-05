@@ -60,6 +60,9 @@ def _monotonic_at_os_process_start() -> float:
         after_comm = stat[stat.rfind(")") + 2 :].split()
         start_boot_s = int(after_comm[19]) / ticks
         boottime_now = time.clock_gettime(time.CLOCK_BOOTTIME)
+        # Read the anchor immediately next to boottime so the fallback does not
+        # include the env-parse, sysconf, and /proc read time above.
+        now = time.monotonic()
         age = boottime_now - start_boot_s
         if 0 <= age <= boottime_now:
             return now - age

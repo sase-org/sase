@@ -28,6 +28,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_contains,
     pin_agents_visual_now,
+    pin_decks_paged,
     prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -395,6 +396,7 @@ async def test_agent_output_variables_multi_agent_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 8, 9, 9, 0))
+    pin_decks_paged(monkeypatch)
     patch_startup_loaders(monkeypatch, agents=output_variable_agent_session_agents())
 
     async with AcePage(query='"visual"', patches=patches()) as page:

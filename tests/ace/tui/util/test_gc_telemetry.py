@@ -432,7 +432,11 @@ def test_exec_anchor_rejects_garbage_and_future(
         startup_clock._process_start_mono = None
         future_ns = time.monotonic_ns() + 60_000_000_000
         monkeypatch.setenv(startup_clock.EXEC_MONO_NS_ENV, str(future_ns))
-        assert startup_clock._ensure_process_start() == pytest.approx(fallback)
+        # /proc start time has 10ms resolution and the fallback spans I/O, so
+        # compare with an absolute tolerance instead of the default relative one.
+        assert startup_clock._ensure_process_start() == pytest.approx(
+            fallback, abs=0.05
+        )
     finally:
         startup_clock._process_start_mono = None
 

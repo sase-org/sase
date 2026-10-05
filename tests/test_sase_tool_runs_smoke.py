@@ -151,9 +151,13 @@ def test_tool_runs_harness_passes_every_hermetic_case() -> None:
     assert {statuses[case_id] for case_id in LIVE_CASES} == {"not-run"}
     assert statuses["dod-13-overhead"] == "not-run"
     dod = {item["id"]: item["status"] for item in report["dod"]}
-    assert all(dod[f"DoD-{n}"] == "pass" for n in (1, 2, 3, 4, 5, 6, 7, 9, 10, 14, 17))
+    assert all(dod[f"DoD-{n}"] == "pass" for n in (1, 2, 3, 4, 5, 6, 7, 9, 10, 14))
     assert dod["DoD-15"] == "not-run"
     assert dod["DoD-8"] == "not-run"
+    # DoD-17's only live case never runs hermetically, so dod_summary reports
+    # DoD-17 as not-run here; the per-case hermetic assertion above still
+    # requires every hermetic dod-17-* case to pass.
+    assert dod["DoD-17"] == "not-run"
     assert report["failed"] == 0
     assert report["loaded_modules"]["core_has_tool_run"] is True
 
