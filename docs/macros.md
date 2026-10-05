@@ -440,7 +440,8 @@ markdown-defined macro swarms whose body contains top-level `---` segment separa
 Use `#!` only for standalone YAML workflows that do not have a `prompt_part` step. The
 marker must appear at the start of the string, after whitespace, or after one of
 `([{"'`. For compatibility, `#!name` is still accepted for macro swarms, but new prompts
-should use `#name`.
+should use `#name`. Each `#name` or `#!name` use is a _macro invocation_; the file or
+config entry it names is the macro.
 
 | Syntax                        | Description                                                    |
 | ----------------------------- | -------------------------------------------------------------- |

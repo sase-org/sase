@@ -114,27 +114,27 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
     ("mkdocs.yml", "'xprompt.md': 'macros.md'"),
     (
         "sase/memory/glossary.md",
-        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+        "Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
     ),
     (
         "AGENTS.md",
-        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+        "Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
     ),
     (
         "CLAUDE.md",
-        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+        "Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
     ),
     (
         "GEMINI.md",
-        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+        "Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
     ),
     (
         "OPENCODE.md",
-        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+        "Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
     ),
     (
         "QWEN.md",
-        "Calls; Machine Tab; Macro (xprompt); Macro Memory (memory file, sase memory); Macro",
+        "Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
     ),
     ("sase/memory/glossary/macro.md", "- xprompt"),
     (
