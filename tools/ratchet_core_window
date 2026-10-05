@@ -772,8 +772,12 @@ def _validate_uv_lock_diff(
 ) -> tuple[TransitiveLockRefresh, ...]:
     before_data, before_packages = _parse_uv_lock(before)
     after_data, after_packages = _parse_uv_lock(after)
-    before_top = {key: value for key, value in before_data.items() if key != "package"}
-    after_top = {key: value for key, value in after_data.items() if key != "package"}
+    # Newer uv bumps the `revision` lock-format header on every rewrite
+    # (revision 3 -> 5 since uv 0.12.22). It carries no dependency metadata,
+    # so ignore it while keeping version/requires-python/manifest/options strict.
+    ignored_top_level_keys = {"package", "revision"}
+    before_top = {key: value for key, value in before_data.items() if key not in ignored_top_level_keys}
+    after_top = {key: value for key, value in after_data.items() if key not in ignored_top_level_keys}
     if before_top != after_top:
         raise LockRefreshError("uv.lock top-level metadata changed unexpectedly")
 

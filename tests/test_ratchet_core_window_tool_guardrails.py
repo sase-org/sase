@@ -200,6 +200,85 @@ def test_reconciliation_mode_rejects_direct_dependency_diff_restores_files(
     assert "package sase changed outside" in capsys.readouterr().err
 
 
+def test_lock_revision_bump_is_accepted(
+    tool: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Newer uv rewrites the `revision` lock-format header (3 -> 5 since
+    # uv 0.12.22) on every refresh. It carries no dependency metadata.
+    pyproject, uv_lock = _write_project(tmp_path)
+    uv_lock.write_text(
+        uv_lock.read_text(encoding="utf-8").replace(
+            "version = 1\n",
+            "version = 1\nrevision = 3\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
+    )
+
+    def _runner(project_dir: Path, target: object) -> subprocess.CompletedProcess[str]:
+        specifier = tool.dependency_specifier_for_floor(target)
+        lock_text = _lock_text(target.raw, specifier).replace(
+            "version = 1\n",
+            "version = 1\nrevision = 5\n",
+            1,
+        )
+        (project_dir / "uv.lock").write_text(lock_text, encoding="utf-8")
+        return subprocess.CompletedProcess(["uv", "lock"], 0, "", "")
+
+    monkeypatch.setattr(tool, "_run_uv_lock", _runner)
+
+    code = tool.main(["--pyproject", str(pyproject), "--uv-lock", str(uv_lock)])
+
+    assert code == tool.EXIT_RATCHET
+    assert "revision = 5" in uv_lock.read_text(encoding="utf-8")
+
+
+def test_lock_requires_python_change_is_still_refused(
+    tool: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pyproject, uv_lock = _write_project(tmp_path)
+    uv_lock.write_text(
+        uv_lock.read_text(encoding="utf-8").replace(
+            "version = 1\n",
+            'version = 1\nrequires-python = ">=3.12"\n',
+            1,
+        ),
+        encoding="utf-8",
+    )
+    before_pyproject = pyproject.read_text(encoding="utf-8")
+    before_uv_lock = uv_lock.read_text(encoding="utf-8")
+    monkeypatch.setattr(
+        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
+    )
+
+    def _runner(project_dir: Path, target: object) -> subprocess.CompletedProcess[str]:
+        specifier = tool.dependency_specifier_for_floor(target)
+        lock_text = _lock_text(target.raw, specifier).replace(
+            "version = 1\n",
+            'version = 1\nrequires-python = ">=3.13"\n',
+            1,
+        )
+        (project_dir / "uv.lock").write_text(lock_text, encoding="utf-8")
+        return subprocess.CompletedProcess(["uv", "lock"], 0, "", "")
+
+    monkeypatch.setattr(tool, "_run_uv_lock", _runner)
+
+    code = tool.main(["--pyproject", str(pyproject), "--uv-lock", str(uv_lock)])
+
+    assert code == tool.EXIT_COULD_NOT_DETERMINE
+    assert pyproject.read_text(encoding="utf-8") == before_pyproject
+    assert uv_lock.read_text(encoding="utf-8") == before_uv_lock
+    assert "top-level metadata changed unexpectedly" in capsys.readouterr().err
+
+
 def test_core_package_still_refuses_extra_lock_format_fields(
     tool: ModuleType,
     tmp_path: Path,
