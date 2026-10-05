@@ -11,29 +11,22 @@ from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
 from sase.macro.models import UNSET as _UNSET
 from sase.macro.models import Macro
 
-LOCAL_XPROMPTS_ENV = "SASE_AGENT_LOCAL_XPROMPTS"
 LOCAL_MACROS_ENV = "SASE_AGENT_LOCAL_MACROS"
 
 
 def read_local_macros_path(environ: Mapping[str, str]) -> str | None:
-    """Return the local-macros file path, preferring the macro spelling."""
-    path = environ.get(LOCAL_MACROS_ENV)
-    if path is None:
-        path = environ.get(LOCAL_XPROMPTS_ENV)
-    return path
+    """Return the local-macros file path."""
+    return environ.get(LOCAL_MACROS_ENV)
 
 
 def take_local_macros_path(environ: MutableMapping[str, str]) -> str | None:
-    """Pop the local-macros file path under either spelling."""
-    path = environ.pop(LOCAL_MACROS_ENV, None)
-    legacy = environ.pop(LOCAL_XPROMPTS_ENV, None)
-    return path if path is not None else legacy
+    """Pop the local-macros file path."""
+    return environ.pop(LOCAL_MACROS_ENV, None)
 
 
 def set_local_macros_path(environ: MutableMapping[str, str], path: str) -> None:
-    """Publish the local-macros file path under both spellings."""
+    """Publish the local-macros file path."""
     environ[LOCAL_MACROS_ENV] = path
-    environ[LOCAL_XPROMPTS_ENV] = path
 
 
 def restore_local_macros_path(

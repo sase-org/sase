@@ -5,11 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Final
 
-PROC_WIRE_SCHEMA_VERSION: Final = 3
-# Schema 4 is the sase-turn contract flip (sase-1ab.7) emission; the mirror
-# above still names the pre-flip version until pin-bump (sase-1ab.8) moves
-# it. Readers accept both so one sase tree works against either core.
-SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS: Final = frozenset({1, 2, 3, 4})
+PROC_WIRE_SCHEMA_VERSION: Final = 5
+SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS: Final = frozenset({1, 2, 3, 4, 5})
 
 ACTIVE_PROC_STATUSES: Final = frozenset({"pending", "running", "settling"})
 TERMINAL_PROC_STATUSES: Final = frozenset({"success", "error", "killed"})

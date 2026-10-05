@@ -34,13 +34,6 @@ LEGACY_XPROMPT_JINJA_SCOPE_KIND: Literal["xprompt"] = "xprompt"
 LEGACY_XPROMPT_SOURCE_KIND: Literal["xprompt"] = "xprompt"
 
 
-def require_legacy_xprompt_completion_spacer_binding() -> Any:
-    """Load the pinned-core editor binding by its pre-rename name."""
-    from sase.core.rust import require_rust_binding
-
-    return require_rust_binding("xprompt_completion_spacer_to_parentheses_edit")
-
-
 def macros_step_filename(step_name: str) -> str:
     """Return the canonical per-step macro metadata filename."""
     return f"macros_{step_name}.json"
@@ -209,7 +202,6 @@ __all__ = [
     "prompt_proc_payload",
     "read_json_new_first",
     "read_raw_prompt_text",
-    "require_legacy_xprompt_completion_spacer_binding",
     "resolve_artifact_path",
     "resolve_raw_prompt_path",
 ]

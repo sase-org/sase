@@ -54,11 +54,9 @@ from sase.stats._view_payload import (
 from sase.stats.query import RuntimeGroupBy
 
 
-def _wire_int(section: Payload, canonical: str, legacy: str) -> int:
-    """Read a count from the canonical wire key, then the pre-flip spelling."""
-    if canonical in section:
-        return integer(section.get(canonical))
-    return integer(section.get(legacy))
+def _wire_int(section: Payload, canonical: str) -> int:
+    """Read a count from the canonical wire key."""
+    return integer(section.get(canonical))
 
 
 _MAX_OVERVIEW_BUCKETS = 96
@@ -452,8 +450,6 @@ def build_macros_view(
     """Build launch-boundary macro usage from the optional wire section."""
     section_value = run_payload.get("macros")
     if not isinstance(section_value, Mapping):
-        section_value = run_payload.get("xprompts")
-    if not isinstance(section_value, Mapping):
         return MacrosView(
             available=False,
             runs_with_macros=0,
@@ -466,7 +462,7 @@ def build_macros_view(
         )
 
     section = mapping(section_value)
-    runs_with_macros = _wire_int(section, "runs_with_macros", "runs_with_xprompts")
+    runs_with_macros = _wire_int(section, "runs_with_macros")
     macro_rows: list[MacroRow] = []
     for row in rows(section, "rows"):
         row_runs = integer(row.get("runs"))
@@ -582,10 +578,8 @@ def build_macros_view(
     return MacrosView(
         available=True,
         runs_with_macros=runs_with_macros,
-        runs_without_macros=_wire_int(
-            section, "runs_without_macros", "runs_without_xprompts"
-        ),
-        distinct_macros=_wire_int(section, "distinct_macros", "distinct_xprompts"),
+        runs_without_macros=_wire_int(section, "runs_without_macros"),
+        distinct_macros=_wire_int(section, "distinct_macros"),
         total_references=integer(section.get("total_references")),
         truncated_rows=integer(section.get("truncated_rows")),
         rows=tuple(macro_rows),

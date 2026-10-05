@@ -71,7 +71,7 @@ _RESOLVER_SPAN_SUFFIXES = (
     "slow_tool_sources",
     "delta_entries",
     "opened_workspaces",
-    "xprompts_used",
+    "macros_used",
     "linked_delta_groups",
     "wait_bead_statuses",
     "agent_page_url",

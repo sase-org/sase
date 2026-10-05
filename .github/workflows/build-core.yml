@@ -61,10 +61,9 @@ jobs:
       - name: Build xprompt LSP
         working-directory: sase-core
         run: |
-          lsp_pkg="sase_xprompt_lsp"
-          if [ -f "crates/sase_macro_lsp/Cargo.toml" ]; then lsp_pkg="sase_macro_lsp"; fi
+          lsp_pkg="sase_macro_lsp"
           cargo build --release -p "$lsp_pkg"
-          if [ -f "target/release/sase-macro-lsp" ]; then lsp_bin="sase-macro-lsp"; else lsp_bin="sase-xprompt-lsp"; fi
+          lsp_bin="sase-macro-lsp"
           install -m 0755 "target/release/$lsp_bin" "$GITHUB_WORKSPACE/dist/$lsp_bin"
       - name: Record wheel provenance
         run: echo "${{ steps.core-sha.outputs.sha }}" > dist/sase-core-sha.txt

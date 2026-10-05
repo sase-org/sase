@@ -24,7 +24,6 @@ from sase.macro.workflow_executor_steps_embedded_types import (
 )
 from sase.macro.workflow_models import Workflow
 
-SASE_LAUNCH_SWARM_XPROMPTS = "SASE_LAUNCH_SWARM_XPROMPTS"
 SASE_LAUNCH_SWARM_MACROS = "SASE_LAUNCH_SWARM_MACROS"
 
 
@@ -53,25 +52,18 @@ def _encode_launch_swarm_macros(names: Sequence[str]) -> str:
 
 
 def launch_swarm_env_entries(names: Sequence[str]) -> dict[str, str]:
-    """Return launch env entries carrying swarm provenance, new name first.
-
-    Both spellings carry the same value while callers migrate; readers prefer
-    the macro spelling.
-    """
+    """Return launch env entries carrying swarm provenance."""
     encoded = _encode_launch_swarm_macros(names)
     return {
         SASE_LAUNCH_SWARM_MACROS: encoded,
-        SASE_LAUNCH_SWARM_XPROMPTS: encoded,
     }
 
 
 def decode_launch_swarm_macros(
     environ: Mapping[str, str],
 ) -> list[str] | None:
-    """Decode launch-boundary swarm provenance, preferring the macro spelling."""
+    """Decode launch-boundary swarm provenance."""
     raw = environ.get(SASE_LAUNCH_SWARM_MACROS)
-    if raw is None:
-        raw = environ.get(SASE_LAUNCH_SWARM_XPROMPTS)
     if not raw:
         return None
     decoded = json.loads(raw)
@@ -83,9 +75,8 @@ def decode_launch_swarm_macros(
 
 
 def pop_launch_swarm_env(environ: MutableMapping[str, str]) -> None:
-    """Remove launch-boundary swarm provenance under either spelling."""
+    """Remove launch-boundary swarm provenance."""
     environ.pop(SASE_LAUNCH_SWARM_MACROS, None)
-    environ.pop(SASE_LAUNCH_SWARM_XPROMPTS, None)
 
 
 def scan_macro_references(

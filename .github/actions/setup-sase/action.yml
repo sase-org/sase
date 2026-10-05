@@ -53,9 +53,9 @@ runs:
           echo "error: expected exactly one sase-core-sha.txt provenance file, found ${#provenance_files[@]}" >&2
           exit 1
         fi
-        mapfile -t lsp_binaries < <(find "$CORE_ARTIFACT_DIR" -type f \( -name 'sase-macro-lsp' -o -name 'sase-xprompt-lsp' \) -print | sort)
+        mapfile -t lsp_binaries < <(find "$CORE_ARTIFACT_DIR" -type f -name 'sase-macro-lsp' -print | sort)
         if [[ ${#lsp_binaries[@]} -ne 1 ]]; then
-          echo "error: expected exactly one LSP binary (sase-macro-lsp or sase-xprompt-lsp), found ${#lsp_binaries[@]}" >&2
+          echo "error: expected exactly one LSP binary (sase-macro-lsp), found ${#lsp_binaries[@]}" >&2
           exit 1
         fi
         case "$INSTALL_RECIPE" in

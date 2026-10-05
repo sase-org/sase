@@ -1116,8 +1116,7 @@ rust-dev-install VENV=venv_dir_abs: _venv
     @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     lsp_target_dir="$sase_core_abs/target/uv-tool-lsp"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
-    lsp_pkg="sase_xprompt_lsp"; \
-    if [ -f "$sase_core_abs/crates/sase_macro_lsp/Cargo.toml" ]; then lsp_pkg="sase_macro_lsp"; fi; \
+    lsp_pkg="sase_macro_lsp"; \
     cd "$sase_core_abs" && \
         CARGO_TARGET_DIR="$lsp_target_dir" \
         CARGO_BUILD_BUILD_DIR="$lsp_target_dir/build" \
@@ -1128,8 +1127,7 @@ rust-dev-install VENV=venv_dir_abs: _venv
     rm -rf "$lsp_target_dir/build/$profile/incremental" "$lsp_target_dir/$profile/incremental"
     @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
-    lsp_bin="sase-xprompt-lsp"; \
-    if [ -f "$sase_core_abs/target/uv-tool-lsp/$profile/sase-macro-lsp" ]; then lsp_bin="sase-macro-lsp"; fi; \
+    lsp_bin="sase-macro-lsp"; \
     dest="{{ VENV }}/bin/$lsp_bin"; \
     src="$sase_core_abs/target/uv-tool-lsp/$profile/$lsp_bin"; \
     tmp="$dest.tmp.$$"; \
@@ -1177,8 +1175,7 @@ rust-lsp-install VENV=venv_dir_abs: _venv
     if [ -z "$cached_lsp" ]; then \
         cached_lsp="$("{{ VENV }}/bin/python" "$cache_tool" store --kind lsp --profile "$profile" --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" --cargo-target-dir "$lsp_target_dir" || true)"; \
     fi; \
-    lsp_pkg="sase_xprompt_lsp"; \
-    if [ -f "$sase_core_abs/crates/sase_macro_lsp/Cargo.toml" ]; then lsp_pkg="sase_macro_lsp"; fi; \
+    lsp_pkg="sase_macro_lsp"; \
     if [ -n "$cached_lsp" ]; then \
         src="$cached_lsp"; \
         printf "[rust-lsp-install] Installing cached LSP binary from %s.\n" "$src"; \
@@ -1191,7 +1188,7 @@ rust-lsp-install VENV=venv_dir_abs: _venv
             CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
             cargo build --profile "$profile" -p "$lsp_pkg" && \
         rm -rf "$lsp_target_dir/build/$profile/incremental" "$lsp_target_dir/$profile/incremental"; \
-        if [ -f "$lsp_target_dir/$profile/sase-macro-lsp" ]; then src="$lsp_target_dir/$profile/sase-macro-lsp"; else src="$lsp_target_dir/$profile/sase-xprompt-lsp"; fi; \
+        src="$lsp_target_dir/$profile/sase-macro-lsp"; \
     fi; \
     lsp_bin="$(basename "$src")"; \
     dest="{{ VENV }}/bin/$lsp_bin"; \

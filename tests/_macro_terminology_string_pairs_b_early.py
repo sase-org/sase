@@ -40,7 +40,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ),
     ("tests/pager/visual/test_agent_conversation_png_snapshots.py", '"AGENT XPROMPT"'),
     ("tests/pager/visual/test_agent_conversation_png_snapshots.py", '"raw_xprompt.md"'),
-    ("tests/perf/bench_detail_header_summary.py", '"xprompts_used"'),
     ("tests/prompt_command/test_export_save.py", '"xprompts"'),
     ("tests/question_gate_turn/test_followup_prompt.py", '"% xprompts_enabled:false"'),
     ("tests/question_gate_turn/test_followup_prompt.py", '"% xprompts_enabled:true"'),

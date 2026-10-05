@@ -25,13 +25,10 @@ from sase.core.agent_scan_wire_markers import (
     WorkflowStateWire,
 )
 
-AGENT_SCAN_WIRE_SCHEMA_VERSION = 10
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 34
-# Wire schemas the sase-turn contract flip (sase-1ab.7) may emit. The mirrors
-# above still name the pre-flip versions until pin-bump (sase-1ab.8) moves
-# them; readers accept both so one sase tree works against either core.
-SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS = frozenset({10, 11})
-SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS = frozenset({33, 34, 35})
+AGENT_SCAN_WIRE_SCHEMA_VERSION = 12
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 36
+SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS = frozenset({10, 11, 12})
+SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS = frozenset({33, 34, 35, 36})
 AgentArtifactRecordShape = Literal["full", "list"]
 AgentArtifactCandidateField = Literal[
     "project", "cl", "model", "provider", "machine", "type"

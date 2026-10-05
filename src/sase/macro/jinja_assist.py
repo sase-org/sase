@@ -16,7 +16,7 @@ from typing import Any, Literal
 
 from sase.core.rust import require_rust_binding
 
-JinjaScopeKind = Literal["prompt", "xprompt"]
+JinjaScopeKind = Literal["prompt", "macro"]
 JinjaCompletionSlot = Literal[
     "variable", "member", "filter", "test", "statement", "none"
 ]

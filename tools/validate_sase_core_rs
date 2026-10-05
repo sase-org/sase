@@ -1313,7 +1313,7 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
             ),
             encoding="utf-8",
         )
-        (artifact_dir / "xprompts.json").write_text(
+        (artifact_dir / "macros.json").write_text(
             json.dumps([{"name": "gh", "kind": "workflow", "tags": ["vcs"]}]),
             encoding="utf-8",
         )
@@ -1364,12 +1364,12 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     ):
         _error("agent statistics work-schema probe payload has invalid commit counters")
         return False
-    xprompts = payload.get("xprompts")
-    if not isinstance(xprompts, dict) or not isinstance(xprompts.get("rows"), list):
-        _error("agent statistics xprompt-schema probe payload has invalid xprompts")
+    macros = payload.get("macros")
+    if not isinstance(macros, dict) or not isinstance(macros.get("rows"), list):
+        _error("agent statistics macro-schema probe payload has invalid macros")
         return False
-    if not xprompts["rows"]:
-        _error("agent statistics xprompt-schema probe payload has no xprompt rows")
+    if not macros["rows"]:
+        _error("agent statistics macro-schema probe payload has no macro rows")
         return False
     truncation_fields = (
         "models_truncated",
@@ -1379,10 +1379,10 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     if any(
         not isinstance(row, dict)
         or any(not isinstance(row.get(field), int) for field in truncation_fields)
-        for row in xprompts["rows"]
+        for row in macros["rows"]
     ):
         _error(
-            "agent statistics xprompt-schema probe payload has invalid truncation counts"
+            "agent statistics macro-schema probe payload has invalid truncation counts"
         )
         return False
     runners = payload.get("runners")
