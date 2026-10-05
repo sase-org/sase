@@ -12,10 +12,7 @@ from typing import TYPE_CHECKING
 from sase.ace.tui.widgets._file_completion_accept_delete import (
     FileCompletionAcceptDeleteMixin,
 )
-from sase.ace.tui.widgets._file_completion_macro_args import (
-    build_macro_arg_completion_candidates,
-    effective_macro_arg_token,
-)
+from sase.ace.tui.widgets._file_completion_macro_args import effective_macro_arg_token
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
     artifact_ref_next_selectable_index,
@@ -34,6 +31,7 @@ from sase.ace.tui.widgets.jinja_completion import (
 )
 from sase.ace.tui.widgets.model_alias_completion import (
     MODEL_ALIAS_COMPLETION_KIND,
+    is_model_alias_completion_placeholder,
 )
 from sase.ace.tui.widgets.model_explicit_completion import (
     MODEL_EXPLICIT_COMPLETION_KIND,
@@ -52,7 +50,7 @@ from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
 
 _MACRO_ARG_CHAIN_KINDS = frozenset(
-    {"macro_arg_value", "macro_arg_agent", "macro_arg_path"}
+    {"macro_arg_value", "macro_arg_agent", "macro_arg_path", "macro_arg_model"}
 )
 
 
@@ -336,6 +334,11 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
             return False
 
         accepted_kind = self._completion_kind
+        if accepted_kind == "macro_arg_model" and is_model_alias_completion_placeholder(
+            selected
+        ):
+            self._clear_file_completion(clear_macro_arg_hint=False)
+            return False
         self._replace_absolute_range(
             arg_ctx.value_start,
             arg_ctx.value_end,
@@ -352,6 +355,28 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
                 self._refresh_macro_arg_hint_from_cursor()
             return True
 
+        if selected.is_dir and accepted_kind == "macro_arg_model":
+            self._file_completion_active = False
+            self._file_completion_candidates = []
+            self._file_completion_index = 0
+            next_ctx = self._get_macro_arg_completion_context()
+            if next_ctx is not None:
+                candidates, _ = self._build_macro_arg_completion_candidates(
+                    next_ctx,
+                    base_dir=self._prompt_completion_base_dir(),
+                )
+                if candidates:
+                    self._completion_kind = next_ctx.completion_kind
+                    self._macro_arg_completion_trigger = "manual"
+                    self._file_completion_active = True
+                    self._file_completion_candidates = candidates
+                    self._file_completion_index = 0
+                    self._completion_selection_moved = False
+                    self._update_file_completion_panel(
+                        effective_macro_arg_token(next_ctx)
+                    )
+                    return True
+
         if accepted_kind == "macro_arg_name" and self._try_chain_macro_arg_completion():
             return True
 
@@ -365,14 +390,8 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
         if next_ctx is None or next_ctx.completion_kind not in _MACRO_ARG_CHAIN_KINDS:
             return False
 
-        candidates, _shared_extension = build_macro_arg_completion_candidates(
-            next_ctx,
-            base_dir=self._prompt_completion_base_dir(),
-            agent_candidates=(
-                self._snapshot_agent_completion_candidates()
-                if next_ctx.completion_kind == "macro_arg_agent"
-                else None
-            ),
+        candidates, _shared_extension = self._build_macro_arg_completion_candidates(
+            next_ctx, base_dir=self._prompt_completion_base_dir()
         )
         if not candidates:
             return False

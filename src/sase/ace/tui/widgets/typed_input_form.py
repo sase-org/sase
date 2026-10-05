@@ -183,6 +183,27 @@ class _EnumField(Button):
         self.label = self._current_label()
 
 
+class _ModelField(Button):
+    """Button that opens the shared model picker for a model-typed input."""
+
+    def __init__(self, arg: InputArg, *, id: str) -> None:
+        self._arg = arg
+        default = arg.default
+        self._value = default if isinstance(default, str) else ""
+        super().__init__(self._button_label(), id=id, variant="default")
+
+    @property
+    def value(self) -> str:
+        return self._value
+
+    def set_value(self, value: str) -> None:
+        self._value = value
+        self.label = self._button_label()
+
+    def _button_label(self) -> str:
+        return self._value or "— select model —"
+
+
 class TypedInputForm(Vertical):
     """Typed, validated single-page field collection driven by ``InputArg`` rules."""
 
@@ -286,6 +307,8 @@ class TypedInputForm(Vertical):
     def _build_editor(self, index: int, field: TypedFormField) -> Widget:
         field_id = self._input_id(index)
         arg = field.arg
+        if arg.named_type == "model" or arg.value_role == "model":
+            return _ModelField(arg, id=field_id)
         if arg.type is InputType.ENUM and not arg.repeatable:
             return _EnumField(arg, id=field_id)
         placeholder = self._placeholder_text(field)
@@ -369,6 +392,8 @@ class TypedInputForm(Vertical):
             raw = values[field.arg.name]
             widget = self.query_one(f"#{self._input_id(index)}")
             if isinstance(widget, _EnumField):
+                widget.set_value(raw)
+            elif isinstance(widget, _ModelField):
                 widget.set_value(raw)
             else:
                 widget.value = raw  # type: ignore[attr-defined]
@@ -567,6 +592,30 @@ class TypedInputForm(Vertical):
             if index is not None:
                 self._validate_field(index)
                 self.post_message(self.Changed())
+            return
+        if isinstance(button, _ModelField):
+            event.stop()
+            self._open_model_picker(button)
+
+    def _open_model_picker(self, button: _ModelField) -> None:
+        from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
+
+        def _selected(value: str | None) -> None:
+            if value is None:
+                return
+            button.set_value(value)
+            index = self._index_of_widget(button)
+            if index is not None:
+                self._validate_field(index)
+            self.post_message(self.Changed())
+
+        self.app.push_screen(
+            ModelPickerModal(
+                title=f"Select {button._arg.name}",
+                include_default_option=False,
+            ),
+            _selected,
+        )
 
     def _open_enum_picker(self, button: _EnumField) -> None:
         from sase.ace.tui.modals.enum_choice_picker_modal import (

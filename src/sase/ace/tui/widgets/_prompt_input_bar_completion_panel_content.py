@@ -300,6 +300,23 @@ def _append_candidate_row(
             tribe_colors=layout.tribe_colors,
             inner_width=inner_width,
         )
+    elif kinds.macro_arg_model:
+        if kinds.macro_arg_model_effort:
+            append_directive_arg_completion_row(
+                content,
+                candidate,
+                is_selected,
+                inner_width=inner_width,
+            )
+        elif isinstance(candidate.metadata, ModelCompletionMetadata):
+            append_model_completion_row(
+                content,
+                candidate,
+                is_selected,
+                layout.model,
+            )
+        else:
+            content.append(candidate.display, style="dim")
     elif kinds.vcs_project:
         append_vcs_project_completion_row(
             content,

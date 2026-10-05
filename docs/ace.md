@@ -7507,25 +7507,27 @@ token under the cursor:
   position, `Ctrl+T` completes the active argument instead of the macro name. For `path`
   inputs it delegates to file path completion, for `enum` and `bool` inputs it offers
   the shared Rust choice menu (canonical values with labels, descriptions, and a quiet
-  `default` badge; `true`/`false` for bools), and inside parenthesized syntax it
-  completes missing `name=` arguments without repeating names already present in the
-  argument list. Each keyword row shows the shared type label, its default when
+  `default` badge; `true`/`false` for bools). `model` inputs use the `%model` menu,
+  including aliases after `@`, provider drill-down, and effort choices after the model's
+  `@` suffix. Typed `model` inputs open the existing model picker. Inside parenthesized
+  syntax it completes missing `name=` arguments without repeating names already present
+  in the argument list. Each keyword row shows the shared type label, its default when
   optional, and its description. `#m:` and `#m(k=` open the value menu immediately when
-  the active input has choices. Accepting a `name=` row chains straight into its value
-  menu, even from a single-candidate name menu; auto-open shows the choice without
-  accepting it, and empty-prefix menus keep declared order with the first row selected.
-  Accepting a choice replaces the whole value element and inserts the canonical value
-  (quoted when needed), preserving adjacent values and surrounding syntax. At a keyword
-  slot (right after `#review(`, or after a comma and space in `#review(a=1,`), the
-  keyword menu also opens automatically while typing (unless
+  the active input has choices or is typed `model`. Accepting a `name=` row chains
+  straight into its value menu, even from a single-candidate name menu; auto-open shows
+  the choice without accepting it, and empty-prefix menus keep declared order with the
+  first row selected. Accepting a choice replaces the whole value element and inserts
+  the canonical value (quoted when needed), preserving adjacent values and surrounding
+  syntax. At a keyword slot (right after `#review(`, or after a comma and space in
+  `#review(a=1,`), the keyword menu also opens automatically while typing (unless
   `ace.prompt_completion.auto_macro_menu` is off), and INSERT-mode `Ctrl+N` / `Ctrl+P`
   open it with the first / last keyword highlighted. Accepting a keyword immediately
-  opens its value menu when the input has one (enum/bool values, agent targets, or
-  paths). `Enter` always submits the prompt as typed, even on an automatically opened
-  first-row menu; `Ctrl+F` accepts the highlighted row without requiring `Ctrl+N`,
-  `Down`, or another ownership signal. Agent inputs such as `#fork` offer agent,
-  proc/monitor, session, clan, and `@tribe` targets with kind and member context. A proc
-  or monitor row inserts its exact durable proc ID while displaying the friendly,
+  opens its value menu when the input has one (enum/bool values, agent targets, paths,
+  or model values). `Enter` always submits the prompt as typed, even on an automatically
+  opened first-row menu; `Ctrl+F` accepts the highlighted row without requiring
+  `Ctrl+N`, `Down`, or another ownership signal. Agent inputs such as `#fork` offer
+  agent, proc/monitor, session, clan, and `@tribe` targets with kind and member context.
+  A proc or monitor row inserts its exact durable proc ID while displaying the friendly,
   reusable proc name. Session rows also show the associated plan or bead when SASE can
   resolve one: the row reads `<kind> · <phases/waves> · <title>` (for example
   `Epic · 5 phases · 2 waves · Bead review hardening`), and its plan title is

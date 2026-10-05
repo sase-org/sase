@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from typing import Literal
 
 from sase.macro._parsing import (
@@ -280,6 +281,8 @@ def _with_rust_span_bounds(
     ctx: MacroArgCompletionContext,
 ) -> MacroArgCompletionContext:
     """Override value bounds with Rust parser spans for choice menus."""
+    if ctx.completion_kind == "macro_arg_model":
+        return _with_model_effort_span(text, cursor_offset, ctx)
     if ctx.completion_kind != "macro_arg_value" or ctx.active_input is None:
         return ctx
     # Only choice-backed inputs use structural spans; other value kinds keep
@@ -316,6 +319,25 @@ def _with_rust_span_bounds(
         used_arg_names=ctx.used_arg_names,
         selected_values=merged_selected,
         replacement=text[value_start:value_end],
+    )
+
+
+def _with_model_effort_span(
+    text: str,
+    cursor_offset: int,
+    ctx: MacroArgCompletionContext,
+) -> MacroArgCompletionContext:
+    """Route the suffix after a model's ``@`` to the shared effort menu."""
+    at = ctx.token.rfind("@")
+    if at < 0 or (ctx.token.startswith("@") and ctx.token.count("@") == 1):
+        return ctx
+    start = ctx.value_start + at + 1
+    return replace(
+        ctx,
+        value_start=start,
+        token=text[start:cursor_offset],
+        replacement=text[start : ctx.value_end],
+        model_effort=True,
     )
 
 
@@ -376,8 +398,11 @@ def _completion_kind_for_input(
     "macro_arg_path",
     "macro_arg_value",
     "macro_arg_agent",
+    "macro_arg_model",
     "macro_arg_type_hint",
 ]:
+    if input_hint.named_type == "model" or input_hint.value_role == "model":
+        return "macro_arg_model"
     if input_hint.type == "path":
         return "macro_arg_path"
     if (input_hint.value_role or "") == "agent" or input_hint.type == "agent":

@@ -60,6 +60,8 @@ class CompletionPanelKinds:
     macro_arg_name: bool
     macro_arg_value: bool
     macro_arg_agent: bool
+    macro_arg_model: bool
+    macro_arg_model_effort: bool
     jinja: bool
     placeholder: bool
     prompt_word: bool
@@ -103,6 +105,12 @@ class CompletionPanelKinds:
             macro_arg_name=completion_kind == "macro_arg_name",
             macro_arg_value=completion_kind == "macro_arg_value",
             macro_arg_agent=completion_kind == "macro_arg_agent",
+            macro_arg_model=completion_kind == "macro_arg_model",
+            macro_arg_model_effort=completion_kind == "macro_arg_model"
+            and any(
+                getattr(candidate.metadata, "directive_name", None) == "effort"
+                for candidate in rows
+            ),
             jinja=completion_kind == "jinja",
             placeholder=completion_kind == PLACEHOLDER_COMPLETION_KIND,
             prompt_word=completion_kind == PROMPT_WORD_COMPLETION_KIND,

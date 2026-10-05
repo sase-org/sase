@@ -138,6 +138,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
             not in {
                 MODEL_ALIAS_COMPLETION_KIND,
                 MODEL_EXPLICIT_COMPLETION_KIND,
+                "macro_arg_model",
             }
             or not request_current
         ):

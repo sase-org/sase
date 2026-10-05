@@ -5,10 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._file_completion_refresh import FileCompletionRefreshMixin
-from sase.ace.tui.widgets._file_completion_macro_args import (
-    build_macro_arg_completion_candidates,
-    effective_macro_arg_token,
-)
+from sase.ace.tui.widgets._file_completion_macro_args import effective_macro_arg_token
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
     is_directive_catalog_placeholder,
@@ -252,14 +249,8 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                     if arg_ctx is None:
                         self._clear_file_completion()
                         return True
-                    candidates, _ = build_macro_arg_completion_candidates(
-                        arg_ctx,
-                        base_dir=self._prompt_completion_base_dir(),
-                        agent_candidates=(
-                            self._snapshot_agent_completion_candidates()
-                            if arg_ctx.completion_kind == "macro_arg_agent"
-                            else None
-                        ),
+                    candidates, _ = self._build_macro_arg_completion_candidates(
+                        arg_ctx, base_dir=self._prompt_completion_base_dir()
                     )
                 else:
                     candidates, _ = build_completion_candidates(
@@ -434,14 +425,8 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
     ) -> bool:
         """Handle Ctrl+T-driven completion inside macro argument syntax."""
         base_dir = self._prompt_completion_base_dir()
-        candidates, shared_extension = build_macro_arg_completion_candidates(
-            ctx,
-            base_dir=base_dir,
-            agent_candidates=(
-                self._snapshot_agent_completion_candidates()
-                if ctx.completion_kind == "macro_arg_agent"
-                else None
-            ),
+        candidates, shared_extension = self._build_macro_arg_completion_candidates(
+            ctx, base_dir=base_dir
         )
         self._completion_kind = ctx.completion_kind
 
@@ -460,6 +445,25 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                 and self._try_chain_macro_arg_completion()
             ):
                 return True
+            if ctx.completion_kind == "macro_arg_model" and selected.is_dir:
+                self._file_completion_active = False
+                self._file_completion_candidates = []
+                self._file_completion_index = 0
+                next_ctx = self._get_macro_arg_completion_context()
+                if next_ctx is not None:
+                    candidates, _ = self._build_macro_arg_completion_candidates(
+                        next_ctx, base_dir=base_dir
+                    )
+                    if candidates:
+                        self._completion_kind = next_ctx.completion_kind
+                        self._macro_arg_completion_trigger = "manual"
+                        self._file_completion_active = True
+                        self._file_completion_candidates = candidates
+                        self._file_completion_index = 0
+                        self._update_file_completion_panel(
+                            effective_macro_arg_token(next_ctx)
+                        )
+                        return True
             self._clear_file_completion(clear_macro_arg_hint=False)
             self._refresh_macro_arg_hint_from_cursor()
             return True
@@ -473,14 +477,8 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                 self._clear_file_completion(clear_macro_arg_hint=False)
                 self._refresh_macro_arg_hint_from_cursor()
                 return True
-            candidates, _ = build_macro_arg_completion_candidates(
-                next_ctx,
-                base_dir=base_dir,
-                agent_candidates=(
-                    self._snapshot_agent_completion_candidates()
-                    if next_ctx.completion_kind == "macro_arg_agent"
-                    else None
-                ),
+            candidates, _ = self._build_macro_arg_completion_candidates(
+                next_ctx, base_dir=base_dir
             )
             ctx = next_ctx
             token = effective_macro_arg_token(ctx)

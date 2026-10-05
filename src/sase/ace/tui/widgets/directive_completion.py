@@ -51,7 +51,10 @@ from sase.ace.tui.widgets._directive_completion_types import (
     PathCandidateBuilder,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.macro.model_completion import build_model_completion_catalog
+from sase.macro.model_completion import (
+    ModelCompletionEntry,
+    build_model_completion_catalog,
+)
 
 # Proc kinds an ordinary ``%wait`` cannot resolve. ``#fork`` accepts a named
 # proc, but wait dependencies resolve agent artifacts only, so offering a
@@ -99,6 +102,7 @@ def build_directive_clause_candidates(
     machine_inventory: Sequence[Mapping[str, str]] | None = None,
     machines_state: MachinesState = "unavailable",
     path_candidates: PathCandidateBuilder | None = None,
+    model_entries: Sequence[ModelCompletionEntry] | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build ACE rows for a classified directive clause."""
     if clause.is_name:
@@ -109,9 +113,14 @@ def build_directive_clause_candidates(
         return path_candidates(token)
 
     if _offers_model_values(clause):
+        catalog_builder = (
+            build_model_completion_catalog
+            if model_entries is None
+            else lambda **_kwargs: list(model_entries)
+        )
         return build_model_clause_candidates(
             clause,
-            catalog_builder=build_model_completion_catalog,
+            catalog_builder=catalog_builder,
         )
 
     keyword_fallback = parenthesized_keyword_fallback(clause)

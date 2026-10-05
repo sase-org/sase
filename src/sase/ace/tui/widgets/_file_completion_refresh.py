@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from sase.ace.tui.widgets._file_completion_accept import FileCompletionAcceptMixin
-from sase.ace.tui.widgets._file_completion_macro_args import (
-    build_macro_arg_completion_candidates,
-    effective_macro_arg_token,
-)
+from sase.ace.tui.widgets._file_completion_macro_args import effective_macro_arg_token
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
     is_directive_like_token,
@@ -324,14 +321,8 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 self._clear_file_completion()
                 return
             token = effective_macro_arg_token(arg_ctx)
-            candidates, _shared = build_macro_arg_completion_candidates(
-                arg_ctx,
-                base_dir=base_dir,
-                agent_candidates=(
-                    self._snapshot_agent_completion_candidates()
-                    if arg_ctx.completion_kind == "macro_arg_agent"
-                    else None
-                ),
+            candidates, _shared = self._build_macro_arg_completion_candidates(
+                arg_ctx, base_dir=base_dir
             )
         else:
             ctx = self._get_token_context()

@@ -88,6 +88,7 @@ class MacroArgCompletionContext:
         "macro_arg_path",
         "macro_arg_value",
         "macro_arg_agent",
+        "macro_arg_model",
         "macro_arg_name",
         "macro_arg_type_hint",
     ]
@@ -95,6 +96,7 @@ class MacroArgCompletionContext:
     value_end: int
     token: str
     active_input: MacroInputHint | None = None
+    model_effort: bool = False
     used_arg_names: frozenset[str] = frozenset()
     selected_values: frozenset[str] = frozenset()
     replacement: str = ""

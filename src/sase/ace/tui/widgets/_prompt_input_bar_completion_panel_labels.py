@@ -78,6 +78,10 @@ def completion_panel_title(
         if scoped_title := _model_completion_provider_scope_title(token, rows):
             return scoped_title
         return "model aliases" if token.startswith("@") else "%model values"
+    if kinds.macro_arg_model:
+        if kinds.macro_arg_model_effort:
+            return "%model effort"
+        return "model aliases" if token.startswith("@") else "%model values"
     if kinds.directive_arg:
         return "directive values"
     if kinds.vcs_project:

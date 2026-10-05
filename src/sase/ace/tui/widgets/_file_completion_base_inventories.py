@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING, Any
 from sase.ace.tui.widgets._file_completion_base_panel import (
     FileCompletionBasePanelMixin,
 )
+from sase.ace.tui.widgets._file_completion_macro_args import (
+    build_macro_arg_completion_candidates,
+    build_macro_arg_model_completion_candidates,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.model_alias_completion import (
     MODEL_ALIAS_COMPLETION_KIND,
@@ -123,6 +127,40 @@ class FileCompletionBaseInventoriesMixin(FileCompletionBasePanelMixin):
             machines_state=machines_state,
             path_candidates=path_candidates,
         )
+
+    def _build_macro_arg_completion_candidates(
+        self,
+        ctx: object,
+        *,
+        base_dir: str | None = None,
+    ) -> tuple[list[CompletionCandidate], str]:
+        """Build macro argument rows, warming model values off the UI thread."""
+        from sase.ace.tui.widgets.macro_arg_assist import MacroArgCompletionContext
+
+        if not isinstance(ctx, MacroArgCompletionContext):
+            return [], ""
+        if ctx.completion_kind != "macro_arg_model":
+            return build_macro_arg_completion_candidates(
+                ctx,
+                base_dir=base_dir,
+                agent_candidates=(
+                    self._snapshot_agent_completion_candidates()
+                    if ctx.completion_kind == "macro_arg_agent"
+                    else None
+                ),
+            )
+
+        if ctx.model_effort:
+            return build_macro_arg_model_completion_candidates(ctx)
+
+        state, entries = self._model_completion_catalog_state()
+        if state == "warm" and entries is not None:
+            return build_macro_arg_model_completion_candidates(ctx, entries)
+        if state == "loading":
+            self._remember_model_completion_catalog_request("macro_arg_model")
+            self._schedule_model_completion_catalog_load()
+            return [build_loading_model_alias_placeholder()], ""
+        return [build_unavailable_model_alias_placeholder()], ""
 
     def _wait_bead_project_key(self) -> str | None:
         """Return the project whose bead store should back directive completion."""

@@ -148,6 +148,38 @@ def test_detects_type_aware_arg_completion_contexts() -> None:
     assert int_ctx.completion_kind == "macro_arg_type_hint"
 
 
+def test_model_input_uses_model_completion_and_effort_suffix_span() -> None:
+    model_input = MacroInputHint(
+        name="claude_model",
+        type="word",
+        required=True,
+        default_display=None,
+        position=0,
+        named_type="model",
+        value_role="model",
+    )
+    entries = [_entry("research_swarm", model_input)]
+
+    model_value = "#research_swarm(claude_model=claude/"
+    model_ctx = detect_macro_arg_completion_at_cursor(
+        model_value, len(model_value), entries
+    )
+    assert model_ctx is not None
+    assert model_ctx.completion_kind == "macro_arg_model"
+    assert model_ctx.model_effort is False
+
+    effort_value = "#research_swarm(claude_model=claude/opus@h"
+    effort_ctx = detect_macro_arg_completion_at_cursor(
+        effort_value, len(effort_value), entries
+    )
+    assert effort_ctx is not None
+    assert effort_ctx.completion_kind == "macro_arg_model"
+    assert effort_ctx.model_effort is True
+    assert effort_ctx.token == "h"
+    assert effort_ctx.value_start == effort_value.index("@h") + 1
+    assert effort_ctx.replacement == "h"
+
+
 def test_detects_agent_arg_completion_contexts_for_fork_forms() -> None:
     entries = [_entry("fork", _input_hint("name", "agent"))]
 

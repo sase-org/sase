@@ -17,6 +17,7 @@ from sase.ace.tui.widgets.macro_arg_assist import (
     MacroArgCompletionContext,
     MacroArgNameMetadata,
 )
+from sase.macro.model_completion import ModelCompletionEntry
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +71,33 @@ def build_macro_arg_completion_candidates(
     if ctx.completion_kind == "macro_arg_name":
         return _build_named_arg_completion_candidates(ctx)
     return [], ""
+
+
+def build_macro_arg_model_completion_candidates(
+    ctx: MacroArgCompletionContext,
+    entries: Sequence[ModelCompletionEntry] | None = None,
+) -> tuple[list[CompletionCandidate], str]:
+    """Build macro model candidates through the shared ``%model`` builder."""
+    from sase.ace.tui.widgets._directive_completion_tokens import (
+        synthetic_directive_clause,
+    )
+    from sase.ace.tui.widgets.directive_completion import (
+        build_directive_clause_candidates,
+    )
+
+    is_effort = ctx.model_effort
+    clause = synthetic_directive_clause(
+        kind="directive_argument",
+        token=ctx.token,
+        directive_name="effort" if is_effort else "model",
+        value_role="free_text" if is_effort else "model",
+        selected_values=ctx.selected_values,
+    )
+    if is_effort:
+        return build_directive_clause_candidates(clause)
+    if entries is None:
+        return [], ""
+    return build_directive_clause_candidates(clause, model_entries=entries)
 
 
 def _build_choice_completion_candidates(

@@ -477,17 +477,13 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
             "macro_arg_agent",
             "macro_arg_name",
             "macro_arg_value",
+            "macro_arg_model",
         }:
             return False
 
-        candidates, _shared_extension = build_macro_arg_completion_candidates(
+        candidates, _shared_extension = self._build_macro_arg_completion_candidates(
             arg_ctx,
             base_dir=self._prompt_completion_base_dir(),
-            agent_candidates=(
-                self._snapshot_agent_completion_candidates()
-                if arg_ctx.completion_kind == "macro_arg_agent"
-                else None
-            ),
         )
         if not candidates:
             if arg_ctx.completion_kind == "macro_arg_agent":

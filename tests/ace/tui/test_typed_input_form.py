@@ -6,7 +6,8 @@ from collections.abc import Sequence
 
 import pytest
 from textual.app import App, ComposeResult
-from textual.widgets import Button, Label
+from textual.widgets import Button, Label, OptionList
+from textual.widgets._option_list import Option
 
 from sase.ace.tui.widgets.secret_vim_text_area import SecretVimTextArea
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
@@ -42,6 +43,8 @@ def _field(
     choices: tuple[InputChoice, ...] = (),
     repeatable: bool = False,
     secret: bool = False,
+    named_type: str | None = None,
+    value_role: str | None = None,
 ) -> TypedFormField:
     return TypedFormField(
         arg=InputArg(
@@ -50,6 +53,8 @@ def _field(
             default=default,
             choices=choices,
             repeatable=repeatable,
+            named_type=named_type,
+            value_role=value_role,
         ),
         secret=secret,
     )
@@ -360,6 +365,47 @@ async def test_repeatable_enum_edits_as_multiline_preserving_elements() -> None:
         await pilot.pause()
         assert form.is_valid() is True
         assert form.typed_values() == {"labels": ["red", "green"]}
+
+
+async def test_model_input_opens_shared_picker_and_round_trips_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.model_picker_modal.build_model_rows",
+        lambda **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.model_picker_modal.build_model_options",
+        lambda **_kwargs: [Option("Codex · gpt-5.6-sol", id="gpt-5.6-sol")],
+    )
+    app = _FormApp(
+        [
+            _field(
+                "model",
+                InputType.WORD,
+                named_type="model",
+                value_role="model",
+            )
+        ]
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        button = app.query_one("#field-input-0", Button)
+        button.press()
+        await pilot.pause()
+
+        picker = app.screen
+        assert isinstance(picker, ModelPickerModal)
+        options = picker.query_one("#model-picker-list", OptionList)
+        options.highlighted = 0
+        picker.action_select_model()
+        await pilot.pause()
+
+        form = app.query_one(TypedInputForm)
+        assert button.value == "gpt-5.6-sol"
+        assert form.values() == {"model": "gpt-5.6-sol"}
 
 
 # -- repeatable -------------------------------------------------------------
