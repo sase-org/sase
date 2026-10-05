@@ -172,7 +172,7 @@ class AxeOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.next_patch))
         text.append("/")
         append_keycap(text, key_display_name(app.prev_patch))
-        text.append("move through the sidebar.")
+        text.append("cycle rows in the focused panel.")
         append_keycap(text, key_display_name(app.run_workflow))
         text.append("restart the selected service proc or run the selected job now.")
         text.append("\n")

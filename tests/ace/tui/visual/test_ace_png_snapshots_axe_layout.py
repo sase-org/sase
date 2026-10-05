@@ -62,9 +62,10 @@ async def test_axe_long_label_widening_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
-        # Items are: [bgcmd slot 1, review_pipeline LJ, ...]. One j press
-        # selects the lumberjack row whose summary the golden captures.
-        await page.press("j")
+        # Items are: [bgcmd slot 1, review_pipeline LJ, ...]. J jumps
+        # into the routine panel on the lumberjack row whose summary the
+        # golden captures.
+        await page.press("J")
         assert page.app.current_idx == 1, (
             f"expected idx 1 (review_pipeline lumberjack), got {page.app.current_idx}"
         )
@@ -110,9 +111,10 @@ async def test_axe_constrained_width_no_wrap_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
-        # Items are: [bgcmd slot 1, review_pipeline LJ, ...]. One j press
-        # selects the lumberjack row whose summary the golden captures.
-        await page.press("j")
+        # Items are: [bgcmd slot 1, review_pipeline LJ, ...]. J jumps
+        # into the routine panel on the lumberjack row whose summary the
+        # golden captures.
+        await page.press("J")
         assert page.app.current_idx == 1, (
             f"expected idx 1 (review_pipeline lumberjack), got {page.app.current_idx}"
         )

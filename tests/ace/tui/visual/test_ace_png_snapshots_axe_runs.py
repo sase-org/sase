@@ -55,10 +55,11 @@ async def test_axe_chop_run_info_panel_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "axe")
         # Items are: [bgcmd slot 1, checks LJ, checks/smoke chop, hooks LJ,
-        # hooks/fast_lint chop, hooks/slow_typecheck chop]. Five j presses
-        # from the default idx=0 land on hooks/slow_typecheck (the chop with
+        # hooks/fast_lint chop, hooks/slow_typecheck chop]. J jumps from the
+        # default idx=0 into the routine panel, then four j presses stay
+        # inside that panel to land on hooks/slow_typecheck (the chop with
         # a failure run + non-empty output_tail).
-        await page.press("j")
+        await page.press("J")
         await page.press("j")
         await page.press("j")
         await page.press("j")

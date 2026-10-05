@@ -3340,19 +3340,19 @@ scrolled off screen on selection.
 
 ### Navigation
 
-| Key                       | Action                                                                                  |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to next / previous sidebar row (service proc, routine, job, or background command) |
-| `J` / `K`                 | Jump into the first / last row of the next / previous panel                             |
-| `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (older / newer)                              |
-| `'`                       | Jump to a current-tab entry by adaptive hint                                            |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                              |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered job link, or open the complete links panel                  |
-| `` ` ``                   | Jump to an entry across all tabs                                                        |
-| `g`                       | Scroll to top                                                                           |
-| `G`                       | Scroll to bottom (pins auto-scroll)                                                     |
-| `Ctrl+D` / `Ctrl+U`       | Scroll output down / up by half a page                                                  |
-| `Ctrl+F` / `Ctrl+B`       | Scroll output down / up by a full page                                                  |
+| Key                       | Action                                                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `j` / `k`                 | Cycle the next / previous nav item in the focused panel (service proc, oneshot, routine, or job) and wrap inside that panel |
+| `J` / `K`                 | Jump into the first / last row of the next / previous panel                                                                 |
+| `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (older / newer)                                                                  |
+| `'`                       | Jump to a current-tab entry by adaptive hint                                                                                |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                                                                  |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered job link, or open the complete links panel                                                      |
+| `` ` ``                   | Jump to an entry across all tabs                                                                                            |
+| `g`                       | Scroll to top                                                                                                               |
+| `G`                       | Scroll to bottom (pins auto-scroll)                                                                                         |
+| `Ctrl+D` / `Ctrl+U`       | Scroll output down / up by half a page                                                                                      |
+| `Ctrl+F` / `Ctrl+B`       | Scroll output down / up by a full page                                                                                      |
 
 ### Commands
 

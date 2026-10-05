@@ -36,7 +36,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
             [
                 (
                     f"{d(a.next_patch)} / {d(a.prev_patch)}",
-                    "Move to next / previous command",
+                    "Cycle next / previous row in focused panel (wraps inside panel)",
                 ),
                 (d(a.jump_to_entry), "Jump to entry (' first/back stack)"),
                 (

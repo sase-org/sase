@@ -219,6 +219,31 @@ class BasicNavigationMixin(NavigationMixinBase):
         new_pos = (pos + direction) % len(visible)
         self.current_idx = visible[new_pos]
 
+    def _navigate_services_panel(self, direction: int) -> None:
+        """Cycle ``current_idx`` inside the focused Services nav section.
+
+        Args:
+            direction: +1 for next, -1 for previous.
+        """
+        items = getattr(self, "_axe_items", [])
+        if len(items) == 0:
+            return
+        panel_index = getattr(self, "_axe_panel_index", None)
+        if panel_index is None:
+            return
+        current_key = panel_index.panel_for_global(self.current_idx)
+        indices = list(panel_index.slice_for(current_key).global_indices)
+        if not indices:
+            return
+        try:
+            pos = indices.index(self.current_idx)
+        except ValueError:
+            self.current_idx = indices[0] if direction > 0 else indices[-1]
+            return
+        if len(indices) == 1:
+            return
+        self.current_idx = indices[(pos + direction) % len(indices)]
+
     def action_next_patch(self) -> None:
         """Navigate to the next item, cycling to start if at end."""
         self._jk_perf_begin("next")  # type: ignore[attr-defined]
@@ -229,13 +254,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             self._navigate_patch_panel(1)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             self._navigate_agents_panel(1)
-        else:  # axe tab
-            if len(self._axe_items) == 0:  # type: ignore[attr-defined]
-                return
-            if self.current_idx < len(self._axe_items) - 1:  # type: ignore[attr-defined]
-                self.current_idx += 1
-            else:
-                self.current_idx = 0
+        elif self.current_tab == "services":
+            self._navigate_services_panel(1)
 
     def action_next_changespec(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`action_next_patch`."""
@@ -251,13 +271,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             self._navigate_patch_panel(-1)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             self._navigate_agents_panel(-1)
-        else:  # axe tab
-            if len(self._axe_items) == 0:  # type: ignore[attr-defined]
-                return
-            if self.current_idx > 0:
-                self.current_idx -= 1
-            else:
-                self.current_idx = len(self._axe_items) - 1  # type: ignore[attr-defined]
+        elif self.current_tab == "services":
+            self._navigate_services_panel(-1)
 
     def action_prev_changespec(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`action_prev_patch`."""

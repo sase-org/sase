@@ -32,9 +32,10 @@ async def test_axe_lumberjack_description_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "axe")
         # Items are: [bgcmd slot 1, hooks LJ, hooks/fast_lint chop,
-        # hooks/slow_typecheck chop, checks LJ, checks/smoke chop]. One j
-        # press from the default idx=0 lands on the hooks lumberjack.
-        await page.press("j")
+        # hooks/slow_typecheck chop, checks LJ, checks/smoke chop]. J
+        # jumps from the default idx=0 into the routine panel on the
+        # hooks lumberjack.
+        await page.press("J")
         assert page.app.current_idx == 1, (
             f"expected idx 1 (hooks lumberjack), got {page.app.current_idx}"
         )
@@ -60,8 +61,9 @@ async def test_axe_chop_description_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "axe")
         # Items are: [bgcmd slot 1, hooks LJ, hooks/fast_lint chop, ...].
-        # Two j presses from the default idx=0 land on the fast_lint chop.
-        await page.press("j")
+        # J jumps into the routine panel, then one j press stays inside
+        # that panel to land on the fast_lint chop.
+        await page.press("J")
         await page.press("j")
         assert page.app.current_idx == 2, (
             f"expected idx 2 (hooks/fast_lint), got {page.app.current_idx}"
@@ -88,8 +90,9 @@ async def test_axe_chop_description_collapsed_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "axe")
         # Items are: [bgcmd slot 1, hooks LJ, hooks/fast_lint chop, ...].
-        # Two j presses from the default idx=0 land on the fast_lint chop.
-        await page.press("j")
+        # J jumps into the routine panel, then one j press stays inside
+        # that panel to land on the fast_lint chop.
+        await page.press("J")
         await page.press("j")
         assert page.app.current_idx == 2, (
             f"expected idx 2 (hooks/fast_lint), got {page.app.current_idx}"
@@ -117,8 +120,9 @@ async def test_axe_description_overflow_png_snapshot(
         await page.press("tab")
         await page.expect_state("tab", "axe")
         # Overflow data extends the tree fixture: [bgcmd slot 1, hooks LJ,
-        # hooks/fast_lint chop, ...]. Two j presses land on fast_lint.
-        await page.press("j")
+        # hooks/fast_lint chop, ...]. J jumps into the routine panel, then
+        # one j press stays inside that panel to land on fast_lint.
+        await page.press("J")
         await page.press("j")
         assert page.app.current_idx == 2, (
             f"expected idx 2 (hooks/fast_lint), got {page.app.current_idx}"

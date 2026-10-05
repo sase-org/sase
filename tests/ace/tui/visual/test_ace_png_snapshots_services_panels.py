@@ -194,8 +194,8 @@ async def test_services_panels_routine_selected_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
-        for _ in range(7):
-            await page.press("j")
+        await page.press("J")
+        await page.press("j")
         page.app._refresh_axe_display()
         await wait_for_visual_idle(page)
 
