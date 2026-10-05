@@ -111,9 +111,12 @@ class LspSession:
         env["SASE_PARITY_XPROMPT_CATALOG"] = str(macro_catalog)
         if self._omit_model_catalog:
             env.pop("SASE_XPROMPT_MODEL_CATALOG", None)
+            env.pop("SASE_MACRO_MODEL_CATALOG", None)
         else:
             env["SASE_XPROMPT_MODEL_CATALOG"] = str(model_catalog)
+            env["SASE_MACRO_MODEL_CATALOG"] = str(model_catalog)
         env["SASE_XPROMPT_MACHINE_CATALOG"] = str(machine_catalog)
+        env["SASE_MACRO_MACHINE_CATALOG"] = str(machine_catalog)
         env["SASE_PARITY_FINALIZER_CATALOG"] = str(finalizer_catalog)
         if self._artifact_ref_catalog is not None:
             artifact_ref_catalog = self._tmp_path / "artifact_ref_catalog.json"
@@ -122,6 +125,7 @@ class LspSession:
                 encoding="utf-8",
             )
             env["SASE_XPROMPT_ARTIFACT_REF_CATALOG"] = str(artifact_ref_catalog)
+            env["SASE_MACRO_ARTIFACT_REF_CATALOG"] = str(artifact_ref_catalog)
         _apply_typed_launch_units_flag(env)
         _apply_queue_capacity_budget_flag(env)
         from sase.feature_flags.registry import FeatureFlag

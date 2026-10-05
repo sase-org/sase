@@ -249,7 +249,7 @@ def test_macro_skill_path_matches_lsp(tmp_path: Path) -> None:
         tmp_path,
         text,
         offset,
-        JinjaScope("xprompt", None),
+        JinjaScope("macro", None),
         uri=uri,
         language_id="markdown",
     )

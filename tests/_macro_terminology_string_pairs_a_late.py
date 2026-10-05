@@ -12,6 +12,10 @@ STRING_PAIRS: set[tuple[str, str]] = {
         'elif operation == "xprompt-catalog":',
     ),
     (
+        "tests/_macro_directive_completion_parity_helpers.py",
+        'elif operation in ("xprompt-catalog", "macro-catalog"):',
+    ),
+    (
         "tests/_macro_directive_completion_parity_lsp_session.py",
         '"SASE_PARITY_XPROMPT_CATALOG"',
     ),

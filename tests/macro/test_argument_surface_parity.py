@@ -90,7 +90,7 @@ def test_tui_and_real_lsp_argument_roles_match_core_spans(
         '#visual_batch(owner=bob, title="x", count=oops, enabled=false, '
         "context=plain, owner=again, extra=nope)"
     )
-    binding = require_rust_binding("xprompt_argument_spans")
+    binding = require_rust_binding("macro_argument_spans")
     entry_wire = highlight._macro_arg_assist_entry_to_wire(_entry())
     entries = [entry_wire]
     core_spans = binding(text, entries)
@@ -137,9 +137,9 @@ def test_tui_and_real_lsp_argument_roles_match_core_spans(
             text,
             expected_codes=frozenset(
                 {
-                    "duplicate_xprompt_arg",
-                    "invalid_xprompt_arg_type",
-                    "unknown_xprompt_arg",
+                    "duplicate_macro_arg",
+                    "invalid_macro_arg_type",
+                    "unknown_macro_arg",
                 }
             ),
         )
@@ -153,9 +153,9 @@ def test_tui_and_real_lsp_argument_roles_match_core_spans(
 
     assert expected_tokens == actual_tokens
     assert {_diagnostic_code(diagnostic) for diagnostic in diagnostics} >= {
-        "duplicate_xprompt_arg",
-        "invalid_xprompt_arg_type",
-        "unknown_xprompt_arg",
+        "duplicate_macro_arg",
+        "invalid_macro_arg_type",
+        "unknown_macro_arg",
     }
     _assert_no_lsp_token_overlaps(tokens)
 
@@ -165,7 +165,7 @@ def test_real_lsp_keeps_open_calls_structural_without_validity(
 ) -> None:
     text = "#visual_batch(owner=alice, count="
     entry_wire = highlight._macro_arg_assist_entry_to_wire(_entry())
-    binding = require_rust_binding("xprompt_argument_spans")
+    binding = require_rust_binding("macro_argument_spans")
     core_spans = binding(text, [entry_wire])
 
     assert core_spans
@@ -184,7 +184,7 @@ def test_real_lsp_covers_directive_names_arguments_and_utf16_multiline(
     tmp_path: Path,
 ) -> None:
     directive_text = "%queue(capacity=2, priority=3)\n%if(should_run=false)"
-    binding = require_rust_binding("xprompt_argument_spans")
+    binding = require_rust_binding("macro_argument_spans")
     directive_spans = binding(directive_text)
 
     with LspSession(tmp_path) as session:

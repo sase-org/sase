@@ -172,7 +172,7 @@ if operation == "agent-catalog":
             }
         ],
     }
-elif operation == "xprompt-catalog":
+elif operation in ("xprompt-catalog", "macro-catalog"):
     catalog_path = os.environ.get("SASE_PARITY_XPROMPT_CATALOG")
     if catalog_path:
         with open(catalog_path, encoding="utf-8") as fh:
