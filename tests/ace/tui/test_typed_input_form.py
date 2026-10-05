@@ -208,6 +208,56 @@ async def test_enum_cycle_never_returns_to_sentinel_once_a_choice_is_made() -> N
         assert "— select —" not in labels
 
 
+def _choices_n(count: int) -> tuple[InputChoice, ...]:
+    return tuple(InputChoice(value=f"v{i}", label=f"Label {i}") for i in range(count))
+
+
+async def test_enum_five_choices_cycles_in_place() -> None:
+    from sase.ace.tui.widgets.typed_input_form import _EnumField
+
+    app = _FormApp([_field("mode", InputType.ENUM, choices=_choices_n(5))])
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        button = app.query_one("#field-input-0", Button)
+        assert isinstance(button, _EnumField)
+        assert button.needs_picker is False
+        button.press()
+        await pilot.pause()
+        assert str(button.label) == "Label 0"
+        assert button.value == "v0"
+
+
+async def test_enum_six_choices_opens_picker_not_cycle() -> None:
+    from sase.ace.tui.widgets.typed_input_form import _EnumField
+
+    app = _FormApp([_field("mode", InputType.ENUM, choices=_choices_n(6))])
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        button = app.query_one("#field-input-0", Button)
+        assert isinstance(button, _EnumField)
+        assert button.needs_picker is True
+        # Picker stores canonical values while showing labels.
+        button.set_value("v3")
+        await pilot.pause()
+        assert button.value == "v3"
+        assert str(button.label) == "Label 3"
+
+
+async def test_repeatable_enum_edits_as_multiline_preserving_elements() -> None:
+    from sase.ace.tui.widgets.typed_input_form import _MultilineInput
+
+    choices = (InputChoice(value="red"), InputChoice(value="green"))
+    app = _FormApp([_field("labels", InputType.ENUM, choices=choices, repeatable=True)])
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(TypedInputForm)
+        editor = app.query_one("#field-input-0", _MultilineInput)
+        editor.text = "red\ngreen"
+        await pilot.pause()
+        assert form.is_valid() is True
+        assert form.typed_values() == {"labels": ["red", "green"]}
+
+
 # -- repeatable -------------------------------------------------------------
 
 

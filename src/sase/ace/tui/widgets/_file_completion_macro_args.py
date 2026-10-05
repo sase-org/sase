@@ -11,10 +11,25 @@ from sase.ace.tui.widgets.file_completion import (
     build_completion_candidates,
     is_path_like_token,
 )
+from dataclasses import dataclass
+
 from sase.ace.tui.widgets.macro_arg_assist import (
     MacroArgCompletionContext,
     MacroArgNameMetadata,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class MacroArgValueMetadata:
+    """Typed metadata for one enum/bool choice row."""
+
+    value: str
+    label: str | None = None
+    description: str | None = None
+    is_default: bool = False
+    choice_index: int = 0
+    input_name: str = ""
+    type_label: str = ""
 
 
 def effective_macro_arg_token(ctx: MacroArgCompletionContext) -> str:
@@ -41,7 +56,7 @@ def build_macro_arg_completion_candidates(
             base_dir=base_dir,
         )
     if ctx.completion_kind == "macro_arg_value":
-        return _build_bool_completion_candidates(ctx.token)
+        return _build_choice_completion_candidates(ctx)
     if ctx.completion_kind == "macro_arg_agent":
         from sase.ace.tui.widgets.directive_completion import (
             build_agent_arg_completion_candidates,
@@ -57,19 +72,71 @@ def build_macro_arg_completion_candidates(
     return [], ""
 
 
-def _build_bool_completion_candidates(
-    token: str,
+def _build_choice_completion_candidates(
+    ctx: MacroArgCompletionContext,
 ) -> tuple[list[CompletionCandidate], str]:
-    partial = token.lower()
+    """Build enum/bool value candidates through the shared Rust builder."""
+    active = ctx.active_input
+    if active is None:
+        return [], ""
+    # Partial is text before the cursor without surrounding quote wrapper;
+    # replacement is the whole current value/element for repeatable detection.
+    raw_token = ctx.token
+    partial = raw_token.lstrip("\"'")
+    replacement = ctx.replacement or raw_token
+    try:
+        from sase.ace.tui.widgets._macro_arg_choice_adapter import (
+            choice_candidates_for_hint,
+        )
+
+        rows = choice_candidates_for_hint(
+            active,
+            partial=partial,
+            replacement=replacement,
+            selected=ctx.selected_values,
+        )
+    except Exception:
+        # Stale wheel without the shared builder: fall back to the legacy
+        # bool-only menu so prompt completion keeps working.
+        if active.type == "bool" and not active.choices:
+            partial_lower = partial.lower()
+            candidates = [
+                CompletionCandidate(
+                    display=value,
+                    insertion=value,
+                    is_dir=False,
+                    name=value,
+                )
+                for value in ("true", "false")
+                if value.startswith(partial_lower)
+            ]
+            return candidates, ""
+        return [], ""
+    try:
+        from sase.ace.tui.widgets._macro_arg_choice_adapter import (
+            type_label_for_hint,
+        )
+
+        type_label = type_label_for_hint(active)
+    except Exception:
+        type_label = active.named_type or active.type
     candidates = [
         CompletionCandidate(
-            display=value,
-            insertion=value,
+            display=row.value,
+            insertion=row.insertion,
             is_dir=False,
-            name=value,
+            name=row.value,
+            metadata=MacroArgValueMetadata(
+                value=row.value,
+                label=row.label,
+                description=row.description,
+                is_default=row.is_default,
+                choice_index=row.index,
+                input_name=active.name,
+                type_label=type_label,
+            ),
         )
-        for value in ("true", "false")
-        if value.startswith(partial)
+        for row in rows
     ]
     return candidates, ""
 

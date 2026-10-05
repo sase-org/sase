@@ -45,7 +45,22 @@ def input_label(input_hint: MacroInputHint) -> str:
     """Format a compact input label for non-Rich assist surfaces."""
     required_marker = "" if input_hint.required else "?"
     repeatable_marker = "…" if input_hint.repeatable else ""
-    return f"{input_hint.name}{repeatable_marker}{required_marker}: {input_hint.type}"
+    return (
+        f"{input_hint.name}{repeatable_marker}{required_marker}: "
+        f"{_type_label_for_hint(input_hint)}"
+    )
+
+
+def _type_label_for_hint(input_hint: MacroInputHint) -> str:
+    """Return the shared Rust type label, falling back to the base type."""
+    try:
+        from ._macro_arg_choice_adapter import type_label_for_hint
+    except Exception:
+        return input_hint.type
+    try:
+        return type_label_for_hint(input_hint)
+    except Exception:
+        return input_hint.type
 
 
 def input_name_style(input_hint: MacroInputHint) -> str:
@@ -102,6 +117,9 @@ def input_hint_from_input_arg(inp: InputArg, position: int) -> MacroInputHint | 
         position=position,
         repeatable=inp.repeatable,
         description=inp.description,
+        choices=inp.choices,
+        named_type=inp.named_type,
+        value_role=inp.value_role,
     )
 
 
@@ -137,6 +155,8 @@ def _default_display_from_input_arg(inp: InputArg) -> str | None:
     default = inp.default
     if default is UNSET or default is None:
         return None
+    if isinstance(default, bool):
+        return "true" if default else "false"
     default_text = str(default)
     if default_text == "":
         return None

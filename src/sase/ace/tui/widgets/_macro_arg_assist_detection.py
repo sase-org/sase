@@ -20,6 +20,99 @@ from ._macro_arg_assist_models import (
     MacroInputHint,
 )
 
+_VALUE_ROLES = frozenset(
+    {"arg_value", "arg_value_string", "arg_value_number", "arg_value_bool"}
+)
+
+
+def _py_to_byte(text: str, py_offset: int) -> int:
+    """Convert a Python str offset to a UTF-8 byte offset."""
+    return len(text[:py_offset].encode("utf-8"))
+
+
+def _byte_to_py(text: str, byte_offset: int) -> int:
+    """Convert a UTF-8 byte offset to a Python str offset (adapter boundary)."""
+    encoded = text.encode("utf-8")
+    return len(encoded[:byte_offset].decode("utf-8", errors="ignore"))
+
+
+def _decode_span_value(raw: str) -> str:
+    """Decode a span value for repeatable-exclusion comparison."""
+    text = raw.strip()
+    if len(text) >= 2 and text[0] in "\"'" and text[0] == text[-1]:
+        return text[1:-1]
+    return text
+
+
+def _rust_span_bounds_for_cursor(
+    text: str,
+    ref_start_py: int,
+    ref_end_py: int,
+    cursor_py: int,
+    call_name: str,
+) -> tuple[int, int, frozenset[str]] | None:
+    """Resolve whole-value span and selected values via Rust parser spans.
+
+    Returns Python ``(value_start, value_end, selected)`` or ``None`` when
+    the core spans are unavailable or the cursor is not on a value position.
+    Byte spans are converted to Python offsets only here.
+    """
+    try:
+        from sase.core.rust import require_rust_binding
+    except Exception:
+        return None
+    try:
+        spans = require_rust_binding("macro_argument_spans")(text)
+    except Exception:
+        return None
+    try:
+        cursor_byte = _py_to_byte(text, cursor_py)
+        ref_start_byte = _py_to_byte(text, ref_start_py)
+        ref_end_byte = _py_to_byte(text, max(cursor_py, ref_end_py))
+    except Exception:
+        return None
+    in_call: list[dict] = []
+    for span in spans:
+        try:
+            start = int(span["start"])
+            end = int(span["end"])
+        except Exception:
+            continue
+        if span.get("call_name") != call_name:
+            continue
+        if start < ref_start_byte or start > ref_end_byte + 64:
+            continue
+        in_call.append(span)
+    values: list[tuple[int, int, str]] = []
+    for span in in_call:
+        if str(span.get("role", "")) not in _VALUE_ROLES:
+            continue
+        start = int(span["start"])
+        end = int(span["end"])
+        try:
+            raw = text.encode("utf-8")[start:end].decode("utf-8")
+        except Exception:
+            continue
+        values.append((start, end, raw))
+    for start, end, _raw in values:
+        if start <= cursor_byte <= end:
+            py_start = _byte_to_py(text, start)
+            py_end = _byte_to_py(text, end)
+            selected = frozenset(
+                _decode_span_value(raw)
+                for s, e, raw in values
+                if not (s == start and e == end) and _decode_span_value(raw)
+            )
+            return py_start, py_end, selected
+    # Empty value gap: cursor sits where no value span exists (e.g. ``env=``).
+    # Treat it as an empty replacement at the cursor and select every other
+    # decoded value in the call for repeatable exclusion.
+    selected_all = frozenset(
+        _decode_span_value(raw) for _s, _e, raw in values if _decode_span_value(raw)
+    )
+    return cursor_py, cursor_py, selected_all
+
+
 _REFERENCE_BASE_RE = re.compile(
     r"(?P<marker>#!|#)"
     r"(?P<name>[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
@@ -176,8 +269,54 @@ def detect_macro_arg_completion_at_cursor(
         # text (e.g. ``#gh:sase`` in ``#gh:sase #fork:``) yields ``None`` here;
         # keep scanning so a real later reference at the cursor still resolves.
         if ctx is not None:
-            return ctx
+            return _with_rust_span_bounds(text, ref, cursor_offset, ctx)
     return None
+
+
+def _with_rust_span_bounds(
+    text: str,
+    ref: MacroReference,
+    cursor_offset: int,
+    ctx: MacroArgCompletionContext,
+) -> MacroArgCompletionContext:
+    """Override value bounds with Rust parser spans for choice menus."""
+    if ctx.completion_kind != "macro_arg_value" or ctx.active_input is None:
+        return ctx
+    # Only choice-backed inputs use structural spans; other value kinds keep
+    # the existing raw boundaries.
+    if not (ctx.active_input.choices or ctx.active_input.type in ("bool", "enum")):
+        return ctx
+    bounds = _rust_span_bounds_for_cursor(
+        text, ref.start, ref.end, cursor_offset, ctx.entry.name
+    )
+    if bounds is None:
+        return ctx
+    value_start, value_end, selected = bounds
+    # Clamp to the cursor: a span that ends before the cursor (e.g. a closed
+    # value with trailing whitespace) must not move the replacement backwards.
+    if value_start > cursor_offset or value_end < cursor_offset:
+        return ctx
+    token = text[value_start:cursor_offset]
+    merged_selected = frozenset(set(ctx.selected_values) | set(selected))
+    # For repeatable inputs the element under the cursor stays eligible even
+    # when its decoded value also appears elsewhere in the call.
+    if ctx.active_input.repeatable:
+        current_decoded = _decode_span_value(text[value_start:value_end])
+        if current_decoded:
+            merged_selected = frozenset(
+                value for value in merged_selected if value != current_decoded
+            )
+    return MacroArgCompletionContext(
+        entry=ctx.entry,
+        completion_kind=ctx.completion_kind,
+        value_start=value_start,
+        value_end=value_end,
+        token=token,
+        active_input=ctx.active_input,
+        used_arg_names=ctx.used_arg_names,
+        selected_values=merged_selected,
+        replacement=text[value_start:value_end],
+    )
 
 
 def _entry_by_name(
@@ -241,10 +380,10 @@ def _completion_kind_for_input(
 ]:
     if input_hint.type == "path":
         return "macro_arg_path"
-    if input_hint.type == "bool":
-        return "macro_arg_value"
-    if input_hint.type == "agent":
+    if (input_hint.value_role or "") == "agent" or input_hint.type == "agent":
         return "macro_arg_agent"
+    if input_hint.choices or input_hint.type in ("bool", "enum"):
+        return "macro_arg_value"
     return "macro_arg_type_hint"
 
 
@@ -282,6 +421,7 @@ def _colon_completion_context(
         token=token,
         active_input=active_input,
         selected_values=_selected_positional_values(body, clause_start),
+        replacement=text[value_start:value_end],
     )
 
 
@@ -329,6 +469,7 @@ def _paren_completion_context(
                     active_input=active_input,
                     used_arg_names=_used_named_arg_names(body[:clause_start]),
                     selected_values=_selected_positional_values(body, clause_start),
+                    replacement=text[value_start:value_end],
                 )
         if len(entry.inputs) == 1:
             single_input = entry.inputs[0]
@@ -343,6 +484,7 @@ def _paren_completion_context(
                     active_input=single_input,
                     used_arg_names=_used_named_arg_names(body[:clause_start]),
                     selected_values=_selected_positional_values(body, clause_start),
+                    replacement=text[value_start:value_end],
                 )
         return MacroArgCompletionContext(
             entry=entry,
@@ -370,6 +512,7 @@ def _paren_completion_context(
         token=token,
         active_input=named_input,
         used_arg_names=_used_named_arg_names(body[:clause_start]),
+        replacement=text[token_start:value_end],
     )
 
 

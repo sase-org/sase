@@ -3327,6 +3327,46 @@ _DurationPickerModal {
 }
 
 
+/* Enum Choice Picker Modal: centered searchable choice list */
+EnumChoicePickerModal {
+    align: center middle;
+}
+
+#enum-picker-container {
+    width: 70;
+    max-width: 90%;
+    height: auto;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2 1 2;
+}
+
+#enum-picker-title {
+    width: 100%;
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#enum-picker-list {
+    height: 12;
+}
+
+#enum-picker-query {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+    color: $accent;
+}
+
+#enum-picker-footer {
+    width: 100%;
+    height: auto;
+    color: $text-muted;
+}
+
+
 /* Models Panel: exact override time */
 OverrideUntilModal {
     align: center middle;

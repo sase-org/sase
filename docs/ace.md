@@ -7498,22 +7498,29 @@ token under the cursor:
   project-local skill file.
 - **Macro argument completion**: When the cursor is inside a known macro argument
   position, `Ctrl+T` completes the active argument instead of the macro name. For `path`
-  inputs it delegates to file path completion, for `bool` inputs it offers `true` and
-  `false`, and inside parenthesized syntax it completes missing `name=` arguments
-  without repeating names already present in the argument list. Each keyword row shows
-  the input's type, its default when optional, and its description. At a keyword slot
-  (right after `#review(`, or after a comma and space in `#review(a=1,`), the keyword
-  menu also opens automatically while typing (unless
+  inputs it delegates to file path completion, for `enum` and `bool` inputs it offers
+  the shared Rust choice menu (canonical values with labels, descriptions, and a quiet
+  `default` badge; `true`/`false` for bools), and inside parenthesized syntax it
+  completes missing `name=` arguments without repeating names already present in the
+  argument list. Each keyword row shows the shared type label, its default when
+  optional, and its description. `#m:` and `#m(k=` open the value menu immediately when
+  the active input has choices. Accepting a `name=` row chains straight into its value
+  menu, even from a single-candidate name menu; auto-open shows the choice without
+  accepting it, and empty-prefix menus keep declared order with the first row selected.
+  Accepting a choice replaces the whole value element and inserts the canonical value
+  (quoted when needed), preserving adjacent values and surrounding syntax. At a keyword
+  slot (right after `#review(`, or after a comma and space in `#review(a=1,`), the
+  keyword menu also opens automatically while typing (unless
   `ace.prompt_completion.auto_macro_menu` is off), and INSERT-mode `Ctrl+N` / `Ctrl+P`
   open it with the first / last keyword highlighted. Accepting a keyword immediately
-  opens its value menu when the input has one (bool values, agent targets, or paths).
-  `Enter` always submits the prompt as typed, even on an automatically opened first-row
-  menu; `Ctrl+F` accepts the highlighted row without requiring `Ctrl+N`, `Down`, or
-  another ownership signal. Agent inputs such as `#fork` offer agent, proc/monitor,
-  session, clan, and `@tribe` targets with kind and member context. A proc or monitor
-  row inserts its exact durable proc ID while displaying the friendly, reusable proc
-  name. Session rows also show the associated plan or bead when SASE can resolve one:
-  the row reads `<kind> · <phases/waves> · <title>` (for example
+  opens its value menu when the input has one (enum/bool values, agent targets, or
+  paths). `Enter` always submits the prompt as typed, even on an automatically opened
+  first-row menu; `Ctrl+F` accepts the highlighted row without requiring `Ctrl+N`,
+  `Down`, or another ownership signal. Agent inputs such as `#fork` offer agent,
+  proc/monitor, session, clan, and `@tribe` targets with kind and member context. A proc
+  or monitor row inserts its exact durable proc ID while displaying the friendly,
+  reusable proc name. Session rows also show the associated plan or bead when SASE can
+  resolve one: the row reads `<kind> · <phases/waves> · <title>` (for example
   `Epic · 5 phases · 2 waves · Bead review hardening`), and its plan title is
   searchable, so typing part of the title filters to that session. Selecting the row
   fills the panel subtitle with more of the same artifact — phase titles for an epic,
@@ -8295,9 +8302,9 @@ the prompt input is in INSERT mode. The suggestion appears in the prompt bar sub
 `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits the prompt as
 typed, so live suggestions cannot accidentally replace text on send.
 
-Live soft completion covers directives, macro names, macro argument names, and bool
-argument values. File-path soft completion is disabled by default because it can scan
-the filesystem while typing; enable it with
+Live soft completion covers directives, macro names, macro argument names, and enum/bool
+argument values from the same shared choice rows. File-path soft completion is disabled
+by default because it can scan the filesystem while typing; enable it with
 `ace.prompt_completion.auto_file_paths: true`. The macro/skill menu also opens
 automatically while typing matching `#name`, `#!name`, or `/skill` tokens; disable that
 macro auto-open behavior with `ace.prompt_completion.auto_macro_menu: false`. The

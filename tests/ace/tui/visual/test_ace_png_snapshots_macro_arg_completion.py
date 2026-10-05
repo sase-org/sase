@@ -6,10 +6,17 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets._file_completion_macro_args import (
+    build_macro_arg_completion_candidates,
+)
 from sase.ace.tui.widgets.macro_arg_assist import (
     MacroArgNameMetadata,
+    MacroAssistEntry,
     MacroInputHint,
+    detect_macro_arg_completion_at_cursor,
 )
+from sase.ace.tui.modals.enum_choice_picker_modal import EnumChoicePickerModal
+from sase.macro.models import InputArg, InputChoice, InputType
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -115,6 +122,170 @@ async def test_macro_arg_name_completion_png_snapshot(
             description="macro argument completion visibility",
         )
         await wait_for_svg_contains(page, "#review args")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+_ENUM_VALUE_CHOICES = (
+    InputChoice(value="fast", label="Fast", description="quick pass"),
+    InputChoice(value="thorough", label="Thorough", description="deep review"),
+    InputChoice(value="balanced", label="Balanced", description="middle ground"),
+)
+
+
+def _enum_value_entry() -> MacroAssistEntry:
+    return MacroAssistEntry(
+        name="deploy",
+        insertion="#deploy",
+        reference_prefix="#",
+        kind="macro",
+        input_signature=None,
+        inputs=(
+            MacroInputHint(
+                name="mode",
+                type="enum",
+                required=True,
+                default_display="thorough",
+                position=0,
+                description="review depth",
+                choices=_ENUM_VALUE_CHOICES,
+            ),
+        ),
+        content_preview=None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        pytest.param(
+            "textual-dark",
+            "prompt_macro_arg_enum_value_dark_120x40",
+            "ACE prompt input — macro enum value completion, dark theme",
+            id="dark",
+        ),
+        pytest.param(
+            "textual-light",
+            "prompt_macro_arg_enum_value_light_120x40",
+            "ACE prompt input — macro enum value completion, light theme",
+            id="light",
+        ),
+    ],
+)
+async def test_macro_arg_enum_value_completion_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        source = "#deploy(mode="
+        bar = await mount_prompt_bar(page, source)
+
+        # Drive the real path: TUI detection plus the shared Rust choice
+        # builder, so the menu proves production row/label/default rendering.
+        ctx = detect_macro_arg_completion_at_cursor(
+            source, len(source), [_enum_value_entry()]
+        )
+        assert ctx is not None
+        assert ctx.completion_kind == "macro_arg_value"
+        candidates, _shared = build_macro_arg_completion_candidates(ctx)
+        assert [candidate.name for candidate in candidates] == [
+            "fast",
+            "thorough",
+            "balanced",
+        ]
+
+        bar.show_file_completions(
+            "",
+            candidates,
+            selected_index=1,
+            completion_kind="macro_arg_value",
+        )
+        await wait_for_state(
+            page,
+            lambda: (
+                bar._completion_visible and bar._completion_panel_kind == "completion"
+            ),
+            description="macro enum value completion visibility",
+        )
+        await wait_for_svg_contains(page, "thorough")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+_PICKER_CHOICES = (
+    InputChoice(value="fast", label="Fast", description="quick pass"),
+    InputChoice(value="thorough", label="Thorough", description="deep review"),
+    InputChoice(value="balanced", label="Balanced", description="middle ground"),
+    InputChoice(value="concise", label="Concise", description="short output"),
+    InputChoice(value="verbose", label="Verbose", description="full detail"),
+    InputChoice(value="debug", label="Debug", description="diagnostic output"),
+    InputChoice(value="audit", label="Audit", description="compliance trail"),
+)
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        pytest.param(
+            "textual-dark",
+            "typed_form_enum_choice_picker_dark_120x40",
+            "ACE typed input form — searchable enum choice picker, dark theme",
+            id="dark",
+        ),
+        pytest.param(
+            "textual-light",
+            "typed_form_enum_choice_picker_light_120x40",
+            "ACE typed input form — searchable enum choice picker, light theme",
+            id="light",
+        ),
+    ],
+)
+async def test_typed_form_enum_choice_picker_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await mount_prompt_bar(page, "Review the deploy gate inputs.")
+
+        arg = InputArg(
+            name="mode",
+            type=InputType.ENUM,
+            description="review depth",
+            choices=_PICKER_CHOICES,
+        )
+        page.app.push_screen(EnumChoicePickerModal(arg, current="balanced"))
+        await page.expect_modal("EnumChoicePickerModal")
+        modal = page.app.screen
+        assert isinstance(modal, EnumChoicePickerModal)
+        # Narrow to the single "balanced" row to prove live filtering.
+        await page.press("a", "l")
+        await wait_for_state(
+            page,
+            lambda: modal._query == "al" and len(modal._rows) == 1,
+            description="enum picker filter narrows to one row",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)

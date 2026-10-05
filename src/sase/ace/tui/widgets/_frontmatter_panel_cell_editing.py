@@ -110,7 +110,7 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             arg = self._model.get_input(item_name or "")
             values = {
                 "name": arg.name if arg else "",
-                "type": arg.type.value if arg else "line",
+                "type": (arg.named_type or arg.type.value) if arg else "line",
                 "default": _default_to_text(arg.default) if arg else "",
                 "description": arg.description or "" if arg else "",
             }
@@ -334,28 +334,56 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             if descriptor is None:
                 return None, f"unknown input type '{cell.values['type'].strip()}'"
             resolved = parse_input_type(descriptor.name, name=name)
+            existing = (
+                self._model.get_input(cell.original_name)
+                if cell.original_name
+                else None
+            )
+            # Preserve inline-enum choices and repeatability when the type cell
+            # still resolves to the same inline enum; named enums carry their
+            # catalog choices via the resolver. Unrelated cell edits must not
+            # erase choices, roles, or repeatability.
+            choices = resolved.choices
+            repeatable = existing.repeatable if existing else False
+            if (
+                resolved.base.value == "enum"
+                and resolved.named_type is None
+                and existing is not None
+                and existing.named_type is None
+                and existing.choices
+            ):
+                choices = existing.choices
+            try:
+                probe = InputArg(
+                    name=name,
+                    type=resolved.base,
+                    choices=choices,
+                    named_type=resolved.named_type,
+                    value_role=resolved.value_role,
+                    repeatable=repeatable,
+                )
+            except MacroValidationError as exc:
+                return None, str(exc)
             default_text = cell.values["default"].strip()
             default: Any = UNSET
             if default_text:
                 try:
-                    default = InputArg(
-                        name=name,
-                        type=resolved.base,
-                        choices=resolved.choices,
-                        named_type=resolved.named_type,
-                        value_role=resolved.value_role,
-                    ).validate_and_convert(default_text)
+                    default = probe.validate_and_convert(default_text)
                 except MacroValidationError as exc:
                     return None, str(exc)
-            return InputArg(
-                name=name,
-                type=resolved.base,
-                default=default,
-                description=cell.values["description"].strip() or None,
-                choices=resolved.choices,
-                named_type=resolved.named_type,
-                value_role=resolved.value_role,
-            ), ""
+            try:
+                return InputArg(
+                    name=name,
+                    type=resolved.base,
+                    default=default,
+                    description=cell.values["description"].strip() or None,
+                    choices=choices,
+                    named_type=resolved.named_type,
+                    value_role=resolved.value_role,
+                    repeatable=repeatable,
+                ), ""
+            except MacroValidationError as exc:
+                return None, str(exc)
 
         name = normalize_local_macro_name(name)
         used = set(self._model.macros) - (
@@ -411,14 +439,25 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                 raise ValueError(f"duplicate input '{name}'")
             if descriptor is None:
                 raise ValueError(f"unknown input type '{type_text.strip()}'")
-            resolved = parse_input_type(descriptor.name, name=name)
-            input_arg = InputArg(
-                name=name,
-                type=resolved.base,
-                choices=resolved.choices,
-                named_type=resolved.named_type,
-                value_role=resolved.value_role,
-            )
+            try:
+                resolved = parse_input_type(descriptor.name, name=name)
+            except MacroValidationError as exc:
+                raise ValueError(str(exc)) from None
+            if resolved.base.value == "enum" and resolved.named_type is None:
+                raise ValueError(
+                    f"input '{name}' needs choices: edit it in the input modal, "
+                    "not the compact list"
+                )
+            try:
+                input_arg = InputArg(
+                    name=name,
+                    type=resolved.base,
+                    choices=resolved.choices,
+                    named_type=resolved.named_type,
+                    value_role=resolved.value_role,
+                )
+            except MacroValidationError as exc:
+                raise ValueError(str(exc)) from None
             default: Any = UNSET
             if has_default:
                 try:
@@ -434,7 +473,8 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
     def _format_compact_inputs(inputs: list[InputArg]) -> str:
         result: list[str] = []
         for arg in inputs:
-            text = f"{arg.name}:{arg.type.value}"
+            type_text = arg.named_type or arg.type.value
+            text = f"{arg.name}:{type_text}"
             if arg.default is not UNSET:
                 text += f"={_default_to_text(arg.default)}"
             result.append(text)

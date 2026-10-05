@@ -41,6 +41,9 @@ def build_macro_assist_entries(
                     position=inp.position,
                     repeatable=inp.repeatable,
                     description=inp.description,
+                    choices=inp.choices,
+                    named_type=inp.named_type,
+                    value_role=inp.value_role,
                 )
                 for inp in entry.inputs
             ),

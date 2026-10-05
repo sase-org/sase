@@ -68,6 +68,72 @@ def macro_arg_name_label_width(candidate: CompletionCandidate) -> int:
     return cell_len(candidate.display)
 
 
+def macro_arg_value_label_width(candidate: CompletionCandidate) -> int:
+    """Visible width for the canonical choice value column."""
+    return cell_len(candidate.display)
+
+
+def append_macro_arg_value_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+    *,
+    label_width: int,
+    inner_width: int,
+) -> None:
+    """Append one enum/bool choice row with label, description, and default."""
+    from sase.ace.tui.widgets._file_completion_macro_args import (
+        MacroArgValueMetadata,
+    )
+
+    metadata = (
+        candidate.metadata
+        if isinstance(candidate.metadata, MacroArgValueMetadata)
+        else None
+    )
+    # Canonical value in the main column; free text is appended as plain Rich
+    # text, never as markup.
+    content.append(
+        candidate.display,
+        style="bold yellow" if is_selected else "yellow",
+    )
+    available = max(0, inner_width - 2)
+    used = cell_len(candidate.display)
+    if metadata is None:
+        return
+    label = metadata.label
+    if label and label != metadata.value:
+        padding = max(0, label_width - used) + 2
+        cost = padding + cell_len(label)
+        if not available or used + cost <= available:
+            content.append(" " * padding)
+            content.append(Text(label, style="dim").plain, style="dim")
+            used += cost
+    if metadata.is_default:
+        badge = "default"
+        cost = 2 + cell_len(badge)
+        if not available or used + cost <= available:
+            content.append("  ")
+            content.append(badge, style="dim")
+            used += cost
+    description = metadata.description
+    if not description:
+        return
+    cost = 2 + cell_len(description)
+    if available and used + cost > available:
+        remaining = available - used
+        if remaining <= 2:
+            return
+        detail = Text(description, style="dim", no_wrap=True, overflow="ellipsis")
+        detail.truncate(remaining - 2, overflow="ellipsis")
+        content.append("  ")
+        content.append_text(detail)
+        return
+    content.append("  ")
+    # Render free text safely as Rich text, not markup.
+    content.append(Text(description, style="dim").plain, style="dim")
+
+
 def append_macro_arg_name_completion_row(
     content: Text,
     candidate: CompletionCandidate,
@@ -99,7 +165,14 @@ def append_macro_arg_name_completion_row(
     available = max(0, inner_width - 2)
     used = cell_len(label)
     label_padding = max(0, label_width - used) + 2
-    type_text = input_hint.type
+    try:
+        from sase.ace.tui.widgets._macro_arg_choice_adapter import (
+            type_label_for_hint,
+        )
+
+        type_text = type_label_for_hint(input_hint)
+    except Exception:
+        type_text = input_hint.type
     type_cost = label_padding + cell_len(type_text)
     if available and used + type_cost > available:
         return

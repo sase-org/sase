@@ -80,14 +80,25 @@ def _parse_compact_input_specs(text: str) -> list[InputArg]:
             raise ValueError(f"duplicate input '{name}'")
         if type_text not in known_types:
             raise ValueError(f"unknown input type '{type_text}'")
-        resolved = parse_input_type(type_text, name=name)
-        input_arg = InputArg(
-            name=name,
-            type=resolved.base,
-            choices=resolved.choices,
-            named_type=resolved.named_type,
-            value_role=resolved.value_role,
-        )
+        try:
+            resolved = parse_input_type(type_text, name=name)
+        except MacroValidationError as exc:
+            raise ValueError(str(exc)) from None
+        if resolved.base.value == "enum" and resolved.named_type is None:
+            raise ValueError(
+                f"input '{name}' needs choices: add it with the input editor, "
+                "not the compact list"
+            )
+        try:
+            input_arg = InputArg(
+                name=name,
+                type=resolved.base,
+                choices=resolved.choices,
+                named_type=resolved.named_type,
+                value_role=resolved.value_role,
+            )
+        except MacroValidationError as exc:
+            raise ValueError(str(exc)) from None
         if sep:
             default_text = default_part.strip()
             try:
@@ -106,7 +117,8 @@ def _format_compact_input_specs(inputs: list[InputArg]) -> str:
     """Render input args back to their compact ``name:type[=default]`` form."""
     parts: list[str] = []
     for arg in inputs:
-        spec = f"{arg.name}:{arg.type.value}"
+        type_text = arg.named_type or arg.type.value
+        spec = f"{arg.name}:{type_text}"
         if arg.default is not UNSET:
             spec += f"={default_to_text(arg.default)}"
         parts.append(spec)
@@ -246,10 +258,20 @@ class MacroItemModal(ModalScreen["tuple[str, Macro] | None"]):
             return None, "content is required"
 
         inputs_text = self.query_one("#macro-item-inputs", _ModalInput).text
-        try:
-            inputs = _parse_compact_input_specs(inputs_text)
-        except ValueError as exc:
-            return None, str(exc)
+        existing_macro = self._existing[1] if self._existing else None
+        # The compact grammar cannot represent enum choices, labels, or
+        # descriptions. When the text is untouched, reuse the original rich
+        # inputs so richer declarations are never overwritten by the compact
+        # round-trip.
+        if existing_macro is not None and inputs_text == _format_compact_input_specs(
+            existing_macro.inputs
+        ):
+            inputs = list(existing_macro.inputs)
+        else:
+            try:
+                inputs = _parse_compact_input_specs(inputs_text)
+            except ValueError as exc:
+                return None, str(exc)
 
         description = (
             self.query_one("#macro-item-description", _ModalInput).text.strip() or None

@@ -26,6 +26,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_finalizer_completion_row,
     append_history_word_completion_row,
     append_jinja_completion_row,
+    append_macro_arg_value_completion_row,
     append_model_completion_row,
     append_model_shortcut_completion_row,
     append_placeholder_completion_row,
@@ -40,6 +41,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     history_word_label_width,
     jinja_badge_width,
     jinja_label_width,
+    macro_arg_value_label_width,
     model_completion_column_widths,
     placeholder_label_width,
     vcs_project_label_width,
@@ -71,6 +73,7 @@ class _RowLayout:
     next_word: int
     placeholder: int
     macro_arg_name: int
+    macro_arg_value: int
     jinja_name: int
     jinja_badge: int
     tribe_colors: dict[str, str] | None
@@ -183,6 +186,9 @@ def _row_layout(
         ),
         macro_arg_name=_max_label_width(
             visible, macro_arg_name_label_width, kinds.macro_arg_name
+        ),
+        macro_arg_value=_max_label_width(
+            visible, macro_arg_value_label_width, kinds.macro_arg_value
         ),
         jinja_name=_max_label_width(visible, jinja_label_width, kinds.jinja),
         jinja_badge=_max_label_width(visible, jinja_badge_width, kinds.jinja),
@@ -322,9 +328,12 @@ def _append_candidate_row(
             inner_width=inner_width,
         )
     elif kinds.arg_completion:
-        content.append(
-            candidate.display,
-            style="bold yellow" if is_selected else "yellow",
+        append_macro_arg_value_completion_row(
+            content,
+            candidate,
+            is_selected,
+            label_width=layout.macro_arg_value,
+            inner_width=inner_width,
         )
     elif kinds.jinja:
         append_jinja_completion_row(

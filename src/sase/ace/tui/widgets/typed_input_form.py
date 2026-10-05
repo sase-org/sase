@@ -140,13 +140,17 @@ class _PathField(_InputCollectionInput):
 
 
 class _EnumField(Button):
-    """Button cycling one ``InputType.ENUM`` field's declared choices.
+    """Button for one ``InputType.ENUM`` field's declared choices.
 
-    A required field with no default starts on a non-submittable sentinel;
-    cycling never returns to it once a real choice has been made.
+    Up to five choices cycle in place, showing labels and storing canonical
+    values. Larger sets open a searchable picker. A required field with no
+    default starts on a non-submittable sentinel; cycling never returns to it
+    once a real choice has been made. Typed-form values stay raw canonical
+    values, never prompt-syntax quoted insertions.
     """
 
     def __init__(self, arg: InputArg, *, id: str) -> None:
+        self._arg = arg
         self._values = [choice.value for choice in arg.choices]
         self._labels = [choice.label or choice.value for choice in arg.choices]
         default = arg.default
@@ -160,6 +164,10 @@ class _EnumField(Button):
     @property
     def value(self) -> str:
         return "" if self._index < 0 else self._values[self._index]
+
+    @property
+    def needs_picker(self) -> bool:
+        return len(self._values) > 5
 
     def _current_label(self) -> str:
         return _ENUM_SENTINEL if self._index < 0 else self._labels[self._index]
@@ -278,7 +286,7 @@ class TypedInputForm(Vertical):
     def _build_editor(self, index: int, field: TypedFormField) -> Widget:
         field_id = self._input_id(index)
         arg = field.arg
-        if arg.type is InputType.ENUM:
+        if arg.type is InputType.ENUM and not arg.repeatable:
             return _EnumField(arg, id=field_id)
         placeholder = self._placeholder_text(field)
         wrap = {} if self._soft_wrap is None else {"soft_wrap": self._soft_wrap}
@@ -303,7 +311,15 @@ class TypedInputForm(Vertical):
 
     def _field_header(self, field: TypedFormField) -> str:
         tag = "required" if field.required else "optional"
-        return f"{field.label}    ({field.arg.type.value} · {tag})"
+        return f"{field.label}    ({self._type_label_for_arg(field.arg)} · {tag})"
+
+    def _type_label_for_arg(self, arg: InputArg) -> str:
+        try:
+            from sase.macro._catalog_format import macro_input_type_label
+
+            return macro_input_type_label(arg)
+        except Exception:
+            return arg.type.value
 
     def _field_guidance(self, field: TypedFormField) -> str:
         parts: list[str] = []
@@ -509,6 +525,10 @@ class TypedInputForm(Vertical):
             error_label.update(f"× {guidance}")
             error_label.display = True
             return
+        except AttributeError:
+            # Stale wheel without the shared validator: leave the error row
+            # untouched so button presses never crash before reinstall.
+            return
         error_label.update("")
         error_label.display = False
 
@@ -539,10 +559,32 @@ class TypedInputForm(Vertical):
             return
         if isinstance(button, _EnumField):
             event.stop()
+            if button.needs_picker:
+                self._open_enum_picker(button)
+                return
             button.cycle()
             index = self._index_of_widget(button)
             if index is not None:
+                self._validate_field(index)
                 self.post_message(self.Changed())
+
+    def _open_enum_picker(self, button: _EnumField) -> None:
+        from sase.ace.tui.modals.enum_choice_picker_modal import (
+            EnumChoicePickerModal,
+        )
+
+        index = self._index_of_widget(button)
+        arg = button._arg
+
+        def _on_pick(value: str | None) -> None:
+            if value is None:
+                return
+            button.set_value(value)
+            if index is not None:
+                self._validate_field(index)
+            self.post_message(self.Changed())
+
+        self.app.push_screen(EnumChoicePickerModal(arg, current=button.value), _on_pick)
 
     def _toggle_optional(self) -> None:
         self._optional_revealed = not self._optional_revealed

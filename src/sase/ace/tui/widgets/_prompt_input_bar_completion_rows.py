@@ -30,6 +30,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_directives import (
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows_simple import (
     JinjaRowStyles,
     append_jinja_completion_row,
+    append_macro_arg_value_completion_row,
     append_placeholder_completion_row,
     append_prompt_word_completion_row,
     append_macro_arg_name_completion_row,
@@ -37,6 +38,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_simple import (
     jinja_badge_width,
     jinja_label_width,
     jinja_row_styles,
+    macro_arg_value_label_width,
     placeholder_label_width,
     macro_arg_name_label_width,
 )
@@ -66,7 +68,9 @@ __all__ = [
     "append_vcs_ref_completion_row",
     "append_vcs_repo_completion_row",
     "append_macro_arg_name_completion_row",
+    "append_macro_arg_value_completion_row",
     "append_macro_completion_row",
+    "macro_arg_value_label_width",
     "artifact_ref_kind_label_width",
     "at_reference_directory_display",
     "JinjaRowStyles",

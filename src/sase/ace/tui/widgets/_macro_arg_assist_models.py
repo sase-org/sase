@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from sase.macro.models import MemoryType
+from sase.macro.models import InputChoice, MemoryType
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +19,9 @@ class MacroInputHint:
     position: int
     repeatable: bool = False
     description: str | None = None
+    choices: tuple[InputChoice, ...] = ()
+    named_type: str | None = None
+    value_role: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +97,7 @@ class MacroArgCompletionContext:
     active_input: MacroInputHint | None = None
     used_arg_names: frozenset[str] = frozenset()
     selected_values: frozenset[str] = frozenset()
+    replacement: str = ""
 
 
 __all__ = [

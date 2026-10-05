@@ -103,7 +103,7 @@ def completion_panel_title(
             return f"{metadata.reference_text} args"
         return "macro arg names"
     if kinds.kind == "macro_arg_value":
-        return "macro arg values"
+        return _macro_arg_value_panel_title(rows)
     if kinds.kind == "macro_arg_path":
         return "macro path"
     if kinds.jinja:
@@ -447,6 +447,20 @@ def _limited_join(
     if hidden:
         text = f"{text} +{hidden}" if text else f"+{hidden}"
     return text
+
+
+def _macro_arg_value_panel_title(rows: list[CompletionCandidate]) -> str:
+    """Return ``<input> · <named_type or enum>`` for choice menus."""
+    from sase.ace.tui.widgets._file_completion_macro_args import (
+        MacroArgValueMetadata,
+    )
+
+    for candidate in rows:
+        metadata = candidate.metadata
+        if isinstance(metadata, MacroArgValueMetadata) and metadata.input_name:
+            type_label = metadata.type_label or "enum"
+            return f"{metadata.input_name} · {type_label}"
+    return "macro arg values"
 
 
 def _model_completion_provider_scope_title(
