@@ -1,4 +1,4 @@
-"""Stash → Trash commit preview and confirmation text.
+"""Stash → Trash commit preview and outcome text.
 
 Private home of the shared Trash-commit helpers needed by both the stash
 controller and the app-layer Trash flow. The preview type carries a public
@@ -29,7 +29,8 @@ class TrashCommitPreview:
     under the current limit (``max(0, trash_count + marked - limit)``),
     because other processes may change Trash between preview and commit the
     host re-reads the Rust outcome for the actual evictions. ``pinned_ids``
-    need explicit confirmation before a pinned row may move.
+    records which marked rows are pinned; pinned rows move to Trash like any
+    other row and stay pinned inside the trash record.
     """
 
     marked_ids: tuple[str, ...]
@@ -46,7 +47,7 @@ def preview_trash_commit(
     trash_count: int,
     trash_limit: int,
 ) -> TrashCommitPreview:
-    """Compute the confirmation preview for moving marked rows to Trash.
+    """Compute the move preview for sending marked rows to Trash.
 
     Stale IDs (absent from *entries*) are dropped: unknown IDs are no-ops.
     """
@@ -62,26 +63,6 @@ def preview_trash_commit(
         trash_count=trash_count,
         trash_limit=trash_limit,
     )
-
-
-def trash_commit_confirm_text(preview: TrashCommitPreview) -> str:
-    """Return the explicit confirmation message for a Stash → Trash commit."""
-    count = len(preview.marked_ids)
-    noun = "draft" if count == 1 else "drafts"
-    lines = [f"Move {count} {noun} to Trash?"]
-    if preview.pinned_ids:
-        pinned = len(preview.pinned_ids)
-        noun_pinned = "is pinned" if pinned == 1 else "are pinned"
-        lines.append(f"{pinned} marked {noun_pinned}: restoring keeps them stashed.")
-    if preview.expected_evictions:
-        lost = preview.expected_evictions
-        noun_lost = "draft" if lost == 1 else "drafts"
-        lines.append(
-            f"Trash holds {preview.trash_count} of {preview.trash_limit}: "
-            f"{lost} oldest {noun_lost} will be permanently deleted. "
-            f"{STASH_ARCHIVE_RECOVERY_HINT}"
-        )
-    return "\n".join(lines)
 
 
 def trash_outcome_text(moved: int, evicted: list[str]) -> str:

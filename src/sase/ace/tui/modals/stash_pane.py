@@ -11,8 +11,8 @@ original import path keeps working.
 
 from __future__ import annotations
 
+from ._stash_trash_commit import TrashCommitPreview as TrashCommitPreview
 from ._stash_trash_commit import preview_trash_commit as preview_trash_commit
-from ._stash_trash_commit import trash_commit_confirm_text as trash_commit_confirm_text
 from ._stash_trash_commit import trash_outcome_text as trash_outcome_text
 from .stash_controller import StashControllerMixin as StashControllerMixin
 from .stash_messages import DeleteRequested as DeleteRequested
@@ -35,6 +35,6 @@ __all__ = [
     "newest_first_stash_entries",
     "single_restore_result",
     "preview_trash_commit",
-    "trash_commit_confirm_text",
+    "TrashCommitPreview",
     "trash_outcome_text",
 ]

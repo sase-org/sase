@@ -1,6 +1,6 @@
 """Trash lifecycle mutations for the shared Prompts overlay.
 
-Confirm → Rust → authoritative repaint: staged Stash → Trash moves, Trash
+Stage → Rust → authoritative repaint: staged Stash → Trash moves, Trash
 purges, and Trash → Stash restores repaint the open overlay in place from
 the store outcome so visible rows stay truthful.
 """
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
     from sase.ace.tui.modals import StashRestoreResult
     from sase.ace.tui.modals.prompts_modal import PromptsModal
+    from sase.ace.tui.modals.stash_pane import TrashCommitPreview
     from sase.core.prompt_stash_wire import PromptStashLifecycleOutcomeWire
 
     from ._prompt_bar_stash_restore_overlay import PromptsOverlaySnapshot
@@ -28,16 +29,16 @@ class PromptBarStashRestoreTrashMixin(PromptBarStashStoreMixin):
     async def _apply_prompts_stash_result(self, result: StashRestoreResult) -> None:
         """Apply a Stash-tab dismiss: restore pop/keep, trash discards.
 
-        Trash marks confirm first (with the expected permanent-loss count),
-        then move through Rust; the success toast names the actual evictions
-        because other processes may change Trash between preview and commit.
-        Restores load oldest-first; the badge follows authoritative counts.
+        Trash marks move through Rust immediately with no y/n; the success
+        toast names the actual evictions because other processes may change
+        Trash between preview and commit. Restores load oldest-first; the
+        badge follows authoritative counts.
         """
         from ...modals import StashRestoreResult
 
         if result.trash_ids:
-            confirmed = await self._confirm_trash_commit_async(list(result.trash_ids))
-            if confirmed:
+            preview = await self._preview_trash_commit_async(list(result.trash_ids))
+            if preview is not None:
                 await self._trash_entries_async(list(result.trash_ids))
         rest = StashRestoreResult(
             pop_ids=list(result.pop_ids),
@@ -63,7 +64,7 @@ class PromptBarStashRestoreTrashMixin(PromptBarStashStoreMixin):
             if confirmed:
                 await self._purge_trashed_async(purge_ids)
 
-    # -- trash lifecycle mutations (confirm → Rust → authoritative repaint) ---
+    # -- trash lifecycle mutations (stage → Rust → authoritative repaint) ---
 
     def on_stashed_prompts_modal_trash_requested(self, event: object) -> None:
         """Move staged Stash rows to Trash while the overlay stays open."""
@@ -119,11 +120,11 @@ class PromptBarStashRestoreTrashMixin(PromptBarStashStoreMixin):
         self.notify("Copied trashed draft to clipboard")  # type: ignore[attr-defined]
 
     async def _trash_staged_in_place_async(self, entry_ids: list[str]) -> None:
-        """Confirm staged Stash → Trash marks, apply, and repaint in place."""
+        """Move staged Stash → Trash marks with no y/n, then repaint in place."""
         if not entry_ids:
             return
-        confirmed = await self._confirm_trash_commit_async(entry_ids)
-        if confirmed:
+        preview = await self._preview_trash_commit_async(entry_ids)
+        if preview is not None:
             await self._trash_entries_async(entry_ids)
 
     async def _purge_staged_in_place_async(self, entry_ids: list[str]) -> None:
@@ -134,14 +135,18 @@ class PromptBarStashRestoreTrashMixin(PromptBarStashStoreMixin):
         if confirmed:
             await self._purge_trashed_async(entry_ids)
 
-    async def _confirm_trash_commit_async(self, entry_ids: list[str]) -> bool:
-        """Confirm a Stash → Trash move with overflow/pinned consequences."""
+    async def _preview_trash_commit_async(
+        self, entry_ids: list[str]
+    ) -> TrashCommitPreview | None:
+        """Re-read the overlay snapshot and preview a Stash → Trash move.
+
+        Returns the preview when at least one marked id is still active, or
+        ``None`` on a read failure (after toasting) or a stale selection
+        with nothing live to move (no write, no move toast).
+        """
         import asyncio
 
-        from ...modals.stash_pane import (
-            preview_trash_commit,
-            trash_commit_confirm_text,
-        )
+        from ...modals.stash_pane import preview_trash_commit
 
         try:
             overlay: PromptsOverlaySnapshot = await asyncio.to_thread(
@@ -155,7 +160,7 @@ class PromptBarStashRestoreTrashMixin(PromptBarStashStoreMixin):
                 ),
                 severity="error",
             )
-            return False
+            return None
         preview = preview_trash_commit(
             list(entry_ids),
             list(overlay.entries),
@@ -163,11 +168,8 @@ class PromptBarStashRestoreTrashMixin(PromptBarStashStoreMixin):
             trash_limit=overlay.trash_limit,
         )
         if not preview.marked_ids:
-            return False  # stale selection: nothing live to move
-        return await self._confirm_async(
-            "Move to Trash",
-            trash_commit_confirm_text(preview),
-        )
+            return None  # stale selection: nothing live to move
+        return preview
 
     async def _confirm_purge_async(self, entry_ids: list[str]) -> bool:
         """Confirm permanent deletion of Trash rows."""

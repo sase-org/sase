@@ -17,7 +17,6 @@ from sase.ace.tui.modals.stash_pane import (
     StashRestoreResult,
     TrashRequested,
     preview_trash_commit,
-    trash_commit_confirm_text,
     trash_outcome_text,
 )
 from sase.ace.tui.modals.stash_pane_widget import _stash_empty_text
@@ -306,7 +305,7 @@ async def test_empty_stash_without_trash_has_no_pointer() -> None:
         assert "Trash holds" not in text
 
 
-# -- preview and confirmation text -------------------------------------------
+# -- preview and outcome text ----------------------------------------------
 
 
 def test_preview_counts_evictions_and_pins() -> None:
@@ -319,11 +318,6 @@ def test_preview_counts_evictions_and_pins() -> None:
     assert preview.marked_ids == ("a", "b")
     assert preview.pinned_ids == ("a",)
     assert preview.expected_evictions == 1
-    text = trash_commit_confirm_text(preview)
-    assert "Move 2 drafts to Trash?" in text
-    assert "pinned" in text
-    assert "permanently deleted" in text
-    assert "sase prompt stash-archive" in text
 
 
 def test_preview_batch_larger_than_limit_counts_all_overflow() -> None:

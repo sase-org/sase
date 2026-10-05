@@ -373,16 +373,18 @@ class StashControllerMixin(StashControllerStateMixin):
         pop_ids = [entry_id for entry_id in marked if entry_id not in self._pinned]
         keep_ids = [entry_id for entry_id in marked if entry_id in self._pinned]
         discard_ids = [e.id for e in self._entries if e.id in self._deleted]
-        # In trash mode delete marks mean Trash (the host confirms, applies
-        # through Rust, and repaints authoritatively); with a zero limit, or
-        # in the standalone picker, they stay permanent deletions.
+        # In trash mode delete marks mean Trash (the host moves them to
+        # Trash through Rust with no y/n, and repaints authoritatively);
+        # with a zero limit, or in the standalone picker, they stay
+        # permanent deletions.
         trash_mode = self._trash_mode()
         delete_ids = [] if trash_mode else list(discard_ids)
         trash_ids = list(discard_ids) if trash_mode else []
         if not marked and discard_ids and len(discard_ids) < len(self._entries):
             if trash_mode:
-                # Pending state: keep rows and marks; the host confirms and
-                # repaints from the store outcome (success or failure).
+                # Pending state: keep rows and marks; the host moves them
+                # with no y/n and repaints from the store outcome (success
+                # or failure).
                 self.post_message(TrashRequested(list(discard_ids)))  # type: ignore[attr-defined]
                 return
             self._apply_deletions_in_place(delete_ids)

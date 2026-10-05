@@ -7325,30 +7325,32 @@ first reads the stash store. If that read fails (for example a stale core bindin
 parse or lock error), an error toast beginning `Failed to read stashed prompts` names
 the cause and no overlay opens.
 
-Discarding a Stash row moves it to the **Trash view**, newest-deleted-first with the
-deletion age visible, unless `ace.prompt_stash.trash_limit` is `0` (see below). In the
-Trash view, `Enter` (or a digit key, or marked `Tab`/`a`) restores rows back to Stash
-while the overlay stays open; it never loads the prompt bar. `d`/`D` stage rows for
-permanent deletion and `Enter` asks for explicit confirmation before purging; `Ctrl+Y`
-copies a row. Trash holds at most `ace.prompt_stash.trash_limit` entries (default 100;
-this is an entry-count limit, not a byte quota): a discard batch that would overflow it
-names the expected permanent-loss count up front, and the success toast names the actual
-evictions. Setting the limit to `0` disables Trash recovery: Stash `d`/`D` plus `Enter`
-then delete permanently (still archived; see below), and a partial discard is applied
-without a confirmation prompt. A lowered limit is applied the next time the overlay
-opens, before that window is shown. Over-limit rows are permanently deleted, oldest
-discarded first. The toast reads
-`Trash limit lowered to N: permanently deleted K oldest draft` (or `drafts`). The Trash
-view in the window that just opened still lists the rows and `Trash N/LIMIT` count from
-before that deletion, so the count can be higher than the new limit. Close the overlay
-and open it again to see the rows that remain. `Enter` on a row that was already deleted
-does not restore it and does not show a success toast. The Trash view then repaints from
-the store, so every already-deleted row disappears. If applying the limit fails, the
-stored Trash is left unchanged and the overlay still opens. The error toast is
-`Failed to reconcile Trash limit: ...`, or `Prompt stash is busy — retry` when the stash
-lock times out. Trash recovers only drafts deliberately discarded from Stash. A
-successful restore of an unpinned Stash row removes that row without putting it in
-Trash. This overlay has no action that deletes History rows.
+Discarding a Stash row moves it to the **Trash view** immediately with no y/n — `d`/`D`
+then `Enter` sends the marked rows straight to Trash, including pinned rows and batches
+that overflow the Trash limit — newest-deleted-first with the deletion age visible,
+unless `ace.prompt_stash.trash_limit` is `0` (see below). In the Trash view, `Enter` (or
+a digit key, or marked `Tab`/`a`) restores rows back to Stash while the overlay stays
+open; it never loads the prompt bar. `d`/`D` stage rows for permanent deletion and
+`Enter` asks for explicit confirmation before purging; `Ctrl+Y` copies a row. Trash
+holds at most `ace.prompt_stash.trash_limit` entries (default 100; this is an
+entry-count limit, not a byte quota): when a discard batch overflows it, the success
+toast names the actual evictions and `sase prompt stash-archive` for recovery. Setting
+the limit to `0` disables Trash recovery: Stash `d`/`D` plus `Enter` then delete
+permanently (still archived; see below), and a partial discard is applied without a
+confirmation prompt. A lowered limit is applied the next time the overlay opens, before
+that window is shown. Over-limit rows are permanently deleted, oldest discarded first.
+The toast reads `Trash limit lowered to N: permanently deleted K oldest draft` (or
+`drafts`). The Trash view in the window that just opened still lists the rows and
+`Trash N/LIMIT` count from before that deletion, so the count can be higher than the new
+limit. Close the overlay and open it again to see the rows that remain. `Enter` on a row
+that was already deleted does not restore it and does not show a success toast. The
+Trash view then repaints from the store, so every already-deleted row disappears. If
+applying the limit fails, the stored Trash is left unchanged and the overlay still
+opens. The error toast is `Failed to reconcile Trash limit: ...`, or
+`Prompt stash is busy — retry` when the stash lock times out. Trash recovers only drafts
+deliberately discarded from Stash. A successful restore of an unpinned Stash row removes
+that row without putting it in Trash. This overlay has no action that deletes History
+rows.
 
 A permanent removal, and a replacement of a row's text, frontmatter, or cursor, is
 archived first to the append-only `prompt_stash_archive.jsonl` sitting next to
@@ -7367,9 +7369,8 @@ Compact demo — discard `fix flaky parser test`, then recover it. Leave at leas
 other Stash row unmarked. Discarding every Stash row closes the overlay, so the later
 steps would start by opening Stash again:
 
-1. Stash tab: highlight the row, press `d`, then `Enter`; confirm
-   `Move 1 draft to Trash?`. The toast reads `Moved 1 draft to Trash` and the Stash
-   tab's 🗑️ chip shows `🗑️ 1`.
+1. Stash tab: highlight the row, press `d`, then `Enter`. The toast reads
+   `Moved 1 draft to Trash` and the Stash tab's 🗑️ chip shows `🗑️ 1`.
 2. Press `t` to open the Trash view: the row sits newest-first with its deletion age
    under the `🗑️ Trash 1/100` pill.
 3. Press `Enter`: the toast reads `Restored 1 draft to Stash`, the overlay stays open,

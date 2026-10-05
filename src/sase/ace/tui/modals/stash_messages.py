@@ -92,11 +92,12 @@ class DeleteRequested(Message, namespace="stashed_prompts_modal"):
 
 
 class TrashRequested(Message, namespace="stashed_prompts_modal"):
-    """Posted when ``enter`` confirms a trash-only selection leaving rows.
+    """Posted when ``enter`` applies a trash-only selection leaving rows.
 
     Only the tabbed overlay posts this (its delete marks mean Trash): the
-    panel keeps its pending marks and the host confirms, moves the ids to
-    Trash through Rust, then repaints authoritatively from the store outcome.
+    panel keeps its pending marks and the host moves the ids to Trash
+    through Rust with no y/n, then repaints authoritatively from the store
+    outcome.
     """
 
     def __init__(self, entry_ids: list[str]) -> None:

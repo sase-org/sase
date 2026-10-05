@@ -55,7 +55,7 @@ class StashControllerStateMixin:
 
     _option_list_id = "stashed-prompts-list"
 
-    # When True, delete marks mean Trash (the tabbed overlay): confirms
+    # When True, delete marks mean Trash (the tabbed overlay): applies
     # produce ``trash_ids`` / ``TrashRequested`` and the panel waits for an
     # authoritative repaint instead of deleting optimistically. The
     # standalone picker keeps permanent ``delete_ids``.
@@ -178,7 +178,7 @@ class StashControllerStateMixin:
         self._paint_preview(self._entries[new_index].id)
 
     def trash_preview_for_marks(self) -> TrashCommitPreview:
-        """Return the Trash confirmation preview for the current marks."""
+        """Return the Trash move preview for the current marks."""
         marked = [e.id for e in self._entries if e.id in self._deleted]
         return preview_trash_commit(
             marked,

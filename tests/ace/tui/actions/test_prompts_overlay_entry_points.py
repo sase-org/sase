@@ -18,13 +18,13 @@ from sase.ace.tui.actions.agent_workflow._entry_prompt_history import (
 from sase.ace.tui.actions.agent_workflow._prompt_bar_stash_restore import (
     PromptBarStashRestoreMixin,
 )
-from sase.ace.tui.modals import ConfirmActionModal
 from sase.ace.tui.modals.prompts_modal import (
     PromptsModal,
     PromptsResult,
     PromptsTab,
 )
 from sase.ace.tui.modals.stash_pane import StashRestoreResult
+from sase.ace.tui.modals.stash_pane import TrashRequested
 from sase.ace.tui.modals.trash_pane import TrashRestoreRequested
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
@@ -193,10 +193,10 @@ async def test_mru_history_opens_overlay_on_history_with_home_origin(
 # -- full active → Trash → active round trip ---------------------------------
 
 
-async def test_stash_dismiss_with_trash_marks_confirms_then_moves(
+async def test_stash_dismiss_with_trash_marks_moves_without_confirm(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A Stash-tab dismiss with discards confirms and moves them to Trash."""
+    """A Stash-tab dismiss with discards moves them to Trash with no dialog."""
     _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
@@ -209,32 +209,199 @@ async def test_stash_dismiss_with_trash_marks_confirms_then_moves(
     )
     harness = _RestoreHarness(bar=_FakeBar(mode="prompt"))
 
-    import asyncio
+    await harness._apply_prompts_stash_result(StashRestoreResult(trash_ids=["a"]))
 
-    # Drive the coroutine as a task: it parks on the confirmation future,
-    # so the test must answer the confirm callback before awaiting it.
-    task = asyncio.ensure_future(
-        harness._apply_prompts_stash_result(StashRestoreResult(trash_ids=["a"]))
-    )
-    for _ in range(100):
-        if harness.pushed:
-            break
-        await asyncio.sleep(0.01)  # sase-test-wait: let the task reach the confirm push
-
-    # Explicit confirmation names the move before anything is written.
-    assert len(harness.pushed) == 1
-    confirm, confirm_cb = harness.pushed[0]
-    assert isinstance(confirm, ConfirmActionModal)
+    # No confirmation dialog is pushed and no confirm callback is invoked.
+    assert harness.pushed == []
     from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
-
-    assert read_prompt_stash_lifecycle(path).trash == []
-    confirm_cb(True)
-    await task
 
     lifecycle = read_prompt_stash_lifecycle(path)
     assert [e.id for e in lifecycle.active] == ["b"]
     assert [r.entry.id for r in lifecycle.trash] == ["a"]
     assert any("Trash" in msg for msg, _sev in harness.notifications)
+
+
+async def test_trash_requested_in_place_moves_without_confirm(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A partial discard moves the staged row to Trash with no dialog."""
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    harness = _RestoreHarness(bar=_FakeBar(mode="prompt"))
+
+    harness.on_stashed_prompts_modal_trash_requested(TrashRequested(["a"]))
+    await _wait_prompt_stash_tasks(harness)
+
+    assert harness.pushed == []
+    from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
+
+    lifecycle = read_prompt_stash_lifecycle(path)
+    assert [e.id for e in lifecycle.active] == ["b"]
+    assert [r.entry.id for r in lifecycle.trash] == ["a"]
+    assert any("Trash" in msg for msg, _sev in harness.notifications)
+
+
+async def test_stash_dismiss_moves_pinned_without_confirm(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A pinned discard moves to Trash with no dialog and stays pinned."""
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", "", True),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    harness = _RestoreHarness(bar=_FakeBar(mode="prompt"))
+
+    await harness._apply_prompts_stash_result(StashRestoreResult(trash_ids=["a"]))
+
+    assert harness.pushed == []
+    from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
+
+    lifecycle = read_prompt_stash_lifecycle(path)
+    assert [e.id for e in lifecycle.active] == ["b"]
+    assert [r.entry.id for r in lifecycle.trash] == ["a"]
+    assert lifecycle.trash[0].entry.pinned is True
+
+
+async def test_stash_dismiss_evicting_batch_moves_without_confirm(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An overflowing discard batch moves with no dialog; toast names evictions."""
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    monkeypatch.setattr("sase.ace.config.get_ace_prompt_stash_trash_limit", lambda: 1)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+            ("old", "2026-06-16T09:00:00", "older", ""),
+        ],
+    )
+    _seed_trash(path, "old")
+
+    harness = _RestoreHarness(bar=_FakeBar(mode="prompt"))
+
+    await harness._apply_prompts_stash_result(StashRestoreResult(trash_ids=["a", "b"]))
+
+    assert harness.pushed == []
+    from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
+
+    lifecycle = read_prompt_stash_lifecycle(path)
+    assert lifecycle.active == []
+    # The over-limit batch evicts the oldest rows first, including one of the
+    # newly trashed rows; only the newest survives in Trash.
+    assert [r.entry.id for r in lifecycle.trash] == ["b"]
+    toast = harness.notifications[-1][0]
+    assert "Moved 1 draft to Trash" in toast
+    assert "permanently deleted 2 oldest drafts" in toast
+    assert "sase prompt stash-archive" in toast
+
+
+async def test_stash_dismiss_stale_trash_id_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A stale trash id is a no-op: no write and no move toast."""
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+        ],
+    )
+    harness = _RestoreHarness(bar=_FakeBar(mode="prompt"))
+
+    await harness._apply_prompts_stash_result(StashRestoreResult(trash_ids=["ghost"]))
+
+    assert harness.pushed == []
+    from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
+
+    lifecycle = read_prompt_stash_lifecycle(path)
+    assert [e.id for e in lifecycle.active] == ["a"]
+    assert lifecycle.trash == []
+    assert not any(msg.startswith("Moved") for msg, _sev in harness.notifications)
+
+
+async def test_stash_dismiss_empty_trash_preflight_keeps_mixed_restore(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An empty trash preflight must not skip a mixed dismiss's pop ids."""
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    await harness._apply_prompts_stash_result(
+        StashRestoreResult(pop_ids=["b"], trash_ids=["ghost"])
+    )
+
+    assert harness.pushed == []
+    assert bar.restored is not None
+    assert [(pane.text, pane.frontmatter) for pane in bar.restored] == [("beta", "")]
+    from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
+
+    lifecycle = read_prompt_stash_lifecycle(path)
+    assert [e.id for e in lifecycle.active] == ["a"]
+    assert lifecycle.trash == []
+
+
+async def test_stash_dismiss_trash_read_failure_toasts_and_skips_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A snapshot read failure toasts the read error and writes nothing."""
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    harness = _RestoreHarness(bar=_FakeBar(mode="prompt"))
+
+    def _boom() -> object:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(harness, "_read_prompt_stash_overlay_snapshot", _boom)
+
+    await harness._apply_prompts_stash_result(StashRestoreResult(trash_ids=["a"]))
+
+    assert harness.pushed == []
+    assert any(
+        msg.startswith("Failed to read stashed prompts") and sev == "error"
+        for msg, sev in harness.notifications
+    )
+    from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
+
+    lifecycle = read_prompt_stash_lifecycle(path)
+    assert [e.id for e in lifecycle.active] == ["a", "b"]
+    assert lifecycle.trash == []
 
 
 async def test_trash_restore_request_moves_back_to_stash(
