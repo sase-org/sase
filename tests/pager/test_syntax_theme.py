@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.theme import BUILTIN_THEMES
+from textual.theme import BUILTIN_THEMES, Theme
 
 from sase.pager.syntax import SyntaxRole
 from sase.pager.syntax_theme import (
@@ -80,15 +80,59 @@ def test_markdown_hierarchy_hits_reading_contrast_on_dark_light_and_flexoki() ->
             ), (theme_name, role)
 
 
-def test_terminal_native_colors_degrade_to_neutral_without_invalid_rich() -> None:
-    palette = syntax_palette_from_theme(BUILTIN_THEMES["textual-ansi"])
+def _explicit_terminal_native_theme(*, dark: bool) -> Theme:
+    """Build a terminal-native theme without touching Textual's catalog.
 
+    Textual 8.2 renamed the ``textual-ansi`` builtin to ``ansi-dark`` and
+    ``ansi-light`` (same ``ansi_*`` color values), so indexing the catalog by
+    name is version-fragile. An explicit theme keeps both variants covered on
+    any Textual version.
+    """
+    return Theme(
+        name="sase-terminal-native-dark" if dark else "sase-terminal-native-light",
+        primary="ansi_blue",
+        secondary="ansi_cyan",
+        accent="ansi_bright_blue",
+        foreground="ansi_default",
+        background="ansi_default",
+        success="ansi_green",
+        warning="ansi_yellow",
+        error="ansi_red",
+        surface="ansi_default",
+        panel="ansi_default",
+        boost="ansi_default",
+        dark=dark,
+        variables={},
+    )
+
+
+def _assert_terminal_native_invariants(palette) -> None:
     assert not is_terminal_color(palette.background)
     assert parse_color(palette.background) is not None
     assert palette.signature
     for style in palette.styles.values():
         assert not is_terminal_color(style.color)
         assert contrast_ratio(style.color, palette.background) >= (MIN_SYNTAX_CONTRAST)
+
+
+def test_terminal_native_colors_degrade_to_neutral_without_invalid_rich() -> None:
+    for dark in (False, True):
+        _assert_terminal_native_invariants(
+            syntax_palette_from_theme(_explicit_terminal_native_theme(dark=dark))
+        )
+
+    terminal_native_builtin = [
+        theme
+        for theme in BUILTIN_THEMES.values()
+        if is_terminal_color(theme.background)
+    ]
+    assert terminal_native_builtin, (
+        "expected at least one terminal-native builtin theme "
+        f"(textual-ansi on 8.0.x, ansi-dark/ansi-light on 8.2.x); have "
+        f"{sorted(BUILTIN_THEMES)}"
+    )
+    for theme in terminal_native_builtin:
+        _assert_terminal_native_invariants(syntax_palette_from_theme(theme))
 
 
 class _BrokenTheme:

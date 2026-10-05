@@ -465,8 +465,9 @@ def parse_color(value: str | None) -> Color | None:
     if not value:
         return None
     if _is_terminal_color(value):
-        # Terminal-native colors (textual-ansi) have no known RGB and Rich
-        # cannot parse them either; degrade to the neutral fallback.
+        # Terminal-native colors (textual-ansi on Textual 8.0.x, ansi-dark /
+        # ansi-light on 8.2+) have no known RGB and Rich cannot parse them
+        # either; degrade to the neutral fallback.
         return None
     try:
         return Color.parse(value)

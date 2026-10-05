@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.app import App, ComposeResult
 
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -541,3 +542,32 @@ async def test_g_equals_is_literal_during_raw_edit() -> None:
         assert app.focused is raw
         assert "g=" in raw.text
         assert bar._frontmatter_panel_visible()
+
+
+class _PrunedFrontmatterPanel(FrontmatterPanel):
+    """Panel whose composed children are absent, as when pruned mid-mount."""
+
+    def compose(self) -> ComposeResult:
+        if False:
+            yield
+        return
+
+
+class _PrunedPanelApp(App[None]):
+    """Minimal host that mounts a childless panel."""
+
+    def compose(self) -> ComposeResult:
+        yield _PrunedFrontmatterPanel()
+
+
+async def test_on_mount_without_composed_children_does_not_raise() -> None:
+    """A Mount dispatched while the panel is pruned must not raise NoMatches."""
+    app = _PrunedPanelApp()
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        panel = app.query_one(FrontmatterPanel)
+
+        assert panel._raw_editor is None
+        assert panel._feedback_widget is None
+        panel.on_resize()

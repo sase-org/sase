@@ -224,7 +224,7 @@ def extra_history_palette_roles(
         background = readable_color(raw_bg, fallback="#000000")
         foreground = readable_color(raw_fg, fallback=contrast_text(background))
     if foreground == background:
-        # Degenerate themes (e.g. textual-ansi's terminal-default pair)
+        # Degenerate themes (e.g. textual-ansi's / ansi-dark's terminal-default pair)
         # resolve both roles to the same colour, which makes contrast
         # math meaningless. Fall back to the theme's declared luminance.
         background = "#000000" if dark else "#ffffff"

@@ -39,6 +39,7 @@ from typing import Any, Literal
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.css.query import NoMatches
 from textual.dom import NoScreen
 from textual.message import Message
 from textual.widgets import Static
@@ -203,8 +204,15 @@ class FrontmatterPanel(
 
     def on_mount(self) -> None:
         """Render the initial rows once mounted."""
-        self._raw_editor = self.query_one("#frontmatter-raw", VimTextArea)
-        self._feedback_widget = self.query_one("#frontmatter-feedback", Static)
+        # Textual skips child mounts for a pruning parent but still dispatches
+        # Mount, so the composed children may be absent here (app shutdown or
+        # a recompose racing panel composition). Leave the editors unset and
+        # skip the refresh; every later accessor already tolerates None.
+        try:
+            self._raw_editor = self.query_one("#frontmatter-raw", VimTextArea)
+            self._feedback_widget = self.query_one("#frontmatter-feedback", Static)
+        except NoMatches:
+            return
         self._refresh()
 
     def on_resize(self) -> None:
