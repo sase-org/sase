@@ -11,7 +11,10 @@ from textual.widgets import Static
 
 from sase.macro.models import InputArg
 
-_VISISBLE_ROWS = 12
+_VISIBLE_ROWS = 12
+
+# Back-compat alias for the misspelled constant this module previously exposed.
+_VISISBLE_ROWS = _VISIBLE_ROWS
 
 
 class EnumChoicePickerModal(ModalScreen[str | None]):
@@ -35,6 +38,7 @@ class EnumChoicePickerModal(ModalScreen[str | None]):
         self._current = current
         self._rows: list[dict] = []
         self._selected = 0
+        self._offset = 0
         self._title = title or f"{arg.name} · choice"
         self._refresh_rows()
 
@@ -42,7 +46,7 @@ class EnumChoicePickerModal(ModalScreen[str | None]):
         with Container(id="enum-picker-container"):
             yield Static(self._title, id="enum-picker-title")
             with VerticalScroll(id="enum-picker-list"):
-                for index in range(_VISISBLE_ROWS):
+                for index in range(_VISIBLE_ROWS):
                     yield Static("", id=f"enum-picker-row-{index}")
             yield Static("", id="enum-picker-query")
             yield Static(
@@ -64,12 +68,12 @@ class EnumChoicePickerModal(ModalScreen[str | None]):
             event.stop()
             self._accept_current()
             return
-        if key in ("down", "ctrl+n", "j"):
+        if key in ("down", "ctrl+n"):
             event.prevent_default()
             event.stop()
             self._move(1)
             return
-        if key in ("up", "ctrl+p", "k"):
+        if key in ("up", "ctrl+p"):
             event.prevent_default()
             event.stop()
             self._move(-1)
@@ -108,45 +112,43 @@ class EnumChoicePickerModal(ModalScreen[str | None]):
         if not self._rows:
             return
         self._selected = max(0, min(self._selected + delta, len(self._rows) - 1))
+        self._clamp_offset()
         self._refresh_view()
 
-    def _refresh_rows(self) -> None:
-        try:
-            from sase.ace.tui.widgets._macro_arg_choice_adapter import (
-                hint_to_wire,
-            )
-            from sase.core.rust import require_rust_binding
-            from sase.ace.tui.widgets._macro_arg_assist_inputs import (
-                input_hint_from_input_arg,
-            )
+    def _clamp_offset(self) -> None:
+        if self._selected < self._offset:
+            self._offset = self._selected
+        elif self._selected >= self._offset + _VISIBLE_ROWS:
+            self._offset = self._selected - _VISIBLE_ROWS + 1
+        max_offset = max(0, len(self._rows) - _VISIBLE_ROWS)
+        self._offset = max(0, min(self._offset, max_offset))
 
-            hint = input_hint_from_input_arg(self._arg, 0)
-            assert hint is not None
-            candidates = require_rust_binding("macro_argument_choice_candidates")(
-                {
-                    "hint": hint_to_wire(hint),
-                    "partial": self._query,
-                    "replacement": "",
-                    "selected": [],
-                }
-            )
-            self._rows = list(candidates)
-        except Exception:
-            query = self._query.lower()
-            rows: list[dict] = []
-            for index, choice in enumerate(self._arg.choices):
-                if query and query not in choice.value.lower():
-                    continue
-                rows.append(
-                    {
-                        "value": choice.value,
-                        "label": choice.label,
-                        "description": choice.description,
-                        "index": index,
-                        "is_default": False,
-                    }
-                )
-            self._rows = rows
+    def _refresh_rows(self) -> None:
+        from sase.ace.tui.widgets._macro_arg_choice_adapter import (
+            choice_candidates_for_hint,
+        )
+        from sase.ace.tui.widgets._macro_arg_assist_inputs import (
+            input_hint_from_input_arg,
+        )
+
+        hint = input_hint_from_input_arg(self._arg, 0)
+        assert hint is not None
+        rows = choice_candidates_for_hint(
+            hint,
+            partial=self._query,
+            replacement="",
+            selected=(),
+        )
+        self._rows = [
+            {
+                "value": row.value,
+                "label": row.label,
+                "description": row.description,
+                "index": row.index,
+                "is_default": row.is_default,
+            }
+            for row in rows
+        ]
         # Reopen shows the current selection when the query is empty.
         if not self._query and self._current:
             for index, row in enumerate(self._rows):
@@ -157,19 +159,26 @@ class EnumChoicePickerModal(ModalScreen[str | None]):
                 self._selected = 0
         else:
             self._selected = min(self._selected, max(0, len(self._rows) - 1))
+        self._clamp_offset()
 
     def _refresh_view(self) -> None:
         if not self.is_mounted:
             return
-        for index in range(_VISISBLE_ROWS):
-            widget = self.query_one(f"#enum-picker-row-{index}", Static)
-            if index < len(self._rows):
-                row = self._rows[index]
-                widget.update(self._row_text(row, selected=index == self._selected))
+        for slot in range(_VISIBLE_ROWS):
+            widget = self.query_one(f"#enum-picker-row-{slot}", Static)
+            row_index = self._offset + slot
+            if row_index < len(self._rows):
+                row = self._rows[row_index]
+                widget.update(self._row_text(row, selected=row_index == self._selected))
             else:
                 widget.update("")
         query_widget = self.query_one("#enum-picker-query", Static)
-        query_widget.update(f"> {self._query}")
+        if len(self._rows) > _VISIBLE_ROWS:
+            query_widget.update(
+                f"> {self._query}  {self._selected + 1}/{len(self._rows)}"
+            )
+        else:
+            query_widget.update(f"> {self._query}")
 
     def _row_text(self, row: dict, *, selected: bool) -> Text:
         text = Text()
@@ -196,4 +205,4 @@ class EnumChoicePickerModal(ModalScreen[str | None]):
         return text
 
 
-__all__ = ["EnumChoicePickerModal"]
+__all__ = ["EnumChoicePickerModal", "_VISIBLE_ROWS", "_VISISBLE_ROWS"]

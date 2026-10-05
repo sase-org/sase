@@ -21,6 +21,10 @@ from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Label, Static, TextArea
 
+from sase.ace.tui.widgets._input_choices_text import (
+    format_choices_text,
+    parse_choices_text,
+)
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.macro.frontmatter_schema import input_type_schema
@@ -75,52 +79,6 @@ def _canonical_type_text(existing: InputArg | None) -> str:
     return existing.type.value
 
 
-def _choices_to_yaml(choices: tuple[InputChoice, ...]) -> str:
-    """Serialize authored choices to a minimal multiline YAML list."""
-    lines: list[str] = []
-    for choice in choices:
-        if choice.label is None and choice.description is None:
-            lines.append(f"- {choice.value}")
-        else:
-            parts = [f"value: {choice.value}"]
-            if choice.label is not None:
-                parts.append(f"label: {choice.label}")
-            if choice.description is not None:
-                parts.append(f"description: {choice.description}")
-            lines.append("- {" + ", ".join(parts) + "}")
-    return "\n".join(lines)
-
-
-def _parse_choices_yaml(text: str, *, name: str) -> tuple[InputChoice, ...]:
-    """Parse a multiline YAML choices list via the shared Rust validator."""
-    import yaml  # type: ignore[import-untyped]
-
-    try:
-        raw = yaml.safe_load(text) if text.strip() else None
-    except yaml.YAMLError as exc:
-        raise MacroValidationError(f"choices are not valid YAML: {exc}") from None
-    if raw is None:
-        raise MacroValidationError("enum requires at least one choice")
-    if not isinstance(raw, list):
-        raise MacroValidationError("choices must be a YAML list")
-    from sase.core.rust import require_rust_binding
-
-    try:
-        result = require_rust_binding("validate_enum_choices")({"items": raw})
-    except ValueError as exc:
-        raise MacroValidationError(str(exc)) from None
-    return tuple(
-        InputChoice(
-            value=str(item["value"]),
-            label=None if item.get("label") is None else str(item["label"]),
-            description=(
-                None if item.get("description") is None else str(item["description"])
-            ),
-        )
-        for item in result.get("choices", [])
-    )
-
-
 class _ModalInput(SingleLineVimTextArea):
     """Single-line vim editor for input declaration fields."""
 
@@ -168,7 +126,7 @@ class InputItemModal(ModalScreen[InputArg | None]):
                 "choices  (YAML list, enum only)", classes="input-item-field-label"
             )
             yield VimTextArea(
-                _choices_to_yaml(existing.choices)
+                format_choices_text(existing.choices, flow=False)
                 if existing and existing.choices and existing.named_type is None
                 else "",
                 id="input-item-choices",
@@ -268,11 +226,9 @@ class InputItemModal(ModalScreen[InputArg | None]):
         choices: tuple[InputChoice, ...] = resolved.choices
         if is_inline_enum:
             try:
-                choices = _parse_choices_yaml(self._choices_text(), name=name)
+                choices = parse_choices_text(self._choices_text(), name=name)
             except MacroValidationError as exc:
                 return None, str(exc)
-            if not choices:
-                return None, "enum requires at least one choice"
         elif choices_text:
             return None, f"choices are only allowed on type 'enum', not '{type_text}'"
         # Preserve repeatability when editing an existing declaration; new

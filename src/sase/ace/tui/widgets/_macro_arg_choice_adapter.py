@@ -21,7 +21,7 @@ class _MacroChoiceRow:
     is_default: bool
 
 
-def hint_to_wire(hint: MacroInputHint) -> dict:
+def _hint_to_wire(hint: MacroInputHint) -> dict:
     """Serialize a TUI hint to the Rust ``MacroInputHint`` wire shape."""
     return {
         "name": hint.name,
@@ -54,7 +54,7 @@ def choice_candidates_for_hint(
     """Return shared Rust choice candidates for one TUI hint."""
     candidates = require_rust_binding("macro_argument_choice_candidates")(
         {
-            "hint": hint_to_wire(hint),
+            "hint": _hint_to_wire(hint),
             "partial": partial,
             "replacement": replacement,
             "selected": sorted(selected),
@@ -78,12 +78,11 @@ def choice_candidates_for_hint(
 def type_label_for_hint(hint: MacroInputHint) -> str:
     """Return the shared Rust type label for one TUI hint."""
     return str(
-        require_rust_binding("macro_input_type_label")({"hint": hint_to_wire(hint)})
+        require_rust_binding("macro_input_type_label")({"hint": _hint_to_wire(hint)})
     )
 
 
 __all__ = [
     "choice_candidates_for_hint",
-    "hint_to_wire",
     "type_label_for_hint",
 ]

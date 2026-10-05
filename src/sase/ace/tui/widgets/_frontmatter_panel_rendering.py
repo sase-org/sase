@@ -277,7 +277,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
                 )
             )
             type_width = max(
-                [len(arg.type.value) for arg in self._model.inputs]
+                [(len(arg.named_type or arg.type.value)) for arg in self._model.inputs]
                 + (
                     [len(self._cell_edit.values["type"])]
                     if self._cell_edit and self._cell_edit.field == field
@@ -338,7 +338,9 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
             arg.name.ljust(name_width),
             style="reverse #87D7FF" if selected else "#87D7FF",
         )
-        line.append(f"  {arg.type.value.ljust(type_width)}", style="green")
+        line.append(
+            f"  {(arg.named_type or arg.type.value).ljust(type_width)}", style="green"
+        )
         if arg.default is UNSET:
             line.append("  (required)", style="yellow")
         else:
@@ -382,7 +384,12 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
         for index, name in enumerate(cell.cells):
             if index:
                 text.append("  ", style="dim")
-            value = cell.values.get(name, "") or "(empty)"
+            raw = cell.values.get(name, "")
+            if not raw and name == "choices":
+                style = "dim"
+                text.append("choices:—", style=style)
+                continue
+            value = raw or "(empty)"
             style = "bold reverse #87D7FF" if index == cell.index else "white"
             text.append(f"{name}:{value}", style=style)
         return text

@@ -7535,6 +7535,15 @@ token under the cursor:
   nothing resolves, the row falls back to a snippet of the session's launch prompt and
   the subtitle falls back to member names; completion is never blocked either way.
   Numeric inputs keep the type hint visible but do not invent values.
+- **Frontmatter panel input editing**: The frontmatter panel edits `input:` rows one
+  cell at a time as `name`, `type`, `choices`, `default`, `description`. Inline `enum`
+  inputs author their value set in the `choices` cell with a flow list such as
+  `[wip, draft, {value: ready, label: Ready}]`; any other type must leave `choices`
+  empty. Compact local-macro inputs (`name:type[=default], ...`) keep the existing rich
+  declaration (choice labels and descriptions, input description, repeatability, and
+  role) and only apply the compact default. Press `R` for raw-YAML editing, or declare a
+  new inline `enum` as a top-level input, when the compact list cannot carry its
+  choices.
 - **Jinja completion**: When the cursor is inside a Jinja `{{ }}` or `{% %}` tag, the
   Jinja menu owns completion ahead of every other surface: variables at expression
   positions, filters after `|`, tests after `is`, members after `<namespace>.`, and

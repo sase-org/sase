@@ -7,6 +7,10 @@ from dataclasses import dataclass
 import re
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.widgets._input_choices_text import (
+    format_choices_text,
+    parse_choices_text,
+)
 from sase.ace.tui.widgets._local_macro_conversion import (
     normalize_local_macro_name,
     validate_local_macro_name,
@@ -41,6 +45,7 @@ class _CellEdit:
     index: int = 0
     ghost: bool = False
     on_commit: Callable[[Macro], None] | None = None
+    macro_inputs: tuple[InputArg, ...] = ()
 
     @property
     def active_cell(self) -> str:
@@ -106,15 +111,26 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
         on_commit: Callable[[Macro], None] | None = None,
     ) -> None:
         item_kind = self._structured_item_kind(field)
+        cells: tuple[str, ...]
         if item_kind == "input":
             arg = self._model.get_input(item_name or "")
+            if (
+                arg is not None
+                and arg.type.value == "enum"
+                and arg.named_type is None
+                and arg.choices
+            ):
+                choices_text = format_choices_text(arg.choices, flow=True)
+            else:
+                choices_text = ""
             values = {
                 "name": arg.name if arg else "",
                 "type": (arg.named_type or arg.type.value) if arg else "line",
+                "choices": choices_text,
                 "default": _default_to_text(arg.default) if arg else "",
                 "description": arg.description or "" if arg else "",
             }
-            cells = ("name", "type", "default", "description")
+            cells = ("name", "type", "choices", "default", "description")
         else:
             macro = prefill or self._model.get_macro(item_name or "")
             values = {
@@ -124,6 +140,16 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                 "content": macro.content if macro else "",
             }
             cells = ("name", "description", "inputs", "content")
+        if item_kind == "macro":
+            if prefill is not None:
+                stored_inputs = tuple(prefill.inputs)
+            elif item_name:
+                existing_macro = self._model.get_macro(item_name)
+                stored_inputs = tuple(existing_macro.inputs) if existing_macro else ()
+            else:
+                stored_inputs = ()
+        else:
+            stored_inputs = ()
         self._cell_edit = _CellEdit(
             field=field,
             item_kind=item_kind,
@@ -132,6 +158,7 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             original_name=item_name,
             ghost=ghost,
             on_commit=on_commit,
+            macro_inputs=stored_inputs,
         )
         self._adding_field = field if field not in self._fields else None
         self._folded.discard(field)
@@ -339,20 +366,26 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                 if cell.original_name
                 else None
             )
-            # Preserve inline-enum choices and repeatability when the type cell
-            # still resolves to the same inline enum; named enums carry their
-            # catalog choices via the resolver. Unrelated cell edits must not
-            # erase choices, roles, or repeatability.
-            choices = resolved.choices
+            is_inline_enum = (
+                resolved.base.value == "enum" and resolved.named_type is None
+            )
+            choices_text = cell.values.get("choices", "").strip()
+            if is_inline_enum:
+                if not choices_text:
+                    return None, "choices are required for an inline enum input"
+                try:
+                    choices = parse_choices_text(choices_text, name=name)
+                except MacroValidationError as exc:
+                    return None, str(exc)
+            else:
+                if choices_text:
+                    return (
+                        None,
+                        f"choices are only allowed on type 'enum', "
+                        f"not '{cell.values['type'].strip()}'",
+                    )
+                choices = resolved.choices
             repeatable = existing.repeatable if existing else False
-            if (
-                resolved.base.value == "enum"
-                and resolved.named_type is None
-                and existing is not None
-                and existing.named_type is None
-                and existing.choices
-            ):
-                choices = existing.choices
             try:
                 probe = InputArg(
                     name=name,
@@ -396,7 +429,9 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
         if not content:
             return None, "content is required"
         try:
-            inputs = self._parse_compact_inputs(cell.values["inputs"])
+            inputs = self._parse_compact_inputs(
+                cell.values["inputs"], existing=cell.macro_inputs
+            )
         except ValueError as exc:
             return None, str(exc)
         return Macro(
@@ -422,7 +457,16 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
         return choices[0] if len(choices) == 1 else None
 
     @classmethod
-    def _parse_compact_inputs(cls, text: str) -> list[InputArg]:
+    def _parse_compact_inputs(
+        cls,
+        text: str,
+        *,
+        existing: tuple[InputArg, ...] = (),
+    ) -> list[InputArg]:
+        def _canonical_spelling(arg: InputArg) -> str:
+            return arg.named_type or arg.type.value
+
+        by_name: dict[str, InputArg] = {arg.name: arg for arg in existing}
         inputs: list[InputArg] = []
         seen: set[str] = set()
         for chunk in text.split(","):
@@ -443,21 +487,37 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                 resolved = parse_input_type(descriptor.name, name=name)
             except MacroValidationError as exc:
                 raise ValueError(str(exc)) from None
-            if resolved.base.value == "enum" and resolved.named_type is None:
-                raise ValueError(
-                    f"input '{name}' needs choices: edit it in the input modal, "
-                    "not the compact list"
-                )
-            try:
-                input_arg = InputArg(
-                    name=name,
-                    type=resolved.base,
-                    choices=resolved.choices,
-                    named_type=resolved.named_type,
-                    value_role=resolved.value_role,
-                )
-            except MacroValidationError as exc:
-                raise ValueError(str(exc)) from None
+            prior = by_name.get(name)
+            if prior is not None and _canonical_spelling(prior) == descriptor.name:
+                try:
+                    input_arg = InputArg(
+                        name=name,
+                        type=prior.type,
+                        description=prior.description,
+                        choices=prior.choices,
+                        named_type=prior.named_type,
+                        value_role=prior.value_role,
+                        repeatable=prior.repeatable,
+                    )
+                except MacroValidationError as exc:
+                    raise ValueError(str(exc)) from None
+            else:
+                if resolved.base.value == "enum" and resolved.named_type is None:
+                    raise ValueError(
+                        f"input '{name}' needs choices: declare it as a "
+                        "top-level input, or use the panel's raw-YAML "
+                        "editing (R)"
+                    )
+                try:
+                    input_arg = InputArg(
+                        name=name,
+                        type=resolved.base,
+                        choices=resolved.choices,
+                        named_type=resolved.named_type,
+                        value_role=resolved.value_role,
+                    )
+                except MacroValidationError as exc:
+                    raise ValueError(str(exc)) from None
             default: Any = UNSET
             if has_default:
                 try:

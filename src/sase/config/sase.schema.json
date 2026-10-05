@@ -5932,6 +5932,12 @@
           "default": true,
           "deprecated": true
         },
+        "grok_rules_delivery": {
+          "type": "boolean",
+          "description": "Grok root runs receive the SASE single-turn directive plus the project root AGENTS.md through --rules.",
+          "default": true,
+          "deprecated": true
+        },
         "legacy_agent_family_syntax": {
           "type": "boolean",
           "description": "SASE silently accepts the retired agent-family spellings as aliases of their agent-session replacements: %id(..., family=...), the family:/kind:family agent queries, --next-fork family, gate \"fork\": \"family\", and SASE_AGENT_FAMILY_ATTACH. Removing this flag also removes sase-core's hidden `family` %id keyword alias.",

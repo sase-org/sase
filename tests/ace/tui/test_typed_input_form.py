@@ -243,6 +243,110 @@ async def test_enum_six_choices_opens_picker_not_cycle() -> None:
         assert str(button.label) == "Label 3"
 
 
+async def test_enum_picker_accept_cancel_reopen_through_form() -> None:
+    from sase.ace.tui.modals.enum_choice_picker_modal import EnumChoicePickerModal
+    from sase.ace.tui.widgets.typed_input_form import _EnumField
+
+    app = _FormApp([_field("mode", InputType.ENUM, choices=_choices_n(6))])
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(TypedInputForm)
+        button = app.query_one("#field-input-0", _EnumField)
+        assert form.is_valid() is False
+
+        # Accept updates the field to the canonical value and emits Changed.
+        button.press()
+        await pilot.pause()
+        assert isinstance(app.screen, EnumChoicePickerModal)
+        modal = app.screen
+        modal._selected = 2
+        modal._accept_current()
+        await pilot.pause()
+        assert button.value == "v2"
+        assert form.is_valid() is True
+
+        # Cancel leaves the value intact.
+        before = button.value
+        button.press()
+        await pilot.pause()
+        assert isinstance(app.screen, EnumChoicePickerModal)
+        await pilot.press("escape")
+        await pilot.pause()
+        assert button.value == before
+
+        # Reopen highlights the current value.
+        button.press()
+        await pilot.pause()
+        assert isinstance(app.screen, EnumChoicePickerModal)
+        assert app.screen._rows[app.screen._selected]["value"] == before
+        await pilot.press("escape")
+        await pilot.pause()
+        assert form.is_valid() is True
+
+
+async def test_enum_picker_j_filters_rather_than_moving() -> None:
+    from textual.app import App, ComposeResult
+
+    from sase.ace.tui.modals.enum_choice_picker_modal import EnumChoicePickerModal
+
+    class _PickerApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield from ()
+
+    choices = (
+        InputChoice(value="jam"),
+        InputChoice(value="apple"),
+        InputChoice(value="mango"),
+    )
+    arg = InputArg(name="fruit", type=InputType.ENUM, choices=choices)
+    app = _PickerApp()
+    async with app.run_test() as pilot:
+        modal = EnumChoicePickerModal(arg)
+        app.push_screen(modal)
+        await pilot.pause()
+        selected_before = modal._selected
+        await pilot.press("j")
+        await pilot.pause()
+        assert modal._query == "j"
+        assert modal._selected == 0
+        assert [row["value"] for row in modal._rows] == ["jam"]
+        assert selected_before == 0
+
+
+async def test_enum_picker_windowing_keeps_last_row_visible() -> None:
+    from textual.app import App, ComposeResult
+    from textual.widgets import Static
+
+    from sase.ace.tui.modals.enum_choice_picker_modal import (
+        EnumChoicePickerModal,
+        _VISIBLE_ROWS,
+    )
+
+    class _PickerApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield from ()
+
+    choices = tuple(InputChoice(value=f"v{i:02d}") for i in range(40))
+    arg = InputArg(name="mode", type=InputType.ENUM, choices=choices)
+    app = _PickerApp()
+    async with app.run_test() as pilot:
+        modal = EnumChoicePickerModal(arg)
+        app.push_screen(modal)
+        await pilot.pause()
+        for _ in range(39):
+            modal._move(1)
+        await pilot.pause()
+        assert modal._selected == 39
+        visible = [
+            modal._rows[modal._offset + slot]["value"]
+            for slot in range(_VISIBLE_ROWS)
+            if modal._offset + slot < len(modal._rows)
+        ]
+        assert "v39" in visible
+        query_text = modal.query_one("#enum-picker-query", Static).render().plain
+        assert "40/40" in query_text
+
+
 async def test_repeatable_enum_edits_as_multiline_preserving_elements() -> None:
     from sase.ace.tui.widgets.typed_input_form import _MultilineInput
 

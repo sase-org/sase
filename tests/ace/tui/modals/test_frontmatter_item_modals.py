@@ -197,6 +197,32 @@ async def test_input_modal_rejects_duplicate_name() -> None:
     assert result is None
 
 
+async def test_input_modal_surfaces_duplicate_choice_error() -> None:
+    result: object = "sentinel"
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object) -> None:
+            nonlocal result
+            result = value
+
+        modal = InputItemModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        modal.query_one("#input-item-name", SingleLineVimTextArea).text = "status"
+        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "enum"
+        modal.query_one("#input-item-choices", VimTextArea).text = "[a, a]"
+        await pilot.pause()
+        modal.action_save()
+        await pilot.pause()
+        assert result == "sentinel"
+        assert pilot.app.screen is modal
+
+        await pilot.press("escape", "escape")
+        await pilot.pause()
+    assert result is None
+
+
 # --- interactive: macro item modal ---------------------------------------
 
 

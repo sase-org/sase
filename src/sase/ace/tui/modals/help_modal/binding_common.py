@@ -40,6 +40,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Ctrl+L in panel", "Keep placeholder literal"),
         ("Ctrl+D in panel", "Delete saved completion entry"),
         ("#name / #!name", "Auto-open macro menu"),
+        ("#m(k= / #m:", "Enum/bool value menu"),
         ("@", "Artifact kinds; Ctrl+T files"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("%model:@", "Model aliases only"),

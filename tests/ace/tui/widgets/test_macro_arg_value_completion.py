@@ -13,10 +13,44 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from ._completion_helpers import CompletionTestApp
 from ._macro_arg_completion_helpers import (
     gh_entry,
+    input_hint,
     review_entry,
     rich_review_entry,
     seed_entries,
 )
+from sase.ace.tui.widgets._macro_arg_choice_adapter import (
+    choice_candidates_for_hint,
+)
+from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
+from sase.ace.tui.widgets._macro_arg_assist_models import MacroInputHint
+from sase.macro.models import InputChoice
+
+
+def _pr_status_entry() -> MacroAssistEntry:
+    return MacroAssistEntry(
+        name="pr",
+        insertion="#pr",
+        reference_prefix="#",
+        kind="macro",
+        input_signature=None,
+        inputs=(
+            input_hint("x", "word", 0),
+            MacroInputHint(
+                name="status",
+                type="enum",
+                required=True,
+                default_display="wip",
+                position=1,
+                description="work state",
+                choices=(
+                    InputChoice(value="wip", description="in progress"),
+                    InputChoice(value="draft"),
+                    InputChoice(value="ready", label="Ready", description="Ship it"),
+                ),
+            ),
+        ),
+        content_preview=None,
+    )
 
 
 async def test_colon_path_arg_uses_existing_file_completion(
@@ -309,4 +343,82 @@ async def test_named_arg_completion_does_not_interfere_with_snippet_tab() -> Non
         await pilot.press("tab")
 
     assert ta.cursor_location == (0, len("x= y="))
+    assert ta._file_completion_active is False
+
+
+async def test_enum_value_menu_keeps_declared_order_with_metadata() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#pr(x, status=")
+        ta.cursor_location = (0, len("#pr(x, status="))
+        seed_entries(ta, [_pr_status_entry()])
+        assert ta._try_file_completion_tab() is True
+        assert ta._completion_kind == "macro_arg_value"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "wip",
+            "draft",
+            "ready",
+        ]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "status · wip | draft | ready"
+        rendered = panel.render().plain
+        assert "in progress" in rendered
+        assert "Ship it" in rendered
+        assert "default" in rendered
+
+
+async def test_enum_name_acceptance_chains_into_value_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#pr(x, status")
+        ta.cursor_location = (0, len("#pr(x, status"))
+        seed_entries(ta, [_pr_status_entry()])
+        assert ta._try_file_completion_tab() is True
+        assert ta.text == "#pr(x, status="
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "macro_arg_value"
+
+
+def test_enum_prefix_filtering_follows_rust_order() -> None:
+    hint = _pr_status_entry().inputs[1]
+    assert [
+        row.value
+        for row in choice_candidates_for_hint(
+            hint, partial="", replacement="", selected=()
+        )
+    ] == [
+        "wip",
+        "draft",
+        "ready",
+    ]
+    assert [
+        row.value
+        for row in choice_candidates_for_hint(
+            hint, partial="dr", replacement="", selected=()
+        )
+    ] == ["draft"]
+    assert [
+        row.value
+        for row in choice_candidates_for_hint(
+            hint, partial="r", replacement="", selected=()
+        )
+    ] == [
+        "ready",
+        "draft",
+    ]
+
+
+async def test_enum_accept_preserves_following_suffix() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#pr(x, status=, other=1)")
+        ta.cursor_location = (0, len("#pr(x, status="))
+        seed_entries(ta, [_pr_status_entry()])
+        assert ta._try_file_completion_tab() is True
+        await pilot.press("ctrl+l")
+    assert ta.text == "#pr(x, status=wip, other=1)"
     assert ta._file_completion_active is False
