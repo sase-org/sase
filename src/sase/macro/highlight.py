@@ -460,6 +460,13 @@ def _macro_arg_assist_entry_to_wire(entry: object) -> dict[str, object]:
 
 
 def _macro_input_hint_to_wire(input_hint: object) -> dict[str, object]:
+    raw_choices = _field(input_hint, "choices", ())
+    choices = (
+        raw_choices
+        if isinstance(raw_choices, Sequence)
+        and not isinstance(raw_choices, (str, bytes, bytearray))
+        else ()
+    )
     return {
         "name": _field(input_hint, "name", ""),
         "type": _field(input_hint, "type", ""),
@@ -468,6 +475,28 @@ def _macro_input_hint_to_wire(input_hint: object) -> dict[str, object]:
         "default_display": _field(input_hint, "default_display", None),
         "position": _position_value(_field(input_hint, "position", 0)),
         "repeatable": bool(_field(input_hint, "repeatable", False)),
+        "choices": [
+            wire_choice
+            for choice in choices
+            if (wire_choice := _macro_input_choice_to_wire(choice)) is not None
+        ],
+        "named_type": _field(input_hint, "named_type", None),
+        "value_role": _field(input_hint, "value_role", None),
+    }
+
+
+def _macro_input_choice_to_wire(choice: object) -> dict[str, str | None] | None:
+    if isinstance(choice, str):
+        return {"value": choice, "label": None, "description": None}
+    value = _field(choice, "value", None)
+    if not isinstance(value, str):
+        return None
+    label = _field(choice, "label", None)
+    description = _field(choice, "description", None)
+    return {
+        "value": value,
+        "label": label if isinstance(label, str) else None,
+        "description": description if isinstance(description, str) else None,
     }
 
 

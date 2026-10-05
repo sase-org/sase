@@ -304,6 +304,13 @@ def test_record_json_projection_is_complete_and_serializable(
     assert projection["schema_version"] == SHOW_SCHEMA_VERSION
     assert projection["raw_available"] is True
     assert projection["inputs"][1]["default_display"] == "null"
+    serialized = json.loads(json.dumps(projection))
+    assert serialized["inputs"][0]["type"] == "word"
+    assert serialized["inputs"][0]["type_label"] == "word"
+    assert serialized["inputs"][0]["choices"] == []
+    assert serialized["inputs"][0]["choice_details"] == []
+    assert serialized["inputs"][0]["named_type"] is None
+    assert serialized["inputs"][0]["value_role"] is None
     assert set(projection) == {
         "schema_version",
         "name",
@@ -333,7 +340,6 @@ def test_record_json_projection_is_complete_and_serializable(
         "memory_type",
         "raw_available",
     }
-    json.loads(json.dumps(projection))
 
 
 def test_memory_record_projects_kind_and_type(

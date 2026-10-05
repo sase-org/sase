@@ -12,8 +12,13 @@ from dataclasses import dataclass
 import json
 from typing import Any
 
-from sase.macro._catalog_format import format_inputs
-from sase.macro.cli_show_model import ShowInput, ShowLocalMacro, ShowStep
+from sase.macro._catalog_format import format_inputs, macro_input_type_label
+from sase.macro.cli_show_model import (
+    ShowChoiceDetail,
+    ShowInput,
+    ShowLocalMacro,
+    ShowStep,
+)
 from sase.macro.models import (
     UNSET,
     InputArg,
@@ -121,6 +126,17 @@ def show_inputs(inputs: list[InputArg]) -> list[ShowInput]:
                 repeatable=input_arg.repeatable,
                 position=len(rows),
                 choices=tuple(choice.value for choice in input_arg.choices),
+                type_label=macro_input_type_label(input_arg, position=len(rows)),
+                choice_details=tuple(
+                    ShowChoiceDetail(
+                        value=choice.value,
+                        label=choice.label,
+                        description=choice.description,
+                    )
+                    for choice in input_arg.choices
+                ),
+                named_type=input_arg.named_type,
+                value_role=input_arg.value_role,
             )
         )
     return rows

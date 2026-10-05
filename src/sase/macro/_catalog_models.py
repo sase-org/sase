@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from sase.macro.models import MemoryType, Macro
+from sase.macro.models import InputChoice, MemoryType, Macro
 from sase.macro.workflow_models import Workflow
 
 
@@ -52,6 +52,9 @@ class StructuredCatalogInput:
     position: int
     repeatable: bool = False
     description: str | None = None
+    choices: tuple[InputChoice, ...] = ()
+    named_type: str | None = None
+    value_role: str | None = None
 
 
 @dataclass(frozen=True)

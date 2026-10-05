@@ -214,6 +214,9 @@ def structured_inputs(
                 position=len(rows),
                 repeatable=inp.repeatable,
                 description=inp.description,
+                choices=inp.choices,
+                named_type=inp.named_type,
+                value_role=inp.value_role,
             )
         )
     return rows

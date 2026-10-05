@@ -244,7 +244,11 @@ omits string input defaults: `default_display` is null for strings, including an
 string, and also null when the default itself is null. Numbers and booleans are still
 shown (`3`, `true`, `false`). `required` is true only when the input declares no
 default. `sase macro show` still prints string defaults, and sase's TUI argument assist
-may show them locally. The mobile catalog does not.
+may show them locally. The mobile catalog does not. The JSON `inputs` rows keep `type`
+as the base kind and `choices` as canonical string values. They also include
+`type_label`, `choice_details` (value, optional label, and optional description),
+`named_type`, and `value_role`. The text view uses the same type label and shows each
+choice's canonical value with its display label and description.
 
 ## Editor LSP
 
@@ -855,6 +859,11 @@ repeated, or mistyped keywords; the macro LSP reports the same argument spans as
 [semantic tokens](editor.md#semantic-token-legend). See
 [sase's TUI completion](ace.md#completion) and the
 [Prompt Input Widget](ace.md#prompt-input-widget).
+
+Compact input signatures use the shared type label: closed sets of up to four values
+show their canonical values, larger sets show the named type and count, and domain
+inputs show their named type. For example, an enum may appear as
+`environment: staging | prod`.
 
 ## Shorthand Syntax
 

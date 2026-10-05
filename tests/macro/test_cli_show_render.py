@@ -8,6 +8,7 @@ from io import StringIO
 from rich.console import Console
 
 from sase.macro.cli_show_model import (
+    ShowChoiceDetail,
     ShowInput,
     ShowLocalMacro,
     ShowProvenance,
@@ -97,6 +98,21 @@ def test_plain_layout_covers_every_macro_section() -> None:
                 False,
                 1,
             ),
+            ShowInput(
+                "environment",
+                "enum",
+                True,
+                None,
+                "Target deployment.",
+                False,
+                2,
+                choices=("staging", "prod"),
+                type_label="staging | prod",
+                choice_details=(
+                    ShowChoiceDetail("staging", "Staging", "Pre-production"),
+                    ShowChoiceDetail("prod", "Production", "Customer traffic"),
+                ),
+            ),
         ],
         local_macros=[ShowLocalMacro("_helper", None, None, 3)],
         body="%model(test)\n#_helper\n---",
@@ -116,6 +132,9 @@ def test_plain_layout_covers_every_macro_section() -> None:
     assert "PROPERTIES" in rendered
     assert "INPUTS  #demo(topic: text)" in rendered
     assert "default: first line …" in rendered
+    assert "staging | prod" in rendered
+    assert "staging — Staging — Pre-production" in rendered
+    assert "prod — Production — Customer traffic" in rendered
     assert "LOCAL MACROS" in rendered
     assert " 45 │ %model(test)" in rendered
     assert "REFERENCES" in rendered

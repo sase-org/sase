@@ -1,0 +1,638 @@
+{
+  "schema_version": 1,
+  "coordinate_units": "All cursor_byte and replacement_byte_span are UTF-8 byte offsets into source. Expected editor ranges (where asserted) are LSP UTF-16 code units (line, character). Tests compare both byte spans and converted UTF-16 ranges, including a non-BMP case.",
+  "description": "Parser-driven golden corpus for macro choice completion contracts. Each case drives detection (classify_completion_context), the shared candidate builder, and applied-edit parsing through the runtime binder.",
+  "cases": [
+    {
+      "id": "empty-enum-value",
+      "source": "#deploy(env=)",
+      "cursor_byte": 12,
+      "inputs": [
+        {
+          "name": "env",
+          "type": "enum",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "staging",
+              "label": "Staging",
+              "description": "Staging environment"
+            },
+            {
+              "value": "prod",
+              "label": "Production",
+              "description": "Production environment"
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "env",
+      "expected_candidates": [
+        "staging",
+        "prod"
+      ],
+      "expected_insertions": [
+        "staging",
+        "prod"
+      ],
+      "replacement_byte_span": [
+        12,
+        12
+      ],
+      "applied_edits": {
+        "staging": "#deploy(env=staging)",
+        "prod": "#deploy(env=prod)"
+      },
+      "macro": "deploy"
+    },
+    {
+      "id": "prefix-enum",
+      "source": "#deploy(env=st)",
+      "cursor_byte": 14,
+      "inputs": [
+        {
+          "name": "env",
+          "type": "enum",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "staging",
+              "label": "Staging",
+              "description": "Staging environment"
+            },
+            {
+              "value": "prod",
+              "label": "Production",
+              "description": "Production environment"
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "env",
+      "expected_candidates": [
+        "staging"
+      ],
+      "expected_insertions": [
+        "staging"
+      ],
+      "replacement_byte_span": [
+        12,
+        14
+      ],
+      "applied_edits": {
+        "staging": "#deploy(env=staging)"
+      },
+      "macro": "deploy"
+    },
+    {
+      "id": "fuzzy-enum",
+      "source": "#deploy(env=tg)",
+      "cursor_byte": 14,
+      "inputs": [
+        {
+          "name": "env",
+          "type": "enum",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "staging",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "prod",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "env",
+      "expected_candidates": [
+        "staging"
+      ],
+      "expected_insertions": [
+        "staging"
+      ],
+      "replacement_byte_span": [
+        12,
+        14
+      ],
+      "applied_edits": {
+        "staging": "#deploy(env=staging)"
+      },
+      "macro": "deploy"
+    },
+    {
+      "id": "bool-empty",
+      "source": "#review(deep=)",
+      "cursor_byte": 13,
+      "inputs": [
+        {
+          "name": "deep",
+          "type": "bool",
+          "required": false,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": "false"
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "deep",
+      "expected_candidates": [
+        "true",
+        "false"
+      ],
+      "expected_insertions": [
+        "true",
+        "false"
+      ],
+      "expected_default": "false",
+      "replacement_byte_span": [
+        13,
+        13
+      ],
+      "applied_edits": {
+        "true": "#review(deep=true)",
+        "false": "#review(deep=false)"
+      },
+      "macro": "review"
+    },
+    {
+      "id": "bool-prefix",
+      "source": "#review(deep=t)",
+      "cursor_byte": 14,
+      "inputs": [
+        {
+          "name": "deep",
+          "type": "bool",
+          "required": false,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": "false"
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "deep",
+      "expected_candidates": [
+        "true"
+      ],
+      "expected_insertions": [
+        "true"
+      ],
+      "replacement_byte_span": [
+        13,
+        14
+      ],
+      "applied_edits": {
+        "true": "#review(deep=true)"
+      },
+      "macro": "review"
+    },
+    {
+      "id": "repeatable-exclusion",
+      "source": "#tag(labels=red, )",
+      "cursor_byte": 17,
+      "inputs": [
+        {
+          "name": "labels",
+          "type": "enum",
+          "required": false,
+          "position": 0,
+          "repeatable": true,
+          "choices": [
+            {
+              "value": "red",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "green",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "blue",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "labels",
+      "expected_candidates": [
+        "green",
+        "blue"
+      ],
+      "expected_insertions": [
+        "green",
+        "blue"
+      ],
+      "replacement_byte_span": [
+        17,
+        17
+      ],
+      "selected_values": [
+        "red"
+      ],
+      "macro": "tag"
+    },
+    {
+      "id": "repeatable-active-kept",
+      "source": "#tag(labels=red, green)",
+      "cursor_byte": 15,
+      "cursor_note": "cursor after 'red' (byte 15 is end of 'red'), editing existing element keeps it eligible",
+      "inputs": [
+        {
+          "name": "labels",
+          "type": "enum",
+          "required": false,
+          "position": 0,
+          "repeatable": true,
+          "choices": [
+            {
+              "value": "red",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "green",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "blue",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "labels",
+      "expected_candidates_contains": "red",
+      "replacement_byte_span": [
+        12,
+        15
+      ],
+      "macro": "tag"
+    },
+    {
+      "id": "comma-plus-quoting",
+      "source": "#data(val=)",
+      "cursor_byte": 10,
+      "inputs": [
+        {
+          "name": "val",
+          "type": "enum",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "a,b",
+              "label": "A,B",
+              "description": "Comma value"
+            },
+            {
+              "value": "c+d",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "plain",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "val",
+      "expected_candidates": [
+        "a,b",
+        "c+d",
+        "plain"
+      ],
+      "expected_insertions": [
+        "\"a,b\"",
+        "\"c+d\"",
+        "plain"
+      ],
+      "replacement_byte_span": [
+        10,
+        10
+      ],
+      "macro": "data"
+    },
+    {
+      "id": "quoted-mid-value",
+      "source": "#deploy(env=\"st\")",
+      "cursor_byte": 15,
+      "cursor_note": "cursor after 'st' inside quotes; partial 'st', replacement covers whole quoted wrapper",
+      "inputs": [
+        {
+          "name": "env",
+          "type": "enum",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "staging",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "prod",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "env",
+      "expected_candidates": [
+        "staging"
+      ],
+      "expected_insertions": [
+        "staging"
+      ],
+      "replacement_byte_span": [
+        12,
+        16
+      ],
+      "builder_partial": "st",
+      "applied_edits": {
+        "staging": "#deploy(env=staging)"
+      },
+      "macro": "deploy"
+    },
+    {
+      "id": "pr-ready-word",
+      "source": "#pr:ready",
+      "cursor_byte": 9,
+      "inputs": [
+        {
+          "name": "name",
+          "type": "word",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "position": 1,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "open",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "closed",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": "pr_status",
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_type_hint",
+      "expected_active_input": "name",
+      "expected_candidates": [],
+      "expected_insertions": [],
+      "replacement_byte_span": [
+        4,
+        9
+      ],
+      "binds_to": "name",
+      "macro": "pr"
+    },
+    {
+      "id": "non-bmp-positions",
+      "source": "😀 #deploy(env=st)",
+      "cursor_byte": 19,
+      "inputs": [
+        {
+          "name": "env",
+          "type": "enum",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "staging",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "prod",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "env",
+      "expected_candidates": [
+        "staging"
+      ],
+      "expected_insertions": [
+        "staging"
+      ],
+      "replacement_byte_span": [
+        17,
+        19
+      ],
+      "expected_utf16_range": {
+        "line": 0,
+        "start_character": 15,
+        "end_character": 17
+      },
+      "macro": "deploy"
+    },
+    {
+      "id": "agent-role",
+      "source": "#assign(owner=)",
+      "cursor_byte": 14,
+      "inputs": [
+        {
+          "name": "owner",
+          "type": "word",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": null,
+          "value_role": "agent",
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_agent",
+      "expected_active_input": "owner",
+      "expected_candidates": [],
+      "replacement_byte_span": [
+        14,
+        14
+      ],
+      "macro": "assign"
+    },
+    {
+      "id": "legacy-agent-base",
+      "source": "#assign(owner=)",
+      "cursor_byte": 14,
+      "inputs": [
+        {
+          "name": "owner",
+          "type": "agent",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": "agent",
+          "value_role": "agent",
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_agent",
+      "expected_active_input": "owner",
+      "replacement_byte_span": [
+        14,
+        14
+      ],
+      "macro": "assign"
+    },
+    {
+      "id": "path-kind",
+      "source": "#review(path=)",
+      "cursor_byte": 13,
+      "inputs": [
+        {
+          "name": "path",
+          "type": "path",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_path",
+      "expected_active_input": "path",
+      "replacement_byte_span": [
+        13,
+        13
+      ],
+      "macro": "review"
+    },
+    {
+      "id": "colon-positional",
+      "source": "#deploy:staging",
+      "cursor_byte": 15,
+      "inputs": [
+        {
+          "name": "env",
+          "type": "enum",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "staging",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "prod",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "env",
+      "expected_candidates": [
+        "staging"
+      ],
+      "replacement_byte_span": [
+        8,
+        15
+      ],
+      "macro": "deploy"
+    }
+  ]
+}

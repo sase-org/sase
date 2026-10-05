@@ -63,6 +63,27 @@ def test_show_inputs_enum_choices_carry_through() -> None:
     )
 
     assert rows[0].choices == ("fast", "slow")
+    assert rows[0].type_label == "fast | slow"
+    assert rows[0].choice_details[1].label == "Slow"
+    assert rows[0].choice_details[1].description is None
+
+
+def test_show_inputs_preserves_named_type_and_role() -> None:
+    row = show_inputs(
+        [
+            InputArg(
+                "owner",
+                InputType.WORD,
+                named_type="agent",
+                value_role="agent",
+            )
+        ]
+    )[0]
+
+    assert row.type == "word"
+    assert row.type_label == "agent"
+    assert row.named_type == "agent"
+    assert row.value_role == "agent"
 
 
 def test_show_inputs_filters_step_inputs() -> None:

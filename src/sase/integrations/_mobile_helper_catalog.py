@@ -124,6 +124,16 @@ def macro_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                         "position": inp.position,
                         "repeatable": inp.repeatable,
                         "description": inp.description,
+                        "choices": [
+                            {
+                                "value": choice.value,
+                                "label": choice.label,
+                                "description": choice.description,
+                            }
+                            for choice in inp.choices
+                        ],
+                        "named_type": inp.named_type,
+                        "value_role": inp.value_role,
                     }
                     for inp in entry.inputs
                 ],

@@ -10,6 +10,7 @@ from sase.macro.catalog import (
     StructuredCatalogSkipped,
     StructuredCatalogStats,
 )
+from sase.macro.models import InputChoice
 from tests._mobile_helper_bridge_helpers import run_bridge
 
 
@@ -47,6 +48,15 @@ def test_macro_catalog_bridge_returns_structured_projection(
                             default_display=None,
                             position=0,
                             description="Hook log to repair.",
+                            choices=(
+                                InputChoice(
+                                    "repair",
+                                    label="Repair",
+                                    description="Fix the reported problem.",
+                                ),
+                            ),
+                            named_type="sase@action",
+                            value_role="agent",
                         )
                     ],
                     is_skill=False,
@@ -124,6 +134,15 @@ def test_macro_catalog_bridge_returns_structured_projection(
                     "position": 0,
                     "repeatable": False,
                     "description": "Hook log to repair.",
+                    "choices": [
+                        {
+                            "value": "repair",
+                            "label": "Repair",
+                            "description": "Fix the reported problem.",
+                        }
+                    ],
+                    "named_type": "sase@action",
+                    "value_role": "agent",
                 }
             ],
             "is_skill": False,

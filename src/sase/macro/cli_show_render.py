@@ -247,7 +247,22 @@ def _inputs(
                 f"default: {default}",
                 style=_style("dim", styles_enabled=styles_enabled),
             )
-        table.add_row(item.name, item.type, marker, detail)
+        type_label = item.type_label or item.type
+        if item.choice_details:
+            if detail:
+                detail.append("\n")
+            detail.append(
+                "choices: ", style=_style("dim", styles_enabled=styles_enabled)
+            )
+            for index, choice in enumerate(item.choice_details):
+                if index:
+                    detail.append("\n         ")
+                detail.append(choice.value)
+                if choice.label:
+                    detail.append(f" — {choice.label}")
+                if choice.description:
+                    detail.append(f" — {choice.description}")
+        table.add_row(item.name, type_label, marker, detail)
     return Padding(table, (0, 0, 0, 2))
 
 

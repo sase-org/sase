@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 
+from sase.core.rust import require_rust_binding
 from sase.macro.models import UNSET, InputArg
 
 
@@ -43,10 +44,34 @@ def format_inputs(inputs: list[InputArg]) -> str:
         required = inp.default is UNSET
         suffix = "" if required else "?"
         repeatable = "…" if inp.repeatable else ""
-        parts.append(f"{inp.name}{repeatable}{suffix}: {inp.type.value}")
+        parts.append(f"{inp.name}{repeatable}{suffix}: {macro_input_type_label(inp)}")
     if not parts:
         return ""
     return "(" + ", ".join(parts) + ")"
+
+
+def macro_input_type_label(input_arg: InputArg, *, position: int = 0) -> str:
+    """Render the shared Rust label for one resolved input declaration."""
+    hint = {
+        "name": input_arg.name,
+        "type": input_arg.type.value,
+        "description": input_arg.description,
+        "required": input_arg.default is UNSET,
+        "default_display": None,
+        "position": position,
+        "repeatable": input_arg.repeatable,
+        "choices": [
+            {
+                "value": choice.value,
+                "label": choice.label,
+                "description": choice.description,
+            }
+            for choice in input_arg.choices
+        ],
+        "named_type": input_arg.named_type,
+        "value_role": input_arg.value_role,
+    }
+    return str(require_rust_binding("macro_input_type_label")({"hint": hint}))
 
 
 def bar_width(count: int, maximum: int) -> int:

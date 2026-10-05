@@ -19,6 +19,53 @@ def _parts(text: str) -> list[tuple[str, str]]:
     return [(text[span.start : span.end], span.role) for span in highlight_spans(text)]
 
 
+def test_macro_input_hint_wire_copies_rich_and_legacy_metadata() -> None:
+    enriched = {
+        "name": "environment",
+        "type": "enum",
+        "choices": [
+            {
+                "value": "staging",
+                "label": "Staging",
+                "description": "Pre-production.",
+            }
+        ],
+        "named_type": "deploy_environment",
+        "value_role": None,
+    }
+
+    wire = highlight._macro_input_hint_to_wire(enriched)
+    assert wire["choices"] == enriched["choices"]
+    assert wire["named_type"] == "deploy_environment"
+    assert wire["value_role"] is None
+
+    object_hint = SimpleNamespace(
+        name="environment",
+        type="enum",
+        choices=(
+            SimpleNamespace(
+                value="prod", label="Production", description="Customer traffic."
+            ),
+        ),
+        named_type="deploy_environment",
+        value_role=None,
+    )
+    object_wire = highlight._macro_input_hint_to_wire(object_hint)
+    assert object_wire["choices"] == [
+        {
+            "value": "prod",
+            "label": "Production",
+            "description": "Customer traffic.",
+        }
+    ]
+    assert object_wire["named_type"] == "deploy_environment"
+
+    legacy = highlight._macro_input_hint_to_wire({"name": "topic", "type": "text"})
+    assert legacy["choices"] == []
+    assert legacy["named_type"] is None
+    assert legacy["value_role"] is None
+
+
 def test_flattens_overlapping_invocation_and_jinja_by_precedence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

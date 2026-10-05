@@ -11,6 +11,13 @@ SHOW_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True, slots=True)
+class ShowChoiceDetail:
+    value: str
+    label: str | None = None
+    description: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ShowInput:
     name: str
     type: str
@@ -20,6 +27,10 @@ class ShowInput:
     repeatable: bool
     position: int
     choices: tuple[str, ...] = ()
+    type_label: str | None = None
+    choice_details: tuple[ShowChoiceDetail, ...] = ()
+    named_type: str | None = None
+    value_role: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +118,7 @@ class MacroShowRecord:
 
 __all__ = [
     "SHOW_SCHEMA_VERSION",
+    "ShowChoiceDetail",
     "ShowInput",
     "ShowLocalMacro",
     "ShowProvenance",

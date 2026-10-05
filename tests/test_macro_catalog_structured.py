@@ -14,7 +14,7 @@ from sase.macro.catalog import (
     build_structured_macros_catalog,
 )
 from sase.macro.loader import load_skills_from_package
-from sase.macro.models import UNSET, InputArg, InputType, OutputSpec
+from sase.macro.models import UNSET, InputArg, InputChoice, InputType, OutputSpec
 from sase.macro.tags import MacroTag
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
@@ -477,6 +477,16 @@ def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
                 description="Whether the feature is active.",
             ),
             InputArg(
+                name="environment",
+                type=InputType.ENUM,
+                default="staging",
+                choices=(
+                    InputChoice("staging", "Staging", "Pre-production environment."),
+                    InputChoice("prod", "Production"),
+                ),
+                named_type="deploy_environment",
+            ),
+            InputArg(
                 name="step_output",
                 type=InputType.LINE,
                 default=UNSET,
@@ -496,7 +506,7 @@ def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
     entry = projection.entries[0]
     assert entry.input_signature == (
         "(required_word: word, string_default?: line, null_default?: text, "
-        "count?: int, enabled?: bool)"
+        "count?: int, enabled?: bool, environment?: staging | prod)"
     )
     assert [
         (inp.name, inp.type, inp.required, inp.default_display, inp.position)
@@ -507,8 +517,15 @@ def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
         ("null_default", "text", False, None, 2),
         ("count", "int", False, "3", 3),
         ("enabled", "bool", False, "false", 4),
+        ("environment", "enum", False, None, 5),
     ]
-    assert entry.inputs[-1].description == "Whether the feature is active."
+    assert entry.inputs[4].description == "Whether the feature is active."
+    assert entry.inputs[5].named_type == "deploy_environment"
+    assert entry.inputs[5].choices == (
+        InputChoice("staging", "Staging", "Pre-production environment."),
+        InputChoice("prod", "Production"),
+    )
+    assert entry.inputs[5].default_display is None
 
 
 def test_structured_catalog_query_matches_input_descriptions() -> None:
