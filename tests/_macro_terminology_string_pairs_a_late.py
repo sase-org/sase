@@ -34,6 +34,11 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ),
     ("tests/ace/tui/modals/test_macro_browser_helpers.py", '"sase/xprompts/review.md"'),
     ("tests/ace/tui/modals/test_macro_browser_helpers.py", '"xprompts"'),
+    (
+        "tests/ace/tui/modals/test_mini_macro_target_catalog.py",
+        '"sase.legacy_xprompt_syntax.legacy_xprompt_syntax_enabled"',
+    ),
+    ("tests/ace/tui/modals/test_mini_macro_target_catalog.py", '"xprompts"'),
     ("tests/ace/tui/test_config_center_state.py", 'b"xprompts\\n"'),
     ("tests/ace/tui/test_config_hub_catalog.py", '"xprompts"'),
     ("tests/ace/tui/test_config_hub_pane.py", '"xprompts"'),

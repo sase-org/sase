@@ -133,6 +133,7 @@ _MACRO_TEST_STRING_REASON_DEFAULT = "legacy-input evidence for the both-states c
 
 _MACRO_TEST_STRING_REASONS: dict[str, str] = {
     "tests/ace/tui/modals/test_macro_browser_helpers.py": "legacy project and home macro directories remain readable",
+    "tests/ace/tui/modals/test_mini_macro_target_catalog.py": "flag-on legacy config key stays readable; mixed keys are rejected",
     "tests/ace/tui/test_config_center_state.py": "resume-state migration test keeps the retired top-level id opening Config",
     "tests/ace/tui/test_config_hub_catalog.py": "resume-state migration tests cover the top-level Admin id and Config sub-tab id",
     "tests/ace/tui/test_config_hub_pane.py": "resume-state migration test keeps the retired Config sub-tab id opening Macros",
