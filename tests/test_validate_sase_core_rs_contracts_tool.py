@@ -295,3 +295,45 @@ def test_validate_sase_core_rs_requires_singular_skill_contract() -> None:
     assert not validator._validate_skill_reference_contract(
         module(layout=_skill_layout_payload(package_locator="package:skills"))
     )
+
+
+def test_validate_macro_choice_contracts_passes_when_bindings_missing() -> None:
+    validator = load_validate_sase_core_rs()
+    assert validator._validate_macro_choice_contracts(SimpleNamespace())
+
+
+def test_validate_macro_choice_contracts_passes_for_contract_behavior() -> None:
+    validator = load_validate_sase_core_rs()
+
+    def candidates(request: dict) -> list[dict]:
+        hint = request["hint"]
+        if hint["type"] == "bool":
+            return [
+                {"value": "true", "insertion": "true", "index": 0},
+                {"value": "false", "insertion": "false", "index": 1},
+            ]
+        if hint["choices"] == [{"value": "a,b"}]:
+            return [{"value": "a,b", "insertion": '"a,b"', "index": 0}]
+        if hint["choices"] == [{"value": "staging"}]:
+            return [{"value": "staging", "insertion": "staging", "index": 0}]
+        return [
+            {"value": "staging", "insertion": "staging", "index": 0},
+            {"value": "prod", "insertion": "prod", "index": 1},
+        ]
+
+    module = SimpleNamespace(
+        macro_argument_choice_candidates=candidates,
+        macro_input_type_label=lambda _request: "staging | prod",
+    )
+    assert validator._validate_macro_choice_contracts(module)
+
+
+def test_validate_macro_choice_contracts_fails_on_stale_order() -> None:
+    validator = load_validate_sase_core_rs()
+    module = SimpleNamespace(
+        macro_argument_choice_candidates=lambda _request: [
+            {"value": "prod", "insertion": "prod"}
+        ],
+        macro_input_type_label=lambda _request: "staging | prod",
+    )
+    assert not validator._validate_macro_choice_contracts(module)

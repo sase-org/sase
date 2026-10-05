@@ -1132,6 +1132,134 @@ def _validate_skill_reference_contract(module: ModuleType) -> bool:
     return valid
 
 
+def _validate_macro_choice_contracts(module: ModuleType) -> bool:
+    """Probe shared choice candidates and type labels (contracts phase).
+
+    New core exports `macro_argument_choice_candidates` and
+    `macro_input_type_label` from the editor-completion domain. Old wheels
+    pre-dating the contracts phase lack them; the probe passes then so the
+    pin bump (host-owned) activates the behavior without reddening the base.
+    Once present, the probe exercises ordering, quoting, bool synthesis, and
+    additive wire compatibility (old hints without new fields).
+    """
+    candidates_fn = getattr(module, "macro_argument_choice_candidates", None)
+    label_fn = getattr(module, "macro_input_type_label", None)
+    if candidates_fn is None or label_fn is None:
+        return True
+    valid = True
+    hint = {
+        "name": "env",
+        "type": "enum",
+        "required": True,
+        "default_display": None,
+        "position": 0,
+        "repeatable": False,
+        "choices": [
+            {"value": "staging", "label": "Staging"},
+            {"value": "prod"},
+        ],
+        "named_type": "deploy_env",
+    }
+    try:
+        out = candidates_fn(
+            {"hint": hint, "partial": "", "replacement": "", "selected": []}
+        )
+    except Exception as exc:
+        _error(f"macro_argument_choice_candidates probe failed: {exc}")
+        return False
+    if [c.get("value") for c in out] != ["staging", "prod"]:
+        _error(
+            "macro_argument_choice_candidates probe returned stale order: "
+            f"{out!r}"
+        )
+        valid = False
+    if out and out[0].get("insertion") != "staging":
+        _error(
+            "macro_argument_choice_candidates probe inserts label, not value: "
+            f"{out!r}"
+        )
+        valid = False
+    # Quoting structural values uses the shared insertion helper.
+    try:
+        quoted = candidates_fn(
+            {
+                "hint": {
+                    "name": "val",
+                    "type": "enum",
+                    "required": True,
+                    "default_display": None,
+                    "position": 0,
+                    "repeatable": False,
+                    "choices": [{"value": "a,b"}],
+                },
+                "partial": "",
+                "replacement": "",
+                "selected": [],
+            }
+        )
+    except Exception as exc:
+        _error(f"macro_argument_choice_candidates quoting probe failed: {exc}")
+        return False
+    if not quoted or quoted[0].get("insertion") != '"a,b"':
+        _error(
+            "macro_argument_choice_candidates quoting probe stale: "
+            f"{quoted!r}"
+        )
+        valid = False
+    # Bool synthesizes true/false; old hints without new fields still bind.
+    try:
+        bool_out = candidates_fn(
+            {
+                "hint": {
+                    "name": "deep",
+                    "type": "bool",
+                    "required": False,
+                    "default_display": "false",
+                    "position": 0,
+                    "repeatable": False,
+                    "choices": [],
+                },
+                "partial": "",
+                "replacement": "",
+                "selected": [],
+            }
+        )
+        old_out = candidates_fn(
+            {
+                "hint": {
+                    "name": "env",
+                    "type": "enum",
+                    "required": True,
+                    "default_display": None,
+                    "position": 0,
+                    "repeatable": False,
+                    "choices": [{"value": "staging"}],
+                },
+                "partial": "",
+                "replacement": "",
+                "selected": [],
+            }
+        )
+    except Exception as exc:
+        _error(f"macro_argument_choice_candidates bool/legacy probe failed: {exc}")
+        return False
+    if [c.get("value") for c in bool_out] != ["true", "false"]:
+        _error(f"bool candidate probe stale: {bool_out!r}")
+        valid = False
+    if not old_out or old_out[0].get("value") != "staging":
+        _error(f"legacy hint probe stale: {old_out!r}")
+        valid = False
+    try:
+        label = label_fn({"hint": hint})
+    except Exception as exc:
+        _error(f"macro_input_type_label probe failed: {exc}")
+        return False
+    if label != "staging | prod":
+        _error(f"macro_input_type_label probe stale: {label!r}")
+        valid = False
+    return valid
+
+
 def _scan_probe_options() -> dict[str, Any]:
     return {
         "include_prompt_step_markers": False,
@@ -3408,6 +3536,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_finalizer_contract(module):
         return 1
     if not _validate_skill_reference_contract(module):
+        return 1
+    if not _validate_macro_choice_contracts(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
         return 1

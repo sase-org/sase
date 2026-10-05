@@ -58,6 +58,19 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   caller inserted it. Unconditional setters remain the replacement path for manual
   duration changes. Python owns provider registration, routing policy, TUI presentation,
   and the lock-free display peek overlay.
+- Shared macro choice assistance (contracts phase): `macro_argument_choice_candidates`
+  and `macro_input_type_label` from the editor-completion domain. The candidate builder
+  takes `{"hint", "partial", "replacement", "selected"}` where `partial` filters (empty
+  keeps declared order, otherwise case-insensitive prefix first then the shared Rust
+  fuzzy matcher with stable declared-order ties), `replacement` is the whole current
+  value for repeatable active-element detection, and `selected` excludes only repeatable
+  values while keeping the edited element eligible. It inserts the exact canonical value
+  (never the label), quoting structural macro syntax (commas, `+`), synthesizing
+  `true`/`false` for bool, and marking the displayed default without reordering. The
+  label is the value union for up to four choices, else `<named_type> (N)` or
+  `enum (N)`; domains show named types, scalars show keywords. Wires carry additive
+  `named_type`/`value_role` with rich `value`/`label`/`description` choices; old
+  payloads without them still deserialize.
 - Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index
   writes, artifact-marker deletion, workspace-release text mutation, and
   hook/mentor/comment kill marking. These calls prefer Rust but retain cleanup-specific
