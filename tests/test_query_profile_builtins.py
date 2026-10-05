@@ -16,6 +16,7 @@ from sase.ace.query_profile import (
     procs_query_schema,
     stitches_query_schema,
 )
+from sase.core.rust import require_rust_binding
 
 
 @pytest.mark.parametrize(
@@ -36,6 +37,9 @@ def test_every_builtin_profile_compiles_without_error(schema_factory) -> None:
     assert isinstance(profile, CompiledQueryProfile)
     assert profile.digest
     assert profile.to_wire()["digest"] == profile.digest
+    # Core recomputes the digest from its own canonical payload and rejects a
+    # mismatch, which would crash every Artifacts pane that indexes its rows.
+    require_rust_binding("compile_corpus_with_profile")(profile.to_wire(), [])
 
 
 def test_every_builtin_profile_has_a_unique_pane_id() -> None:

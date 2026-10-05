@@ -9,11 +9,10 @@ predicate/shorthand order so authoring order never affects the result, and
 computes a stable digest so callers can detect a changed dialect (for
 example to invalidate a cached saved query).
 
-The wire payload sent to Rust names the shorthand list ``shorthands``,
-which pinned core accepts as an alias. The digest is still computed from a
-canonical payload whose list sits under the ``macros`` key, so the digest
-matches the canonical bytes Rust hashes. A later core flip owns the
-canonical key.
+The digest hashes the same canonical payload, with the shorthand list under
+the ``shorthands`` key, that pinned core rebuilds and hashes when it loads a
+wire profile. Core rejects a profile whose digest does not match those
+bytes, so the two canonical payloads must stay byte-identical.
 """
 
 from __future__ import annotations
@@ -88,9 +87,6 @@ class CompiledQueryProfile:
             shorthands=self.shorthands,
             free_text_hint=self.free_text_hint,
         )
-        # Pinned core still hashes the canonical payload with the list under
-        # the ``macros`` key, so rename the key only on the wire copy.
-        payload["shorthands"] = payload.pop("macros")
         payload["digest"] = self.digest
         return payload
 
@@ -147,9 +143,8 @@ def _canonical_payload(
     shorthands: tuple[QueryShorthandSpec, ...],
     free_text_hint: str,
 ) -> dict[str, Any]:
-    # The ``macros`` key below is the canonical digest spelling pinned core
-    # still hashes; :meth:`CompiledQueryProfile.to_wire` renames it to
-    # ``shorthands`` on the copy it sends across the wire.
+    # Mirrors ``canonical_payload`` in sase-core's ``query/profile.rs`` key for
+    # key: a renamed or added key changes the digest core recomputes.
     return {
         "pane_id": pane_id,
         "boolean": boolean,
@@ -157,7 +152,7 @@ def _canonical_payload(
         "sigils": [{"sigil": item.sigil, "field": item.field} for item in sigils],
         "predicates": list(predicates),
         "any_special": any_special,
-        "macros": [
+        "shorthands": [
             {
                 "trigger": item.trigger,
                 "letter": item.letter,

@@ -150,14 +150,14 @@ def test_wire_payload_sends_shorthands_with_the_canonical_digest() -> None:
     profile = compile_query_profile(patches_query_schema())
     wire = profile.to_wire()
 
-    # Pinned core accepts ``shorthands`` as an alias for its ``macros``
-    # field; only the alias key goes across the wire.
+    # Pinned core still reads a legacy ``macros`` key on input, but only the
+    # canonical ``shorthands`` key goes across the wire.
     assert "shorthands" in wire
     assert "macros" not in wire
     assert wire["digest"] == profile.digest
 
     compile_query = require_rust_binding("compile_query_with_profile")
-    # Rust recomputes the digest from its canonical ``macros``-keyed
+    # Rust recomputes the digest from its canonical ``shorthands``-keyed
     # payload and rejects a mismatch, so a successful compile proves the
     # stored digest still matches those canonical bytes.
     compile_query("%w", wire)
