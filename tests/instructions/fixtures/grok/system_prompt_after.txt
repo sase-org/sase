@@ -1,0 +1,7 @@
+Synthetic Grok system prompt.
+
+<human_rules>SASE single-turn instructions for Grok: synthetic directive text.
+
+# Synthetic Project
+
+Synthetic project body.</human_rules>

@@ -32,6 +32,34 @@ still launch a hard-disabled CLI. See
 [Provider routing](ace.md#provider-routing-controls) and
 [Usage-Limit Auto-Disable](llms.md#usage-limit-auto-disable).
 
+## Verifying instruction delivery
+
+`sase instructions verify` shows what each provider's SASE runs and native helpers
+actually loaded, read from the providers' own session records — never from anything SASE
+wrote. The command reports; it does not gate (exit 0 even when rows show bugs).
+
+| Column             | Meaning                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `contract`         | Loaded sources carrying the `SASE Final Declaration` heading (`N×`, with the spread when mixed). |
+| `home`             | The current `~/AGENTS.md` first H1 was loaded.                                                   |
+| `project`          | The run workspace-root `AGENTS.md` first H1 was loaded.                                          |
+| `directive`        | The provider's single-turn directive marker was present.                                         |
+| `native-SASE-full` | Natively loaded files that carry the contract.                                                   |
+| `foreign`          | Claude auto-memory, or Grok's memory flag as `k/N`.                                              |
+| `helpers`          | Helper sessions by type, template presence, `sase final` attempts, and accepted declarations.    |
+
+Symbols: `✓` present, `✗` absent, `◌` unverifiable (agy reports every instruction column
+as `◌`, with directive presence only when the conversation record exposes the prompt).
+
+Channels are counted separately as native versus explicit: natively loaded files are
+Claude `instructions` attachments, the Codex `# AGENTS.md instructions` block, Muse
+`rules_file` records, and Grok `agents_md_files`; explicit channels are the Claude
+`prompt_snapshot` append text, the Codex developer message, the Grok `<human_rules>`
+block in `system_prompt.txt`, and prompt prefixes. `sase doctor -D -C instructions` runs
+the same scoreboard as a deep-only group (`instructions.delivery` WARNs on rows that
+break contract 1×, project ✓, directive ✓, or native-full ≤ 1; `instructions.helpers`
+WARNs on any accepted helper declaration).
+
 ## Claude Code
 
 Anthropic's Claude Code CLI (`claude`). This is SASE's highest-priority autodetect

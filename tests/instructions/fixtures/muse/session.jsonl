@@ -1,0 +1,2 @@
+{"retained_frame": "synthetic", "children": [{"child_index": 0, "record_json": "{\"schema_version\": 1, \"record_type\": \"event\", \"payload_type\": \"runtime.session\", \"payload\": {\"source\": \"rules_file\", \"text\": \"<rules-file scope=\\\"project\\\" path=\\\"AGENTS.md\\\">\\n# Synthetic Project\\n\\n## SASE Final Declaration\\n\\nSynthetic project contract.\"}}"}]}
+{"prompt": "SASE single-turn instructions for Muse Code: synthetic directive text for the fixture."}

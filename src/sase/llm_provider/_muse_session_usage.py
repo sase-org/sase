@@ -53,6 +53,13 @@ def _muse_sessions_root() -> Path:
     return base.joinpath(*_MUSE_DATA_SUBDIR)
 
 
+def find_muse_session_log(
+    session_id: str, *, sessions_root: Path | None = None
+) -> Path | None:
+    """Return the session log for *session_id*, or ``None`` when absent."""
+    return _find_muse_session_log(session_id, sessions_root=sessions_root)
+
+
 def _find_muse_session_log(
     session_id: str, *, sessions_root: Path | None = None
 ) -> Path | None:
@@ -154,4 +161,4 @@ def _record_usage_diagnostic(
     )
 
 
-__all__ = ["read_muse_session_usage"]
+__all__ = ["find_muse_session_log", "read_muse_session_usage"]

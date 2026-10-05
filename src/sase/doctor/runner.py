@@ -69,6 +69,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     )
     from sase.doctor.checks_beads import bead_check_specs
     from sase.doctor.checks_completion import completion_check_specs
+    from sase.doctor.checks_instructions import instructions_check_specs
     from sase.doctor.checks_artifact_links import artifact_links_check_specs
     from sase.doctor.checks_referenced_by import referenced_by_check_specs
     from sase.doctor.checks_flags import flag_check_specs
@@ -114,6 +115,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *referenced_by_check_specs(context),
             *artifact_links_check_specs(context),
             *completion_check_specs(context),
+            *instructions_check_specs(context),
             *flag_check_specs(context),
             *telemetry_check_specs(context),
             *integration_check_specs(context),

@@ -80,13 +80,17 @@ def _get_workspace_cwd(agent: Agent) -> str | None:
     return cwd.rstrip("/")
 
 
+def encode_cwd_for_claude_project_dir(cwd: str) -> str:
+    """Encode a working directory the way Claude Code names its project dir."""
+    return re.sub(r"[^a-zA-Z0-9]", "-", cwd)
+
+
 def _cwd_to_claude_project_dir(cwd: str) -> Path:
     """Convert a working directory path to the Claude projects hash directory.
 
     Claude Code hashes the CWD by replacing non-alphanumeric chars with '-'.
     """
-    hashed = re.sub(r"[^a-zA-Z0-9]", "-", cwd)
-    return Path.home() / ".claude" / "projects" / hashed
+    return Path.home() / ".claude" / "projects" / encode_cwd_for_claude_project_dir(cwd)
 
 
 def _find_most_recent_jsonl(directory: Path) -> Path | None:

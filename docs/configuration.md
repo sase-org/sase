@@ -6227,10 +6227,11 @@ Serve, enrollment, launch constraints, and sase's TUI machine-row operation.
 
 With no subcommand, `sase instructions` defaults to `sase instructions list`.
 
-| Form                     | Flags | Description                                                                   |
-| ------------------------ | ----- | ----------------------------------------------------------------------------- |
-| `sase instructions`      | -     | Show the same read-only agent-document inventory as `sase instructions list`. |
-| `sase instructions list` | -     | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.      |
+| Form                       | Flags                                                                                                | Description                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `sase instructions`        | -                                                                                                    | Show the same read-only agent-document inventory as `sase instructions list`.                                 |
+| `sase instructions list`   | -                                                                                                    | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.                                      |
+| `sase instructions verify` | `-a/--agent`, `-H/--helpers`, `-j/--json`, `-n/--limit`, `-p/--provider`, `-s/--since`, `-u/--until` | Show observed instruction loads per provider; `-j` emits `schema_version: 1` JSON. Reports only, never gates. |
 
 ### `sase memory`
 

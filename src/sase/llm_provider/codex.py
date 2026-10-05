@@ -191,6 +191,11 @@ def _resolve_codex_project_dir() -> str:
     )
 
 
+def real_codex_home() -> Path:
+    """Return the user's real Codex home (never a per-run shadow home)."""
+    return _real_codex_home()
+
+
 def _real_codex_home() -> Path:
     """Return the user's real Codex home."""
     codex_home = os.environ.get("CODEX_HOME")

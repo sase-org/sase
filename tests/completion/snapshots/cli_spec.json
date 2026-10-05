@@ -18744,6 +18744,153 @@
             "stdin": false,
             "subcommands": [],
             "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "d22d108f278da3ec",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "verify",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "agent",
+                "hidden": false,
+                "kind": "agent",
+                "metavar": "NAME",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--agent"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "helpers",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-H",
+                  "--helpers"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "20",
+                "dest": "limit",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--limit"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "provider",
+                "hidden": false,
+                "kind": "provider",
+                "metavar": "PROVIDER",
+                "repeatable": true,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--provider"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "7d",
+                "dest": "since",
+                "hidden": false,
+                "kind": null,
+                "metavar": "WHEN",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-s",
+                  "--since"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "until",
+                "hidden": false,
+                "kind": null,
+                "metavar": "WHEN",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-u",
+                  "--until"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "instructions",
+              "verify"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
           }
         ],
         "writes": false
