@@ -22,13 +22,13 @@ _ARG_VALUE_LIMIT = 40
 
 def append_agent_macros_section(
     text: Text,
-    xprompts_used: list[dict[str, Any]] | None,
+    macros_used: list[dict[str, Any]] | None,
     *,
     project_key: str | None = None,
     project_display_name: str | None = None,
 ) -> None:
     """Append the selected agent's prompt reference summary when available."""
-    macros = xprompts_used or []
+    macros = macros_used or []
     if not macros:
         return
 

@@ -66,7 +66,7 @@ async def test_preview_panel_macro_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "preview_panel_xprompt_120x40",
+            "preview_panel_macro_120x40",
             title="ACE prompt preview panel - macro",
         )
 

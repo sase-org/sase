@@ -1,4 +1,4 @@
-"""ACE PNG coverage for agent-metadata xprompt syntax highlighting."""
+"""ACE PNG coverage for agent-metadata macro syntax highlighting."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.macro_arg_assist import MacroAssistEntry
+from sase.legacy_xprompt_names import LEGACY_RAW_XPROMPT_FILENAME
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -39,7 +40,7 @@ _SKILL_ENTRY = MacroAssistEntry(
     skill_name="sase_plan",
     insertion="#skill/sase_plan",
     reference_prefix="#",
-    kind="xprompt",
+    kind="macro",
     input_signature=None,
     inputs=(),
     content_preview=None,
@@ -48,12 +49,12 @@ _SKILL_ENTRY = MacroAssistEntry(
 )
 
 
-def _xprompt_highlight_agent(artifacts_dir: Path) -> Agent:
+def _macro_highlight_agent(artifacts_dir: Path) -> Agent:
     artifacts_dir.mkdir()
-    (artifacts_dir / "raw_xprompt.md").write_text(
+    (artifacts_dir / LEGACY_RAW_XPROMPT_FILENAME).write_text(
         "#git:sase %auto #pr:my_change %m:opus Ask Agent Clan; run `checks`\n"
         '#work(@plans:"quoted payload.md"#L12) @bead:sase-9z '
-        "@agent:visual.xprompt-highlight @commit:sase@abcdef1\n"
+        "@agent:visual.macro-highlight @commit:sase@abcdef1\n"
         "---\n%{fast=@plans:202608/design.md | safe=@plans:202608/other.md} "
         "/sase_plan inspect sase-core",
         encoding="utf-8",
@@ -65,12 +66,12 @@ def _xprompt_highlight_agent(artifacts_dir: Path) -> Agent:
     )
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="visual-xprompt-highlight",
+        cl_name="visual-macro-highlight",
         project_file="/workspace/sase/visual_project.sase",
         status="RUNNING",
         start_time=datetime(2026, 7, 16, 15, 30, 0),
         raw_suffix="20260716153000",
-        agent_name="visual.xprompt-highlight",
+        agent_name="visual.macro-highlight",
         artifacts_dir=str(artifacts_dir),
     )
 
@@ -80,17 +81,17 @@ def _xprompt_highlight_agent(artifacts_dir: Path) -> Agent:
     [
         (
             "textual-dark",
-            "agents_xprompt_panel_highlighting_160x50",
-            "ACE agents xprompt panel highlighting",
+            "agents_macro_panel_highlighting_160x50",
+            "ACE agents macro panel highlighting",
         ),
         (
             "textual-light",
-            "agents_xprompt_panel_highlighting_light_160x50",
-            "ACE agents xprompt panel highlighting, light theme",
+            "agents_macro_panel_highlighting_light_160x50",
+            "ACE agents macro panel highlighting, light theme",
         ),
     ],
 )
-async def test_agents_xprompt_panel_highlighting_png_snapshot(
+async def test_agents_macro_panel_highlighting_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -98,7 +99,7 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
     snapshot_name: str,
     title: str,
 ) -> None:
-    agent = _xprompt_highlight_agent(tmp_path / "xprompt-highlight-artifacts")
+    agent = _macro_highlight_agent(tmp_path / "macro-highlight-artifacts")
     patch_startup_loaders(monkeypatch, agents=[agent])
     patch_visual_glossary_catalog(monkeypatch)
     patch_visual_repo_mention_catalog(monkeypatch)
@@ -158,9 +159,9 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
         )
 
 
-def _xprompt_tag_highlight_agent(artifacts_dir: Path) -> Agent:
+def _macro_tag_highlight_agent(artifacts_dir: Path) -> Agent:
     artifacts_dir.mkdir()
-    (artifacts_dir / "raw_xprompt.md").write_text(
+    (artifacts_dir / LEGACY_RAW_XPROMPT_FILENAME).write_text(
         "+sase %auto #pr:my_change Ask Agent Clan; run `checks`\n"
         "+home summarize the fresh-machine bootstrap\n"
         "---\n"
@@ -173,12 +174,12 @@ def _xprompt_tag_highlight_agent(artifacts_dir: Path) -> Agent:
     )
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="visual-xprompt-tag-highlight",
+        cl_name="visual-macro-tag-highlight",
         project_file="/workspace/sase/visual_project.sase",
         status="RUNNING",
         start_time=datetime(2026, 7, 16, 15, 30, 0),
         raw_suffix="20260716153000",
-        agent_name="visual.xprompt-tag-highlight",
+        agent_name="visual.macro-tag-highlight",
         artifacts_dir=str(artifacts_dir),
     )
 
@@ -188,17 +189,17 @@ def _xprompt_tag_highlight_agent(artifacts_dir: Path) -> Agent:
     [
         (
             "textual-dark",
-            "agents_xprompt_panel_tag_highlighting_160x50",
-            "ACE agents xprompt panel tag highlighting",
+            "agents_macro_panel_tag_highlighting_160x50",
+            "ACE agents macro panel tag highlighting",
         ),
         (
             "textual-light",
-            "agents_xprompt_panel_tag_highlighting_light_160x50",
-            "ACE agents xprompt panel tag highlighting, light theme",
+            "agents_macro_panel_tag_highlighting_light_160x50",
+            "ACE agents macro panel tag highlighting, light theme",
         ),
     ],
 )
-async def test_agents_xprompt_panel_tag_highlighting_png_snapshot(
+async def test_agents_macro_panel_tag_highlighting_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -206,7 +207,7 @@ async def test_agents_xprompt_panel_tag_highlighting_png_snapshot(
     snapshot_name: str,
     title: str,
 ) -> None:
-    agent = _xprompt_tag_highlight_agent(tmp_path / "xprompt-tag-artifacts")
+    agent = _macro_tag_highlight_agent(tmp_path / "macro-tag-artifacts")
     patch_startup_loaders(monkeypatch, agents=[agent])
     patch_visual_glossary_catalog(monkeypatch)
     patch_visual_repo_mention_catalog(monkeypatch)

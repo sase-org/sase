@@ -51,7 +51,7 @@ class TestProjectDisplayNameRendering:
     def test_macro_args_use_logical_project_name(self) -> None:
         agent = _project_agent()
         summary = DetailHeaderSummary(
-            xprompts_used=[
+            macros_used=[
                 {
                     "kind": "workflow",
                     "name": "gh",
@@ -71,7 +71,7 @@ class TestProjectDisplayNameRendering:
     def test_macro_args_fall_back_to_directory_key(self) -> None:
         agent = _project_agent(project_display_name=None)
         summary = DetailHeaderSummary(
-            xprompts_used=[
+            macros_used=[
                 {
                     "kind": "workflow",
                     "name": "gh",

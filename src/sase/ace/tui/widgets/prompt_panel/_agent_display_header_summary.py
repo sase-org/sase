@@ -187,10 +187,10 @@ def _build_detail_header_summary_impl(
     *,
     lanes: frozenset[DetailContextLane],
 ) -> DetailHeaderSummary:
-    xprompts_used = None
+    macros_used = None
     if "macros" in lanes and agent.step_type not in ("bash", "python", "parallel"):
-        with tui_trace(f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.xprompts_used"):
-            xprompts_used = load_macros_used(agent)
+        with tui_trace(f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.macros_used"):
+            macros_used = load_macros_used(agent)
 
     # Only confirmed bead displays surface in the header. A cache miss means
     # the candidate has not been confirmed against a bead store yet, so render
@@ -327,7 +327,7 @@ def _build_detail_header_summary_impl(
             wait_bead_statuses = resolve_wait_bead_statuses(agent)
 
     return DetailHeaderSummary(
-        xprompts_used=xprompts_used,
+        macros_used=macros_used,
         bead_display=bead_display,
         wait_bead_statuses=wait_bead_statuses,
         phase_bead=phase_bead,

@@ -14,7 +14,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import mount_prompt_bar
-from tests.ace.tui.visual._ace_prompt_png_snapshot_xprompt_fixtures import (
+from tests.ace.tui.visual._ace_prompt_png_snapshot_macro_fixtures import (
     LONG_SKILL_COMPLETION_ROWS,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture

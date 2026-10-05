@@ -320,6 +320,6 @@ async def test_agents_auto_approve_macros_metadata_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "agents_auto_approve_xprompts_metadata_120x40",
+            "agents_auto_approve_macros_metadata_120x40",
             title="ACE agents auto-approve macros metadata",
         )

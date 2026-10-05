@@ -72,7 +72,7 @@ async def test_config_center_statistics_macros_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "config_center_statistics_xprompts_120x40",
+            "config_center_statistics_macros_120x40",
             title="ACE SASE Admin Center — Statistics Macros usage",
         )
 
@@ -95,7 +95,7 @@ async def test_config_center_statistics_macros_model_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "config_center_statistics_xprompts_model_120x40",
+            "config_center_statistics_macros_model_120x40",
             title="ACE SASE Admin Center — Statistics Macros by model",
         )
 
@@ -126,7 +126,7 @@ async def test_config_center_statistics_macros_focus_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "config_center_statistics_xprompts_focus_120x40",
+            "config_center_statistics_macros_focus_120x40",
             title="ACE SASE Admin Center — Statistics focused Macro",
         )
 
@@ -153,7 +153,7 @@ async def test_config_center_statistics_macros_narrow_png_snapshot(
         assert pane._compact_scope is True
         ace_png_visual.assert_page_png(
             page,
-            "config_center_statistics_xprompts_narrow_90x30",
+            "config_center_statistics_macros_narrow_90x30",
             title="ACE SASE Admin Center — Statistics Macros narrow",
         )
 

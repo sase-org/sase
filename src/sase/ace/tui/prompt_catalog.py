@@ -225,10 +225,16 @@ def _project_macro_dirs(project: str) -> tuple[Path, ...]:
         for source in resolve_macro_file_sources(project=canonical)
         if source.path is not None and source.scope == "home_project"
     )
+    from sase.legacy_xprompt_names import MACROS_DIRNAME
+
+    configured_macros = CONFIG_DIR / MACROS_DIRNAME / canonical
+    directories = (*resolved, configured_macros)
     if not legacy_xprompt_syntax_enabled():
-        return tuple(dict.fromkeys(resolved))
-    configured_legacy = CONFIG_DIR / "xprompts" / canonical
-    return tuple(dict.fromkeys((*resolved, configured_legacy)))
+        return tuple(dict.fromkeys(directories))
+    from sase.legacy_xprompt_names import LEGACY_XPROMPTS_DIRNAME
+
+    configured_legacy = CONFIG_DIR / LEGACY_XPROMPTS_DIRNAME / canonical
+    return tuple(dict.fromkeys((*directories, configured_legacy)))
 
 
 def _memory_source_dirs(project: str | None) -> tuple[Path, ...]:

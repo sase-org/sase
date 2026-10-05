@@ -26,8 +26,8 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_prompts import (
     COMPACT_PROMPT,
     TWO_PANE_PROMPT,
 )
-from tests.ace.tui.visual._ace_prompt_png_snapshot_xprompt_fixtures import (
-    XPROMPT_COMPLETION_ROWS,
+from tests.ace.tui.visual._ace_prompt_png_snapshot_macro_fixtures import (
+    MACRO_COMPLETION_ROWS,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
@@ -371,7 +371,7 @@ async def test_prompt_stack_completion_panel_png_snapshot(
         # deterministic macro completion to pin its in-stack styling.
         bar.show_file_completions(
             "fo",
-            XPROMPT_COMPLETION_ROWS,
+            MACRO_COMPLETION_ROWS,
             selected_index=1,
             completion_kind="macro",
         )

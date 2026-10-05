@@ -1,4 +1,4 @@
-"""Guard the xprompt-to-macro rename outside the TUI.
+"""Guard the xprompt-to-macro rename, including the TUI surfaces.
 
 This module preserves the original public test import path; implementations live in
 private modules grouped by the content they scan.

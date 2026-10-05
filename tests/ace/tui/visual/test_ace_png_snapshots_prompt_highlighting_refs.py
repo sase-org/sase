@@ -39,7 +39,7 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_prompts import (
 from tests.ace.tui.visual._ace_prompt_png_snapshot_repo_mention_fixtures import (
     patch_visual_repo_mention_catalog,
 )
-from tests.ace.tui.visual._ace_prompt_png_snapshot_xprompt_fixtures import (
+from tests.ace.tui.visual._ace_prompt_png_snapshot_macro_fixtures import (
     patch_visual_skill_catalog,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -64,7 +64,7 @@ async def test_prompt_macro_highlight_solo_light_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "prompt_xprompt_highlight_solo_light_120x40",
+            "prompt_macro_highlight_solo_light_120x40",
             title="ACE prompt input — macro highlighting, light theme",
         )
 
@@ -85,7 +85,7 @@ async def test_prompt_macro_highlight_stack_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "prompt_xprompt_highlight_stack_120x40",
+            "prompt_macro_highlight_stack_120x40",
             title="ACE prompt stack — macro highlighting",
         )
 
@@ -155,12 +155,12 @@ async def test_prompt_project_tag_highlight_png_snapshot(
     [
         (
             "textual-dark",
-            "prompt_xprompt_argument_highlight_dark_120x40",
+            "prompt_macro_argument_highlight_dark_120x40",
             "ACE prompt input - macro argument highlighting, dark theme",
         ),
         (
             "textual-light",
-            "prompt_xprompt_argument_highlight_light_120x40",
+            "prompt_macro_argument_highlight_light_120x40",
             "ACE prompt input - macro argument highlighting, light theme",
         ),
     ],

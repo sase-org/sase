@@ -67,6 +67,14 @@ RETIRED_KEYMAP_ACTIONS: tuple[tuple[str, str], ...] = (
 )
 
 _RETIRED_PATH_TARGET_MAP = dict(RETIRED_PATH_TARGETS)
+_RETIRED_CONFIG_KEY_BY_CANONICAL = {
+    canonical: retired for retired, canonical in RETIRED_CONFIG_KEYS
+}
+
+
+def retired_config_key(canonical: str) -> str | None:
+    """Return the retired config key paired with *canonical*, if any."""
+    return _RETIRED_CONFIG_KEY_BY_CANONICAL.get(canonical)
 
 
 def legacy_xprompt_syntax_enabled() -> bool:
@@ -257,4 +265,5 @@ __all__ = [
     "normalize_frontmatter_macros",
     "normalize_keymap_actions",
     "normalize_legacy_root_args",
+    "retired_config_key",
 ]

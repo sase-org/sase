@@ -74,7 +74,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
     "workspaces": ("opened_workspaces",),
     "slow-tools": ("slow_tool_sources",),
     "tool-runs": ("tool_run_summary",),
-    "macros": ("xprompts_used",),
+    "macros": ("macros_used",),
     "page-url": ("agent_page_url",),
     "wait-beads": ("wait_bead_statuses",),
 }

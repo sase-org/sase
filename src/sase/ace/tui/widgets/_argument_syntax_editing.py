@@ -7,6 +7,7 @@ from typing import Any
 from sase.ace.tui.util.editor_offsets import editor_range_to_offsets, utf16_character
 from sase.ace.tui.widgets._paired_text_editing import TextEdit
 from sase.core.rust import require_rust_binding
+from sase.legacy_xprompt_names import require_legacy_xprompt_completion_spacer_binding
 
 
 def plan_argument_colon_to_parentheses_edit(
@@ -170,7 +171,7 @@ def plan_macro_completion_spacer_to_parentheses_edit(
         "spacer_start": spacer_position,
         "has_optional_inputs": has_optional_inputs,
     }
-    binding = require_rust_binding("xprompt_completion_spacer_to_parentheses_edit")
+    binding = require_legacy_xprompt_completion_spacer_binding()
     payload: Any = binding(text, position, record)
     if not isinstance(payload, dict):
         return None

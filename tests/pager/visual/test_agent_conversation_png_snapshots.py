@@ -82,12 +82,12 @@ async def test_agent_conversation_png_snapshot(
                 and not screen._syntax_pass_running
             ),
         )
-        macro_index = next(
+        raw_prompt_index = next(
             i
             for i, section in enumerate(document.sections)
-            if section.title == "AGENT XPROMPT"
+            if section.title == "AGENT RAW PROMPT"
         )
-        await pilot.press(*(["ctrl+n"] * macro_index))
+        await pilot.press(*(["ctrl+n"] * raw_prompt_index))
         await pilot.pause()
         pager_png_visual.assert_page_png(
             _SvgExport(app),

@@ -9,6 +9,7 @@ from sase.ace.tui.widgets._local_macro_conversion import (
     convert_placeholders_to_inputs,
 )
 from sase.macro.jinja_assist import JinjaScope
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_JINJA_SCOPE_KIND
 from sase.macro.jinja_inspect import undeclared_variables
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from sase.macro.save import SaveTargetFormat, SkillPlacementError
@@ -72,7 +73,7 @@ class PromptBarSaveMacroMixin(
 
         existing = {arg.name for arg in frontmatter.inputs}
         unknown = undeclared_variables(
-            body, JinjaScope(kind="xprompt", frontmatter=None)
+            body, JinjaScope(kind=LEGACY_XPROMPT_JINJA_SCOPE_KIND, frontmatter=None)
         )
         # Engine scope variables (``wait``, ``patch_name``, ``n``, ...) are
         # render-time builtins and must never become inferred inputs.

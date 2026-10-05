@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from sase.ace.tui.modals.existing_definition_entries import (
     ExistingDefinitionEntry,
     existing_entry_verdict,
@@ -13,13 +15,13 @@ from sase.ace.tui.modals.mini_macro_target_catalog import (
     MiniMacroDefinition,
     MiniMacroTargetCatalog,
 )
-from sase.snippet.redefinition import SnippetDefinitionSite
 from sase.ace.tui.modals import mini_macro_target_catalog as catalog_mod
 from sase.ace.tui.modals.mini_macro_target_catalog import load_mini_macro_target_catalog
-from sase.macro.models import Macro
 from sase.ace.tui.modals.macro_location_modal import MacroLocation
 from sase.ace.tui.modals.unified_macro_save_modal import UnifiedSaveLocation
-from pathlib import Path
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_SOURCE_KIND
+from sase.macro.models import Macro
+from sase.snippet.redefinition import SnippetDefinitionSite
 
 
 def _macro(
@@ -149,7 +151,7 @@ def test_snippet_entries_preserve_source_origin_and_templates() -> None:
         ),
         SnippetDefinitionSite(
             trigger="macro",
-            kind="xprompt",
+            kind=LEGACY_XPROMPT_SOURCE_KIND,
             path=None,
             display="#review (macro snippet)",
             template="from macro",

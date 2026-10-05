@@ -13,6 +13,17 @@ STRING_PAIRS: set[tuple[str, str]] = {
         '"ref.xprompt was retired; use provider-backed or inline ref specs"',
     ),
     ("src/sase/_sidecar_ref_normalization.py", '"retired_ref_xprompt"'),
+    ("src/sase/ace/tui/modals/config_center_catalog.py", '"xprompts"'),
+    (
+        "src/sase/ace/tui/modals/config_center_catalog.py",
+        "A legacy top-level ``xprompts`` identity from the pre-cutover Admin",
+    ),
+    ("src/sase/ace/tui/modals/config_hub_session.py", '"xprompts"'),
+    ("src/sase/ace/tui/modals/statistics_pane_data.py", '"xprompts"'),
+    (
+        "src/sase/ace/tui/modals/statistics_pane_data.py",
+        "A stored ``xprompts`` id is read as ``macros`` unconditionally.",
+    ),
     ("src/sase/agent/_macro_swarm_rendering.py", '"xprompt"'),
     ("src/sase/agent/launch_guard.py", '"swarm_xprompts"'),
     ("src/sase/agent/launch_guard.py", '"template_group, swarm_xprompts"'),

@@ -1,4 +1,4 @@
-"""Xprompt assist entries and completion rows for ACE prompt PNG snapshots."""
+"""Macro assist entries and completion rows for ACE prompt PNG snapshots."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ _VISUAL_SKILL_ENTRIES = [
         skill_name="sase_plan",
         insertion="#skill/sase_plan",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature=None,
         inputs=(),
         content_preview=None,
@@ -45,7 +45,7 @@ _VISUAL_SKILL_ENTRIES = [
         name="visual",
         insertion="#visual",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature="(path: path, context: string)",
         inputs=(
             _input("path", "path", position=0),
@@ -58,7 +58,7 @@ _VISUAL_SKILL_ENTRIES = [
         name="visual_batch",
         insertion="#visual_batch",
         reference_prefix="#",
-        kind="xprompt",
+        kind="macro",
         input_signature="(owner: agent, title: string, count: int, enabled: bool)",
         inputs=(
             _input("owner", "agent", position=0),
@@ -96,7 +96,7 @@ def patch_visual_skill_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _xprompt_candidate(
+def _macro_candidate(
     name: str,
     *,
     kind: str,
@@ -120,12 +120,12 @@ def _xprompt_candidate(
     )
 
 
-XPROMPT_COMPLETION_ROWS = [
-    _xprompt_candidate("fork", kind="part", description="Strip SASE lingo and fork"),
-    _xprompt_candidate(
+MACRO_COMPLETION_ROWS = [
+    _macro_candidate("fork", kind="part", description="Strip SASE lingo and fork"),
+    _macro_candidate(
         "format", kind="workflow", description="Run the formatter across the diff"
     ),
-    _xprompt_candidate(
+    _macro_candidate(
         "followup", kind="part", description="Draft a follow-up review pass"
     ),
 ]
@@ -152,7 +152,7 @@ def _skill_candidate(name: str, *, description: str) -> CompletionCandidate:
             name=f"skill/{name}",
             insertion=f"#skill/{name}",
             reference_prefix="#",
-            kind="xprompt",
+            kind="macro",
             input_signature=None,
             inputs=(),
             content_preview=None,

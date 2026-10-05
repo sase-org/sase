@@ -280,7 +280,7 @@ def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
         error_message="fixture error",
     )
     summary = DetailHeaderSummary(
-        xprompts_used=[{"kind": "part", "name": "plan"}],
+        macros_used=[{"kind": "part", "name": "plan"}],
         associated_plan=_epic_summary(),
         memory_reads=(object(),),  # type: ignore[arg-type]
         skill_uses=(object(),),  # type: ignore[arg-type]

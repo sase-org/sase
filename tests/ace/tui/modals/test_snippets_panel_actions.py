@@ -21,6 +21,7 @@ from sase.ace.tui.modals.snippets_panel_delete import (
     neighbor_trigger_after_delete,
 )
 from sase.ace.tui.proc_producer_sites import PRODUCTION_PRODUCERS
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_SOURCE_KIND
 from sase.ace.tui.snippets_panel_catalog import SnippetDestination, SnippetProjectRef
 from sase.snippet.models import SnippetMutationOutcome
 from sase.snippet.mutation import SnippetConflictError
@@ -153,7 +154,7 @@ def test_snippet_write_producer_is_registered() -> None:
 def test_delete_subject_lists_backlinks_and_reveal() -> None:
     hidden = snippet_entry(
         "todo",
-        kind="xprompt",
+        kind=LEGACY_XPROMPT_SOURCE_KIND,
         path="/tmp/macro.md",
         writable=False,
         macro_name="todo",
@@ -238,7 +239,7 @@ async def test_edit_on_macro_opens_source(
     ref = project_ref("sase", "sase")
     entry = snippet_entry(
         "helper",
-        kind="xprompt",
+        kind=LEGACY_XPROMPT_SOURCE_KIND,
         path="/tmp/helper.md",
         writable=False,
         macro_name="helper",

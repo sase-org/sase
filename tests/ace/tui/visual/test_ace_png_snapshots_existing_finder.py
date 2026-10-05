@@ -204,7 +204,9 @@ async def test_existing_snippet_finder_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    modal = ExistingDefinitionFinderModal("snippet", _snippet_entries())
+    modal = ExistingDefinitionFinderModal(
+        "snippet", _snippet_entries(), initial_query="todo"
+    )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)

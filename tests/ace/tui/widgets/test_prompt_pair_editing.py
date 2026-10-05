@@ -451,7 +451,7 @@ async def test_typing_paren_after_invocation_colon_pairs_before_whitespace() -> 
         "%unknown:",
         "word%q:",
         "word#foo:",
-        "%xprompts_enabled:",
+        "%macros_enabled:",
     ],
 )
 async def test_typing_paren_after_non_invocation_colon_keeps_colon(
@@ -536,7 +536,7 @@ async def test_typing_paren_after_double_colon_forms(
         "%q:: ",
         "%model:: ",
         "%if:: ",
-        "%xprompts_enabled:: ",
+        "%macros_enabled:: ",
         "%unknown:: ",
         "#foo::\t",
         "#foo::\u00a0",

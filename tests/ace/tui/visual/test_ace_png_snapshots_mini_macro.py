@@ -217,7 +217,7 @@ async def test_mini_macro_name_fresh_completion_png_snapshot(
         await _open_name_modal(page, modal, "Create #re")
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_name_fresh_completion_120x40",
+            "mini_macro_name_fresh_completion_120x40",
             title="ACE mini-macro name panel - fresh completion",
         )
 
@@ -243,7 +243,7 @@ async def test_mini_macro_name_edit_existing_png_snapshot(
         await _open_name_modal(page, modal, "Edit #review")
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_name_edit_existing_120x40",
+            "mini_macro_name_edit_existing_120x40",
             title="ACE mini-macro name panel - edit existing",
         )
 
@@ -274,7 +274,7 @@ async def test_mini_macro_name_incompatible_swarm_png_snapshot(
         await _open_name_modal(page, modal, "Cannot open #swarm")
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_name_incompatible_swarm_120x40",
+            "mini_macro_name_incompatible_swarm_120x40",
             title="ACE mini-macro name panel - incompatible swarm",
         )
 
@@ -284,12 +284,12 @@ async def test_mini_macro_name_incompatible_swarm_png_snapshot(
     [
         (
             False,
-            "mini_xprompt_pane_new_120x40",
+            "mini_macro_pane_new_120x40",
             "ACE mini-macro pane - new",
         ),
         (
             True,
-            "mini_xprompt_pane_clean_light_120x40",
+            "mini_macro_pane_clean_light_120x40",
             "ACE mini-macro pane - clean light",
         ),
     ],
@@ -338,7 +338,7 @@ async def test_mini_macro_pane_dirty_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_pane_dirty_120x40",
+            "mini_macro_pane_dirty_120x40",
             title="ACE mini-macro pane - dirty",
         )
 
@@ -367,7 +367,7 @@ async def test_mini_macro_pane_stale_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_pane_stale_120x40",
+            "mini_macro_pane_stale_120x40",
             title="ACE mini-macro pane - changed on disk",
         )
 
@@ -404,7 +404,7 @@ async def test_mini_macro_scoped_frontmatter_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_scoped_frontmatter_120x40",
+            "mini_macro_scoped_frontmatter_120x40",
             title="ACE mini-macro pane - scoped frontmatter",
         )
 
@@ -427,7 +427,7 @@ async def test_mini_macro_location_flow_picker_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_location_flow_picker_120x40",
+            "mini_macro_location_flow_picker_120x40",
             title="ACE mini-macro location picker — real chord flow",
         )
 
@@ -453,7 +453,7 @@ async def test_mini_macro_location_flow_finder_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_location_flow_finder_120x40",
+            "mini_macro_location_flow_finder_120x40",
             title="ACE mini-macro location picker — existing finder",
         )
 
@@ -485,6 +485,6 @@ async def test_mini_macro_save_diff_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "mini_xprompt_save_diff_120x40",
+            "mini_macro_save_diff_120x40",
             title="ACE mini-macro save review - diff",
         )

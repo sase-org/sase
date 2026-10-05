@@ -7,6 +7,7 @@ from textual.widgets import OptionList
 
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals.snippets_panel import SnippetsPanel
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_SOURCE_KIND
 from tests.ace.tui.modals.snippets_panel_test_helpers import (
     SnippetsPanelTestApp,
     install_fixed_load,
@@ -25,7 +26,7 @@ async def test_filter_matches_triggers_aliases_and_source_labels(
         snippet_entry("agent", aliases=("Agent",)),
         snippet_entry(
             "other",
-            kind="xprompt",
+            kind=LEGACY_XPROMPT_SOURCE_KIND,
             path="macros/other.md",
             macro_name="other",
             writable=False,

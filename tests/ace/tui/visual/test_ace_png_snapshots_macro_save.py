@@ -145,7 +145,7 @@ async def test_macro_save_create_png_snapshot(
         await _open(page, modal)
         ace_png_visual.assert_page_png(
             page,
-            "xprompt_save_create_120x40",
+            "macro_save_create_120x40",
             title="ACE unified macro save create verdict",
         )
 
@@ -182,7 +182,7 @@ async def test_macro_save_collision_armed_diff_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "xprompt_save_collision_armed_diff_120x40",
+            "macro_save_collision_armed_diff_120x40",
             title="ACE unified macro save armed overwrite diff",
         )
 
@@ -210,7 +210,7 @@ async def test_macro_save_snippet_mode_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "xprompt_save_snippet_mode_120x40",
+            "macro_save_snippet_mode_120x40",
             title="ACE unified save panel snippet mode",
         )
 
@@ -242,6 +242,6 @@ async def test_macro_save_no_writable_locations_png_snapshot(
         await _open(page, modal)
         ace_png_visual.assert_page_png(
             page,
-            "xprompt_save_no_writable_locations_120x40",
+            "macro_save_no_writable_locations_120x40",
             title="ACE unified macro save no writable locations",
         )

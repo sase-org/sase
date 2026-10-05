@@ -22,7 +22,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 _CHILD_SPAN_SUFFIXES = (
-    "xprompts_used",
+    "macros_used",
     "bead_display",
     "plan_enrichment",
     "slow_tool_sources",

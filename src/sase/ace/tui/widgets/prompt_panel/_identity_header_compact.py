@@ -131,7 +131,7 @@ def _turn_count_chip(turn_section: ResponsiveTurnSection | None) -> Text:
 
 def _macro_chips(summary: DetailHeaderSummary | None) -> list[Text]:
     """Return at most three macro chips plus a dim overflow count."""
-    macros = (summary.xprompts_used if summary is not None else None) or []
+    macros = (summary.macros_used if summary is not None else None) or []
     chips: list[Text] = []
     for item in macros[:_MACRO_CHIP_LIMIT]:
         glyph, style = _MACRO_KIND_STYLES.get(

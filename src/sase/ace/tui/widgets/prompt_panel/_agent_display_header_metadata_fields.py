@@ -97,7 +97,7 @@ def append_agent_metadata_fields(
         )
         append_agent_macros_section(
             text,
-            summary.xprompts_used,
+            summary.macros_used,
             project_key=project_key,
             project_display_name=agent.project_display_name,
         )

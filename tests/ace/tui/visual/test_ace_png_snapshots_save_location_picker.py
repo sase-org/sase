@@ -170,7 +170,7 @@ async def test_save_location_picker_macro_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "save_location_picker_xprompt_120x40",
+            "save_location_picker_macro_120x40",
             title="ACE save location picker — mini-macro destinations",
         )
 

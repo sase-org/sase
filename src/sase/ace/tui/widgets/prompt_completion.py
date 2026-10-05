@@ -29,6 +29,7 @@ from sase.ace.tui.widgets.macro_completion import (
     build_macro_completion_candidates,
     extract_macro_token_around_cursor,
 )
+from sase.legacy_xprompt_syntax import retired_config_key
 
 PromptCompletionAutoMode = Literal["off", "soft"]
 WordRankingMode = Literal["smart", "recent"]
@@ -119,17 +120,16 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         DEFAULT_PROMPT_COMPLETION_SETTINGS.debounce_ms,
     )
     auto_file_paths = bool(raw.get("auto_file_paths", False))
-    # Canonical key first so a user's explicit false survives config-layer
-    # normalization; the retired spelling is honored only while the sunset
-    # flag accepts it. Field names stay for the TUI rename phase.
+    # Config-layer normalization accepts the retired spelling only while the
+    # compatibility flag is on and canonicalizes it before this read.
     if "auto_macro_menu" in raw:
         auto_macro_menu = bool(raw.get("auto_macro_menu"))
     else:
+        retired_key = retired_config_key("auto_macro_menu")
         auto_macro_menu = bool(
-            raw.get(
-                "auto_xprompt_menu",
-                DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_macro_menu,
-            )
+            raw.get(retired_key, DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_macro_menu)
+            if retired_key is not None
+            else DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_macro_menu
         )
     auto_directive_menu = bool(
         raw.get(

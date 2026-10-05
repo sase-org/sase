@@ -13,6 +13,7 @@ from sase.ace.tui.widgets.directive_completion import (
     is_directive_like_token,
 )
 from sase.feature_flags import override_flags
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME
 
 from ._directive_completion_helpers import (
     build_directive_arg_completion_candidates,
@@ -43,7 +44,7 @@ def canonical_insertions(candidates) -> list[str]:
     ]
 
 
-def test_directive_completion_lists_canonical_directives() -> None:
+def test_directive_completion_lists_shared_core_directives() -> None:
     candidates, shared = build_directive_completion_candidates("%")
     insertions = set(canonical_insertions(candidates))
 
@@ -59,7 +60,7 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%plan" not in insertions
     assert "%tale" not in insertions
     assert "%epic" not in insertions
-    assert "%xprompts_enabled" in insertions
+    assert f"%{LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME}" in insertions
     assert "%approve" not in insertions
 
 

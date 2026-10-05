@@ -367,6 +367,6 @@ async def test_frontmatter_macro_item_modal_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "frontmatter_xprompt_item_modal_120x40",
+            "frontmatter_macro_item_modal_120x40",
             title="ACE frontmatter macro item editor",
         )

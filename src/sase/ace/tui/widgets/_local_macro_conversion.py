@@ -31,6 +31,8 @@ from sase.ace.tui.widgets.macro_arg_assist import (
 from sase.config.core import load_merged_config
 from sase.macro.jinja_assist import JinjaScope
 from sase.macro.jinja_inspect import undeclared_variables
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_JINJA_SCOPE_KIND
+from sase.legacy_xprompt_syntax import retired_config_key
 from sase.macro.loader_parsing import (
     LocalMacroNameError,
     parse_local_macro_entries,
@@ -68,12 +70,13 @@ def _macro_placeholder_args_enabled() -> bool:
     try:
         ace = _config_section(load_merged_config(), "ace")
         inputs = _config_section(ace, "prompt_inputs")
-        # Canonical key first so a user's explicit false survives
-        # config-layer normalization; fall back to the retired spelling.
+        # Config-layer normalization accepts the retired spelling only while
+        # the compatibility flag is on and canonicalizes it before this read.
         if "macro_placeholder_args" in inputs:
             raw = inputs.get("macro_placeholder_args", True)
         else:
-            raw = inputs.get("xprompt_placeholder_args", True)
+            retired_key = retired_config_key("macro_placeholder_args")
+            raw = inputs.get(retired_key, True) if retired_key is not None else True
     except Exception:
         log.debug("macro placeholder argument toggle unavailable", exc_info=True)
         return True
@@ -179,7 +182,10 @@ def infer_local_macro_inputs(body: str) -> _PlaceholderArgConversion | None:
     the pane unchanged and notifies rather than minting a helper with unreliable
     inputs.
     """
-    unknown = undeclared_variables(body, JinjaScope(kind="xprompt", frontmatter=None))
+    unknown = undeclared_variables(
+        body,
+        JinjaScope(kind=LEGACY_XPROMPT_JINJA_SCOPE_KIND, frontmatter=None),
+    )
     if unknown is None:
         return None
     jinja_inputs = [

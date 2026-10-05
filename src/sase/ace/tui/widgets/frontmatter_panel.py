@@ -53,6 +53,7 @@ from sase.ace.tui.widgets._frontmatter_panel_rendering import (
     FrontmatterPanelRenderingMixin,
 )
 from sase.macro.frontmatter_schema import frontmatter_field_schema
+from sase.legacy_xprompt_syntax import RETIRED_FRONTMATTER_KEY
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 _PANEL_BORDER_ROWS = 2
@@ -156,11 +157,11 @@ class FrontmatterPanel(
         self._schema = {f.name: f for f in schema}
         # Config-frontmatter glue (sase-1eq.4.1.2): the Python model now
         # serializes canonical ``macros`` while core still advertises the
-        # retired ``macros`` field. Alias the canonical key to the same
+        # retired local-helper field. Alias the canonical key to the same
         # structured descriptor until the core schema flips; the TUI rename
         # phase owns widget terminology. Field/item kind names stay.
-        if "macros" not in self._schema and "xprompts" in self._schema:
-            base = self._schema["xprompts"]
+        if "macros" not in self._schema and RETIRED_FRONTMATTER_KEY in self._schema:
+            base = self._schema[RETIRED_FRONTMATTER_KEY]
             self._schema["macros"] = type(base)(
                 name="macros",
                 kind=base.kind,
@@ -170,9 +171,10 @@ class FrontmatterPanel(
                 example=base.example,
             )
         self._schema_order = [f.name for f in schema]
-        if "macros" in self._schema and "xprompts" in self._schema_order:
+        if "macros" in self._schema and RETIRED_FRONTMATTER_KEY in self._schema_order:
             self._schema_order = [
-                "macros" if name == "xprompts" else name for name in self._schema_order
+                "macros" if name == RETIRED_FRONTMATTER_KEY else name
+                for name in self._schema_order
             ]
 
     # -- composition ----------------------------------------------------------
@@ -592,7 +594,7 @@ class FrontmatterPanel(
             return
         kind, key = nav
         field = key if kind == "field" else ("input" if kind == "input" else "macros")
-        if field not in ("input", "macros", "xprompts"):
+        if field not in ("input", "macros", RETIRED_FRONTMATTER_KEY):
             return
         if folded:
             self._folded.add(field)

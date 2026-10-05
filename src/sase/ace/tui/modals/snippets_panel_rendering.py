@@ -16,6 +16,7 @@ from rich.text import Text
 
 from sase.ace.tui.keymaps.app_keymaps import SnippetPanelKeymaps
 from sase.ace.tui.keymaps.display import key_display_name
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_SOURCE_KIND
 from sase.core.snippet_catalog_facade import SnippetCall
 from sase.snippet.models import SnippetCatalog, SnippetEntry, SnippetSourceKind
 from sase.macro.highlight_theme import derive_argument_color
@@ -32,7 +33,7 @@ _DIAGNOSTIC_CHIP = "#808080"
 _TABSTOP_RE = re.compile(r"\$\{\d+\}|\$\d+")
 
 _KIND_LABEL: dict[SnippetSourceKind, str] = {
-    "xprompt": "xp",
+    LEGACY_XPROMPT_SOURCE_KIND: "ma",
     "default": "def",
     "plugin": "plug",
     "user": "cfg",

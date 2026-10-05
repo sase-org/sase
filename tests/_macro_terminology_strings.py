@@ -14,7 +14,6 @@ from tests._macro_terminology_common import (
     MACRO_PATH_ALLOWLIST,
     ROOT,
     SELF_TESTS,
-    in_scope,
     iter_scope_files,
     literal_key,
 )
@@ -26,13 +25,13 @@ pytestmark = pytest.mark.contract
 # ---------------------------------------------------------------------------
 # Strings-guard widened scans (phase sase-1eq.4.1.5).
 #
-# Beyond identifiers/imports/paths, the guard now inspects string literals,
-# comments, and non-Python text resources across all tracked non-TUI
-# src/tests/smoke/demos content. Skill sources under
+# Beyond identifiers/imports/paths, the guard inspects string literals,
+# comments, and non-Python text resources across all src/tests/smoke/demos
+# content, including the TUI trees. Skill sources under
 # src/sase/macros/skills/ and smoke/demo scripts carry no exceptions: they
 # must stay clean. Every other surviving hit is pinned below as a
 # (file, literal-line) pair with a per-file reason; a newly introduced
-# non-TUI xprompt string, comment, or resource line fails.
+# xprompt string, comment, or resource line fails.
 # ---------------------------------------------------------------------------
 
 _STRING_DATA_MODULES = frozenset(
@@ -60,6 +59,9 @@ def _string_scope_ok(relative: Path) -> bool:
 
 
 _MACRO_SRC_STRING_REASONS: dict[str, str] = {
+    "src/sase/ace/tui/modals/config_center_catalog.py": "unconditional reader maps the retired top-level Admin Center id to Config",
+    "src/sase/ace/tui/modals/config_hub_session.py": "unconditional reader maps the retired Config sub-tab id to Macros",
+    "src/sase/ace/tui/modals/statistics_pane_data.py": "unconditional reader maps the retired Statistics view id to Macros",
     "src/sase/_sidecar_ref_constants.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/_sidecar_ref_normalization.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/agent/__init__.py": "temporary import shim (audit-deploy removes it)",
@@ -130,6 +132,11 @@ _MACRO_SRC_STRING_REASONS: dict[str, str] = {
 _MACRO_TEST_STRING_REASON_DEFAULT = "legacy-input evidence for the both-states compatibility matrix: writers are canonical and the suite is green, so surviving hits are reader inputs, stored fixtures, or deferred-surface pins"
 
 _MACRO_TEST_STRING_REASONS: dict[str, str] = {
+    "tests/ace/tui/modals/test_macro_browser_helpers.py": "legacy project and home macro directories remain readable",
+    "tests/ace/tui/test_config_center_state.py": "resume-state migration test keeps the retired top-level id opening Config",
+    "tests/ace/tui/test_config_hub_catalog.py": "resume-state migration tests cover the top-level Admin id and Config sub-tab id",
+    "tests/ace/tui/test_config_hub_pane.py": "resume-state migration test keeps the retired Config sub-tab id opening Macros",
+    "tests/ace/tui/test_statistics_scope_header.py": "resume-state migration test keeps the retired Statistics view id opening Macros",
     "tests/doctor/test_checks_config_retired.py": "doctor retired-names table: required legacy id and retired-name report surface; permanent by parent design fixtures",
     "tests/fixtures/macro_args_corpus.json": "shared Python/Rust corpus fixture; description renames with the core flip",
     "tests/macro/test_argument_surface_parity.py": "pre-flip wire/transport vocabulary; owned by sase-1eq.10",
@@ -261,7 +268,7 @@ def _iter_resource_files() -> list[Path]:
                 continue
             if "__pycache__" in path.parts:
                 continue
-            if in_scope(path) and path.relative_to(ROOT) not in _MACRO_RESOURCE_SKIPS:
+            if path.relative_to(ROOT) not in _MACRO_RESOURCE_SKIPS:
                 found.append(path)
     return found
 

@@ -145,12 +145,12 @@ async def test_directive_arg_auto_menu_uses_directive_gate() -> None:
         assert ta._file_completion_active is False
 
 
-async def test_xprompts_enabled_colon_offers_bool_values() -> None:
+async def test_macros_enabled_colon_offers_bool_values() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
 
-        for char in "%xprompts_enabled:":
+        for char in "%macros_enabled:":
             await pilot.press(char)
 
         assert ta._completion_kind == "directive_arg"

@@ -125,7 +125,7 @@ ALL_DETAIL_CONTEXT_LANES: frozenset[DetailContextLane] = frozenset(
 class DetailHeaderSummary:
     """Precomputed data that is too expensive for hot header rendering."""
 
-    xprompts_used: list[dict[str, Any]] | None = None
+    macros_used: list[dict[str, Any]] | None = None
     bead_display: str | None = None
     wait_bead_statuses: tuple[tuple[str, str | None], ...] | None = None
     phase_bead: PhaseBeadSummary | None = None

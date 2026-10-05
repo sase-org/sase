@@ -23,6 +23,7 @@ from sase.macro._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
 from sase.macro.directives import extract_prompt_directives
 from sase.macro.effort import EFFORT_LEVELS_ORDERED
 from sase.macro.model_completion import ModelCompletionEntry
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME
 
 from ._directive_completion_helpers import (
     MODEL_CATALOG_PATCH,
@@ -584,8 +585,10 @@ def test_auto_argument_completion_suggests_compatibility_values_without_closing_
     assert directives.auto_argument == "foo"
 
 
-def test_xprompts_enabled_offers_bool_values() -> None:
-    candidates, _ = build_directive_arg_completion_candidates("xprompts_enabled", "")
+def test_legacy_enabled_directive_offers_bool_values() -> None:
+    candidates, _ = build_directive_arg_completion_candidates(
+        LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME, ""
+    )
 
     assert [candidate.insertion for candidate in candidates] == ["false", "true"]
     assert all(

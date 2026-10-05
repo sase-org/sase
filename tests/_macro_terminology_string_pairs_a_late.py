@@ -32,6 +32,12 @@ STRING_PAIRS: set[tuple[str, str]] = {
         "tests/_macro_directive_completion_parity_lsp_session.py",
         '"xprompt_catalog.json"',
     ),
+    ("tests/ace/tui/modals/test_macro_browser_helpers.py", '"sase/xprompts/review.md"'),
+    ("tests/ace/tui/modals/test_macro_browser_helpers.py", '"xprompts"'),
+    ("tests/ace/tui/test_config_center_state.py", 'b"xprompts\\n"'),
+    ("tests/ace/tui/test_config_hub_catalog.py", '"xprompts"'),
+    ("tests/ace/tui/test_config_hub_pane.py", '"xprompts"'),
+    ("tests/ace/tui/test_statistics_scope_header.py", '"xprompts"'),
     (
         "tests/agent/test_failed_launch_prompt_stash.py",
         '"---\\nxprompts:\\n  _helper: Use saved helper rules\\n---"',

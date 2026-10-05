@@ -14,7 +14,6 @@ from tests._macro_terminology_common import (
     MACRO_PATH_ALLOWLIST,
     ROOT,
     SELF_TESTS,
-    TUI_SCOPES,
     iter_scope_files,
 )
 
@@ -103,28 +102,19 @@ def _is_legacy_identifier(name: str) -> bool:
     return name.startswith("LEGACY_") or "legacy_xprompt" in name.lower()
 
 
-def _tui_module_basenames() -> frozenset[str]:
-    # TUI-local definitions keep their spellings, so a non-TUI reference
-    # that names a TUI xprompt module is a follow, not a straggler.
-    names: set[str] = set()
-    for scope in TUI_SCOPES:
-        for path in sorted((ROOT / scope).rglob("*.py")):
-            if "xprompt" in path.stem.lower():
-                names.add(path.stem)
-    return frozenset(names)
-
-
-_TUI_MODULE_BASENAMES = _tui_module_basenames()
-
 # Intentional survivors as (file, identifier) pairs. Each row is one of: a
 # content-layout locator the pinned core still emits, a pre-contract
-# wire/durable key read for compatibility, a plugin-directory spelling
-# plugins still ship, or a TUI-local definition a non-TUI test follows.
+# wire/durable key read for compatibility, or a plugin-directory spelling
+# plugins still ship.
 # Never add a whole file here to hide a missed rename.
 _MACRO_NAME_ALLOWLIST = {
     # Pinned-core locator fields; the core flip owns the canonical key.
     ("src/sase/core/content_layout_wire.py", "xprompts"),
     ("src/sase/core/content_layout_wire.py", "xprompt_sources"),
+    # The pinned layout response still exposes its legacy source collection;
+    # the UI reads it only as a migration fallback until sase-1eq.10.
+    ("src/sase/ace/tui/modals/macro_browser_helpers.py", "xprompts"),
+    ("tests/ace/tui/modals/test_macro_browser_helpers.py", "xprompts"),
     ("src/sase/prompt/cli_export.py", "xprompts"),
     # Plugins still ship an `xprompts/` resource directory.
     ("src/sase/macro/loader_skills.py", "_PLUGIN_XPROMPT_DESTINATION"),
@@ -177,8 +167,6 @@ def _allowed_name(relative: Path, name: str, line: str) -> bool:
         return True
     if (relative.as_posix(), name) in _MACRO_TRANSPORT_SINGLETONS:
         return True
-    if name in _TUI_MODULE_BASENAMES:
-        return True
     return (relative.as_posix(), name) in _MACRO_NAME_ALLOWLIST
 
 
@@ -192,9 +180,6 @@ def _allowed_module(relative: Path, module: str, line: str) -> bool:
         # The cutover's temporary syntax home owns every sunset alias and
         # the flag-gated normalization policy (plan 202610/macro_syntax_cutover.md).
         # Remove when the sunset flag and this module are deleted.
-        return True
-    if module.startswith("sase.ace.tui."):
-        # TUI paths keep xprompt components by plan scope.
         return True
     return False
 

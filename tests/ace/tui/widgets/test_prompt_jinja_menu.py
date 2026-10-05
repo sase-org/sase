@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.macro.jinja_assist import JinjaScope
 from sase.macro.models import InputArg, InputType
 from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_JINJA_SCOPE_KIND
 
 from ._completion_helpers import CompletionTestApp
 from ._prompt_stack_helpers import mini_macro_target
@@ -65,7 +66,7 @@ async def test_mini_pane_offers_own_inputs_plus_args() -> None:
         )
         scope = bar.jinja_scope_for_text_area(ta)
 
-        assert scope.kind == "xprompt"
+        assert scope.kind == LEGACY_XPROMPT_JINJA_SCOPE_KIND
         names = _menu_names("{{ ", scope)
 
     assert "topic" in names

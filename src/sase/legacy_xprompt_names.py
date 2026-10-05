@@ -1,9 +1,10 @@
-"""Permanent dual-readers for pre-rename durable xprompt names.
+"""Compatibility names for pre-rename data and pinned-core xprompt contracts.
 
 Every ``LEGACY_*`` constant names a file, key, or value SASE wrote before the
-xprompt-to-macro rename. Readers prefer the canonical macro spelling and fall
-back to the legacy spelling unconditionally: durable data is never
-flag-gated, and nothing rewrites history in place.
+xprompt-to-macro rename, or a core API spelling that remains until ``core-flip``.
+Durable readers prefer the canonical macro spelling and fall back to the
+legacy spelling unconditionally: durable data is never flag-gated, and nothing
+rewrites history in place.
 
 Writers emit only the canonical name. Later codemods must skip this module,
 every ``LEGACY_*`` identifier, and fixtures named ``*legacy_xprompt*``.
@@ -14,7 +15,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 # Agent prompt artifacts.
 RAW_PROMPT_FILENAME = "raw_prompt.md"
@@ -22,7 +23,22 @@ LEGACY_RAW_XPROMPT_FILENAME = "raw_xprompt.md"
 SUBMITTED_PROMPT_FILENAME = "submitted_prompt.md"
 LEGACY_SUBMITTED_XPROMPT_FILENAME = "submitted_xprompt.md"
 MACROS_FILENAME = "macros.json"
+MACROS_DIRNAME = "macros"
 LEGACY_MACROS_FILENAME = "xprompts.json"
+LEGACY_XPROMPTS_DIRNAME = "xprompts"
+LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME: Literal["xprompts_enabled"] = "xprompts_enabled"
+
+# The pinned core still accepts these Rust editor-scope and source-kind values,
+# and exports this completion binding, until the macro contract flip.
+LEGACY_XPROMPT_JINJA_SCOPE_KIND: Literal["xprompt"] = "xprompt"
+LEGACY_XPROMPT_SOURCE_KIND: Literal["xprompt"] = "xprompt"
+
+
+def require_legacy_xprompt_completion_spacer_binding() -> Any:
+    """Load the pinned-core editor binding by its pre-rename name."""
+    from sase.core.rust import require_rust_binding
+
+    return require_rust_binding("xprompt_completion_spacer_to_parentheses_edit")
 
 
 def macros_step_filename(step_name: str) -> str:
@@ -163,13 +179,18 @@ __all__ = [
     "LEGACY_SUBMITTED_XPROMPT_FILENAME",
     "LEGACY_VCS_XPROMPT_MRU_FILENAME",
     "LEGACY_XPROMPTS_CATALOG_DIRNAME",
+    "LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME",
     "LEGACY_XPROMPT_LSP_DIRNAME",
+    "LEGACY_XPROMPT_JINJA_SCOPE_KIND",
     "LEGACY_XPROMPT_PROC_FIELD",
     "LEGACY_XPROMPT_PROC_ORIGIN",
     "LEGACY_XPROMPT_SAVE_STATE_FILENAME",
     "LEGACY_XPROMPT_SAVE_STATE_KEY",
+    "LEGACY_XPROMPT_SOURCE_KIND",
     "LEGACY_XPROMPT_SET_SHA256_KEY",
+    "LEGACY_XPROMPTS_DIRNAME",
     "MACROS_CATALOG_DIRNAME",
+    "MACROS_DIRNAME",
     "MACROS_FILENAME",
     "MACRO_LSP_DIRNAME",
     "MACRO_SAVE_STATE_FILENAME",
@@ -188,6 +209,7 @@ __all__ = [
     "prompt_proc_payload",
     "read_json_new_first",
     "read_raw_prompt_text",
+    "require_legacy_xprompt_completion_spacer_binding",
     "resolve_artifact_path",
     "resolve_raw_prompt_path",
 ]

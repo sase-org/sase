@@ -256,7 +256,7 @@ class TestAgentSessionTurnMetadata:
             ),
         )
         summary = DetailHeaderSummary(
-            xprompts_used=[{"kind": "part", "name": "plan"}],
+            macros_used=[{"kind": "part", "name": "plan"}],
         )
 
         header, _ = build_header_text(agent, cheap=False, summary=summary)
@@ -353,7 +353,7 @@ class TestAgentAutoApproveMetadata:
         # ``Macros:`` with nothing rendered between them.
         agent = make_agent(approve=True)
         summary = DetailHeaderSummary(
-            xprompts_used=[{"kind": "part", "name": "plan"}],
+            macros_used=[{"kind": "part", "name": "plan"}],
         )
 
         header, _ = build_header_text(agent, cheap=False, summary=summary)
@@ -375,7 +375,7 @@ class TestAgentAutoApproveMetadata:
         # rows render as Auto: then Model: then Macros:.
         agent = make_agent(approve=True, model="opus", llm_provider="claude")
         summary = DetailHeaderSummary(
-            xprompts_used=[{"kind": "part", "name": "plan"}],
+            macros_used=[{"kind": "part", "name": "plan"}],
         )
 
         header, _ = build_header_text(agent, cheap=False, summary=summary)
@@ -398,7 +398,7 @@ class TestAgentAutoApproveMetadata:
         # ``Macros:`` section.
         agent = make_agent(model="opus", llm_provider="claude")
         summary = DetailHeaderSummary(
-            xprompts_used=[{"kind": "part", "name": "plan"}],
+            macros_used=[{"kind": "part", "name": "plan"}],
         )
 
         header, _ = build_header_text(agent, cheap=False, summary=summary)

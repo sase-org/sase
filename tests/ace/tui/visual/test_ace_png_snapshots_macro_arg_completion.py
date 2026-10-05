@@ -72,13 +72,13 @@ _ARG_ROWS = [
     [
         pytest.param(
             "textual-dark",
-            "prompt_xprompt_arg_completion_dark_120x40",
+            "prompt_macro_arg_completion_dark_120x40",
             "ACE prompt input — macro keyword-argument completion, dark theme",
             id="dark",
         ),
         pytest.param(
             "textual-light",
-            "prompt_xprompt_arg_completion_light_120x40",
+            "prompt_macro_arg_completion_light_120x40",
             "ACE prompt input — macro keyword-argument completion, light theme",
             id="light",
         ),

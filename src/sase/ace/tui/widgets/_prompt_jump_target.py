@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     resolve_file_path,
 )
 from sase.content_layout import skill_reference_name
+from sase.legacy_xprompt_syntax import RETIRED_FRONTMATTER_KEY
 from sase.macro.loader import get_macro_or_workflow
 from sase.macro.models import Macro
 from sase.macro.workflow_models import Workflow
@@ -28,7 +29,7 @@ JumpKind = Literal["macro", "file"]
 
 _LINE_COL_SUFFIX_RE = re.compile(r":(?P<line>\d+)(?::(?P<col>\d+))?")
 _VIM_FAMILY = frozenset({"vim", "nvim", "vi", "view", "gvim", "mvim", "nv"})
-_YAML_SECTION_KEYS = frozenset({"macros", "xprompts", "workflows"})
+_YAML_SECTION_KEYS = frozenset({"macros", RETIRED_FRONTMATTER_KEY, "workflows"})
 
 
 @dataclass(frozen=True, slots=True)

@@ -54,7 +54,7 @@ def test_agent_rows_carry_name_model_and_state(tmp_path: Path) -> None:
         max_retries=3,
     )
     summary = DetailHeaderSummary(
-        xprompts_used=[
+        macros_used=[
             {"kind": "part", "name": "review"},
             {"kind": "workflow", "name": "ship"},
             {"kind": "swarm", "name": "crew"},
