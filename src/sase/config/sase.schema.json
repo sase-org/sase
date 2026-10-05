@@ -5926,6 +5926,12 @@
           "default": true,
           "deprecated": true
         },
+        "claude_helper_channel": {
+          "type": "boolean",
+          "description": "Every Claude invocation cycle passes the packaged helper template via --append-subagent-system-prompt-file (when the CLI supports it) and a PreToolUse guard via inline --settings JSON.",
+          "default": true,
+          "deprecated": true
+        },
         "legacy_agent_family_syntax": {
           "type": "boolean",
           "description": "SASE silently accepts the retired agent-family spellings as aliases of their agent-session replacements: %id(..., family=...), the family:/kind:family agent queries, --next-fork family, gate \"fork\": \"family\", and SASE_AGENT_FAMILY_ATTACH. Removing this flag also removes sase-core's hidden `family` %id keyword alias.",

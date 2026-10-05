@@ -40,6 +40,7 @@ class FeatureFlag(StrEnum):
     slim_agents_manifest = "slim_agents_manifest"
     strict_macro_input_types = "strict_macro_input_types"
     agents_session_manifest_compat = "agents_session_manifest_compat"
+    claude_helper_channel = "claude_helper_channel"
     typed_launch_units = "typed_launch_units"
 
 
@@ -218,6 +219,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "caps with lenient old-reader skip for the omitted-files shape."
         ),
         bead="sase-11p",
+    ),
+    FeatureFlag.claude_helper_channel: FeatureFlagDefinition(
+        key=FeatureFlag.claude_helper_channel,
+        kind="sunset",
+        description=(
+            "Every Claude invocation cycle passes the packaged helper template "
+            "via --append-subagent-system-prompt-file (when the CLI supports "
+            "it) and a PreToolUse guard via inline --settings JSON."
+        ),
+        bead="sase-1gw",
     ),
     FeatureFlag.agents_session_manifest_compat: FeatureFlagDefinition(
         key=FeatureFlag.agents_session_manifest_compat,

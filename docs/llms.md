@@ -247,6 +247,12 @@ assistant text and token usage from the stream. A wait-guard continuation (see b
 replaces `--session-id <uuid>` with `--resume <uuid>` so the nudge lands in the same
 Claude session.
 
+When the `claude_helper_channel` sunset flag is on (the default), every cycle also
+passes `--settings <inline JSON>` carrying a PreToolUse guard on `Bash|Skill`, plus
+`--append-subagent-system-prompt-file <packaged helper template>` when the installed CLI
+parses that flag (see "Native helpers" below). With the flag off, the argv is exactly
+the form above.
+
 SASE also sets two Claude Code environment variables on the subprocess unless the caller
 already set them: `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, and `BASH_MAX_TIMEOUT_MS`
 raised to four hours (`14400000`) so long verification commands can stay in the
@@ -272,6 +278,47 @@ the same session with a nudge to read the task output or rerun the command in th
 foreground and finish. After `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` continuations (default
 `2`) the run fails with `LLMInvocationError` instead of recording the waiting reply as a
 successful answer.
+
+### Native helpers
+
+Claude native subagents (general-purpose and Explore) inherit the root's environment, so
+without a stopgap they can act as roots: helpers have invoked `sase final` and two
+submissions were even accepted for their parent's turn. Two mechanisms, both gated by
+the `claude_helper_channel` sunset flag (kill switch:
+`sase flag disable claude_helper_channel`), keep helpers in their lane:
+
+- **Helper template.** The packaged static file
+  `src/sase/llm_provider/templates/claude_helper_instructions.md` (first line
+  `# SASE Helper Instructions`) is passed through the hidden
+  `--append-subagent-system-prompt-file` flag on every invocation cycle, including
+  `--resume` cycles. It reaches Explore and general-purpose helpers but not the root,
+  and tells helpers their parent owns the turn: never run `sase final …` or the
+  root-only skills, never commit, create beads, or launch agents, and return the result
+  to the parent. Live probes confirm both helper types carry `agent_id` and see the
+  template marker.
+- **PreToolUse guard.** The inline `--settings` JSON installs a stdlib-only hook
+  (`src/sase/llm_provider/_claude_helper_guard.py`, run as
+  `<sys.executable> -I <guard path>`) on `Bash|Skill`. When the hook input carries a
+  non-empty `agent_id` — set only for calls made inside a subagent — the guard denies
+  `sase final context|defer|prepare|submit`, the turn-ending CLI forms the root-only
+  skills run (`sase plan propose`, `sase monitor start`, `sase launch request`,
+  `sase pipe`, `sase gate create|wait`, `sase questions`, `sase run`,
+  `sase sudo request`, `sase stitch create`), and the root-only skills themselves
+  (`sase_final`, `sase_gate`, `sase_git_commit`, `sase_handoff`, `sase_monitor`,
+  `sase_plan`, `sase_questions`, `sase_run`, `sase_sudo`). Read-only forms such as
+  `sase final status` stay allowed. A deny exits 0 with a `SASE helper guard:` reason,
+  which blocks the call even under `--dangerously-skip-permissions` (verified by live
+  probe); every other input, including the root's own calls without `agent_id` and
+  malformed stdin, exits 0 silently.
+
+A cached no-API capability probe decides whether the installed CLI parses the hidden
+flag: `claude -p --append-subagent-system-prompt-file <nonexistent>` reporting "file not
+found" means supported, "unknown option" means unsupported, and anything else is
+unknown. The result is cached by executable path plus mtime and size. When the probe
+does not report support, the adapter omits only the template flag, logs one warning, and
+keeps the guard. `sase doctor -D -C providers.claude_helper_channel` runs the probe
+uncached and reports OK, or ERROR with next steps. Live probes also show that forked
+(nested) helpers carry `agent_id`, so the guard covers them as well.
 
 ### Model Mapping
 

@@ -259,6 +259,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "ops.telemetry_health",
         "ops.axe",
         "providers.cli_version",
+        "providers.claude_helper_channel",
         "tools.macro_lsp",
         "terminal.kitty_graphics",
         "tools.tmux_version",

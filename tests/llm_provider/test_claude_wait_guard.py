@@ -220,6 +220,10 @@ def test_claude_wait_state_classifier_flags_schedule_wakeup() -> None:
 
 
 @patch.dict(os.environ, {"SASE_CLAUDE_MAX_WAIT_CONTINUATIONS": "2"})
+# Isolate the helper-channel capability probe the same way these tests
+# isolate usage capture: the probe spawns its own no-API process, which
+# would otherwise pollute the Popen call counts asserted below.
+@patch("sase.llm_provider.claude.subagent_prompt_supported", return_value=True)
 @patch("sase.llm_provider.claude.uuid.uuid4")
 @patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
@@ -232,6 +236,7 @@ def test_claude_provider_resumes_after_wait_state_reply(
     mock_popen: MagicMock,
     mock_stream: MagicMock,
     mock_uuid4: MagicMock,
+    _mock_probe: MagicMock,
 ) -> None:
     processes = _install_popen_processes(mock_popen)
     mock_uuid4.return_value = uuid.UUID("12345678-1234-5678-1234-567812345678")
@@ -274,6 +279,9 @@ def test_claude_provider_resumes_after_wait_state_reply(
 
 
 @patch.dict(os.environ, {"SASE_CLAUDE_MAX_WAIT_CONTINUATIONS": "1"})
+# Isolate the helper-channel capability probe: it spawns its own no-API
+# process, which would otherwise pollute the Popen call counts below.
+@patch("sase.llm_provider.claude.subagent_prompt_supported", return_value=True)
 @patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch(
@@ -284,6 +292,7 @@ def test_claude_provider_wait_state_cap_exhaustion_raises(
     _mock_usage_context: MagicMock,
     mock_popen: MagicMock,
     mock_stream: MagicMock,
+    _mock_probe: MagicMock,
 ) -> None:
     _install_popen_processes(mock_popen)
 
@@ -315,6 +324,9 @@ def test_claude_provider_wait_state_cap_exhaustion_raises(
     assert "background_task_wait:bg-1" in message
 
 
+# Isolate the helper-channel capability probe: it spawns its own no-API
+# process, which would otherwise pollute the Popen call count below.
+@patch("sase.llm_provider.claude.subagent_prompt_supported", return_value=True)
 @patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch(
@@ -325,6 +337,7 @@ def test_claude_provider_clean_answer_does_not_continue(
     _mock_usage_context: MagicMock,
     mock_popen: MagicMock,
     mock_stream: MagicMock,
+    _mock_probe: MagicMock,
 ) -> None:
     _install_popen_processes(mock_popen)
     mock_stream.return_value = ("All done.", "", 0, _usage(5, 6))

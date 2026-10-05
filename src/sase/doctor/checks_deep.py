@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING
 from sase.diagnostics import CheckSpec
 from sase.doctor.checks_deep_agent_index import check_agent_index_verify
 from sase.doctor.checks_deep_axe import check_axe_state
-from sase.doctor.checks_deep_providers import check_provider_cli_versions
+from sase.doctor.checks_deep_providers import (
+    check_claude_helper_channel,
+    check_provider_cli_versions,
+)
 from sase.doctor.checks_deep_terminal import (
     check_kitty_graphics,
     check_tmux_version,
@@ -49,6 +52,13 @@ def deep_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="providers",
             title="Provider CLI versions",
             runner=lambda: check_provider_cli_versions(context),
+            deep=True,
+        ),
+        CheckSpec(
+            id="providers.claude_helper_channel",
+            group="providers",
+            title="Claude helper channel",
+            runner=lambda: check_claude_helper_channel(context),
             deep=True,
         ),
         CheckSpec(

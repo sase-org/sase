@@ -53,6 +53,15 @@ full, current list.
 
 Canonical docs: <https://code.claude.com/docs>
 
+### Native helpers
+
+Native subagents inherit the root's environment, so SASE delivers a packaged helper
+template (`# SASE Helper Instructions`) plus a PreToolUse guard that denies their
+root-only operations (`sase final …`, turn-ending commands, root-only skills); forked
+helpers carry `agent_id` and are covered too. Kill switch:
+`sase flag disable claude_helper_channel`. Details:
+[Claude Code Integration](llms.md#native-helpers).
+
 ## Codex CLI
 
 OpenAI's Codex CLI (`codex`).
