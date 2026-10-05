@@ -523,6 +523,84 @@ async def test_dismissed_modal_releases_snapshot_rows_without_gc() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("key", "expected_value", "expected_cursor"),
+    [
+        ("backspace", "ab", 2),
+        ("ctrl+u", "", 0),
+        ("ctrl+w", "", 0),
+        ("left", "abc", 2),
+        ("ctrl+b", "abc", 2),
+        ("ctrl+a", "abc", 0),
+    ],
+)
+async def test_search_mode_editing_keys_edit_query(
+    key: str, expected_value: str, expected_cursor: int
+) -> None:
+    modal = _modal(_node("alpha"), _node("beta"))
+    async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
+        host = pilot.app
+        assert isinstance(host, _ModalHost)
+        query = modal.query_one("#node-finder-query", FilterInput)
+        await pilot.press("/")
+        assert query.has_focus
+        await pilot.press("a")
+        await pilot.press("b")
+        await pilot.press("c")
+        await wait_for(pilot, lambda: query.value == "abc")
+        await pilot.press(key)
+        await wait_for(
+            pilot,
+            lambda: (
+                query.value == expected_value
+                and query.cursor_position == expected_cursor
+            ),
+        )
+        assert (query.value, query.cursor_position) == (
+            expected_value,
+            expected_cursor,
+        )
+        assert host.leaked == []
+        assert modal._search_mode is True
+
+
+@pytest.mark.asyncio
+async def test_search_mode_backspace_refilters() -> None:
+    modal = _modal(_node("alpha"), _node("alpine"), _node("beta"))
+    async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
+        query = modal.query_one("#node-finder-query", FilterInput)
+        await pilot.press("/")
+        assert query.has_focus
+        await pilot.press("a")
+        await pilot.press("l")
+        await pilot.press("p")
+        await wait_for(pilot, lambda: modal._view.query == "alp")
+        await pilot.press("backspace")
+        await wait_for(pilot, lambda: modal._view.query == "al")
+
+
+@pytest.mark.asyncio
+async def test_search_mode_unbound_keys_do_not_leak() -> None:
+    modal = _modal(_node("alpha"), _node("beta"))
+    dismissed: list[object] = []
+    modal.dismiss = dismissed.append  # type: ignore[method-assign]
+    async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
+        host = pilot.app
+        assert isinstance(host, _ModalHost)
+        query = modal.query_one("#node-finder-query", FilterInput)
+        await pilot.press("/")
+        assert query.has_focus
+        await pilot.press("a")
+        await wait_for(pilot, lambda: query.value == "a")
+        await pilot.press("f5")
+        await pilot.pause()
+        assert query.value == "a"
+        assert host.leaked == []
+        assert dismissed == []
+        assert modal._search_mode is True
+
+
+@pytest.mark.asyncio
 async def test_tier1_tasks_cancel_on_unmount() -> None:
     hang = asyncio.Event()
 

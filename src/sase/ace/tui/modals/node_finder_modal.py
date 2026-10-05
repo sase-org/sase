@@ -234,7 +234,7 @@ class NodeFinderModal(
             self.add_class(desired)
         self._rebuild_options(highlight=self._highlighted_view_index())
 
-    def on_key(self, event: Key) -> None:
+    async def on_key(self, event: Key) -> None:
         if self._search_mode:
             if event.key == "escape":
                 event.prevent_default()
@@ -247,6 +247,12 @@ class NodeFinderModal(
                 self._jump_highlighted()
                 return
             event.stop()
+            # Textual resolves the Input's non-priority bindings only in
+            # App._on_key, after the Key bubbles from the widget to the app.
+            # This screen deliberately stops that bubble to keep keys from
+            # leaking to the host app, so run the focused widget's own
+            # binding here instead.
+            await self._run_focused_binding(event.key)
             return
         event.prevent_default()
         event.stop()
@@ -275,6 +281,12 @@ class NodeFinderModal(
             return
         label = event.character if event.character else event.key
         self._set_flash(f"no hint ‹{label}›")
+
+    async def _run_focused_binding(self, key: str) -> None:
+        active = self.active_bindings.get(key)
+        if active is None or not active.enabled or active.binding.priority:
+            return
+        await self.app.run_action(active.binding.action, active.node)
 
     def action_toggle_search(self) -> None:
         if self._search_mode:
