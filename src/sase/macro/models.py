@@ -189,12 +189,23 @@ class InputArg:
                     f"Argument '{self.name}' expects bool, got '{value}'"
                 )
         elif self.type == InputType.ENUM:
-            allowed = tuple(choice.value for choice in self.choices)
-            if value not in allowed:
-                raise MacroValidationError(
-                    f"Argument '{self.name}' expects one of "
-                    f"{', '.join(allowed)}, got '{value}'"
-                )
+            from sase.core.rust import require_rust_binding
+
+            message = require_rust_binding("check_input_value")(
+                {
+                    "name": self.name,
+                    "value": value,
+                    "resolved": {
+                        "base": "enum",
+                        "named_type": None,
+                        "value_role": None,
+                        "choices": [{"value": choice.value} for choice in self.choices],
+                        "deprecated": False,
+                    },
+                }
+            )
+            if message:
+                raise MacroValidationError(message)
             return value
         elif self.type == InputType.CODE:
             from sase.macro.code_value import make_code_value

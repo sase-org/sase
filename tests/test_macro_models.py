@@ -104,7 +104,7 @@ def test_input_arg_enum_rejects_undeclared_value_listing_allowed() -> None:
         type=InputType.ENUM,
         choices=(InputChoice(value="fast"), InputChoice(value="slow")),
     )
-    with pytest.raises(MacroValidationError, match="fast, slow") as excinfo:
+    with pytest.raises(MacroValidationError, match="fast \\| slow") as excinfo:
         arg.validate_and_convert("turbo")
     assert "mode" in str(excinfo.value)
 

@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""Check or rewrite generated macro input-type JSON Schema blocks."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from sase.macro.input_schemas import (
+    CONFIG_SCHEMA_RELPATH,
+    PLUGIN_QUALIFIED_TYPE_PATTERN,
+    WORKFLOW_SCHEMA_RELPATH,
+    config_macro_input_definitions_block,
+    macro_input_schemas_drift,
+    workflow_input_definitions_block,
+)
+
+WORKFLOW_SCHEMA_PATH = REPO_ROOT / WORKFLOW_SCHEMA_RELPATH
+CONFIG_SCHEMA_PATH = REPO_ROOT / CONFIG_SCHEMA_RELPATH
+
+
+def _load_schema(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _render_definition(key: str, value: Any) -> str:
+    wrapped = json.dumps({key: value}, indent=2).splitlines()
+    return "\n".join(f"  {line}" for line in wrapped[1:-1])
+
+
+def _find_object_end(text: str, start: int) -> int:
+    in_string = False
+    escaped = False
+    depth = 0
+    started = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "{":
+            depth += 1
+            started = True
+            continue
+        if char == "}":
+            depth -= 1
+            if started and depth == 0:
+                return index + 1
+    raise ValueError(f"could not find end of schema block starting at {start}")
+
+
+def _upsert_definition_text(text: str, key: str, value: Any) -> str:
+    rendered = _render_definition(key, value)
+    needle = f'\n    "{key}": '
+    start = text.find(needle)
+    if start < 0:
+        raise ValueError(f"could not find {key!r} schema block")
+    property_start = start + 1
+    value_start = text.find("{", property_start)
+    if value_start < 0:
+        raise ValueError(f"could not find value for {key!r}")
+    value_end = _find_object_end(text, value_start)
+    return f"{text[:property_start]}{rendered}{text[value_end:]}"
+
+
+def _write_schemas() -> None:
+    workflow_block = workflow_input_definitions_block()
+    config_block = config_macro_input_definitions_block()
+    type_field = workflow_block["oneOf"][0]["items"]["properties"]["type"]
+    advertised = type_field["anyOf"][0]["enum"]
+    choices_field = workflow_block["oneOf"][0]["items"]["properties"]["choices"]
+    if "enum" not in advertised or "code" not in advertised:
+        raise ValueError("catalog is missing advertised enum or code rows")
+    if type_field["anyOf"][2]["pattern"] != PLUGIN_QUALIFIED_TYPE_PATTERN:
+        raise ValueError("generated type field is missing the plugin pattern")
+    if "items" not in choices_field:
+        raise ValueError("generated choices field is missing items")
+    workflow_path = WORKFLOW_SCHEMA_PATH
+    config_path = CONFIG_SCHEMA_PATH
+    workflow_path.write_text(
+        _upsert_definition_text(
+            workflow_path.read_text(encoding="utf-8"),
+            "inputDefinitions",
+            workflow_block,
+        ),
+        encoding="utf-8",
+    )
+    config_path.write_text(
+        _upsert_definition_text(
+            config_path.read_text(encoding="utf-8"),
+            "macroInputDefinitions",
+            config_block,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="check for drift and exit non-zero when found (default)",
+    )
+    mode.add_argument(
+        "--write",
+        action="store_true",
+        help="rewrite the schema blocks in place",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    if args.write:
+        try:
+            _write_schemas()
+        except (TypeError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        return 0
+
+    drift = macro_input_schemas_drift(
+        _load_schema(WORKFLOW_SCHEMA_PATH),
+        _load_schema(CONFIG_SCHEMA_PATH),
+    )
+    if drift is None:
+        return 0
+    print(drift, file=sys.stderr)
+    print("Run tools/sync_macro_input_schemas --write to update them.", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

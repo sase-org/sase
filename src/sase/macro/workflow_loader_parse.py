@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from sase.macro.loader_parsing import (
+    parse_input_choices,
     parse_input_type,
     parse_output_from_front_matter,
     parse_shortform_inputs,
@@ -53,6 +54,10 @@ def parse_workflow_inputs(
         description_value = item.get("description")
         description = None if description_value is None else str(description_value)
         repeatable = item.get("repeatable", False) is True
+        choices_value = item.get("choices")
+        choices = (
+            () if choices_value is None else parse_input_choices(choices_value, name)
+        )
 
         inputs.append(
             InputArg(
@@ -61,6 +66,7 @@ def parse_workflow_inputs(
                 default=default,
                 description=description,
                 repeatable=repeatable,
+                choices=choices,
             )
         )
 

@@ -3,8 +3,8 @@
 import pytest
 
 from sase.macro.loader_parsing import (
-    _parse_input_choices,
     _parse_shortform_output,
+    parse_input_choices,
     parse_inputs_from_front_matter,
     parse_macro_entries,
     parse_yaml_front_matter,
@@ -181,22 +181,22 @@ def test_parse_inputs_duplicate_choice_values_raises() -> None:
 
 def test_parse_input_choices_rejects_non_list() -> None:
     with pytest.raises(MacroValidationError):
-        _parse_input_choices("fast", "mode")
+        parse_input_choices("fast", "mode")
 
 
 def test_parse_input_choices_rejects_empty_list() -> None:
     with pytest.raises(MacroValidationError):
-        _parse_input_choices([], "mode")
+        parse_input_choices([], "mode")
 
 
 def test_parse_input_choices_rejects_mapping_without_value() -> None:
     with pytest.raises(MacroValidationError):
-        _parse_input_choices([{"label": "Fast mode"}], "mode")
+        parse_input_choices([{"label": "Fast mode"}], "mode")
 
 
 def test_parse_input_choices_rejects_bad_item_shape() -> None:
     with pytest.raises(MacroValidationError):
-        _parse_input_choices([["fast"]], "mode")
+        parse_input_choices([["fast"]], "mode")
 
 
 # Tests for _parse_shortform_output

@@ -10,9 +10,13 @@ input:
     default: 0
     description: Optional bug id to attach to the pull request.
   - name: status
-    type: word
+    type: enum
     default: "draft"
     description: Initial pull request status to request.
+    choices:
+      - { value: wip, description: WIP }
+      - { value: draft, description: Draft }
+      - { value: ready, description: Ready }
 
 environment:
   SASE_COMMIT_METHOD: create_pull_request

@@ -321,10 +321,15 @@ _lint-mypy: _setup
 # this same checker rather than ship another bead-aware expiry linter.
 _lint-flags: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/check_feature_flags
+    {{ venv_bin }}/python tools/sync_macro_input_schemas --check
 
 # Rewrite the generated feature_flags JSON Schema block from the registry.
 sync-feature-flags-schema: _setup
     {{ venv_bin }}/python tools/sync_feature_flags_schema --write
+
+# Rewrite generated macro input-type JSON Schema blocks from the catalog.
+sync-macro-input-schemas: _setup
+    {{ venv_bin }}/python tools/sync_macro_input_schemas --write
 
 # Rewrite the checked-in structural completion spec snapshot from the argparse tree.
 sync-completion-spec: _setup
@@ -910,6 +915,7 @@ docs-deploy-artifact-check:
 validate: _setup
     {{ venv_bin }}/python tools/validate_sase_core_rs_version --pyproject pyproject.toml --published-minimum
     {{ venv_bin }}/python tools/check_feature_flags --static
+    {{ venv_bin }}/python tools/sync_macro_input_schemas --check
     {{ venv_bin }}/sase validate
 
 # Validate committed plans with the month-based schema cutover policy.

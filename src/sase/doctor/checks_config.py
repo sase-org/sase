@@ -29,6 +29,7 @@ from sase.doctor.checks_config_macros import (
     check_config_model_macros,
     check_config_macro_definitions,
     check_config_macro_directives,
+    check_config_macro_input_types,
 )
 from sase.doctor.checks_config_retired import check_config_retired_xprompt_names
 
@@ -142,6 +143,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: check_config_macro_definitions(context),
         ),
         CheckSpec(
+            id="config.macro_input_types",
+            group="config",
+            title="Macro input types",
+            runner=lambda: check_config_macro_input_types(context),
+        ),
+        CheckSpec(
             id="config.macro_directives",
             group="config",
             title="Retired macro directives",
@@ -180,6 +187,7 @@ _check_config_external_mirror = check_config_external_mirror
 _check_config_tribes = check_config_tribes
 _check_config_model_macros = check_config_model_macros
 _check_config_macro_definitions = check_config_macro_definitions
+_check_config_macro_input_types = check_config_macro_input_types
 _check_config_macro_directives = check_config_macro_directives
 _check_config_retired_xprompt_names = check_config_retired_xprompt_names
 _check_config_skills_applied = check_config_skills_applied

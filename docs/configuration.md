@@ -6765,13 +6765,15 @@ Use `sase doctor -L` to list targeted check IDs. Useful focused checks include
 `runtime`, `llm.default`, `plugins.required`, `plugins.resources`, `beads.task_types`,
 `project.junk_directories`, `project.primary_sidecar_link_dirt`,
 `workspace.missing_checkouts`, `workspace.occupancy_conflicts`, and
-`config.model_macros`, `config.macro_definitions`, and `config.macro_directives`. The
-two inventory checks report telemetry-only directories without ProjectSpecs and
-registered workspace paths missing from disk; both are read-only and provide
-cleanup/repair guidance. `workspace.occupancy_conflicts` reports RUNNING-field and
-occupant-record collisions and never auto-repairs. `config.macro_directives` locates
-definition files that still use retired directive syntax. `agent_holds.stale` warns
-about [agent holds](cli.md#sase-agent-hold) whose armer died or whose TTL passed; it
+`config.model_macros`, `config.macro_definitions`, `config.macro_input_types`, and
+`config.macro_directives`. The two inventory checks report telemetry-only directories
+without ProjectSpecs and registered workspace paths missing from disk; both are
+read-only and provide cleanup/repair guidance. `workspace.occupancy_conflicts` reports
+RUNNING-field and occupant-record collisions and never auto-repairs.
+`config.macro_input_types` lists unknown type names, the deprecated `string` alias, and
+enum choice issues across macro sources. `config.macro_directives` locates definition
+files that still use retired directive syntax. `agent_holds.stale` warns about
+[agent holds](cli.md#sase-agent-hold) whose armer died or whose TTL passed; it
 reconciles the hold store the same way `sase agent hold list` does, so the stale records
 it reports are pruned as a side effect.
 

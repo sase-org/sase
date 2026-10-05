@@ -103,7 +103,7 @@ class InputItemModal(ModalScreen[InputArg | None]):
             yield Label("type", classes="input-item-field-label")
             yield _ModalInput(
                 value=existing.type.value if existing else InputType.LINE.value,
-                placeholder="word · line · text · path · int · float · bool",
+                placeholder="word · line · text · path · int · float · bool · agent · enum · code",
                 id="input-item-type",
             )
             yield Static("", id="input-item-type-rule")

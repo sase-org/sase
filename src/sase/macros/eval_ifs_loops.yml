@@ -6,11 +6,11 @@ input:
     default: true
     description: Whether conditional test steps should run.
   - name: items
-    type: string
+    type: line
     default: '["alpha", "beta", "gamma"]'
     description: JSON list of item labels used by loop tests.
   - name: ids
-    type: string
+    type: line
     default: '[1, 2, 3]'
     description: JSON list of ids paired with item labels in loop tests.
   - name: max_retries

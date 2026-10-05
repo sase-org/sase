@@ -106,7 +106,7 @@ def parse_input_type(type_str: str) -> InputType:
     return type_map.get(type_str.lower(), InputType.LINE)
 
 
-def _parse_input_choices(raw: Any, name: str) -> tuple[InputChoice, ...]:
+def parse_input_choices(raw: Any, name: str) -> tuple[InputChoice, ...]:
     """Parse an enum input's ``choices`` value into :class:`InputChoice` tuples.
 
     Args:
@@ -182,7 +182,7 @@ def _parse_shortform_input_metadata(
         repeatable = value.get("repeatable", False) is True
         choices_value = value.get("choices")
         choices = (
-            () if choices_value is None else _parse_input_choices(choices_value, name)
+            () if choices_value is None else parse_input_choices(choices_value, name)
         )
         return type_str, default, description, repeatable, choices
 
@@ -361,7 +361,7 @@ def parse_inputs_from_front_matter(
         repeatable = item.get("repeatable", False) is True
         choices_value = item.get("choices")
         choices = (
-            () if choices_value is None else _parse_input_choices(choices_value, name)
+            () if choices_value is None else parse_input_choices(choices_value, name)
         )
 
         inputs.append(

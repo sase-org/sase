@@ -146,6 +146,7 @@ def check_config_macro_definitions(context: DoctorContext) -> DiagnosticCheck:
             "kind": issue.kind,
         }
         for issue in issue_rows
+        if issue.kind != "input_type_warning"
     ]
     if not rows:
         loaded = len(prompts) + len(project_local_prompts)
@@ -176,6 +177,71 @@ def check_config_macro_definitions(context: DoctorContext) -> DiagnosticCheck:
             "loaded_count": len(prompts) + len(project_local_prompts),
             "issues": rows,
         },
+    )
+
+
+_INPUT_TYPE_ISSUE_KINDS = frozenset({"input_type", "input_type_warning"})
+
+
+def check_config_macro_input_types(context: DoctorContext) -> DiagnosticCheck:
+    """Surface input-type load errors and warnings across macro sources."""
+    from sase.macro.load_issues import MacroLoadIssue, collect_macro_load_issues
+    from sase.macro.loader import get_all_project_local_prompts, get_all_prompts
+
+    with collect_macro_load_issues() as issues:
+        prompts = get_all_prompts(context.project)
+        project_local_prompts = get_all_project_local_prompts()
+
+    issue_rows: list[MacroLoadIssue] = [
+        issue for issue in issues if issue.kind in _INPUT_TYPE_ISSUE_KINDS
+    ]
+    loaded = len(prompts) + len(project_local_prompts)
+    rows = [
+        {
+            "source": issue.source,
+            "error": issue.error,
+            "kind": issue.kind,
+        }
+        for issue in issue_rows
+    ]
+    if not rows:
+        return DiagnosticCheck(
+            id="config.macro_input_types",
+            group="config",
+            status="OK",
+            title="Macro input types",
+            summary="No macro input-type issues",
+            data={"loaded_count": loaded, "issues": []},
+        )
+
+    errors = sum(1 for row in rows if row["kind"] == "input_type")
+    warnings = len(rows) - errors
+    if errors and warnings:
+        summary = f"{len(rows)} macro input-type issue(s)"
+    elif errors:
+        summary = f"{errors} macro input-type error(s)"
+    else:
+        summary = f"{warnings} macro input-type warning(s)"
+    details = tuple(
+        (
+            f"warning: {row['source']}: {row['error']}"
+            if row["kind"] == "input_type_warning"
+            else f"error: {row['source']}: {row['error']}"
+        )
+        for row in rows[:MAX_DETAIL_ROWS]
+    )
+    return DiagnosticCheck(
+        id="config.macro_input_types",
+        group="config",
+        status="WARN",
+        title="Macro input types",
+        summary=summary,
+        details=details,
+        next_steps=(
+            "Fix the reported input type names, quoting, or enum choices, then "
+            "rerun `sase doctor -C config.macro_input_types`.",
+        ),
+        data={"loaded_count": loaded, "issues": rows},
     )
 
 

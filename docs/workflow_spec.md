@@ -105,12 +105,12 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple PRs" } }
 | `word`  | Single word, no whitespace                                                         |
 | `line`  | Single line, no newlines (the default when `type` is omitted)                      |
 | `text`  | Multi-line text (any content)                                                      |
-| `path`  | File path (no whitespace)                                                          |
+| `path`  | File path (a single line; spaces are allowed)                                      |
 | `agent` | Agent name (no whitespace); sase's TUI completes agent targets                     |
 | `int`   | Integer value (alias `integer`)                                                    |
 | `bool`  | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`; alias `boolean`)   |
 | `float` | Floating point value                                                               |
-| `enum`  | One of the input's `choices`; declare `choices` with the shortform syntax          |
+| `enum`  | One of the input's `choices`; `choices` work in both shortform and longform        |
 | `code`  | Structured source plus language (see [Supported Types](macros.md#supported-types)) |
 
 Inputs can also set `description` and, on the last positional input, `repeatable: true`;

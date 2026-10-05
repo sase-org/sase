@@ -957,13 +957,18 @@ save-time conversion, and literal-zone rules.
 | `word`  | --        | No whitespace allowed                                   |
 | `line`  | --        | No newlines allowed (default type)                      |
 | `text`  | --        | Any content, no restrictions                            |
-| `path`  | --        | No whitespace                                           |
+| `path`  | --        | A single line; spaces are allowed, newlines are not     |
 | `agent` | --        | Non-empty, no whitespace; completes agent names         |
 | `int`   | `integer` | Must parse as an integer                                |
 | `bool`  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off` |
 | `float` | --        | Must parse as a float                                   |
 | `enum`  | --        | Must be one of the input's declared `choices`           |
 | `code`  | --        | Structured source plus language (default language bash) |
+
+`string` is a deprecated alias of `line`. Loaders still accept it and emit an
+`input_type_warning`; new declarations should use `line`. An unknown type name is a
+per-macro load error with suggestions (`enmu` suggests `enum`). Plugin types use
+`distribution@id` (for example `sase-research-artifacts@audio_edition`).
 
 A `code` input is not a plain string with a convention. Binding yields a structured
 `CodeValue` (source, language, digest, preview). Unlabelled values default to Bash;
@@ -974,10 +979,17 @@ and `%proc`.
 ### Enum Choices
 
 An `enum` input must declare a non-empty `choices` list; every other type must leave
-`choices` unset. Choices are either plain scalars or `{value, label}` mappings — `label`
-is optional display text a rich surface (sase's TUI, Gate Debug, editor completion) can
-show in place of the raw value, while the value itself is always what gets passed to the
-template:
+`choices` unset. Choices are either plain scalars or `{value, label, description}`
+mappings. `label` and `description` are optional free text a rich surface (sase's TUI,
+Gate Debug, editor completion) can show; they are never accepted as the value. The
+`value` itself is always what gets passed to the template. Matching is exact and
+case-sensitive.
+
+Choice values must be quoted strings. An unquoted YAML scalar that PyYAML reads as a
+boolean, number, or null is a load error: `yes` must be written `"yes"` because YAML
+reads the bare token as a boolean. Values cannot contain Unicode whitespace, cannot be
+the literal `null`, and cannot be repeated. Characters that need quoting in shorthand
+(`,` `+` `(` `)` `[` `]` `"` `'` and backtick) produce a warning and still load.
 
 ```yaml
 input:
@@ -988,12 +1000,13 @@ input:
   - name: environment
     type: enum
     choices:
-      - { value: staging, label: "Staging" }
+      - { value: staging, label: "Staging", description: "Pre-production" }
       - { value: prod, label: "Production" }
 ```
 
-A value outside the declared `choices` fails validation and lists the allowed values in
-the error.
+A value outside the declared `choices` fails validation, lists the allowed values, and
+includes a did-you-mean suggestion when a close match exists. A closed-set default that
+is not a string member of `choices` is a load error.
 
 ### Repeatable Inputs
 
@@ -3863,10 +3876,14 @@ If a definition file is malformed, run:
 ```bash
 sase macro list
 sase doctor -C config.macro_definitions
+sase doctor -C config.macro_input_types
 ```
 
-Both commands report `skipped: <file>: <error>` lines for macro or workflow definitions
-that could not be loaded.
+`sase macro list` and `config.macro_definitions` report `skipped: <file>: <error>` lines
+for macro or workflow definitions that could not be loaded. `config.macro_input_types`
+lists unknown type names, the deprecated `string` alias, and enum choice/default issues,
+keeping the Rust suggestion text in each message. Warnings are `WARN`, not a load
+failure.
 
 If a launch fails with a directive migration error such as
 `%wait(priority=...) has moved to %queue`, run:

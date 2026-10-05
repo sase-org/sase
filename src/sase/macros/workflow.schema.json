@@ -14,7 +14,9 @@
           "description": "List of input argument definitions",
           "items": {
             "type": "object",
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "additionalProperties": false,
             "properties": {
               "name": {
@@ -24,7 +26,33 @@
               "type": {
                 "type": "string",
                 "description": "The expected type of the argument value",
-                "enum": ["word", "line", "text", "path", "agent", "int", "integer", "float", "bool", "boolean", "string"],
+                "anyOf": [
+                  {
+                    "enum": [
+                      "word",
+                      "line",
+                      "text",
+                      "path",
+                      "int",
+                      "integer",
+                      "float",
+                      "bool",
+                      "boolean",
+                      "code",
+                      "enum",
+                      "agent"
+                    ]
+                  },
+                  {
+                    "const": "string",
+                    "deprecated": true,
+                    "description": "Deprecated alias of line"
+                  },
+                  {
+                    "pattern": "^[A-Za-z0-9._-]+@[a-z0-9][a-z0-9_-]*$",
+                    "description": "Plugin-qualified input type (`distribution@id`)."
+                  }
+                ],
                 "default": "line"
               },
               "default": {
@@ -38,6 +66,40 @@
                 "type": "boolean",
                 "description": "Whether this final positional input consumes all remaining values",
                 "default": false
+              },
+              "choices": {
+                "type": "array",
+                "description": "Closed set of allowed values for an enum input. Each item is a string or a {value, label, description} object.",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "value"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Exact value a caller must supply"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Optional display text for the value"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Optional longer help text for the value"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
@@ -50,7 +112,33 @@
               {
                 "type": "string",
                 "description": "Type shorthand (e.g., 'text', 'line')",
-                "enum": ["word", "line", "text", "path", "agent", "int", "integer", "float", "bool", "boolean", "string"]
+                "anyOf": [
+                  {
+                    "enum": [
+                      "word",
+                      "line",
+                      "text",
+                      "path",
+                      "int",
+                      "integer",
+                      "float",
+                      "bool",
+                      "boolean",
+                      "code",
+                      "enum",
+                      "agent"
+                    ]
+                  },
+                  {
+                    "const": "string",
+                    "deprecated": true,
+                    "description": "Deprecated alias of line"
+                  },
+                  {
+                    "pattern": "^[A-Za-z0-9._-]+@[a-z0-9][a-z0-9_-]*$",
+                    "description": "Plugin-qualified input type (`distribution@id`)."
+                  }
+                ]
               },
               {
                 "type": "object",
@@ -59,7 +147,33 @@
                   "type": {
                     "type": "string",
                     "description": "The expected type of the argument value",
-                    "enum": ["word", "line", "text", "path", "agent", "int", "integer", "float", "bool", "boolean", "string"]
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "word",
+                          "line",
+                          "text",
+                          "path",
+                          "int",
+                          "integer",
+                          "float",
+                          "bool",
+                          "boolean",
+                          "code",
+                          "enum",
+                          "agent"
+                        ]
+                      },
+                      {
+                        "const": "string",
+                        "deprecated": true,
+                        "description": "Deprecated alias of line"
+                      },
+                      {
+                        "pattern": "^[A-Za-z0-9._-]+@[a-z0-9][a-z0-9_-]*$",
+                        "description": "Plugin-qualified input type (`distribution@id`)."
+                      }
+                    ]
                   },
                   "default": {
                     "description": "Default value if argument is not provided"
@@ -72,6 +186,40 @@
                     "type": "boolean",
                     "description": "Whether this final positional input consumes all remaining values",
                     "default": false
+                  },
+                  "choices": {
+                    "type": "array",
+                    "description": "Closed set of allowed values for an enum input. Each item is a string or a {value, label, description} object.",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "value"
+                          ],
+                          "additionalProperties": false,
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "Exact value a caller must supply"
+                            },
+                            "label": {
+                              "type": "string",
+                              "description": "Optional display text for the value"
+                            },
+                            "description": {
+                              "type": "string",
+                              "description": "Optional longer help text for the value"
+                            }
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
