@@ -277,7 +277,9 @@ def test_immediate_stage_signals_a_non_leader_and_its_tree(
     )
 
     assert result.status == "killed"  # never "already_stopped" from killpg
-    wait_until_gone(proc.pid)
+    # The runner and its descendants are signalled asynchronously; wait for
+    # the same-group child as well as the runner before asserting.
+    wait_until_gone(proc.pid, pids["same_group"])
     assert not process_is_running(proc.pid)
     assert not process_is_running(pids["same_group"])
 

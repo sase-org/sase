@@ -79,6 +79,7 @@ def test_wait_maps_invalidate_on_roster_and_tribe_bump() -> None:
 
 def test_aggregate_wires_cached_across_ticks() -> None:
     aggregate_mod._aggregate_wires_cache.clear()
+    aggregate_mod._aggregate_result_cache.clear()
     parent = agent(status="RUNNING", start=datetime(2026, 4, 25, 14, 0, 0))
     child = agent(
         status="RUNNING",
@@ -101,6 +102,7 @@ def test_aggregate_wires_cached_across_ticks() -> None:
 
 def test_aggregate_wires_rebuild_when_member_inputs_change() -> None:
     aggregate_mod._aggregate_wires_cache.clear()
+    aggregate_mod._aggregate_result_cache.clear()
     parent = agent(status="RUNNING", start=datetime(2026, 4, 25, 14, 0, 0))
     child = agent(
         status="RUNNING",

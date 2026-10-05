@@ -174,6 +174,32 @@ async def test_ace_page_fast_startup_is_structurally_quiet() -> None:
     assert all(worker.is_finished for worker in app.workers)
 
 
+async def test_drain_pump_free_tasks_discards_already_done_tasks() -> None:
+    """The drain prunes done tasks itself instead of awaiting the callback."""
+    from types import SimpleNamespace
+
+    from sase.ace.testing.ace_page import _drain_pump_free_tasks
+
+    async def _noop() -> None:
+        return None
+
+    # A task that is already done whose registry-discard done callback has
+    # not run yet: gathering over it yields nothing on Python 3.12, so a
+    # callback-only drain would leave it registered.
+    task = asyncio.get_running_loop().create_task(
+        _noop(), name="sase-agents-onboarding-plugins"
+    )
+    await task
+    assert task.done()
+    registry = {task}
+    app = SimpleNamespace(
+        _pump_free_task_registry_attrs={"_pump_free_async_tasks"},
+        _pump_free_async_tasks=registry,
+    )
+    await _drain_pump_free_tasks(app)  # type: ignore[arg-type]
+    assert registry == set()
+
+
 async def test_ace_page_teardown_cancels_textual_workers() -> None:
     started = asyncio.Event()
     cancelled = asyncio.Event()

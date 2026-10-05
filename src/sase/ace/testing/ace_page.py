@@ -139,20 +139,50 @@ def _stop_ace_app_proc_observer(app: AceApp | None) -> None:
         pass
 
 
-async def _drain_pump_free_tasks(app: AceApp) -> None:
+async def _drain_pump_free_tasks(app: AceApp, *, passes: int = 10) -> None:
     """Cancel leftover pump-free work and wait until it leaves the registry.
 
     ``on_unmount`` only requests cancellation. A task blocked in
     ``asyncio.to_thread`` stays in ``_pump_free_async_tasks`` until the
     thread returns and the done callback discards it; AcePage must await
     that before the test loop is torn down.
+
+    The registry is pruned explicitly instead of relying on the done
+    callback: on Python 3.12 ``asyncio.gather`` over already-done tasks
+    returns without yielding, so a queued discard callback may still be
+    pending when the gather returns. Each pass also cancels newly
+    registered tasks (refreshers rescheduling from ``finally``) until every
+    registry is empty.
     """
+
+    def _registries() -> list[set[asyncio.Task[Any]]]:
+        found: list[set[asyncio.Task[Any]]] = []
+        for registry_name in tuple(getattr(app, "_pump_free_task_registry_attrs", ())):
+            registry = getattr(app, registry_name, None)
+            if isinstance(registry, set):
+                found.append(registry)
+        return found
+
     cancel_pump_free_tasks(app)
-    tasks: set[asyncio.Task[Any]] = set()
-    for registry_name in tuple(getattr(app, "_pump_free_task_registry_attrs", ())):
-        tasks.update(getattr(app, registry_name, ()))
-    if tasks:
+    for _ in range(passes):
+        registries = _registries()
+        for registry in registries:
+            for task in tuple(registry):
+                if task.done():
+                    registry.discard(task)
+        tasks: set[asyncio.Task[Any]] = set()
+        for registry in registries:
+            tasks.update(registry)
+        if not tasks:
+            return
+        for task in tasks:
+            if not task.done():
+                task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+    for registry in _registries():
+        for task in tuple(registry):
+            if task.done():
+                registry.discard(task)
 
 
 async def _drain_textual_workers(app: AceApp) -> None:

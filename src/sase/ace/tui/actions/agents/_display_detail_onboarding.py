@@ -115,6 +115,11 @@ class AgentsOnboardingMixin:
                 discover_agents_onboarding_launch_targets_available
             )
             self._apply_agents_onboarding_launch_targets_available(available)
+        except asyncio.CancelledError:
+            # Draining teardown cancels this task: drop any pending follow-up
+            # instead of rescheduling from ``finally`` after cancellation.
+            self._agents_onboarding_launch_targets_refresh_pending = False
+            raise
         except Exception:
             log.exception("Agents onboarding launch-target refresh failed")
         finally:
@@ -167,6 +172,11 @@ class AgentsOnboardingMixin:
                 discover_agents_onboarding_plugins_installed
             )
             self._apply_agents_onboarding_plugins_installed(installed)
+        except asyncio.CancelledError:
+            # Draining teardown cancels this task: drop any pending follow-up
+            # instead of rescheduling from ``finally`` after cancellation.
+            self._agents_onboarding_plugins_refresh_pending = False
+            raise
         except Exception:
             log.exception("Agents onboarding plugin refresh failed")
         finally:

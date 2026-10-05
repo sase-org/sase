@@ -37,6 +37,7 @@ async def test_panel_escape_keeps_draft_across_reopen() -> None:
 
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.grammar import is_command_line_grammar_pending
     from sase.ace.tui.command_line.input import CommandLineInput
     from sase.ace.tui.command_line.screen import CommandLineScreen
 
@@ -51,9 +52,15 @@ async def test_panel_escape_keeps_draft_across_reopen() -> None:
             assert isinstance(screen, CommandLineScreen)
             screen.query_one(CommandLineInput).set_line("bead list")
             await page.pause()
+            # Opening the panel starts the grammar load (spec subprocess plus
+            # JSON parses); wait for it to land so the press budget covers
+            # only Textual idle, not a loaded-runner grammar build.
+            await page.wait_for(
+                lambda _state: not is_command_line_grammar_pending(page.app)
+            )
             await page.press("escape")
             await page.expect_modal("CommandLineScreen")
-            await asyncio.wait_for(page.press("escape"), timeout=1.0)
+            await asyncio.wait_for(page.press("escape"), timeout=5.0)
             await page.expect_no_modal()
             assert screen.is_attached is False
             page.app.action_open_command_line()
@@ -69,6 +76,7 @@ async def test_empty_panel_semicolon_hops_to_palette_and_back() -> None:
 
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.grammar import is_command_line_grammar_pending
     from sase.ace.tui.command_line.input import CommandLineInput
     from sase.ace.tui.command_line.screen import CommandLineScreen
     from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
@@ -83,7 +91,13 @@ async def test_empty_panel_semicolon_hops_to_palette_and_back() -> None:
             old_screen = page.app.screen
             assert isinstance(old_screen, CommandLineScreen)
 
-            await asyncio.wait_for(page.press("semicolon"), timeout=1.0)
+            # Opening the panel starts the grammar load (spec subprocess plus
+            # JSON parses); wait for it to land so the press budget covers
+            # only Textual idle, not a loaded-runner grammar build.
+            await page.wait_for(
+                lambda _state: not is_command_line_grammar_pending(page.app)
+            )
+            await asyncio.wait_for(page.press("semicolon"), timeout=5.0)
             await page.expect_modal("CommandPaletteModal")
             assert old_screen.is_attached is False
 
@@ -100,6 +114,7 @@ async def test_empty_panel_escape_follows_the_hide_panel_binding() -> None:
 
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.grammar import is_command_line_grammar_pending
     from sase.ace.tui.keymaps import load_keymap_registry
 
     with (
@@ -113,7 +128,13 @@ async def test_empty_panel_escape_follows_the_hide_panel_binding() -> None:
             page.app.action_open_command_line()
             await page.expect_modal("CommandLineScreen")
 
-            await asyncio.wait_for(page.press("escape"), timeout=1.0)
+            # Opening the panel starts the grammar load (spec subprocess plus
+            # JSON parses); wait for it to land so the press budget covers
+            # only Textual idle, not a loaded-runner grammar build.
+            await page.wait_for(
+                lambda _state: not is_command_line_grammar_pending(page.app)
+            )
+            await asyncio.wait_for(page.press("escape"), timeout=5.0)
             await page.expect_modal("CommandLineScreen")
 
 

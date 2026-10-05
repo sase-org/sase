@@ -663,7 +663,13 @@ async def test_every_tick_rebroadcasts_to_mounted_views(
             lambda state: (calls.append(state), indicator._apply_content()),
         )
 
+        # A tick rebroadcasts synchronously (refresh -> _tick -> _broadcast),
+        # so the first call carries the pre-refresh state. Later calls may
+        # carry a newer state object committed by an in-flight resolve worker
+        # landing after startup, which is correct product behavior.
+        expected = source.state
         source.refresh()
         await page.pause()
 
-    assert calls and all(state is source.state for state in calls)
+    assert calls
+    assert calls[0] is expected
