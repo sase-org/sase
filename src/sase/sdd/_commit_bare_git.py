@@ -4,6 +4,7 @@ import logging
 import subprocess
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from sase.sdd._git import SddGitCommandTimeout, network_git_timeout, run_sdd_git
 from sase.sdd._init_files import ensure_sdd_initialized
@@ -55,8 +56,42 @@ def ensure_bare_git_sdd_initialized(
     return refreshed
 
 
+def _resolve_origin_bare_path(origin_url: str, workspace: Path) -> Path | None:
+    """Resolve a local origin URL to a filesystem path.
+
+    Mirrors the bare-git workspace provider's origin-path resolution:
+    ``file://`` URLs are unquoted, ``~`` is expanded, and relative paths
+    resolve against the workspace. Network URLs, scp-like ``host:path``
+    values, and non-``file://`` schemes return None.
+    """
+    try:
+        if origin_url.startswith(("http://", "https://", "git@", "ssh://")):
+            return None
+        if origin_url.startswith("file://"):
+            parsed = urlparse(origin_url)
+            path_text = unquote(parsed.path)
+            return Path(path_text).expanduser() if path_text else None
+        if ":" in origin_url and not origin_url.startswith(("/", "~")):
+            return None
+        path = Path(origin_url).expanduser()
+        if path.is_absolute():
+            return path
+        return workspace / path
+    except Exception:
+        return None
+
+
 def is_local_bare_git_workspace(workspace: Path) -> bool:
-    """Return true for SASE's built-in bare-git local-remote workspaces."""
+    """Return true for SASE's built-in bare-git local-remote workspaces.
+
+    Positive-evidence contract: the origin must resolve to an existing local
+    bare repository. Network-looking URLs, scp-like ``host:path`` URLs, and
+    non-``file://`` schemes all return false without further checks.
+    ``file://`` URLs and plain paths are resolved (``~`` expanded, relative
+    paths resolved against the workspace, mirroring the bare-git workspace
+    provider's origin-path resolution) and confirmed bare via ``rev-parse
+    --is-bare-repository``. Any git error or timeout means false.
+    """
     try:
         from sase.vcs_provider import detect_vcs
 
@@ -81,7 +116,34 @@ def is_local_bare_git_workspace(workspace: Path) -> bool:
     url = result.stdout.strip()
     if not url:
         return False
-    return not url.startswith(("http://", "https://", "git@", "ssh://"))
+    if url.startswith(("http://", "https://", "git@", "ssh://")):
+        return False
+    if "://" in url:
+        if not url.startswith("file://"):
+            return False
+    elif ":" in url and not url.startswith(("/", "~")):
+        return False
+
+    origin_path = _resolve_origin_bare_path(url, Path(workspace))
+    if origin_path is None:
+        return False
+
+    try:
+        bare = run_sdd_git(
+            ["--git-dir", str(origin_path), "rev-parse", "--is-bare-repository"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+            op="bare_git.remote_bare_check",
+        )
+    except SddGitCommandTimeout:
+        return False
+    except Exception:
+        return False
+    if bare.returncode != 0:
+        return False
+    return bare.stdout.strip() == "true"
 
 
 def git_toplevel(workspace: Path) -> Path | None:

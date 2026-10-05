@@ -215,6 +215,12 @@ def test_plain_doctor_forwards_roots_without_planning_or_writing(
             calls.append((plan_roots, reference_context))
             return ["OK"]
 
+    from sase.bead.attachment_doctor import _AttachmentHealthReport
+
+    monkeypatch.setattr(
+        "sase.bead.attachment_doctor.inspect_attachment_health",
+        lambda: _AttachmentHealthReport(),
+    )
     monkeypatch.setattr(cli_admin, "_resolve_doctor_plan_roots", lambda: roots)
     monkeypatch.setattr(
         cli_admin,
@@ -255,6 +261,12 @@ def test_fix_preview_cancellation_never_opens_mutation(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    from sase.bead.attachment_doctor import _AttachmentHealthReport
+
+    monkeypatch.setattr(
+        "sase.bead.attachment_doctor.inspect_attachment_health",
+        lambda: _AttachmentHealthReport(),
+    )
     issue = Issue(id="beads-1", title="One", design="/old/one.md")
     preview = DesignRefRepairPreview(
         repairs=(
@@ -355,6 +367,12 @@ def test_stale_preview_performs_no_updates_or_commit(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    from sase.bead.attachment_doctor import _AttachmentHealthReport
+
+    monkeypatch.setattr(
+        "sase.bead.attachment_doctor.inspect_attachment_health",
+        lambda: _AttachmentHealthReport(),
+    )
     original = DesignRefRepairPreview(
         repairs=(
             _DesignRefRepair(

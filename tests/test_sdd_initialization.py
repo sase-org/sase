@@ -252,3 +252,69 @@ def test_commit_bare_git_sdd_init_paths_push_rejection_is_best_effort(
         patch("sase.sdd._repository_transaction.require_sdd_repository_health"),
     ):
         commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+def test_is_local_bare_git_rejects_non_bare_checkout_origin(
+    tmp_path: Path,
+) -> None:
+    """A local non-bare origin is not a bare-git workspace; nothing is written."""
+    from sase.sdd._commit_bare_git import is_local_bare_git_workspace
+
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    _git(None, "init", "-b", "main", str(origin))
+    (origin / "file.txt").write_text("data\n", encoding="utf-8")
+    _git(origin, "add", "file.txt")
+    _git(origin, "commit", "-m", "origin commit")
+    clone = tmp_path / "clone"
+    _git(None, "clone", str(origin), str(clone))
+
+    assert is_local_bare_git_workspace(clone) is False
+
+    refreshed = ensure_bare_git_sdd_initialized(clone, commit=True, push=False)
+    assert refreshed == ()
+    assert not (clone / "sdd" / "README.md").exists()
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+def test_is_local_bare_git_rejects_scp_alias_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An scp-style alias origin never qualifies, even when VCS says bare_git."""
+    from sase.sdd import _commit_bare_git as commit_bare_git
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(None, "init", "-b", "main", str(repo))
+    _git(repo, "remote", "add", "origin", "gh:org/repo.git")
+    monkeypatch.setattr("sase.vcs_provider.detect_vcs", lambda _cwd: "bare_git")
+
+    assert commit_bare_git.is_local_bare_git_workspace(repo) is False
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+def test_is_local_bare_git_accepts_file_bare_origin(tmp_path: Path) -> None:
+    """A ``file://`` bare origin qualifies."""
+    from sase.sdd._commit_bare_git import is_local_bare_git_workspace
+
+    bare = tmp_path / "remote.git"
+    _git(None, "init", "--bare", str(bare))
+    repo = tmp_path / "repo"
+    _git(None, "clone", f"file://{bare}", str(repo))
+
+    assert is_local_bare_git_workspace(repo) is True
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+def test_is_local_bare_git_accepts_relative_bare_origin(tmp_path: Path) -> None:
+    """A relative bare-path origin resolves against the workspace."""
+    from sase.sdd._commit_bare_git import is_local_bare_git_workspace
+
+    bare = tmp_path / "remote.git"
+    _git(None, "init", "--bare", str(bare))
+    repo = tmp_path / "repo"
+    _git(None, "clone", str(bare), str(repo))
+    _git(repo, "remote", "set-url", "origin", "../remote.git")
+
+    assert is_local_bare_git_workspace(repo) is True

@@ -322,6 +322,64 @@ def _use_placeholder_directory_map_assets(
     )
 
 
+def _is_repo_checkout_workspace(workspace: object) -> Path | None:
+    """Return the resolved workspace when it is the suite checkout or inside it."""
+    try:
+        candidate = Path(str(workspace)).expanduser().resolve(strict=False)
+    except Exception:
+        return None
+    try:
+        root = _REPO_ROOT.resolve(strict=False)
+    except Exception:
+        root = _REPO_ROOT
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
+
+
+@pytest.fixture(autouse=True)
+def _forbid_bare_git_sdd_init_in_repo_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[None]:
+    """Refuse SDD init against the checkout running the suite.
+
+    Wraps ``sase.sdd._commit_bare_git.is_local_bare_git_workspace`` (the name
+    ``ensure_bare_git_sdd_initialized()`` looks up as a module global at call
+    time, so this covers every caller). A hit on the suite checkout records
+    the workspace, returns ``False`` so nothing is written or committed, and
+    fails the test after teardown naming the workspace. All other workspaces
+    delegate to the real function.
+    """
+    try:
+        from sase.sdd import _commit_bare_git as _commit_bare_git_module
+    except ImportError:
+        yield
+        return
+    real = _commit_bare_git_module.is_local_bare_git_workspace
+    hits: list[Path] = []
+
+    def _guarded(workspace: Path) -> bool:
+        matched = _is_repo_checkout_workspace(workspace)
+        if matched is not None:
+            hits.append(matched)
+            return False
+        return bool(real(workspace))
+
+    monkeypatch.setattr(
+        _commit_bare_git_module, "is_local_bare_git_workspace", _guarded
+    )
+    yield
+    if hits:
+        names = ", ".join(str(path) for path in hits)
+        pytest.fail(
+            "SDD init attempted on the suite checkout workspace: "
+            f"{names}. Isolate the bead-store resolution for this test.",
+            pytrace=False,
+        )
+
+
 @pytest.fixture
 def real_directory_map_assets(monkeypatch: pytest.MonkeyPatch) -> None:
     """Exercise production packaged directory-map asset installation."""

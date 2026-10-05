@@ -7,9 +7,15 @@ from pathlib import Path
 
 import pytest
 from sase.project_tags.catalog import _clear_project_tag_catalog_cache
+from tests._checkout_leak_guard import (
+    finish_checkout_leak_guard,
+    report_checkout_leak_guard,
+    start_checkout_leak_guard,
+)
 from tests._conftest_environment import (
     _clear_agent_env_vars,
     _clear_console_color_override_env_vars,
+    _forbid_bare_git_sdd_init_in_repo_checkout,
     _isolate_sase_home,
     _publish_pytest_sandbox,
     _restore_workflow_metadata_derived_caches,
@@ -132,6 +138,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     """Snapshot the system temp directory before any test runs."""
     record_lease_progress("session")
     start_tmp_leak_guard(session)
+    start_checkout_leak_guard(session)
 
 
 def pytest_collection_finish(session: pytest.Session) -> None:
@@ -207,6 +214,7 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
     """Fail the run when the suite leaked system temp-directory entries."""
     _restore_hypothesis_local_constant_prescan()
     finish_tmp_leak_guard(session)
+    finish_checkout_leak_guard(session)
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
@@ -234,6 +242,7 @@ def pytest_terminal_summary(
 ) -> None:
     """Name any leaked system temp-directory entries in the summary."""
     report_tmp_leak_guard(config, terminalreporter)
+    report_checkout_leak_guard(config, terminalreporter)
 
 
 @pytest.hookimpl(tryfirst=True)

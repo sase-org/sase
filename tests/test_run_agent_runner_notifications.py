@@ -483,7 +483,12 @@ def test_completion_notification_keeps_shell_name_without_agent_session_metadata
     assert action_data["raw_suffix"] == base_kwargs["artifacts_timestamp"]
 
 
-def test_completion_notification_does_not_truncate_dotted_standalone_name(base_kwargs):
+def test_completion_notification_does_not_truncate_dotted_standalone_name(
+    base_kwargs, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(
+        "sase.agent.bead_display.lookup_bead_issue", lambda _, **__: None
+    )
     base_kwargs["agent_name"] = "sase-x.3"
 
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
