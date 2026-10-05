@@ -114,7 +114,9 @@ Assign a tribe with `%id(tribe=<tribe>)` or `#tribe:<tribe>` for an auto-named a
 - **`.md`:** one `prompt_part`; frontmatter
   `name/description/input/tags/snippet/skill/macros` (`_` local helpers). Body is Jinja2
   or `{0}`; `@{{ file }}` inlines a file.
-- **Inputs:** `word/line/text/path/int/bool/float`; defaultless means required.
+- **Inputs:** `type` names the value — scalars
+  (word/line/text/path/int/float/bool/code), `enum` + `choices`, builtin
+  `agent`/`model`/`effort`, plugin `<dist>@<id>`; defaultless means required.
 - **`.yml`:** workflow `steps`: `prompt_part/python/bash/agent/use: shared/...`;
   supports `input/output/environment/if/repeat/finally/hidden/tags`.
 - **Discovery, first wins:** project `sase/macros/` -> legacy project `.xprompts/`,

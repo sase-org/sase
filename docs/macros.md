@@ -49,6 +49,7 @@ order.
   - [sase macro show](#sase-macro-show)
   - [sase macro graph](#sase-macro-graph)
   - [sase macro catalog](#sase-macro-catalog)
+  - [sase macro types](#sase-macro-types)
 - [Editor LSP](#editor-lsp)
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
@@ -141,7 +142,7 @@ The old page `sase.sh/xprompt/` redirects here.
 
 ## CLI Subcommands
 
-The `sase macro` command provides six subcommands for working with macros. With no
+The `sase macro` command provides seven subcommands for working with macros. With no
 subcommand, it defaults to `sase macro list`. Flags belong to the explicit subcommand,
 so use forms like `sase macro expand --trace '#plan'` rather than putting `--trace` on
 bare `sase macro`.
@@ -249,6 +250,26 @@ as the base kind and `choices` as canonical string values. They also include
 `type_label`, `choice_details` (value, optional label, and optional description),
 `named_type`, and `value_role`. The text view uses the same type label and shows each
 choice's canonical value with its display label and description.
+
+### `sase macro types`
+
+List the installed input-type catalog, or show one type's detail card. The catalog is
+the same vocabulary the binder, TUI, and LSP use: scalar keywords, builtin
+`agent`/`model`/`effort`, and plugin-shared enums.
+
+```bash
+sase macro types                                          # Grouped tables
+sase macro types effort                                   # One builtin type
+sase macro types sase-research-artifacts@audio_edition    # One plugin type
+sase macro types --json                                   # Rust catalog projection
+sase macro types model -j                                 # One type as JSON
+```
+
+`NAME` accepts a bare builtin (`effort`, `model`), a deprecated alias (`string`),
+`builtin@<name>`, or a qualified plugin type (`sase-research-artifacts@audio_edition`).
+`--json` prints the Rust catalog projection. Unknown names exit 1. See
+[Typed Inputs](#typed-inputs) for the rule authors learn and
+[Shipping input types](plugins.md#shipping-input-types) for plugin manifests.
 
 ## Editor LSP
 
@@ -924,7 +945,33 @@ the parentheses.
 
 ## Typed Inputs
 
-Macros can declare typed input parameters in the YAML front matter.
+`type` names what the value is: a scalar keyword (`word`, `line`, `text`, `path`, `int`,
+`float`, `bool`, `code`), `enum` with inline `choices`, a builtin type (`agent`,
+`model`, `effort`), or a plugin's shared enum (`<dist>@<id>`). Bare names belong to
+sase; qualified names belong to plugins.
+
+The same catalog drives every surface: the runtime binder,
+[`sase macro types`](#sase-macro-types) and `sase macro show`, the
+[TUI prompt bar](ace.md#completion), and the [macro LSP](editor.md#lsp-features).
+Completing, validating, and explaining a value follows one rule.
+
+```yaml
+---
+name: deploy
+input:
+  env: # inline enum
+    type: enum
+    choices:
+      - { value: staging, description: Pre-prod cluster }
+      - { value: prod, label: Production, description: Customer traffic }
+    default: staging
+  model: { type: model, default: "@large" } # builtin domain, same values as %model
+  effort: effort # builtin closed enum, same values as %effort
+  edition: sase-research-artifacts@audio_edition # plugin-shared enum
+---
+```
+
+The shortform `name: <type string>` already works for every named type.
 
 ### Longform Syntax
 
@@ -962,25 +1009,34 @@ save-time conversion, and literal-zone rules.
 
 ### Supported Types
 
-| Type     | Aliases   | Validation                                              |
-| -------- | --------- | ------------------------------------------------------- |
-| `word`   | --        | No whitespace allowed                                   |
-| `line`   | --        | No newlines allowed (default type)                      |
-| `text`   | --        | Any content, no restrictions                            |
-| `path`   | --        | A single line; spaces are allowed, newlines are not     |
-| `agent`  | --        | Non-empty, no whitespace; completes agent names         |
-| `int`    | `integer` | Must parse as an integer                                |
-| `bool`   | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off` |
-| `float`  | --        | Must parse as a float                                   |
-| `enum`   | --        | Must be one of the input's declared `choices`           |
-| `code`   | --        | Structured source plus language (default language bash) |
-| `effort` | --        | One of the seven `%effort` levels, matched exactly      |
-| `model`  | --        | A model token `%model` would accept without fallback    |
+Resolution is scalar → inline `enum` → builtin (`agent`, `model`, `effort`) → plugin
+`<dist>@<id>`. `sase macro types` prints the installed catalog in that grouping.
+
+| Type     | Kind    | Aliases   | Validation                                                                |
+| -------- | ------- | --------- | ------------------------------------------------------------------------- |
+| `word`   | scalar  | --        | No whitespace allowed                                                     |
+| `line`   | scalar  | --        | No newlines allowed (default type)                                        |
+| `text`   | scalar  | --        | Any content, no restrictions                                              |
+| `path`   | scalar  | --        | A single line; spaces are allowed, newlines are not                       |
+| `int`    | scalar  | `integer` | Must parse as an integer                                                  |
+| `bool`   | scalar  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`                   |
+| `float`  | scalar  | --        | Must parse as a float                                                     |
+| `code`   | scalar  | --        | Structured source plus language (default language bash)                   |
+| `enum`   | inline  | --        | One of the input's declared `choices`                                     |
+| `agent`  | builtin | --        | Non-empty, no whitespace; completes agent names                           |
+| `effort` | builtin | --        | One of the seven `%effort` levels, matched exactly                        |
+| `model`  | builtin | --        | A model token `%model` would accept without the default-provider fallback |
+
+Plugin types use `<distribution>@<id>` (for example
+`sase-research-artifacts@audio_edition`) and resolve to closed enums. See
+[Named plugin input types](#named-plugin-input-types).
 
 `string` is a deprecated alias of `line`. Loaders still accept it and emit an
-`input_type_warning`; new declarations should use `line`. An unknown type name is a
-per-macro load error with suggestions (`enmu` suggests `enum`). Plugin types use
-`distribution@id` (for example `sase-research-artifacts@audio_edition`).
+`input_type_warning`; new declarations should use `line`. `builtin@<name>` is an
+accepted alias of any bare builtin; hover, labels, and formatters always show the bare
+form. An unknown type name is a per-macro load error with suggestions (`enmu` suggests
+`enum`); only that macro is skipped. With the `strict_macro_input_types` sunset flag
+off, unknown names still fall back to `line`.
 
 A `code` input is not a plain string with a convention. Binding yields a structured
 `CodeValue` (source, language, digest, preview). Unlabelled values default to Bash;
@@ -992,7 +1048,11 @@ An `effort` input accepts exactly one of the seven `%effort` levels (`none`, `mi
 `low`, `medium`, `high`, `xhigh`, `max`); anything else is rejected the same way a
 non-member `enum` value is. A `model` input accepts exactly the tokens the `%model`
 directive would accept _and_ route to a provider without the silent default-provider
-fallback (see [Macro model inputs](llms.md#macro-model-inputs)).
+fallback: aliases need `@` (`@large` routes; bare `large` does not), `provider/model` is
+open for unknown model ids and closed for unknown providers, and a trailing `@<level>`
+peels only when `<level>` is one of the seven effort levels. See
+[Macro model inputs](llms.md#macro-model-inputs). `%model:opsu` still parses and still
+falls back at launch; `type: model` rejects that token at bind time with a suggestion.
 
 ### Enum Choices
 

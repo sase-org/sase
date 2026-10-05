@@ -100,18 +100,28 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple PRs" } }
 
 ### Supported Types
 
-| Type    | Description                                                                        |
-| ------- | ---------------------------------------------------------------------------------- |
-| `word`  | Single word, no whitespace                                                         |
-| `line`  | Single line, no newlines (the default when `type` is omitted)                      |
-| `text`  | Multi-line text (any content)                                                      |
-| `path`  | File path (a single line; spaces are allowed)                                      |
-| `agent` | Agent name (no whitespace); sase's TUI completes agent targets                     |
-| `int`   | Integer value (alias `integer`)                                                    |
-| `bool`  | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`; alias `boolean`)   |
-| `float` | Floating point value                                                               |
-| `enum`  | One of the input's `choices`; `choices` work in both shortform and longform        |
-| `code`  | Structured source plus language (see [Supported Types](macros.md#supported-types)) |
+`type` names the value the same way it does for markdown macros: scalar → inline `enum`
+→ builtin → plugin. This table is the workflow view of that catalog; see
+[Typed Inputs](macros.md#typed-inputs) for the rule, value rules, and model contract.
+
+| Type     | Description                                                                              |
+| -------- | ---------------------------------------------------------------------------------------- |
+| `word`   | Single word, no whitespace                                                               |
+| `line`   | Single line, no newlines (the default when `type` is omitted)                            |
+| `text`   | Multi-line text (any content)                                                            |
+| `path`   | File path (a single line; spaces are allowed)                                            |
+| `int`    | Integer value (alias `integer`)                                                          |
+| `bool`   | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`; alias `boolean`)         |
+| `float`  | Floating point value                                                                     |
+| `code`   | Structured source plus language (see [Supported Types](macros.md#supported-types))       |
+| `enum`   | One of the input's `choices`; `choices` work in both shortform and longform              |
+| `agent`  | Agent name (no whitespace); sase's TUI completes agent targets                           |
+| `effort` | One of the seven `%effort` levels (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`) |
+| `model`  | A model token `%model` would accept without the default-provider fallback                |
+
+Plugin-shared enums use `<distribution>@<id>` (for example
+`sase-research-artifacts@audio_edition`). `sase macro types` lists the installed
+catalog. `string` is a deprecated alias of `line`.
 
 Inputs can also set `description` and, on the last positional input, `repeatable: true`;
 see [Typed Inputs](macros.md#typed-inputs) for the shared input rules.
