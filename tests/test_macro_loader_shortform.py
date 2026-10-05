@@ -1,10 +1,10 @@
 """Tests for macro.loader shortform syntax parsing."""
 
-from sase.macro.loader_parsing import (
+from sase.macro._loader_parsing_outputs import (
     _normalize_schema_properties,
     _parse_shortform_output,
-    parse_output_from_front_matter,
 )
+from sase.macro.loader_parsing import parse_output_from_front_matter
 
 # Tests for _parse_shortform_input_value
 

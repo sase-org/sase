@@ -4,8 +4,8 @@ import pytest
 
 from sase.feature_flags.snapshot import override_flags
 from sase.macro.load_issues import collect_macro_load_issues
+from sase.macro._loader_parsing_outputs import _parse_shortform_output
 from sase.macro.loader_parsing import (
-    _parse_shortform_output,
     parse_inputs_from_front_matter,
     parse_macro_entries,
     parse_yaml_front_matter,
