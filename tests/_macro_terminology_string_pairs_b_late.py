@@ -62,7 +62,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/test_macro_jinja_and_standalone.py", '"%xprompts_enabled:true\\n"'),
     ("tests/test_macro_jinja_inspect.py", '"%xprompts_enabled:false\\n"'),
     ("tests/test_macro_jinja_inspect.py", '"%xprompts_enabled:true\\n"'),
-    ("tests/test_macro_jinja_lsp_parity.py", '"xprompt"'),
     ("tests/test_macro_jinja_lsp_parity.py", '"xprompts"'),
     ("tests/test_macro_links.py", '"sase/xprompts/deploy.md"'),
     (

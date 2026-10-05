@@ -9,10 +9,6 @@ from __future__ import annotations
 STRING_PAIRS: set[tuple[str, str]] = {
     (
         "tests/_macro_directive_completion_parity_helpers.py",
-        'elif operation == "xprompt-catalog":',
-    ),
-    (
-        "tests/_macro_directive_completion_parity_helpers.py",
         'elif operation in ("xprompt-catalog", "macro-catalog"):',
     ),
     (
@@ -184,11 +180,6 @@ STRING_PAIRS: set[tuple[str, str]] = {
         "tests/llm_provider/test_commit_finalizer_hidden_agents_sidecar.py",
         '%xprompts_enabled:true"""',
     ),
-    ("tests/macro/test_argument_surface_parity.py", '"duplicate_xprompt_arg"'),
-    ("tests/macro/test_argument_surface_parity.py", '"invalid_xprompt_arg_type"'),
-    ("tests/macro/test_argument_surface_parity.py", '"unknown_xprompt_arg"'),
-    ("tests/macro/test_argument_surface_parity.py", '"xprompt"'),
-    ("tests/macro/test_argument_surface_parity.py", '"xprompt_argument_spans"'),
     ("tests/macro/test_cli_show_resolve.py", '"shadows xprompt"'),
     ("tests/macro/test_cli_show_resolve.py", '"xprompt body"'),
     ("tests/macro/test_cli_show_resolve.py", '"xprompt body\\n"'),

@@ -128,17 +128,12 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
         "sase/memory/macros.md",
         "`~/.config/sase/xprompts/<project>/` -> project/user config -> plugins -> package",
     ),
-    (
-        "docs/editor.md",
-        "| Diagnostics           | Reports macro/directive issues, macro call arguments that are unknown (`unknown_macro_arg`), repeated (`duplicate_macro_arg`), or the wrong type for the declared input (`inva",
-    ),
 }
 
 
 _MACRO_DOCS_REASONS: dict[str, str] = {
     "docs/_redirects": "hosting redirect keeps the retired page URL working",
     "docs/blog/posts/structured-agentic-software-engineering.md": "published-post rename note required by docs-memory",
-    "docs/editor.md": "diagnostics table names the plan-mandated invalid_xprompt_arg_choice code",
     "docs/macros.md": "the 'Renamed from xprompts' docs section is the docs allowlist",
     "mkdocs-pdf.yml": "mkdocs redirect keeps the retired page URL working",
     "mkdocs.yml": "mkdocs redirect keeps the retired page URL working",

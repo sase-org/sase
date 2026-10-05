@@ -140,7 +140,6 @@ _MACRO_TEST_STRING_REASONS: dict[str, str] = {
     "tests/ace/tui/test_statistics_scope_header.py": "resume-state migration test keeps the retired Statistics view id opening Macros",
     "tests/doctor/test_checks_config_retired.py": "doctor retired-names table: required legacy id and retired-name report surface; permanent by parent design fixtures",
     "tests/fixtures/macro_args_corpus.json": "shared Python/Rust corpus fixture; description renames with the core flip",
-    "tests/macro/test_argument_surface_parity.py": "pre-flip wire/transport vocabulary; owned by sase-1eq.10",
     "tests/macro/test_highlight.py": "dual-spelling reader: canonical writers, legacy source value",
     "tests/macro/test_macro_discovery_policy.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "tests/main/test_lsp_handler.py": "pre-flip wire/transport vocabulary; owned by sase-1eq.10",
