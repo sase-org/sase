@@ -47,7 +47,10 @@ from sase.core.agent_scan_wire import (
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire
-from sase.sdd._store_maintenance import maybe_gc_sidecar_clone
+from sase.sdd._store_maintenance import (
+    maintain_hidden_sidecar_clones,
+    maybe_gc_sidecar_clone,
+)
 from sase.sdd._store_types import BEADS_SIDECAR_ROLE
 
 _BACKOFF_STATE_FILENAME = "sidecar_auto_sync_schedule.json"
@@ -350,6 +353,58 @@ def _summary(
 _GOALS_PUSH_TIMEOUT_SECONDS = 10.0
 
 
+def _maintain_hidden_sidecar_clones(
+    runtime: BuiltinChopRuntime,
+    records: list[ProjectRecordWire],
+    work_deadline: float,
+) -> int:
+    """Gc fragmented host-owned hidden sidecar clones, project by project.
+
+    The primary-clone gc above never reaches these clones. Uses the same
+    try-lock semantics plus serialization with the machine artifact-link
+    writer. Shares the chop's work budget; stops early when it is exhausted.
+    Returns the number of clones gc'd.
+    """
+
+    collected = 0
+    seen: set[str] = set()
+    for record in records:
+        if time.monotonic() >= work_deadline:
+            break
+        project_key = record.project_name
+        if project_key in seen or not record.workspace_dir:
+            continue
+        seen.add(project_key)
+        try:
+            collected += maintain_hidden_sidecar_clones(
+                project_key, Path(record.workspace_dir)
+            )
+        except Exception as exc:  # noqa: BLE001 - one project never stalls.
+            runtime.log.warning(
+                f"[sidecar_auto_sync] Hidden-clone maintenance for "
+                f"{project_key} failed: {exc}"
+            )
+    return collected
+
+
+def _prune_bead_push_logs(runtime: BuiltinChopRuntime) -> int:
+    """Apply age-plus-count retention to the managed-sync push logs.
+
+    Interval-gated inside ``prune_old_bead_sync_logs`` so most chop ticks do
+    no work here. Returns the number of logs deleted.
+    """
+
+    try:
+        from sase.bead._sync_logs import prune_old_bead_sync_logs
+
+        return prune_old_bead_sync_logs()
+    except Exception as exc:  # noqa: BLE001 - maintenance cannot fail chop.
+        runtime.log.warning(
+            f"[sidecar_auto_sync] Bead push-log retention failed: {exc}"
+        )
+        return 0
+
+
 def _publish_pending_goals_outboxes(
     runtime: BuiltinChopRuntime,
     records: list[ProjectRecordWire],
@@ -473,6 +528,15 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                 else:
                     _maintain_synced_sidecar(runtime, target, result)
         _persist_schedule_state(runtime, state_path, schedule_state)
+
+    # These legs share the chop's work budget without adding clock reads
+    # that disturb backoff scheduling: a nonzero deferred count means the
+    # target pass already exhausted it.
+    if not deferred:
+        _maintain_hidden_sidecar_clones(runtime, records, work_deadline)
+
+    if not deferred:
+        _prune_bead_push_logs(runtime)
 
     goals_published = (
         0 if deferred else _publish_pending_goals_outboxes(runtime, records)

@@ -4945,6 +4945,31 @@
       "description": "Configuration for Structured Design Documents",
       "additionalProperties": false,
       "properties": {
+        "bead_push_log_retention": {
+          "type": "object",
+          "description": "Age-plus-count retention for bead_push_logs sync logs, applied from the sidecar_auto_sync scheduler chop",
+          "additionalProperties": false,
+          "properties": {
+            "max_age_days": {
+              "type": "number",
+              "description": "Delete sync logs older than this many days once past the keep count. Non-positive disables the age predicate.",
+              "default": 30
+            },
+            "keep_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Newest sync logs always kept. Non-positive disables the count predicate.",
+              "default": 200
+            },
+            "min_interval_seconds": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Minimum seconds between retention passes.",
+              "default": 3600
+            }
+          },
+          "default": {}
+        },
         "bead_refresh": {
           "type": "object",
           "description": "Remote freshness policy for bead commands using sidecar stores",

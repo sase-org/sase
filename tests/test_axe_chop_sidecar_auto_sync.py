@@ -88,6 +88,13 @@ def _configure(
         lambda _root: live_bead_wait_projects,
     )
     monkeypatch.setattr(sidecar_sync_chop, "mark_sidecar_sync_hint", MagicMock())
+    # The scheduler maintenance legs touch host state (hidden clones,
+    # ~/.sase/bead_push_logs); stub them so these tests stay hermetic.
+    # Leg-specific tests below re-enable the seam they exercise.
+    monkeypatch.setattr(
+        sidecar_sync_chop, "_maintain_hidden_sidecar_clones", lambda *a, **k: 0
+    )
+    monkeypatch.setattr(sidecar_sync_chop, "_prune_bead_push_logs", lambda *a, **k: 0)
 
 
 def test_no_auto_sync_roles_short_circuits(
@@ -615,3 +622,107 @@ class TestProjectsWithLiveBeadWaits:
         assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == {
             "uncertain"
         }
+
+
+def test_run_visits_hidden_clones_for_each_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure(
+        monkeypatch,
+        tmp_path,
+        records=[
+            _project(tmp_path, name="one"),
+            _project(tmp_path, name="two"),
+        ],
+        roles_by_project={"one": ("plans",), "two": ("plans",)},
+    )
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "sync_primary_sidecar_role",
+        MagicMock(
+            side_effect=lambda project, role, **_k: SidecarSyncResult(
+                project, role, "up_to_date", "already fresh"
+            )
+        ),
+    )
+    visited: list[tuple[str, str]] = []
+
+    def record_leg(runtime: object, records: list[object], work_deadline: float) -> int:
+        visited.extend(
+            (record.project_name, record.workspace_dir)
+            for record in records  # type: ignore[union-attr]
+        )
+        return len(records)
+
+    # Override the hermetic stub from _configure with a recording leg.
+    monkeypatch.setattr(
+        sidecar_sync_chop, "_maintain_hidden_sidecar_clones", record_leg
+    )
+
+    sidecar_sync_chop._run(_runtime(tmp_path))
+
+    assert sorted(key for key, _ in visited) == ["one", "two"]
+
+
+def test_run_skips_maintenance_legs_when_budget_exhausted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure(
+        monkeypatch,
+        tmp_path,
+        records=[_project(tmp_path, name="one"), _project(tmp_path, name="two")],
+        roles_by_project={"one": ("plans",), "two": ("plans",)},
+    )
+    clock = iter([0.0, 0.0, sidecar_sync_chop._WORK_BUDGET_SECONDS + 1.0])
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(clock)),
+    )
+    sync = MagicMock(
+        return_value=SidecarSyncResult("one", "plans", "up_to_date", "already fresh")
+    )
+    monkeypatch.setattr(sidecar_sync_chop, "sync_primary_sidecar_role", sync)
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "maintain_hidden_sidecar_clones",
+        lambda *_a, **_k: pytest.fail("budget-exhausted hidden gc ran"),
+    )
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "_maintain_hidden_sidecar_clones",
+        lambda *_a, **_k: pytest.fail("budget-exhausted hidden leg ran"),
+    )
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "_prune_bead_push_logs",
+        lambda *_a, **_k: pytest.fail("budget-exhausted push-log prune ran"),
+    )
+
+    result = sidecar_sync_chop._run(_runtime(tmp_path))
+
+    assert result.counters["deferred"] == 1
+
+
+def test_prune_leg_delegates_to_sync_log_retention(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Grab the real leg before _configure installs the hermetic stub.
+    real_prune_leg = sidecar_sync_chop._prune_bead_push_logs
+    _configure(
+        monkeypatch,
+        tmp_path,
+        records=[_project(tmp_path)],
+        roles_by_project={},
+    )
+    pruned: list[bool] = []
+    monkeypatch.setattr(
+        "sase.bead._sync_logs.prune_old_bead_sync_logs",
+        lambda **_k: pruned.append(True) or 3,
+    )
+
+    assert real_prune_leg(_runtime(tmp_path)) == 3
+    assert pruned == [True]

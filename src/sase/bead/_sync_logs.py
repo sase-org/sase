@@ -16,6 +16,126 @@ _SYNC_LOG_HEAD_BYTES = 8 * 1024
 _SYNC_LOG_TAIL_BYTES = 64 * 1024
 _SYNC_LOG_RECURRING_FAILURE_THRESHOLD = 2
 
+_PUSH_LOG_RETENTION_MARKER_FILENAME = ".bead_push_log_retention"
+_DEFAULT_PUSH_LOG_MAX_AGE_DAYS = 30.0
+_DEFAULT_PUSH_LOG_KEEP_COUNT = 200
+_DEFAULT_PUSH_LOG_MIN_INTERVAL_SECONDS = 3600.0
+
+
+def bead_push_log_retention_config() -> tuple[float, int, float]:
+    """Return ``(max_age_days, keep_count, min_interval_seconds)``.
+
+    A non-positive value disables that predicate. Falls back to defaults when
+    configuration is missing or malformed.
+    """
+
+    try:
+        from sase.config import load_merged_config
+
+        raw = load_merged_config().get("sdd", {}).get("bead_push_log_retention", {})
+    except Exception:
+        return (
+            _DEFAULT_PUSH_LOG_MAX_AGE_DAYS,
+            _DEFAULT_PUSH_LOG_KEEP_COUNT,
+            _DEFAULT_PUSH_LOG_MIN_INTERVAL_SECONDS,
+        )
+    if not isinstance(raw, dict):
+        return (
+            _DEFAULT_PUSH_LOG_MAX_AGE_DAYS,
+            _DEFAULT_PUSH_LOG_KEEP_COUNT,
+            _DEFAULT_PUSH_LOG_MIN_INTERVAL_SECONDS,
+        )
+    try:
+        max_age_days = float(raw.get("max_age_days", _DEFAULT_PUSH_LOG_MAX_AGE_DAYS))
+    except (TypeError, ValueError):
+        max_age_days = _DEFAULT_PUSH_LOG_MAX_AGE_DAYS
+    try:
+        keep_count = int(raw.get("keep_count", _DEFAULT_PUSH_LOG_KEEP_COUNT))
+    except (TypeError, ValueError):
+        keep_count = _DEFAULT_PUSH_LOG_KEEP_COUNT
+    try:
+        min_interval_seconds = float(
+            raw.get("min_interval_seconds", _DEFAULT_PUSH_LOG_MIN_INTERVAL_SECONDS)
+        )
+    except (TypeError, ValueError):
+        min_interval_seconds = _DEFAULT_PUSH_LOG_MIN_INTERVAL_SECONDS
+    return (max_age_days, keep_count, max(0.0, min_interval_seconds))
+
+
+def prune_old_bead_sync_logs(
+    *,
+    now: float | None = None,
+    max_age_days: float | None = None,
+    keep_count: int | None = None,
+    min_interval_seconds: float | None = None,
+    log_dir: Path | None = None,
+) -> int:
+    """Delete ``sync-*.log`` files beyond the age-plus-count budget.
+
+    Keeps the newest *keep_count* logs and any log younger than
+    *max_age_days* (a non-positive value disables that predicate). Runs at
+    most once per *min_interval_seconds* so the scheduler chop's maintenance
+    pass stays cheap. Returns the number of files deleted. Best-effort: every
+    filesystem failure is swallowed.
+    """
+
+    import time
+
+    config_max_age, config_keep, config_interval = bead_push_log_retention_config()
+    if max_age_days is None:
+        max_age_days = config_max_age
+    if keep_count is None:
+        keep_count = config_keep
+    if min_interval_seconds is None:
+        min_interval_seconds = config_interval
+    moment = now if now is not None else time.time()
+
+    try:
+        directory = log_dir if log_dir is not None else bead_sync_log_dir()
+    except Exception:
+        return 0
+
+    marker = directory / _PUSH_LOG_RETENTION_MARKER_FILENAME
+    try:
+        last_run = marker.stat().st_mtime
+    except OSError:
+        last_run = 0.0
+    if moment - last_run < max(0.0, min_interval_seconds):
+        return 0
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch(exist_ok=True)
+        os.utime(marker, (moment, moment))
+    except OSError:
+        pass
+
+    try:
+        logs = list(directory.glob("sync-*.log"))
+    except Exception:
+        return 0
+
+    def mtime(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return float("inf")
+
+    ordered = sorted(logs, key=lambda path: (mtime(path), path.name), reverse=True)
+    cutoff = moment - max(0.0, max_age_days) * 86400.0 if max_age_days > 0 else None
+
+    deleted = 0
+    for index, path in enumerate(ordered):
+        if keep_count > 0 and index < keep_count:
+            continue
+        if cutoff is not None and mtime(path) >= cutoff:
+            continue
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        deleted += 1
+    return deleted
+
 
 @dataclass(frozen=True)
 class SyncLogOutcome:

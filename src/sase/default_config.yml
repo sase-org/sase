@@ -1894,6 +1894,13 @@ sdd:
     # separate_repo storage. Accepts "name" or "owner/name"; empty uses the
     # provider default (GitHub: <owner>/<repo>--sdd).
     name: ""
+  # Age-plus-count retention for ~/.sase/bead_push_logs sync-*.log files,
+  # applied at most once per interval from the sidecar_auto_sync scheduler
+  # chop's maintenance pass. A non-positive value disables that predicate.
+  bead_push_log_retention:
+    max_age_days: 30
+    keep_count: 200
+    min_interval_seconds: 3600
   # Controls `git push` after SDD commits in separate_repo storage. Accepts:
   #   true  - push synchronously; failures only warn and the local commit is
   #           preserved so the user can push manually later.
