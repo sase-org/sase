@@ -49,6 +49,7 @@ columns.
 
 | Column             | Meaning                                                                                          |
 | ------------------ | ------------------------------------------------------------------------------------------------ |
+| `manifest`         | Observed sessions with a shadow manifest for the same provider (`k/N`; agy counts runs).         |
 | `contract`         | Loaded sources carrying the `SASE Final Declaration` heading (`N×`, with the spread when mixed). |
 | `home`             | The current `~/AGENTS.md` first H1 was loaded.                                                   |
 | `project`          | The run workspace-root `AGENTS.md` first H1 was loaded.                                          |
@@ -56,6 +57,16 @@ columns.
 | `native-SASE-full` | Natively loaded files that carry the contract.                                                   |
 | `foreign`          | Claude auto-memory, or Grok's memory flag as `k/N`.                                              |
 | `helpers`          | Helper sessions by type, template presence, `sase final` attempts, and accepted declarations.    |
+
+A session counts as covered when its run holds a manifest for the same execution
+provider rendered no later than the session start (5 s of skew allowed).
+`sase instructions verify -c` prints the per-provider-purpose coverage table: manifests,
+sessions, covered, up to 10 uncovered `(agent, session)` pairs, shadow-failure
+(`.error.json`) counts, and warm/cold `render_ms` p50/p95. With `-a NAME`, each observed
+root session also gets its intended-vs-observed section table: every included manifest
+section with the count of loaded sources whose text contains it, split into `native` and
+`explicit` channels (frame and heading-only sections are skipped; `◌` marks partial or
+unverifiable sessions such as agy).
 
 Symbols: `✓` present, `✗` absent, `◌` unverifiable (agy reports every instruction column
 as `◌`, with directive presence only when the conversation record exposes the prompt).
@@ -67,7 +78,8 @@ Claude `instructions` attachments, the Codex `# AGENTS.md instructions` block, M
 block in `system_prompt.txt`, and prompt prefixes. `sase doctor -D -C instructions` runs
 the same scoreboard as a deep-only group (`instructions.delivery` WARNs on rows that
 break contract 1×, project ✓, directive ✓, or native-full ≤ 1; `instructions.helpers`
-WARNs on any accepted helper declaration).
+WARNs on any accepted helper declaration; `instructions.coverage` WARNs on observed
+sessions without a shadow manifest or any shadow failure).
 
 ## Root and helper agents
 

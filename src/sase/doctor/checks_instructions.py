@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 
@@ -26,6 +26,13 @@ def instructions_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="instructions",
             title="No helper accepted a final declaration",
             runner=lambda: check_instructions_helpers(context),
+            deep=True,
+        ),
+        CheckSpec(
+            id="instructions.coverage",
+            group="instructions",
+            title="Shadow instruction manifests cover observed sessions",
+            runner=lambda: check_instructions_coverage(context),
             deep=True,
         ),
     )
@@ -137,7 +144,86 @@ def check_instructions_helpers(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
+def check_instructions_coverage(context: DoctorContext) -> DiagnosticCheck:
+    """Warn on observed sessions without a shadow manifest, or shadow errors."""
+    from sase.instructions import _runs as run_mod
+    from sase.instructions import coverage as coverage_mod
+
+    title = "Shadow instruction manifests cover observed sessions"
+    now = datetime.now(tz=UTC)
+    scored = run_mod.enumerate_runs(
+        limit_per_provider=10,
+        since=now - timedelta(hours=24),
+        until=None,
+        project=context.project,
+        agent=None,
+        providers=(),
+    )
+    records: list[coverage_mod.ManifestRecord] = []
+    for run in scored:
+        records.extend(coverage_mod.run_manifest_records(run.artifact_dir))
+    if not records:
+        return DiagnosticCheck(
+            id="instructions.coverage",
+            group="instructions",
+            status="SKIP",
+            title=title,
+            summary="no shadow manifests in the last 24 hours",
+        )
+    known = [record.rendered_at for record in records if record.rendered_at is not None]
+    earliest = min(known) if known else now
+    sessions = coverage_mod.root_sessions(scored)
+    verdicts = coverage_mod.cover_sessions(sessions, records)
+    # Only sessions in runs that started after the earliest manifest count:
+    # older runs predate the shadow hook, so their gap is expected.
+    recent_uncovered = sorted(
+        f"{item.run_name}/{item.session_id}"
+        for item in verdicts
+        if not item.covered and _run_started_after(item, scored, earliest)
+    )
+    errors: list[str] = []
+    for run in scored:
+        from sase.instructions.manifests import read_run_manifests
+
+        for entry in read_run_manifests(run.artifact_dir):
+            if entry.error is not None:
+                errors.append(f"{run.name} seq {entry.seq}")
+    problems: list[str] = []
+    if recent_uncovered:
+        problems.append("uncovered sessions: " + ", ".join(recent_uncovered))
+    if errors:
+        problems.append(f"{len(errors)} shadow error(s): " + ", ".join(errors[:5]))
+    if problems:
+        return DiagnosticCheck(
+            id="instructions.coverage",
+            group="instructions",
+            status="WARN",
+            title=title,
+            summary="; ".join(problems),
+        )
+    return DiagnosticCheck(
+        id="instructions.coverage",
+        group="instructions",
+        status="OK",
+        title=title,
+        summary=f"{len(verdicts)} sessions covered by shadow manifests",
+    )
+
+
+def _run_started_after(
+    item: Any,
+    scored: list[Any],
+    earliest: datetime,
+) -> bool:
+    """Return whether *item*'s run started after *earliest*."""
+    for run in scored:
+        if run.name == item.run_name and run.started_at > earliest:
+            return True
+    return False
+
+
 __all__ = [
+    "check_instructions_coverage",
     "check_instructions_helpers",
     "check_instructions_delivery",
     "instructions_check_specs",

@@ -134,6 +134,12 @@ def register_instructions_parser(subparsers: argparse._SubParsersAction) -> None
     )
     set_completion_kind(agent_action, ValueKind.AGENT)
     verify_parser.add_argument(
+        "-c",
+        "--coverage",
+        action="store_true",
+        help="Show manifest coverage per provider and purpose",
+    )
+    verify_parser.add_argument(
         "-H",
         "--helpers",
         action="store_true",

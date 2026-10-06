@@ -59,6 +59,7 @@ def test_verify_parser_options_are_alphabetical_with_short_aliases() -> None:
             "verify",
             "-a",
             "some-agent",
+            "-c",
             "-H",
             "-j",
             "-n",
@@ -75,6 +76,7 @@ def test_verify_parser_options_are_alphabetical_with_short_aliases() -> None:
     )
     assert args.instructions_subcommand == "verify"
     assert args.agent == "some-agent"
+    assert args.coverage is True
     assert args.helpers is True
     assert args.json is True
     assert args.limit == 5
@@ -88,6 +90,7 @@ def test_verify_help_documents_flags() -> None:
     help_text = flat_help(parser_for(("sase", "instructions", "verify")).format_help())
     for flag in (
         "-a, --agent",
+        "-c, --coverage",
         "-H, --helpers",
         "-j, --json",
         "-n, --limit",
@@ -459,11 +462,15 @@ def test_listing_snapshot_ands_candidate_filter_with_project(
 
 
 def test_doctor_registry_includes_instructions_deep_checks(tmp_path: Path) -> None:
-    """Both scoreboard IDs join the deep set."""
+    """All scoreboard IDs join the deep set."""
     context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
     registry = build_doctor_registry(context)
     deep_ids = {spec.id for spec in registry.list_deep_checks()}
-    assert {"instructions.delivery", "instructions.helpers"} <= deep_ids
+    assert {
+        "instructions.delivery",
+        "instructions.helpers",
+        "instructions.coverage",
+    } <= deep_ids
 
 
 def test_doctor_delivery_skips_without_runs(

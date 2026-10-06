@@ -46,6 +46,7 @@ class ProviderRow:
     foreign: str = "—"
     helpers: str = "—"
     root_denials: int = 0
+    coverage: str = "0/0"
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,7 @@ class VerifyReport:
                 "foreign": row.foreign,
                 "helpers": row.helpers,
                 "root_denials": row.root_denials,
+                "coverage": row.coverage,
             }
             for row in self.provider_rows
         ]

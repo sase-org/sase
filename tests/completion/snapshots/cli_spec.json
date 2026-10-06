@@ -18879,7 +18879,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "79baeed962400d34",
+            "description_digest": "558871ae1beb8a41",
             "hidden": false,
             "mutex_groups": [],
             "name": "verify",
@@ -18914,6 +18914,22 @@
                   "--agent"
                 ],
                 "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "coverage",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-c",
+                  "--coverage"
+                ],
+                "takes_value": false,
                 "value_hint": null
               },
               {

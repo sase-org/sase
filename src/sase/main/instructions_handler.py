@@ -306,9 +306,12 @@ def _render_sections_table(compiled: Any) -> None:
 def run_instructions_verify(args: argparse.Namespace) -> int:
     """Run the observed-mode scoreboard and render it."""
     from sase.instructions import _runs as run_mod
+    from sase.instructions import coverage as coverage_mod
     from sase.instructions.render import (
+        render_coverage,
         render_helper_rows,
         render_json,
+        render_section_diffs,
         render_table,
     )
     from sase.instructions.verify import build_report, collect_observations
@@ -335,6 +338,7 @@ def run_instructions_verify(args: argparse.Namespace) -> int:
     agent = getattr(args, "agent", None)
     want_json = bool(getattr(args, "json", False))
     want_helpers = bool(getattr(args, "helpers", False))
+    want_coverage = bool(getattr(args, "coverage", False))
 
     scored = run_mod.enumerate_runs(
         limit_per_provider=limit,
@@ -345,24 +349,100 @@ def run_instructions_verify(args: argparse.Namespace) -> int:
         providers=providers,
     )
     observations = collect_observations(scored)
+    sessions = coverage_mod.root_sessions(scored)
+    records: list[coverage_mod.ManifestRecord] = []
+    for run in scored:
+        records.extend(coverage_mod.run_manifest_records(run.artifact_dir))
+    verdicts = coverage_mod.cover_sessions(sessions, records)
+    agy_verdicts = coverage_mod.cover_agy_runs(scored, records)
+    coverages: dict[str, str] = {}
+    for provider in ("claude", "codex", "muse", "grok"):
+        covered, total = coverage_mod.provider_session_coverage(
+            provider, sessions, verdicts
+        )
+        coverages[provider] = coverage_mod.coverage_label(covered, total)
+    agy_runs = list(agy_verdicts)
+    if agy_runs:
+        coverages["agy"] = coverage_mod.coverage_label(
+            sum(1 for item in agy_runs if item.covered), len(agy_verdicts)
+        )
     filters: dict[str, object] = {
         "agent": agent,
+        "coverage": want_coverage,
         "helpers": want_helpers,
         "limit": limit,
         "providers": list(providers),
         "since": since.isoformat(),
         "until": until.isoformat() if until is not None else None,
     }
-    report = build_report(scored, observations, filters=filters)
-    include_observations = want_json and (agent is not None or want_helpers)
+    report = build_report(scored, observations, filters=filters, coverages=coverages)
+    coverage_block = None
+    if want_coverage:
+        errors = coverage_mod.count_run_errors(scored)
+        coverage_block = coverage_mod.purpose_coverage_rows(
+            sessions, records, error_counts=errors
+        )
+    diffs: list[coverage_mod.SectionDiff] = []
+    section_diffs: dict[tuple[str, str], coverage_mod.SectionDiff] = {}
+    if agent is not None:
+        runs_by_dir = {run.artifact_dir: run for run in scored}
+        obs_by_session = {(obs.run_name, obs.session_id): obs for obs in observations}
+        for session in sessions:
+            # Scored runs are already filtered to this agent (by name or
+            # bead id), so every session here belongs to it.
+            scored_run = runs_by_dir.get(session.artifact_dir)
+            if scored_run is None:
+                continue
+            obs = obs_by_session.get((session.run_name, session.session_id))
+            diffs.append(
+                coverage_mod.section_diff_for_session(
+                    session,
+                    scored_run,
+                    [
+                        record
+                        for record in records
+                        if record.artifact_dir == session.artifact_dir
+                    ],
+                    partial=bool(obs is not None and obs.partial),
+                )
+            )
+        agy_obs = [
+            obs
+            for obs in observations
+            if obs.provider == "agy" and obs.session_id != "unobserved"
+        ]
+        for obs in agy_obs:
+            diff = coverage_mod.SectionDiff(
+                session_id=obs.session_id,
+                run_name=obs.run_name,
+                manifest_path=None,
+                purpose=None,
+                unavailable=True,
+            )
+            diffs.append(diff)
+        for diff in diffs:
+            section_diffs[(diff.run_name, diff.session_id)] = diff
+    include_observations = want_json and (
+        agent is not None or want_helpers or want_coverage
+    )
     if want_json:
-        print(render_json(report, include_observations=include_observations))
+        print(
+            render_json(
+                report,
+                include_observations=include_observations,
+                coverage_block=coverage_block,
+                section_diffs=section_diffs or None,
+            )
+        )
         return 0
     render_table(report)
+    if want_coverage and coverage_block is not None:
+        render_coverage(coverage_block)
     if want_helpers:
         render_helper_rows(report)
     elif agent is not None:
         render_helper_rows(report)
+        render_section_diffs(diffs)
     return 0
 
 

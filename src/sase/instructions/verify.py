@@ -411,6 +411,7 @@ def _observe_muse(
 def aggregate_rows(
     observations: list[SessionObservation],
     scored_runs: list[runs.ScoredRun],
+    coverages: dict[str, str] | None = None,
 ) -> list[ProviderRow]:
     """Aggregate observations into one row per provider."""
     order = ("claude", "codex", "muse", "grok", "agy")
@@ -420,6 +421,7 @@ def aggregate_rows(
     runs_by_provider: dict[str, int] = {}
     for run in scored_runs:
         runs_by_provider[run.provider] = runs_by_provider.get(run.provider, 0) + 1
+    labels = coverages or {}
     rows: list[ProviderRow] = []
     for provider in order:
         obs_list = [
@@ -428,7 +430,12 @@ def aggregate_rows(
         if not obs_list and provider not in runs_by_provider:
             continue
         rows.append(
-            _aggregate_provider(provider, obs_list, runs_by_provider.get(provider, 0))
+            _aggregate_provider(
+                provider,
+                obs_list,
+                runs_by_provider.get(provider, 0),
+                coverage=labels.get(provider, "0/0"),
+            )
         )
     # Keep providers with unobserved runs so the table names the gap.
     for provider in order:
@@ -440,13 +447,18 @@ def aggregate_rows(
                     provider=provider,
                     runs=runs_by_provider[provider],
                     sessions=0,
+                    coverage=labels.get(provider, "0/0"),
                 )
             )
     return rows
 
 
 def _aggregate_provider(
-    provider: str, obs_list: list[SessionObservation], run_count: int
+    provider: str,
+    obs_list: list[SessionObservation],
+    run_count: int,
+    *,
+    coverage: str = "0/0",
 ) -> ProviderRow:
     if not obs_list:
         return ProviderRow(provider=provider, runs=run_count, sessions=0)
@@ -477,6 +489,7 @@ def _aggregate_provider(
         foreign=foreign,
         helpers=helpers,
         root_denials=denials,
+        coverage=coverage,
     )
 
 
@@ -527,9 +540,10 @@ def build_report(
     observations: list[SessionObservation],
     *,
     filters: dict[str, object],
+    coverages: dict[str, str] | None = None,
 ) -> VerifyReport:
     """Build a ``VerifyReport`` from runs and observations."""
-    rows = aggregate_rows(observations, scored_runs)
+    rows = aggregate_rows(observations, scored_runs, coverages)
     return VerifyReport(
         provider_rows=tuple(rows),
         observations=tuple(observations),
