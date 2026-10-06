@@ -17,6 +17,9 @@ from sase.ace.tui.widgets.macro_arg_assist import (
     MacroArgCompletionContext,
     MacroArgNameMetadata,
 )
+from sase.ace.tui.widgets._macro_arg_choice_adapter import (
+    choice_candidates_for_hint,
+)
 from sase.macro.model_completion import ModelCompletionEntry
 
 
@@ -112,42 +115,13 @@ def _build_choice_completion_candidates(
     raw_token = ctx.token
     partial = raw_token.lstrip("\"'")
     replacement = ctx.replacement or raw_token
-    try:
-        from sase.ace.tui.widgets._macro_arg_choice_adapter import (
-            choice_candidates_for_hint,
-        )
-
-        rows = choice_candidates_for_hint(
-            active,
-            partial=partial,
-            replacement=replacement,
-            selected=ctx.selected_values,
-        )
-    except Exception:
-        # Stale wheel without the shared builder: fall back to the legacy
-        # bool-only menu so prompt completion keeps working.
-        if active.type == "bool" and not active.choices:
-            partial_lower = partial.lower()
-            candidates = [
-                CompletionCandidate(
-                    display=value,
-                    insertion=value,
-                    is_dir=False,
-                    name=value,
-                )
-                for value in ("true", "false")
-                if value.startswith(partial_lower)
-            ]
-            return candidates, ""
-        return [], ""
-    try:
-        from sase.ace.tui.widgets._macro_arg_choice_adapter import (
-            type_label_for_hint,
-        )
-
-        type_label = type_label_for_hint(active)
-    except Exception:
-        type_label = active.named_type or active.type
+    rows = choice_candidates_for_hint(
+        active,
+        partial=partial,
+        replacement=replacement,
+        selected=ctx.selected_values,
+    )
+    type_label = active.named_type or active.type
     candidates = [
         CompletionCandidate(
             display=row.value,

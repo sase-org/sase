@@ -54,35 +54,44 @@ def _rust_span_bounds_for_cursor(
 ) -> tuple[int, int, frozenset[str]] | None:
     """Resolve whole-value span and selected values via Rust parser spans.
 
-    Returns Python ``(value_start, value_end, selected)`` or ``None`` when
-    the core spans are unavailable or the cursor is not on a value position.
-    Byte spans are converted to Python offsets only here.
+    Groups spans by call: starts at the opening delimiter at this reference's
+    base end and takes spans until the call's closing ``)`` or the next
+    opening ``(``/``:`` delimiter. Returns Python
+    ``(value_start, value_end, selected)`` or ``None`` when the cursor is not
+    on a value position. Byte spans are converted to Python offsets only here.
     """
-    try:
-        from sase.core.rust import require_rust_binding
-    except Exception:
+    from sase.core.rust import require_rust_binding
+
+    spans = require_rust_binding("macro_argument_spans")(text)
+    cursor_byte = _py_to_byte(text, cursor_py)
+    base_end_py = _reference_base_end(text, ref_start_py, cursor_py)
+    if base_end_py is None:
         return None
-    try:
-        spans = require_rust_binding("macro_argument_spans")(text)
-    except Exception:
-        return None
-    try:
-        cursor_byte = _py_to_byte(text, cursor_py)
-        ref_start_byte = _py_to_byte(text, ref_start_py)
-        ref_end_byte = _py_to_byte(text, max(cursor_py, ref_end_py))
-    except Exception:
-        return None
-    in_call: list[dict] = []
-    for span in spans:
-        try:
-            start = int(span["start"])
-            end = int(span["end"])
-        except Exception:
-            continue
+    base_end_byte = _py_to_byte(text, base_end_py)
+    ordered = sorted(spans, key=lambda span: (int(span["start"]), int(span["end"])))
+    opening_index: int | None = None
+    for index, span in enumerate(ordered):
         if span.get("call_name") != call_name:
             continue
-        if start < ref_start_byte or start > ref_end_byte + 64:
+        if str(span.get("role", "")) != "arg_delimiter":
             continue
+        if int(span["start"]) == base_end_byte:
+            opening_index = index
+            break
+    if opening_index is None:
+        return None
+    encoded = text.encode("utf-8")
+    in_call: list[dict] = []
+    for span in ordered[opening_index + 1 :]:
+        start = int(span["start"])
+        end = int(span["end"])
+        role = str(span.get("role", ""))
+        if role == "arg_delimiter":
+            delim = encoded[start:end].decode("utf-8")
+            if delim == ")":
+                break
+            if delim in ("(", ":", "::"):
+                break
         in_call.append(span)
     values: list[tuple[int, int, str]] = []
     for span in in_call:
@@ -90,10 +99,7 @@ def _rust_span_bounds_for_cursor(
             continue
         start = int(span["start"])
         end = int(span["end"])
-        try:
-            raw = text.encode("utf-8")[start:end].decode("utf-8")
-        except Exception:
-            continue
+        raw = encoded[start:end].decode("utf-8")
         values.append((start, end, raw))
     for start, end, _raw in values:
         if start <= cursor_byte <= end:

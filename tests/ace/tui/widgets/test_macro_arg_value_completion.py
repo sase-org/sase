@@ -362,7 +362,7 @@ async def test_enum_value_menu_keeps_declared_order_with_metadata() -> None:
             "ready",
         ]
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "status · wip | draft | ready"
+        assert panel.border_title == "status · enum"
         rendered = panel.render().plain
         assert "in progress" in rendered
         assert "Ship it" in rendered

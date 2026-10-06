@@ -165,14 +165,11 @@ def append_macro_arg_name_completion_row(
     available = max(0, inner_width - 2)
     used = cell_len(label)
     label_padding = max(0, label_width - used) + 2
-    try:
-        from sase.ace.tui.widgets._macro_arg_choice_adapter import (
-            type_label_for_hint,
-        )
+    from sase.ace.tui.widgets._macro_arg_choice_adapter import (
+        type_label_for_hint,
+    )
 
-        type_text = type_label_for_hint(input_hint)
-    except Exception:
-        type_text = input_hint.type
+    type_text = type_label_for_hint(input_hint)
     type_cost = label_padding + cell_len(type_text)
     if available and used + type_cost > available:
         return

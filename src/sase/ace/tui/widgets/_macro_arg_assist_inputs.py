@@ -52,15 +52,10 @@ def input_label(input_hint: MacroInputHint) -> str:
 
 
 def _type_label_for_hint(input_hint: MacroInputHint) -> str:
-    """Return the shared Rust type label, falling back to the base type."""
-    try:
-        from ._macro_arg_choice_adapter import type_label_for_hint
-    except Exception:
-        return input_hint.type
-    try:
-        return type_label_for_hint(input_hint)
-    except Exception:
-        return input_hint.type
+    """Return the shared Rust type label."""
+    from ._macro_arg_choice_adapter import type_label_for_hint
+
+    return type_label_for_hint(input_hint)
 
 
 def input_name_style(input_hint: MacroInputHint) -> str:

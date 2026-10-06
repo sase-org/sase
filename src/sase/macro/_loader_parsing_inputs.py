@@ -27,14 +27,9 @@ class ResolvedInputType:
 
 def _plugin_registry_snapshot() -> dict[str, Any] | None:
     """Return the cached plugin registry snapshot for the resolver."""
-    try:
-        from .plugin_input_types import get_plugin_input_type_registry
-    except Exception:
-        return None
-    try:
-        snapshot = get_plugin_input_type_registry()
-    except Exception:
-        return None
+    from .plugin_input_types import get_plugin_input_type_registry
+
+    snapshot = get_plugin_input_type_registry()
     registry = snapshot.get("registry")
     return registry if isinstance(registry, dict) else None
 

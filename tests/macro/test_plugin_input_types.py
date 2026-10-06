@@ -166,6 +166,25 @@ def test_cli_types_json_lists_builtin(tmp_path, capsys):
     assert "effort" in names and "model" in names
 
 
+def test_cli_types_detail_has_no_markup_or_ansi(capsys):
+    from sase.macro.cli_types import _catalog_entries, _find_entry, handle_types
+    import argparse
+
+    entries, _diagnostics = _catalog_entries()
+    entry = _find_entry(entries, "effort")
+    assert entry is not None
+    description = str(entry.get("description", ""))
+    assert description
+
+    args = argparse.Namespace(type_name="effort", json=False)
+    assert handle_types(args) == 0
+    out = capsys.readouterr().out
+    assert "[bold]" not in out
+    assert "[/bold]" not in out
+    assert "\x1b" not in out
+    assert out.count(description) == 1
+
+
 def test_doctor_reports_malformed_manifest(tmp_path, monkeypatch):
     manifest = _write_manifest(
         tmp_path / "input_types.yml",

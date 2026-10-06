@@ -23,25 +23,20 @@ class _MacroChoiceRow:
 
 def _hint_to_wire(hint: MacroInputHint) -> dict:
     """Serialize a TUI hint to the Rust ``MacroInputHint`` wire shape."""
-    return {
-        "name": hint.name,
-        "type": hint.type,
-        "description": hint.description,
-        "required": hint.required,
-        "default_display": hint.default_display,
-        "position": hint.position,
-        "repeatable": hint.repeatable,
-        "choices": [
-            {
-                "value": choice.value,
-                "label": choice.label,
-                "description": choice.description,
-            }
-            for choice in hint.choices
-        ],
-        "named_type": hint.named_type,
-        "value_role": hint.value_role,
-    }
+    from sase.macro._input_hint_wire import macro_input_hint_to_wire
+
+    return macro_input_hint_to_wire(
+        name=hint.name,
+        type=hint.type,
+        description=hint.description,
+        required=hint.required,
+        default_display=hint.default_display,
+        position=hint.position,
+        repeatable=hint.repeatable,
+        choices=hint.choices,
+        named_type=hint.named_type,
+        value_role=hint.value_role,
+    )
 
 
 def choice_candidates_for_hint(

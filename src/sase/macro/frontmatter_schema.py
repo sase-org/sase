@@ -163,14 +163,9 @@ def frontmatter_field_schema() -> list[_FrontmatterFieldSchema]:
 
 def _registry_argument() -> dict[str, Any] | None:
     """Return the plugin registry argument for authoring callers."""
-    try:
-        from .plugin_input_types import get_plugin_input_type_registry
-    except Exception:
-        return None
-    try:
-        snapshot = get_plugin_input_type_registry()
-    except Exception:
-        return None
+    from .plugin_input_types import get_plugin_input_type_registry
+
+    snapshot = get_plugin_input_type_registry()
     registry = snapshot.get("registry")
     return registry if isinstance(registry, dict) else None
 
@@ -185,10 +180,7 @@ def input_type_schema(*, include_internal: bool = False) -> list[_FrontmatterInp
     """
     binding = require_rust_binding("frontmatter_input_type_schema")
     registry = _registry_argument()
-    try:
-        items = binding(registry) if registry is not None else binding()
-    except TypeError:
-        items = binding()
+    items = binding(registry) if registry is not None else binding()
     types = [_input_type_from_dict(item) for item in items]
     if include_internal:
         return types
@@ -207,8 +199,5 @@ def validate_frontmatter(text: str) -> list[FrontmatterDiagnostic]:
     """
     binding = require_rust_binding("validate_frontmatter")
     registry = _registry_argument()
-    try:
-        items = binding(text, registry) if registry is not None else binding(text)
-    except TypeError:
-        items = binding(text)
+    items = binding(text, registry) if registry is not None else binding(text)
     return [_diagnostic_from_dict(item) for item in items]

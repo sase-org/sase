@@ -52,25 +52,20 @@ def format_inputs(inputs: list[InputArg]) -> str:
 
 def macro_input_type_label(input_arg: InputArg, *, position: int = 0) -> str:
     """Render the shared Rust label for one resolved input declaration."""
-    hint = {
-        "name": input_arg.name,
-        "type": input_arg.type.value,
-        "description": input_arg.description,
-        "required": input_arg.default is UNSET,
-        "default_display": None,
-        "position": position,
-        "repeatable": input_arg.repeatable,
-        "choices": [
-            {
-                "value": choice.value,
-                "label": choice.label,
-                "description": choice.description,
-            }
-            for choice in input_arg.choices
-        ],
-        "named_type": input_arg.named_type,
-        "value_role": input_arg.value_role,
-    }
+    from sase.macro._input_hint_wire import macro_input_hint_to_wire
+
+    hint = macro_input_hint_to_wire(
+        name=input_arg.name,
+        type=input_arg.type.value,
+        description=input_arg.description,
+        required=input_arg.default is UNSET,
+        default_display=None,
+        position=position,
+        repeatable=input_arg.repeatable,
+        choices=input_arg.choices,
+        named_type=input_arg.named_type,
+        value_role=input_arg.value_role,
+    )
     return str(require_rust_binding("macro_input_type_label")({"hint": hint}))
 
 

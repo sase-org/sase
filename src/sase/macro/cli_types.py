@@ -10,8 +10,7 @@ from typing import Any
 
 from rich.console import Console
 from rich.table import Table
-
-from sase.bead.cli_dep_render import resolve_color
+from rich.text import Text
 
 
 def _catalog_entries() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -23,20 +22,14 @@ def _catalog_entries() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     registry = snapshot.get("registry", {})
     diagnostics = list(snapshot.get("diagnostics", []))
     binding = require_rust_binding("macro_input_type_catalog")
-    try:
-        entries = binding({"registry": registry}) if registry else binding()
-    except TypeError:
-        entries = binding()
+    entries = binding({"registry": registry}) if registry else binding()
     return list(entries), diagnostics
 
 
 def _normalize_distribution(dist: str) -> str:
     from sase.version._utils import normalize_distribution_name
 
-    try:
-        return normalize_distribution_name(dist)
-    except Exception:
-        return dist.lower().replace("_", "-").replace(".", "-")
+    return normalize_distribution_name(dist)
 
 
 def _find_entry(entries: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
@@ -139,9 +132,6 @@ def handle_types(args: argparse.Namespace) -> int:
 def _console() -> Console:
     width = shutil.get_terminal_size((100, 24)).columns if sys.stdout.isatty() else 100
     return Console(
-        no_color=False,
-        force_terminal=False,
-        color_system="256",
         width=width,
         markup=False,
         emoji=False,
@@ -183,9 +173,12 @@ def _render_grouped(entries: list[dict[str, Any]]) -> None:
 
 def _render_detail(entry: dict[str, Any]) -> None:
     console = _console()
-    console.print(f"[bold]{entry.get('name', '')}[/bold]")
-    console.print(str(entry.get("description", "")))
-    console.print(f"rule: {entry.get('rule', '')}")
+    console.print(Text(str(entry.get("name", "")), style="bold"))
+    description = str(entry.get("description", ""))
+    rule = str(entry.get("rule", ""))
+    console.print(description)
+    if rule and rule != description:
+        console.print(f"rule: {rule}")
     source = entry.get("source", {})
     if isinstance(source, dict) and source.get("kind") == "plugin":
         console.print(f"source: plugin {source.get('distribution', '')}")

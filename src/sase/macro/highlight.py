@@ -460,44 +460,26 @@ def _macro_arg_assist_entry_to_wire(entry: object) -> dict[str, object]:
 
 
 def _macro_input_hint_to_wire(input_hint: object) -> dict[str, object]:
-    raw_choices = _field(input_hint, "choices", ())
-    choices = (
-        raw_choices
-        if isinstance(raw_choices, Sequence)
-        and not isinstance(raw_choices, (str, bytes, bytearray))
-        else ()
+    from sase.macro._input_hint_wire import macro_input_hint_to_wire
+
+    return macro_input_hint_to_wire(
+        name=_field(input_hint, "name", ""),
+        type=_field(input_hint, "type", ""),
+        description=_field(input_hint, "description", None),
+        required=_field(input_hint, "required", False),
+        default_display=_field(input_hint, "default_display", None),
+        position=_field(input_hint, "position", 0),
+        repeatable=_field(input_hint, "repeatable", False),
+        choices=_field(input_hint, "choices", ()),
+        named_type=_field(input_hint, "named_type", None),
+        value_role=_field(input_hint, "value_role", None),
     )
-    return {
-        "name": _field(input_hint, "name", ""),
-        "type": _field(input_hint, "type", ""),
-        "description": _field(input_hint, "description", None),
-        "required": bool(_field(input_hint, "required", False)),
-        "default_display": _field(input_hint, "default_display", None),
-        "position": _position_value(_field(input_hint, "position", 0)),
-        "repeatable": bool(_field(input_hint, "repeatable", False)),
-        "choices": [
-            wire_choice
-            for choice in choices
-            if (wire_choice := _macro_input_choice_to_wire(choice)) is not None
-        ],
-        "named_type": _field(input_hint, "named_type", None),
-        "value_role": _field(input_hint, "value_role", None),
-    }
 
 
 def _macro_input_choice_to_wire(choice: object) -> dict[str, str | None] | None:
-    if isinstance(choice, str):
-        return {"value": choice, "label": None, "description": None}
-    value = _field(choice, "value", None)
-    if not isinstance(value, str):
-        return None
-    label = _field(choice, "label", None)
-    description = _field(choice, "description", None)
-    return {
-        "value": value,
-        "label": label if isinstance(label, str) else None,
-        "description": description if isinstance(description, str) else None,
-    }
+    from sase.macro._input_hint_wire import macro_input_choice_to_wire
+
+    return macro_input_choice_to_wire(choice)
 
 
 def _field(value: object, name: str, default: object) -> object:
@@ -512,19 +494,6 @@ def _int_value(value: object) -> int | None:
     if isinstance(value, int):
         return value
     return None
-
-
-def _position_value(value: object) -> int:
-    if isinstance(value, bool):
-        return 0
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return 0
-    return 0
 
 
 def _validity_value(value: object) -> MacroArgumentSpanValidity:

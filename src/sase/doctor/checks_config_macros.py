@@ -51,9 +51,7 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
         snapshot = model_validity_snapshot(use_cache=False)
     except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
         snapshot = None
-    classify = (
-        require_rust_binding("classify_model_value") if snapshot is not None else None
-    )
+    classify = require_rust_binding("classify_model_value")
 
     macros = get_all_macros(context.project)
 
@@ -90,16 +88,10 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
                     }
                 )
                 continue
-            if classify is not None and snapshot is not None:
-                try:
-                    result = classify(
-                        {"name": name, "value": token, "snapshot": snapshot}
-                    )
-                except Exception:  # noqa: BLE001 - best-effort doctor check.
-                    result = {"ok": False}
-                if result.get("ok", False):
-                    continue
-            else:
+            if snapshot is None:
+                continue
+            result = classify({"name": name, "value": token, "snapshot": snapshot})
+            if result.get("ok", False):
                 continue
             problems.append(
                 {
@@ -112,16 +104,10 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
                 }
             )
         for alias, token in scan.override_tokens:
-            if classify is not None and snapshot is not None:
-                try:
-                    result = classify(
-                        {"name": name, "value": token, "snapshot": snapshot}
-                    )
-                except Exception:  # noqa: BLE001 - best-effort doctor check.
-                    result = {"ok": False}
-                if result.get("ok", False):
-                    continue
-            else:
+            if snapshot is None:
+                continue
+            result = classify({"name": name, "value": token, "snapshot": snapshot})
+            if result.get("ok", False):
                 continue
             problems.append(
                 {
@@ -227,10 +213,7 @@ def check_config_macro_input_types(context: DoctorContext) -> DiagnosticCheck:
     with collect_macro_load_issues() as issues:
         # Ensure registry diagnostics are emitted even when no macro uses
         # a bad type; re-emission keeps cached failures visible to the doctor.
-        try:
-            get_plugin_input_type_registry()
-        except Exception:
-            pass
+        get_plugin_input_type_registry()
         prompts = get_all_prompts(context.project)
         project_local_prompts = get_all_project_local_prompts()
 
@@ -238,11 +221,8 @@ def check_config_macro_input_types(context: DoctorContext) -> DiagnosticCheck:
         issue for issue in issues if issue.kind in _INPUT_TYPE_ISSUE_KINDS
     ]
     loaded = len(prompts) + len(project_local_prompts)
-    try:
-        snapshot = get_plugin_input_type_registry()
-        registry_diagnostics = list(snapshot.get("diagnostics", []))
-    except Exception:
-        registry_diagnostics = []
+    snapshot = get_plugin_input_type_registry()
+    registry_diagnostics = list(snapshot.get("diagnostics", []))
     rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     for diagnostic in registry_diagnostics:
@@ -422,10 +402,7 @@ def _model_default_warning_rows(
         snapshot = model_validity_snapshot(use_cache=False)
     except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
         return []
-    try:
-        classify = require_rust_binding("classify_model_value")
-    except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
-        return []
+    classify = require_rust_binding("classify_model_value")
 
     rows: list[dict[str, str]] = []
     seen: set[tuple[str, str, str]] = set()
@@ -445,16 +422,13 @@ def _model_default_warning_rows(
                 if key in seen:
                     continue
                 seen.add(key)
-                try:
-                    result = classify(
-                        {
-                            "name": str(getattr(input_arg, "name", "input")),
-                            "value": default,
-                            "snapshot": snapshot,
-                        }
-                    )
-                except Exception:  # noqa: BLE001 - best-effort doctor check.
-                    continue
+                result = classify(
+                    {
+                        "name": str(getattr(input_arg, "name", "input")),
+                        "value": default,
+                        "snapshot": snapshot,
+                    }
+                )
                 if result.get("ok", False):
                     continue
                 message = str(result.get("message", ""))
@@ -573,10 +547,7 @@ def _undeclared_plugin_required_rows(
     rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     for plugin, macro_name, source in refs:
-        try:
-            normalized = normalize_distribution_name(plugin)
-        except Exception:
-            normalized = plugin.lower()
+        normalized = normalize_distribution_name(plugin)
         if normalized in required:
             continue
         key = (normalized, source)

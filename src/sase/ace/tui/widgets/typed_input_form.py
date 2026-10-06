@@ -337,12 +337,9 @@ class TypedInputForm(Vertical):
         return f"{field.label}    ({self._type_label_for_arg(field.arg)} · {tag})"
 
     def _type_label_for_arg(self, arg: InputArg) -> str:
-        try:
-            from sase.macro._catalog_format import macro_input_type_label
+        from sase.macro._catalog_format import macro_input_type_label
 
-            return macro_input_type_label(arg)
-        except Exception:
-            return arg.type.value
+        return macro_input_type_label(arg)
 
     def _field_guidance(self, field: TypedFormField) -> str:
         parts: list[str] = []
@@ -550,10 +547,6 @@ class TypedInputForm(Vertical):
             error_label.update(f"× {guidance}")
             error_label.display = True
             return
-        except AttributeError:
-            # Stale wheel without the shared validator: leave the error row
-            # untouched so button presses never crash before reinstall.
-            return
         error_label.update("")
         error_label.display = False
 
@@ -657,19 +650,12 @@ class TypedInputForm(Vertical):
 
 
 def _load_type_rules() -> dict[str, str]:
-    """Map each input type name/alias to its per-type guidance rule (Phase 1).
+    """Map each input type name/alias to its per-type guidance rule (Phase 1)."""
+    from sase.macro.frontmatter_schema import input_type_schema
 
-    Falls back to an empty map if the ``sase-core`` binding is unavailable so the
-    form still renders (without guidance text) rather than failing to open.
-    """
-    try:
-        from sase.macro.frontmatter_schema import input_type_schema
-
-        rules: dict[str, str] = {}
-        for type_schema in input_type_schema():
-            rules[type_schema.name] = type_schema.rule
-            for alias in type_schema.aliases:
-                rules[alias] = type_schema.rule
-        return rules
-    except Exception:
-        return {}
+    rules: dict[str, str] = {}
+    for type_schema in input_type_schema():
+        rules[type_schema.name] = type_schema.rule
+        for alias in type_schema.aliases:
+            rules[alias] = type_schema.rule
+    return rules

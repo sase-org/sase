@@ -6155,6 +6155,16 @@ tags, `is_skill`, and preview. Clients that insert references should prefer
 | ----------- | ------ | ------- | ------------------------------------------------- |
 | `-o, --out` | path   | tempdir | Directory where the rendered PDF should be saved. |
 
+### `sase macro types`
+
+| Flag         | Values | Default | Description                                                      |
+| ------------ | ------ | ------- | ---------------------------------------------------------------- |
+| `[NAME]`     | string | -       | Bare type (`effort`), alias, `builtin@<name>`, or `<dist>@<id>`. |
+| `-j, --json` | flag   | -       | Print the Rust catalog projection as JSON.                       |
+
+With no `NAME`, prints grouped tables of scalar, builtin, and plugin types. With `NAME`,
+shows one type's detail card. Unknown names exit 1.
+
 ### `sase init`
 
 Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs
