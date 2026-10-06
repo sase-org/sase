@@ -131,7 +131,7 @@ def test_snippet_candidates_use_rust_loader(
                     "source": "user_config",
                     "source_path_display": "ace.snippets",
                 },
-                {"trigger": "fixit", "source": "xprompt", "xprompt_name": "fix"},
+                {"trigger": "fixit", "source": "macro", "macro_name": "fix"},
                 {"trigger": "", "source": "ignored"},
             ]
         }
@@ -151,7 +151,7 @@ def test_snippet_candidates_use_rust_loader(
     assert result == [
         Candidate("todo", "user_config · ace.snippets"),
         Candidate("Todo", "user_config · ace.snippets"),
-        Candidate("fixit", "xprompt · fix"),
+        Candidate("fixit", "macro · fix"),
     ]
     assert calls == [("demo", str(tmp_path))]
 

@@ -19,6 +19,7 @@ from sase.completion.candidates.cache import (
 from sase.completion.candidates.catalog import PROVIDERS as _CATALOG_PROVIDERS
 from sase.completion.candidates.protocol import Candidate, filter_candidates
 from sase.completion.kinds import VOLATILE_KIND_TTL_SECONDS, ValueKind
+from sase.legacy_xprompt_names import LEGACY_XPROMPT_SOURCE_KIND as _LEGACY_KIND
 
 _Fetch = Callable[[str | None], list[Candidate]]
 _SourcePath = Callable[[str | None], "Path | None"]
@@ -28,7 +29,7 @@ _SourcePath = Callable[[str | None], "Path | None"]
 #: this map keeps stale scripts returning candidates until then. Never add
 #: user-authored command or choice spellings here.
 _LEGACY_KIND_ALIASES: dict[str, ValueKind] = {
-    "xprompt": ValueKind.MACRO,
+    _LEGACY_KIND: ValueKind.MACRO,
 }
 
 

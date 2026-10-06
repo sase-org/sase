@@ -7,7 +7,7 @@ from typing import Any
 from sase.snippet.catalog import editor_helper_entries, load_snippet_catalog
 
 from ._mobile_helper_common import (
-    GATEWAY_WIRE_SCHEMA_VERSION,
+    EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION,
     helper_result,
     optional_string,
 )
@@ -19,7 +19,7 @@ def snippet_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
     catalog = load_snippet_catalog(project)
     entries = editor_helper_entries(catalog)
     return {
-        "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
+        "schema_version": EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION,
         "result": helper_result(
             "success",
             f"loaded {len(entries)} snippet(s)",

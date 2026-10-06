@@ -84,38 +84,44 @@ The deterministic label groups are:
   fan-out, and a visually separate developer-tools card for `sase macro graph` /
   `sase macro explain`.
 
-## Macro-Spelling Relabel (Deterministic Overlay)
+## Canonical Relabel (Deterministic Overlay)
 
-All 13 retired-spelling labels were replaced in place with macro-spelling text taken
-from the current `docs/macros.md` (Discovery Order table, `sase macro graph` /
-`sase macro explain` spellings), preserving position, size, weight, numbering, and the
-original `<pkg>` abbreviation of `<sase_package>`. Canvas kept at 1672×941 sRGB.
+All visible labels use the canonical spelling from the current `docs/macros.md`
+(Discovery Order table, `sase macro graph` / `sase macro explain` spellings). `<pkg>`
+abbreviates `<sase_package>`. Canvas kept at 1672x941 sRGB.
 
-- Inputs: `inline xprompt · embeddable workflow` → `inline macro · embeddable workflow`;
-  `· xprompt swarm` → `· macro swarm`.
-- Iterative title: `Iterative xprompt expansion · ≤100 passes` →
-  `Iterative macro expansion · ≤100 passes`.
-- Discovery rows: `1 <project>/sase/xprompts/` → `1 <project>/sase/macros/`;
-  `2 ~/sase/xprompts/` → `2 ~/sase/macros/`; `3 ~/sase/xprompts/{project}/` →
-  `3 ~/sase/macros/{project}/`; `(sase_xprompts EPs)` → `(sase_macros EPs)`;
-  `10 <pkg>/default_xprompts/` → `10 <pkg>/default_macros/`; `11 <pkg>/xprompts/` →
-  `11 <pkg>/macros/`.
-- Fences callout: `protected while xprompt references expand` →
-  `protected while macro references expand`.
-- Extract line: `after full xprompt expansion` → `after full macro expansion`.
-- Devtools card: `sase xprompt graph` → `sase macro graph`; `sase xprompt explain` →
-  `sase macro explain`.
+- Inputs: `inline macro · embeddable workflow`; `· macro swarm`.
+- Iterative title: `Iterative macro expansion · ≤100 passes`.
+- Discovery inset (11 rows, first-wins order, legacy paths omitted):
+  `1 <project>/sase/macros/`; `2 ~/sase/macros/`; `3 ~/sase/macros/{project}/`;
+  `4 <project>/sase/sase.yml`; `5 ~/.config/sase/sase_*.yml`;
+  `6 ~/.config/sase/sase.yml`; `7 plugin default_config.yml`;
+  `8 package default_config.yml`; `9 plugin packages (sase_macros EPs)`;
+  `10 <pkg>/default_macros/`; `11 <pkg>/macros/ + steps/`.
+- Fences callout: `protected while macro references expand`.
+- Extract line: `after full macro expansion`.
+- Devtools card: `sase macro graph`; `sase macro explain`.
 
-Method: local-bg cover of each label's ink span (per-column neighbor-clipped fill,
-borders/arrows untouched), then single-draw full-line overlay rendered locally with PIL
-using Inter for prose/bold titles and Fira Code for paths/commands (matched to the
-committed raster by template comparison), tinted from each label's own darkest-core
-pixels. Verified: full-PNG OCR reports zero `xprompt` residuals (base reported 6), all
-pixel changes lie inside the 13 label windows, borders/arrows/loop intact:
+Method: the pre-relabel raster was exported to scratch as a clean-geometry reference and
+checked against later history (no later image changes before the relabel commit). The
+whole discovery inset was covered with opaque local card background, then each full
+label was rendered once inside its own card from a deterministic SVG overlay via
+ImageMagick 7 (DejaVu Sans for prose and titles, DejaVu Sans Mono for paths; Fira Code
+available with identical metrics). Non-discovery labels were already single-drawn
+canonical in the committed raster and were preserved. Borders, arrows, numbering, and
+all other image content were untouched. Verified by full-resolution inspection of the
+whole PNG and of every discovery card (clean, single-drawn, legible text inside each
+card); a full-PNG text scan reports zero retired-term residuals. Label geometry:
+discovery inset at +825+310, size 336x342; two columns of white cards on a
+very-light-blue panel with a centered title:
 
 ```bash
-magick patched.png -colorspace sRGB -strip \
-  docs/images/macro-resolution-infographic.png
+magick docs/images/macro-resolution-infographic.png \
+  -crop 336x342+825+310 /tmp/inset.png
+magick -background none /tmp/discovery_overlay.svg /tmp/discovery_overlay.png
+magick docs/images/macro-resolution-infographic.png \
+  /tmp/discovery_overlay.png -geometry +825+310 -compose over -composite \
+  -strip -colorspace sRGB docs/images/macro-resolution-infographic.png
 sha256sum docs/images/macro-resolution-infographic.png
 ```
 
@@ -128,4 +134,4 @@ sha256sum docs/images/macro-resolution-infographic.png
   runtime outcomes.
 - Every technical label was compared with the launch/expansion pipelines and canonical
   entries in the discovery table in `docs/macros.md`.
-- Final SHA-256: `7529a15d0c2a77f0144d3804cef156b315949de0bf0ac59872ad5ccdd63f314e`.
+- Final SHA-256: `11d309a60628f3e9f356b2f7bc1dc46eb1ba3a9e871c783612c079a022ab55f2`.

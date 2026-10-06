@@ -10,6 +10,9 @@ from typing import Any, TextIO
 from sase.core.paths import sase_home as _core_sase_home
 
 GATEWAY_WIRE_SCHEMA_VERSION = 1
+# Mirrors sase-core's EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION; core owns
+# the version and tools/validate_sase_core_rs probes the binding.
+EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION = 2
 _SAFE_PROJECT_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 

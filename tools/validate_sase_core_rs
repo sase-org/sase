@@ -35,6 +35,11 @@ DISTRIBUTION_NAME = "sase-core-rs"
 # rejects any payload stamped with a different version.
 EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION = 2
 
+# Owning snippet-catalog wire version. Keep in lockstep with sase-core's
+# EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION and
+# sase.integrations._mobile_helper_common.EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION.
+EXPECTED_EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION = 2
+
 REQUIRED_BINDINGS = (
     "parse_patch_project_bytes",
     "parse_project_bytes",
@@ -266,6 +271,8 @@ REQUIRED_BINDINGS = (
     "parse_merge_summary",
     "classify_commit_types",
     "apply_snippet_session_event",
+    "editor_snippet_catalog_wire_schema_version",
+    "load_editor_snippet_catalog",
     "provider_disable_wire_schema_version",
     "provider_disable_get",
     "provider_disable_set_relative",
@@ -832,6 +839,22 @@ def _validate_vcs_log_wire_schema(module: ModuleType) -> bool:
             )
             valid = False
     return valid
+
+
+def _validate_editor_snippet_catalog_wire_schema(module: ModuleType) -> bool:
+    try:
+        actual_version = int(module.editor_snippet_catalog_wire_schema_version())
+    except Exception as exc:
+        _error(f"editor_snippet_catalog_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != EXPECTED_EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION:
+        _error(
+            "editor_snippet_catalog_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected "
+            f"{EXPECTED_EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION}"
+        )
+        return False
+    return True
 
 
 def _validate_disk_inventory_wire_schema(module: ModuleType) -> bool:
@@ -3525,6 +3548,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_bead_link_projection_batch(module):
         return 1
     if not _validate_vcs_log_wire_schema(module):
+        return 1
+    if not _validate_editor_snippet_catalog_wire_schema(module):
         return 1
     if not _validate_disk_inventory_wire_schema(module):
         return 1

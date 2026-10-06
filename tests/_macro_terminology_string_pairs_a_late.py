@@ -91,9 +91,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
         "tests/completion/test_candidates_providers.py",
         '"""Shell scripts installed by an older sase request kind ``xprompt``."""',
     ),
-    ("tests/completion/test_candidates_providers.py", '"xprompt · fix"'),
     ("tests/completion/test_candidates_providers.py", '"xprompt"'),
-    ("tests/completion/test_candidates_providers.py", '"xprompt_name"'),
     (
         "tests/completion/test_emit_fish.py",
         "\"    macro) printf 'zzz-fixture-xprompt\\\\tA fixture xprompt\\\\n' ;;\\n\"",

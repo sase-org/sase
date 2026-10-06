@@ -47,7 +47,9 @@ The 1672×941 PNG was inspected at full resolution for:
 
 The 11-row canonical discovery panel remains the densest part of the asset. Its
 monospace labels remain readable at full resolution, while the larger stage labels
-preserve the diagram's scan path at normal documentation width.
+preserve the diagram's scan path at normal documentation width. The inset was rebuilt
+with opaque card backgrounds and single-drawn labels: rows 1-11 show clean canonical
+paths with no double-drawn or clipped glyphs and no labels starting outside their cards.
 
 ## Resolved Problems From The Previous Asset
 
@@ -60,4 +62,4 @@ preserve the diagram's scan path at normal documentation width.
 - Renamed the inline outcome and visually demoted graph/explain to developer tooling.
 - Removed all legacy compatibility paths from the discovery panel.
 
-Final SHA-256: `7529a15d0c2a77f0144d3804cef156b315949de0bf0ac59872ad5ccdd63f314e`.
+Final SHA-256: `11d309a60628f3e9f356b2f7bc1dc46eb1ba3a9e871c783612c079a022ab55f2`.

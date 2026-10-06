@@ -55,7 +55,7 @@ def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
             name="helper",
             content="Help with {{ topic }}",
             inputs=[InputArg(name="topic", default=UNSET)],
-            source_path="xprompts/helper.md",
+            source_path="macros/helper.md",
             snippet=True,
             description="Helper prompt",
         )
@@ -66,7 +66,7 @@ def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
     stderr = io.StringIO()
     code = handle_editor_helper_bridge(
         argparse.Namespace(editor_helper_bridge_subcommand="snippet-catalog"),
-        stdin=io.StringIO(json.dumps({"schema_version": 1, "project": "sase"})),
+        stdin=io.StringIO(json.dumps({"schema_version": 2, "project": "sase"})),
         stdout=stdout,
         stderr=stderr,
     )
@@ -75,8 +75,10 @@ def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
     entries = {entry["trigger"]: entry for entry in data["entries"]}
     assert code == 0
     assert stderr.getvalue() == ""
+    assert data["schema_version"] == 2
     assert data["context"] == {"project": "sase", "scope": "explicit"}
     assert data["stats"] == {"total_count": 4}
+    assert all("xprompt_name" not in entry for entry in data["entries"])
     assert list(entries) == ["Helper", "User_snip", "helper", "user_snip"]
     assert entries["Helper"] == {
         "trigger": "Helper",
@@ -84,7 +86,7 @@ def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
         "source": "macro",
         "macro_name": "helper",
         "description": "Helper prompt",
-        "source_path_display": "xprompts/helper.md",
+        "source_path_display": "macros/helper.md",
     }
     assert entries["User_snip"] == {
         "trigger": "User_snip",
@@ -100,7 +102,7 @@ def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
         "source": "macro",
         "macro_name": "helper",
         "description": "Helper prompt",
-        "source_path_display": "xprompts/helper.md",
+        "source_path_display": "macros/helper.md",
     }
     assert entries["user_snip"] == {
         "trigger": "user_snip",
@@ -118,8 +120,8 @@ def test_editor_helper_bridge_snippet_catalog_user_overrides_macro(
     macros = {
         "shared": Macro(
             name="shared",
-            content="from xprompt",
-            source_path="xprompts/shared.md",
+            content="from macro",
+            source_path="macros/shared.md",
             snippet=True,
         )
     }
@@ -137,7 +139,7 @@ def test_editor_helper_bridge_snippet_catalog_user_overrides_macro(
     stderr = io.StringIO()
     code = handle_editor_helper_bridge(
         argparse.Namespace(editor_helper_bridge_subcommand="snippet-catalog"),
-        stdin=io.StringIO(json.dumps({"schema_version": 1})),
+        stdin=io.StringIO(json.dumps({"schema_version": 2})),
         stdout=stdout,
         stderr=stderr,
     )
@@ -167,7 +169,7 @@ def test_editor_helper_bridge_snippet_catalog_composes_nested_macros(
     stderr = io.StringIO()
     code = handle_editor_helper_bridge(
         argparse.Namespace(editor_helper_bridge_subcommand="snippet-catalog"),
-        stdin=io.StringIO(json.dumps({"schema_version": 1})),
+        stdin=io.StringIO(json.dumps({"schema_version": 2})),
         stdout=stdout,
         stderr=stderr,
     )
@@ -222,7 +224,7 @@ def test_editor_helper_bridge_snippet_catalog_resolves_snippet_references(
     stderr = io.StringIO()
     code = handle_editor_helper_bridge(
         argparse.Namespace(editor_helper_bridge_subcommand="snippet-catalog"),
-        stdin=io.StringIO(json.dumps({"schema_version": 1})),
+        stdin=io.StringIO(json.dumps({"schema_version": 2})),
         stdout=stdout,
         stderr=stderr,
     )
@@ -243,7 +245,7 @@ def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
             name="foo",
             content="foo {{ topic }}",
             inputs=[InputArg(name="topic", default=UNSET)],
-            source_path="xprompts/foo.md",
+            source_path="macros/foo.md",
             snippet=True,
             description="Foo source",
         )
@@ -261,7 +263,7 @@ def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
     stderr = io.StringIO()
     code = handle_editor_helper_bridge(
         argparse.Namespace(editor_helper_bridge_subcommand="snippet-catalog"),
-        stdin=io.StringIO(json.dumps({"schema_version": 1})),
+        stdin=io.StringIO(json.dumps({"schema_version": 2})),
         stdout=stdout,
         stderr=stderr,
     )
@@ -284,7 +286,7 @@ def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
         "source": "macro",
         "macro_name": "foo",
         "description": "Foo source",
-        "source_path_display": "xprompts/foo.md",
+        "source_path_display": "macros/foo.md",
     }
     assert entries["Wrap"] == {
         "trigger": "Wrap",

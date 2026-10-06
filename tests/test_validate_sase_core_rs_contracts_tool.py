@@ -148,6 +148,25 @@ def test_validate_sase_core_rs_requires_vcs_log_wire_schema_four() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_editor_snippet_catalog_schema_two() -> None:
+    validator = load_validate_sase_core_rs()
+    expected = validator.EXPECTED_EDITOR_SNIPPET_CATALOG_WIRE_SCHEMA_VERSION
+    assert expected == 2
+
+    def _raise() -> int:
+        raise RuntimeError("stale wheel")
+
+    assert validator._validate_editor_snippet_catalog_wire_schema(
+        SimpleNamespace(editor_snippet_catalog_wire_schema_version=lambda: expected)
+    )
+    assert not validator._validate_editor_snippet_catalog_wire_schema(
+        SimpleNamespace(editor_snippet_catalog_wire_schema_version=lambda: expected - 1)
+    )
+    assert not validator._validate_editor_snippet_catalog_wire_schema(
+        SimpleNamespace(editor_snippet_catalog_wire_schema_version=_raise)
+    )
+
+
 def test_validate_sase_core_rs_requires_expected_finalizer_schema() -> None:
     validator = load_validate_sase_core_rs()
     expected = validator.EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION
