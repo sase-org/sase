@@ -162,3 +162,135 @@ def test_explicit_zero_waiter_keeps_requested_weight() -> None:
     assert capacity.queue[0].requested_weight == 0.0
     assert capacity.queue[0].requested_weight_explicit is True
     assert capacity.queue[0].parked is False
+
+
+def _incident_agents(*, ghost_pid: int = 99_999_999) -> list:
+    agents = [
+        _agent(
+            f"research-{index}",
+            status="RUNNING",
+            run_start_time=datetime(2026, 7, 12, 11, 59),
+            queue_weight=0.25,
+            queue_weight_explicit=True,
+            pid=100 + index,
+        )
+        for index in range(5)
+    ]
+    agents.append(
+        _agent(
+            "epic-one",
+            status="RUNNING",
+            run_start_time=datetime(2026, 7, 12, 11, 59),
+            pid=200,
+        )
+    )
+    agents.append(
+        _agent(
+            "epic-two",
+            status="RUNNING",
+            run_start_time=datetime(2026, 7, 12, 11, 59),
+            pid=201,
+        )
+    )
+    ghost = _agent(
+        "ghost",
+        status="TALE APPROVED",
+        run_start_time=datetime(2026, 7, 12, 11, 50),
+        pid=ghost_pid,
+    )
+    ghost.pid_liveness_unverified = True
+    agents.append(ghost)
+    return agents
+
+
+def test_stamped_ghost_with_dead_pid_is_excluded() -> None:
+    capacity = refresh_runner_slot_context(
+        _incident_agents(),
+        effective_limit=8,
+        is_pid_live=lambda _pid: False,
+    )
+
+    assert capacity.occupied_capacity == 3.25
+    assert capacity.slots_in_use == 7
+
+
+def test_stamped_row_with_live_pid_is_counted() -> None:
+    capacity = refresh_runner_slot_context(
+        _incident_agents(),
+        effective_limit=8,
+        is_pid_live=lambda _pid: True,
+    )
+
+    assert capacity.occupied_capacity == 4.25
+    assert capacity.slots_in_use == 8
+
+
+def test_unstamped_rows_never_call_the_probe() -> None:
+    def _boom(pid: int) -> bool:
+        raise AssertionError(f"probe must not run for pid {pid}")
+
+    agents = [
+        _agent(
+            "plain",
+            status="RUNNING",
+            run_start_time=datetime(2026, 7, 12, 11, 59),
+        )
+    ]
+    capacity = refresh_runner_slot_context(
+        agents,
+        effective_limit=8,
+        is_pid_live=_boom,
+    )
+
+    assert capacity.occupied_capacity == 1.0
+
+
+def test_stamped_done_row_never_calls_the_probe() -> None:
+    def _boom(pid: int) -> bool:
+        raise AssertionError(f"probe must not run for pid {pid}")
+
+    ghost = _agent("ghost", status="DONE", pid=99_999_999)
+    ghost.pid_liveness_unverified = True
+    capacity = refresh_runner_slot_context(
+        [ghost],
+        effective_limit=8,
+        is_pid_live=_boom,
+    )
+
+    assert capacity.occupied_capacity in (0.0, None)
+    assert capacity.slots_in_use == 0
+
+
+def test_holders_order_monitor_claim_first() -> None:
+    monitor = _agent(
+        "sess--mon",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 59),
+        agent_session="sess",
+        agent_session_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m1",
+        monitor_state="running",
+        agent_name="sess--mon",
+    )
+    light = _agent(
+        "light",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 59),
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+        agent_name="light",
+    )
+
+    capacity = refresh_runner_slot_context(
+        [monitor, light],
+        effective_limit=8,
+        is_pid_live=lambda _pid: True,
+    )
+
+    assert [(holder.label, holder.weight) for holder in capacity.holders] == [
+        ("sess--mon", 1.0),
+        ("light", 0.25),
+    ]
+    assert capacity.holders[0].kind == "monitor"
+    assert capacity.holders[1].kind is None

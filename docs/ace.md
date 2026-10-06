@@ -2607,8 +2607,11 @@ usage-window ten-step color gradient, keyed on free-capacity percent, so a given
 means the same headroom in both places; at or over capacity it becomes the inverted red
 chip, exactly as an exhausted `0%` usage window. In compact density the `load:` label
 drops, leaving `8/10`. Hovering the gauge spells out the units in use and free, or that
-new agents queue until capacity frees up when it is full. The running count keeps its
-stable green count style. A nonzero queue count is cornflower blue.
+new agents queue until capacity frees up when it is full. The tooltip also lists each
+claim holder and its weight, and a session's running monitor holds its session's claim
+even when the session row is under Done (see [Runner slots](monitors.md#runner-slots)).
+The running count keeps its stable green count style. A nonzero queue count is
+cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with

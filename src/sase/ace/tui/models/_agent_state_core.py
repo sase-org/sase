@@ -43,6 +43,11 @@ class AgentStateCoreFields:
     # states while the outer runner is still alive and waiting to retry.
     runner_is_live: bool = field(default=False, compare=False, repr=False)
 
+    # Runtime-only stamp that the loader kept this row without probing its PID
+    # (a terminal loaded status or a session-turn row), so ``pid`` alone is
+    # not proof of a live runner.
+    pid_liveness_unverified: bool = field(default=False, compare=False, repr=False)
+
     # For agent suffix parsing
     raw_suffix: str | None = None
 

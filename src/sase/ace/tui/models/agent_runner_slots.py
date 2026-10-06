@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from sase.agent.status_buckets import (
@@ -36,6 +37,7 @@ from ._agent_runner_slot_capacity import (
     waiter_threshold as _waiter_threshold,
 )
 from ._agent_runner_slot_types import (
+    RunnerCapacityHolder,
     RunnerCapacitySnapshot,
     RunnerQueueEntry,
     format_capacity_value,
@@ -44,16 +46,36 @@ from ._agent_runner_slot_types import (
 from .agent import Agent
 
 
+def _memoized_pid_probe() -> Callable[[int], bool]:
+    """Return a per-call memoized wrapper around the loader's PID probe."""
+    from sase.ace.hooks.processes import is_process_running
+
+    cache: dict[int, bool] = {}
+
+    def _probe(pid: int) -> bool:
+        live = cache.get(pid)
+        if live is None:
+            live = is_process_running(pid)
+            cache[pid] = live
+        return live
+
+    return _probe
+
+
 def refresh_runner_slot_context(
     agents: list[Agent],
     *,
     effective_limit: float | None = None,
     capacity_agents: list[Agent] | None = None,
     active_holds: tuple[dict[str, Any], ...] = (),
+    is_pid_live: Callable[[int], bool] | None = None,
 ) -> RunnerCapacitySnapshot:
     """Attach global runner-capacity context from the loaded snapshot.
 
-    The loader has already PID-filtered active rows. Deriving this context
+    The loader verifies the PIDs it filters on, and this adapter verifies
+    the rest: rows the loader kept without probing (terminal loaded
+    statuses and session-turn rows) re-probe here so a stale PID alone
+    never becomes a ghost capacity claim. Deriving this context
     from the caller's source roster keeps the operation O(rows), pure, and
     consistent across full and selective refreshes even when the display list
     has already been hidden, searched, folded, or fleet-projected. When the
@@ -69,12 +91,16 @@ def refresh_runner_slot_context(
     if effective_limit is None:
         return _refresh_runner_slot_context_fallback(agents)
 
+    probe = is_pid_live if is_pid_live is not None else _memoized_pid_probe()
     capacity_source = agents if capacity_agents is None else capacity_agents
     parsed_artifact_paths: dict[str, Any] = {}
     clan_containers = _clan_container_lookup(capacity_source)
     capacity_records = tuple(
         _capacity_record_from_agent(
-            agent, parsed_artifact_paths, clan_containers=clan_containers
+            agent,
+            parsed_artifact_paths,
+            clan_containers=clan_containers,
+            is_pid_live=probe,
         )
         for agent in capacity_source
     )
@@ -310,7 +336,69 @@ def _apply_runner_capacity_snapshot(
         queued_count=queue_size,
         queue=tuple(queue_entries),
         occupied_capacity=occupied_capacity,
+        holders=_capacity_holders(
+            raw_snapshot.get("claims", ()), source_agent_by_artifact_dir
+        ),
     )
+
+
+def _capacity_holders(
+    claims: object,
+    source_agent_by_artifact_dir: dict[str, Agent],
+) -> tuple[RunnerCapacityHolder, ...]:
+    """Build ordered claim-holder entries for the load gauge tooltip."""
+    if not isinstance(claims, list | tuple):
+        return ()
+    holders: list[RunnerCapacityHolder] = []
+    for claim in claims:
+        if not isinstance(claim, dict):
+            continue
+        occupiers = _claim_occupiers(claim, source_agent_by_artifact_dir)
+        if not occupiers:
+            continue
+        first = occupiers[0]
+        label = first.presented_agent_name or first.agent_name or first.cl_name or ""
+        if not label:
+            continue
+        weight = _finite_float(claim.get("occupied_capacity"))
+        kind: str | None = None
+        if any(agent.is_monitor for agent in occupiers):
+            kind = "monitor"
+        elif any(agent.is_gate for agent in occupiers):
+            kind = "gate"
+        holders.append(
+            RunnerCapacityHolder(
+                label=label,
+                weight=weight if weight is not None else 0.0,
+                kind=kind,
+            )
+        )
+    holders.sort(key=lambda holder: (-holder.weight, holder.label))
+    return tuple(holders)
+
+
+def _claim_occupiers(
+    claim: dict[str, Any],
+    source_agent_by_artifact_dir: dict[str, Agent],
+) -> list[Agent]:
+    """Resolve the agent rows backing one Rust capacity claim."""
+    occupiers: list[Agent] = []
+    seen: set[int] = set()
+    candidates: list[str] = []
+    owner_dir = _text_value(claim.get("owner_artifact_dir"))
+    if owner_dir is not None:
+        candidates.append(owner_dir)
+    artifact_dirs = claim.get("artifact_dirs")
+    if isinstance(artifact_dirs, list | tuple):
+        for entry in artifact_dirs:
+            if isinstance(entry, str) and entry not in candidates:
+                candidates.append(entry)
+    for artifact_dir in candidates:
+        agent = source_agent_by_artifact_dir.get(artifact_dir)
+        if agent is not None and id(agent) not in seen:
+            seen.add(id(agent))
+            occupiers.append(agent)
+    return occupiers
 
 
 def _requested_weight(value: object) -> float:

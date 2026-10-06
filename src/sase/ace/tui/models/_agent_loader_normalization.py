@@ -54,17 +54,26 @@ def _filter_dead_pids(
     OS process liveness gates *agent* rows. A session turn's own
     ``gate_state`` / ``monitor_state`` gates turn rows — a pending gate
     turn has no process at all, and may inherit its creator's dead pid.
+
+    Rows kept without probing their PID (session turns and terminal loaded
+    statuses) are stamped with ``pid_liveness_unverified`` so downstream
+    capacity projection knows ``pid`` alone is not proof of a live runner.
     """
 
     verified_agents: list[Agent] = []
     completed_statuses = ("DONE", "FAILED")
     for agent in agents:
         if row_is_agent_session_turn(agent):
+            if agent.pid is not None and not agent.runner_is_live:
+                agent.pid_liveness_unverified = True
             verified_agents.append(agent)
         elif agent.status in completed_statuses:
+            if agent.pid is not None and not agent.runner_is_live:
+                agent.pid_liveness_unverified = True
             verified_agents.append(agent)
         elif agent.pid is not None:
             if is_process_running(agent.pid):
+                agent.pid_liveness_unverified = False
                 verified_agents.append(agent)
         else:
             verified_agents.append(agent)

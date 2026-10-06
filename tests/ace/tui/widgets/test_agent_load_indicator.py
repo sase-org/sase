@@ -8,8 +8,10 @@ from unittest.mock import patch
 from rich.cells import cell_len
 from rich.text import Text
 
+from sase.ace.tui.models._agent_runner_slot_types import RunnerCapacityHolder
 from sase.ace.tui.widgets.agent_load_indicator import (
     AgentLoadIndicator,
+    _agent_load_tooltip,
     _build_agent_load_text,
     _format_load_value,
 )
@@ -192,6 +194,30 @@ def test_tooltip_strings_for_all_states() -> None:
         assert gauge.tooltip == "Runner load is unavailable; capacity is 10 units."
         gauge.update_load(0.0, None)
         assert gauge.tooltip == "Runner capacity has not loaded yet."
+
+
+def test_tooltip_lists_holders_with_weights_and_kinds() -> None:
+    holders = (
+        RunnerCapacityHolder(label="0xe--mon-1", weight=1.0, kind="monitor"),
+        RunnerCapacityHolder(label="research.3r.cdx", weight=0.25, kind=None),
+    )
+    tooltip = _agent_load_tooltip(8.0, 1.25, holders)
+
+    assert "Runner load: 1.25 of 8 capacity units in use" in tooltip
+    assert "Held by:" in tooltip
+    assert "• 0xe--mon-1 (monitor): 1" in tooltip
+    assert "• research.3r.cdx: 0.25" in tooltip
+
+
+def test_tooltip_caps_holders_with_more_count() -> None:
+    holders = tuple(
+        RunnerCapacityHolder(label=f"agent-{index:02d}", weight=1.0, kind=None)
+        for index in range(14)
+    )
+    tooltip = _agent_load_tooltip(20.0, 14.0, holders)
+
+    assert tooltip.count("• ") == 12
+    assert "… +2 more" in tooltip
 
 
 def test_update_load_noop_and_fit_requests() -> None:

@@ -54,6 +54,7 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "live_file_change_hint",
             "linked_file_change_hint",
             "runner_is_live",
+            "pid_liveness_unverified",
             "is_clan_container",
             "is_imported_agent_session_container",
             "is_remote_agent_session_container",

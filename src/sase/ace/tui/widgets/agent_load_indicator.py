@@ -81,7 +81,11 @@ def _build_agent_load_text(
     return text
 
 
-def _agent_load_tooltip(limit: float, occupied: float | None) -> str:
+def _agent_load_tooltip(
+    limit: float,
+    occupied: float | None,
+    holders: tuple[Any, ...] = (),
+) -> str:
     """Return the hover text for *limit*/*occupied*."""
     if limit <= 0:
         return "Runner capacity has not loaded yet."
@@ -90,15 +94,36 @@ def _agent_load_tooltip(limit: float, occupied: float | None) -> str:
     load_text = _format_load_value(occupied)
     limit_text = _format_load_value(limit)
     if round(occupied, 2) >= round(limit, 2):
-        return (
+        base = (
             f"Runner load: {load_text} of {limit_text} capacity units in use "
             "(at capacity).\nNew agents queue until capacity frees up."
         )
-    free_text = _format_load_value(max(0.0, limit - occupied))
-    return (
-        f"Runner load: {load_text} of {limit_text} capacity units in use "
-        f"({free_text} free).\nNew agents queue when load reaches capacity."
-    )
+    else:
+        free_text = _format_load_value(max(0.0, limit - occupied))
+        base = (
+            f"Runner load: {load_text} of {limit_text} capacity units in use "
+            f"({free_text} free).\nNew agents queue when load reaches capacity."
+        )
+    holder_block = _holder_tooltip_block(holders)
+    return base + holder_block
+
+
+def _holder_tooltip_block(holders: tuple[Any, ...]) -> str:
+    """Format the ``Held by:`` tooltip block for capacity *holders*."""
+    if not holders:
+        return ""
+    lines = ["\nHeld by:"]
+    visible = list(holders[:12])
+    for holder in visible:
+        label = str(getattr(holder, "label", "") or "")
+        weight = _format_load_value(getattr(holder, "weight", None))
+        kind = getattr(holder, "kind", None)
+        suffix = f" ({kind})" if kind else ""
+        lines.append(f"• {label}{suffix}: {weight}")
+    remaining = len(holders) - len(visible)
+    if remaining > 0:
+        lines.append(f"… +{remaining} more")
+    return "\n" + "\n".join(lines)
 
 
 class AgentLoadIndicator(Static):
@@ -113,6 +138,7 @@ class AgentLoadIndicator(Static):
     ) -> None:
         self._limit = 0.0
         self._occupied: float | None = None
+        self._holders: tuple[Any, ...] = ()
         self._density: AgentLoadDensity = density
         super().__init__(
             _build_agent_load_text(0.0, None, dark=True, density=density),
@@ -155,17 +181,28 @@ class AgentLoadIndicator(Static):
             return self.compact_cells
         return self.full_cells
 
-    def update_load(self, limit: float, occupied: float | None) -> None:
+    def update_load(
+        self,
+        limit: float,
+        occupied: float | None,
+        holders: tuple[Any, ...] = (),
+    ) -> None:
         """Render *limit*/*occupied*, refitting the host row on width change.
 
         A no-op when nothing changed, so countdown ticks cost nothing.
         """
 
-        if limit == self._limit and occupied == self._occupied:
+        holders = tuple(holders)
+        if (
+            limit == self._limit
+            and occupied == self._occupied
+            and holders == self._holders
+        ):
             return
         old_width = self.content_cells
         self._limit = limit
         self._occupied = occupied
+        self._holders = holders
         self._apply_content()
         if self.content_cells != old_width:
             self._request_host_fit()
@@ -210,7 +247,7 @@ class AgentLoadIndicator(Static):
             self._limit, self._occupied, dark=dark, density=self._density
         )
         self.update(content)
-        tooltip = _agent_load_tooltip(self._limit, self._occupied)
+        tooltip = _agent_load_tooltip(self._limit, self._occupied, self._holders)
         if self.tooltip != tooltip:
             self.tooltip = tooltip
 

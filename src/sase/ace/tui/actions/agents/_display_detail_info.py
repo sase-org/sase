@@ -255,6 +255,7 @@ class AgentInfoDisplayMixin:
             agent_load_indicator.update_load(
                 runner_capacity.effective_limit,
                 runner_capacity.occupied_capacity,
+                getattr(runner_capacity, "holders", ()),
             )
         display_query, query_rich, match_count = self._agents_info_panel_query_display()
         from ._loading_disk_viewport import current_agents_history_query_key

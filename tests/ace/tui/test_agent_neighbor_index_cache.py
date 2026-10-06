@@ -225,13 +225,18 @@ def test_agents_info_panel_update_skips_neighbor_count() -> None:
     detail_panel = _DetailPanel()
 
     class _LoadGauge:
-        calls: list[tuple[float, float | None]]
+        calls: list[tuple[float, float | None, tuple]]
 
         def __init__(self) -> None:
             self.calls = []
 
-        def update_load(self, limit: float, occupied: float | None) -> None:
-            self.calls.append((limit, occupied))
+        def update_load(
+            self,
+            limit: float,
+            occupied: float | None,
+            holders: tuple = (),
+        ) -> None:
+            self.calls.append((limit, occupied, tuple(holders)))
 
     load_gauge = _LoadGauge()
 
@@ -253,5 +258,5 @@ def test_agents_info_panel_update_skips_neighbor_count() -> None:
     assert "runner_limit" not in info_panel.kwargs
     assert info_panel.kwargs["runner_queue_count"] == 2
     assert "runner_slots_in_use" not in info_panel.kwargs
-    assert load_gauge.calls == [(10, None), (10, None)]
+    assert load_gauge.calls == [(10, None, ()), (10, None, ())]
     assert app.visible_walk_count == 0

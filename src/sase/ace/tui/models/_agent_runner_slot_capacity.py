@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from collections.abc import Callable
+
 from sase.agent.status_buckets import PRE_RUN_WAIT_STATUSES, agent_status_bucket
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
@@ -35,6 +37,7 @@ def capacity_record_from_agent(
     parsed_artifact_paths: dict[str, Any],
     *,
     clan_containers: dict[tuple[str | None, str | None], Agent] | None = None,
+    is_pid_live: Callable[[int], bool] | None = None,
 ) -> dict[str, Any]:
     artifacts_dir = capacity_artifact_dir(agent)
     parsed = _parsed_artifact_path(agent, parsed_artifact_paths)
@@ -49,6 +52,11 @@ def capacity_record_from_agent(
         if agent.is_clan_container
         else (container.clan_tribe if container is not None else agent.clan_tribe)
     )
+    has_done_marker = agent.stop_time is not None or agent.status in {
+        "DONE",
+        "FAILED",
+        "FAILED (RETRIED)",
+    }
     return {
         "artifact_dir": artifacts_dir,
         "project_name": project_name(agent, parsed),
@@ -63,10 +71,11 @@ def capacity_record_from_agent(
         "tribes": list(membership),
         "created_at": candidate_created_at_from_timestamp(_capacity_timestamp(agent)),
         "has_agent_meta": not (agent.is_clan_container or agent.is_named_proc),
-        "has_done_marker": agent.stop_time is not None
-        or agent.status in {"DONE", "FAILED", "FAILED (RETRIED)"},
+        "has_done_marker": has_done_marker,
         "appears_as_agent": _appears_as_agent(agent),
-        "live": _capacity_record_is_live(agent),
+        "live": _capacity_record_is_live(
+            agent, has_done_marker=has_done_marker, is_pid_live=is_pid_live
+        ),
         "pending_question": agent.runner_slot_yielded,
         "pid": agent.pid,
         "run_started_at": _capacity_run_started_at(agent),
@@ -184,8 +193,36 @@ def _appears_as_agent(agent: Agent) -> bool:
     )
 
 
-def _capacity_record_is_live(agent: Agent) -> bool:
-    return bool(agent.runner_is_live or agent.pid is not None)
+def _capacity_record_is_live(
+    agent: Agent,
+    *,
+    has_done_marker: bool | None = None,
+    is_pid_live: Callable[[int], bool] | None = None,
+) -> bool:
+    """Return whether *agent* holds a verified-live runner claim.
+
+    ``runner_is_live`` is proof on its own. An unverified ``pid`` is not:
+    rows the loader kept without probing (terminal loaded statuses and
+    session-turn rows) must re-probe unless they are already done-marked,
+    in which case no Rust consumer counts them as occupying anyway.
+    """
+    if agent.runner_is_live:
+        return True
+    if agent.pid is None:
+        return False
+    if not agent.pid_liveness_unverified:
+        return True
+    if has_done_marker is None:
+        has_done_marker = agent.stop_time is not None or agent.status in {
+            "DONE",
+            "FAILED",
+            "FAILED (RETRIED)",
+        }
+    if has_done_marker:
+        return False
+    if is_pid_live is None:
+        return False
+    return bool(is_pid_live(agent.pid))
 
 
 def _capacity_run_started_at(agent: Agent) -> str | None:

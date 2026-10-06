@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sase.core.runner_slots import DEFAULT_QUEUE_WEIGHT
@@ -31,12 +31,20 @@ class RunnerQueueEntry:
 
 
 @dataclass(frozen=True)
+class RunnerCapacityHolder:
+    label: str
+    weight: float
+    kind: str | None = None
+
+
+@dataclass(frozen=True)
 class RunnerCapacitySnapshot:
     effective_limit: float = 0.0
     slots_in_use: int = 0
     queued_count: int = 0
     queue: tuple[RunnerQueueEntry, ...] = ()
     occupied_capacity: float | None = None
+    holders: tuple[RunnerCapacityHolder, ...] = field(default=(), compare=False)
 
 
 def format_capacity_value(value: object, *, minimum_decimal: bool = True) -> str:
