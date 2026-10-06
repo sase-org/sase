@@ -13,6 +13,7 @@ import sys
 from typing import Any, Literal
 
 from sase.ace.tui.actions.clipboard._delivery import schedule_copy_delivery
+from sase.pager.copy_text import copy_text_for_reference, strip_reference_kind
 from sase.pager.document import (
     PagerOrigin,
     PagerTargetSpan,
@@ -60,7 +61,9 @@ class PagerActionSectionMixin:
             commit = str(getattr(pin, "commit", "") or "")
             live_ref = section.subject_ref or section.identity
             if commit:
-                short_path = live_ref.removeprefix("file:")
+                short_path = strip_reference_kind(
+                    live_ref, known_kinds=section.known_kinds
+                )
                 self._copy_ref(f"{commit}:{short_path}", label="this version")
                 return
         if action == "edit":
@@ -98,7 +101,22 @@ class PagerActionSectionMixin:
             self.notify(f"This section has nothing to {what}.", severity="warning")
             return
         if action == "copy":
-            self._copy_ref(ref, label="this section")
+            index = self._current_section_index()
+            context = self._link_context_for_section_index(index)
+            known_kinds = section.known_kinds
+
+            def _section_copy_text() -> str:
+                return copy_text_for_reference(
+                    ref, context=context, known_kinds=known_kinds
+                )
+
+            schedule_copy_delivery(
+                self,
+                _section_copy_text,
+                copied_label="this section",
+                task_name="sase-pager-copy",
+                on_failure="toast",
+            )
         else:
             index = self._current_section_index()
             self._resolve_and_dispatch(

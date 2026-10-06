@@ -102,7 +102,7 @@ async def test_y_then_label_copies_using_merged_link_context(
     assert copied == [str(live.resolve())]
 
 
-async def test_yy_copies_the_current_sections_subject_ref(
+async def test_yy_copies_the_current_sections_path_without_a_kind_label(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     copied: list[str] = []
@@ -118,7 +118,89 @@ async def test_yy_copies_the_current_sections_subject_ref(
         await pilot.pause(0.1)
         await pilot.pause(0.1)
 
-    assert copied == ["file:/tmp/source.py"]
+    assert copied == ["/tmp/source.py"]
+
+
+async def test_yy_copies_a_bead_subject_without_a_kind_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda value: copied.append(value) or True,
+    )
+    section = PagerSection(
+        identity="bead:sase-1",
+        title="sase-1",
+        kind="bead",
+        body="bead body\n",
+        subject_ref="bead:sase-1",
+    )
+    app = SasePager(
+        PagerDocument(sections=(section,), title="sase-1", origin=PagerOrigin.BEAD)
+    )
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.press("y")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert copied == ["sase-1"]
+
+
+async def test_y_label_on_a_bare_bead_token_copies_the_visible_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda value: copied.append(value) or True,
+    )
+    section = PagerSection(
+        identity="bead:sase-1",
+        title="sase-1",
+        kind="bead",
+        body="sase-uk.5\n",
+    )
+    app = SasePager(
+        PagerDocument(sections=(section,), title="sase-1", origin=PagerOrigin.BEAD)
+    )
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert copied == ["sase-uk.5"]
+
+
+async def test_y_label_on_an_at_bead_span_copies_without_a_kind_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.clipboard._delivery.copy_to_system_clipboard",
+        lambda value: copied.append(value) or True,
+    )
+    section = PagerSection(
+        identity="file:/tmp/source.py",
+        title="source.py",
+        kind="file",
+        body="see @bead:sase-1\n",
+    )
+    app = SasePager(
+        PagerDocument(sections=(section,), title="source.py", origin=PagerOrigin.FILE)
+    )
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.press("0")
+        await pilot.pause(0.1)
+        await pilot.pause(0.1)
+
+    assert copied == ["sase-1"]
 
 
 async def test_e_then_label_opens_the_editor_at_its_line(

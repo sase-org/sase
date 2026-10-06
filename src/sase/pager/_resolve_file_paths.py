@@ -9,6 +9,7 @@ from sase.artifact_ref_operations import split_link_location
 from sase.pager._resolve_common import link_target_for_existing_path
 from sase.pager._resolve_fragments import fragment_target_line
 from sase.pager._resolve_location import apply_link_location
+from sase.pager.copy_text import copy_text_for_reference
 from sase.pager._resolve_path_search import path_candidates, search_existing_path
 from sase.pager.landings import ambiguous_source_resolution
 from sase.pager.link_context import LinkResolutionContext, default_link_context
@@ -82,8 +83,9 @@ def copy_text_for_target(
     outcomes are terminal: a selected path copies that path, and every
     other returned lookup copies the original logical token without a
     second generic search. Unavailable generic paths copy the original
-    logical token rather than inventing a cwd-joined path. Every other
-    kind copies its ref text verbatim.
+    logical token rather than inventing a cwd-joined path. Artifact
+    references and bare tokens copy the reference's bare argument, never
+    a ``<kind>:`` label. Every other kind copies its ref text verbatim.
     """
     if kind == LinkSpanKind.FILE_PATH.value:
         resolved_context = _file_path_context(context)
@@ -103,6 +105,11 @@ def copy_text_for_target(
                 return ref
             return _copy_path_with_location(found, split.location)
         return ref
+    if kind in (
+        LinkSpanKind.ARTIFACT_REF.value,
+        LinkSpanKind.BARE_TOKEN.value,
+    ):
+        return copy_text_for_reference(ref, context=context)
     return ref
 
 

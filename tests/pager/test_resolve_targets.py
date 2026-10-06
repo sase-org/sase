@@ -110,10 +110,10 @@ def test_copy_text_for_target_returns_the_existing_resolution(tmp_path: Path) ->
     assert copied == str(live.resolve())
 
 
-def test_copy_text_for_target_returns_artifact_refs_unchanged() -> None:
+def test_copy_text_for_target_strips_the_artifact_kind_label() -> None:
     assert (
         copy_text_for_target("bead:sase-uk.5", LinkSpanKind.ARTIFACT_REF.value)
-        == "bead:sase-uk.5"
+        == "sase-uk.5"
     )
 
 
