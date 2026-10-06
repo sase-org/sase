@@ -74,7 +74,7 @@ class _ArtifactRefAgentCandidateCatalog:
 
 @dataclass(frozen=True, slots=True)
 class _BeadCacheEntry:
-    token: tuple[int, int] | None
+    token: str | None
     rows: tuple[Issue, ...]
 
 
@@ -100,14 +100,31 @@ def load_bead_candidate_catalog(
         return _ArtifactRefBeadCandidateCatalog((), 0)
 
 
+def _bead_store_token(root: Path) -> str | None:
+    """Return the exact store fingerprint, falling back to the legacy key.
+
+    The fingerprint (sase-1h8.5) stays valid once ``projection-off`` stops
+    rewriting ``issues.jsonl``. Cores that predate the binding keep the old
+    ``issues.jsonl`` mtime/size key until the pin bump removes this fallback.
+    """
+    try:
+        from sase.core.bead_read_facade import store_fingerprint
+
+        fingerprint = store_fingerprint(root)
+    except Exception:
+        fingerprint = None
+    if fingerprint is not None:
+        return fingerprint.token
+    try:
+        stat = (root / "issues.jsonl").stat()
+    except OSError:
+        return None
+    return f"mtime:{stat.st_mtime_ns}:{stat.st_size}"
+
+
 def _read_cached_bead_store(root: Path) -> tuple[Issue, ...]:
     resolved = root.expanduser().resolve(strict=False)
-    index_path = resolved / "issues.jsonl"
-    try:
-        stat = index_path.stat()
-        token: tuple[int, int] | None = (stat.st_mtime_ns, stat.st_size)
-    except OSError:
-        token = None
+    token = _bead_store_token(resolved)
     cached = _BEAD_CACHE.get(resolved)
     if cached is not None and cached.token == token:
         return cached.rows

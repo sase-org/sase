@@ -216,6 +216,56 @@ def test_event_store_wins_over_stale_jsonl_projection(tmp_path: Path) -> None:
     )
 
 
+def test_store_fingerprint_ignores_projection_rewrite(
+    tmp_path: Path,
+) -> None:
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    (beads_dir / "config.json").write_text("{}\n")
+    _write_event_store(beads_dir, [_issue_event("beads-1", "Canonical Epic")])
+    (beads_dir / "issues.jsonl").write_text("[]\n")
+
+    before = rust_beads.store_fingerprint(beads_dir)
+    assert before is not None
+    assert before.layout == "events"
+    assert len(before.token) == 64
+
+    (beads_dir / "issues.jsonl").write_text(
+        json.dumps(_issue_payload("beads-1", "Stale Legacy Epic")) + "\n"
+    )
+    assert rust_beads.store_fingerprint(beads_dir) == before
+
+    streams_dir = beads_dir / "events" / "streams"
+    with (streams_dir / "beads-1.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(_issue_event("beads-1.1", "Canonical Child")) + "\n")
+    after = rust_beads.store_fingerprint(beads_dir)
+    assert after is not None
+    assert after.token != before.token
+    assert after.streams == before.streams
+
+
+def test_store_fingerprint_covers_legacy_projection(tmp_path: Path) -> None:
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    (beads_dir / "config.json").write_text("{}\n")
+    (beads_dir / "issues.jsonl").write_text("[]\n")
+
+    before = rust_beads.store_fingerprint(beads_dir)
+    assert before is not None
+    assert before.layout == "legacy"
+
+    (beads_dir / "issues.jsonl").write_text(
+        json.dumps(_issue_payload("beads-1", "Legacy Epic")) + "\n"
+    )
+    after = rust_beads.store_fingerprint(beads_dir)
+    assert after is not None
+    assert after.token != before.token
+
+
+def test_store_fingerprint_missing_store_is_none(tmp_path: Path) -> None:
+    assert rust_beads.store_fingerprint(tmp_path / "missing") is None
+
+
 def test_event_store_reads_without_legacy_projection(tmp_path: Path) -> None:
     beads_dir = tmp_path / "sdd/beads"
     beads_dir.mkdir(parents=True)

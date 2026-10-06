@@ -324,27 +324,53 @@ def proposal_key(
     )
 
 
-def store_mtime_key(
+def store_fingerprint_key(
     beads_dir: Path | None,
     document_roots: Mapping[str, Path],
-) -> tuple[tuple[str, int, int], ...]:
-    paths: list[Path] = []
+) -> tuple[object, tuple[tuple[str, int, int], ...]]:
+    """Return the bead fingerprint plus the document mtime key.
+
+    The bead part (sase-1h8.5) stays valid once ``projection-off`` stops
+    rewriting ``issues.jsonl``. Cores that predate the binding keep the old
+    bead mtime triples until the pin bump removes this fallback. Document
+    roots stay mtime-keyed; they are content the fingerprint never covers.
+    """
+    bead_key: object = ()
     if beads_dir is not None:
-        for name in ("issues.jsonl", "config.json"):
-            paths.append(beads_dir / name)
-        events_dir = beads_dir / "events"
-        if events_dir.is_dir():
-            paths.extend(path for path in events_dir.rglob("*") if path.is_file())
+        try:
+            from sase.core.bead_read_facade import store_fingerprint
+
+            fingerprint = store_fingerprint(beads_dir)
+        except Exception:
+            fingerprint = None
+        if fingerprint is not None:
+            bead_key = fingerprint.token
+        else:
+            paths: list[Path] = [
+                beads_dir / "issues.jsonl",
+                beads_dir / "config.json",
+            ]
+            events_dir = beads_dir / "events"
+            if events_dir.is_dir():
+                paths.extend(path for path in events_dir.rglob("*") if path.is_file())
+            bead_key = _path_mtime_key(paths)
 
     month_pattern = "[0-9][0-9][0-9][0-9][0-9][0-9]"
+    document_paths: list[Path] = []
     for root in document_roots.values():
         if not root.is_dir():
             continue
-        paths.extend(path for path in root.glob("*.md") if path.is_file())
+        document_paths.extend(path for path in root.glob("*.md") if path.is_file())
         for month in root.glob(month_pattern):
             if month.is_dir():
-                paths.extend(path for path in month.glob("*.md") if path.is_file())
+                document_paths.extend(
+                    path for path in month.glob("*.md") if path.is_file()
+                )
 
+    return bead_key, _path_mtime_key(document_paths)
+
+
+def _path_mtime_key(paths: list[Path]) -> tuple[tuple[str, int, int], ...]:
     keyed: list[tuple[str, int, int]] = []
     for path in sorted(set(paths)):
         try:

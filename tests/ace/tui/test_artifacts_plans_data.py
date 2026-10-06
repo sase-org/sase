@@ -114,7 +114,7 @@ def test_snapshot_partitions_live_linked_documents_from_archive(
         "_project_document_roots",
         lambda _item, *, provider_kind="plan": {"plans": tmp_path},
     )
-    monkeypatch.setattr(plans_data, "_store_mtime_key", lambda *_args: ("mtime",))
+    monkeypatch.setattr(plans_data, "_store_fingerprint_key", lambda *_args: ("mtime",))
     monkeypatch.setattr(plans_data, "_load_project_beads", lambda _path: [object()])
     monkeypatch.setattr(
         plans_data,

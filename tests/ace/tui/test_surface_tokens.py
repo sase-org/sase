@@ -189,6 +189,26 @@ def test_project_spec_and_bead_manifest_invalidate_patches(tmp_path: Path) -> No
     assert after_manifest != after_spec
 
 
+def test_bead_projection_rewrite_does_not_drift_patches(
+    tmp_path: Path,
+) -> None:
+    projects = tmp_path / "projects"
+    beads = tmp_path / "beads"
+    _write(projects / "demo" / "demo.sase", "NAME: demo\n")
+    _write(beads / "config.json", "{}\n")
+    _write(beads / "events" / "manifest.json", "{}")
+    _write(beads / "events" / "streams" / "demo-1.jsonl", "{}\n")
+    _write(beads / "issues.jsonl", "{}\n")
+    first = _patches_token(projects, beads)
+    assert not first.indeterminate
+
+    _write(beads / "issues.jsonl", "{}\n{}\n")
+    assert _patches_token(projects, beads) == first
+
+    _write(beads / "events" / "streams" / "demo-1.jsonl", "{}\n{}\n")
+    assert _patches_token(projects, beads) != first
+
+
 def test_absent_paths_are_stable(tmp_path: Path) -> None:
     missing = tmp_path / "missing.jsonl"
     first = _notifications_token(missing)

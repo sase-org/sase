@@ -87,7 +87,7 @@ class _WaitBeadSelectionPreview:
 
 @dataclass(frozen=True, slots=True)
 class _RawCatalogEntry:
-    token: tuple[int, int] | None
+    token: str | None
     issues: tuple[Issue, ...]
     closed_ids: frozenset[str]
     available: bool
@@ -97,19 +97,33 @@ _RAW_CACHE: OrderedDict[str, _RawCatalogEntry] = OrderedDict()
 _RAW_CACHE_LOCK = RLock()
 
 
-def _index_token(project_key: str) -> tuple[int, int] | None:
+def _index_token(project_key: str) -> str | None:
+    """Return the exact store fingerprint, falling back to the legacy key.
+
+    The fingerprint (sase-1h8.5) stays valid once ``projection-off`` stops
+    rewriting ``issues.jsonl``. Cores that predate the binding keep the old
+    ``issues.jsonl`` mtime/size key until the pin bump removes this fallback.
+    """
     beads_dir = canonical_beads_dir_for_project(project_key)
     if beads_dir is None:
         return None
     try:
+        from sase.core.bead_read_facade import store_fingerprint
+
+        fingerprint = store_fingerprint(beads_dir)
+    except Exception:
+        fingerprint = None
+    if fingerprint is not None:
+        return fingerprint.token
+    try:
         stat = (beads_dir / "issues.jsonl").stat()
     except OSError:
         return None
-    return (stat.st_mtime_ns, stat.st_size)
+    return f"mtime:{stat.st_mtime_ns}:{stat.st_size}"
 
 
 def _load_raw_catalog(project_key: str) -> _RawCatalogEntry:
-    """Return the cached raw store read, revalidating by mtime/size."""
+    """Return the cached raw store read, revalidating by store fingerprint."""
     token = _index_token(project_key)
     with _RAW_CACHE_LOCK:
         cached = _RAW_CACHE.get(project_key)
@@ -168,7 +182,7 @@ def _ordered_candidates(
 def raw_wait_bead_inventory(
     project_key: str | None,
 ) -> tuple[tuple[dict[str, str], ...], bool]:
-    """Return unordered bead inventory rows from the mtime-keyed store cache.
+    """Return unordered bead inventory rows from the fingerprint-keyed store cache.
 
     Worker-thread entry point: this touches the bead store and must only be
     called off the Textual event loop. Ranking and prefix filtering belong to

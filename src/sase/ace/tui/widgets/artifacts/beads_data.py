@@ -40,7 +40,7 @@ from .beads_data_sources import (
     load_project_beads as _load_project_beads,
     notifications_mtime_key as _notifications_mtime_key,
     resolve_plan_link as _resolve_plan_link,
-    store_mtime_key as _store_mtime_key,
+    store_fingerprint_key as _store_fingerprint_key,
 )
 from .plans_data_models import PlansProject
 
@@ -70,7 +70,7 @@ def load_beads_snapshot(
         document_roots = _project_document_roots(item)
         beads_by_project[item.project] = beads_dir
         plans_roots[item.project] = document_roots.get("plans")
-        store_keys.append((item.project, _store_mtime_key(beads_dir)))
+        store_keys.append((item.project, _store_fingerprint_key(beads_dir)))
 
     local_source_key: tuple[object, ...] = (
         project,

@@ -33,10 +33,25 @@ def load_project_beads(
     return issues, ready_ids, blocked_ids
 
 
-def store_mtime_key(beads_dir: Path | None) -> tuple[tuple[str, int, int], ...]:
-    """Return a content-sensitive key without parsing the bead store."""
+def store_fingerprint_key(
+    beads_dir: Path | None,
+) -> str | tuple[tuple[str, int, int], ...]:
+    """Return the exact store fingerprint token without parsing the store.
+
+    The fingerprint (sase-1h8.5) stays valid once ``projection-off`` stops
+    rewriting ``issues.jsonl``. Cores that predate the binding keep the old
+    mtime key until the pin bump removes this fallback.
+    """
     if beads_dir is None:
         return ()
+    try:
+        from sase.core.bead_read_facade import store_fingerprint
+
+        fingerprint = store_fingerprint(beads_dir)
+    except Exception:
+        fingerprint = None
+    if fingerprint is not None:
+        return fingerprint.token
     paths: list[Path] = [beads_dir / "issues.jsonl", beads_dir / "config.json"]
     events_dir = beads_dir / "events"
     if events_dir.is_dir():
@@ -150,5 +165,5 @@ __all__ = [
     "load_project_beads",
     "notifications_mtime_key",
     "resolve_plan_link",
-    "store_mtime_key",
+    "store_fingerprint_key",
 ]

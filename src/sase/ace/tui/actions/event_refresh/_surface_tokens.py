@@ -2,8 +2,9 @@
 
 Each token is built from path metadata (existence, mtime, size) without
 opening file contents. Directory probes stay shallow: project and
-lumberjack membership plus a bounded set of files. Callers treat an
-indeterminate token as dirty and fail open.
+lumberjack membership plus a bounded set of files. The bead-store part is
+the exact stat-only store fingerprint over every stream file's metadata.
+Callers treat an indeterminate token as dirty and fail open.
 """
 
 from __future__ import annotations
@@ -33,10 +34,7 @@ _AXE_LUMBERJACK_FILES = (
     "chop_timestamps.json",
     "pid",
 )
-_BEAD_PROJECTION_FILES = (
-    Path("issues.jsonl"),
-    Path("events") / "manifest.json",
-)
+_BEAD_FINGERPRINT_PART_PREFIX = "bead-store-fingerprint:"
 
 
 @dataclass(frozen=True)
@@ -308,9 +306,41 @@ def _probe_patches_token(
             ok = _extend_stat(collected, project_dir / filename, ok=ok)
     if beads_dir is not None:
         ok = _extend_stat(collected, beads_dir, ok=ok)
-        for relative in _BEAD_PROJECTION_FILES:
-            ok = _extend_stat(collected, beads_dir / relative, ok=ok)
+        ok = _extend_bead_fingerprint(collected, beads_dir, ok=ok)
     return _token("patches", collected, ok=ok)
+
+
+def _extend_bead_fingerprint(
+    collected: list[_PathMeta], beads_dir: Path, *, ok: bool
+) -> bool:
+    """Append the exact store fingerprint part without opening the store.
+
+    The fingerprint (sase-1h8.5) stays valid once ``projection-off`` stops
+    rewriting ``issues.jsonl``. Cores that predate the binding keep the old
+    projection-file stats until the pin bump removes this fallback. A store
+    that cannot be fingerprinted marks the token indeterminate so callers
+    fail open and treat the surface as dirty.
+    """
+    try:
+        from sase.core.bead_read_facade import store_fingerprint
+
+        fingerprint = store_fingerprint(beads_dir)
+    except Exception:
+        fingerprint = None
+    if fingerprint is not None:
+        collected.append(
+            _PathMeta(
+                path=f"{_BEAD_FINGERPRINT_PART_PREFIX}{fingerprint.token}",
+                exists=True,
+            )
+        )
+        return ok
+    projection_ok = True
+    for relative in (Path("issues.jsonl"), Path("events") / "manifest.json"):
+        meta, meta_ok = _stat_path(beads_dir / relative)
+        collected.append(meta)
+        projection_ok = projection_ok and meta_ok
+    return ok and projection_ok
 
 
 def probe_procs_token(procs_path: Path) -> SurfaceToken:

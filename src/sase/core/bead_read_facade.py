@@ -16,7 +16,7 @@ from sase.core.bead_wire import (
     status_values,
     tier_values,
 )
-from sase.core.rust import require_rust_binding
+from sase.core.rust import optional_rust_binding, require_rust_binding
 
 
 @dataclass(frozen=True)
@@ -251,6 +251,47 @@ def get_epic_children(beads_dir: Path | str, epic_id: str) -> list[Issue]:
     return issues_from_list(payload)
 
 
+@dataclass(frozen=True)
+class BeadStoreFingerprint:
+    """Exact stat-only change token for one bead store.
+
+    Event stores hash ``config.json``, ``events/manifest.json`` and every
+    stream file's ``(size, mtime_ns, inode)``; legacy stores hash
+    ``config.json`` and ``issues.jsonl``. Regenerating ``issues.jsonl``
+    alone never moves an event store's token.
+    """
+
+    token: str
+    layout: str
+    files: int
+    streams: int
+
+
+def store_fingerprint(beads_dir: Path | str) -> BeadStoreFingerprint | None:
+    """Return the exact stat-only fingerprint for *beads_dir*.
+
+    Returns ``None`` when the installed core predates the
+    ``bead_store_fingerprint`` binding (sase-1h8.5) or the store cannot be
+    fingerprinted, so TUI caches fail open to their legacy mtime keys.
+    """
+    binding = optional_rust_binding("bead_store_fingerprint")
+    if binding is None:
+        return None
+    try:
+        payload: dict[str, Any] = binding(str(beads_dir))
+    except Exception:
+        return None
+    try:
+        return BeadStoreFingerprint(
+            token=str(payload["token"]),
+            layout=str(payload.get("layout") or ""),
+            files=int(payload.get("files") or 0),
+            streams=int(payload.get("streams") or 0),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
     if "Issue not found:" in str(exc):
         raise KeyError(f"Issue not found: {issue_id}") from exc
@@ -259,6 +300,7 @@ def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
 __all__ = [
     "BeadArtifactLinkRow",
     "BeadIssueDetailSnapshot",
+    "BeadStoreFingerprint",
     "blocked",
     "doctor",
     "doctor_report",
@@ -271,4 +313,5 @@ __all__ = [
     "show",
     "show_issue_detail",
     "stats",
+    "store_fingerprint",
 ]

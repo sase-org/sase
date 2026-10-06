@@ -80,7 +80,7 @@ def test_snapshot_reuses_unchanged_source_key_and_force_reloads(
         beads_data, "_project_document_roots", lambda _project: {"plans": tmp_path}
     )
     monkeypatch.setattr(
-        beads_data, "_store_mtime_key", lambda _path: (("store", 1, 1),)
+        beads_data, "_store_fingerprint_key", lambda _path: (("store", 1, 1),)
     )
     monkeypatch.setattr(
         beads_data, "_notifications_mtime_key", lambda: (("notifications", 1, 1),)
@@ -158,7 +158,7 @@ def test_snapshot_groups_flag_task_beads_with_flags_not_tasks(
         beads_data, "_project_document_roots", lambda _project: {"plans": tmp_path}
     )
     monkeypatch.setattr(
-        beads_data, "_store_mtime_key", lambda _path: (("store", 1, 1),)
+        beads_data, "_store_fingerprint_key", lambda _path: (("store", 1, 1),)
     )
     monkeypatch.setattr(
         beads_data, "_notifications_mtime_key", lambda: (("notifications", 1, 1),)
@@ -200,7 +200,7 @@ def test_snapshot_isolates_per_project_read_errors(
         lambda project: tmp_path / project / "beads",
     )
     monkeypatch.setattr(beads_data, "_project_document_roots", lambda _project: {})
-    monkeypatch.setattr(beads_data, "_store_mtime_key", lambda _path: ())
+    monkeypatch.setattr(beads_data, "_store_fingerprint_key", lambda _path: ())
     monkeypatch.setattr(beads_data, "_notifications_mtime_key", lambda: ())
     monkeypatch.setattr(beads_data, "_load_pending_triage", lambda: {})
 
@@ -252,7 +252,7 @@ def test_snapshot_resolves_display_name_scope_to_project_key(
 
     monkeypatch.setattr(beads_data, "_project_beads_dir", project_beads_dir)
     monkeypatch.setattr(beads_data, "_project_document_roots", lambda _project: {})
-    monkeypatch.setattr(beads_data, "_store_mtime_key", lambda _path: ())
+    monkeypatch.setattr(beads_data, "_store_fingerprint_key", lambda _path: ())
     monkeypatch.setattr(beads_data, "_notifications_mtime_key", lambda: ())
     monkeypatch.setattr(beads_data, "_load_pending_triage", lambda: {})
     monkeypatch.setattr(
@@ -323,7 +323,7 @@ def test_snapshot_builds_external_issue_cache_and_links(
     )
     monkeypatch.setattr(beads_data, "_project_beads_dir", lambda _project: beads_dir)
     monkeypatch.setattr(beads_data, "_project_document_roots", lambda _project: {})
-    monkeypatch.setattr(beads_data, "_store_mtime_key", lambda _path: ())
+    monkeypatch.setattr(beads_data, "_store_fingerprint_key", lambda _path: ())
     monkeypatch.setattr(beads_data, "_notifications_mtime_key", lambda: ())
     monkeypatch.setattr(
         beads_data,
@@ -407,7 +407,7 @@ def test_snapshot_can_skip_external_issue_cache_for_first_paint(
     )
     monkeypatch.setattr(beads_data, "_project_beads_dir", lambda _project: beads_dir)
     monkeypatch.setattr(beads_data, "_project_document_roots", lambda _project: {})
-    monkeypatch.setattr(beads_data, "_store_mtime_key", lambda _path: ())
+    monkeypatch.setattr(beads_data, "_store_fingerprint_key", lambda _path: ())
     monkeypatch.setattr(beads_data, "_notifications_mtime_key", lambda: ())
     monkeypatch.setattr(
         beads_data,

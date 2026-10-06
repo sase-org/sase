@@ -150,6 +150,53 @@ def test_load_wait_bead_catalog_excludes_own_bead_ids(
     assert [c.bead_id for c in catalog.candidates] == ["other"]
 
 
+def test_raw_inventory_ignores_projection_only_rewrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    beads_dir = tmp_path / "beads"
+    (beads_dir / "events" / "streams").mkdir(parents=True)
+    (beads_dir / "config.json").write_text("{}\n", encoding="utf-8")
+    (beads_dir / "events" / "manifest.json").write_text(
+        '{"schema_version":1}\n', encoding="utf-8"
+    )
+    (beads_dir / "events" / "streams" / "sase-a.jsonl").write_text(
+        '{"schema_version":1}\n', encoding="utf-8"
+    )
+    (beads_dir / "issues.jsonl").write_text("[]\n", encoding="utf-8")
+    issues = (_issue("sase-a", title="Active", status=Status.IN_PROGRESS),)
+    monkeypatch.setattr(
+        wbc, "canonical_beads_dir_for_project", lambda project: beads_dir
+    )
+    reads = {"count": 0}
+
+    def counting_open(project: str) -> tuple[Issue, ...]:
+        reads["count"] += 1
+        return issues
+
+    monkeypatch.setattr(wbc, "open_bead_candidates_for_project", counting_open)
+    monkeypatch.setattr(wbc, "closed_bead_ids_for_project", lambda project: frozenset())
+    wbc._RAW_CACHE.clear()
+
+    rows, available = raw_wait_bead_inventory("proj")
+    assert available is True
+    assert [row["id"] for row in rows] == ["sase-a"]
+
+    (beads_dir / "issues.jsonl").write_text(
+        '[{"id":"sase-a","title":"Active"}]\n', encoding="utf-8"
+    )
+    again, _ = raw_wait_bead_inventory("proj")
+    assert again == rows
+    assert reads["count"] == 1
+
+    with (beads_dir / "events" / "streams" / "sase-a.jsonl").open(
+        "a", encoding="utf-8"
+    ) as handle:
+        handle.write('{"schema_version":1,"more":true}\n')
+    third, _ = raw_wait_bead_inventory("proj")
+    assert third == rows
+    assert reads["count"] == 2
+
+
 def test_load_wait_bead_catalog_caches_by_index_token(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

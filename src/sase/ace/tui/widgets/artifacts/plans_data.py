@@ -43,7 +43,7 @@ from .plans_data_sources import (
     proposal_key as _proposal_key,
     read_text as _read_text,
     resolve_projects as _resolve_projects,
-    store_mtime_key as _store_mtime_key,
+    store_fingerprint_key as _store_fingerprint_key,
     timestamp_recency_key as _timestamp_recency_key,
     yaml_value_to_string as _yaml_value_to_string,
 )
@@ -101,7 +101,7 @@ def load_plans_snapshot(
                 item.project,
                 "missing"
                 if beads_dir is None and not plans_roots
-                else _store_mtime_key(beads_dir, plans_roots),
+                else _store_fingerprint_key(beads_dir, plans_roots),
             )
         )
 
