@@ -252,6 +252,9 @@ def test_sase_final_skill_documents_declaration_commands() -> None:
         "before every normal response that ends a SASE provider turn"
         in front_matter["description"]
     )
+    assert "Root agent only" in front_matter["description"]
+    assert "helpers" in front_matter["description"]
+    assert "return your result to your parent" in flat
     assert "mandatory for final answers" in flat
     assert "incomplete-status responses" in flat
     assert "Never use it to wait for a command" in flat

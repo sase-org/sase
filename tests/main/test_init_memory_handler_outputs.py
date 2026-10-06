@@ -24,6 +24,8 @@ from tests.main.init_memory_handler_helpers import (
 
 _FINAL_DECLARATION_MARKERS = (
     "/sase_final",
+    "Only the root SASE agent",
+    "return your result to your parent instead",
     "Before any normal response that ends this SASE provider turn",
     "incomplete-status response",
     "Never end a turn to wait for a command or to resume later",

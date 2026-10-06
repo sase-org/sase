@@ -85,24 +85,27 @@ costs, and the condition that would reopen it.
 18. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`)
     - A memory web's placement in generated agent instructions follows from its kind,
       not from a `type:` declaration on its descriptor.
-19. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`)
+19. **Native Helpers Return; Only Roots Declare** (`helpers-return-roots-declare`)
+    - Only the host-launched root agent submits final declarations and runs turn-ending
+      operations; native helpers and forks return their results to their parent.
+20. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`)
     - SASE does not build memory retrieval or linking machinery ahead of a corpus that
       demonstrably needs it.
-20. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`)
+21. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`)
     - Verdict receipts are proof for host completion, never execution skip or reuse;
       reuse waits for measured content-equivalent repeat opportunity plus a hermeticity
       proof.
-21. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
+22. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
     - Built-in size aliases run a model at xhigh on its first appearance from @xlarge
       down and one rung lower on each reappearance; every alias should span more than
       one provider.
-22. **The Rust Core Is Required** (`rust-core-required`)
+23. **The Rust Core Is Required** (`rust-core-required`)
     - Shared backend behavior lives in sase-core with no Python fallback and no env-var
       backend switch.
-23. **Triage Annotates; It Never Changes an Exit Code**
+24. **Triage Annotates; It Never Changes an Exit Code**
     (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
     witness; triage classifies failure evidence without changing command outcomes.
-24. **Verification Is Two-Speed** (`two-speed-verification`)
+25. **Verification Is Two-Speed** (`two-speed-verification`)
     - _[superseded by `check-full-is-explicit`]_ just check is the agent default and
       just check-full gates landing, because host capacity is the constraint, not test
       speed.

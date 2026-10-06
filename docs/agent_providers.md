@@ -60,6 +60,21 @@ the same scoreboard as a deep-only group (`instructions.delivery` WARNs on rows 
 break contract 1×, project ✓, directive ✓, or native-full ≤ 1; `instructions.helpers`
 WARNs on any accepted helper declaration).
 
+## Root and helper agents
+
+Only the root SASE agent — the provider turn SASE launched — submits the final
+declaration; native subagents and forked helpers return their result to their parent
+instead (decision `helpers-return-roots-declare`). Mechanical enforcement exists only
+where a provider exposes a helper channel. Everything else relies on that contract
+sentence. Limits by provider capability, not hidden:
+
+| Provider  | Helper coverage                                                                                                                                                                                                                                                |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude    | Helper template plus PreToolUse guard; live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Kill switch: `sase flag disable claude_helper_channel`. Full surface list: [Instruction Inventory](instruction_inventory.md). |
+| Codex     | Children inherit the process-level `developer_instructions`, so the sentence covers them; 0 spawns observed so far. No guard.                                                                                                                                  |
+| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                                                                         |
+| Muse, agy | No helper coverage.                                                                                                                                                                                                                                            |
+
 ## Claude Code
 
 Anthropic's Claude Code CLI (`claude`). This is SASE's highest-priority autodetect

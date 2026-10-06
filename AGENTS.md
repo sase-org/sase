@@ -74,13 +74,15 @@ by using `/sase_repo` or `sase artifact read`!
 
 #### 1.1.4 SASE Final Declaration
 
-Before any normal response that ends this SASE provider turn, use your `/sase_final`
-skill as the last action. This includes a final answer and an incomplete-status
-response; an unfinished turn still declares so its work is committed. Never end a turn
-to wait for a command or to resume later: nothing can wake you, so hand long commands to
-`/sase_monitor` before starting them. Only a successfully executed plan, monitor, pipe,
-or questions handoff is exempt, because those commands terminate the runner
-mechanically.
+Only the root SASE agent — the provider turn SASE launched — submits the final
+declaration; if you were spawned or forked as a helper (a native subagent), return your
+result to your parent instead. Before any normal response that ends this SASE provider
+turn, use your `/sase_final` skill as the last action. This includes a final answer and
+an incomplete-status response; an unfinished turn still declares so its work is
+committed. Never end a turn to wait for a command or to resume later: nothing can wake
+you, so hand long commands to `/sase_monitor` before starting them. Only a successfully
+executed plan, monitor, pipe, or questions handoff is exempt, because those commands
+terminate the runner mechanically.
 
 ### 1.2 Code Conventions and Gotchas (gotchas)
 
@@ -216,21 +218,24 @@ costs, and the condition that would reopen it.
 18. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
     memory web's placement in generated agent instructions follows from its kind, not
     from a `type:` declaration on its descriptor.
-19. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
+19. **Native Helpers Return; Only Roots Declare** (`helpers-return-roots-declare`) -
+    Only the host-launched root agent submits final declarations and runs turn-ending
+    operations; native helpers and forks return their results to their parent.
+20. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
     not build memory retrieval or linking machinery ahead of a corpus that demonstrably
     needs it.
-20. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`) - Verdict
+21. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`) - Verdict
     receipts are proof for host completion, never execution skip or reuse; reuse waits
     for measured content-equivalent repeat opportunity plus a hermeticity proof.
-21. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
+22. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
     size aliases run a model at xhigh on its first appearance from @xlarge down and one
     rung lower on each reappearance; every alias should span more than one provider.
-22. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+23. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
     in sase-core with no Python fallback and no env-var backend switch.
-23. **Triage Annotates; It Never Changes an Exit Code**
+24. **Triage Annotates; It Never Changes an Exit Code**
     (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
     witness; triage classifies failure evidence without changing command outcomes.
-24. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
+25. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
     `check-full-is-explicit`]_ just check is the agent default and just check-full gates
     landing, because host capacity is the constraint, not test speed.
 
