@@ -55,7 +55,7 @@ class MacroSkillDefinitionResolution:
         version = int(raw["schema_version"])
         if version != MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION:
             raise RuntimeError(
-                f"sase_core_rs xprompt-skill definition wire is stale: {version}"
+                f"sase_core_rs macro-skill definition wire is stale: {version}"
             )
         return cls(
             schema_version=version,
@@ -101,7 +101,7 @@ def _require_macro_skill_definition_schema() -> None:
     version = int(binding())
     if version != MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION:
         raise RuntimeError(
-            "sase_core_rs xprompt-skill definition wire is stale: "
+            "sase_core_rs macro-skill definition wire is stale: "
             f"expected {MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION}, got {version}"
         )
 

@@ -81,8 +81,8 @@ def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
     assert entries["Helper"] == {
         "trigger": "Helper",
         "template": "Help with $1$0",
-        "source": "xprompt",
-        "xprompt_name": "helper",
+        "source": "macro",
+        "macro_name": "helper",
         "description": "Helper prompt",
         "source_path_display": "xprompts/helper.md",
     }
@@ -90,15 +90,15 @@ def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
         "trigger": "User_snip",
         "template": "User $1$0",
         "source": "user_config",
-        "xprompt_name": None,
+        "macro_name": None,
         "description": None,
         "source_path_display": "ace.snippets",
     }
     assert entries["helper"] == {
         "trigger": "helper",
         "template": "Help with $1$0",
-        "source": "xprompt",
-        "xprompt_name": "helper",
+        "source": "macro",
+        "macro_name": "helper",
         "description": "Helper prompt",
         "source_path_display": "xprompts/helper.md",
     }
@@ -106,7 +106,7 @@ def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
         "trigger": "user_snip",
         "template": "User $1$0",
         "source": "user_config",
-        "xprompt_name": None,
+        "macro_name": None,
         "description": None,
         "source_path_display": "ace.snippets",
     }
@@ -179,16 +179,16 @@ def test_editor_helper_bridge_snippet_catalog_composes_nested_macros(
         {
             "trigger": "Outer",
             "template": "Outer leaf text$0",
-            "source": "xprompt",
-            "xprompt_name": "outer",
+            "source": "macro",
+            "macro_name": "outer",
             "description": None,
             "source_path_display": None,
         },
         {
             "trigger": "outer",
             "template": "outer leaf text$0",
-            "source": "xprompt",
-            "xprompt_name": "outer",
+            "source": "macro",
+            "macro_name": "outer",
             "description": None,
             "source_path_display": None,
         },
@@ -281,8 +281,8 @@ def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
     assert entries["Foo"] == {
         "trigger": "Foo",
         "template": "Foo $1$0",
-        "source": "xprompt",
-        "xprompt_name": "foo",
+        "source": "macro",
+        "macro_name": "foo",
         "description": "Foo source",
         "source_path_display": "xprompts/foo.md",
     }
@@ -290,7 +290,7 @@ def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
         "trigger": "Wrap",
         "template": "Foo $1 tail $2$0",
         "source": "user_config",
-        "xprompt_name": None,
+        "macro_name": None,
         "description": None,
         "source_path_display": "ace.snippets",
     }

@@ -45,7 +45,7 @@ def _next_key_qualification_prefix(
 ) -> str:
     from sase.core.time import generate_timestamp
 
-    name = re.sub(r"[^A-Za-z0-9]+", ".", macro_name).strip(".") or "xprompt"
+    name = re.sub(r"[^A-Za-z0-9]+", ".", macro_name).strip(".") or "macro"
     timestamp = generate_timestamp().replace("_", ".")
     return f"{name}.{timestamp}.{next(qualification_counter)}"
 

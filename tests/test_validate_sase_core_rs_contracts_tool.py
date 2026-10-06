@@ -239,7 +239,7 @@ def test_validate_sase_core_rs_requires_expected_finalizer_schema() -> None:
 
 def _skill_layout_payload(
     *,
-    schema_version: int = 6,
+    schema_version: int = 7,
     package_locator: str = "package:xprompts/skills",
 ) -> dict[str, object]:
     return {

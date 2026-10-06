@@ -52,10 +52,10 @@ def test_multiple_macro_swarm_references_keep_distinct_args_and_groups() -> None
         "b2 bar",
     ]
     assert [record.template_group for record in out] == [
-        "xprompt:a:0",
-        "xprompt:a:0",
-        "xprompt:b:1",
-        "xprompt:b:1",
+        "macro:a:0",
+        "macro:a:0",
+        "macro:b:1",
+        "macro:b:1",
     ]
     assert [record.swarm_macros for record in out] == [
         ("a",),
@@ -150,9 +150,9 @@ def test_nested_macro_swarm_metadata_records_outer_to_inner_chain() -> None:
         "inner second",
     ]
     assert [record.template_group for record in out] == [
-        "xprompt:outer:0",
-        "xprompt:outer:0",
-        "xprompt:outer:0",
+        "macro:outer:0",
+        "macro:outer:0",
+        "macro:outer:0",
     ]
     assert [record.swarm_macros for record in out] == [
         ("outer",),
@@ -205,12 +205,12 @@ def test_shared_group_counter_keeps_invocations_distinct_across_calls() -> None:
         )
 
     assert [record.template_group for record in first] == [
-        "xprompt:two:0",
-        "xprompt:two:0",
+        "macro:two:0",
+        "macro:two:0",
     ]
     assert [record.template_group for record in second] == [
-        "xprompt:two:1",
-        "xprompt:two:1",
+        "macro:two:1",
+        "macro:two:1",
     ]
 
 

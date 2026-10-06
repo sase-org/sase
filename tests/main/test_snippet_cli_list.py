@@ -168,5 +168,5 @@ def test_list_includes_macro_origin(
     cli_list.handle_snippet_list_command(args)
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["snippets"][0]["origin"]["kind"] == "xprompt"
+    assert payload["snippets"][0]["origin"]["kind"] == "macro"
     assert payload["snippets"][0]["origin"]["writable"] is False

@@ -69,8 +69,7 @@ def test_classify_source_labels_legacy_project_macro_path(
     new_dir = project_root / "sase" / "macros"
     legacy_dir = project_root / "sase" / "xprompts"
     layout = SimpleNamespace(
-        macros=SimpleNamespace(candidates=(new_dir,), write_path=new_dir),
-        xprompts=SimpleNamespace(write_path=legacy_dir),
+        macros=SimpleNamespace(candidates=(new_dir, legacy_dir), write_path=new_dir),
         memory=SimpleNamespace(candidates=()),
     )
     monkeypatch.setattr(
@@ -108,14 +107,16 @@ def test_classify_source_labels_legacy_home_macro_path(
     legacy_home_dir = home_root / "sase" / "xprompts"
     project_layout = SimpleNamespace(
         macros=SimpleNamespace(
-            candidates=(new_project_dir,), write_path=new_project_dir
+            candidates=(new_project_dir, legacy_project_dir),
+            write_path=new_project_dir,
         ),
-        xprompts=SimpleNamespace(write_path=legacy_project_dir),
         memory=SimpleNamespace(candidates=()),
     )
     home_layout = SimpleNamespace(
-        macros=SimpleNamespace(candidates=(new_home_dir,), write_path=new_home_dir),
-        xprompts=SimpleNamespace(write_path=legacy_home_dir),
+        macros=SimpleNamespace(
+            candidates=(new_home_dir, legacy_home_dir),
+            write_path=new_home_dir,
+        ),
         memory=SimpleNamespace(candidates=()),
     )
     monkeypatch.setattr(

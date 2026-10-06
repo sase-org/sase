@@ -18,7 +18,7 @@ from sase.llm_provider.provider_disable_peek import peek_active_provider_disable
 from sase.llm_provider.provider_priority import ProviderRoutingContext
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 
-_LAUNCH_UNIT_KEYS = frozenset({"prompt", "template_group", "swarm_xprompts"})
+_LAUNCH_UNIT_KEYS = frozenset({"prompt", "template_group", "swarm_macros"})
 _REMEDY = "Enable it in Config > Launch (,m -> p) or choose another model."
 
 ProviderDisableSnapshot = Mapping[str, TemporaryProviderDisable]
@@ -189,7 +189,7 @@ def _parse_launch_unit_entry(index: int, item: object) -> LaunchUnitInput:
     if set(item) != _LAUNCH_UNIT_KEYS:
         raise LaunchUnitsPayloadError(
             f"launch_units[{index}] must have exactly keys prompt, "
-            "template_group, swarm_xprompts"
+            "template_group, swarm_macros"
         )
     prompt = item["prompt"]
     if not isinstance(prompt, str) or not prompt.strip():
@@ -201,10 +201,10 @@ def _parse_launch_unit_entry(index: int, item: object) -> LaunchUnitInput:
         raise LaunchUnitsPayloadError(
             f"launch_units[{index}].template_group must be a string or null"
         )
-    swarm = item["swarm_xprompts"]
+    swarm = item["swarm_macros"]
     if not isinstance(swarm, list) or not all(isinstance(name, str) for name in swarm):
         raise LaunchUnitsPayloadError(
-            f"launch_units[{index}].swarm_xprompts must be a list of strings"
+            f"launch_units[{index}].swarm_macros must be a list of strings"
         )
     return LaunchUnitInput(
         prompt=prompt,

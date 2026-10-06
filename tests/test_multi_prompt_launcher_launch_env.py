@@ -288,7 +288,7 @@ def test_launch_multi_prompt_injects_per_segment_swarm_provenance(
 def test_launch_multi_prompt_validates_swarm_provenance_length() -> None:
     with pytest.raises(
         ValueError,
-        match="segment_swarm_xprompts must have one entry per multi-prompt segment",
+        match="segment_swarm_macros must have one entry per multi-prompt segment",
     ):
         launch_multi_prompt_agents(
             segments=["seg1", "seg2"],

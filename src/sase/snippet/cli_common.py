@@ -92,7 +92,7 @@ def _snippet_contribution_json(item: SnippetSourceContribution) -> dict[str, obj
         "template": item.template,
         "trigger": item.trigger,
         "writable": item.writable,
-        "xprompt_name": item.macro_name,
+        "macro_name": item.macro_name,
     }
 
 

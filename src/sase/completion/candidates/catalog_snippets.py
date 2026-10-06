@@ -55,10 +55,14 @@ def snippet_candidates(project: str | None) -> list[Candidate]:
 
 
 def _snippet_description(item: Mapping[str, object]) -> str:
+    from sase.legacy_xprompt_names import LEGACY_XPROMPT_SOURCE_KIND
+
     source = item.get("source")
-    # The pinned core still emits ``xprompt_name``; prefer the canonical key
-    # once the core flip lands, without asserting a shape it cannot emit.
-    macro_name = item.get("macro_name", item.get("xprompt_name"))
+    macro_name = item.get("macro_name")
+    if macro_name is None:
+        # Durable legacy payloads may still carry the retired name.
+        legacy = item.get("xprompt_name")
+        macro_name = legacy if isinstance(legacy, str) else None
     source_path = item.get("source_path_display")
     parts = [
         part

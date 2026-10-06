@@ -365,8 +365,8 @@ def test_feature_on_plain_prompt_keeps_legacy_and_launch_units(
             "launch_units": [
                 {
                     "prompt": "one",
-                    "template_group": "xprompt:team:0",
-                    "swarm_xprompts": ["team"],
+                    "template_group": "macro:team:0",
+                    "swarm_macros": ["team"],
                 }
             ]
         },

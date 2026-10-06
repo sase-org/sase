@@ -90,7 +90,7 @@ def test_template_clan_is_resolved_once_without_a_root(
             "%id:research.@.worker\n%clan:research.@\nWork",
             "%id(final, clan=research.@)\nLead",
         ],
-        template_groups=["xprompt:research:0", "xprompt:research:0"],
+        template_groups=["macro:research:0", "macro:research:0"],
     )
 
     assert len(calls) == 2
@@ -120,9 +120,9 @@ def test_research_swarm_style_launch_mixes_clan_and_standalone_tribe(
             "%id(tribe=research)\nAudit independently",
         ],
         template_groups=[
-            "xprompt:research:0",
-            "xprompt:research:0",
-            "xprompt:research:0",
+            "macro:research:0",
+            "macro:research:0",
+            "macro:research:0",
             None,
         ],
     )
@@ -175,7 +175,7 @@ def test_repeated_template_clan_declaration_uses_new_member_generation(
         "%id(worker, clan=research.@)\nInvestigate",
         "%id(final, clan=research.@)\nSynthesize",
     ]
-    template_groups = ["xprompt:research:0"] * len(segments)
+    template_groups = ["macro:research:0"] * len(segments)
 
     first = _launch_with_captured_spawns(
         segments,
@@ -234,7 +234,7 @@ def test_clan_membership_is_execution_neutral(
         ),
         baseline_segments[2],
     ]
-    template_groups = ["xprompt:research:0", "xprompt:research:0", None]
+    template_groups = ["macro:research:0", "macro:research:0", None]
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "baseline" / ".sase"))
     baseline = _launch_with_captured_spawns(

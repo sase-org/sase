@@ -23,7 +23,7 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
         project="demo",
     )
 
-    assert layout.schema_version == 6
+    assert layout.schema_version == 7
     assert layout.project is not None
     project = layout.project
     assert project.config.canonical.path == Path("/workspace/demo/sase/sase.yml")
@@ -142,13 +142,13 @@ def test_macro_priority_contract_covers_every_source_and_shared_steps() -> None:
         "project_macros_canonical",
         "home_macros_canonical",
         "home_project_macros_canonical",
-        "project_xprompt_canonical",
+        "project_xprompt_legacy",
         "project_legacy_hidden",
         "project_legacy_visible",
-        "home_xprompt_canonical",
+        "home_xprompt_legacy",
         "home_legacy_hidden",
         "home_legacy_visible",
-        "home_project_xprompt_canonical",
+        "home_project_xprompt_legacy",
         "home_project_legacy_config",
         "project_config_canonical",
         "project_config_legacy",

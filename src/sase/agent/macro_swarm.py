@@ -342,7 +342,7 @@ def _expand_macro_swarms_with_metadata(
 
 
 def _next_template_group(name: str, group_counter: Iterator[int]) -> str:
-    return f"xprompt:{name}:{next(group_counter)}"
+    return f"macro:{name}:{next(group_counter)}"
 
 
 def _append_swarm_macro(swarm_macros: tuple[str, ...], name: str) -> tuple[str, ...]:

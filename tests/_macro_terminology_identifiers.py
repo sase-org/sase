@@ -22,11 +22,10 @@ pytestmark = pytest.mark.contract
 # The one agent-package line that registers the shim's finder.
 _SHIM_MARK = "# TEMP(xprompt->macro shim)"
 
-# Sunset-transport spellings this phase classifies instead of blanket-allowing:
-# each (file, identifier) row below names one pre-flip transport constant
-# owned by sase-1eq.10, or the narrowed-parser compat `dest` owned by the
-# cli-doctor phase. A newly introduced NAME still fails unless it lands
-# here with a reason.
+# Sunset-transport spellings classified instead of blanket-allowing:
+# each (file, identifier) row below names one retired transport constant
+# or the narrowed-parser compat `dest` owned by the cli-doctor phase.
+# A newly introduced NAME still fails unless it lands here with a reason.
 _MACRO_TRANSPORT_SINGLETONS = frozenset(
     {
         ("src/sase/doctor/checks_deep_macro_lsp.py", "SASE_XPROMPT_LSP_CMD_ENV"),
@@ -95,13 +94,8 @@ def _is_legacy_identifier(name: str) -> bool:
 # Never add a whole file here to hide a missed rename.
 _MACRO_NAME_ALLOWLIST = {
     # Pinned-core locator fields; the core flip owns the canonical key.
-    ("src/sase/core/content_layout_wire.py", "xprompts"),
-    ("src/sase/core/content_layout_wire.py", "xprompt_sources"),
-    # The pinned layout response still exposes its legacy source collection;
-    # the UI reads it only as a migration fallback until sase-1eq.10.
-    ("src/sase/ace/tui/modals/macro_browser_helpers.py", "xprompts"),
+    # Legacy macro directories remain readable via the macros compatible path.
     ("tests/ace/tui/modals/test_macro_browser_helpers.py", "xprompts"),
-    ("src/sase/prompt/cli_export.py", "xprompts"),
     # Plugins still ship an `xprompts/` resource directory.
     ("src/sase/macro/loader_skills.py", "_PLUGIN_XPROMPT_DESTINATION"),
     # Pre-contract wire/durable readers, never writers.

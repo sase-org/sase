@@ -1088,10 +1088,10 @@ def _validate_skill_reference_contract(module: ModuleType) -> bool:
     if not isinstance(layout, dict):
         _error("sase_content_layout probe returned a non-dict payload")
         return False
-    if layout.get("schema_version") != 6:
+    if layout.get("schema_version") != 7:
         _error(
             "sase_content_layout probe returned stale schema: "
-            f"got {layout.get('schema_version')!r}, expected 6"
+            f"got {layout.get('schema_version')!r}, expected 7"
         )
         valid = False
 

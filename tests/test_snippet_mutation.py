@@ -208,7 +208,7 @@ def test_delete_reveals_shadowed_definition(
 
     assert outcome.action == "deleted"
     assert outcome.revealed is not None
-    assert outcome.revealed.origin.kind == "xprompt"
+    assert outcome.revealed.origin.kind == "macro"
     assert outcome.removed_paths == (str(config_path),)
     assert "-F" in outcome.restore_command
     loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))["ace"]
@@ -216,7 +216,7 @@ def test_delete_reveals_shadowed_definition(
     assert "todo" not in snippets
     catalog = load_snippet_catalog("demo")
     assert catalog.entry_for("todo") is not None
-    assert catalog.entry_for("todo").origin.kind == "xprompt"
+    assert catalog.entry_for("todo").origin.kind == "macro"
 
 
 def test_delete_refuses_macro_only_definition(

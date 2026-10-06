@@ -526,7 +526,7 @@ def test_launch_units_payload_reaches_launcher_without_history_text(
                     {
                         "prompt": "first unit prompt text here",
                         "template_group": None,
-                        "swarm_xprompts": [],
+                        "swarm_macros": [],
                     }
                 ]
             },

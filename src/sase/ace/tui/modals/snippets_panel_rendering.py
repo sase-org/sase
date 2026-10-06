@@ -32,7 +32,8 @@ _DIAGNOSTIC_CHIP = "#808080"
 
 _TABSTOP_RE = re.compile(r"\$\{\d+\}|\$\d+")
 
-_KIND_LABEL: dict[SnippetSourceKind, str] = {
+_KIND_LABEL: dict[str, str] = {
+    "macro": "ma",
     LEGACY_XPROMPT_SOURCE_KIND: "ma",
     "default": "def",
     "plugin": "plug",

@@ -60,7 +60,7 @@ def macro_trace_segments(
             ContinuationSegmentCapture(
                 text=record.expanded_text,
                 provenance="local_materialized",
-                source_ref=source_ref("xprompt", record.name, source_seed),
+                source_ref=source_ref("macro", record.name, source_seed),
                 source_label=record.source_path,
             )
         )

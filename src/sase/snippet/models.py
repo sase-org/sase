@@ -15,7 +15,7 @@ from sase.core.snippet_catalog_facade import (
 )
 
 SnippetSourceKind = Literal[
-    "xprompt",
+    "macro",
     "default",
     "plugin",
     "user",
@@ -29,7 +29,9 @@ SnippetMutationAction = Literal["created", "replaced", "shadowed", "deleted"]
 
 def is_macro_derived_kind(kind: str) -> bool:
     """Return True when *kind* is a macro-derived snippet contribution."""
-    return kind == "xprompt"
+    from sase.legacy_xprompt_names import LEGACY_XPROMPT_SOURCE_KIND
+
+    return kind in ("macro", LEGACY_XPROMPT_SOURCE_KIND)
 
 
 @dataclass(frozen=True, slots=True)

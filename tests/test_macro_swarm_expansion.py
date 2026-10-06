@@ -76,9 +76,9 @@ def test_expand_three_segment_macro_metadata_groups_one_invocation() -> None:
 
     assert [record.prompt for record in out] == ["phase A", "phase B", "phase C"]
     assert [record.template_group for record in out] == [
-        "xprompt:three:0",
-        "xprompt:three:0",
-        "xprompt:three:0",
+        "macro:three:0",
+        "macro:three:0",
+        "macro:three:0",
     ]
     assert [record.swarm_macros for record in out] == [
         ("three",),
@@ -99,10 +99,10 @@ def test_expand_two_macro_invocations_get_distinct_metadata_groups() -> None:
         "phase B",
     ]
     assert [record.template_group for record in out] == [
-        "xprompt:two:0",
-        "xprompt:two:0",
-        "xprompt:two:1",
-        "xprompt:two:1",
+        "macro:two:0",
+        "macro:two:0",
+        "macro:two:1",
+        "macro:two:1",
     ]
 
 
@@ -205,9 +205,9 @@ def test_expand_mixed_with_prose_embeds_first_segment() -> None:
         out = expand_macro_swarms_with_metadata(["Hello #three world"])
     assert [record.prompt for record in out] == ["Hello a world", "b", "c"]
     assert [record.template_group for record in out] == [
-        "xprompt:three:0",
-        "xprompt:three:0",
-        "xprompt:three:0",
+        "macro:three:0",
+        "macro:three:0",
+        "macro:three:0",
     ]
     assert [record.swarm_macros for record in out] == [
         ("three",),

@@ -105,7 +105,6 @@ class ProjectContentLayout:
     root: Path
     namespace_root: LayoutPath
     config: CompatibleLayoutPath
-    xprompts: CompatibleLayoutPath
     macros: CompatibleLayoutPath
     skills: LayoutPath
     refs: LayoutPath
@@ -119,7 +118,6 @@ class ProjectContentLayout:
 class HomeContentLayout:
     root: Path
     namespace_root: LayoutPath
-    xprompts: CompatibleLayoutPath
     macros: CompatibleLayoutPath
     skills: LayoutPath
     refs: LayoutPath
@@ -134,7 +132,6 @@ class HomeContentLayout:
 class ChezmoiContentLayout:
     source_root: Path
     namespace_root: LayoutPath
-    xprompts: CompatibleLayoutPath
     macros: CompatibleLayoutPath
     skills: LayoutPath
     refs: LayoutPath
@@ -219,7 +216,6 @@ class SaseContentLayout:
     project: ProjectContentLayout | None
     home: HomeContentLayout
     chezmoi: ChezmoiContentLayout | None
-    xprompt_sources: tuple[MacroSource, ...]
     macro_sources: tuple[MacroSource, ...]
     skill_sources: tuple[SkillSource, ...]
     memory_sources: tuple[MemorySource, ...]
@@ -227,10 +223,10 @@ class SaseContentLayout:
 
 def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
     schema_version = int(raw["schema_version"])
-    if schema_version < 5:
+    if schema_version < 7:
         raise RuntimeError(
             "sase_core_rs content-layout wire is stale: "
-            f"expected schema >= 5 for ref sources, got {schema_version}"
+            f"expected schema >= 7 for macro layout, got {schema_version}"
         )
     project_raw = raw.get("project")
     chezmoi_raw = raw.get("chezmoi")
@@ -242,10 +238,6 @@ def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
         home=_home_layout(_mapping(raw["home"])),
         chezmoi=(
             _chezmoi_layout(_mapping(chezmoi_raw)) if chezmoi_raw is not None else None
-        ),
-        xprompt_sources=tuple(
-            _macro_source(_mapping(item))
-            for item in cast(list[Any], raw.get("xprompt_sources", []))
         ),
         macro_sources=tuple(
             _macro_source(_mapping(item))
@@ -282,25 +274,12 @@ def _compatible_path(raw: Mapping[str, Any]) -> CompatibleLayoutPath:
     )
 
 
-def _macros_path(
-    raw: Mapping[str, Any],
-    xprompts: CompatibleLayoutPath,
-) -> CompatibleLayoutPath:
-    """Return the canonical macros path, falling back to the macros value."""
-    macros_raw = raw.get("macros")
-    if macros_raw is None:
-        return xprompts
-    return _compatible_path(_mapping(macros_raw))
-
-
 def _project_layout(raw: Mapping[str, Any]) -> ProjectContentLayout:
-    xprompts = _compatible_path(_mapping(raw["xprompts"]))
     return ProjectContentLayout(
         root=Path(str(raw["root"])),
         namespace_root=_layout_path(_mapping(raw["namespace_root"])),
         config=_compatible_path(_mapping(raw["config"])),
-        xprompts=xprompts,
-        macros=_macros_path(raw, xprompts),
+        macros=_compatible_path(_mapping(raw["macros"])),
         skills=_layout_path(_mapping(raw["skills"])),
         refs=_layout_path(_mapping(raw["refs"])),
         memory=_compatible_path(_mapping(raw["memory"])),
@@ -311,12 +290,10 @@ def _project_layout(raw: Mapping[str, Any]) -> ProjectContentLayout:
 
 
 def _home_layout(raw: Mapping[str, Any]) -> HomeContentLayout:
-    xprompts = _compatible_path(_mapping(raw["xprompts"]))
     return HomeContentLayout(
         root=Path(str(raw["root"])),
         namespace_root=_layout_path(_mapping(raw["namespace_root"])),
-        xprompts=xprompts,
-        macros=_macros_path(raw, xprompts),
+        macros=_compatible_path(_mapping(raw["macros"])),
         skills=_layout_path(_mapping(raw["skills"])),
         refs=_layout_path(_mapping(raw["refs"])),
         memory=_compatible_path(_mapping(raw["memory"])),
@@ -328,12 +305,10 @@ def _home_layout(raw: Mapping[str, Any]) -> HomeContentLayout:
 
 
 def _chezmoi_layout(raw: Mapping[str, Any]) -> ChezmoiContentLayout:
-    xprompts = _compatible_path(_mapping(raw["xprompts"]))
     return ChezmoiContentLayout(
         source_root=Path(str(raw["source_root"])),
         namespace_root=_layout_path(_mapping(raw["namespace_root"])),
-        xprompts=xprompts,
-        macros=_macros_path(raw, xprompts),
+        macros=_compatible_path(_mapping(raw["macros"])),
         skills=_layout_path(_mapping(raw["skills"])),
         refs=_layout_path(_mapping(raw["refs"])),
         memory=_compatible_path(_mapping(raw["memory"])),

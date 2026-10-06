@@ -42,7 +42,7 @@ def test_prepared_prompt_capture_publishes_blobs_without_delimiter_recovery(
             ContinuationSegmentCapture(
                 text="expanded helper\n## Response stays data",
                 provenance="local_materialized",
-                source_ref="xprompt:helper:test",
+                source_ref="macro:helper:test",
                 source_label="helper.md",
             ),
         ),
@@ -158,7 +158,7 @@ def test_preprocess_prompt_early_captures_macro_expansion_provenance() -> None:
     captured = [
         segment
         for segment in result.continuation_segments
-        if segment.source_ref and segment.source_ref.startswith("xprompt:local:")
+        if segment.source_ref and segment.source_ref.startswith("macro:local:")
     ]
     assert len(captured) == 1
     assert captured[0].text == "expanded body"

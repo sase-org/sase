@@ -74,7 +74,7 @@ def dispatch_proc_unit(
     from sase.legacy_xprompt_names import prompt_proc_origin_matches
 
     if not prompt_proc_origin_matches(current.origin):
-        return False, current.proc_id, "proc_origin_is_not_xprompt_proc", []
+        return False, current.proc_id, "proc_origin_is_not_prompt_proc", []
     from sase.procs.models import TERMINAL_PROC_STATUSES
 
     _rebind_launch_hold_to_proc(unit, current, ctx)
@@ -110,7 +110,7 @@ def prepare_prompt_proc_supervisor(
     sidecar = read_json_object(sidecar_path)
     meta = prompt_proc_payload(sidecar)
     if not isinstance(meta, dict):
-        return "xprompt-proc request sidecar is missing"
+        return "prompt-proc request sidecar is missing"
     if _cancelled(cancelled) or proc.stop_requested_at:
         return "proc killed"
     work_dir = proc_runtime_dir(proc.proc_id)
@@ -366,7 +366,7 @@ def _acquire_lease(proc: Proc, meta: Mapping[str, Any]) -> Any:
         )
     return acquire_operational_lease(
         project,
-        workflow=f"xprompt-proc:{proc.proc_id}",
+        workflow=f"prompt-proc:{proc.proc_id}",
         holder=proc.proc_id,
         project_file=meta.get("project_file"),
         cl_name=proc.cl_name or proc.proc_name or proc.proc_id,

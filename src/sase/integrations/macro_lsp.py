@@ -332,19 +332,10 @@ def _strip_remainder_sentinel(raw_args: Sequence[str]) -> Sequence[str]:
 def _set_catalog_env(
     environ: MutableMapping[str, str],
     macro_key: str,
-    legacy_key: str,
     default: str,
 ) -> None:
-    """Export one catalog location under both the macro and legacy names.
-
-    The canonical ``SASE_MACRO_*`` spelling wins; a preset legacy value is
-    adopted (never overwritten) so pre-rename overrides keep working, and the
-    legacy key mirrors the macro value for servers that only read it.
-    """
-    if macro_key not in environ and legacy_key in environ:
-        environ[macro_key] = environ[legacy_key]
+    """Export one catalog location under the canonical macro name."""
     environ.setdefault(macro_key, default)
-    environ.setdefault(legacy_key, environ[macro_key])
 
 
 def _prepare_macro_lsp_environment(
@@ -373,54 +364,30 @@ def _prepare_macro_lsp_environment(
     _set_catalog_env(
         environ,
         SASE_MACRO_PACKAGE_DIR_ENV,
-        SASE_XPROMPT_PACKAGE_DIR_ENV,
         str(root),
     )
     _set_catalog_env(
         environ,
         SASE_MACRO_BUILTIN_DIR_ENV,
-        SASE_XPROMPT_BUILTIN_DIR_ENV,
         str(root / "macros"),
     )
     _set_catalog_env(
         environ,
         SASE_MACRO_DEFAULT_DIR_ENV,
-        SASE_XPROMPT_DEFAULT_DIR_ENV,
         str(root / "default_macros"),
     )
-    if (
-        SASE_MACRO_PLUGIN_DIRS_JSON_ENV not in environ
-        and SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV in environ
-    ):
-        environ[SASE_MACRO_PLUGIN_DIRS_JSON_ENV] = environ[
-            SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV
-        ]
     if SASE_MACRO_PLUGIN_DIRS_JSON_ENV not in environ:
         environ[SASE_MACRO_PLUGIN_DIRS_JSON_ENV] = json.dumps(
             _discover_plugin_macro_dirs()
         )
-    environ.setdefault(
-        SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV, environ[SASE_MACRO_PLUGIN_DIRS_JSON_ENV]
-    )
     if SASE_SKILL_PLUGIN_DIRS_JSON_ENV not in environ:
         environ[SASE_SKILL_PLUGIN_DIRS_JSON_ENV] = json.dumps(
             _discover_plugin_resource_dirs("skills")
         )
-    if (
-        SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ
-        and SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV in environ
-    ):
-        environ[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV] = environ[
-            SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV
-        ]
     if SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ:
         environ[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV] = json.dumps(
             _discover_plugin_config_paths()
         )
-    environ.setdefault(
-        SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV,
-        environ[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV],
-    )
     if SASE_MACRO_PLUGIN_INPUT_TYPES_JSON_ENV not in environ:
         environ[SASE_MACRO_PLUGIN_INPUT_TYPES_JSON_ENV] = json.dumps(
             _discover_plugin_input_type_files()
@@ -449,13 +416,9 @@ def _materialize_vcs_project_catalog(environ: MutableMapping[str, str]) -> None:
     menu shows nothing, and must never prevent the LSP from starting. The path
     is exported regardless so a later rewrite is still picked up.
     """
-    existing = environ.get(
-        SASE_MACRO_VCS_PROJECT_CATALOG_ENV,
-        environ.get(SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV),
-    )
+    existing = environ.get(SASE_MACRO_VCS_PROJECT_CATALOG_ENV)
     path = Path(existing) if existing else _default_vcs_project_catalog_path()
     environ[SASE_MACRO_VCS_PROJECT_CATALOG_ENV] = str(path)
-    environ.setdefault(SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV, str(path))
     try:
         from sase.macro.vcs_project_completion import (
             vcs_project_catalog_payload,
@@ -488,12 +451,9 @@ def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
     completion request. Writing is best-effort so LSP startup is never blocked
     by provider/config metadata issues.
     """
-    existing = environ.get(
-        SASE_MACRO_MODEL_CATALOG_ENV, environ.get(SASE_XPROMPT_MODEL_CATALOG_ENV)
-    )
+    existing = environ.get(SASE_MACRO_MODEL_CATALOG_ENV)
     path = Path(existing) if existing else _default_model_catalog_path()
     environ[SASE_MACRO_MODEL_CATALOG_ENV] = str(path)
-    environ.setdefault(SASE_XPROMPT_MODEL_CATALOG_ENV, str(path))
     try:
         from sase.macro.model_completion import model_completion_catalog_payload
 
@@ -509,12 +469,9 @@ def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
 
 def _materialize_machine_catalog(environ: MutableMapping[str, str]) -> None:
     """Write the `%dispatch` machine catalog and expose its path."""
-    existing = environ.get(
-        SASE_MACRO_MACHINE_CATALOG_ENV, environ.get(SASE_XPROMPT_MACHINE_CATALOG_ENV)
-    )
+    existing = environ.get(SASE_MACRO_MACHINE_CATALOG_ENV)
     path = Path(existing) if existing else _default_machine_catalog_path()
     environ[SASE_MACRO_MACHINE_CATALOG_ENV] = str(path)
-    environ.setdefault(SASE_XPROMPT_MACHINE_CATALOG_ENV, str(path))
     try:
         from sase.dispatch.machine_catalog import machine_completion_catalog_payload
 
@@ -543,13 +500,9 @@ def _materialize_artifact_ref_catalog(
     refresh or external rewrite can recover without restarting the editor.
     """
 
-    existing = environ.get(
-        SASE_MACRO_ARTIFACT_REF_CATALOG_ENV,
-        environ.get(SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV),
-    )
+    existing = environ.get(SASE_MACRO_ARTIFACT_REF_CATALOG_ENV)
     path = Path(existing) if existing else _default_artifact_ref_catalog_path()
     environ[SASE_MACRO_ARTIFACT_REF_CATALOG_ENV] = str(path)
-    environ.setdefault(SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV, str(path))
     try:
         from sase.artifact_refs import artifact_ref_lsp_catalog_payload
 
@@ -573,12 +526,9 @@ def _materialize_glossary_catalog(
 ) -> None:
     """Write the project glossary catalog and expose its path to the LSP."""
 
-    existing = environ.get(
-        SASE_MACRO_GLOSSARY_CATALOG_ENV, environ.get(SASE_XPROMPT_GLOSSARY_CATALOG_ENV)
-    )
+    existing = environ.get(SASE_MACRO_GLOSSARY_CATALOG_ENV)
     path = Path(existing) if existing else _default_glossary_catalog_path()
     environ[SASE_MACRO_GLOSSARY_CATALOG_ENV] = str(path)
-    environ.setdefault(SASE_XPROMPT_GLOSSARY_CATALOG_ENV, str(path))
     try:
         from sase.macro.glossary_catalog import editor_glossary_lsp_catalog_payload
 

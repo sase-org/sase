@@ -141,7 +141,7 @@ def test_launch_units_bundle_launches_exactly_those_units(
         launch_units=(
             LaunchUnitInput(
                 prompt="kept first",
-                template_group="xprompt:team:0",
+                template_group="macro:team:0",
                 swarm_macros=("team",),
             ),
             LaunchUnitInput(prompt="kept second"),
@@ -150,7 +150,7 @@ def test_launch_units_bundle_launches_exactly_those_units(
 
     assert len(results) == 2
     assert captured["segments"] == ["kept first", "kept second"]
-    assert captured["segment_template_groups"] == ["xprompt:team:0", None]
+    assert captured["segment_template_groups"] == ["macro:team:0", None]
     assert captured["segment_swarm_macros"] == [("team",), ()]
 
 
@@ -225,8 +225,8 @@ def test_launch_query_threads_a_well_formed_launch_units_bundle(
             "launch_units": [
                 {
                     "prompt": "one",
-                    "template_group": "xprompt:team:0",
-                    "swarm_xprompts": ["team"],
+                    "template_group": "macro:team:0",
+                    "swarm_macros": ["team"],
                 }
             ],
         },
@@ -238,7 +238,7 @@ def test_launch_query_threads_a_well_formed_launch_units_bundle(
     units = kwargs["launch_units"]
     assert len(units) == 1
     assert units[0].prompt == "one"
-    assert units[0].template_group == "xprompt:team:0"
+    assert units[0].template_group == "macro:team:0"
     assert units[0].swarm_macros == ("team",)
 
 
@@ -277,7 +277,7 @@ def test_launch_query_prefers_force_reuse_over_a_bundle(
                 {
                     "prompt": "must not launch",
                     "template_group": None,
-                    "swarm_xprompts": [],
+                    "swarm_macros": [],
                 }
             ],
         },

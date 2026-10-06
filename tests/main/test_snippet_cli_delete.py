@@ -69,7 +69,7 @@ def test_delete_json_includes_restore_and_revealed(
     assert payload["trigger"] == "greet"
     assert payload["removed_paths"] == [str(config_path)]
     assert payload["revealed"] is not None
-    assert payload["revealed"]["origin"]["kind"] == "xprompt"
+    assert payload["revealed"]["origin"]["kind"] == "macro"
     assert "-F" in payload["restore_command"]
     tokens = shlex.split(payload["restore_command"])
     restored = create_parser().parse_args(tokens[1:])

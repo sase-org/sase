@@ -242,16 +242,16 @@ def test_parse_launch_units_payload_accepts_strict_entries() -> None:
         [
             {
                 "prompt": "kept agent",
-                "template_group": "xprompt:team:0",
-                "swarm_xprompts": ["team"],
+                "template_group": "macro:team:0",
+                "swarm_macros": ["team"],
             },
-            {"prompt": "other", "template_group": None, "swarm_xprompts": []},
+            {"prompt": "other", "template_group": None, "swarm_macros": []},
         ]
     )
 
     assert len(units) == 2
     assert units[0].prompt == "kept agent"
-    assert units[0].template_group == "xprompt:team:0"
+    assert units[0].template_group == "macro:team:0"
     assert units[0].swarm_macros == ("team",)
     assert units[1].template_group is None
 
@@ -265,13 +265,13 @@ def test_parse_launch_units_payload_accepts_strict_entries() -> None:
             {
                 "prompt": "x",
                 "template_group": None,
-                "swarm_xprompts": [],
+                "swarm_macros": [],
                 "extra": 1,
             }
         ],
-        [{"prompt": "  ", "template_group": None, "swarm_xprompts": []}],
-        [{"prompt": "x", "template_group": 1, "swarm_xprompts": []}],
-        [{"prompt": "x", "template_group": None, "swarm_xprompts": "team"}],
+        [{"prompt": "  ", "template_group": None, "swarm_macros": []}],
+        [{"prompt": "x", "template_group": 1, "swarm_macros": []}],
+        [{"prompt": "x", "template_group": None, "swarm_macros": "team"}],
     ),
 )
 def test_parse_launch_units_payload_rejects_malformed_entries(payload: object) -> None:

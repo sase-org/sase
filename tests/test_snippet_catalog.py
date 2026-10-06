@@ -119,7 +119,7 @@ def test_config_overrides_macro_and_keeps_shadowed_contribution(
     assert entry is not None
     assert entry.raw_template == "from config$0"
     assert entry.origin.kind == "project"
-    assert entry.contributions[0].kind == "xprompt"
+    assert entry.contributions[0].kind == "macro"
     assert entry.contributions[0].shadowed_by == str(entry.origin.path)
     assert entry.contributions[-1].shadowed_by is None
 

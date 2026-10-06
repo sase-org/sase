@@ -195,10 +195,10 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_macro_group_counter(
         {"SLOT": "two"},
     ]
     assert kwargs["segment_template_groups"] == [
-        "xprompt:swarm:0",
-        "xprompt:swarm:0",
-        "xprompt:swarm:1",
-        "xprompt:swarm:1",
+        "macro:swarm:0",
+        "macro:swarm:0",
+        "macro:swarm:1",
+        "macro:swarm:1",
     ]
     assert kwargs["segment_swarm_macros"] == [
         ("swarm",),
@@ -420,10 +420,10 @@ def test_launch_multi_prompt_distinguishes_two_macro_template_groups(
                 "%id:research.@.cld\nD",
             ],
             segment_template_groups=[
-                "xprompt:swarm:0",
-                "xprompt:swarm:0",
-                "xprompt:swarm:1",
-                "xprompt:swarm:1",
+                "macro:swarm:0",
+                "macro:swarm:0",
+                "macro:swarm:1",
+                "macro:swarm:1",
             ],
             local_macros={},
             cl_name="test",

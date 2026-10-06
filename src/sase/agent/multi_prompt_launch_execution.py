@@ -112,7 +112,7 @@ def spawn_segments_into(
         )
     if segment_swarm_macros is not None and len(segment_swarm_macros) != len(segments):
         raise ValueError(
-            "segment_swarm_xprompts must have one entry per multi-prompt segment"
+            "segment_swarm_macros must have one entry per multi-prompt segment"
         )
     if name_reservation_evidence is not None and len(name_reservation_evidence) != len(
         segments

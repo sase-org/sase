@@ -251,12 +251,12 @@ def test_template_group_allows_later_sibling_under_owned_namespace(
                 artifacts_root / "260501120000",
                 artifacts_root / "260501120001",
             ],
-            template_group="xprompt:research:0",
+            template_group="macro:research:0",
         )
         second, _ = allocator.planned_name_for_prompt(
             "%id:research.@.final\nFinal",
             artifacts_dir=artifacts_root / "260501120002",
-            template_group="xprompt:research:0",
+            template_group="macro:research:0",
         )
 
     assert first == ["research.0.cdx", "research.0.cld"]

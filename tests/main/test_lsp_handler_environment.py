@@ -12,21 +12,20 @@ import pytest
 
 from sase.feature_flags import override_flags
 from sase.integrations.macro_lsp import (
+    SASE_XPROMPT_BUILTIN_DIR_ENV,
     SASE_DEFAULT_CONFIG_PATH_ENV,
     SASE_AGENT_HOLDS_ENV,
+    SASE_MACRO_ARTIFACT_REF_CATALOG_ENV,
     SASE_MACRO_BUILTIN_DIR_ENV,
     SASE_MACRO_DEFAULT_DIR_ENV,
+    SASE_MACRO_GLOSSARY_CATALOG_ENV,
+    SASE_MACRO_MACHINE_CATALOG_ENV,
+    SASE_MACRO_MODEL_CATALOG_ENV,
     SASE_MACRO_PACKAGE_DIR_ENV,
+    SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV,
+    SASE_MACRO_PLUGIN_DIRS_JSON_ENV,
+    SASE_MACRO_VCS_PROJECT_CATALOG_ENV,
     SASE_TYPED_LAUNCH_UNITS_ENV,
-    SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV,
-    SASE_XPROMPT_BUILTIN_DIR_ENV,
-    SASE_XPROMPT_DEFAULT_DIR_ENV,
-    SASE_XPROMPT_GLOSSARY_CATALOG_ENV,
-    SASE_XPROMPT_MODEL_CATALOG_ENV,
-    SASE_XPROMPT_PACKAGE_DIR_ENV,
-    SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV,
-    SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV,
-    SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV,
     _prepare_macro_lsp_environment,
 )
 
@@ -74,30 +73,29 @@ def stub_lsp_catalog_defaults(
 def test_prepare_lsp_environment_sets_package_catalog_paths(tmp_path: Path) -> None:
     package_dir = tmp_path / "sase"
     env: dict[str, str] = {
-        SASE_XPROMPT_BUILTIN_DIR_ENV: "/custom/xprompts",
+        SASE_MACRO_BUILTIN_DIR_ENV: "/custom/macros",
     }
 
     _prepare_macro_lsp_environment(env, package_dir=package_dir)
 
-    assert env[SASE_XPROMPT_PACKAGE_DIR_ENV] == str(package_dir)
-    assert env[SASE_XPROMPT_BUILTIN_DIR_ENV] == "/custom/xprompts"
-    assert env[SASE_XPROMPT_DEFAULT_DIR_ENV] == str(package_dir / "default_macros")
-    assert env[SASE_DEFAULT_CONFIG_PATH_ENV] == str(package_dir / "default_config.yml")
     assert env[SASE_MACRO_PACKAGE_DIR_ENV] == str(package_dir)
-    assert env[SASE_MACRO_BUILTIN_DIR_ENV] == "/custom/xprompts"
+    assert env[SASE_MACRO_BUILTIN_DIR_ENV] == "/custom/macros"
     assert env[SASE_MACRO_DEFAULT_DIR_ENV] == str(package_dir / "default_macros")
+    assert env[SASE_DEFAULT_CONFIG_PATH_ENV] == str(package_dir / "default_config.yml")
 
 
-def test_prepare_lsp_environment_adopts_legacy_catalog_override(
+def test_prepare_lsp_environment_ignores_retired_catalog_override(
     tmp_path: Path,
 ) -> None:
+    # Retired transport is no longer read.
     env: dict[str, str] = {
         SASE_XPROMPT_BUILTIN_DIR_ENV: "/custom/xprompts",
     }
 
     _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_MACRO_BUILTIN_DIR_ENV] == "/custom/xprompts"
+    assert env[SASE_MACRO_BUILTIN_DIR_ENV] == str(tmp_path / "sase" / "macros")
+    assert SASE_XPROMPT_BUILTIN_DIR_ENV in env
 
 
 def test_prepare_lsp_environment_materializes_vcs_project_catalog(
@@ -105,7 +103,7 @@ def test_prepare_lsp_environment_materializes_vcs_project_catalog(
 ) -> None:
     catalog_path = tmp_path / "vcs_project_catalog.json"
     env: dict[str, str] = {
-        SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV: str(catalog_path),
+        SASE_MACRO_VCS_PROJECT_CATALOG_ENV: str(catalog_path),
     }
     payload = {
         "schema_version": 2,
@@ -131,7 +129,7 @@ def test_prepare_lsp_environment_materializes_vcs_project_catalog(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV] == str(catalog_path)
+    assert env[SASE_MACRO_VCS_PROJECT_CATALOG_ENV] == str(catalog_path)
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
@@ -140,7 +138,7 @@ def test_prepare_lsp_environment_materializes_model_catalog(
 ) -> None:
     catalog_path = tmp_path / "model_catalog.json"
     env: dict[str, str] = {
-        SASE_XPROMPT_MODEL_CATALOG_ENV: str(catalog_path),
+        SASE_MACRO_MODEL_CATALOG_ENV: str(catalog_path),
     }
     payload = {
         "schema_version": 1,
@@ -162,7 +160,7 @@ def test_prepare_lsp_environment_materializes_model_catalog(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_XPROMPT_MODEL_CATALOG_ENV] == str(catalog_path)
+    assert env[SASE_MACRO_MODEL_CATALOG_ENV] == str(catalog_path)
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
@@ -171,7 +169,7 @@ def test_prepare_lsp_environment_materializes_artifact_ref_catalog(
 ) -> None:
     catalog_path = tmp_path / "artifact_ref_catalog.json"
     env: dict[str, str] = {
-        SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV: str(catalog_path),
+        SASE_MACRO_ARTIFACT_REF_CATALOG_ENV: str(catalog_path),
     }
     payload = {
         "schema_version": 1,
@@ -198,7 +196,7 @@ def test_prepare_lsp_environment_materializes_artifact_ref_catalog(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV] == str(catalog_path)
+    assert env[SASE_MACRO_ARTIFACT_REF_CATALOG_ENV] == str(catalog_path)
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
@@ -207,7 +205,7 @@ def test_prepare_lsp_environment_materializes_glossary_catalog(
 ) -> None:
     catalog_path = tmp_path / "glossary_catalog.json"
     env: dict[str, str] = {
-        SASE_XPROMPT_GLOSSARY_CATALOG_ENV: str(catalog_path),
+        SASE_MACRO_GLOSSARY_CATALOG_ENV: str(catalog_path),
     }
     payload = {
         "schema_version": 1,
@@ -238,7 +236,7 @@ def test_prepare_lsp_environment_materializes_glossary_catalog(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV] == str(catalog_path)
+    assert env[SASE_MACRO_GLOSSARY_CATALOG_ENV] == str(catalog_path)
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
@@ -252,7 +250,7 @@ def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> No
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    catalog_path = Path(env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV])
+    catalog_path = Path(env[SASE_MACRO_VCS_PROJECT_CATALOG_ENV])
     assert catalog_path.name == "vcs_project_catalog.json"
     assert catalog_path.parent.name == "macro_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
@@ -268,7 +266,7 @@ def test_prepare_lsp_environment_defaults_model_catalog_path(tmp_path: Path) -> 
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    catalog_path = Path(env[SASE_XPROMPT_MODEL_CATALOG_ENV])
+    catalog_path = Path(env[SASE_MACRO_MODEL_CATALOG_ENV])
     assert catalog_path.name == "model_catalog.json"
     assert catalog_path.parent.name == "macro_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
@@ -286,7 +284,7 @@ def test_prepare_lsp_environment_defaults_artifact_ref_catalog_path(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    catalog_path = Path(env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV])
+    catalog_path = Path(env[SASE_MACRO_ARTIFACT_REF_CATALOG_ENV])
     assert catalog_path.name == "artifact_ref_catalog.json"
     assert catalog_path.parent.name == "macro_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
@@ -302,7 +300,7 @@ def test_prepare_lsp_environment_defaults_glossary_catalog_path(tmp_path: Path) 
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    catalog_path = Path(env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV])
+    catalog_path = Path(env[SASE_MACRO_GLOSSARY_CATALOG_ENV])
     assert catalog_path.name == "glossary_catalog.json"
     assert catalog_path.parent.name == "macro_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
@@ -313,7 +311,7 @@ def test_prepare_lsp_environment_swallows_vcs_catalog_failure(
 ) -> None:
     catalog_path = tmp_path / "vcs_project_catalog.json"
     env: dict[str, str] = {
-        SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV: str(catalog_path),
+        SASE_MACRO_VCS_PROJECT_CATALOG_ENV: str(catalog_path),
     }
 
     with patch(
@@ -325,7 +323,7 @@ def test_prepare_lsp_environment_swallows_vcs_catalog_failure(
 
     # The path is still exported (a later rewrite is honored), but the failed
     # build leaves no file behind.
-    assert env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV] == str(catalog_path)
+    assert env[SASE_MACRO_VCS_PROJECT_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
 
 
@@ -334,7 +332,7 @@ def test_prepare_lsp_environment_swallows_model_catalog_failure(
 ) -> None:
     catalog_path = tmp_path / "model_catalog.json"
     env: dict[str, str] = {
-        SASE_XPROMPT_MODEL_CATALOG_ENV: str(catalog_path),
+        SASE_MACRO_MODEL_CATALOG_ENV: str(catalog_path),
     }
 
     with patch(
@@ -343,7 +341,7 @@ def test_prepare_lsp_environment_swallows_model_catalog_failure(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_XPROMPT_MODEL_CATALOG_ENV] == str(catalog_path)
+    assert env[SASE_MACRO_MODEL_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
 
 
@@ -352,7 +350,7 @@ def test_prepare_lsp_environment_swallows_artifact_ref_catalog_failure(
 ) -> None:
     catalog_path = tmp_path / "artifact_ref_catalog.json"
     env: dict[str, str] = {
-        SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV: str(catalog_path),
+        SASE_MACRO_ARTIFACT_REF_CATALOG_ENV: str(catalog_path),
     }
 
     with patch(
@@ -361,7 +359,7 @@ def test_prepare_lsp_environment_swallows_artifact_ref_catalog_failure(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV] == str(catalog_path)
+    assert env[SASE_MACRO_ARTIFACT_REF_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
 
 
@@ -370,7 +368,7 @@ def test_prepare_lsp_environment_swallows_glossary_catalog_failure(
 ) -> None:
     catalog_path = tmp_path / "glossary_catalog.json"
     env: dict[str, str] = {
-        SASE_XPROMPT_GLOSSARY_CATALOG_ENV: str(catalog_path),
+        SASE_MACRO_GLOSSARY_CATALOG_ENV: str(catalog_path),
     }
 
     with patch(
@@ -379,7 +377,7 @@ def test_prepare_lsp_environment_swallows_glossary_catalog_failure(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV] == str(catalog_path)
+    assert env[SASE_MACRO_GLOSSARY_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
 
 
@@ -427,10 +425,10 @@ def test_prepare_lsp_environment_emits_plugin_metadata(
     ):
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert json.loads(env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV]) == [
+    assert json.loads(env[SASE_MACRO_PLUGIN_DIRS_JSON_ENV]) == [
         {"module": "fake_plugin.prompts", "path": str(macros_dir)}
     ]
-    assert json.loads(env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV]) == [
+    assert json.loads(env[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV]) == [
         {"module": "fake_plugin.config", "path": str(config_path)}
     ]
 
@@ -438,17 +436,21 @@ def test_prepare_lsp_environment_emits_plugin_metadata(
 def test_prepare_lsp_environment_preserves_plugin_metadata_overrides(
     tmp_path: Path,
 ) -> None:
+    from sase.integrations.macro_lsp import (
+        SASE_XPROMPT_BUILTIN_DIR_ENV,
+        SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV,
+        SASE_MACRO_PLUGIN_DIRS_JSON_ENV,
+    )
+
     env = {
-        SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV: '[{"module":"custom","path":"/x"}]',
-        SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV: '[{"module":"custom","path":"/c"}]',
+        SASE_MACRO_PLUGIN_DIRS_JSON_ENV: '[{"module":"custom","path":"/x"}]',
+        SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV: '[{"module":"custom","path":"/c"}]',
     }
 
     _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV] == (
-        '[{"module":"custom","path":"/x"}]'
-    )
-    assert env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV] == (
+    assert env[SASE_MACRO_PLUGIN_DIRS_JSON_ENV] == ('[{"module":"custom","path":"/x"}]')
+    assert env[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV] == (
         '[{"module":"custom","path":"/c"}]'
     )
 
@@ -481,8 +483,8 @@ def test_prepare_lsp_environment_respects_plugin_disable_env(
         env: dict[str, str] = {}
         _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
-    assert json.loads(env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV]) == []
-    assert json.loads(env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV]) == []
+    assert json.loads(env[SASE_MACRO_PLUGIN_DIRS_JSON_ENV]) == []
+    assert json.loads(env[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV]) == []
 
 
 @pytest.mark.parametrize("enabled,expected", [(False, "0"), (True, "1")])

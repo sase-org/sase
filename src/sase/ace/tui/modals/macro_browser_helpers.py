@@ -116,8 +116,6 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
     path = Path(source_path)
     project_macros_candidates: list[Path] = list(project_layout.macros.candidates)
-    if project_layout.xprompts.write_path not in project_macros_candidates:
-        project_macros_candidates.append(project_layout.xprompts.write_path)
     for candidate in project_macros_candidates:
         try:
             path.relative_to(candidate)
@@ -143,8 +141,6 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
         return label, display_path(path, project_root=project_root), True
 
     home_macros_candidates: list[Path] = list(home_layout.macros.candidates)
-    if home_layout.xprompts.write_path not in home_macros_candidates:
-        home_macros_candidates.append(home_layout.xprompts.write_path)
     for candidate in home_macros_candidates:
         try:
             relative = path.relative_to(candidate)

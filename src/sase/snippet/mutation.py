@@ -378,7 +378,7 @@ def _delete_targets(
     contributions = [
         item
         for item in entry.contributions
-        if item.kind not in {"xprompt", "default", "plugin", "pending"}
+        if item.kind not in {"macro", "xprompt", "default", "plugin", "pending"}
         and item.writable
         and item.path
     ]

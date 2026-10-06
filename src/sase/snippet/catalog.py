@@ -224,7 +224,7 @@ def editor_helper_entries(catalog: SnippetCatalog) -> list[dict[str, str | None]
             "trigger": entry.trigger,
             "template": entry.raw_template,
             "source": _helper_source(origin.kind),
-            "xprompt_name": origin.macro_name,
+            "macro_name": origin.macro_name,
             "description": origin.description,
             "source_path_display": _helper_display_path(origin),
         }
@@ -369,7 +369,7 @@ def _macro_contribution(entry: MacroSnippetEntry) -> SnippetSourceContribution:
     return SnippetSourceContribution(
         trigger=entry.trigger,
         template=entry.template,
-        kind="xprompt",
+        kind="macro",
         path=entry.source_path_display,
         display_path=entry.source_path_display,
         writable=False,
@@ -417,13 +417,13 @@ def _winning_contribution(
 
 
 def _helper_source(kind: SnippetSourceKind) -> str:
-    if kind == "xprompt":
-        return "xprompt"
+    if kind in ("macro", "xprompt"):
+        return "macro"
     return "user_config"
 
 
 def _helper_display_path(origin: SnippetSourceContribution) -> str | None:
-    if origin.kind == "xprompt":
+    if origin.kind in ("macro", "xprompt"):
         return origin.display_path
     return origin.display_path or "ace.snippets"
 
