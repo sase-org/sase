@@ -325,6 +325,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "exclude",
         "explain",
         "external_ref",
+        "fact",
         "fcm_credential_env",
         "fcm_project_id",
         "fcm_service_account_json",

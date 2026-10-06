@@ -279,6 +279,20 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "child copies that value into its own in-memory meta."
         ),
     ),
+    "src/sase/main/instructions_handler.py:_latest_agent_run": PathPassingReview(
+        exemption=(
+            "Read-only render preview lookup: agent_meta.json is read only "
+            "to return one agent's newest run record for fact derivation; "
+            "no marker is written here."
+        ),
+    ),
+    "src/sase/main/instructions_handler.py:_agent_base_facts": PathPassingReview(
+        exemption=(
+            "Read-only render preview facts: agent_meta.json provider fields "
+            "and an optional recorded instruction manifest are read only to "
+            "derive preview facts; no marker is written here."
+        ),
+    ),
 }
 
 

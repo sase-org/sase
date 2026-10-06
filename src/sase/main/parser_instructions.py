@@ -19,6 +19,8 @@ def register_instructions_parser(subparsers: argparse._SubParsersAction) -> None
             "examples:\n"
             "  sase instructions\n"
             "  sase instructions list\n"
+            "  sase instructions render\n"
+            "  sase instructions render -p\n"
             "  sase instructions verify -n 20\n"
             "  sase instructions verify -j -n 50\n"
         ),
@@ -37,6 +39,74 @@ def register_instructions_parser(subparsers: argparse._SubParsersAction) -> None
             "managed/custom state, memory reference counts, and provider "
             "instruction shim status. This command never writes files."
         ),
+    )
+    render_parser = instructions_subparsers.add_parser(
+        "render",
+        help="Preview the memory-built instruction bundle for this project",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Render the memory-built instruction bundle the agent would "
+            "receive from the current project and home sources, without "
+            "delivering it. Prints the bundle Markdown by default."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase instructions render\n"
+            "  sase instructions render -p\n"
+            "  sase instructions render -f provider=codex -s\n"
+            "  sase instructions render -a <agent> -j\n"
+            "  sase instructions render -f mode=export -f provider=grok\n"
+        ),
+    )
+    render_agent_action = render_parser.add_argument(
+        "-a",
+        "--agent",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Start from one agent's facts (provider from its run record); "
+            "sources stay the current project and home"
+        ),
+    )
+    set_completion_kind(render_agent_action, ValueKind.AGENT)
+    render_parser.add_argument(
+        "-f",
+        "--fact",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Override one fact (repeatable; comma-separated pairs accepted). "
+            "Keys: actor, mode, purpose, provider, project, host, vcs. "
+            "mode=interactive|export implies actor=interactive"
+        ),
+    )
+    render_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Print the normalized preview manifest instead of the bundle",
+    )
+    render_parser.add_argument(
+        "-N",
+        "--no-cache",
+        action="store_true",
+        help="Bypass the render cache (records cache: bypass)",
+    )
+    render_parser.add_argument(
+        "-p",
+        "--parity",
+        action="store_true",
+        help=(
+            "Also check the bundle against the legacy AGENTS.md files; "
+            "prints a table to stderr and exits 1 on any gap"
+        ),
+    )
+    render_parser.add_argument(
+        "-s",
+        "--sections",
+        action="store_true",
+        help="Print the section table instead of the bundle",
     )
     verify_parser = instructions_subparsers.add_parser(
         "verify",

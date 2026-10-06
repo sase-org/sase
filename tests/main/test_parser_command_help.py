@@ -259,6 +259,24 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     instructions_list_help = flat_help(
         parser_for(("sase", "instructions", "list")).format_help()
     )
+    instructions_render_help = flat_help(
+        parser_for(("sase", "instructions", "render")).format_help()
+    )
+
+    assert "{list,render,verify}" in instructions_help
+    for _flag in (
+        "-a, --agent",
+        "-f, --fact",
+        "-j, --json",
+        "-N, --no-cache",
+        "-p, --parity",
+        "-s, --sections",
+    ):
+        assert _flag in instructions_render_help
+    _assert_metavar_option_documented(instructions_render_help, "-a", "--agent", "NAME")
+    _assert_metavar_option_documented(
+        instructions_render_help, "-f", "--fact", "KEY=VALUE"
+    )
 
     assert "`sase memory list`" in memory_help
     assert "{history,init,list,log,read,show,web}" in memory_help

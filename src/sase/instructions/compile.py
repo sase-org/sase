@@ -69,6 +69,7 @@ def _compile_uncached(
     from sase.main.init_memory.root_rendering_notes import (
         generated_long_notes,
         generated_short_notes,
+        render_generated_project_long_memory_contents,
         render_generated_sase_memory_body,
     )
     from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT, memory_read_root
@@ -131,13 +132,24 @@ def _compile_uncached(
             raise InstructionCompileError(home_title_error)
 
     short_notes = generated_short_notes(template_body)
-    long_notes = generated_long_notes({})
+    # Generated project-only notes (sase_artifacts, sase_beads, sase_sizes) and
+    # the generated task_types web belong to the project layer, mirroring
+    # memory init's include_project_memory split: the project root compiles
+    # with them, the home root without.
+    project_long_contents, project_long_error = (
+        render_generated_project_long_memory_contents()
+    )
+    if project_long_error is not None:
+        raise InstructionCompileError(project_long_error)
+    project_long_notes = generated_long_notes(project_long_contents)
 
     def _collect_units(
         root: Path,
         title: str | None,
         entries: tuple[Any, ...],
         config_path: Path,
+        *,
+        include_project_memory: bool,
     ) -> MemoryRootUnits:
         try:
             read_root = memory_read_root(root)
@@ -154,11 +166,15 @@ def _compile_uncached(
             else root / CANONICAL_MEMORY_RELATIVE_ROOT
         )
         web_plan = memory_web_root_plan(
-            root, source_memory_root=source_root, include_project_memory=False
+            root,
+            source_memory_root=source_root,
+            include_project_memory=include_project_memory,
         )
         if web_plan.blockers:
             raise InstructionCompileError("; ".join(web_plan.blockers))
-        excluded = retired_note_relative_paths(root, include_project_memory=False)
+        excluded = retired_note_relative_paths(
+            root, include_project_memory=include_project_memory
+        )
         try:
             linked_source = config_path.relative_to(root).as_posix()
         except ValueError:
@@ -170,18 +186,26 @@ def _compile_uncached(
             linked_entries=entries,
             linked_entries_source=Path(linked_source) if linked_source else None,
             generated_short_notes=short_notes,
-            generated_long_notes=long_notes,
+            generated_long_notes=(project_long_notes if include_project_memory else {}),
             generated_web_notes=dict(web_plan.web_note_bodies or {}),
             source_memory_root=None,
             excluded_note_paths=excluded,
         )
 
     project_units = _collect_units(
-        project_root, project_title, tuple(project_entries), project_config
+        project_root,
+        project_title,
+        tuple(project_entries),
+        project_config,
+        include_project_memory=True,
     )
     if home_exists:
         home_units = _collect_units(
-            home_root, home_title, tuple(home_entries), global_config
+            home_root,
+            home_title,
+            tuple(home_entries),
+            global_config,
+            include_project_memory=False,
         )
     else:
         home_units = MemoryRootUnits(

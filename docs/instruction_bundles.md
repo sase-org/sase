@@ -118,3 +118,34 @@ caught, logged once as a warning, recorded best-effort as `NN-<provider>.error.j
 `sase flag disable instruction_shadow_render` (or no artifacts dir); remove the flag
 when E3 delivers the rendered bundle or the readout shows zero shadow failures and warm
 p95 within budget for 7 days.
+
+## Previewing bundles
+
+`sase instructions render` previews the bundle for the current project and home sources
+without delivering anything:
+
+```bash
+sase instructions render | head -40                      # what a root agent here would get
+sase instructions render -f provider=codex -s            # sections instead of Markdown
+sase instructions render -j                               # preview manifest as JSON
+sase instructions render -p                               # parity against AGENTS.md files
+```
+
+Options (alphabetical): `-a/--agent NAME` starts from one agent's facts — the provider
+from its run record, or its latest recorded manifest when one exists — while sources
+stay the current project and home; stderr then reports whether the fresh bundle sha256
+matches the agent's recorded bundle and lists changed section ids. `-f/--fact KEY=VALUE`
+is repeatable and accepts comma-separated pairs; `mode=interactive|export` implies
+`actor=interactive`, and a conflicting explicit actor is an error. `-j/--json` prints
+the normalized manifest with `delivery.status: preview`. `-N/--no-cache` bypasses the
+cache (`cache: bypass`). `-s/--sections` prints a Rich table of id, layer, status or
+reason, lifecycle, bytes, `tokens_est`, and source. `-p/--parity` additionally checks
+the bundle against the legacy root and home `AGENTS.md` files: every legacy core,
+reference, and web path must map to an included or shadowed bundle section (the legacy
+`sase.md` maps to the `pkg.sase.*` sections), every legacy repository name must appear
+in `pkg.sase.repos`, and exactly one included section must contain the
+`SASE Final Declaration` marker. The parity table goes to stderr and the exit code is 1
+on any gap; extra bundle sections (for example `pkg.provider.*`) are reported as
+additions, not failures. The default output is raw bundle Markdown on stdout plus one
+summary line on stderr (sha256 and `common_digest` prefixes, section count, bytes,
+`tokens_est`, cache, and milliseconds).
