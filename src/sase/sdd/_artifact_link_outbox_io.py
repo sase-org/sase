@@ -100,6 +100,7 @@ def append_artifact_link_outbox_entry(
     pruned by the existing retention policy.
     """
 
+    caller_supplied_id = entry_id is not None
     parsed_operation_id = _operation_id(entry_id or uuid4().hex)
     event = _event_from_row(
         row,
@@ -125,6 +126,7 @@ def append_artifact_link_outbox_entry(
             project_key,
             operation_id=parsed_operation_id,
             event=event,
+            skip_collision_scan=not caller_supplied_id,
         )
         with path.open("a", encoding="utf-8") as output_file:
             json.dump(entry.to_json_dict(), output_file, sort_keys=True)
@@ -419,16 +421,6 @@ def _write_lines(path: Path, lines: Iterable[str]) -> None:
             pass
 
 
-def _read_entries_unlocked(
-    path: Path, project_key: str
-) -> tuple[_ArtifactLinkOutboxEntry, ...]:
-    return tuple(
-        record.entry
-        for record in _read_outbox_records_unlocked(path, project_key)
-        if record.entry is not None
-    )
-
-
 def _read_outbox_records(project_key: str) -> tuple[_ArtifactLinkOutboxRecord, ...]:
     path = _artifact_link_outbox_path(project_key)
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
@@ -480,10 +472,43 @@ def _reject_outbox_operation_collision(
     *,
     operation_id: str,
     event: Mapping[str, Any],
+    skip_collision_scan: bool = False,
 ) -> None:
+    """Reject a reused operation id whose canonical payload bytes differ.
+
+    When the operation id was minted fresh in this call (``skip_collision_scan``)
+    a collision is impossible, so no read happens at all. Otherwise only the
+    raw lines containing the exact quoted id token are classified, parsed, and
+    compared -- every other line cannot be a collision and is never parsed.
+    A repeated id with identical canonical payload bytes stays accepted.
+    """
+
+    if skip_collision_scan:
+        return
+    if not path.is_file():
+        return
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    token = f'"{operation_id}"'
+    candidates = [
+        line for line in content.splitlines() if token in line and line.strip()
+    ]
+    if not candidates:
+        return
     incoming = _canonical_event_object(event)
-    for entry in _read_entries_unlocked(path, project_key):
-        if entry.id != operation_id or entry.event is None:
+    for line in candidates:
+        classified = dict(
+            require_rust_binding("artifact_link_outbox_classify_line")(
+                line,
+                project_key,
+            )
+        )
+        if str(classified.get("kind") or "invalid") != "event":
+            continue
+        entry = _entry_from_line(line, project_key)
+        if entry is None or entry.id != operation_id or entry.event is None:
             continue
         existing = _canonical_event_object(entry.event)
         if existing.payload != incoming.payload:

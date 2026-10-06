@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from sase.sdd import _artifact_link_outbox_io as _outbox_io
 from sase.sdd._artifact_link_outbox_io import (
     convert_legacy_artifact_link_outbox_entries,
     read_artifact_link_outbox_entries,
@@ -61,6 +63,148 @@ def test_outbox_rejects_reused_operation_id_with_different_event_bytes(
         )
 
     assert len(_outbox_lines(home, project_key)) == 1
+
+
+_PER_LINE_SCAN_BINDINGS = frozenset(
+    {
+        "artifact_link_outbox_classify_line",
+        "artifact_link_event_canonicalize",
+        "artifact_link_event_canonical_json",
+        "artifact_link_event_digest",
+        "artifact_link_event_path_for_digest",
+        "artifact_link_event_validate_bytes",
+    }
+)
+
+
+def _seed_large_outbox(home: Path, project_key: str, *, lines: int = 20_000) -> Path:
+    """Write a synthetic large outbox by repeating one valid entry line."""
+
+    append_artifact_link_outbox_entry(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        row=_row(source="agent:reader", target="plan:seed.md", origin="read"),
+    )
+    path = home / "projects" / project_key / ARTIFACT_LINK_OUTBOX_FILENAME
+    [seed_line] = path.read_text(encoding="utf-8").splitlines()
+    with path.open("a", encoding="utf-8") as output_file:
+        for _ in range(lines):
+            output_file.write(seed_line)
+            output_file.write("\n")
+    assert len(_outbox_lines(home, project_key)) == lines + 1
+    return path
+
+
+def _spy_outbox_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[str]:
+    """Record every Rust binding name resolved through the outbox io module."""
+
+    calls: list[str] = []
+    real = _outbox_io.require_rust_binding
+
+    def _spy(name: str) -> Any:
+        calls.append(name)
+        return real(name)
+
+    monkeypatch.setattr(_outbox_io, "require_rust_binding", _spy)
+    return calls
+
+
+def test_minted_id_append_performs_no_per_line_binding_calls(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A uuid4-minted append must not re-read the outbox at all."""
+
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    project_key = "gh_sase-org__sase"
+    _seed_large_outbox(home, project_key)
+    calls = _spy_outbox_bindings(monkeypatch)
+
+    append_artifact_link_outbox_entry(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        row=_row(source="agent:reader", target="plan:doc.md", origin="read"),
+    )
+
+    assert calls == []
+    assert len(_outbox_lines(home, project_key)) == 20_002
+
+
+def test_caller_supplied_id_append_scans_only_matching_lines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied id checks only lines carrying that id token."""
+
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    project_key = "gh_sase-org__sase"
+    _seed_large_outbox(home, project_key)
+    calls = _spy_outbox_bindings(monkeypatch)
+    operation_id = "b" * 32
+    row = _row(source="agent:reader", target="plan:doc.md", origin="read")
+
+    append_artifact_link_outbox_entry(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        row=row,
+        entry_id=operation_id,
+    )
+    assert [name for name in calls if name in _PER_LINE_SCAN_BINDINGS] == []
+
+    append_artifact_link_outbox_entry(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        row=row,
+        entry_id=operation_id,
+    )
+    scan_calls = [name for name in calls if name in _PER_LINE_SCAN_BINDINGS]
+    assert scan_calls.count("artifact_link_outbox_classify_line") == 1
+
+    with pytest.raises(RuntimeError, match="reused for different event bytes"):
+        append_artifact_link_outbox_entry(
+            project_key=project_key,
+            agent_name="reader",
+            run_id="run-1",
+            row=_row(source="agent:reader", target="plan:other.md", origin="read"),
+            entry_id=operation_id,
+        )
+
+
+def test_event_path_identical_payload_reappend_is_accepted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    project_key = "gh_sase-org__sase"
+    event = observation_or_put_event_from_row(
+        _row(source="agent:reader", target="plan:doc.md", origin="read"),
+        project_key=project_key,
+        operation_id="d" * 32,
+    )
+
+    append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        event=event,
+    )
+    append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        event=event,
+    )
+
+    assert len(_outbox_lines(home, project_key)) == 2
 
 
 def test_ineligible_drain_never_silently_drops_an_unconverted_legacy_row(
