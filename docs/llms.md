@@ -1093,7 +1093,10 @@ Decisions inside that command:
   exactly once in SASE-managed projects (the directive alone elsewhere); the home layer
   and `CLAUDE.md` are never included. Payloads over 120 KiB raise an actionable error
   before exec. There is deliberately no `--trust` and no `GROK_CLAUDE_AGENTS_ENABLED`.
-  The sunset flag `grok_rules_delivery` restores the no-`--rules` argv when off.
+  The sunset flag `grok_rules_delivery` restores the no-`--rules` argv when off. The
+  directive names Grok's own wait primitives (`block_until_ms`,
+  `get_command_or_subagent_output`, `spawn_subagent` with `background: false`), because
+  `run_terminal_command` backgrounds anything slower than its 30-second default.
 - **Subagents stay enabled.** Subagent usage can set Grok's internal
   `usage_is_incomplete` flag, which degrades usage telemetry only — SASE treats token
   counts as telemetry, not as text or tool-call fidelity, so `--no-subagents` is not

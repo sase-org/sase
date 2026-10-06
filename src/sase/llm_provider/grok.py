@@ -71,15 +71,20 @@ def _grok_executable_not_found_error(command: str) -> FileNotFoundError:
 
 _GROK_SINGLE_TURN_DIRECTIVE = (
     "SASE single-turn instructions for Grok: this session is exactly one turn, "
-    "and nothing can wake you after you end it. Run commands synchronously in "
-    "the foreground with run_terminal_command; a yielded result before the "
-    "command exits means the command is still running, not done. Handoff "
-    "commands such as `sase monitor start`, `sase plan propose`, `sase pipe`, "
-    "and `sase questions` can take up to a minute before they hand off — wait "
-    "for the handoff command itself to exit. Never end your turn to wait on a "
-    "background task, a monitor watch, or a spawn_subagent subagent that has "
-    "not finished; anything still running when you give your final response "
-    "is lost."
+    "and nothing can wake you after you end it. Notifications that arrive "
+    '"in a new turn after your turn ends" — from background commands, '
+    "background subagents, `monitor`, or `scheduler_create` — never reach "
+    "you, and anything still running when you give your final response is "
+    "lost. Run commands in the foreground: set `run_terminal_command`'s "
+    "`block_until_ms` longer than the command takes, because the 30-second "
+    "default moves slower commands to the background. If a command returns a "
+    "task id instead of an exit code, it is still running, not done: call "
+    "`get_command_or_subagent_output` with that task id and a `timeout_ms` "
+    "until it reports an exit code. Call `spawn_subagent` with `background: "
+    "false`, or wait on each `subagent_id` the same way. Handoff commands "
+    "such as `sase monitor start`, `sase plan propose`, `sase pipe`, and "
+    "`sase questions` can take up to a minute before they hand off; wait for "
+    "the handoff command itself to exit. Never end your turn to wait."
 )
 # Linux rejects a single argv element above 128 KiB. Keep SASE's guard below
 # that so `--rules` fails with an actionable error before exec.

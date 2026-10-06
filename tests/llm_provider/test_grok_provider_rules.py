@@ -36,6 +36,7 @@ _HOME_AGENTS_H1 = "# Fake Home"
 @pytest.fixture(autouse=True)
 def _clear_grok_env(monkeypatch: pytest.MonkeyPatch) -> None:
     clear_grok_env_vars(monkeypatch)
+    monkeypatch.setattr(GrokProvider, "_pending_interrupt_message", None)
 
 
 def _make_managed_project(
@@ -63,6 +64,18 @@ def test_grok_directive_opens_with_grok_marker() -> None:
     assert _GROK_SINGLE_TURN_DIRECTIVE.startswith(
         "SASE single-turn instructions for Grok:"
     )
+
+
+def test_grok_directive_names_grok_wait_primitives() -> None:
+    for primitive in (
+        "block_until_ms",
+        "get_command_or_subagent_output",
+        "spawn_subagent",
+        "scheduler_create",
+        "sase plan propose",
+    ):
+        assert primitive in _GROK_SINGLE_TURN_DIRECTIVE
+    assert "a yielded result" not in _GROK_SINGLE_TURN_DIRECTIVE
 
 
 def test_grok_rules_delivery_defaults_on() -> None:
@@ -141,6 +154,7 @@ def test_grok_rules_reach_every_continuation_cycle(
 ) -> None:
     _make_managed_project(tmp_path, monkeypatch)
     seen_argvs: list[list[str]] = []
+    provider = GrokProvider()
 
     def _fake_run(
         args: list[str],
@@ -150,20 +164,16 @@ def test_grok_rules_reach_every_continuation_cycle(
         del prompt, suppress_output
         seen_argvs.append(list(args))
         if len(seen_argvs) == 1:
-            GrokProvider._pending_interrupt_message = "keep going"
+            provider._pending_interrupt_message = "keep going"
             return ("first pass", "", -15, {"input_tokens": 2})
         return ("second pass", "", 0, {"output_tokens": 3})
 
-    provider = GrokProvider()
-    try:
-        with (
-            override_flags(grok_rules_delivery=True),
-            patch("sase.llm_provider.grok.provider_timer"),
-            patch.object(GrokProvider, "_run_subprocess", side_effect=_fake_run),
-        ):
-            provider.invoke("original task", model_tier="large", suppress_output=True)
-    finally:
-        provider._pending_interrupt_message = None
+    with (
+        override_flags(grok_rules_delivery=True),
+        patch("sase.llm_provider.grok.provider_timer"),
+        patch.object(GrokProvider, "_run_subprocess", side_effect=_fake_run),
+    ):
+        provider.invoke("original task", model_tier="large", suppress_output=True)
 
     assert len(seen_argvs) == 2
     expected = f"{_GROK_SINGLE_TURN_DIRECTIVE}\n\n{_MANAGED_AGENTS_BODY}"
