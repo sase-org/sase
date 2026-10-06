@@ -1,0 +1,2 @@
+{"message": {"content": [{"id": "synthetic-root-agent", "input": {"agent": "general-purpose"}, "name": "Agent", "type": "tool_use"}], "role": "assistant"}, "type": "assistant"}
+{"message": {"content": [{"content": "Handed back quoting SASE helper guard: blocked 'sase final submit' from a nested transcript.", "is_error": true, "tool_use_id": "synthetic-root-agent", "type": "tool_result"}], "role": "user"}, "type": "user"}

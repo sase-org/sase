@@ -1,0 +1,2 @@
+{"message": {"content": [{"id": "synthetic-root-deny", "input": {"command": "sase final submit"}, "name": "Bash", "type": "tool_use"}], "role": "assistant"}, "type": "assistant"}
+{"message": {"content": [{"content": "PreToolUse:Bash hook error: SASE helper guard: blocked 'sase final submit' - only the root SASE agent runs turn-ending operations", "is_error": true, "tool_use_id": "synthetic-root-deny", "type": "tool_result"}], "role": "user"}, "type": "user"}

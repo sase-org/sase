@@ -97,12 +97,12 @@ def register_instructions_parser(subparsers: argparse._SubParsersAction) -> None
         "--since",
         default="7d",
         metavar="WHEN",
-        help="Window start: duration (24h, 7d) or ISO timestamp",
+        help="Window start: duration (30m, 24h, 7d, 2w) or ISO timestamp",
     )
     verify_parser.add_argument(
         "-u",
         "--until",
         default=None,
         metavar="WHEN",
-        help="Window end: duration (24h, 7d) or ISO timestamp",
+        help="Window end: duration (30m, 24h, 7d, 2w) or ISO timestamp",
     )

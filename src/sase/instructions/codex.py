@@ -7,6 +7,7 @@ from typing import Any
 from sase.instructions import fingerprints as fp
 
 AGENTS_BLOCK_PREFIX = "# AGENTS.md instructions for"
+PROJECT_DOC_SEPARATOR = "--- project-doc ---"
 
 
 def _payloads(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -55,6 +56,35 @@ def _block_body(block: str) -> str:
     return block
 
 
+def _split_sources(body: str) -> list[str]:
+    """Split one native block body into loaded sources.
+
+    Codex 0.160.1 joins the home and project docs inside one
+    ``# AGENTS.md instructions`` block as ``<INSTRUCTIONS>`` home text,
+    a ``--- project-doc ---`` separator line, then project text, and
+    ``</INSTRUCTIONS>``. Older rollouts carry one block per file.
+    """
+    cleaned = body.replace("<INSTRUCTIONS>", "").replace("</INSTRUCTIONS>", "")
+    parts: list[str] = []
+    current: list[str] = []
+    for line in cleaned.splitlines(keepends=True):
+        if line.strip() == PROJECT_DOC_SEPARATOR:
+            parts.append("".join(current))
+            current = []
+            continue
+        current.append(line)
+    parts.append("".join(current))
+    return [part for part in parts if part.strip()]
+
+
+def block_sources(blocks: list[str]) -> list[str]:
+    """Return one loaded source per home/project doc across *blocks*."""
+    sources: list[str] = []
+    for block in blocks:
+        sources.extend(_split_sources(_block_body(block)))
+    return sources
+
+
 def observe_codex_session(
     records: list[dict[str, Any]],
     *,
@@ -64,14 +94,15 @@ def observe_codex_session(
     """Reduce Codex rollout records to scoreboard observation fields."""
     developers = developer_texts(records)
     blocks = agents_blocks(records)
-    bodies = [_block_body(block) for block in blocks]
-    contract_count = fp.count_contract_sources(blocks)
+    sources = block_sources(blocks)
+    contract_count = fp.count_contract_sources(sources)
     home_hit = any(
-        home_h1 is not None and fp.matches_h1(body, home_h1) is True for body in bodies
+        home_h1 is not None and fp.matches_h1(source, home_h1) is True
+        for source in sources
     )
     project_hit = any(
-        project_h1 is not None and fp.matches_h1(body, project_h1) is True
-        for body in bodies
+        project_h1 is not None and fp.matches_h1(source, project_h1) is True
+        for source in sources
     )
     return {
         "contract_count": contract_count,
@@ -89,7 +120,9 @@ def observe_codex_session(
 
 __all__ = [
     "AGENTS_BLOCK_PREFIX",
+    "PROJECT_DOC_SEPARATOR",
     "agents_blocks",
+    "block_sources",
     "developer_texts",
     "observe_codex_session",
 ]

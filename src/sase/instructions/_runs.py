@@ -31,21 +31,30 @@ class ScoredRun:
 
 
 def parse_when(value: str, *, now: datetime) -> datetime:
-    """Parse ``--since``/``--until`` durations (``24h``, ``7d``) or ISO times."""
+    """Parse ``--since``/``--until`` durations (``30m``, ``24h``) or ISO times.
+
+    Accepted durations are ``m`` (minutes), ``h``, ``d``, and ``w`` plus ISO
+    timestamps. Anything else raises ``ValueError`` for the CLI to report.
+    """
     text = value.strip()
-    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([hdwmy]?)", text, re.IGNORECASE)
-    if match and (match.group(2) or text[0].isdigit() and text[-1].lower() in "hdw"):
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([mhdw])", text, re.IGNORECASE)
+    if match:
         amount = float(match.group(1))
-        unit = (match.group(2) or "h").lower()
+        unit = match.group(2).lower()
         seconds = {
+            "m": 60.0,
             "h": 3600.0,
             "d": 86400.0,
             "w": 604800.0,
-            "m": 2592000.0,
-            "y": 31536000.0,
         }[unit]
         return now - timedelta(seconds=amount * seconds)
-    parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(
+            f"invalid --since/--until value {value!r}: "
+            "expected like 30m, 24h, 7d, 2w, or an ISO timestamp"
+        ) from exc
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed
@@ -92,49 +101,65 @@ def enumerate_runs(
     from sase.agent.listing_snapshot import listing_snapshot
 
     wanted = [p for p in providers if p in _KNOWN_PROVIDERS] or list(_KNOWN_PROVIDERS)
-    snapshot, _state = listing_snapshot(
-        project=project,
-        requested_limit=max(limit_per_provider * len(wanted), 20),
+    # One bounded index query per wanted provider so rare providers are not
+    # crowded out by the newest overall runs. Widen to the 200 cap when a
+    # post-filter (agent/since/until) will discard rows after the query.
+    per_query_limit = (
+        200
+        if (agent is not None or since is not None or until is not None)
+        else limit_per_provider
     )
     candidates: list[ScoredRun] = []
-    for record in snapshot.records:
-        meta = record.agent_meta
-        provider = str(getattr(meta, "llm_provider", "") or "").lower()
-        if provider not in wanted:
-            continue
-        artifact_dir = str(record.artifact_dir)
-        disk_meta = _read_json(Path(artifact_dir) / "agent_meta.json")
-        workspace_dir = str(
-            disk_meta.get("workspace_dir") or getattr(meta, "workspace_dir", "") or ""
+    for provider in wanted:
+        snapshot, _state = listing_snapshot(
+            project=project,
+            requested_limit=per_query_limit,
+            candidate_filter={
+                "kind": "equals",
+                "field": "provider",
+                "value": provider,
+            },
         )
-        name = str(
-            disk_meta.get("name") or getattr(meta, "name", "") or record.timestamp
-        )
-        bead_id = str(disk_meta.get("bead_id") or "")
-        if agent and agent not in (name, bead_id):
-            continue
-        started = _parse_time(disk_meta.get("run_started_at"))
-        if started is None:
-            started = _parse_time(record.timestamp)
-        if started is None:
-            continue
-        if since is not None and started < since:
-            continue
-        if until is not None and started > until:
-            continue
-        done = _read_json(Path(artifact_dir) / "done.json")
-        ended = _parse_time(done.get("finished_at"))
-        candidates.append(
-            ScoredRun(
-                provider=provider,
-                name=name,
-                workspace_dir=workspace_dir,
-                artifact_dir=artifact_dir,
-                started_at=started,
-                ended_at=ended,
-                project=str(record.project_name or "") or None,
+        for record in snapshot.records:
+            meta = record.agent_meta
+            record_provider = str(getattr(meta, "llm_provider", "") or "").lower()
+            if record_provider not in wanted:
+                continue
+            artifact_dir = str(record.artifact_dir)
+            disk_meta = _read_json(Path(artifact_dir) / "agent_meta.json")
+            workspace_dir = str(
+                disk_meta.get("workspace_dir")
+                or getattr(meta, "workspace_dir", "")
+                or ""
             )
-        )
+            name = str(
+                disk_meta.get("name") or getattr(meta, "name", "") or record.timestamp
+            )
+            bead_id = str(disk_meta.get("bead_id") or "")
+            if agent and agent not in (name, bead_id):
+                continue
+            started = _parse_time(disk_meta.get("run_started_at"))
+            if started is None:
+                started = _parse_time(record.timestamp)
+            if started is None:
+                continue
+            if since is not None and started < since:
+                continue
+            if until is not None and started > until:
+                continue
+            done = _read_json(Path(artifact_dir) / "done.json")
+            ended = _parse_time(done.get("finished_at"))
+            candidates.append(
+                ScoredRun(
+                    provider=record_provider,
+                    name=name,
+                    workspace_dir=workspace_dir,
+                    artifact_dir=artifact_dir,
+                    started_at=started,
+                    ended_at=ended,
+                    project=str(record.project_name or "") or None,
+                )
+            )
     candidates.sort(key=lambda run: run.started_at, reverse=True)
     per_provider: dict[str, int] = {}
     selected: list[ScoredRun] = []

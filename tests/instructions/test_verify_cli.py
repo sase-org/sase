@@ -187,11 +187,275 @@ def test_session_roots_ignore_trailing_slash(tmp_path: Path) -> None:
 def test_parse_when_accepts_durations_and_iso() -> None:
     """``--since``/``--until`` accept durations and ISO timestamps."""
     now = datetime(2026, 10, 5, tzinfo=UTC)
+    assert run_mod.parse_when("30m", now=now) == now - timedelta(minutes=30)
     assert run_mod.parse_when("24h", now=now) == now - timedelta(hours=24)
     assert run_mod.parse_when("7d", now=now) == now - timedelta(days=7)
+    assert run_mod.parse_when("2w", now=now) == now - timedelta(weeks=2)
     assert run_mod.parse_when("2026-10-01T00:00:00Z", now=now) == datetime(
         2026, 10, 1, tzinfo=UTC
     )
+    with pytest.raises(ValueError):
+        run_mod.parse_when("24", now=now)
+    with pytest.raises(ValueError):
+        run_mod.parse_when("30months", now=now)
+
+
+def test_verify_rejects_bare_since_with_exit_2(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A bare ``-s 24`` is a clean CLI error (exit 2), not a traceback."""
+    from sase.main.instructions_handler import run_instructions_verify
+    from sase.main.parser import create_parser
+
+    args = create_parser().parse_args(["instructions", "verify", "-s", "24"])
+    assert run_instructions_verify(args) == 2
+    captured = capsys.readouterr()
+    assert "invalid --since/--until value" in captured.err
+
+
+def test_enumerate_runs_queries_each_provider_with_candidate_filter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``enumerate_runs`` issues one bounded query per wanted provider."""
+    from sase.core.agent_scan_wire import (
+        AgentArtifactScanOptionsWire,
+        AgentArtifactScanStatsWire,
+        AgentArtifactScanWire,
+    )
+
+    calls: list[dict[str, object]] = []
+
+    def fake_listing_snapshot(
+        *,
+        project: str | None = None,
+        requested_limit: int | None = None,
+        candidate_filter: dict[str, object] | None = None,
+        **_kwargs: object,
+    ) -> tuple[AgentArtifactScanWire, object]:
+        calls.append(
+            {
+                "project": project,
+                "requested_limit": requested_limit,
+                "candidate_filter": candidate_filter,
+            }
+        )
+        return (
+            AgentArtifactScanWire(
+                schema_version=1,
+                projects_root=str(tmp_path),
+                options=AgentArtifactScanOptionsWire(),
+                stats=AgentArtifactScanStatsWire(),
+                records=[],
+            ),
+            object(),
+        )
+
+    monkeypatch.setattr(
+        "sase.agent.listing_snapshot.listing_snapshot", fake_listing_snapshot
+    )
+    run_mod.enumerate_runs(
+        limit_per_provider=10,
+        since=None,
+        until=None,
+        project="sase",
+        agent=None,
+        providers=("grok", "codex"),
+    )
+    assert len(calls) == 2
+    assert calls[0]["candidate_filter"] == {
+        "kind": "equals",
+        "field": "provider",
+        "value": "grok",
+    }
+    assert calls[1]["candidate_filter"] == {
+        "kind": "equals",
+        "field": "provider",
+        "value": "codex",
+    }
+    assert calls[0]["requested_limit"] == 10
+    assert calls[0]["project"] == "sase"
+
+
+def test_enumerate_runs_widens_limit_when_filtered(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Agent/since/until post-filters raise the per-provider query to 200."""
+    from sase.core.agent_scan_wire import (
+        AgentArtifactScanOptionsWire,
+        AgentArtifactScanStatsWire,
+        AgentArtifactScanWire,
+    )
+
+    seen: list[int | None] = []
+
+    def fake_listing_snapshot(
+        *,
+        requested_limit: int | None = None,
+        **_kwargs: object,
+    ) -> tuple[AgentArtifactScanWire, object]:
+        seen.append(requested_limit)
+        return (
+            AgentArtifactScanWire(
+                schema_version=1,
+                projects_root=str(tmp_path),
+                options=AgentArtifactScanOptionsWire(),
+                stats=AgentArtifactScanStatsWire(),
+                records=[],
+            ),
+            object(),
+        )
+
+    monkeypatch.setattr(
+        "sase.agent.listing_snapshot.listing_snapshot", fake_listing_snapshot
+    )
+    now = datetime(2026, 10, 5, tzinfo=UTC)
+    run_mod.enumerate_runs(
+        limit_per_provider=10,
+        since=now - timedelta(hours=1),
+        until=None,
+        project=None,
+        agent=None,
+        providers=("claude",),
+    )
+    assert seen == [200]
+    seen.clear()
+    run_mod.enumerate_runs(
+        limit_per_provider=10,
+        since=None,
+        until=None,
+        project=None,
+        agent="some-agent",
+        providers=("claude",),
+    )
+    assert seen == [200]
+
+
+def test_enumerate_runs_finds_rare_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``-p grok`` returns Grok runs even when newest overall runs differ."""
+    from sase.core.agent_scan_wire import (
+        AgentArtifactRecordWire,
+        AgentArtifactScanOptionsWire,
+        AgentArtifactScanStatsWire,
+        AgentArtifactScanWire,
+        AgentMetaWire,
+    )
+
+    grok_record = AgentArtifactRecordWire(
+        project_name="sase",
+        project_dir=str(tmp_path),
+        project_file=str(tmp_path / "sase.sase"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(tmp_path / "grok-run"),
+        timestamp="2026-10-01T12:00:00Z",
+        agent_meta=AgentMetaWire(
+            name="grok-run",
+            llm_provider="grok",
+            workspace_dir="/work/synthetic",
+        ),
+    )
+    (tmp_path / "grok-run").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "grok-run" / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "workspace_dir": "/work/synthetic",
+                "name": "grok-run",
+                "run_started_at": "2026-10-01T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_listing_snapshot(
+        *,
+        candidate_filter: dict[str, object] | None = None,
+        **_kwargs: object,
+    ) -> tuple[AgentArtifactScanWire, object]:
+        records = []
+        if candidate_filter is not None and candidate_filter.get("value") == "grok":
+            records = [grok_record]
+        return (
+            AgentArtifactScanWire(
+                schema_version=1,
+                projects_root=str(tmp_path),
+                options=AgentArtifactScanOptionsWire(),
+                stats=AgentArtifactScanStatsWire(),
+                records=records,
+            ),
+            object(),
+        )
+
+    monkeypatch.setattr(
+        "sase.agent.listing_snapshot.listing_snapshot", fake_listing_snapshot
+    )
+    scored = run_mod.enumerate_runs(
+        limit_per_provider=10,
+        since=None,
+        until=None,
+        project=None,
+        agent=None,
+        providers=("grok",),
+    )
+    assert [run.provider for run in scored] == ["grok"]
+
+
+def test_listing_snapshot_ands_candidate_filter_with_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A caller ``candidate_filter`` is ANDed with the project filter."""
+    from sase.agent.listing_snapshot import listing_snapshot
+    from sase.core.agent_scan_wire import (
+        AgentArtifactIndexQueryWire,
+        AgentArtifactScanOptionsWire,
+        AgentArtifactScanStatsWire,
+        AgentArtifactScanWire,
+    )
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    snapshot = AgentArtifactScanWire(
+        schema_version=1,
+        projects_root=str(tmp_path),
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[],
+    )
+    seen: list[AgentArtifactIndexQueryWire] = []
+
+    def fake_query(
+        path: Path,
+        projects_root: Path,
+        *,
+        query: AgentArtifactIndexQueryWire,
+        options: AgentArtifactScanOptionsWire,
+    ) -> AgentArtifactScanWire:
+        seen.append(query)
+        return snapshot
+
+    monkeypatch.setattr(
+        "sase.core.agent_scan_facade.default_agent_artifact_index_path",
+        lambda: index_path,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_scan_facade.query_agent_artifact_index_bounded",
+        fake_query,
+    )
+    monkeypatch.setattr(
+        "sase.agent.listing_snapshot.sase_projects_dir", lambda: tmp_path
+    )
+    listing_snapshot(
+        project="sase",
+        requested_limit=10,
+        candidate_filter={"kind": "equals", "field": "provider", "value": "grok"},
+    )
+    assert seen[0].candidate_filter == {
+        "kind": "all",
+        "filters": [
+            {"kind": "equals", "field": "project", "value": "sase"},
+            {"kind": "equals", "field": "provider", "value": "grok"},
+        ],
+    }
 
 
 def test_doctor_registry_includes_instructions_deep_checks(tmp_path: Path) -> None:
@@ -242,6 +506,73 @@ def test_doctor_helpers_warns_on_accepted_declaration(
     monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [run])
     monkeypatch.setattr(
         "sase.instructions.verify.collect_observations", lambda _runs: [accepted]
+    )
+    context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
+    check = checks_instructions.check_instructions_helpers(context)
+    assert check.status == "WARN"
+
+
+def test_doctor_helpers_ignores_root_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A root's own accepted submit never WARNs as a helper declaration."""
+    from sase.doctor import checks_instructions
+    from sase.instructions._runs import ScoredRun
+
+    run = ScoredRun(
+        provider="claude",
+        name="synthetic",
+        workspace_dir="/work/synthetic",
+        artifact_dir="/work/synthetic",
+        started_at=datetime(2026, 10, 1, tzinfo=UTC),
+        ended_at=None,
+        project=None,
+    )
+    root = SessionObservation(
+        provider="claude",
+        run_name="synthetic",
+        session_id="root",
+        contract_count=2,
+        helper_type=None,
+        final_attempts=1,
+        final_accepted=1,
+    )
+    monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [run])
+    monkeypatch.setattr(
+        "sase.instructions.verify.collect_observations", lambda _runs: [root]
+    )
+    context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
+    check = checks_instructions.check_instructions_helpers(context)
+    assert check.status == "OK"
+
+
+def test_doctor_helpers_warns_on_root_guard_denial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A root guard denial WARNs even with no accepted declaration."""
+    from sase.doctor import checks_instructions
+    from sase.instructions._runs import ScoredRun
+
+    run = ScoredRun(
+        provider="claude",
+        name="synthetic",
+        workspace_dir="/work/synthetic",
+        artifact_dir="/work/synthetic",
+        started_at=datetime(2026, 10, 1, tzinfo=UTC),
+        ended_at=None,
+        project=None,
+    )
+    denied_root = SessionObservation(
+        provider="claude",
+        run_name="synthetic",
+        session_id="root",
+        contract_count=2,
+        helper_type=None,
+        root_guard_denial=True,
+    )
+    monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [run])
+    monkeypatch.setattr(
+        "sase.instructions.verify.collect_observations", lambda _runs: [denied_root]
     )
     context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
     check = checks_instructions.check_instructions_helpers(context)

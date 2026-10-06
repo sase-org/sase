@@ -72,30 +72,47 @@ def _tool_uses(records: list[dict[str, object]]) -> list[dict[str, object]]:
     return uses
 
 
-def _assistant_texts(records: list[dict[str, object]]) -> list[str]:
-    """Return plain-text blocks of assistant messages."""
-    texts: list[str] = []
-    for record in records:
-        if not isinstance(record, dict) or record.get("type") != "assistant":
-            continue
-        message = record.get("message")
-        if not isinstance(message, dict):
-            continue
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-            if block.get("type") in ("text",):
-                text = block.get("text")
-                if isinstance(text, str):
-                    texts.append(text)
-    return texts
+def _use_id(block: dict[str, object]) -> str | None:
+    """Return the tool-use id carried by an assistant ``tool_use`` block."""
+    raw = block.get("id")
+    if isinstance(raw, str) and raw:
+        return raw
+    fallback = block.get("tool_use_id")
+    return str(fallback) if isinstance(fallback, str) and fallback else None
 
 
-def _tool_result_texts(records: list[dict[str, object]]) -> list[str]:
-    texts: list[str] = []
+def _is_attempt(name: object, tool_input: object) -> bool:
+    """Return whether a ``tool_use`` is a helper final-declaration attempt."""
+    if name == "Skill" and isinstance(tool_input, dict):
+        return tool_input.get("skill") == "sase_final"
+    if name == "Bash" and isinstance(tool_input, dict):
+        command = tool_input.get("command", "")
+        return (
+            isinstance(command, str) and fp.FINAL_ATTEMPT_RE.search(command) is not None
+        )
+    return False
+
+
+def _use_kinds(records: list[dict[str, object]]) -> dict[str, dict[str, bool]]:
+    """Map tool-use id to attempt and Bash/Skill flags."""
+    kinds: dict[str, dict[str, bool]] = {}
+    for use in _tool_uses(records):
+        use_id = _use_id(use)
+        if not use_id:
+            continue
+        name = use.get("name")
+        kinds[use_id] = {
+            "attempt": _is_attempt(name, use.get("input")),
+            "bash_or_skill": name in ("Bash", "Skill"),
+        }
+    return kinds
+
+
+def _tool_result_blocks(
+    records: list[dict[str, object]],
+) -> list[tuple[str | None, bool, list[str]]]:
+    """Return ``(tool_use_id, is_error, texts)`` for each tool result."""
+    out: list[tuple[str | None, bool, list[str]]] = []
     for record in records:
         if not isinstance(record, dict) or record.get("type") != "user":
             continue
@@ -104,14 +121,22 @@ def _tool_result_texts(records: list[dict[str, object]]) -> list[str]:
             continue
         content = message.get("content")
         if isinstance(content, str):
-            texts.append(content)
+            out.append((None, False, [content]))
             continue
         if not isinstance(content, list):
             continue
         for block in content:
             if not isinstance(block, dict) or block.get("type") != "tool_result":
                 continue
+            raw_id = block.get("tool_use_id")
+            use_id = str(raw_id) if isinstance(raw_id, str) and raw_id else None
+            if use_id is None:
+                raw_alt = block.get("id")
+                if isinstance(raw_alt, str) and raw_alt:
+                    use_id = raw_alt
+            is_error = block.get("is_error") is True
             body = block.get("content")
+            texts: list[str] = []
             if isinstance(body, str):
                 texts.append(body)
             elif isinstance(body, list):
@@ -120,31 +145,60 @@ def _tool_result_texts(records: list[dict[str, object]]) -> list[str]:
                         texts.append(item)
                     elif isinstance(item, dict) and isinstance(item.get("text"), str):
                         texts.append(str(item["text"]))
-    return texts
+            out.append((use_id, is_error, texts))
+    return out
+
+
+def has_guard_denial(records: list[dict[str, object]]) -> bool:
+    """Return whether a Bash/Skill result carries an error guard denial."""
+    kinds = _use_kinds(records)
+    for use_id, is_error, texts in _tool_result_blocks(records):
+        if use_id is None or not is_error:
+            continue
+        kind = kinds.get(use_id)
+        if kind is None or not kind["bash_or_skill"]:
+            continue
+        if any(fp.GUARD_DENY_REASON_PREFIX in text for text in texts):
+            return True
+    return False
 
 
 def helper_signals(records: list[dict[str, object]]) -> dict[str, Any]:
     """Extract helper template, attempt, denial, and acceptance signals."""
     attempts = 0
     for use in _tool_uses(records):
-        name = use.get("name")
-        tool_input = use.get("input")
-        if name == "Skill" and isinstance(tool_input, dict):
-            if tool_input.get("skill") == "sase_final":
-                attempts += 1
-        elif name == "Bash" and isinstance(tool_input, dict):
-            command = tool_input.get("command", "")
-            if isinstance(command, str) and fp.FINAL_ATTEMPT_RE.search(command):
-                attempts += 1
-    texts = _tool_result_texts(records)
-    blob = "\n".join(texts)
-    full_blob = blob + "\n" + "\n".join(str(block) for block in _tool_uses(records))
-    full_blob += "\n" + "\n".join(_assistant_texts(records))
+        if _is_attempt(use.get("name"), use.get("input")):
+            attempts += 1
+    kinds = _use_kinds(records)
+    accepted = 0
+    denied = 0
+    guard_denials = 0
+    for use_id, is_error, texts in _tool_result_blocks(records):
+        if use_id is None:
+            continue
+        kind = kinds.get(use_id)
+        if kind is None:
+            continue
+        for text in texts:
+            if kind["attempt"] and fp.ACCEPTED_DECLARATION_OUTPUT in text:
+                accepted += 1
+            if kind["attempt"] and is_error and fp.GUARD_DENY_REASON_PREFIX in text:
+                denied += 1
+            if (
+                kind["bash_or_skill"]
+                and is_error
+                and fp.GUARD_DENY_REASON_PREFIX in text
+            ):
+                guard_denials += 1
+    # The template marker lands in the helper prompt snapshot, not in tool
+    # traffic: read it only from the system prompt snapshot.
+    has_template = fp.HELPER_TEMPLATE_FIRST_LINE in system_prompt_text(records)
     return {
         "attempts": attempts,
-        "has_template": fp.HELPER_TEMPLATE_FIRST_LINE in full_blob,
-        "denied": sum(fp.GUARD_DENY_REASON_PREFIX in text for text in texts),
-        "accepted": sum(fp.ACCEPTED_DECLARATION_OUTPUT in text for text in texts),
+        "has_template": has_template,
+        "denied": denied,
+        "accepted": accepted,
+        "guard_denials": guard_denials,
     }
 
 
@@ -188,6 +242,7 @@ def observe_claude_session(
 
 
 __all__ = [
+    "has_guard_denial",
     "helper_signals",
     "instruction_files",
     "observe_claude_session",

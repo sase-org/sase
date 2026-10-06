@@ -37,10 +37,20 @@ def run_instructions_verify(args: argparse.Namespace) -> int:
     now = datetime.now(tz=UTC)
     since_raw = getattr(args, "since", "7d") or "7d"
     until_raw = getattr(args, "until", None)
-    since = run_mod.parse_when(str(since_raw), now=now)
-    until = (
-        run_mod.parse_when(str(until_raw), now=now) if until_raw is not None else None
-    )
+    try:
+        since = run_mod.parse_when(str(since_raw), now=now)
+    except ValueError as exc:
+        print(f"sase instructions verify: {exc}", file=sys.stderr)
+        return 2
+    try:
+        until = (
+            run_mod.parse_when(str(until_raw), now=now)
+            if until_raw is not None
+            else None
+        )
+    except ValueError as exc:
+        print(f"sase instructions verify: {exc}", file=sys.stderr)
+        return 2
     providers = tuple(getattr(args, "provider", []) or ())
     agent = getattr(args, "agent", None)
     want_json = bool(getattr(args, "json", False))

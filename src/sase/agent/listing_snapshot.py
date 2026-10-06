@@ -57,9 +57,11 @@ def listing_snapshot(
     project: str | None = None,
     index_freshness: Literal["cached", "revalidate"] = "cached",
     requested_limit: int | None = None,
+    candidate_filter: dict[str, object] | None = None,
 ) -> tuple[AgentArtifactScanWire, AgentListingLoadState]:
     """Return a bounded local listing snapshot, preferring the artifact index."""
     normalized_project = _normalized_project_filter(project)
+    combined_filter = _combined_candidate_filter(normalized_project, candidate_filter)
     scan_options = _listing_scan_options(project=normalized_project)
     fallback_options = _listing_scan_options(
         project=normalized_project,
@@ -98,7 +100,7 @@ def listing_snapshot(
                         freshness=index_freshness,
                         record_shape="list",
                         window_limit=requested_limit,
-                        candidate_filter=_project_candidate_filter(normalized_project),
+                        candidate_filter=combined_filter,
                     ),
                     options=scan_options,
                 )
@@ -217,6 +219,19 @@ def _project_candidate_filter(project: str | None) -> dict[str, object] | None:
     if project is None:
         return None
     return {"kind": "equals", "field": "project", "value": project}
+
+
+def _combined_candidate_filter(
+    project: str | None,
+    candidate_filter: dict[str, object] | None,
+) -> dict[str, object] | None:
+    """AND the project filter with an optional caller candidate filter."""
+    project_filter = _project_candidate_filter(project)
+    if project_filter is not None and candidate_filter is not None:
+        return {"kind": "all", "filters": [project_filter, candidate_filter]}
+    if candidate_filter is not None:
+        return candidate_filter
+    return project_filter
 
 
 def _listing_state_from_index_snapshot(

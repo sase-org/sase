@@ -115,7 +115,7 @@ def check_instructions_helpers(context: DoctorContext) -> DiagnosticCheck:
             summary="no SASE runs in the last 7 days",
         )
     observations = collect_observations(scored)
-    accepted = sum(o.final_accepted for o in observations)
+    accepted = sum(o.final_accepted for o in observations if o.helper_type)
     denials = sum(1 for o in observations if o.root_guard_denial)
     if accepted or denials:
         return DiagnosticCheck(

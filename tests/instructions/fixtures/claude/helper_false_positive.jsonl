@@ -1,0 +1,2 @@
+{"message": {"content": [{"id": "synthetic-fp", "input": {"command": "sed -n 1,100p src/sase/main/final_handler.py"}, "name": "Bash", "type": "tool_use"}], "role": "assistant"}, "type": "assistant"}
+{"message": {"content": [{"content": "Synthetic source text mentioning Accepted final declaration and SASE helper guard: quoted from a file, not a real attempt result.", "tool_use_id": "synthetic-fp", "type": "tool_result"}], "role": "user"}, "type": "user"}

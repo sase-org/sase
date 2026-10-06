@@ -1,4 +1,4 @@
-"""Tests for ``sase memory agent-docs list`` inventory and rendering."""
+"""Tests for ``sase instructions list`` inventory and rendering."""
 
 from __future__ import annotations
 

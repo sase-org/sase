@@ -73,6 +73,26 @@ def test_claude_after_state_helper() -> None:
     assert signals["has_template"] is True
     assert signals["attempts"] == 1
     assert signals["denied"] == 1
+    assert signals["accepted"] == 0
+
+
+def test_claude_ignores_quoted_marker_text_in_tool_results() -> None:
+    """Source text quoting markers in a non-attempt result scores zero."""
+    records = _read_jsonl(FIXTURES / "claude" / "helper_false_positive.jsonl")
+    signals = claude_parser.helper_signals(records)
+    assert signals["attempts"] == 0
+    assert signals["accepted"] == 0
+    assert signals["denied"] == 0
+    assert signals["has_template"] is False
+    assert claude_parser.has_guard_denial(records) is False
+
+
+def test_claude_root_guard_denial_shapes() -> None:
+    """Only a paired Bash/Skill error denial sets the root alarm."""
+    denied = _read_jsonl(FIXTURES / "claude" / "root_guard_denial.jsonl")
+    assert claude_parser.has_guard_denial(denied) is True
+    quoted = _read_jsonl(FIXTURES / "claude" / "root_agent_quote.jsonl")
+    assert claude_parser.has_guard_denial(quoted) is False
 
 
 def test_codex_baseline_row() -> None:
@@ -86,6 +106,63 @@ def test_codex_baseline_row() -> None:
     assert fields["project"] is True
     assert fields["directive"] is True
     assert fields["native_full_count"] == 2
+
+
+def test_codex_legacy_two_block_shape() -> None:
+    """The older one-block-per-file shape still counts as two sources."""
+    home_text = (
+        f"# AGENTS.md instructions for /work/synthetic\n\n# {HOME_H1}\n\n"
+        "## SASE Final Declaration\n\nSynthetic home contract."
+    )
+    project_text = (
+        f"# AGENTS.md instructions for /work/synthetic\n\n# {PROJECT_H1}\n\n"
+        "## SASE Final Declaration\n\nSynthetic project contract."
+    )
+    records = [
+        {
+            "type": "session_meta",
+            "payload": {
+                "session_id": "synthetic-legacy",
+                "timestamp": "2026-10-01T12:00:00Z",
+                "cwd": "/work/synthetic",
+            },
+        },
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "developer",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "SASE single-turn instructions for Codex: synthetic.",
+                    }
+                ],
+            },
+        },
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": home_text}],
+            },
+        },
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": project_text}],
+            },
+        },
+    ]
+    fields = codex_parser.observe_codex_session(
+        records, home_h1=HOME_H1, project_h1=PROJECT_H1
+    )
+    assert fields["contract_count"] == 2
+    assert fields["home"] is True
+    assert fields["project"] is True
 
 
 def test_muse_baseline_row() -> None:

@@ -10,6 +10,7 @@ from sase.instructions import _runs as runs
 from sase.instructions import claude as claude_parser
 from sase.instructions import fingerprints as fp
 from sase.instructions.models import ProviderRow, SessionObservation, VerifyReport
+from typing import Any
 from sase.instructions import codex as codex_parser
 from sase.instructions import grok as grok_parser
 from sase.instructions import muse as muse_parser
@@ -67,6 +68,128 @@ def collect_observations(
     return observations
 
 
+def _root_guard_denial(
+    session_path: Path,
+    records: list[dict[str, Any]],
+    partial: bool,
+) -> tuple[bool, bool]:
+    """Return ``(denied, partial)`` for a root Claude transcript.
+
+    The capped ``records`` cover the first 512 KiB; a denial can arrive much
+    later, so fall back to a cheap streaming pass bounded by the helper cap.
+    That pass JSON-decodes only lines holding the guard prefix or a tool-use
+    pairing id. An Agent-tool hand-back quoting the guard text never counts
+    because it is not a Bash or Skill result.
+    """
+    if claude_parser.has_guard_denial(records):
+        return True, partial
+    try:
+        size = session_path.stat().st_size
+    except OSError:
+        return False, partial
+    if size <= runs.ROOT_TRANSCRIPT_BYTE_CAP:
+        return False, partial
+    denied, hit_cap = _streaming_guard_denial(
+        session_path, max_bytes=runs.HELPER_TRANSCRIPT_BYTE_CAP
+    )
+    return denied, (partial or hit_cap)
+
+
+def _streaming_guard_denial(session_path: Path, *, max_bytes: int) -> tuple[bool, bool]:
+    """Scan a root transcript for a paired guard denial within *max_bytes*."""
+    import json
+
+    kinds: dict[str, bool] = {}
+    pending: list[tuple[str, bool, str]] = []
+    used = 0
+    hit_cap = False
+    try:
+        size = session_path.stat().st_size
+    except OSError:
+        return False, False
+    if size > max_bytes:
+        hit_cap = True
+    try:
+        with open(session_path, encoding="utf-8") as stream:
+            for line in stream:
+                encoded = len(line.encode("utf-8"))
+                if used + encoded > max_bytes:
+                    hit_cap = True
+                    break
+                used += encoded
+                if fp.GUARD_DENY_REASON_PREFIX not in line and "tool_use" not in line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                record_type = record.get("type")
+                message = record.get("message")
+                if not isinstance(message, dict):
+                    continue
+                content = message.get("content")
+                if not isinstance(content, list):
+                    continue
+                if record_type == "assistant":
+                    for block in content:
+                        if not isinstance(block, dict):
+                            continue
+                        if block.get("type") != "tool_use":
+                            continue
+                        raw_id = block.get("id")
+                        use_id = (
+                            str(raw_id) if isinstance(raw_id, str) and raw_id else None
+                        )
+                        if use_id is None:
+                            raw_alt = block.get("tool_use_id")
+                            if isinstance(raw_alt, str) and raw_alt:
+                                use_id = raw_alt
+                        if use_id is None:
+                            continue
+                        name = block.get("name")
+                        kinds[str(use_id)] = name in ("Bash", "Skill")
+                elif record_type == "user":
+                    for block in content:
+                        if not isinstance(block, dict):
+                            continue
+                        if block.get("type") != "tool_result":
+                            continue
+                        if block.get("is_error") is not True:
+                            continue
+                        raw_id = block.get("tool_use_id")
+                        use_id = (
+                            str(raw_id) if isinstance(raw_id, str) and raw_id else None
+                        )
+                        if use_id is None:
+                            continue
+                        body = block.get("content")
+                        texts: list[str] = []
+                        if isinstance(body, str):
+                            texts = [body]
+                        elif isinstance(body, list):
+                            for item in body:
+                                if isinstance(item, str):
+                                    texts.append(item)
+                                elif isinstance(item, dict) and isinstance(
+                                    item.get("text"), str
+                                ):
+                                    texts.append(str(item["text"]))
+                        for text in texts:
+                            if fp.GUARD_DENY_REASON_PREFIX in text:
+                                pending.append((str(use_id), True, text))
+    except OSError:
+        return False, hit_cap
+    for use_id, _is_error, text in pending:
+        _ = text
+        if kinds.get(use_id) is True:
+            return True, hit_cap
+    # A denial whose tool_use sits beyond the cap stays unknown; the caller
+    # keeps the observation partial so the gap is visible.
+    return False, hit_cap
+
+
 def _observe_claude(
     run: runs.ScoredRun, home: str | None, project: str | None
 ) -> list[SessionObservation]:
@@ -92,6 +215,7 @@ def _observe_claude(
         fields = claude_parser.observe_claude_session(
             records, home_h1=home, project_h1=project
         )
+        root_denial, partial = _root_guard_denial(session_path, records, partial)
         helpers = runs.find_claude_helpers(session_path)
         observations.append(
             SessionObservation(
@@ -109,6 +233,7 @@ def _observe_claude(
                 final_attempts=int(fields["final_attempts"]),
                 final_denied=int(fields["final_denied"]),
                 final_accepted=int(fields["final_accepted"]),
+                root_guard_denial=root_denial,
                 partial=partial,
             )
         )
