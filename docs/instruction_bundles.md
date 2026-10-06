@@ -96,3 +96,25 @@ template, the project `AGENTS.md`, and the task-type plugin distributions). A mi
 corrupt entry or blob is a miss. The hit path imports none of the heavy composition
 modules, which keeps warm renders within the 250 ms p95 budget; every manifest records
 `render_ms` and `cache` (`hit`, `miss`, or `bypass`).
+
+## Shadow manifests
+
+Every root provider invocation routes through one boundary,
+`sase.llm_provider._instruction_boundary.invoke_with_instructions`, which shadow-renders
+the bundle the agent _would_ get and records it without delivering anything. With the
+`instruction_shadow_render` sunset flag on and an artifacts dir, each invocation writes
+`<artifacts>/instructions/NN-<provider>.md` (the bundle) and `NN-<provider>.json` (the
+normalized manifest, `indent=2`, sorted keys), where `NN` is a two-digit per-run
+sequence allocated with `O_EXCL`. The `agent_meta.json` `instructions` summary counts
+the manifests and points at the latest (`seq`, `provider`, `purpose`, `sha256`,
+`common_digest`, `manifest`), and `SASE_INSTRUCTIONS_FILE` holds the bundle path during
+the call and is restored afterwards. The manifest's `attempt` is
+`1 + count(attempts/*)`.
+
+Failure posture: the shadow render never fails an invocation. Any shadow exception is
+caught, logged once as a warning, recorded best-effort as `NN-<provider>.error.json`
+(exception type, message, `rendered_at`), and the call proceeds. Kill switch:
+`SASE_INSTRUCTIONS_FILE` is never exported and no shadow file is written with
+`sase flag disable instruction_shadow_render` (or no artifacts dir); remove the flag
+when E3 delivers the rendered bundle or the readout shows zero shadow failures and warm
+p95 within budget for 7 days.

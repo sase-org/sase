@@ -5938,6 +5938,12 @@
           "default": true,
           "deprecated": true
         },
+        "instruction_shadow_render": {
+          "type": "boolean",
+          "description": "Every root provider invocation shadow-renders its instruction bundle and manifest into <artifacts>/instructions/, updates the agent_meta instructions summary, and exports SASE_INSTRUCTIONS_FILE during the call.",
+          "default": true,
+          "deprecated": true
+        },
         "legacy_agent_family_syntax": {
           "type": "boolean",
           "description": "SASE silently accepts the retired agent-family spellings as aliases of their agent-session replacements: %id(..., family=...), the family:/kind:family agent queries, --next-fork family, gate \"fork\": \"family\", and SASE_AGENT_FAMILY_ATTACH. Removing this flag also removes sase-core's hidden `family` %id keyword alias.",

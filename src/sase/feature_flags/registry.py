@@ -41,6 +41,7 @@ class FeatureFlag(StrEnum):
     strict_macro_input_types = "strict_macro_input_types"
     agents_session_manifest_compat = "agents_session_manifest_compat"
     claude_helper_channel = "claude_helper_channel"
+    instruction_shadow_render = "instruction_shadow_render"
     typed_launch_units = "typed_launch_units"
 
 
@@ -252,6 +253,17 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Unknown macro input type names are a per-macro load error with suggestions."
         ),
         bead="sase-1g9",
+    ),
+    FeatureFlag.instruction_shadow_render: FeatureFlagDefinition(
+        key=FeatureFlag.instruction_shadow_render,
+        kind="sunset",
+        description=(
+            "Every root provider invocation shadow-renders its instruction "
+            "bundle and manifest into <artifacts>/instructions/, updates the "
+            "agent_meta instructions summary, and exports "
+            "SASE_INSTRUCTIONS_FILE during the call."
+        ),
+        bead="sase-1h4",
     ),
 }
 

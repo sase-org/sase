@@ -14,6 +14,7 @@ from sase.finalizers.declaration_store import (
     write_text_atomic as _write_text_atomic,
 )
 from sase.finalizers.owned_turn import finalizer_owned_turn
+from sase.llm_provider._instruction_boundary import invoke_with_instructions
 from sase.llm_provider.commit_finalizer_prompting import append_response, merge_usage
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.telemetry.metrics import FINALIZER_RECOVERIES
@@ -80,8 +81,11 @@ def ensure_final_declaration_or_recover(
         prompt = _declaration_recovery_prompt(context, evidence)
         _write_text_atomic(root / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME, prompt)
         with finalizer_owned_turn():
-            follow_up = provider.invoke(
+            follow_up = invoke_with_instructions(
+                provider,
                 prompt,
+                purpose="declaration_recovery",
+                artifacts_dir=artifacts_dir,
                 model_tier=model_tier,
                 suppress_output=suppress_output,
                 model_override=model_override,

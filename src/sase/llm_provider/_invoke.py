@@ -20,6 +20,7 @@ from sase.env_contracts import (
     SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV,
     SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV,
 )
+from ._instruction_boundary import invoke_with_instructions
 from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 from sase.telemetry.metrics import (
@@ -433,8 +434,13 @@ def invoke_agent(
                 and metadata_model != "unknown"
             ):
                 context.metadata_model = metadata_model
-        invoke_result = provider.invoke(
+        invoke_result = invoke_with_instructions(
+            provider,
             query,
+            purpose="ordinary",
+            artifacts_dir=artifacts_dir,
+            provider_name=execution_provider_label,
+            agent_type=agent_type,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,

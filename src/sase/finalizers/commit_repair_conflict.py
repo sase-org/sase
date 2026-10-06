@@ -33,6 +33,7 @@ from sase.finalizers.commit_types import (
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.operation_records import OperationRecorder
 from sase.finalizers.owned_turn import finalizer_owned_turn
+from sase.llm_provider._instruction_boundary import invoke_with_instructions
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_git_status import git_head_commit_id
@@ -406,8 +407,11 @@ def run_conflict_repair_turn(
             prompt,
         )
     with finalizer_owned_turn():
-        follow_up = provider.invoke(
+        follow_up = invoke_with_instructions(
+            provider,
             prompt,
+            purpose="conflict_repair",
+            artifacts_dir=artifacts_dir,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,

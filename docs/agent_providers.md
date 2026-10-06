@@ -32,6 +32,13 @@ still launch a hard-disabled CLI. See
 [Provider routing](ace.md#provider-routing-controls) and
 [Usage-Limit Auto-Disable](llms.md#usage-limit-auto-disable).
 
+## Instruction delivery
+
+E2 records but does not deliver: every root provider invocation shadow-renders its
+memory-built instruction bundle and manifest into `<artifacts>/instructions/` without
+changing any provider argv, prompt, or loaded file. See
+[Instruction Bundles](instruction_bundles.md#shadow-manifests).
+
 ## Verifying instruction delivery
 
 `sase instructions verify` shows what each provider's SASE runs and native helpers
