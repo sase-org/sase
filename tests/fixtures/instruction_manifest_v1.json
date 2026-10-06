@@ -1,0 +1,148 @@
+{
+  "budget": {
+    "by_layer": {
+      "frame": {
+        "bytes": 12,
+        "tokens_est": 3
+      },
+      "package": {
+        "bytes": 68,
+        "tokens_est": 17
+      },
+      "project": {
+        "bytes": 0,
+        "tokens_est": 0
+      }
+    }
+  },
+  "bundle": {
+    "bytes": 80,
+    "common_digest": "35e3de246e801813311923851b16818b87e1c18588db05dc9dc04f4bcc0793c2",
+    "lines": 12,
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "store_path": "instructions/bundles/aa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md",
+    "tokens_est": 20
+  },
+  "compiler": {
+    "name": "sase-instructions",
+    "sase_version": "1.0.0",
+    "version": 1
+  },
+  "delivery": {
+    "agent_name": "test-agent",
+    "agent_type": "test",
+    "attempt": 1,
+    "cache": "hit",
+    "invocation_id": "123e4567-e89b-12d3-a456-426614174000",
+    "invocation_seq": 0,
+    "model": "codex-test",
+    "render_ms": 12.4,
+    "rendered_at": "2026-10-06T12:00:00Z",
+    "session_ids": [],
+    "status": "shadow"
+  },
+  "facts": {
+    "actor": "sase_root",
+    "host": "athena",
+    "mode": "runtime",
+    "project": "sase",
+    "provider": "codex",
+    "purpose": "ordinary",
+    "vcs": "github"
+  },
+  "observation": {
+    "status": "unobserved"
+  },
+  "schema_version": 1,
+  "sections": [
+    {
+      "id": "frame.title",
+      "layer": "frame",
+      "length": 12,
+      "lifecycle": "neutral",
+      "offset": 0,
+      "provider_specific": false,
+      "required": false,
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "sources": [],
+      "status": "included",
+      "tokens_est": 3
+    },
+    {
+      "id": "pkg.sase.memory",
+      "layer": "package",
+      "length": 30,
+      "lifecycle": "neutral",
+      "offset": 12,
+      "provider_specific": false,
+      "required": false,
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "sources": [
+        {
+          "blob_oid": "cccccccccccccccccccccccccccccccccccccccc",
+          "kind": "package_template",
+          "path": "templates/memory-sase.template.md",
+          "scope": "package",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "status": "included",
+      "tokens_est": 8
+    },
+    {
+      "id": "pkg.root.final_declaration",
+      "layer": "package",
+      "length": 18,
+      "lifecycle": "root",
+      "offset": 42,
+      "provider_specific": false,
+      "required": false,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "sources": [
+        {
+          "kind": "package_template",
+          "path": "templates/contract.md",
+          "scope": "package"
+        }
+      ],
+      "status": "included",
+      "tokens_est": 5
+    },
+    {
+      "id": "pkg.provider.codex",
+      "layer": "package",
+      "length": 20,
+      "lifecycle": "root",
+      "offset": 60,
+      "provider_specific": true,
+      "required": false,
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "sources": [
+        {
+          "kind": "provider_directive",
+          "path": "src/sase/llm_provider/codex.py",
+          "scope": "package"
+        }
+      ],
+      "status": "included",
+      "tokens_est": 5
+    },
+    {
+      "id": "proj.core.sase",
+      "layer": "project",
+      "lifecycle": "neutral",
+      "provider_specific": false,
+      "reason": "superseded_input",
+      "required": false,
+      "sources": [
+        {
+          "kind": "memory_note",
+          "path": "sase/memory/sase.md",
+          "scope": "project"
+        }
+      ],
+      "status": "excluded",
+      "tokens_est": 0
+    }
+  ]
+}
