@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 import json
+from pathlib import Path
 from typing import Any
 
 from sase.core.rust import require_rust_binding
@@ -57,19 +58,22 @@ def committed_task_type_records(
     registry: TaskTypeRegistry,
     *,
     required_packages: frozenset[str] | None = None,
+    project_root: Path | None = None,
 ) -> tuple[TaskTypeRecord, ...]:
     """Return the catalog members that belong in ``sase/task_types.json``.
 
     Builtins and project-config types always belong. A plugin type belongs only
     when its distribution is listed in ``plugins.required``, so two machines
     with different optional plugin sets write the same snapshot and the same
-    generated instruction files.
+    generated instruction files. *project_root* selects the project whose
+    ``plugins.required`` applies; when omitted the current working directory
+    is used.
     """
 
     packages = (
         required_packages
         if required_packages is not None
-        else _project_required_plugin_packages()
+        else _project_required_plugin_packages(project_root)
     )
     return tuple(
         record
@@ -82,11 +86,16 @@ def build_committed_task_type_snapshot_entries(
     registry: TaskTypeRegistry,
     *,
     required_packages: frozenset[str] | None = None,
+    project_root: Path | None = None,
 ) -> tuple[dict[str, Any], ...]:
     """Return snapshot entries for the committed catalog only."""
 
     return _snapshot_entries_for(
-        committed_task_type_records(registry, required_packages=required_packages)
+        committed_task_type_records(
+            registry,
+            required_packages=required_packages,
+            project_root=project_root,
+        )
     )
 
 
@@ -157,14 +166,16 @@ def _record_belongs_in_committed_snapshot(
     return bool(package) and package in required_packages
 
 
-def _project_required_plugin_packages() -> frozenset[str]:
+def _project_required_plugin_packages(
+    project_root: Path | None = None,
+) -> frozenset[str]:
     from sase.content_layout import discover_project_root
     from sase.plugins.required import (
         load_project_required_plugins_config,
         required_plugin_distribution_names,
     )
 
-    root = discover_project_root()
+    root = discover_project_root(project_root)
     if root is None:
         return frozenset()
     config, _path, error = load_project_required_plugins_config(root)

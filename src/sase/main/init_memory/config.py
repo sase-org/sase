@@ -30,13 +30,20 @@ from .models import LinkedRepoMemoryEntry
 _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 
 
-def project_config_path() -> Path:
-    return resolve_project_layout(Path.cwd()).config.write_path
+def project_config_path(*, root: Path | None = None) -> Path:
+    """Return the project config write path for *root* (default: cwd)."""
+    return resolve_project_layout(
+        Path.cwd() if root is None else root
+    ).config.write_path
 
 
-def project_config_read_path() -> Path:
-    """Return the compatible project config source, defaulting to canonical."""
-    compatible = resolve_project_layout(Path.cwd()).config
+def project_config_read_path(*, root: Path | None = None) -> Path:
+    """Return the compatible project config source, defaulting to canonical.
+
+    *root* selects the project explicitly; when omitted the current working
+    directory is used, preserving each CLI's cwd defaulting.
+    """
+    compatible = resolve_project_layout(Path.cwd() if root is None else root).config
     return compatible.resolve_read("project config") or compatible.write_path
 
 

@@ -309,7 +309,9 @@ def render_expected_memory_files(
                 detail="generated artifact relation registry snapshot",
             )
         )
-        snapshot_content, snapshot_error = render_generated_task_type_snapshot_json()
+        snapshot_content, snapshot_error = render_generated_task_type_snapshot_json(
+            root
+        )
         if snapshot_error is not None or snapshot_content is None:
             return (
                 (),

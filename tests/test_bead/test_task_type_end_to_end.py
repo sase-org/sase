@@ -227,7 +227,7 @@ def test_optional_plugin_types_do_not_change_generated_note(
 
     monkeypatch.setattr(
         "sase.task_types.snapshot._project_required_plugin_packages",
-        lambda: frozenset(),
+        lambda project_root=None: frozenset(),
     )
     with_entries = build_committed_task_type_snapshot_entries(with_optional)
     without_entries = build_committed_task_type_snapshot_entries(without_optional)

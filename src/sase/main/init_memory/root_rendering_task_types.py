@@ -239,34 +239,48 @@ def _render_task_type_strand_content(
     return frontmatter + body
 
 
-def _project_task_type_records() -> tuple[TaskTypeRecord, ...]:
+def _project_task_type_records(
+    project_root: Path | None = None,
+) -> tuple[TaskTypeRecord, ...]:
     """Return the committed catalog this project's generated files may document.
 
     Builtins, project-config types, and types from ``plugins.required``
     distributions are included. Optional plugin types stay live-only so two
     machines with different optional plugin sets render the same web and
-    ``sase/task_types.json``.
+    ``sase/task_types.json``. *project_root* selects the project explicitly;
+    when omitted the current working directory is used.
     """
-    records = committed_task_type_records(get_task_type_registry())
+    records = committed_task_type_records(
+        get_task_type_registry(), project_root=project_root
+    )
     return tuple(sorted(records, key=lambda record: record.task_type))
 
 
-def _project_task_type_snapshot_entries() -> tuple[dict[str, Any], ...]:
+def _project_task_type_snapshot_entries(
+    project_root: Path | None = None,
+) -> tuple[dict[str, Any], ...]:
     return tuple(
-        task_type_snapshot_entry(record) for record in _project_task_type_records()
+        task_type_snapshot_entry(record)
+        for record in _project_task_type_records(project_root)
     )
 
 
-def _agent_creatable_task_type_records() -> tuple[TaskTypeRecord, ...]:
+def _agent_creatable_task_type_records(
+    project_root: Path | None = None,
+) -> tuple[TaskTypeRecord, ...]:
     return tuple(
-        record for record in _project_task_type_records() if record.agent_creatable
+        record
+        for record in _project_task_type_records(project_root)
+        if record.agent_creatable
     )
 
 
-def current_agent_creatable_task_type_slugs() -> frozenset[str]:
+def current_agent_creatable_task_type_slugs(
+    project_root: Path | None = None,
+) -> frozenset[str]:
     """Return the committed, agent-creatable task-type slugs SASE now generates."""
     return frozenset(
-        record.task_type for record in _agent_creatable_task_type_records()
+        record.task_type for record in _agent_creatable_task_type_records(project_root)
     )
 
 
@@ -298,15 +312,15 @@ def _render_task_types_descriptor_content() -> tuple[str | None, str | None]:
     )
 
 
-def _render_generated_task_types_web_sources() -> tuple[
-    GeneratedWebSource | None, str | None
-]:
+def _render_generated_task_types_web_sources(
+    project_root: Path | None = None,
+) -> tuple[GeneratedWebSource | None, str | None]:
     """Render the in-memory generated task-types web source, or return a blocker."""
     descriptor_content, descriptor_error = _render_task_types_descriptor_content()
     if descriptor_error is not None or descriptor_content is None:
         return None, descriptor_error
 
-    records = _agent_creatable_task_type_records()
+    records = _agent_creatable_task_type_records(project_root)
     strands = tuple(
         GeneratedStrandSource(
             slug=record.task_type,
@@ -329,9 +343,10 @@ def build_generated_task_types_web(root: Path) -> tuple[MemoryWeb | None, str | 
 
     Always targets the canonical ``sase/memory`` write root, even when *root*
     still has a pre-migration legacy tree: a generated web has no existing
-    content to read, unlike a file-backed one.
+    content to read, unlike a file-backed one. The required-plugin set is read
+    from *root* explicitly rather than the current working directory.
     """
-    source, error = _render_generated_task_types_web_sources()
+    source, error = _render_generated_task_types_web_sources(root)
     if error is not None or source is None:
         return None, error
     discovery = GeneratedMemoryWebProvider(source).discover(root)
@@ -370,9 +385,11 @@ def is_generated_task_type_strand_content(slug: str, text: str) -> bool:
     return _task_type_strand_pointer_line(slug) in normalized
 
 
-def render_generated_task_type_snapshot_json() -> tuple[str | None, str | None]:
+def render_generated_task_type_snapshot_json(
+    project_root: Path | None = None,
+) -> tuple[str | None, str | None]:
     """Render the committed ``sase/task_types.json`` catalog snapshot (D6)."""
-    entries = _project_task_type_snapshot_entries()
+    entries = _project_task_type_snapshot_entries(project_root)
     try:
         return render_task_type_snapshot_json(entries), None
     except Exception as exc:

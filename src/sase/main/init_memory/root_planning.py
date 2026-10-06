@@ -176,7 +176,7 @@ def _retired_task_types_strand_paths(
     if not strand_dir.exists() or not strand_dir.is_dir():
         return ()
     current_slugs = (
-        current_agent_creatable_task_type_slugs()
+        current_agent_creatable_task_type_slugs(root)
         if include_project_memory
         else frozenset()
     )

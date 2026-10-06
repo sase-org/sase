@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import replace
 from pathlib import Path
 import re
 
@@ -22,6 +21,7 @@ from ._shared import (
 )
 from ._template import render_agents_template
 from .inline_memory import inline_memory_section, validate_short_memory_structure
+from .memory_units import collect_memory_root_units, render_memory_root_units
 from sase.memory.notes import (
     AGENTS_PARENT,
     GeneratedLongMemoryNote,
@@ -30,7 +30,6 @@ from sase.memory.notes import (
     apply_memory_frontmatter,
     discover_memory_notes,
     normalize_memory_note_type,
-    render_long_memory_entries,
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
@@ -379,134 +378,24 @@ def _render_managed_agents(
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> tuple[str | None, str | None]:
-    """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
-    existing_descriptions = _existing_agents_long_descriptions(root)
-    notes_by_relative_path = {
-        note.relative_path: note
-        for note in _discover_memory_notes_excluding(
-            root,
-            source_memory_root=source_memory_root,
-            excluded_note_paths=excluded_note_paths,
-        )
-    }
-    for relative_path, generated in (generated_long_notes or {}).items():
-        existing = notes_by_relative_path.get(relative_path)
-        notes_by_relative_path[relative_path] = MemoryNote(
-            path=Path(relative_path),
-            type="reference",
-            parent=generated.parent,
-            description=generated.description,
-            body="" if existing is None else existing.body,
-            frontmatter={},
-            type_source="frontmatter",
-            parent_source="frontmatter",
-        )
-    top_level_long_notes = tuple(
-        sorted(
-            (
-                note
-                for note in notes_by_relative_path.values()
-                if note.type == "reference"
-                and not note.is_web_descriptor
-                and note.parent == AGENTS_PARENT
-            ),
-            key=lambda note: note.relative_path,
-        )
-    )
-    descriptions = long_memory_descriptions or {}
+    """Render the project-managed AMD ``AGENTS.md`` content for *root*.
 
-    bodies = short_memory_bodies or {}
-    web_bodies = web_memory_bodies or {}
-    core_sections = "\n\n".join(
-        inline_memory_section(relative_path, note.body).rstrip("\n")
-        for relative_path, note in bodies.items()
-    )
-    web_sections = _render_web_sections(web_bodies)
-
-    rendered_long_notes = []
-    for note in top_level_long_notes:
-        description = descriptions.get(note.relative_path) or _long_memory_description(
-            root / note.path,
-            body=note.body,
-            relative_path=note.relative_path,
-            description=note.description,
-            existing_agents_descriptions=existing_descriptions,
-        )
-        rendered_long_notes.append(replace(note, description=description))
-    long_entries = render_long_memory_entries(rendered_long_notes)
-    reference_entries = (
-        "" if not long_entries else f"{_LONG_MEMORY_INTRO}\n\n{long_entries}"
-    )
-
-    rendered, render_error = render_agents_template(
+    Rebuilt on the structured :mod:`sase.amd.memory_units` API: the
+    precomputed bodies are collected into frozen units (re-overlaying them is
+    idempotent, so the units match the direct discovery exactly) and rendered
+    back to byte-identical document text.
+    """
+    units = collect_memory_root_units(
         root,
-        title=title,
-        core_sections=core_sections,
-        web_sections=web_sections,
-        reference_entries=reference_entries,
+        title,
+        generated_short_notes=dict(short_memory_bodies or {}),
+        generated_long_notes=generated_long_notes,
+        generated_web_notes=dict(web_memory_bodies or {}),
+        long_memory_descriptions=long_memory_descriptions,
+        source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
     )
-    if render_error is not None or rendered is None:
-        return None, render_error or "failed to render AGENTS template"
-
-    parsed = parse_amd_agents_document(rendered)
-    if not parsed.has_short_section:
-        return (
-            None,
-            "rendered AGENTS template is missing structural anchor `## Core Memory`",
-        )
-    if not parsed.has_long_section:
-        return (
-            None,
-            "rendered AGENTS template is missing structural anchor "
-            "`## Reference Memory`",
-        )
-    expected_short_paths = tuple(bodies)
-    if parsed.short_memory_paths != expected_short_paths:
-        return (
-            None,
-            "rendered AGENTS template has unexpected Core Memory paths: "
-            f"expected {expected_short_paths!r}, found {parsed.short_memory_paths!r}",
-        )
-    expected_web_paths = tuple(web_bodies)
-    if expected_web_paths:
-        if not parsed.has_web_section:
-            return (
-                None,
-                "rendered AGENTS template is missing structural anchor "
-                "`## Memory Webs`",
-            )
-        if parsed.web_memory_paths != expected_web_paths:
-            return (
-                None,
-                "rendered AGENTS template has unexpected Memory Webs paths: "
-                f"expected {expected_web_paths!r}, found {parsed.web_memory_paths!r}",
-            )
-        if _WEB_MEMORY_INTRO_FIRST_SENTENCE not in rendered:
-            return (
-                None,
-                "rendered AGENTS template is missing the Memory Webs "
-                "instruction paragraph",
-            )
-    elif parsed.has_web_section:
-        return (
-            None,
-            "rendered AGENTS template has unexpected Memory Webs section",
-        )
-    expected_long_paths = tuple(note.relative_path for note in top_level_long_notes)
-    parsed_long_paths = tuple(entry.path for entry in parsed.long_memory_entries)
-    if parsed_long_paths != expected_long_paths:
-        return (
-            None,
-            "rendered AGENTS template has unexpected Reference Memory paths: "
-            f"expected {expected_long_paths!r}, found {parsed_long_paths!r}",
-        )
-    if top_level_long_notes and _LONG_MEMORY_INTRO_FIRST_SENTENCE not in rendered:
-        return (
-            None,
-            "rendered AGENTS template is missing the Reference Memory "
-            "instruction paragraph",
-        )
-    return rendered, None
+    return render_memory_root_units(units)
 
 
 def plan_minimal_agents_sync(
@@ -551,6 +440,12 @@ def plan_amd_memory_sync(
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
+
+    *root* selects the memory root explicitly; it defaults to the current
+    working directory only for direct CLI use, and every in-tree caller passes
+    it through. Pass the chezmoi source checkout as *source_memory_root* for
+    home roots during memory init; bundle compilation passes
+    ``root=Path.home()`` with no source override instead.
 
     *generated_short_notes* maps a root-relative core-note path to its freshly
     generated body and priority so the rendered ``AGENTS.md`` inlines current

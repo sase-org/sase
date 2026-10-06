@@ -360,7 +360,7 @@ def test_generated_task_type_web_uses_committed_agent_creatable_records(
     )
     monkeypatch.setattr(
         "sase.task_types.snapshot._project_required_plugin_packages",
-        lambda: frozenset({"sase-github"}),
+        lambda project_root=None: frozenset({"sase-github"}),
     )
 
     source, error = task_types_rendering._render_generated_task_types_web_sources()
@@ -397,7 +397,10 @@ def test_retirement_deletes_stale_task_type_strand_file(
     monkeypatch.setattr(
         task_types_rendering,
         "_agent_creatable_task_type_records",
-        lambda: (*real_records(), _fake_record("zzz_temp", "Temp Type")),
+        lambda project_root=None: (
+            *real_records(),
+            _fake_record("zzz_temp", "Temp Type"),
+        ),
     )
 
     assert run_handler() == 0
