@@ -7,8 +7,10 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
-    _PLACEHOLDER_SOURCE_LEGEND,
     placeholder_completion_subtitle,
+)
+from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels_subtitles import (
+    _PLACEHOLDER_SOURCE_LEGEND,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows_simple import (
     append_placeholder_completion_row,

@@ -11,6 +11,8 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_kinds import (
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     artifact_ref_completion_subtitle,
+)
+from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels_titles import (
     _at_reference_panel_title,
 )
 from sase.ace.tui.widgets._completion_match_highlight import append_highlighted
