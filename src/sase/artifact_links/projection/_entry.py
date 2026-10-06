@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sase.artifact_links.projection._agent_bead import project_agent_bead_rows
@@ -11,9 +12,14 @@ from sase.artifact_links.projection._agent_wait_bead import (
 from sase.artifact_links.projection._chop_agent import project_chop_agent_rows
 from sase.artifact_links.projection._model import ProjectedEdge, ProjectionInputs
 from sase.artifact_links.projection._stitch_rules import project_stitch_rules
-from sase.sdd._artifact_link_store_support import ARTIFACT_LINK_ROW_SCHEMA_VERSION
+from sase.sdd._artifact_link_store_support import (
+    ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+    canonicalize_artifact_link_ref,
+)
 
 _DESCRIPTION_MAX_LENGTH = 240
+
+_logger = logging.getLogger(__name__)
 
 
 def project_link_rows(inputs: ProjectionInputs) -> tuple[dict[str, Any], ...]:
@@ -21,7 +27,8 @@ def project_link_rows(inputs: ProjectionInputs) -> tuple[dict[str, Any], ...]:
 
     Writes nothing itself: the caller owns persistence. Each rule is
     independently best-effort, so one rule's failure never suppresses
-    another's rows.
+    another's rows. Edges whose endpoints fail ref validation are dropped
+    here so one malformed row can never reach the machine-local aggregate.
     """
 
     edges: list[ProjectedEdge] = []
@@ -29,7 +36,27 @@ def project_link_rows(inputs: ProjectionInputs) -> tuple[dict[str, Any], ...]:
     edges.extend(project_agent_bead_rows(inputs))
     edges.extend(project_agent_wait_bead_rows(inputs))
     edges.extend(project_chop_agent_rows(inputs))
-    return tuple(_row_from_edge(edge) for edge in edges)
+    return tuple(_row_from_edge(edge) for edge in edges if _edge_refs_valid(edge))
+
+
+def _edge_refs_valid(edge: ProjectedEdge) -> bool:
+    """Return whether both endpoint refs of *edge* validate.
+
+    The refs are checked but never rewritten, so emitted row identities
+    and dedup behavior do not change for valid edges.
+    """
+
+    for ref in (edge.source_ref, edge.target_ref):
+        try:
+            canonicalize_artifact_link_ref(ref)
+        except (ValueError, TypeError):
+            _logger.warning(
+                "dropping projected edge with invalid ref: rule=%s ref=%r",
+                edge.rule_id,
+                ref,
+            )
+            return False
+    return True
 
 
 def _row_from_edge(edge: ProjectedEdge) -> dict[str, Any]:

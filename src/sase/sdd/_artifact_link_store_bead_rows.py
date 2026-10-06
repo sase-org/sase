@@ -177,12 +177,19 @@ class ArtifactLinkStoreBeadRowsMixin:
         return tuple(unique_rows(collected))
 
     def _aggregate_only_rows_touching(self, artifact_ref: str) -> list[dict[str, Any]]:
+        # Check the cheap, highly selective predicates first: `row_touches`
+        # is a pure string-set check and `is_projected_row` is a dict
+        # lookup, while `_is_aggregate_only` canonicalizes both endpoint
+        # refs through the Rust binding and raises on malformed refs. An
+        # unrelated or projected malformed row must never poison this read;
+        # a malformed row that genuinely touches the shown bead and is
+        # store-backed still raises inside `_is_aggregate_only`.
         return [
             dict(row)
             for row in self.load_aggregate().get("rows", [])
-            if self._is_aggregate_only(row)
-            and row_touches(row, artifact_ref)
+            if row_touches(row, artifact_ref)
             and not is_projected_row(row)
+            and self._is_aggregate_only(row)
         ]
 
     def _iter_bead_rows(self) -> Iterable[dict[str, Any]]:

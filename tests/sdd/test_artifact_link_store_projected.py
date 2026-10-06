@@ -235,6 +235,96 @@ def test_every_aggregate_writer_converges_with_projected_rows_present(
         assert row_set(store.load_aggregate()) == expected, order
 
 
+def test_unrelated_malformed_projected_row_does_not_break_bead_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unrelated malformed projected row must not poison a bead read."""
+
+    store = _store(tmp_path, monkeypatch)
+    _patch_projected_rows(monkeypatch, ())
+    good = dict(_PROJECTED_ROW)
+    good.update(
+        {
+            "source_ref": "stitch:sase@0123456789abcdef0123456789abcdef01234567",
+            "relation": "implements",
+            "target_ref": "bead:sase-xx",
+            "origin": "manual",
+            "created_by": "bbugyi200.athena.y2",
+        }
+    )
+    malformed = dict(_PROJECTED_ROW)
+    malformed.update(
+        {
+            "source_ref": "stitch:sase@fedcba9876543210fedcba9876543210fedcba98",
+            "relation": "implements",
+            "target_ref": "bead:[sase-zz.1]",
+        }
+    )
+    assert malformed["origin"] == "projected"
+    store._write_aggregate({"rows": [good, malformed]})  # noqa: SLF001
+
+    rows = store.load_artifact_rows("bead:sase-xx", bead_owned_rows=[])
+
+    assert good in rows
+
+
+def test_unrelated_malformed_store_backed_row_does_not_break_bead_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A store-backed malformed row that touches nothing read must not raise."""
+
+    store = _store(tmp_path, monkeypatch)
+    _patch_projected_rows(monkeypatch, ())
+    good = dict(_PROJECTED_ROW)
+    good.update(
+        {
+            "source_ref": "stitch:sase@0123456789abcdef0123456789abcdef01234567",
+            "relation": "implements",
+            "target_ref": "bead:sase-xx",
+            "origin": "manual",
+            "created_by": "bbugyi200.athena.y2",
+        }
+    )
+    malformed = dict(_PROJECTED_ROW)
+    malformed.update(
+        {
+            "source_ref": "stitch:sase@fedcba9876543210fedcba9876543210fedcba98",
+            "relation": "implements",
+            "target_ref": "bead:[sase-zz.1]",
+            "origin": "manual",
+            "created_by": "bbugyi200.athena.y2",
+        }
+    )
+    store._write_aggregate({"rows": [good, malformed]})  # noqa: SLF001
+
+    rows = store.load_artifact_rows("bead:sase-xx", bead_owned_rows=[])
+
+    assert good in rows
+
+
+def test_touching_malformed_store_backed_row_still_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A malformed store-backed row touching the shown bead still raises."""
+
+    store = _store(tmp_path, monkeypatch)
+    _patch_projected_rows(monkeypatch, ())
+    touching = dict(_PROJECTED_ROW)
+    touching.update(
+        {
+            "source_ref": "bead:[sase-zz.1]",
+            "relation": "related",
+            "target_ref": "bead:sase-xx",
+            "origin": "manual",
+            "created_by": "bbugyi200.athena.y2",
+        }
+    )
+    store._write_aggregate({"rows": [touching]})  # noqa: SLF001
+
+    with pytest.raises(ValueError, match="bead id segment"):
+        store.load_artifact_rows("bead:sase-xx", bead_owned_rows=[])
+
+
 def test_volume_smoke_12500_projected_rows_rebuild_inside_budget(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

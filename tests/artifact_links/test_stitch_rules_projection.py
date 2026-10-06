@@ -192,6 +192,39 @@ def test_unreachable_cached_sha_falls_back_to_a_full_walk(tmp_path: Path) -> Non
     assert targets == {"bead:sase-bb"}
 
 
+def test_bare_bracket_bead_trailer_projects_nothing_but_keeps_valid_sibling(
+    tmp_path: Path,
+) -> None:
+    """A `SASE_BEAD=[sase-xx]` trailer (bare brackets, no reference) emits no row."""
+
+    from sase.artifact_links.projection import project_link_rows
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    _commit(
+        repo,
+        "feat: bad trailer\n\nSASE_BEAD=[sase-xx]",
+        when="2026-08-20T00:00:00+00:00",
+    )
+    _commit(
+        repo,
+        "feat: good trailer\n\nSASE_BEAD=sase-yy",
+        when="2026-08-21T00:00:00+00:00",
+    )
+
+    # The stitch rule still parses the historical trailer shape, so this
+    # pins the malformed edge the entry-point guard must drop.
+    assert any(
+        edge.target_ref == "bead:[sase-xx]"
+        for edge in project_stitch_rules(_inputs(repo))
+    )
+
+    targets = {row["target_ref"] for row in project_link_rows(_inputs(repo))}
+
+    assert "bead:[sase-xx]" not in targets
+    assert "bead:sase-yy" in targets
+
+
 def test_a_git_log_failure_degrades_to_the_cached_rows(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

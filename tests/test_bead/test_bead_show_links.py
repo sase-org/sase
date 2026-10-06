@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -131,3 +132,38 @@ def test_non_exiting_enricher_degrades_instead_of_exiting(
     detail = _detail(_issue(), include_links=False)
 
     assert enrich_with_artifact_link_neighborhood(detail) is detail
+
+
+def test_bead_show_tolerates_unrelated_malformed_projected_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`bead show` links still render with a malformed projected row nearby."""
+
+    from sase.bead import cli_detail_links
+    from tests.sdd._artifact_link_store_helpers import _store
+
+    store = _store(tmp_path, monkeypatch)
+    malformed = {
+        "schema_version": 2,
+        "source_ref": "stitch:sase@fedcba9876543210fedcba9876543210fedcba98",
+        "relation": "implements",
+        "target_ref": "bead:[sase-zz.1]",
+        "description": "commit trailer names bead [sase-zz.1]",
+        "origin": "projected",
+        "created_by": "projection:stitch-bead",
+        "created_at": "2026-08-20T00:00:00Z",
+        "uses": 1,
+    }
+    store._write_aggregate({"rows": [malformed]})  # noqa: SLF001
+    monkeypatch.setattr(
+        cli_detail_links,
+        "resolve_artifact_link_store",
+        lambda *args, **kwargs: store,
+    )
+
+    views = assemble_bead_link_neighborhood(
+        bead_id="sase-js",
+        fallback_issue=_issue(),
+    )
+
+    assert any(view.counterpart_ref == "bead:sase-ct" for view in views)

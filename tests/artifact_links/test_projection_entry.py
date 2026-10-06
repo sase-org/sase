@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.artifact_links.projection import build_projection_inputs, project_link_rows
-from sase.artifact_links.projection._model import ProjectionInputs
+from sase.artifact_links.projection._model import ProjectedEdge, ProjectionInputs
 from sase.sdd._artifact_link_store_support import ARTIFACT_LINK_ROW_SCHEMA_VERSION
 from tests._conftest_environment import redirect_sase_home
 
@@ -110,3 +110,42 @@ def test_agent_with_bead_id_and_wait_for_beads_yields_both_rows(
         ("implements", "bead:sase-xx"),
         ("awaits", "bead:sase-yy"),
     }
+
+
+def test_project_link_rows_drops_edges_with_invalid_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One malformed edge from any rule must not reach the aggregate."""
+
+    from sase.artifact_links.projection import _entry
+
+    good = ProjectedEdge(
+        source_ref="stitch:sase@0123456789abcdef0123456789abcdef01234567",
+        relation="implements",
+        target_ref="bead:sase-xx",
+        description="commit trailer names bead sase-xx",
+        rule_id="stitch-bead",
+        created_at="2026-08-20T00:00:00Z",
+    )
+    bad = ProjectedEdge(
+        source_ref="stitch:sase@fedcba9876543210fedcba9876543210fedcba98",
+        relation="implements",
+        target_ref="bead:[sase-xx]",
+        description="commit trailer names bead [sase-xx]",
+        rule_id="stitch-bead",
+        created_at="2026-08-20T00:00:00Z",
+    )
+    monkeypatch.setattr(_entry, "project_stitch_rules", lambda _inputs: (good, bad))
+    monkeypatch.setattr(_entry, "project_agent_bead_rows", lambda _inputs: ())
+    monkeypatch.setattr(_entry, "project_agent_wait_bead_rows", lambda _inputs: ())
+    monkeypatch.setattr(_entry, "project_chop_agent_rows", lambda _inputs: ())
+    inputs = ProjectionInputs(
+        project_key="gh_sase-org__sase",
+        primary_repo_root=None,
+        primary_repo_name=None,
+        agents_sidecar_root=None,
+    )
+
+    rows = project_link_rows(inputs)
+
+    assert [row["target_ref"] for row in rows] == ["bead:sase-xx"]
