@@ -195,6 +195,37 @@ def _retired_task_types_strand_paths(
     return tuple(retired)
 
 
+def retired_note_relative_paths(
+    root: Path, *, include_project_memory: bool = False
+) -> frozenset[str]:
+    """Return retired note paths for *root*, relative to *root*.
+
+    Collects every retired-note helper above (generated project notes,
+    artifact-relations notes, and task-type notes and strands) and drops
+    paths that escape *root*. The instruction compiler excludes these disk
+    notes the same way memory init does.
+    """
+    retired = (
+        *_retired_note_paths(root, include_project_memory=include_project_memory),
+        *_retired_artifact_relations_note_path(root),
+        *_retired_task_types_note_path(
+            root, include_project_memory=include_project_memory
+        ),
+        *_retired_task_types_strand_paths(
+            root, include_project_memory=include_project_memory
+        ),
+    )
+    root_resolved = root.resolve(strict=False)
+    excluded: set[str] = set()
+    for path in retired:
+        resolved = path.resolve(strict=False)
+        try:
+            excluded.add(resolved.relative_to(root_resolved).as_posix())
+        except ValueError:
+            continue
+    return frozenset(excluded)
+
+
 def _amd_sync_plan(
     root: Path,
     *,
@@ -222,7 +253,7 @@ def _amd_sync_plan(
     )
 
 
-def _memory_web_root_plan(
+def memory_web_root_plan(
     root: Path,
     *,
     source_memory_root: Path,
@@ -420,7 +451,7 @@ def memory_root_context(
         path.resolve(strict=False).relative_to(root_resolved).as_posix()
         for path in retired_note_paths
     )
-    memory_web_plan = _memory_web_root_plan(
+    memory_web_plan = memory_web_root_plan(
         root,
         source_memory_root=migration.source_memory_root,
         include_project_memory=include_project_memory,

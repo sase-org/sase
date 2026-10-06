@@ -36,7 +36,9 @@ still launch a hard-disabled CLI. See
 
 `sase instructions verify` shows what each provider's SASE runs and native helpers
 actually loaded, read from the providers' own session records — never from anything SASE
-wrote. The command reports; it does not gate (exit 0 even when rows show bugs).
+wrote. The command reports; it does not gate (exit 0 even when rows show bugs). See
+[Instruction Bundles](instruction_bundles.md) for the memory-built bundles behind these
+columns.
 
 | Column             | Meaning                                                                                          |
 | ------------------ | ------------------------------------------------------------------------------------------------ |

@@ -17,6 +17,7 @@ nav:
       - Content Layout Migration: content_layout.md
       - Agent Providers: agent_providers.md
       - Instruction Inventory: instruction_inventory.md
+      - Instruction Bundles: instruction_bundles.md
   - The Basics:
       - Memory: memory.md
       - Memory History: memory_history.md
