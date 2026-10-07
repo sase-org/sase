@@ -95,6 +95,24 @@ def monitor_start_form(
     return " ".join(shlex.quote(part) for part in parts)
 
 
+def _finalizer_owned_turn_is_active(
+    env: Mapping[str, str] | None = None,
+) -> bool:
+    """Return whether a host finalizer owns the current provider turn.
+
+    Imported lazily so ``sase.finalizers`` (a heavy package) is not pulled
+    into every process that imports this module; the check itself is owned
+    by :func:`sase.finalizers.owned_turn.finalizer_owned_turn_is_active`.
+    """
+    import os
+
+    from sase.finalizers import owned_turn as _owned_turn
+
+    return _owned_turn.finalizer_owned_turn_is_active(
+        os.environ if env is None else env
+    )
+
+
 def _run_words(resolved: ResolvedToolArgv) -> list[str]:
     """Return the ``sase tool run`` remainder words for a resolved tool."""
 
@@ -247,12 +265,15 @@ def is_joinable(
 
     Joinable means the run is unsettled, carries a starter, has no stop
     request, is unjoined (or joined by the caller's own monitor), and names
-    the caller as its starter agent.
+    the caller as its starter agent. A finalizer-owned provider turn is
+    never joinable: the monitor join would end the finalizer's own turn.
     """
 
     import os
 
     if not isinstance(run, dict):
+        return False
+    if _finalizer_owned_turn_is_active(os.environ if env is None else env):
         return False
     from typing import cast
 

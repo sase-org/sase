@@ -57,6 +57,13 @@ _MODEL_WITHOUT_NEXT = (
 
 def handle_monitor_start(args: argparse.Namespace) -> int:
     """Start a command as a monitor agent-session member."""
+    from sase.monitor.start_flow import refuse_finalizer_owned_monitor_start
+
+    try:
+        refuse_finalizer_owned_monitor_start()
+    except MonitorError as exc:
+        print(f"sase monitor start: {exc}", file=sys.stderr)
+        return 1
     from sase.monitor.join import default_join_label, default_join_reason
 
     join_run = optional_text(getattr(args, "join", None))

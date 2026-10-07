@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
 from sase.axe.run_agent_helpers_artifacts import update_meta_fields
+from sase.finalizers.owned_turn import finalizer_owned_turn_is_active
 from sase.gate_turn import naming
 from sase.gate_turn.lane_lock import gate_lane_lock
 from sase.gate_turn.member import create_gate_turn_member
@@ -40,7 +41,6 @@ from sase.plan_chain import (
 )
 from sase.workflows.utils import get_project_file_path
 
-_FINALIZER_OWNED_TURN_ENV = "SASE_FINALIZER_OWNED_TURN"
 _FINALIZER_OWNED_TURN_ERROR = (
     "gate turns cannot be created from a host finalizer turn: this turn cannot "
     "end the agent run, so the gate could never hand off. Finish the finalizer's "
@@ -98,12 +98,11 @@ def create_gate_turn(
     | None = None,
 ) -> GateTurnCreation:
     """Create a gate-turn member, then create the durable gate."""
+    if finalizer_owned_turn_is_active():
+        raise GateTurnError(_FINALIZER_OWNED_TURN_ERROR)
     spec = _spec_from_request(request)
     if spec.turn is None:
         raise GateTurnError("gate turn creation requires a shell block")
-    if _finalizer_owned_turn_is_active():
-        raise GateTurnError(_FINALIZER_OWNED_TURN_ERROR)
-    assert spec.request_id is not None
     begin_gate_intent(spec.kind, request_id=spec.request_id)
 
     try:
@@ -434,11 +433,6 @@ def _record_creator_claim(artifacts_dir: str, move: GateClaimMove) -> None:
             "gate_creator_claim_pinned": claim.pinned,
         },
     )
-
-
-def _finalizer_owned_turn_is_active() -> bool:
-    value = (os.environ.get(_FINALIZER_OWNED_TURN_ENV) or "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
 
 
 def _read_required_record(project_name: str, artifacts_dir: str) -> GateTurnRecord:

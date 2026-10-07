@@ -60,7 +60,7 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     6. Kill the agent runner's process group via SIGTERM
     """
     try:
-        artifacts_dir = handoff_guard()
+        artifacts_dir = handoff_guard(command="sase plan propose")
     except PendingHandoffError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)

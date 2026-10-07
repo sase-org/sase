@@ -227,7 +227,7 @@ def handle_pipe_command(
     4. Write ``.sase_pipe_pending`` and SIGTERM the runner group
     """
     try:
-        artifacts_dir = handoff_guard()
+        artifacts_dir = handoff_guard(command="sase pipe")
     except PendingHandoffError as exc:
         message = str(exc)
         if message in {"SASE_AGENT is unset", "SASE_ARTIFACTS_DIR is unset"}:

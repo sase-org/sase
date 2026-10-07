@@ -47,6 +47,34 @@ from sase.finalizers.status_summary import FinalizerStatusTracker
 from sase.llm_provider.types import ModelTier
 
 
+def controller_failure_for_handoff(
+    exc: BaseException,
+    artifacts_dir: str | None,
+) -> tuple[str, str] | None:
+    """Return the (code, message) for a handoff-killed finalizer turn, if any.
+
+    When a finalizer-owned provider turn ends because a turn-ending handoff
+    fired anyway (a killed provider plus a pending handoff marker), the
+    failure is named ``finalizer_turn_handoff`` instead of the generic
+    ``controller_exception`` so the repair history names the real cause.
+    Returns ``None`` when no pending handoff marker is present.
+    """
+    if artifacts_dir is None:
+        return None
+    from sase.agent.pending_handoff import pending_handoff_kind
+
+    kind = pending_handoff_kind(artifacts_dir)
+    if kind is None:
+        return None
+    return (
+        "finalizer_turn_handoff",
+        f"finalizer-owned provider turn ended by a {kind} handoff "
+        f"({type(exc).__name__}: {exc}); turn-ending handoffs are refused "
+        "inside finalizer-owned turns, so this marker means the refusal was "
+        "bypassed or predates it",
+    )
+
+
 def _journal_handoff_skip(artifacts_dir: str | None) -> None:
     """Best-effort record a handoff skip; silent without a dir and marker."""
     if not artifacts_dir:
@@ -384,11 +412,12 @@ def run_finalizers(
             "success"
         ):
             instance_id = active_instance_id or entries[0]["instance_id"]
-            failed = failed_result(
-                instance_id,
-                "controller_exception",
-                f"{type(exc).__name__}: {exc}",
-            )
+            handoff_failure = controller_failure_for_handoff(exc, artifacts_dir)
+            if handoff_failure is not None:
+                code, message = handoff_failure
+            else:
+                code, message = "controller_exception", f"{type(exc).__name__}: {exc}"
+            failed = failed_result(instance_id, code, message)
             remember_result(results_by_id, failed)
             sync_instance_events(
                 journal,

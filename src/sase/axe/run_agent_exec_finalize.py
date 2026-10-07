@@ -6,6 +6,7 @@ helper imports remain available here for compatibility with existing callers.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from typing import Any
@@ -101,6 +102,25 @@ def _last_saved_chat_path(state: LoopState) -> str | None:
     if not state.saved_chat_paths:
         return None
     return state.saved_chat_paths[-1][1]
+
+
+def finalizer_reports_failure(artifacts_dir: str | None) -> bool:
+    """Return whether the finalizer aggregate in *artifacts_dir* says failed.
+
+    A shell handoff (monitor, gate) must not mask a failed finalizer as a
+    completed run: when this is true the handoff done marker is written with
+    a ``failed`` outcome instead of ``completed``.
+    """
+    if not artifacts_dir:
+        return False
+    try:
+        with open(
+            os.path.join(artifacts_dir, "finalizer_result.json"), encoding="utf-8"
+        ) as handle:
+            payload = json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    return isinstance(payload, dict) and payload.get("status") == "failed"
 
 
 def _build_retry_metadata(tracker: RetryTracker) -> dict[str, Any] | None:
@@ -243,6 +263,10 @@ def finalize_loop(
         _enforce_artifact_retention()
 
         completed_outcome = "completed"
+        if state.loop_outcome in SHELL_HANDOFF_OUTCOMES and finalizer_reports_failure(
+            state.current_artifacts_dir
+        ):
+            completed_outcome = "failed"
         if state.loop_outcome == "completed" and _is_workflow_noop(
             state.current_artifacts_dir
         ):

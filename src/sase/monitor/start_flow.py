@@ -18,6 +18,10 @@ from sase.continuation_capture.rollout import (
     monitor_continuation_protocol_for_new_start,
     monitor_continuation_records_enabled,
 )
+from sase.finalizers.owned_turn import (
+    finalizer_owned_turn_is_active,
+    finalizer_owned_turn_refusal,
+)
 from sase.logs._bounded import log_file_lock
 
 from . import naming, store_lane
@@ -55,6 +59,29 @@ from .store_lane import LaneMonitorReads
 from .transaction import monitor_lane_lock_path
 
 
+def finalizer_owned_monitor_refusal() -> str:
+    """Return the refusal for ``sase monitor start`` in a finalizer turn."""
+    return finalizer_owned_turn_refusal(
+        "sase monitor start",
+        inline_hint=(
+            "Re-wait inline with the printed `sase tool wait <run-id>` form, "
+            "or run the command in the foreground instead, then finish the "
+            "repair in this turn."
+        ),
+    )
+
+
+def refuse_finalizer_owned_monitor_start() -> None:
+    """Raise before any monitor state exists when a finalizer owns this turn.
+
+    Runs before identity resolution, replay lookup, member creation, proc
+    submit, claim moves, and the handoff marker, so a refused start leaves
+    no monitor record, proc, transferred claim, or pending handoff behind.
+    """
+    if finalizer_owned_turn_is_active():
+        raise MonitorError(finalizer_owned_monitor_refusal())
+
+
 def _prepared_completion_accept(
     request: StartMonitorRequest, starter_artifacts_dir: str | None
 ) -> str | None:
@@ -90,6 +117,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
     its own agent session -- and the durable agent session is taken from that artifact.
     An explicit lane still resolves to the newest matching agent-session member.
     """
+    refuse_finalizer_owned_monitor_start()
     timer = StartTimer()
     identity = resolve_start_identity(request)
     timer.mark("resolve_identity")
@@ -326,4 +354,8 @@ def _replayed_lane_monitor(
     )
 
 
-__all__ = ["start_monitor"]
+__all__ = [
+    "finalizer_owned_monitor_refusal",
+    "refuse_finalizer_owned_monitor_start",
+    "start_monitor",
+]
