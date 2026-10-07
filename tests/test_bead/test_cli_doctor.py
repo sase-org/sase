@@ -12,7 +12,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from sase.bead import cli_admin
+from sase.bead import cli_admin, cli_admin_doctor, cli_admin_repairs
 from sase.bead.config import load_config, save_config
 from sase.bead.design_ref_repair import (
     DesignRefRepairPreview,
@@ -179,7 +179,7 @@ def test_doctor_verify_cache_reports_drift(
 
 
 def test_doctor_renders_fresh_read_model_status_line() -> None:
-    line = cli_admin._render_read_model_status(
+    line = cli_admin_doctor._render_read_model_status(
         {
             "location": "/repo/.git/sase/bead-read-model/model.sqlite",
             "fresh": True,
@@ -203,7 +203,7 @@ def test_doctor_renders_fresh_read_model_status_line() -> None:
         "outcomes serve=11 tail=2 rebuild=1, "
         "last refresh: tail (3 tail events over 2 streams))"
     )
-    legacy_line = cli_admin._render_read_model_status(
+    legacy_line = cli_admin_doctor._render_read_model_status(
         {
             "location": "/repo/.git/sase/bead-read-model/model.sqlite",
             "fresh": True,
@@ -220,10 +220,10 @@ def test_doctor_renders_fresh_read_model_status_line() -> None:
         "(generation 4, 1024 bytes, 7 issues, last sweep 3s ago, fresh)"
     )
     assert (
-        cli_admin._render_read_model_status(None)
+        cli_admin_doctor._render_read_model_status(None)
         == "Read model: unavailable with the installed core"
     )
-    assert cli_admin._render_read_model_verify(None) == [
+    assert cli_admin_doctor._render_read_model_verify(None) == [
         "Read model verify: unavailable with the installed core"
     ]
 
@@ -300,7 +300,7 @@ def test_fix_issue_prefix_rewrites_config_and_preserves_existing_ids(
         commits.append(message)
         return False
 
-    monkeypatch.setattr(cli_admin, "auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(cli_admin_repairs, "auto_commit_bead_store", auto_commit)
 
     cli_admin.handle_bead_doctor(_doctor_args(fix_issue_prefix=True, yes=True))
 
@@ -351,20 +351,20 @@ def test_plain_doctor_forwards_roots_without_planning_or_writing(
         "sase.bead.attachment_doctor.inspect_attachment_health",
         lambda: _AttachmentHealthReport(),
     )
-    monkeypatch.setattr(cli_admin, "_resolve_doctor_plan_roots", lambda: roots)
+    monkeypatch.setattr(cli_admin_doctor, "_resolve_doctor_plan_roots", lambda: roots)
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "_resolve_doctor_reference_context",
         lambda: None,
     )
-    monkeypatch.setattr(cli_admin, "get_project", lambda: nullcontext(Project()))
+    monkeypatch.setattr(cli_admin_doctor, "get_project", lambda: nullcontext(Project()))
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "plan_design_ref_repairs",
         lambda *_args, **_kwargs: pytest.fail("plain doctor planned repairs"),
     )
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "bead_store_mutation",
         lambda *_args: pytest.fail("plain doctor opened a mutation"),
     )
@@ -384,7 +384,7 @@ def test_doctor_root_discovery_degrades_to_explicit_unavailable(
         lambda *_args: (_ for _ in ()).throw(RuntimeError("unavailable")),
     )
 
-    assert cli_admin._resolve_doctor_plan_roots() == ()
+    assert cli_admin_doctor._resolve_doctor_plan_roots() == ()
 
 
 def test_fix_preview_cancellation_never_opens_mutation(
@@ -412,25 +412,25 @@ def test_fix_preview_cancellation_never_opens_mutation(
         doctor=lambda _roots, _context: ["WARNING"],
         list_issues=lambda: [issue],
     )
-    monkeypatch.setattr(cli_admin, "_resolve_doctor_plan_roots", lambda: ())
+    monkeypatch.setattr(cli_admin_doctor, "_resolve_doctor_plan_roots", lambda: ())
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "_resolve_doctor_reference_context",
         lambda: None,
     )
-    monkeypatch.setattr(cli_admin, "get_project", lambda: nullcontext(project))
+    monkeypatch.setattr(cli_admin_doctor, "get_project", lambda: nullcontext(project))
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "plan_design_ref_repairs",
         lambda *_args, **_kwargs: preview,
     )
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "_confirm_design_ref_repairs",
         lambda _count: False,
     )
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "bead_store_mutation",
         lambda *_args: pytest.fail("cancelled repair opened a mutation"),
     )
@@ -466,16 +466,16 @@ def test_confirmed_fix_uses_update_events_and_one_aggregate_commit(
         return False
 
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "_resolve_doctor_plan_roots",
         lambda: (plans_root,),
     )
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "_confirm_design_ref_repairs",
         lambda _count: True,
     )
-    monkeypatch.setattr(cli_admin, "auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(cli_admin_doctor, "auto_commit_bead_store", auto_commit)
 
     cli_admin.handle_bead_doctor(argparse.Namespace(fix_design_refs=True))
 
@@ -530,19 +530,19 @@ def test_stale_preview_performs_no_updates_or_commit(
             commit=lambda _message: pytest.fail("stale preview committed"),
         )
 
-    monkeypatch.setattr(cli_admin, "_resolve_doctor_plan_roots", lambda: ())
-    monkeypatch.setattr(cli_admin, "get_project", lambda: nullcontext(project))
+    monkeypatch.setattr(cli_admin_doctor, "_resolve_doctor_plan_roots", lambda: ())
+    monkeypatch.setattr(cli_admin_doctor, "get_project", lambda: nullcontext(project))
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "plan_design_ref_repairs",
         lambda *_args, **_kwargs: next(previews),
     )
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_doctor,
         "_confirm_design_ref_repairs",
         lambda _count: True,
     )
-    monkeypatch.setattr(cli_admin, "bead_store_mutation", mutation_scope)
+    monkeypatch.setattr(cli_admin_doctor, "bead_store_mutation", mutation_scope)
 
     cli_admin.handle_bead_doctor(argparse.Namespace(fix_design_refs=True))
 
@@ -553,13 +553,13 @@ def test_confirmation_requires_interactive_yes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        cli_admin.sys,
+        cli_admin_doctor.sys,
         "stdin",
         SimpleNamespace(isatty=lambda: False),
     )
-    assert cli_admin._confirm_design_ref_repairs(1) is False
+    assert cli_admin_doctor._confirm_design_ref_repairs(1) is False
     monkeypatch.setattr(
-        cli_admin.sys,
+        cli_admin_doctor.sys,
         "stdin",
         SimpleNamespace(isatty=lambda: True),
     )
@@ -567,7 +567,7 @@ def test_confirmation_requires_interactive_yes(
         "builtins.input",
         lambda _prompt: (_ for _ in ()).throw(EOFError),
     )
-    assert cli_admin._confirm_design_ref_repairs(1) is False
+    assert cli_admin_doctor._confirm_design_ref_repairs(1) is False
 
 
 def test_fix_projection_repairs_expected_drift_and_second_run_is_noop(
@@ -588,7 +588,7 @@ def test_fix_projection_repairs_expected_drift_and_second_run_is_noop(
         commits.append(message)
         return False
 
-    monkeypatch.setattr(cli_admin, "auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(cli_admin_repairs, "auto_commit_bead_store", auto_commit)
     args = argparse.Namespace(
         fix_design_refs=False,
         fix_projection=True,
@@ -626,7 +626,7 @@ def test_fix_projection_refuses_row_set_drift(
     projection.write_text("", encoding="utf-8")
     before = projection.read_bytes()
     monkeypatch.setattr(
-        cli_admin,
+        cli_admin_repairs,
         "bead_store_mutation",
         lambda *_args: pytest.fail("unsafe projection repair opened a mutation"),
     )
@@ -677,7 +677,7 @@ def test_projection_repair_guard_refuses_unexpected_shapes(
     current = {"status": "closed", **current_updates}
     reduced = {"status": "closed", **reduced_updates}
 
-    refusal = cli_admin._projection_repair_refusal(
+    refusal = cli_admin_repairs._projection_repair_refusal(
         [
             {
                 "issue_id": "beads-1",
