@@ -6,6 +6,12 @@ markers that live inside an artifact directory (``done.json``,
 ``agent_meta.json``, ``running.json``, etc.). The top-level scan/record wires
 and the conversion helpers live in sibling modules.
 
+This module is the stable import path for the marker wires. The
+finalizer-status summary lives in
+:mod:`sase.core.agent_scan_wire_markers_finalizer` and the created-epic /
+epic-follow wires live in :mod:`sase.core.agent_scan_wire_markers_epic`;
+both are re-exported here.
+
 See :mod:`sase.core.agent_scan_wire` for the schema-version contract and the
 overall scope of the snapshot scan boundary.
 """
@@ -16,318 +22,21 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sase.core.agent_scan_wire_agent_session_turn import AgentSessionTurnWire
-
-#: Maximum characters kept for any ``finalizer_status`` string (plan §3.3 C5).
-FINALIZER_STATUS_STR_CAP = 120
-
-#: Maximum per-run instance entries kept on the scan wire (plan §3.3 C5).
-FINALIZER_STATUS_MAX_INSTANCES = 16
-
-
-@dataclass(frozen=True)
-class FinalizerStatusRunnerWire:
-    """Runner that executed the finalizer phase (plan §3.3 C5)."""
-
-    pid: int | None = None
-    identity: str | None = None
-
-
-@dataclass(frozen=True)
-class FinalizerStatusInstanceWire:
-    """One finalizer instance entry of the row summary (plan §3.3 C5)."""
-
-    id: str = ""
-    status: str | None = None
-    attempt: int | None = None
-    max_attempts: int | None = None
-    op: str | None = None
-    step: str | None = None
-    started_at: float | None = None
-    finished_at: float | None = None
-    headline: str | None = None
-    warnings: int | None = None
-    reason: str | None = None
-
-
-@dataclass(frozen=True)
-class FinalizerStatusSummaryWire:
-    """Tolerant row summary of finalizer execution (plan §3.3 C5)."""
-
-    schema_version: int | None = None
-    phase: str | None = None
-    reason: str | None = None
-    status: str | None = None
-    plan_digest: str | None = None
-    run_id: str | None = None
-    started_at: float | None = None
-    updated_at: float | None = None
-    runner: FinalizerStatusRunnerWire | None = None
-    instances: list[FinalizerStatusInstanceWire] = field(default_factory=list)
-    instance_count: int | None = None
-
-
-def _capped_status_str(value: object) -> str | None:
-    """Return *value* capped to the C5 string ceiling, or None when not a str."""
-    if not isinstance(value, str):
-        return None
-    if len(value) <= FINALIZER_STATUS_STR_CAP:
-        return value
-    return value[:FINALIZER_STATUS_STR_CAP]
-
-
-def _status_int(value: object) -> int | None:
-    """Return *value* as a non-negative int, or None when unusable.
-
-    Bools, negative numbers, NaN/infinite floats, and non-numeric values are
-    dropped, mirroring the Rust scanner's lenient coercion.
-    """
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value if value >= 0 else None
-    if isinstance(value, float):
-        if value != value or value in (float("inf"), float("-inf")):
-            return None
-        if value < 0 or not value.is_integer():
-            return None
-        return int(value)
-    return None
-
-
-def _status_float(value: object) -> float | None:
-    """Return *value* as a non-negative finite float, or None when unusable."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        number = float(value)
-        if number != number or number in (float("inf"), float("-inf")):
-            return None
-        return number if number >= 0 else None
-    return None
-
-
-def finalizer_status_from_mapping(
-    data: object,
-) -> FinalizerStatusSummaryWire | None:
-    """Coerce a raw ``finalizer_status`` mapping leniently (plan §3.3 C5).
-
-    A non-mapping value, or a missing or empty ``phase`` string, gives None.
-    Strings are capped at 120 characters, at most 16 instances are kept,
-    entries without a string ``id`` are dropped, negative/NaN/non-numeric
-    numbers are dropped, and unknown keys are ignored. A malformed summary
-    never raises. Mirrors the Rust scanner's ``finalizer_status_from_value``.
-    """
-    if not isinstance(data, dict):
-        return None
-    phase = _capped_status_str(data.get("phase"))
-    if not phase:
-        return None
-    raw_instances = data.get("instances")
-    instances: list[FinalizerStatusInstanceWire] = []
-    if isinstance(raw_instances, list):
-        for entry in raw_instances:
-            if not isinstance(entry, dict):
-                continue
-            entry_id = _capped_status_str(entry.get("id"))
-            if not entry_id:
-                continue
-            instances.append(
-                FinalizerStatusInstanceWire(
-                    id=entry_id,
-                    status=_capped_status_str(entry.get("status")),
-                    attempt=_status_int(entry.get("attempt")),
-                    max_attempts=_status_int(entry.get("max_attempts")),
-                    op=_capped_status_str(entry.get("op")),
-                    step=_capped_status_str(entry.get("step")),
-                    started_at=_status_float(entry.get("started_at")),
-                    finished_at=_status_float(entry.get("finished_at")),
-                    headline=_capped_status_str(entry.get("headline")),
-                    warnings=_status_int(entry.get("warnings")),
-                    reason=_capped_status_str(entry.get("reason")),
-                )
-            )
-            if len(instances) >= FINALIZER_STATUS_MAX_INSTANCES:
-                break
-    raw_runner = data.get("runner")
-    runner: FinalizerStatusRunnerWire | None = None
-    if isinstance(raw_runner, dict):
-        runner = FinalizerStatusRunnerWire(
-            pid=_status_int(raw_runner.get("pid")),
-            identity=_capped_status_str(raw_runner.get("identity")),
-        )
-    return FinalizerStatusSummaryWire(
-        schema_version=_status_int(data.get("schema_version")),
-        phase=phase,
-        reason=_capped_status_str(data.get("reason")),
-        status=_capped_status_str(data.get("status")),
-        plan_digest=_capped_status_str(data.get("plan_digest")),
-        run_id=_capped_status_str(data.get("run_id")),
-        started_at=_status_float(data.get("started_at")),
-        updated_at=_status_float(data.get("updated_at")),
-        runner=runner,
-        instances=instances,
-        instance_count=_status_int(data.get("instance_count")),
-    )
-
-
-@dataclass(frozen=True)
-class CreatedEpicWire:
-    """One entry of ``agent_meta.json``'s ``created_epics`` record.
-
-    Authoritative run → epic entry written by ``sase bead work`` when it
-    materializes an epic-tier plan bead on the run's behalf. ``via`` is
-    ``host_launch`` or ``agent_command``.
-    """
-
-    bead_id: str = ""
-    project: str | None = None
-    plan_ref: str | None = None
-    created_at: str | None = None
-    via: str | None = None
-
-
-def _created_epic_str(value: object) -> str | None:
-    """Return *value* as a stripped string, or None when not usable."""
-    if not isinstance(value, str):
-        return None
-    stripped = value.strip()
-    return stripped or None
-
-
-def wait_for_epics_of_from_value(value: object) -> list[str]:
-    """Coerce a raw ``wait_for_epics_of`` value leniently; never raises."""
-    if not isinstance(value, list):
-        return []
-    result: list[str] = []
-    for item in value:
-        if isinstance(item, str) and item.strip():
-            result.append(item.strip())
-    return result
-
-
-@dataclass(frozen=True)
-class WaitEpicFollowEntryWire:
-    """One persisted ``wait_epic_follows`` stage entry.
-
-    Written by the epic-follow release phase when an armed
-    ``%wait(for_epic=)`` target reaches ``launching``, ``following``, or
-    ``blocked``. ``added_bead_ids`` holds only the epic ids this promotion
-    appended to ``wait_for_beads`` for that target.
-    """
-
-    target: str = ""
-    state: str = "none"
-    epic_ids: list[str] = field(default_factory=list)
-    added_bead_ids: list[str] = field(default_factory=list)
-    members: list[str] = field(default_factory=list)
-    since: float = 0.0
-    reason: str | None = None
-    detail: str | None = None
-    resume_command: str | None = None
-    skipped_epic_ids: list[str] = field(default_factory=list)
-
-
-def _follow_entry_str_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
-
-
-def _follow_entry_optional_str(value: object) -> str | None:
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
-
-
-def _follow_entry_since(value: object) -> float:
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value)
-    return 0.0
-
-
-def wait_epic_follows_from_value(value: object) -> list[WaitEpicFollowEntryWire]:
-    """Coerce a raw ``wait_epic_follows`` value leniently; never raises.
-
-    Entries without a target or without a persisted stage state
-    (``launching`` / ``following`` / ``blocked``) are dropped and unknown
-    keys are ignored, mirroring the Rust scanner's coercion.
-    """
-    if not isinstance(value, list):
-        return []
-    entries: list[WaitEpicFollowEntryWire] = []
-    for item in value:
-        if isinstance(item, WaitEpicFollowEntryWire):
-            if item.target.strip() and item.state.strip().lower() in (
-                "launching",
-                "following",
-                "blocked",
-            ):
-                entries.append(item)
-            continue
-        if not isinstance(item, dict):
-            continue
-        target = _follow_entry_optional_str(item.get("target"))
-        if target is None:
-            continue
-        raw_state = item.get("state")
-        state = (
-            raw_state.strip().lower()
-            if isinstance(raw_state, str) and raw_state.strip()
-            else ""
-        )
-        if state not in ("launching", "following", "blocked"):
-            continue
-        entries.append(
-            WaitEpicFollowEntryWire(
-                target=target,
-                state=state,
-                epic_ids=_follow_entry_str_list(item.get("epic_ids")),
-                added_bead_ids=_follow_entry_str_list(item.get("added_bead_ids")),
-                members=_follow_entry_str_list(item.get("members")),
-                since=_follow_entry_since(item.get("since")),
-                reason=_follow_entry_optional_str(item.get("reason")),
-                detail=_follow_entry_optional_str(item.get("detail")),
-                resume_command=_follow_entry_optional_str(item.get("resume_command")),
-                skipped_epic_ids=_follow_entry_str_list(item.get("skipped_epic_ids")),
-            )
-        )
-    return entries
-
-
-def created_epics_from_value(value: object) -> list[CreatedEpicWire]:
-    """Coerce a raw ``created_epics`` value leniently; never raises.
-
-    Entries without a string ``bead_id`` are dropped and unknown keys are
-    ignored, mirroring the Rust scanner's coercion.
-    """
-    if not isinstance(value, list):
-        return []
-    entries: list[CreatedEpicWire] = []
-    for item in value:
-        if isinstance(item, str):
-            bead_id = _created_epic_str(item)
-            if bead_id is not None:
-                entries.append(CreatedEpicWire(bead_id=bead_id))
-            continue
-        if isinstance(item, CreatedEpicWire):
-            if _created_epic_str(item.bead_id) is not None:
-                entries.append(item)
-            continue
-        if not isinstance(item, dict):
-            continue
-        bead_id = _created_epic_str(item.get("bead_id"))
-        if bead_id is None:
-            continue
-        entries.append(
-            CreatedEpicWire(
-                bead_id=bead_id,
-                project=_created_epic_str(item.get("project")),
-                plan_ref=_created_epic_str(item.get("plan_ref")),
-                created_at=_created_epic_str(item.get("created_at")),
-                via=_created_epic_str(item.get("via")),
-            )
-        )
-    return entries
+from sase.core.agent_scan_wire_markers_epic import (
+    CreatedEpicWire,
+    WaitEpicFollowEntryWire,
+    created_epics_from_value,
+    wait_epic_follows_from_value,
+    wait_for_epics_of_from_value,
+)
+from sase.core.agent_scan_wire_markers_finalizer import (
+    FINALIZER_STATUS_MAX_INSTANCES as FINALIZER_STATUS_MAX_INSTANCES,
+    FINALIZER_STATUS_STR_CAP as FINALIZER_STATUS_STR_CAP,
+    FinalizerStatusInstanceWire,
+    FinalizerStatusRunnerWire,
+    FinalizerStatusSummaryWire,
+    finalizer_status_from_mapping,
+)
 
 
 @dataclass(frozen=True)
