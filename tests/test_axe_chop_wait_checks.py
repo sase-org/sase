@@ -61,7 +61,7 @@ def test_successful_workflow_name_dependency_resolves(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["wf"]}
+    assert ready == {"resolved_deps": ["wf"], "released_by": "wait_checks"}
 
 
 def test_shared_resolver_matches_wait_checks_workflow_fixture(
@@ -98,7 +98,7 @@ def test_shared_resolver_matches_wait_checks_workflow_fixture(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["wf"]}
+    assert ready == {"resolved_deps": ["wf"], "released_by": "wait_checks"}
 
 
 def test_dependency_launched_after_waiter_eventually_resolves(
@@ -120,7 +120,7 @@ def test_dependency_launched_after_waiter_eventually_resolves(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["late-dep"]}
+    assert ready == {"resolved_deps": ["late-dep"], "released_by": "wait_checks"}
 
 
 def test_tribe_dependency_resolves_to_next_tribe_entity(
@@ -157,7 +157,7 @@ def test_tribe_dependency_resolves_to_next_tribe_entity(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["@epic"]}
+    assert ready == {"resolved_deps": ["@epic"], "released_by": "wait_checks"}
 
 
 def test_concrete_indexed_wait_marker_resolves_without_template_marker(
@@ -180,7 +180,7 @@ def test_concrete_indexed_wait_marker_resolves_without_template_marker(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["build-3"]}
+    assert ready == {"resolved_deps": ["build-3"], "released_by": "wait_checks"}
 
 
 def test_multiple_waiting_dependencies_scan_artifacts_once(

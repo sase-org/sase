@@ -35,7 +35,7 @@ def test_submitted_planner_resolves_plan_row_wait(tmp_path: Path, monkeypatch) -
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["planner--plan"]}
+    assert ready == {"resolved_deps": ["planner--plan"], "released_by": "wait_checks"}
 
 
 def test_renamed_plan_root_does_not_shadow_submitted_planner_alias(
@@ -78,7 +78,7 @@ def test_submitted_planner_legacy_dot_plan_alias_resolves(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["planner.plan"]}
+    assert ready == {"resolved_deps": ["planner.plan"], "released_by": "wait_checks"}
 
 
 def test_submitted_planner_does_not_resolve_agent_session_wait(
@@ -103,7 +103,7 @@ def test_submitted_planner_minimal_meta_resolves_plan_row_wait(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["planner--plan"]}
+    assert ready == {"resolved_deps": ["planner--plan"], "released_by": "wait_checks"}
 
 
 def test_submitted_planner_without_plan_path_does_not_resolve(

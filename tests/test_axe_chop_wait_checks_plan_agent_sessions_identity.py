@@ -74,7 +74,7 @@ def test_identity_wait_successful_plan_agent_session_generation_resolves(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["planfam"]}
+    assert ready == {"resolved_deps": ["planfam"], "released_by": "wait_checks"}
 
 
 def test_identity_wait_failed_plan_agent_session_generation_keeps_waiting(
@@ -147,7 +147,7 @@ def test_queued_agent_session_child_does_not_block_its_parent_dependency(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((child_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["b"]}
+    assert ready == {"resolved_deps": ["b"], "released_by": "wait_checks"}
 
 
 def test_queued_agent_session_child_blocks_external_wait_on_whole_agent_session(
@@ -227,10 +227,12 @@ def test_queued_agent_session_siblings_do_not_mutually_block_parent_dependency(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert json.loads((first_child_dir / "ready.json").read_text()) == {
-        "resolved_deps": ["b"]
+        "resolved_deps": ["b"],
+        "released_by": "wait_checks",
     }
     assert json.loads((second_child_dir / "ready.json").read_text()) == {
-        "resolved_deps": ["b"]
+        "resolved_deps": ["b"],
+        "released_by": "wait_checks",
     }
 
 

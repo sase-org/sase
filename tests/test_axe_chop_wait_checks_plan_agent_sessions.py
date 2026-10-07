@@ -125,7 +125,7 @@ def test_successful_plan_agent_session_dependency_resolves(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["planfam"]}
+    assert ready == {"resolved_deps": ["planfam"], "released_by": "wait_checks"}
 
 
 def test_completed_monitor_member_releases_plan_agent_session_waiter(
@@ -174,7 +174,7 @@ def test_completed_monitor_member_releases_plan_agent_session_waiter(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["monitor-lane"]}
+    assert ready == {"resolved_deps": ["monitor-lane"], "released_by": "wait_checks"}
 
 
 def test_settled_gate_member_releases_plan_agent_session_waiter_without_unknown_log(
@@ -214,7 +214,7 @@ def test_settled_gate_member_releases_plan_agent_session_waiter_without_unknown_
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["gate-lane"]}
+    assert ready == {"resolved_deps": ["gate-lane"], "released_by": "wait_checks"}
     out = capsys.readouterr().out
     assert "Unknown done outcome blocks waiter" not in out
     assert "unknown_outcome=0" in out
@@ -266,7 +266,7 @@ def test_wait_checks_monitor_handoff_successor_releases_plan_agent_session(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["monitor-lane"]}
+    assert ready == {"resolved_deps": ["monitor-lane"], "released_by": "wait_checks"}
 
 
 @pytest.mark.parametrize("successor_outcome", [None, False, "failed"])

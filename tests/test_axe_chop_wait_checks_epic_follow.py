@@ -78,7 +78,7 @@ def test_promotion_pass_parks_then_closed_epic_releases(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["planner"]}
+    assert ready == {"resolved_deps": ["planner"], "released_by": "wait_checks"}
 
 
 def test_ready_already_present_skips_waiter(

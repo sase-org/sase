@@ -309,6 +309,29 @@ first writer wins — and is skipped entirely once the waiter is gone. The waiti
 treats an unreadable or malformed marker as not ready and keeps polling (bounded by its
 periodic fallback, which never reads `ready.json`).
 
+#### Wait release telemetry
+
+Each crossed wait barrier records how it was released and how long each segment took, in
+`agent_meta.json`:
+
+| Key                              | Meaning                                                                                                                                                                                      |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wait_release_source`            | `startup` (resolved before parking), `ready_json` (`wait_checks` marker), `manual` (marker with `unwait: true`, i.e. TUI run-now), `runner_fallback`, or `timer` (duration/until-only waits) |
+| `wait_dependencies_satisfied_at` | Epoch seconds when the last relevant dependency member finished, when known                                                                                                                  |
+| `wait_release_latency_s`         | Dependency-release instant minus `wait_dependencies_satisfied_at`, clamped ≥ 0; only for `ready_json` / `runner_fallback` releases with a known satisfied time and no bead dependencies      |
+| `admission_latency_s`            | `run_started_at` − `wait_completed_at`, for runs that crossed a wait barrier                                                                                                                 |
+| `runner_slot_wait_s`             | `run_started_at` minus the instant the runner entered `wait_for_runner_slot`                                                                                                                 |
+
+`wait_checks` publishes `released_by: "wait_checks"` plus `dependencies_satisfied_at`
+(when known and the waiter has no bead dependencies) in `ready.json`; the runner carries
+those into its own stamp. To tally release sources over recent runs:
+
+```bash
+find ~/.sase/projects/*/artifacts/ace-run -name agent_meta.json -newermt '7 days ago' \
+  -exec python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("wait_release_source", "unknown"))' {} \; \
+  | sort | uniq -c | sort -rn
+```
+
 A waiter whose resolution raises stays parked, is counted in `waiter_errors`, and marks
 the tick `check_error` without blocking other waiters.
 

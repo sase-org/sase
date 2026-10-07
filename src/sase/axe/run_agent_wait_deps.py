@@ -10,6 +10,7 @@ import json
 import os
 import time
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -20,10 +21,49 @@ from sase.core.wait_dependency_resolution import (
     WaitReleaseDecision,
     apply_wait_epic_follow_patch,
     build_wait_dependency_index,
+    latest_member_finished_at,
     resolve_wait_release,
 )
 from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 from sase.core.wait_dependency_resolution._types import WaitDependencyStatus
+
+
+@dataclass(frozen=True)
+class DependencyResolution:
+    """Runner-side dependency resolution outcome plus telemetry.
+
+    ``resolved`` keeps the old boolean contract: the instance is truthy
+    exactly when the wait is released, so existing ``if ...`` call sites and
+    ``patch(..., return_value=True)`` stubs keep working (stubbed plain
+    bools simply carry no telemetry; readers must use ``getattr`` with a
+    default). ``satisfied_at`` is the epoch instant the last relevant
+    dependency member finished, or ``None`` when unknown or when bead
+    dependencies are present.
+    """
+
+    resolved: bool = False
+    satisfied_at: float | None = None
+
+    def __bool__(self) -> bool:
+        return self.resolved
+
+
+@dataclass(frozen=True)
+class ReadyResult:
+    """Runner-side ``ready.json`` read outcome plus telemetry.
+
+    Truthy exactly when the marker releases the wait. ``released_by`` and
+    ``dependencies_satisfied_at`` come straight from the marker payload;
+    ``unwait`` marks a manual (TUI run-now) release.
+    """
+
+    resolved: bool = False
+    released_by: str | None = None
+    unwait: bool = False
+    dependencies_satisfied_at: float | None = None
+
+    def __bool__(self) -> bool:
+        return self.resolved
 
 
 def mark_bead_wait_sync_hint(project_name: str | None) -> None:
@@ -81,7 +121,7 @@ def resolve_initial_wait_release(
     Builds the synthetic marker from the launch arguments and decides one
     release pass with the same ``build_index`` closure as the fresh index.
     Callers that need the promotion patch read it off the decision; the
-    ``initial_dependencies_resolved`` bool wrapper reads ``.releasable``.
+    ``initial_dependencies_resolved`` wrapper reads ``.releasable``.
     """
     marker: dict[str, Any] = {
         "waiting_for": list(wait_names),
@@ -164,6 +204,44 @@ def _resolve_marker_release(
     return decision
 
 
+def _release_satisfied_at(
+    wait_names: Iterable[object],
+    wait_identity_deps: Iterable[object],
+    *,
+    wait_fork_sources: Iterable[object] = (),
+    wait_beads: Iterable[object] = (),
+    wait_hoods: Iterable[object] = (),
+    resolved_deps: Iterable[object] = (),
+    project_name: str | None,
+    artifacts_dir: str,
+) -> float | None:
+    """Best-effort instant the last dependency member finished.
+
+    Bead-close times are not observable, so bead waits report ``None``.
+    Telemetry must never un-release a wait the decision already released,
+    so any failure here yields ``None`` instead of raising.
+    """
+    if project_name is None:
+        return None
+    if tuple(wait_beads):
+        return None
+    try:
+        index = build_wait_dependency_index(project_name)
+        index.global_stored_tribes = stored_tribe_names_for_resolution()
+        return latest_member_finished_at(
+            index.dependency_member_dirs(
+                tuple(wait_names),
+                tuple(wait_identity_deps),
+                tuple(resolved_deps),
+                wait_fork_sources=tuple(wait_fork_sources),
+                wait_hoods=tuple(wait_hoods),
+                self_artifact_dir=artifacts_dir,
+            )
+        )
+    except Exception:  # noqa: BLE001 - telemetry must never un-release.
+        return None
+
+
 def initial_dependencies_resolved(
     wait_names: Iterable[object],
     wait_identity_deps: Iterable[object],
@@ -173,11 +251,16 @@ def initial_dependencies_resolved(
     wait_hoods: Iterable[object] = (),
     resolved_deps: Iterable[object] = (),
     wait_for_epics_of: Iterable[object] = (),
+    wait_epic_follows: Iterable[object] = (),
     project_name: str | None,
     artifacts_dir: str,
-) -> bool:
-    """Resolve a dependency set directly, without consulting ``ready.json``."""
-    return resolve_initial_wait_release(
+) -> DependencyResolution:
+    """Resolve a dependency set directly, without consulting ``ready.json``.
+
+    Routes through the shared epic-follow release decision, then stamps
+    ``satisfied_at`` telemetry for the released members.
+    """
+    decision = resolve_initial_wait_release(
         wait_names,
         wait_identity_deps,
         wait_fork_sources=wait_fork_sources,
@@ -185,12 +268,37 @@ def initial_dependencies_resolved(
         wait_hoods=wait_hoods,
         resolved_deps=resolved_deps,
         wait_for_epics_of=wait_for_epics_of,
+        wait_epic_follows=wait_epic_follows,
         project_name=project_name,
         artifacts_dir=artifacts_dir,
-    ).releasable
+    )
+    if not decision.releasable:
+        return DependencyResolution(False)
+    return DependencyResolution(
+        True,
+        _release_satisfied_at(
+            wait_names,
+            wait_identity_deps,
+            wait_fork_sources=wait_fork_sources,
+            wait_beads=wait_beads,
+            wait_hoods=wait_hoods,
+            resolved_deps=resolved_deps,
+            project_name=project_name,
+            artifacts_dir=artifacts_dir,
+        ),
+    )
 
 
-def read_ready_result(ready_path: str) -> bool:
+def _ready_float(value: object) -> float | None:
+    """Return a numeric epoch from a marker payload value, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def read_ready_result(ready_path: str) -> ReadyResult:
     """Return whether a ready marker resolves the wait.
 
     A torn or otherwise unreadable marker is treated as not ready; the
@@ -203,16 +311,22 @@ def read_ready_result(ready_path: str) -> bool:
         with open(ready_path, encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
-        return False
+        return ReadyResult(False)
     if not isinstance(data, dict):
-        return False
+        return ReadyResult(False)
     if not data.get("cancelled"):
-        return True
+        released_by = data.get("released_by")
+        return ReadyResult(
+            True,
+            released_by if isinstance(released_by, str) else None,
+            bool(data.get("unwait", False)),
+            _ready_float(data.get("dependencies_satisfied_at")),
+        )
     try:
         os.unlink(ready_path)
     except OSError:
         pass
-    return False
+    return ReadyResult(False)
 
 
 def waiting_marker_dependencies_resolved(
@@ -220,11 +334,11 @@ def waiting_marker_dependencies_resolved(
     *,
     project_name: str | None,
     artifacts_dir: str,
-) -> bool:
+) -> DependencyResolution:
     """Re-resolve the dependencies currently recorded in ``waiting.json``."""
     waiting_data = read_json_dict(waiting_path)
     if waiting_data is None:
-        return False
+        return DependencyResolution(False)
 
     wait_names = waiting_data.get("waiting_for", [])
     wait_identity_deps = waiting_data.get("wait_for_artifacts", [])
@@ -233,7 +347,7 @@ def waiting_marker_dependencies_resolved(
     wait_hoods = waiting_data.get("wait_for_hoods", [])
     resolved_deps = waiting_data.get("resolved_deps", [])
     if not isinstance(wait_names, list):
-        return False
+        return DependencyResolution(False)
     if not isinstance(wait_identity_deps, list):
         wait_identity_deps = []
     if not isinstance(wait_fork_sources, list):
@@ -251,7 +365,7 @@ def waiting_marker_dependencies_resolved(
         or wait_beads
         or wait_hoods
     ):
-        return False
+        return DependencyResolution(False)
 
     decision = _resolve_marker_release(
         waiting_data,
@@ -260,6 +374,20 @@ def waiting_marker_dependencies_resolved(
     )
     if decision.patch is not None:
         if not apply_wait_epic_follow_patch(artifacts_dir, decision.patch):
-            return False
-        return False
-    return decision.releasable
+            return DependencyResolution(False)
+        return DependencyResolution(False)
+    if not decision.releasable:
+        return DependencyResolution(False)
+    return DependencyResolution(
+        True,
+        _release_satisfied_at(
+            wait_names,
+            wait_identity_deps,
+            wait_fork_sources=wait_fork_sources,
+            wait_beads=wait_beads,
+            wait_hoods=wait_hoods,
+            resolved_deps=resolved_deps,
+            project_name=project_name,
+            artifacts_dir=artifacts_dir,
+        ),
+    )

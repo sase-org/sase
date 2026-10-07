@@ -132,7 +132,8 @@ def test_complete_index_membership_still_releases_agent_session_waiter(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8")) == {
-        "resolved_deps": ["lane"]
+        "resolved_deps": ["lane"],
+        "released_by": "wait_checks",
     }
 
 
@@ -177,7 +178,7 @@ def test_completed_plan_chain_handoff_without_done_resolves_agent_session_depend
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["33.r1"]}
+    assert ready == {"resolved_deps": ["33.r1"], "released_by": "wait_checks"}
 
 
 def test_completed_plan_root_handoff_without_done_does_not_resolve(
@@ -391,4 +392,4 @@ def test_legacy_dot_plan_agent_session_dependency_resolves(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["legacy"]}
+    assert ready == {"resolved_deps": ["legacy"], "released_by": "wait_checks"}

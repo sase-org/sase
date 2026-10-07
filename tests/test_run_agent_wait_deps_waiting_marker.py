@@ -57,10 +57,12 @@ def test_waiting_marker_dependencies_resolved_matches_terminal_outcome_semantics
     )
 
     assert (
-        waiting_marker_dependencies_resolved(
-            waiter_dir / "waiting.json",
-            project_name="proj",
-            artifacts_dir=str(waiter_dir),
+        bool(
+            waiting_marker_dependencies_resolved(
+                waiter_dir / "waiting.json",
+                project_name="proj",
+                artifacts_dir=str(waiter_dir),
+            )
         )
         is should_resolve
     )

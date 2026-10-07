@@ -159,7 +159,7 @@ def test_wait_checks_incremental_matches_full_walk_on_populated_tree(
     assert (
         json.loads(incremental_ready)
         == json.loads(full_walk_ready)
-        == {"resolved_deps": ["foo"]}
+        == {"resolved_deps": ["foo"], "released_by": "wait_checks"}
     )
     assert "ready_written=1" in incremental_out
     assert "ready_written=1" in full_walk_out
@@ -184,7 +184,8 @@ def test_wait_checks_index_resolution_skips_filesystem_meta_reads(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert json.loads((waiter / "ready.json").read_text(encoding="utf-8")) == {
-        "resolved_deps": ["foo"]
+        "resolved_deps": ["foo"],
+        "released_by": "wait_checks",
     }
     assert reads[0] == 0
 

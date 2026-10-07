@@ -26,6 +26,7 @@ from sase.core.wait_dependency_resolution import (
     KNOWN_DONE_OUTCOMES,
     WaitDependencyIndex,
     apply_wait_epic_follow_patch,
+    latest_member_finished_at,
     read_json_dict as _read_json_dict,
     resolve_wait_release,
 )
@@ -419,10 +420,18 @@ def _run(
                 f"[wait_checks] Dependencies satisfied for {cl_name}, "
                 f"waited on: {waited_on}",
             )
+            ready_payload: dict[str, Any] = {
+                "resolved_deps": waiting_for,
+                "released_by": "wait_checks",
+            }
+            if not wait_for_beads:
+                satisfied_at = latest_member_finished_at(member_dirs)
+                if satisfied_at is not None:
+                    ready_payload["dependencies_satisfied_at"] = satisfied_at
             try:
                 published = publish_ready_marker(
                     str(waiting_marker.waiting_path.parent),
-                    {"resolved_deps": waiting_for},
+                    ready_payload,
                 )
             except OSError:
                 skipped_invalid += 1

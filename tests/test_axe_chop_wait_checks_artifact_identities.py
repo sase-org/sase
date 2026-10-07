@@ -53,7 +53,7 @@ def test_identity_wait_completed_parent_writes_ready(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["foo"]}
+    assert ready == {"resolved_deps": ["foo"], "released_by": "wait_checks"}
 
 
 def test_identity_wait_epic_approved_parent_writes_ready(
@@ -76,7 +76,7 @@ def test_identity_wait_epic_approved_parent_writes_ready(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["foo"]}
+    assert ready == {"resolved_deps": ["foo"], "released_by": "wait_checks"}
 
 
 def test_identity_wait_ignores_newer_same_named_agent(
@@ -156,7 +156,7 @@ def test_implicit_fork_wait_failed_parent_writes_ready(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["foo"]}
+    assert ready == {"resolved_deps": ["foo"], "released_by": "wait_checks"}
 
 
 def test_identity_wait_repeat_stopped_parent_keeps_waiting(
@@ -216,4 +216,4 @@ def test_identity_wait_resolves_after_failed_parent_is_relaunched(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["foo"]}
+    assert ready == {"resolved_deps": ["foo"], "released_by": "wait_checks"}

@@ -15,6 +15,7 @@ run state they all share lives in ``axe.run_agent_runner_state``.
 
 import os
 import sys
+import time
 from datetime import UTC, datetime
 
 from sase.ace.hooks import format_duration
@@ -191,6 +192,7 @@ def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None
     )
 
     hold = getattr(bootstrap.info, "hold", None)
+    slot_wait_started_at = time.time()
     state.run_started_at = wait_for_runner_slot(
         state.artifacts_dir,
         state.cl_name,
@@ -206,7 +208,11 @@ def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None
         ),
         queue_weight=bootstrap.info.queue_weight,
         queue_weight_explicit=bootstrap.info.queue_weight_explicit,
-        claim=lambda: record_run_started_at(state.artifacts_dir, bootstrap.agent_meta),
+        claim=lambda: record_run_started_at(
+            state.artifacts_dir,
+            bootstrap.agent_meta,
+            slot_wait_started_at=slot_wait_started_at,
+        ),
     )
 
     state.active_agent_started = True

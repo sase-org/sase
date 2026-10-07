@@ -277,12 +277,14 @@ def test_fork_source_wait_resolves_proc_only_when_terminal(
     _write_proc("proc0123456789ab", status=status, proc_name="build-docs")
 
     assert (
-        initial_dependencies_resolved(
-            ["build-docs"],
-            [],
-            wait_fork_sources=[_proc_fork_source("build-docs", "proc0123456789ab")],
-            project_name="proj",
-            artifacts_dir=str(waiter_dir),
+        bool(
+            initial_dependencies_resolved(
+                ["build-docs"],
+                [],
+                wait_fork_sources=[_proc_fork_source("build-docs", "proc0123456789ab")],
+                project_name="proj",
+                artifacts_dir=str(waiter_dir),
+            )
         )
         is resolved
     )

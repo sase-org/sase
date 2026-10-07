@@ -35,8 +35,30 @@ def persist_refreshed_clan_summary(
     return merged_meta
 
 
-def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str:
-    """Persist the execution-loop start timestamp if it has not been recorded."""
+def _epoch_from_iso(value: object) -> float | None:
+    """Return epoch seconds for an ISO 8601 timestamp string, else None."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value).timestamp()
+    except ValueError:
+        return None
+
+
+def record_run_started_at(
+    artifacts_dir: str,
+    agent_meta: dict[str, Any],
+    *,
+    slot_wait_started_at: float | None = None,
+) -> str:
+    """Persist the execution-loop start timestamp if it has not been recorded.
+
+    When first stamping ``run_started_at``, also stamp ``admission_latency_s``
+    (``run_started_at`` minus ``wait_completed_at``, for runs that crossed a
+    wait barrier) and ``runner_slot_wait_s`` (``run_started_at`` minus the
+    instant the runner entered ``wait_for_runner_slot``). The disk-stamp
+    short-circuit writes nothing new, keeping the stamp idempotent.
+    """
     from datetime import UTC, datetime
 
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
@@ -62,6 +84,19 @@ def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str
         agent_meta["run_started_at"] = run_started_at
 
     merged_meta = {**disk_meta, **agent_meta, "run_started_at": run_started_at}
+    run_started_epoch = _epoch_from_iso(run_started_at)
+    if run_started_epoch is not None:
+        wait_completed_epoch = _epoch_from_iso(merged_meta.get("wait_completed_at"))
+        if wait_completed_epoch is not None:
+            merged_meta["admission_latency_s"] = (
+                run_started_epoch - wait_completed_epoch
+            )
+        if isinstance(slot_wait_started_at, (int, float)) and not isinstance(
+            slot_wait_started_at, bool
+        ):
+            merged_meta["runner_slot_wait_s"] = run_started_epoch - float(
+                slot_wait_started_at
+            )
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
     return run_started_at

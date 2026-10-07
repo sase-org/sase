@@ -54,7 +54,7 @@ def test_later_same_name_completed_agent_resolves_after_killed(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["foo"]}
+    assert ready == {"resolved_deps": ["foo"], "released_by": "wait_checks"}
 
 
 def test_repeat_stopped_completed_marker_resolves_downstream_wait(
@@ -82,7 +82,7 @@ def test_repeat_stopped_completed_marker_resolves_downstream_wait(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["foo.2"]}
+    assert ready == {"resolved_deps": ["foo.2"], "released_by": "wait_checks"}
 
 
 def test_completed_named_agent_success_path_writes_ready(
@@ -101,7 +101,7 @@ def test_completed_named_agent_success_path_writes_ready(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["foo"]}
+    assert ready == {"resolved_deps": ["foo"], "released_by": "wait_checks"}
     out = capsys.readouterr().out
     assert "[wait_checks] Dependencies satisfied for waiter-cl" in out
     assert "wait_checks: projects=1 artifacts=2 waiting=1 ready_written=1" in out
@@ -143,7 +143,8 @@ def test_named_agent_terminal_done_outcome_classification(
     assert ready_path.exists() is should_resolve
     if should_resolve:
         assert json.loads(ready_path.read_text(encoding="utf-8")) == {
-            "resolved_deps": ["foo"]
+            "resolved_deps": ["foo"],
+            "released_by": "wait_checks",
         }
 
 
@@ -173,7 +174,8 @@ def test_epic_approved_land_member_resolves_next_wait_cycle(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8")) == {
-        "resolved_deps": ["sase-i1.land"]
+        "resolved_deps": ["sase-i1.land"],
+        "released_by": "wait_checks",
     }
 
 
@@ -264,7 +266,8 @@ def test_later_resolved_waiter_does_not_notify(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8")) == {
-        "resolved_deps": ["late-dep"]
+        "resolved_deps": ["late-dep"],
+        "released_by": "wait_checks",
     }
     assert load_notifications() == []
 
@@ -352,4 +355,4 @@ def test_superseded_start_failed_monitor_member_resolves_waiter(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["sase-zt.6.5.3"]}
+    assert ready == {"resolved_deps": ["sase-zt.6.5.3"], "released_by": "wait_checks"}

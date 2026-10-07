@@ -421,10 +421,12 @@ def test_fallback_withholds_armed_launching_planner_and_persists_stage(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 
     assert (
-        waiting_marker_dependencies_resolved(
-            waiter_dir / "waiting.json",
-            project_name="proj",
-            artifacts_dir=str(waiter_dir),
+        bool(
+            waiting_marker_dependencies_resolved(
+                waiter_dir / "waiting.json",
+                project_name="proj",
+                artifacts_dir=str(waiter_dir),
+            )
         )
         is False
     )

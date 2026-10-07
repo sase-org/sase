@@ -114,5 +114,6 @@ def test_clan_wait_writes_ready_after_successful_member_is_dismissed(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8")) == {
-        "resolved_deps": ["research"]
+        "resolved_deps": ["research"],
+        "released_by": "wait_checks",
     }

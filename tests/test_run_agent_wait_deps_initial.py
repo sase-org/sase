@@ -126,11 +126,13 @@ def test_initial_dependencies_resolved_matches_terminal_outcome_semantics(
     )
 
     assert (
-        initial_dependencies_resolved(
-            ["foo"],
-            [],
-            project_name="proj",
-            artifacts_dir=str(waiter_dir),
+        bool(
+            initial_dependencies_resolved(
+                ["foo"],
+                [],
+                project_name="proj",
+                artifacts_dir=str(waiter_dir),
+            )
         )
         is should_resolve
     )

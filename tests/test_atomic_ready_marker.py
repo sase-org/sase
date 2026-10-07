@@ -24,28 +24,28 @@ def _write(path: Path, text: str) -> str:
 
 def test_read_ready_result_valid_marker_releases(tmp_path: Path) -> None:
     ready = _write(tmp_path / "ready.json", json.dumps({"resolved_deps": ["wf"]}))
-    assert read_ready_result(ready) is True
+    assert read_ready_result(ready)
 
 
 def test_read_ready_result_torn_marker_parks(tmp_path: Path) -> None:
     ready = _write(tmp_path / "ready.json", '{"resolved_deps": ["w')
-    assert read_ready_result(ready) is False
+    assert not read_ready_result(ready)
     # A torn marker is left alone so a later poll can see the finished file.
     assert (tmp_path / "ready.json").exists()
 
 
 def test_read_ready_result_empty_file_parks(tmp_path: Path) -> None:
     ready = _write(tmp_path / "ready.json", "")
-    assert read_ready_result(ready) is False
+    assert not read_ready_result(ready)
 
 
 def test_read_ready_result_non_dict_marker_parks(tmp_path: Path) -> None:
     ready = _write(tmp_path / "ready.json", json.dumps(["wf"]))
-    assert read_ready_result(ready) is False
+    assert not read_ready_result(ready)
 
 
 def test_read_ready_result_missing_file_parks(tmp_path: Path) -> None:
-    assert read_ready_result(str(tmp_path / "ready.json")) is False
+    assert not read_ready_result(str(tmp_path / "ready.json"))
 
 
 def test_read_ready_result_legacy_cancelled_unlinks_and_parks(
@@ -53,7 +53,7 @@ def test_read_ready_result_legacy_cancelled_unlinks_and_parks(
 ) -> None:
     ready_path = tmp_path / "ready.json"
     _write(ready_path, json.dumps({"cancelled": True}))
-    assert read_ready_result(str(ready_path)) is False
+    assert not read_ready_result(str(ready_path))
     assert not ready_path.exists()
 
 

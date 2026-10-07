@@ -133,7 +133,10 @@ def test_wait_checks_resolves_closed_bead_only_wait(
 
     run_wait_checks(tmp_path, monkeypatch)
 
-    assert json.loads((waiter_dir / "ready.json").read_text()) == {"resolved_deps": []}
+    assert json.loads((waiter_dir / "ready.json").read_text()) == {
+        "resolved_deps": [],
+        "released_by": "wait_checks",
+    }
     assert f"waited on: beads: {closed_bead}" in capsys.readouterr().out
 
 
@@ -166,7 +169,10 @@ def test_wait_checks_routes_full_bead_wait_to_owner_project(
 
     run_wait_checks(tmp_path, monkeypatch)
 
-    assert json.loads((waiter_dir / "ready.json").read_text()) == {"resolved_deps": []}
+    assert json.loads((waiter_dir / "ready.json").read_text()) == {
+        "resolved_deps": [],
+        "released_by": "wait_checks",
+    }
     assert hints == ["owner"]
 
 
@@ -230,7 +236,8 @@ def test_wait_checks_mixed_agent_and_bead_wait_requires_both(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert json.loads((waiter_dir / "ready.json").read_text()) == {
-        "resolved_deps": ["dep"]
+        "resolved_deps": ["dep"],
+        "released_by": "wait_checks",
     }
 
 
@@ -333,4 +340,7 @@ def test_wait_checks_observes_closed_bead_after_sidecar_auto_sync(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert sync_result.counters["refreshed"] == 1
-    assert json.loads((waiter_dir / "ready.json").read_text()) == {"resolved_deps": []}
+    assert json.loads((waiter_dir / "ready.json").read_text()) == {
+        "resolved_deps": [],
+        "released_by": "wait_checks",
+    }

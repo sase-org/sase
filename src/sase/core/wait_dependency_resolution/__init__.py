@@ -11,6 +11,7 @@ from ._confirmation import (
 )
 from ._index import WaitDependencyIndex, build_wait_dependency_index
 from ._json_io import read_json_dict
+from ._release_telemetry import latest_member_finished_at, parse_finished_at
 from ._resolution import dependency_resolution_status
 from ._submitted_plans import (
     submitted_plan_artifact,
@@ -65,6 +66,8 @@ __all__ = [
     "build_wait_dependency_index",
     "confirm_dependency_resolution",
     "dependency_resolution_status",
+    "latest_member_finished_at",
+    "parse_finished_at",
     "read_json_dict",
     "resolve_tribe_wait_binding",
     "resolve_wait_release",

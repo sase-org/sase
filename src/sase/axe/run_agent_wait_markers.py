@@ -184,11 +184,46 @@ def remove_waiting_marker(artifacts_dir: str) -> None:
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 
+#: ``wait_release_source`` values stamped into ``agent_meta.json``.
+#:
+#: - ``startup``: resolved before parking (up-front fast path).
+#: - ``ready_json``: released by a ``wait_checks`` ``ready.json`` marker.
+#: - ``manual``: released by a marker carrying ``unwait: true`` (TUI run-now).
+#: - ``runner_fallback``: released by the runner's periodic direct resolution.
+#: - ``timer``: duration-only or until-only waits with no dependencies.
+WAIT_RELEASE_SOURCES = (
+    "startup",
+    "ready_json",
+    "manual",
+    "runner_fallback",
+    "timer",
+)
+
+#: Sources whose release latency is measured against the dependency-satisfied
+#: instant. ``startup`` resolves synchronously before parking, ``manual`` is
+#: an operator action rather than a dependency release, and ``timer`` has no
+#: dependencies, so none of them stamp satisfied-at/latency keys.
+_LATENCY_MEASURED_SOURCES = ("ready_json", "runner_fallback")
+
+
 def record_wait_completed_at(
     artifacts_dir: str,
     agent_meta: dict[str, Any],
+    *,
+    wait_release_source: str | None = None,
+    wait_dependencies_satisfied_at: float | None = None,
+    wait_released_at: float | None = None,
 ) -> str:
-    """Persist the wait-barrier completion timestamp."""
+    """Persist the wait-barrier completion timestamp plus release telemetry.
+
+    The telemetry keys (``wait_release_source``,
+    ``wait_dependencies_satisfied_at``, ``wait_release_latency_s``) are
+    stamped only in the branch that first stamps ``wait_completed_at``; the
+    existing disk-stamp short-circuit (refreshed runner) writes nothing new,
+    keeping the stamp idempotent. Satisfied-at/latency keys are recorded
+    only for ``ready_json`` / ``runner_fallback`` releases with a known
+    satisfied instant.
+    """
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     disk_meta: dict[str, Any] = {}
     try:
@@ -211,6 +246,22 @@ def record_wait_completed_at(
         else datetime.now(UTC).isoformat()
     )
     merged_meta = {**disk_meta, **agent_meta, "wait_completed_at": wait_completed_at}
+    if wait_release_source in WAIT_RELEASE_SOURCES:
+        merged_meta["wait_release_source"] = wait_release_source
+        satisfied = (
+            float(wait_dependencies_satisfied_at)
+            if isinstance(wait_dependencies_satisfied_at, (int, float))
+            and not isinstance(wait_dependencies_satisfied_at, bool)
+            else None
+        )
+        if wait_release_source in _LATENCY_MEASURED_SOURCES and satisfied is not None:
+            merged_meta["wait_dependencies_satisfied_at"] = satisfied
+            if isinstance(wait_released_at, (int, float)) and not isinstance(
+                wait_released_at, bool
+            ):
+                merged_meta["wait_release_latency_s"] = max(
+                    0.0, float(wait_released_at) - satisfied
+                )
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
     return wait_completed_at

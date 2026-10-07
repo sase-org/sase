@@ -147,4 +147,4 @@ def test_monitor_followup_waiter_with_code_fork_source_releases(
     run_wait_checks(tmp_path, monkeypatch)
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready == {"resolved_deps": ["lane--code"]}
+    assert ready == {"resolved_deps": ["lane--code"], "released_by": "wait_checks"}

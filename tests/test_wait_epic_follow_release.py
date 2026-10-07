@@ -685,10 +685,12 @@ def test_release_paths_agree_on_promotion_snapshot(
     assert initial.releasable == direct.releasable
 
     assert (
-        wait_deps.waiting_marker_dependencies_resolved(
-            waiter / "waiting.json",
-            project_name="proj",
-            artifacts_dir=str(waiter),
+        bool(
+            wait_deps.waiting_marker_dependencies_resolved(
+                waiter / "waiting.json",
+                project_name="proj",
+                artifacts_dir=str(waiter),
+            )
         )
         is False
     )
@@ -719,10 +721,12 @@ def test_release_paths_agree_on_unarmed_snapshot(
     assert initial.releasable == direct.releasable
     assert initial.patch is None
     assert (
-        wait_deps.waiting_marker_dependencies_resolved(
-            waiter / "waiting.json",
-            project_name="proj",
-            artifacts_dir=str(waiter),
+        bool(
+            wait_deps.waiting_marker_dependencies_resolved(
+                waiter / "waiting.json",
+                project_name="proj",
+                artifacts_dir=str(waiter),
+            )
         )
         is True
     )

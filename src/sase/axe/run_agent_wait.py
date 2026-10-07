@@ -158,7 +158,9 @@ def wait_for_dependencies(
     ):
         print("Dependencies already satisfied, proceeding without waiting")
         if not was_killed():
-            record_wait_completed_at(artifacts_dir, agent_meta)
+            record_wait_completed_at(
+                artifacts_dir, agent_meta, wait_release_source="startup"
+            )
         return False
 
     # Every branch below parks this process. The bootstrap that ran before this
@@ -222,6 +224,8 @@ def wait_for_dependencies(
         # strand the runner forever.
         ready_path = os.path.join(artifacts_dir, "ready.json")
         dependencies_resolved = False
+        wait_release_source: str | None = None
+        wait_satisfied_at: float | None = None
         next_fallback_at = (
             time.monotonic() + _WAIT_DEPENDENCY_FALLBACK_INTERVAL
             if project_name
@@ -235,8 +239,20 @@ def wait_for_dependencies(
         next_trim_at = time.monotonic() + IDLE_TRIM_INTERVAL_SECONDS
         while not dependencies_resolved:
             if os.path.exists(ready_path):
-                dependencies_resolved = read_ready_result(ready_path)
-                if dependencies_resolved:
+                ready_result = read_ready_result(ready_path)
+                if ready_result:
+                    dependencies_resolved = True
+                    # ``read_ready_result`` may be a stubbed plain bool in
+                    # tests; telemetry fields default to absent there.
+                    if getattr(ready_result, "unwait", False):
+                        wait_release_source = "manual"
+                    else:
+                        wait_release_source = "ready_json"
+                        wait_satisfied_at = getattr(
+                            ready_result,
+                            "dependencies_satisfied_at",
+                            None,
+                        )
                     break
             if was_killed():
                 break
@@ -245,12 +261,15 @@ def wait_for_dependencies(
                 if next_bead_hint_at is not None and now >= next_bead_hint_at:
                     mark_bead_wait_sync_hint(project_name)
                     next_bead_hint_at = now + _WAIT_BEAD_HINT_FALLBACK_INTERVAL
-                if waiting_marker_dependencies_resolved(
+                fallback_result = waiting_marker_dependencies_resolved(
                     Path(waiting_path),
                     project_name=project_name,
                     artifacts_dir=artifacts_dir,
-                ):
+                )
+                if fallback_result:
                     dependencies_resolved = True
+                    wait_release_source = "runner_fallback"
+                    wait_satisfied_at = getattr(fallback_result, "satisfied_at", None)
                     print(
                         "Dependencies satisfied by runner fallback "
                         "(ready.json not observed)"
@@ -264,6 +283,13 @@ def wait_for_dependencies(
                 release_idle_memory()
                 next_trim_at = now + IDLE_TRIM_INTERVAL_SECONDS
             time.sleep(_WAIT_POLL_INTERVAL)
+
+        # The dependency-release instant for latency telemetry, captured
+        # at loop exit before any post-dependency duration floor starts.
+        dependency_released_at = time.time() if dependencies_resolved else None
+        if wait_beads:
+            # Bead-close times are not observable; stamp no satisfied-at.
+            wait_satisfied_at = None
 
         post_dependency_wait_until = wait_until
         if (
@@ -291,7 +317,13 @@ def wait_for_dependencies(
                     remaining = remaining_until(post_dependency_wait_until)
 
         if not was_killed():
-            record_wait_completed_at(artifacts_dir, agent_meta)
+            record_wait_completed_at(
+                artifacts_dir,
+                agent_meta,
+                wait_release_source=wait_release_source,
+                wait_dependencies_satisfied_at=wait_satisfied_at,
+                wait_released_at=dependency_released_at,
+            )
 
         # Clean up wait markers.
         for path in (waiting_path, ready_path):
@@ -324,7 +356,9 @@ def wait_for_dependencies(
             remaining = remaining_until(wait_until)
 
         if not was_killed():
-            record_wait_completed_at(artifacts_dir, agent_meta)
+            record_wait_completed_at(
+                artifacts_dir, agent_meta, wait_release_source="timer"
+            )
 
         # Clean up waiting.json.
         try:
@@ -358,7 +392,9 @@ def wait_for_dependencies(
             remaining -= sleep_time
 
         if not was_killed():
-            record_wait_completed_at(artifacts_dir, agent_meta)
+            record_wait_completed_at(
+                artifacts_dir, agent_meta, wait_release_source="timer"
+            )
 
         # Clean up waiting.json.
         try:
