@@ -21,6 +21,8 @@ class AgentWaitInfo:
     wait_for: tuple[str, ...] = ()
     wait_for_beads: tuple[str, ...] = ()
     wait_for_hoods: tuple[str, ...] = ()
+    wait_for_epics_of: tuple[str, ...] = ()
+    epic_follows: tuple[dict[str, object], ...] = ()
     wait_duration_seconds: float | None = None
     wait_until: str | None = None
     remaining_seconds: int | None = None

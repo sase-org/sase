@@ -64,12 +64,20 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
         bead_project_key: str | None = None,
         own_bead_ids: frozenset[str] = frozenset(),
         bead_catalog_loader: Callable[..., WaitBeadCatalog] = load_wait_bead_catalog,
+        current_wait_for_epics_of: list[str] | None = None,
     ) -> None:
         """Initialize wait fields and completion state."""
         super().__init__()
+        from sase.core.wait_epic_follow_view import follow_epics_mode
+
         self._current_waiting_for = current_waiting_for or []
         self._current_waiting_for_beads = current_waiting_for_beads or []
         self._current_waiting_for_hoods = current_waiting_for_hoods or []
+        self._current_wait_for_epics_of = current_wait_for_epics_of or []
+        self._follow_mode = follow_epics_mode(
+            self._current_waiting_for,
+            self._current_wait_for_epics_of,
+        )
         self._bead_prefill = ", ".join(self._current_waiting_for_beads)
         self._time_prefill = prefill_time_token(
             current_wait_duration,
@@ -273,6 +281,50 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
             self._project_label = label
         self._refresh_bead_completion()
         self._update_beads_preview()
+
+    def _follow_disabled_reason(self) -> str | None:
+        """Return why the Follow epics toggle is disabled, if it is."""
+        from sase.core.wait_epic_follow_view import follow_toggle_disabled_reason
+
+        try:
+            agents_value = self.query_one("#agents-input", WaitInput).value
+        except Exception:  # noqa: BLE001 - preview before compose in tests.
+            agents_value = ", ".join(self._current_waiting_for)
+        from .wait_modal_values import parse_agents_value
+
+        return follow_toggle_disabled_reason(parse_agents_value(agents_value))
+
+    def _cycle_follow_mode(self) -> str:
+        """Advance the Follow epics tri-state and refresh its row."""
+        from sase.core.wait_epic_follow_view import FOLLOW_EPICS_MODES
+
+        if self._follow_disabled_reason():
+            return self._follow_mode
+        order = list(FOLLOW_EPICS_MODES)
+        try:
+            next_mode = order[(order.index(self._follow_mode) + 1) % len(order)]
+        except ValueError:
+            next_mode = "mixed"
+        self._follow_mode = next_mode
+        self._refresh_follow_row()
+        return self._follow_mode
+
+    def _refresh_follow_row(self) -> None:
+        """Refresh the Follow epics toggle row label, when composed."""
+        from sase.core.wait_epic_follow_view import follow_toggle_label
+
+        try:
+            from textual.widgets import Static
+
+            row = self.query_one("#follow-epics-toggle", Static)
+        except Exception:  # noqa: BLE001 - row absent before compose.
+            return
+        row.update(
+            follow_toggle_label(
+                self._follow_mode,
+                disabled_reason=self._follow_disabled_reason(),
+            )
+        )
 
     def _update_beads_preview(self) -> BeadsValidation:
         """Update the bead preview; implemented by the concrete modal."""

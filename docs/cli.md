@@ -167,7 +167,11 @@ weighted-load threshold. Its `queue_weight` reports requested capacity units, an
 capacity-aware display order used by sase's TUI: eligible waiters first, then parked
 waiters by current blocker severity, with priority and request FIFO preserved inside
 each group. A waiter parked by an [agent hold](#sase-agent-hold) also reports the
-blocking hold's armer in `held_by` and that hold's expiry in `hold_expires_at`.
+blocking hold's armer in `held_by` and that hold's expiry in `hold_expires_at`. Each
+entry also exports the epic-follow state: `wait_for_epics_of` (armed follow targets) and
+`epic_follows` (per-target `launching` / `following` / `blocked` stages with `epic_ids`,
+`added_bead_ids`, and blocker details). `sase agent wait` rows use the same shared
+phrasing (`↪ waits on <target>'s epic <id>`) as the TUI lanes.
 
 ### `sase agent hold`
 

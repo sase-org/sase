@@ -113,7 +113,41 @@ def result_has_wait_spec(result: WaitModalResult) -> bool:
     )
 
 
-def prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
+def _derived_added_bead_ids(agent: object | None) -> frozenset[str]:
+    """Return bead IDs a follow promotion derived for *agent*, if any."""
+    if agent is None:
+        return frozenset()
+    try:
+        from sase.core.wait_epic_follow_view import epic_follow_views
+    except ImportError:  # pragma: no cover - core always present in sase.
+        return frozenset()
+    try:
+        views = epic_follow_views(agent)
+    except Exception:  # noqa: BLE001 - best-effort filtering only.
+        return frozenset()
+    return frozenset(bead_id for view in views for bead_id in view.added_bead_ids)
+
+
+def authored_result_beads(
+    result: WaitModalResult,
+    agent: object | None = None,
+) -> tuple[str, ...]:
+    """Return *result* beads minus beads a follow promotion derived.
+
+    The wait modal prefills with authored beads only, but a typed or
+    re-added derived bead must never be written back into authored
+    ``%wait`` text or relaunch rewrites.
+    """
+    derived = _derived_added_bead_ids(agent)
+    if not derived:
+        return tuple(result.beads)
+    return tuple(bead for bead in result.beads if bead not in derived)
+
+
+def prompt_wait_spec(
+    result: WaitModalResult,
+    agent: object | None = None,
+) -> PromptWaitDirective | None:
     """Convert a modal result to a prompt directive edit payload."""
     if not result_has_wait_spec(result):
         return None
@@ -122,9 +156,14 @@ def prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
         time_token=result.time_token,
         capacity=result.capacity,
         priority=result.priority,
-        beads=tuple(result.beads),
+        beads=authored_result_beads(result, agent),
         hoods=tuple(result.hoods),
         capacity_multiplier=result.capacity_multiplier,
+        epic_follow_agents=(
+            tuple(result.epic_follow_agents)
+            if result.epic_follow_agents is not None
+            else None
+        ),
     )
 
 

@@ -38,6 +38,8 @@ async def test_modal_beads_field_is_editable_and_round_trips_prefill() -> None:
         agents=[],
         time_token=None,
         beads=["sase-87.2", "sase-87.3"],
+        follow_mode="off",
+        epic_follow_agents=(),
     )
 
 
@@ -61,6 +63,8 @@ async def test_modal_run_now_cancels_bead_waits() -> None:
         time_token=None,
         beads=[],
         run_now=True,
+        follow_mode="off",
+        epic_follow_agents=(),
     )
 
 
@@ -117,6 +121,8 @@ async def test_modal_clearing_beads_keeps_agents_wait() -> None:
         agents=["planner"],
         time_token=None,
         beads=[],
+        follow_mode="off",
+        epic_follow_agents=(),
     )
 
 
@@ -150,6 +156,8 @@ async def test_modal_clearing_every_field_returns_run_now() -> None:
         time_token=None,
         beads=[],
         run_now=True,
+        follow_mode="off",
+        epic_follow_agents=(),
     )
 
 
@@ -227,6 +235,8 @@ async def test_modal_risky_wait_guard_requires_second_enter() -> None:
         agents=[],
         time_token=None,
         beads=["sase-nope"],
+        follow_mode="off",
+        epic_follow_agents=(),
     )
 
 
@@ -292,6 +302,8 @@ async def test_modal_unavailable_bead_store_reports_neutral_and_never_arms_guard
         agents=[],
         time_token=None,
         beads=["sase-anything"],
+        follow_mode="off",
+        epic_follow_agents=(),
     )
 
 

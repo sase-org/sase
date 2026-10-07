@@ -244,12 +244,97 @@ def describe_epic_follow(view: EpicFollowView) -> str:
     return f"waits on {view.target}'s epic launch"
 
 
+FOLLOW_EPICS_MODES = ("on", "off", "mixed")
+
+_FOLLOW_PLAN_ROW_REASON = (
+    "--plan rows release when the plan is submitted and never follow epics"
+)
+
+
+def is_follow_plan_row(name: object) -> bool:
+    """Return whether *name* is a ``--plan`` row that can never follow."""
+    if not isinstance(name, str) or not name.strip():
+        return False
+    try:
+        from sase.plan_chain import planner_row_name
+    except ImportError:  # pragma: no cover - plan chain always present in sase.
+        return False
+    return planner_row_name(name.strip(), include_legacy_dash=True) is not None
+
+
+def follow_epics_mode(
+    waiting_for: Iterable[str] | None,
+    wait_for_epics_of: Iterable[str] | None,
+) -> str:
+    """Return the tri-state ``Follow epics`` mode for a wait.
+
+    ``on`` when every agent target is armed, ``off`` when none is, else
+    ``mixed`` (each target keeps its policy; newly added agents get the
+    default). An empty target list reads ``off``.
+    """
+    targets = [t for t in (waiting_for or ()) if isinstance(t, str) and t.strip()]
+    if not targets:
+        return "off"
+    armed = {t for t in (wait_for_epics_of or ()) if isinstance(t, str) and t.strip()}
+    followed = sum(1 for target in targets if target in armed)
+    if followed == len(targets):
+        return "on"
+    if followed == 0:
+        return "off"
+    return "mixed"
+
+
+def follow_toggle_disabled_reason(waiting_for: Iterable[str] | None) -> str | None:
+    """Return why the Follow epics toggle is disabled, if it is."""
+    targets = [t for t in (waiting_for or ()) if isinstance(t, str) and t.strip()]
+    if targets and all(is_follow_plan_row(target) for target in targets):
+        return _FOLLOW_PLAN_ROW_REASON
+    return None
+
+
+def resolve_epic_follow_agents(
+    agents: Iterable[str] | None,
+    mode: str,
+    current_follow: Iterable[str] | None,
+) -> tuple[str, ...]:
+    """Return the ``epic_follow_agents`` list for a modal apply.
+
+    ``on`` arms every listed agent, ``off`` arms none, and ``mixed``
+    preserves each listed target's current policy (new agents get the
+    default via the empty intersection).
+    """
+    names = [a for a in (agents or ()) if isinstance(a, str) and a.strip()]
+    if mode == "on":
+        return tuple(names)
+    if mode == "off":
+        return ()
+    keep = {c for c in (current_follow or ()) if isinstance(c, str) and c.strip()}
+    return tuple(name for name in names if name in keep)
+
+
+def follow_toggle_label(mode: str, *, disabled_reason: str | None = None) -> str:
+    """Return the display label for the Follow epics toggle row."""
+    if disabled_reason:
+        return f"Follow epics: off ({disabled_reason})"
+    if mode == "on":
+        return "Follow epics: on ↪"
+    if mode == "mixed":
+        return "Follow epics: mixed"
+    return "Follow epics: off"
+
+
 __all__ = [
     "EpicFollowView",
     "FOLLOW_BLOCKING_STATES",
+    "FOLLOW_EPICS_MODES",
     "armed_follow_targets",
     "authored_wait_beads",
     "describe_epic_follow",
     "epic_follow_state_token",
     "epic_follow_views",
+    "follow_epics_mode",
+    "follow_toggle_disabled_reason",
+    "follow_toggle_label",
+    "is_follow_plan_row",
+    "resolve_epic_follow_agents",
 ]

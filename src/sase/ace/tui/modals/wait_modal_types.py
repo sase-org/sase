@@ -41,6 +41,8 @@ class WaitModalResult:
     hoods: list[str] = field(default_factory=list)
     run_now: bool = False
     capacity_multiplier: float | None = None
+    follow_mode: str = "mixed"
+    epic_follow_agents: tuple[str, ...] | None = None
 
 
 __all__ = ["WaitAgentCandidate", "WaitModalResult"]

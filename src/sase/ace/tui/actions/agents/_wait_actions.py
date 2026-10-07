@@ -54,7 +54,7 @@ def _prepare_wait_relaunch_prompt(
     result: WaitModalResult,
 ) -> str | None:
     """Return a replacement prompt preserving *agent*'s resolved identity."""
-    wait_spec = prompt_wait_spec(result)
+    wait_spec = prompt_wait_spec(result, agent)
     if wait_spec is None:
         return None
 
@@ -128,12 +128,17 @@ class AgentWaitActionsMixin:
             return
 
         from ...modals import WaitModal, WaitModalResult
+        from sase.core.wait_epic_follow_view import authored_wait_beads
 
         is_running = agent.status in {"STARTING", "RUNNING"}
         candidates = wait_modal_candidates(
             agent,
             self._visible_agent_completion_agents(),
         )
+        try:
+            authored_beads = authored_wait_beads(agent)
+        except Exception:  # noqa: BLE001 - prefill falls back to stored beads.
+            authored_beads = list(agent.waiting_for_beads)
 
         def handle_wait_result(result: WaitModalResult | None) -> None:
             if result is None:
@@ -146,8 +151,11 @@ class AgentWaitActionsMixin:
         self.push_screen(  # type: ignore[attr-defined]
             WaitModal(
                 current_waiting_for=agent.waiting_for,
-                current_waiting_for_beads=agent.waiting_for_beads,
+                current_waiting_for_beads=authored_beads,
                 current_waiting_for_hoods=agent.waiting_for_hoods,
+                current_wait_for_epics_of=list(
+                    getattr(agent, "wait_for_epics_of", None) or []
+                ),
                 current_wait_duration=agent.wait_duration,
                 current_wait_until=agent.wait_until,
                 current_wait_runners=(
@@ -227,8 +235,10 @@ class AgentWaitActionsMixin:
             self._apply_wait_relaunch(agent, result)
             return
 
+        from ._wait_helpers import authored_result_beads
+
         wait_names = list(result.agents)
-        wait_beads = list(result.beads)
+        wait_beads = list(authored_result_beads(result, agent))
         wait_hoods = list(result.hoods)
         if wait_names or wait_beads or wait_hoods or result.priority is not None:
             update_wait_priority = result.priority is not None or result.update_priority
@@ -239,20 +249,26 @@ class AgentWaitActionsMixin:
                 if agent.wait_priority_explicit
                 else None
             )
-            current_follow = list(getattr(agent, "wait_for_epics_of", None) or [])
-            preserved_follow = [n for n in current_follow if n in wait_names]
+            if result.epic_follow_agents is not None:
+                follow_names = [n for n in result.epic_follow_agents if n in wait_names]
+            else:
+                current_follow = list(getattr(agent, "wait_for_epics_of", None) or [])
+                follow_names = [n for n in current_follow if n in wait_names]
             wait_spec = PromptWaitDirective(
                 agents=tuple(wait_names),
                 priority=effective_priority,
                 beads=tuple(wait_beads),
                 hoods=tuple(wait_hoods),
-                epic_follow_agents=tuple(preserved_follow) or None,
+                epic_follow_agents=tuple(follow_names) or None,
             )
             prior_waiting_for = list(agent.waiting_for)
             prior_waiting_for_beads = list(agent.waiting_for_beads)
             prior_waiting_for_hoods = list(agent.waiting_for_hoods)
             prior_wait_for_epics_of = list(
                 getattr(agent, "wait_for_epics_of", None) or []
+            )
+            prior_wait_epic_follows = list(
+                getattr(agent, "wait_epic_follows", None) or []
             )
             prior_wait_duration = agent.wait_duration
             prior_wait_until = agent.wait_until
@@ -274,6 +290,8 @@ class AgentWaitActionsMixin:
                 agent.waiting_for_hoods = prior_waiting_for_hoods
                 if hasattr(agent, "wait_for_epics_of"):
                     agent.wait_for_epics_of = prior_wait_for_epics_of
+                if hasattr(agent, "wait_epic_follows"):
+                    agent.wait_epic_follows = prior_wait_epic_follows
                 agent.wait_duration = prior_wait_duration
                 agent.wait_until = prior_wait_until
                 agent.wait_priority = prior_priority
@@ -314,7 +332,7 @@ class AgentWaitActionsMixin:
                         "beads": wait_beads,
                         "hoods": wait_hoods,
                         "names": wait_names,
-                        "wait_for_epics_of": list(preserved_follow),
+                        "wait_for_epics_of": list(follow_names),
                         "update_wait_priority": update_wait_priority,
                         "wait_priority": result.priority,
                     },
@@ -322,7 +340,7 @@ class AgentWaitActionsMixin:
                         "beads": wait_beads,
                         "hoods": wait_hoods,
                         "names": wait_names,
-                        "wait_for_epics_of": list(preserved_follow),
+                        "wait_for_epics_of": list(follow_names),
                         "update_wait_priority": update_wait_priority,
                         "wait_priority": result.priority,
                     },
@@ -337,7 +355,13 @@ class AgentWaitActionsMixin:
             agent.waiting_for_beads = wait_beads
             agent.waiting_for_hoods = wait_hoods
             if hasattr(agent, "wait_for_epics_of"):
-                agent.wait_for_epics_of = list(preserved_follow)
+                agent.wait_for_epics_of = list(follow_names)
+            if hasattr(agent, "wait_epic_follows"):
+                agent.wait_epic_follows = [
+                    view
+                    for view in (agent.wait_epic_follows or [])
+                    if getattr(view, "target", None) in set(follow_names)
+                ]
             agent.wait_duration = None
             agent.wait_until = None
             if update_wait_priority:
@@ -405,6 +429,10 @@ class AgentWaitActionsMixin:
             agent.waiting_for = []
             agent.waiting_for_beads = []
             agent.waiting_for_hoods = []
+            if hasattr(agent, "wait_for_epics_of"):
+                agent.wait_for_epics_of = []
+            if hasattr(agent, "wait_epic_follows"):
+                agent.wait_epic_follows = []
             agent.wait_duration = None
             agent.wait_until = None
             agent.set_queue_capacity(None, explicit=False)
@@ -437,15 +465,29 @@ class AgentWaitActionsMixin:
             if agent.wait_priority_explicit
             else None
         )
-        wait_spec = prompt_wait_spec(result)
+        from ._wait_helpers import authored_result_beads
+
+        wait_spec = prompt_wait_spec(result, agent)
         if wait_spec is not None and effective_priority is not None:
             wait_spec = replace(wait_spec, priority=effective_priority)
+        runner_follow = (
+            list(wait_spec.epic_follow_agents)
+            if wait_spec is not None and wait_spec.epic_follow_agents is not None
+            else [
+                n
+                for n in (getattr(agent, "wait_for_epics_of", None) or [])
+                if n in list(result.agents)
+            ]
+        )
+        runner_beads = list(authored_result_beads(result, agent))
         prior_runners = agent.queue_capacity
         prior_explicit = agent.queue_capacity_explicit
         prior_multiplier = agent.queue_capacity_multiplier
         prior_waiting_for = list(agent.waiting_for)
         prior_waiting_for_beads = list(agent.waiting_for_beads)
         prior_waiting_for_hoods = list(agent.waiting_for_hoods)
+        prior_wait_for_epics_of = list(getattr(agent, "wait_for_epics_of", None) or [])
+        prior_wait_epic_follows = list(getattr(agent, "wait_epic_follows", None) or [])
         prior_wait_duration = agent.wait_duration
         prior_wait_until = agent.wait_until
         prior_priority = agent.wait_priority
@@ -470,6 +512,10 @@ class AgentWaitActionsMixin:
             agent.waiting_for = prior_waiting_for
             agent.waiting_for_beads = prior_waiting_for_beads
             agent.waiting_for_hoods = prior_waiting_for_hoods
+            if hasattr(agent, "wait_for_epics_of"):
+                agent.wait_for_epics_of = prior_wait_for_epics_of
+            if hasattr(agent, "wait_epic_follows"):
+                agent.wait_epic_follows = prior_wait_epic_follows
             agent.wait_duration = prior_wait_duration
             agent.wait_until = prior_wait_until
             agent.wait_priority = prior_priority
@@ -492,6 +538,11 @@ class AgentWaitActionsMixin:
                 "capacity": wait_spec.capacity,
                 "capacity_multiplier": wait_spec.capacity_multiplier,
                 "time_token": wait_spec.time_token,
+                "epic_follow_agents": (
+                    list(wait_spec.epic_follow_agents)
+                    if wait_spec.epic_follow_agents is not None
+                    else None
+                ),
             }
         submitted = submit_agent_directive(
             self,
@@ -499,9 +550,10 @@ class AgentWaitActionsMixin:
             payload={
                 "prompt": {"kind": "set_wait", "wait": wait_payload},
                 "wait": {
-                    "beads": list(result.beads),
+                    "beads": runner_beads,
                     "hoods": list(result.hoods),
                     "names": list(result.agents),
+                    "wait_for_epics_of": list(runner_follow),
                     "update_wait_priority": update_wait_priority,
                     "update_wait_runners": True,
                     "wait_priority": result.priority,
@@ -509,9 +561,10 @@ class AgentWaitActionsMixin:
                     "queue_capacity_multiplier": result.capacity_multiplier,
                 },
                 "waiting": {
-                    "beads": list(result.beads),
+                    "beads": runner_beads,
                     "hoods": list(result.hoods),
                     "names": list(result.agents),
+                    "wait_for_epics_of": list(runner_follow),
                     "update_wait_priority": update_wait_priority,
                     "update_wait_runners": True,
                     "wait_priority": result.priority,
@@ -526,8 +579,16 @@ class AgentWaitActionsMixin:
         if not submitted:
             return
         agent.waiting_for = list(result.agents)
-        agent.waiting_for_beads = list(result.beads)
+        agent.waiting_for_beads = list(runner_beads)
         agent.waiting_for_hoods = list(result.hoods)
+        if hasattr(agent, "wait_for_epics_of"):
+            agent.wait_for_epics_of = list(runner_follow)
+        if hasattr(agent, "wait_epic_follows"):
+            agent.wait_epic_follows = [
+                view
+                for view in (agent.wait_epic_follows or [])
+                if getattr(view, "target", None) in set(runner_follow)
+            ]
         agent.wait_duration = None
         agent.wait_until = None
         if result.capacity_multiplier is not None and result.capacity is None:

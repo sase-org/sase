@@ -127,12 +127,19 @@ def build_agent_output_variable_context(
     *,
     upstreams_json: str | None,
     wait_names: Sequence[str] = (),
+    waiter_follows: Mapping[str, Sequence[str]] | None = None,
 ) -> dict[str, Any]:
     """Load upstream output variables under the single ``agents`` named arg.
 
     Returns ``{"agents": {agent_key: variables, ...}}`` when any producer wrote
     variables, else ``{}`` (so nothing is injected when there is nothing to
     render). Later producers override earlier ones for the same key.
+
+    Every waited target also synthesizes ``created_epic`` (the first epic)
+    and ``created_epics`` (every epic). Values come from the waiter's
+    FOLLOWING entry when *waiter_follows* names the target, else from the
+    target's own ``created_epics`` record, so ``for_epic=false`` users also
+    get the ID.
     """
     agents: dict[str, dict[str, VarValue]] = {}
     seen_artifacts_dirs: set[str] = set()
@@ -157,6 +164,7 @@ def build_agent_output_variable_context(
             plan_variables = _variables_with_plan_file(artifacts_dir)
             if plan_variables:
                 _merge_agent_variables(agents, plan_key, plan_variables)
+            _synthesize_created_epics(agents, plan_key, wait_name, None, waiter_follows)
             continue
 
         resolved = _resolve_waited_agent(wait_name)
@@ -164,19 +172,83 @@ def build_agent_output_variable_context(
             continue
         artifacts_dir, agent_name, agent_name_template = resolved
         if artifacts_dir in seen_artifacts_dirs:
+            seen_key = _agent_key_for_output_variables(
+                agent_name=agent_name,
+                agent_name_template=agent_name_template,
+            )
+            _synthesize_created_epics(
+                agents, seen_key, wait_name, artifacts_dir, waiter_follows
+            )
             continue
         variables = _read_variables_if_present(artifacts_dir)
-        if not variables:
-            continue
         key = _agent_key_for_output_variables(
             agent_name=agent_name,
             agent_name_template=agent_name_template,
         )
-        _merge_agent_variables(agents, key, variables)
+        if variables:
+            _merge_agent_variables(agents, key, variables)
+        _synthesize_created_epics(agents, key, wait_name, artifacts_dir, waiter_follows)
 
     if not agents:
         return {}
     return {AGENTS_CONTEXT_KEY: agents}
+
+
+def _synthesize_created_epics(
+    agents: dict[str, dict[str, VarValue]],
+    key: str,
+    wait_name: str,
+    target_artifacts_dir: str | None,
+    waiter_follows: Mapping[str, Sequence[str]] | None,
+) -> None:
+    """Synthesize ``created_epic(s)`` for one waited target, when known."""
+    entry = agents.get(key)
+    if entry is not None and "created_epic" in entry and "created_epics" in entry:
+        return
+    epic_ids = _created_epics_for_wait_target(
+        wait_name, target_artifacts_dir, waiter_follows
+    )
+    if not epic_ids:
+        return
+    namespace = agents.setdefault(key, {})
+    namespace.setdefault("created_epic", epic_ids[0])
+    if "created_epics" not in namespace:
+        namespace["created_epics"] = _wrap_var_value_for_jinja(list(epic_ids))
+
+
+def _created_epics_for_wait_target(
+    wait_name: str,
+    target_artifacts_dir: str | None,
+    waiter_follows: Mapping[str, Sequence[str]] | None,
+) -> list[str] | None:
+    """Return epic IDs for *wait_name*, waiter entry first, else the target.
+
+    Returns ``None`` when neither source knows an epic (so no keys are
+    synthesized) and ``[]`` when the known answer is genuinely empty.
+    """
+    if waiter_follows:
+        for candidate in (wait_name, wait_name.strip()):
+            if candidate and candidate in waiter_follows:
+                raw = waiter_follows[candidate]
+                if isinstance(raw, (list, tuple)):
+                    return [item for item in raw if isinstance(item, str) and item]
+    if target_artifacts_dir is None:
+        return None
+    try:
+        from sase.core.artifact_file_helpers import read_json_object
+        from sase.core.created_epics import created_epic_ids_from_meta
+    except ImportError:  # pragma: no cover - core always present in sase.
+        return None
+    try:
+        meta = read_json_object(Path(target_artifacts_dir) / "agent_meta.json")
+    except Exception:  # noqa: BLE001 - missing meta means no epics.
+        return None
+    if not isinstance(meta, dict) or not meta:
+        return None
+    try:
+        return list(created_epic_ids_from_meta(meta))
+    except Exception:  # noqa: BLE001 - coercion never fails the context.
+        return None
 
 
 def _decode_upstreams(upstreams_json: str | None) -> list[dict[str, Any]]:

@@ -177,7 +177,13 @@ async def test_modal_filters_and_accepts_candidate_with_tab() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == WaitModalResult(agents=["coder"], time_token=None, run_now=False)
+    assert result == WaitModalResult(
+        agents=["coder"],
+        time_token=None,
+        run_now=False,
+        follow_mode="off",
+        epic_follow_agents=(),
+    )
 
 
 async def test_modal_enter_with_time_only_returns_time_wait() -> None:
@@ -201,7 +207,13 @@ async def test_modal_enter_with_time_only_returns_time_wait() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == WaitModalResult(agents=[], time_token="5m", run_now=False)
+    assert result == WaitModalResult(
+        agents=[],
+        time_token="5m",
+        run_now=False,
+        follow_mode="off",
+        epic_follow_agents=(),
+    )
 
 
 async def test_modal_invalid_time_does_not_dismiss() -> None:
@@ -249,7 +261,13 @@ async def test_modal_returns_explicit_runner_threshold() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == WaitModalResult(agents=[], time_token=None, capacity=1)
+    assert result == WaitModalResult(
+        agents=[],
+        time_token=None,
+        capacity=1,
+        follow_mode="off",
+        epic_follow_agents=(),
+    )
 
 
 async def test_modal_prefills_and_returns_explicit_priority() -> None:
@@ -271,7 +289,13 @@ async def test_modal_prefills_and_returns_explicit_priority() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == WaitModalResult(agents=[], time_token=None, priority=20)
+    assert result == WaitModalResult(
+        agents=[],
+        time_token=None,
+        priority=20,
+        follow_mode="off",
+        epic_follow_agents=(),
+    )
 
 
 async def test_modal_invalid_priority_does_not_dismiss() -> None:
@@ -322,6 +346,8 @@ async def test_modal_marks_cleared_priority_for_update() -> None:
         time_token=None,
         update_priority=True,
         run_now=True,
+        follow_mode="off",
+        epic_follow_agents=(),
     )
 
 
@@ -364,6 +390,8 @@ async def test_modal_tab_falls_through_to_focus_next_without_highlight() -> None
 
 async def test_modal_ctrl_j_moves_from_agents_to_beads_input() -> None:
     async with _TestApp().run_test() as pilot:
+        from textual.widgets import Static
+
         modal = WaitModal()
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -371,6 +399,11 @@ async def test_modal_ctrl_j_moves_from_agents_to_beads_input() -> None:
         agents_input = modal.query_one("#agents-input", Input)
         beads_input = modal.query_one("#beads-input", Input)
         assert agents_input.has_focus
+
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+
+        assert modal.query_one("#follow-epics-toggle", Static).has_focus
 
         await pilot.press("ctrl+j")
         await pilot.pause()
@@ -429,21 +462,22 @@ async def test_modal_ctrl_k_does_not_delete_focused_input_text() -> None:
         assert agents_input.value == "planner"
 
 
-async def test_modal_ctrl_j_from_agent_completion_moves_to_beads_input() -> None:
+async def test_modal_ctrl_j_from_agent_completion_moves_to_follow_toggle() -> None:
     async with _TestApp().run_test() as pilot:
+        from textual.widgets import Static
+
         modal = WaitModal(candidates=[_candidate("planner")])
         pilot.app.push_screen(modal)
         await pilot.pause()
 
         option_list = modal.query_one("#agent-completion", OptionList)
-        beads_input = modal.query_one("#beads-input", Input)
         option_list.focus()
         await pilot.pause()
 
         await pilot.press("ctrl+j")
         await pilot.pause()
 
-        assert beads_input.has_focus
+        assert modal.query_one("#follow-epics-toggle", Static).has_focus
 
 
 async def test_modal_field_navigation_places_cursor_at_end() -> None:

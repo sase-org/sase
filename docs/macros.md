@@ -1182,26 +1182,28 @@ Hello, {{ user }}.
 
 ### Template Context
 
-| Variable                            | Description                                                                                                |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `{{ name }}`                        | Named argument or input mapped by name                                                                     |
-| `{{ _1 }}`                          | First positional argument (1-indexed)                                                                      |
-| `{{ _2 }}`                          | Second positional argument, etc.                                                                           |
-| `{{ _args }}`                       | List of all positional arguments                                                                           |
-| `{{ root }}`                        | Absolute path to the primary workspace directory (omitted if unresolvable)                                 |
-| `{{ wait.chats }}`                  | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear      |
-| `{{ wait.artifacts }}`              | Lazy list of non-chat artifact metadata dictionaries produced by those waited agents; no file contents     |
-| `{{ wait_chats }}`                  | Legacy alias for `wait.chats`; still omitted when no chat paths exist                                      |
-| `{{ agents["build"].path }}`        | Output variables loaded from `%wait:build` when that agent used `sase var set path=...`                    |
-| `{{ agents["p--plan"].plan_file }}` | Proposed plan path of a submitted planner row, synthesized from `%wait:p--plan` (no `sase var set` needed) |
-| `{{ patch_name }}`                  | Name of the patch the agent run works on                                                                   |
-| `{{ cl_name }}`                     | Legacy alias of `patch_name`                                                                               |
-| `{{ workspace_num }}`               | 1-based number of the workspace directory assigned to the agent run                                        |
-| `{{ n }}` / `{{ N }}`               | Current [%repeat](#repeat-directive) iteration (1-based) and total iteration count                         |
-| `{{ provider_name }}`               | Name of the LLM provider rendering a skill file (skill frontmatter only)                                   |
-| `{{ provider_tool_name }}`          | Display name of the provider tool rendering a skill file (skill frontmatter only)                          |
-| `{{ provider_native_ask_tool }}`    | Name of the provider's native ask-user-question tool (skill frontmatter only)                              |
-| `{{ range(...) }}`                  | Jinja globals: `range`, `dict`, `lipsum`, `cycler`, `joiner`, `namespace`                                  |
+| Variable                                | Description                                                                                                |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `{{ name }}`                            | Named argument or input mapped by name                                                                     |
+| `{{ _1 }}`                              | First positional argument (1-indexed)                                                                      |
+| `{{ _2 }}`                              | Second positional argument, etc.                                                                           |
+| `{{ _args }}`                           | List of all positional arguments                                                                           |
+| `{{ root }}`                            | Absolute path to the primary workspace directory (omitted if unresolvable)                                 |
+| `{{ wait.chats }}`                      | List of chat-transcript paths for agents named in `%wait:<name>` directives, in the order they appear      |
+| `{{ wait.artifacts }}`                  | Lazy list of non-chat artifact metadata dictionaries produced by those waited agents; no file contents     |
+| `{{ wait_chats }}`                      | Legacy alias for `wait.chats`; still omitted when no chat paths exist                                      |
+| `{{ agents["build"].path }}`            | Output variables loaded from `%wait:build` when that agent used `sase var set path=...`                    |
+| `{{ agents["p--plan"].plan_file }}`     | Proposed plan path of a submitted planner row, synthesized from `%wait:p--plan` (no `sase var set` needed) |
+| `{{ agents["planner"].created_epic }}`  | First epic a waited target launched, synthesized from `%wait:planner` (no `sase var set` needed)           |
+| `{{ agents["planner"].created_epics }}` | Every epic a waited target launched, synthesized from `%wait:planner` (no `sase var set` needed)           |
+| `{{ patch_name }}`                      | Name of the patch the agent run works on                                                                   |
+| `{{ cl_name }}`                         | Legacy alias of `patch_name`                                                                               |
+| `{{ workspace_num }}`                   | 1-based number of the workspace directory assigned to the agent run                                        |
+| `{{ n }}` / `{{ N }}`                   | Current [%repeat](#repeat-directive) iteration (1-based) and total iteration count                         |
+| `{{ provider_name }}`                   | Name of the LLM provider rendering a skill file (skill frontmatter only)                                   |
+| `{{ provider_tool_name }}`              | Display name of the provider tool rendering a skill file (skill frontmatter only)                          |
+| `{{ provider_native_ask_tool }}`        | Name of the provider's native ask-user-question tool (skill frontmatter only)                              |
+| `{{ range(...) }}`                      | Jinja globals: `range`, `dict`, `lipsum`, `cycler`, `joiner`, `namespace`                                  |
 
 Named arguments and positional-to-name mappings take priority; if a macro is called
 within a workflow step, the workflow's execution scope is also available (macro args
@@ -3817,6 +3819,11 @@ report with `sase artifact create`, and a later `%wait` consumer renders it as
 `{{ agents["research.final"].artifacts[0].ref }}` or loops
 `{% for a in agents["research.final"].artifacts %}{{ a.label }}{% endfor %}`. Entries
 share field names (`ref`, `label`, `kind`, `path`, `source_path`) with `wait.artifacts`.
+Every waited target with a known epic also synthesizes `created_epic` (the first epic it
+launched) and `created_epics` (every epic it launched) under the same `agents[...]` key.
+Values come from the waiter's FOLLOWING entry when the wait is following that target,
+else from the target's own `created_epics` record — so a `for_epic=false` consumer still
+gets the ID. An explicit `sase var set` of either name wins over the synthesized value.
 
 sase's TUI renders loaded literal `---` multi-agent prompts as a prompt stack: each
 top-level segment becomes an editable pane, while prompt-level frontmatter and

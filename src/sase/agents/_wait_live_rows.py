@@ -347,11 +347,16 @@ def _why_column(
         return error
     if state is WaitState.WAITING:
         names = _wait_for_names(record) if record is not None else ()
+        follow_suffix = _follow_phrasing(record)
         if names:
-            return f"waits on {', '.join(names)}"
+            base = f"waits on {', '.join(names)}"
+            return f"{base} {follow_suffix}" if follow_suffix else base
         beads = _wait_for_beads(record) if record is not None else ()
         if beads:
-            return f"waits on beads {', '.join(beads)}"
+            base = f"waits on beads {', '.join(beads)}"
+            return f"{base} {follow_suffix}" if follow_suffix else base
+        if follow_suffix:
+            return follow_suffix
         return reason or "waiting on dependencies"
     if state is WaitState.QUEUED:
         artifact_dir = "" if record is None else record.artifact_dir
@@ -378,6 +383,48 @@ def _why_column(
         if snippet:
             return snippet
     return reason or ""
+
+
+def _follow_phrasing(record: AgentArtifactRecordWire | None) -> str:
+    """Return the shared follow suffix for a WAITING row, if any."""
+    if record is None:
+        return ""
+    try:
+        from sase.core.wait_epic_follow_view import (
+            describe_epic_follow,
+            epic_follow_views,
+        )
+    except ImportError:  # pragma: no cover - core always present in sase.
+        return ""
+    sources: list[object] = []
+    waiting = record.waiting
+    if waiting is not None:
+        sources.append(waiting)
+    if record.agent_meta is not None:
+        sources.append(record.agent_meta)
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        try:
+            views = epic_follow_views(source)
+        except Exception:  # noqa: BLE001 - row rendering never fails.
+            continue
+        for view in views:
+            try:
+                phrase = describe_epic_follow(view)
+            except Exception:  # noqa: BLE001 - row rendering never fails.
+                continue
+            if phrase not in seen:
+                seen.add(phrase)
+                phrases.append(f"↪ {phrase}")
+        if phrases:
+            break
+    if not phrases:
+        return ""
+    joined = "; ".join(phrases[:2])
+    if len(phrases) > 2:
+        joined += f" +{len(phrases) - 2}"
+    return joined
 
 
 def _inspect_commands(name: str, *, failed: bool, blocked: bool) -> tuple[str, ...]:

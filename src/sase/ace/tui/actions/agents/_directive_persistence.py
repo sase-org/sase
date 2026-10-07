@@ -317,6 +317,36 @@ def _persist_prompt_artifacts(
     )
 
 
+def _prune_follow_entries(
+    marker: dict[str, object],
+    armed: set[str] | None,
+) -> None:
+    """Drop follow stages (and only those) for no-longer-armed targets.
+
+    The pin stays: promoted epic beads remain in ``wait_for_beads`` and
+    release through ordinary bead machinery. Turning follow back on lets
+    the next evaluation re-promote.
+    """
+    if armed is None:
+        return
+    raw = marker.get("wait_epic_follows")
+    if not isinstance(raw, list):
+        return
+    pruned = [
+        entry
+        for entry in raw
+        if isinstance(entry, dict)
+        and isinstance(entry.get("target"), str)
+        and entry["target"] in armed
+    ]
+    if len(pruned) == len(raw):
+        return
+    if pruned:
+        marker["wait_epic_follows"] = pruned
+    else:
+        marker.pop("wait_epic_follows", None)
+
+
 def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
     meta_path = artifacts_path / "agent_meta.json"
     meta = _read_json_object(meta_path)
@@ -325,6 +355,16 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
     for key in patch.remove_keys:
         meta.pop(key, None)
     meta.update(dict(patch.set_values))
+    if "wait_for_epics_of" in patch.set_values:
+        raw_armed = patch.set_values["wait_for_epics_of"]
+        armed = (
+            {str(n) for n in raw_armed if isinstance(n, str)}
+            if isinstance(raw_armed, (list, tuple))
+            else set()
+        )
+        _prune_follow_entries(meta, armed)
+    elif "wait_for_epics_of" in patch.remove_keys:
+        _prune_follow_entries(meta, set())
     if meta == original:
         return False
     _write_json_file(meta_path, meta)
@@ -363,6 +403,9 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
         existing["waiting_for"] = list(patch.waiting_for)
         if patch.wait_for_epics_of:
             existing["wait_for_epics_of"] = list(patch.wait_for_epics_of)
+        else:
+            existing.pop("wait_for_epics_of", None)
+        _prune_follow_entries(existing, set(patch.wait_for_epics_of))
         if patch.wait_for_beads:
             existing["wait_for_beads"] = list(patch.wait_for_beads)
         if patch.wait_for_hoods:

@@ -1930,9 +1930,20 @@ external repo discards local clone changes without re-cloning from the network.
 
 Press `w` on the Agents tab to open the WaitModal. It has five editable fields —
 **Agents**, **Beads**, **Time**, **Capacity**, and **Priority** — each prefilled from
-the agent's current wait. Time, Capacity, Priority, and Beads render a live preview of
-how the typed value will be interpreted; an invalid Time, Capacity, or Priority value
-blocks apply and focuses the offending field.
+the agent's current wait, plus a focusable **Follow epics** toggle row directly under
+Agents. Time, Capacity, Priority, and Beads render a live preview of how the typed value
+will be interpreted; an invalid Time, Capacity, or Priority value blocks apply and
+focuses the offending field.
+
+The **Follow epics** row is a tri-state toggle: `on` (teal `↪`), `off` (dim), or `mixed`
+(each listed target keeps its own policy; newly added agents get the default). It joins
+the `Ctrl+J` / `Ctrl+K` field cycle and `Space` toggles it when focused. When every
+listed target is a `--plan` row the toggle is disabled with a reason, because `--plan`
+rows release when the plan is submitted and never follow epics. Beads prefills with
+authored beads only — beads a follow promotion derived are excluded. Applying the modal
+writes the follow selection into the wait directive; removing a target, or turning its
+follow off, drops its follow stage and its derived bead IDs while keeping the
+already-pinned epic beads. Turning follow back on lets the next evaluation re-promote.
 
 Beads completes against every non-closed bead in the agent's project, read from the same
 canonical store the wait resolver consults, so a bead offered by the picker is always
@@ -1987,13 +1998,13 @@ otherwise moves focus to the next field, `Ctrl+R` runs the agent now by clearing
 wait condition, and `Escape` cancels. The modal supports readline-style keybindings
 (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
 
-`Ctrl+J` and `Ctrl+K` walk forward and backward through the five fields directly, in the
-displayed order (Agents, Beads, Time, Capacity, Priority), wrapping around at either end
-and placing the cursor at the end of the field's current value. Unlike `Tab`, they never
-consume a highlighted completion, so they move focus even while a completion list is
-open; when focus is on the Agents or Beads completion list itself, the step is taken
-from that list's own field. `Up` / `Down` and `Ctrl+P` / `Ctrl+N` move within the
-visible completion list rather than between fields.
+`Ctrl+J` and `Ctrl+K` walk forward and backward through the six fields directly, in the
+displayed order (Agents, Follow epics, Beads, Time, Capacity, Priority), wrapping around
+at either end and placing the cursor at the end of the field's current value. Unlike
+`Tab`, they never consume a highlighted completion, so they move focus even while a
+completion list is open; when focus is on the Agents or Beads completion list itself,
+the step is taken from that list's own field. `Up` / `Down` and `Ctrl+P` / `Ctrl+N` move
+within the visible completion list rather than between fields.
 
 ### VCS Tag Resolution in Fork/Wait
 

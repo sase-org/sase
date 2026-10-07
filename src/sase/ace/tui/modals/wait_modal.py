@@ -50,6 +50,7 @@ class WaitModal(WaitModalCompletionScreen):
     _TIME_CLASSES = ("wait-time-neutral", "wait-time-valid", "wait-time-error")
     _FIELD_INPUT_IDS = (
         "agents-input",
+        "follow-epics-toggle",
         "beads-input",
         "time-input",
         "capacity-input",
@@ -62,6 +63,8 @@ class WaitModal(WaitModalCompletionScreen):
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
+        from sase.core.wait_epic_follow_view import follow_toggle_label
+
         agent_prefill = ", ".join(self._current_waiting_for)
         with Container(id="wait-modal-body"):
             yield Label("Wait", id="modal-title")
@@ -76,6 +79,10 @@ class WaitModal(WaitModalCompletionScreen):
                 id="agents-input",
             )
             yield AgentCompletionList(id="agent-completion")
+            yield Static(
+                follow_toggle_label(self._follow_mode),
+                id="follow-epics-toggle",
+            )
             yield Label("Beads", classes="wait-field-label")
             yield WaitInput(
                 value=self._bead_prefill,
@@ -116,6 +123,12 @@ class WaitModal(WaitModalCompletionScreen):
         self._update_priority_preview()
         self._update_beads_preview()
         self._apply_active_completion_visibility()
+        try:
+            toggle = self.query_one("#follow-epics-toggle", Static)
+            toggle.can_focus = True
+        except Exception:  # noqa: BLE001 - row styling only.
+            pass
+        self._refresh_follow_row()
         agents_input = self.query_one("#agents-input", WaitInput)
         agents_input.focus()
         agents_input.cursor_position = len(agents_input.value)
@@ -130,7 +143,24 @@ class WaitModal(WaitModalCompletionScreen):
 
     def on_key(self, event: events.Key) -> None:
         """Keep completion keys local to the modal."""
+        if event.key == "space":
+            focused = self.focused
+            if focused is not None and getattr(focused, "id", None) == (
+                "follow-epics-toggle"
+            ):
+                self._cycle_follow_mode()
+                event.prevent_default()
+                event.stop()
+                return
         if event.key != "enter":
+            return
+        focused = self.focused
+        if focused is not None and getattr(focused, "id", None) == (
+            "follow-epics-toggle"
+        ):
+            self._apply()
+            event.prevent_default()
+            event.stop()
             return
         if isinstance(self.focused, AgentCompletionList):
             self._accept_highlighted_candidate()
@@ -153,6 +183,7 @@ class WaitModal(WaitModalCompletionScreen):
         """Refresh completions and live validation as inputs change."""
         if event.input.id == "agents-input":
             self._refresh_completion()
+            self._refresh_follow_row()
             return
         if event.input.id == "beads-input":
             self._bead_guard_armed = False
@@ -206,7 +237,14 @@ class WaitModal(WaitModalCompletionScreen):
     def action_run_now(self) -> None:
         """Dismiss with an explicit run-now result."""
         self.dismiss(
-            WaitModalResult(agents=[], time_token=None, beads=[], run_now=True)
+            WaitModalResult(
+                agents=[],
+                time_token=None,
+                beads=[],
+                run_now=True,
+                follow_mode="off",
+                epic_follow_agents=(),
+            )
         )
 
     def action_accept_completion(self) -> None:
@@ -246,8 +284,16 @@ class WaitModal(WaitModalCompletionScreen):
             target_index = 0 if offset > 0 else len(self._FIELD_INPUT_IDS) - 1
         else:
             target_index = (focused_index + offset) % len(self._FIELD_INPUT_IDS)
+        target_id = self._FIELD_INPUT_IDS[target_index]
+        if target_id == "follow-epics-toggle":
+            try:
+                toggle = self.query_one("#follow-epics-toggle", Static)
+                toggle.focus()
+            except Exception:  # noqa: BLE001 - focus best effort.
+                pass
+            return
         target_input = self.query_one(
-            f"#{self._FIELD_INPUT_IDS[target_index]}",
+            f"#{target_id}",
             WaitInput,
         )
         target_input.focus()
@@ -355,6 +401,15 @@ class WaitModal(WaitModalCompletionScreen):
         agents = parse_agents_value(self.query_one("#agents-input", WaitInput).value)
         beads = beads_validation.bead_ids
         hoods = list(self._current_waiting_for_hoods)
+        from sase.core.wait_epic_follow_view import resolve_epic_follow_agents
+
+        if self._follow_disabled_reason():
+            follow_mode = "off"
+        else:
+            follow_mode = self._follow_mode
+        epic_follow = resolve_epic_follow_agents(
+            agents, follow_mode, self._current_wait_for_epics_of
+        )
         run_now = (
             not agents
             and not beads
@@ -377,6 +432,8 @@ class WaitModal(WaitModalCompletionScreen):
                 hoods=hoods,
                 run_now=run_now,
                 capacity_multiplier=capacity_validation.multiplier,
+                follow_mode=follow_mode,
+                epic_follow_agents=tuple(epic_follow),
             )
         )
 

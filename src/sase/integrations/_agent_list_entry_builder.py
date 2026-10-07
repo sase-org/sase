@@ -432,6 +432,8 @@ def _wait_info(
         wait_for=wait_for,
         wait_for_beads=wait_for_beads,
         wait_for_hoods=wait_for_hoods,
+        wait_for_epics_of=_wait_for_epics_of(waiting, meta),
+        epic_follows=_epic_follows(waiting, meta),
         wait_duration_seconds=wait_duration,
         wait_until=wait_until,
         remaining_seconds=_remaining_wait_seconds(
@@ -456,6 +458,55 @@ def _wait_info(
         slot_requested_at=(waiting.slot_requested_at if waiting is not None else None),
         held_by=(waiting.held_by if waiting is not None else None),
         hold_expires_at=(waiting.hold_expires_at if waiting is not None else None),
+    )
+
+
+def _wait_for_epics_of(
+    waiting: WaitingMarkerWire | None,
+    meta: AgentMetaWire | None,
+) -> tuple[str, ...]:
+    """Return armed follow targets, preferring the waiting marker."""
+    if waiting is not None and waiting.wait_for_epics_of:
+        return tuple(waiting.wait_for_epics_of)
+    if meta is not None and meta.wait_for_epics_of:
+        return tuple(meta.wait_for_epics_of)
+    return ()
+
+
+def _epic_follows(
+    waiting: WaitingMarkerWire | None,
+    meta: AgentMetaWire | None,
+) -> tuple[dict[str, object], ...]:
+    """Return persisted follow stages as JSON-serializable dicts."""
+    raw: object = None
+    if waiting is not None and waiting.wait_epic_follows:
+        raw = waiting.wait_epic_follows
+    elif meta is not None and meta.wait_epic_follows:
+        raw = meta.wait_epic_follows
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    try:
+        from sase.core.wait_epic_follow_view import epic_follow_views
+    except ImportError:  # pragma: no cover - core always present in sase.
+        return ()
+    try:
+        views = epic_follow_views(raw)
+    except Exception:  # noqa: BLE001 - projection never fails the list.
+        return ()
+    return tuple(
+        {
+            "target": view.target,
+            "state": view.state,
+            "epic_ids": list(view.epic_ids),
+            "added_bead_ids": list(view.added_bead_ids),
+            "members": list(view.members),
+            "since": view.since,
+            "reason": view.reason,
+            "detail": view.detail,
+            "resume_command": view.resume_command,
+            "skipped_epic_ids": list(view.skipped_epic_ids),
+        }
+        for view in views
     )
 
 

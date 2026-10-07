@@ -77,6 +77,8 @@ def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
         "waiting_for": list(agent.wait.wait_for),
         "wait_for_beads": list(agent.wait.wait_for_beads),
         "wait_for_hoods": list(agent.wait.wait_for_hoods),
+        "wait_for_epics_of": list(agent.wait.wait_for_epics_of),
+        "epic_follows": [dict(entry) for entry in agent.wait.epic_follows],
         "queue_capacity": agent.wait.queue_capacity,
         "queue_capacity_explicit": agent.wait.queue_capacity_explicit,
         "queue_capacity_multiplier": agent.wait.queue_capacity_multiplier,
