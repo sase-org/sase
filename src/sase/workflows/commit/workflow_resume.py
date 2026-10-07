@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
-from sase.llm_provider.commit_finalizer_git_status import git_changed_files
+from sase.llm_provider.commit_finalizer_git_status import (
+    git_changed_files,
+    git_unpushed_commit_records,
+)
 from sase.output import print_status
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.workspace_provider.utils import reconcile_managed_checkout_origin
@@ -72,17 +75,37 @@ def resume_commit_workflow(
         expected_subject
         and (actual_subject is None or actual_subject.strip() != expected_subject)
     )
+    adopting_unpushed_head = False
     if cp.no_commit_dispatched or subject_mismatch:
         dirty_paths = git_changed_files(cp.cwd)
         if cp.no_commit_dispatched or not dirty_paths:
-            return _finish_no_commit_resume(
-                cp,
-                checkpoint_delete,
-                provider_name,
-                dirty_paths=dirty_paths,
-            )
+            unpushed = _unpushed_records_for_resume(cp.cwd)
+            if unpushed:
+                adopt = _adopt_unpushed_head_if_owned(
+                    cp, provider, provider_name, unpushed
+                )
+                if adopt is None:
+                    # Restamp already reported; keep the checkpoint.
+                    return RunResult.FAILED
+                if not adopt:
+                    # Provenance mismatch: fail closed, keep the checkpoint.
+                    VCS_OPERATIONS.labels(
+                        provider=provider_name,
+                        operation="commit_resume",
+                        status="failed",
+                    ).inc()
+                    return RunResult.FAILED
+                adopting_unpushed_head = True
+                cp.no_commit_dispatched = False
+            else:
+                return _finish_no_commit_resume(
+                    cp,
+                    checkpoint_delete,
+                    provider_name,
+                    dirty_paths=dirty_paths,
+                )
 
-    if subject_mismatch:
+    if subject_mismatch and not adopting_unpushed_head:
         print_status(
             "Could not find the expected commit at HEAD (subject mismatch). "
             "Re-run sase stitch create from scratch.",
@@ -227,6 +250,144 @@ def _normalize_checkpoint_bead_action(
     payload["bead_action"] = bead_action
     payload.pop("do_not_close_bead", None)
     checkpoint_save(cp)
+    return True
+
+
+def _unpushed_records_for_resume(
+    cwd: str, *, fetch: bool = True
+) -> tuple[tuple[str, str, str], ...]:
+    """Fetch and list unpushed commits; never raises, ``()`` means not ahead."""
+
+    try:
+        return git_unpushed_commit_records(cwd, fetch=fetch)
+    except Exception:
+        return ()
+
+
+def _tags_contain(
+    current: Mapping[str, object], expected: Mapping[str, object]
+) -> bool:
+    return all(current.get(key) == value for key, value in expected.items())
+
+
+def _format_unpushed_lines(
+    records: tuple[tuple[str, str, str], ...],
+) -> str:
+    lines: list[str] = []
+    for sha, _tree, message in records:
+        subject = (message.strip().splitlines() or [""])[0].strip() or "(no subject)"
+        short = sha[:12] if len(sha) >= 12 else sha
+        lines.append(f"  {short} {subject}")
+    return "\n".join(lines)
+
+
+def _adopt_unpushed_head_if_owned(
+    cp: CommitCheckpoint,
+    provider: object,
+    provider_name: str,
+    unpushed: tuple[tuple[str, str, str], ...],
+) -> bool | None:
+    """Decide whether an ahead HEAD may be adopted as the dispatched commit.
+
+    Returns ``True`` to adopt, ``False`` for a provenance mismatch (caller
+    must fail closed and keep the checkpoint), and ``None`` when
+    ``_restamp_missing_footer_tags`` already failed and reported.
+    """
+
+    if cp.method not in ("create_commit", "create_pull_request"):
+        print_status(
+            "HEAD is ahead of its upstream with unpushed commits:\n"
+            + _format_unpushed_lines(unpushed)
+            + "\nThis stitch type cannot publish an unpushed HEAD. Resolve manually "
+            "and re-run sase stitch create --resume.",
+            "error",
+        )
+        return False
+    if "dispatch" in cp.completed_steps:
+        print_status(
+            "HEAD is ahead of its upstream with unpushed commits:\n"
+            + _format_unpushed_lines(unpushed)
+            + "\nThe checkpoint already records a dispatch. Resolve manually "
+            "and re-run sase stitch create --resume.",
+            "error",
+        )
+        return False
+    expected = run_owned_commit_tags(str(cp.payload.get("message") or ""))
+    if not expected:
+        print_status(
+            "HEAD is ahead of its upstream with unpushed commits:\n"
+            + _format_unpushed_lines(unpushed)
+            + "\nThe checkpoint carries no SASE provenance tags to verify ownership. "
+            "Failing closed to avoid publishing foreign work. Resolve manually "
+            "and re-run sase stitch create --resume.",
+            "error",
+        )
+        return False
+    # Unpushed records are oldest-first; HEAD is last. Every older commit must
+    # already carry this run's provenance — only HEAD may be repaired by restamp.
+    *older, head = unpushed
+    for sha, _tree, message in older:
+        if not _tags_contain(run_owned_commit_tags(message), expected):
+            subject = (message.strip().splitlines() or [""])[0].strip()
+            print_status(
+                "HEAD is ahead of its upstream with unpushed commits that do not "
+                f"carry this run's SASE provenance (for example {sha[:12]} {subject}). "
+                "Failing closed to avoid publishing foreign work. Unpushed commits:\n"
+                + _format_unpushed_lines(unpushed)
+                + "\nResolve manually and re-run sase stitch create --resume.",
+                "error",
+            )
+            return False
+    _head_sha, _head_tree, head_message = head
+    head_tags = run_owned_commit_tags(head_message)
+    if _tags_contain(head_tags, expected):
+        return True
+    # A HEAD that already carries different run-owned tags is foreign work:
+    # fail closed without re-stamping over another run's provenance.
+    for key, value in expected.items():
+        if key in head_tags and head_tags.get(key) != value:
+            subject = (head_message.strip().splitlines() or [""])[0].strip()
+            print_status(
+                "HEAD is ahead of its upstream with unpushed commits that do not "
+                f"carry this run's SASE provenance (for example {_head_sha[:12]} {subject}). "
+                "Failing closed to avoid publishing foreign work. Unpushed commits:\n"
+                + _format_unpushed_lines(unpushed)
+                + "\nResolve manually and re-run sase stitch create --resume.",
+                "error",
+            )
+            return False
+    restamp_failure = _restamp_missing_footer_tags(provider, cp, provider_name)
+    if restamp_failure is not None:
+        return None
+    refreshed = _unpushed_records_for_resume(cp.cwd, fetch=False)
+    if not refreshed:
+        print_status(
+            "HEAD was re-stamped but no unpushed commits remain. Resolve manually "
+            "and re-run sase stitch create --resume.",
+            "error",
+        )
+        return False
+    _new_sha, _new_tree, new_message = refreshed[-1]
+    if not _tags_contain(run_owned_commit_tags(new_message), expected):
+        print_status(
+            "HEAD is ahead of its upstream with unpushed commits that do not "
+            "carry this run's SASE provenance, even after re-stamping. "
+            "Failing closed to avoid publishing foreign work. Unpushed commits:\n"
+            + _format_unpushed_lines(refreshed)
+            + "\nResolve manually and re-run sase stitch create --resume.",
+            "error",
+        )
+        return False
+    for sha, _tree, message in refreshed[:-1]:
+        if not _tags_contain(run_owned_commit_tags(message), expected):
+            print_status(
+                "HEAD is ahead of its upstream with unpushed commits that do not "
+                "carry this run's SASE provenance. Failing closed. Unpushed commits:\n"
+                + _format_unpushed_lines(refreshed)
+                + "\nResolve manually and re-run sase stitch create --resume.",
+                "error",
+            )
+            return False
     return True
 
 

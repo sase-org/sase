@@ -314,3 +314,124 @@ def test_resume_attributes_markers_to_checkpointed_repo_not_process_cwd(
     assert results[0]["commit_sha"] == "c" * 40
     assert results[0]["commit_tree"] == "c" * 40
     assert results[0]["entry_id"] == "42"
+
+
+def _init_bare_remote(remote: Path) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(
+        ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+        cwd=str(remote),
+        capture_output=True,
+        check=False,
+    )
+
+
+def _git(repo: Path, *args: str) -> None:
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, text=True
+    )
+    assert result.returncode == 0, f"git {args} failed: {result.stderr}"
+
+
+def _init_live_repo(repo: Path, remote: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "-b", "main", "-q")
+    _git(repo, "config", "user.name", "SASE Test")
+    _git(repo, "config", "user.email", "sase-test@example.invalid")
+    (repo / "f.txt").write_text("a\n", encoding="utf-8")
+    _git(repo, "add", "f.txt")
+    _git(repo, "commit", "-q", "-m", "initial")
+    _git(repo, "remote", "add", "origin", str(remote))
+    _git(repo, "push", "-q", "-u", "origin", "HEAD")
+
+
+@patch(PROVIDER_TARGET)
+def test_resume_adopts_unpushed_rebased_head(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    """The sase-1h7.3 case: a rebased HEAD left unpushed is published, not stranded."""
+
+    remote = tmp_path / "remote.git"
+    _init_bare_remote(remote)
+    repo = tmp_path / "repo"
+    _init_live_repo(repo, remote)
+    message = (
+        "fix: bug\n\nSASE_BEAD=sase-1h9.2\nSASE_TYPE=stitch\nSASE_AGENT=test.agent"
+    )
+    (repo / "f.txt").write_text("b\n", encoding="utf-8")
+    _git(repo, "add", "f.txt")
+    _git(repo, "commit", "-q", "-m", message)
+
+    provider = make_resume_provider(head_subject="fix: bug", head_message=message)
+    provider.revision_id.return_value = "c" * 40
+    mock_get.return_value = provider
+    save_resume_checkpoint(
+        cwd=str(repo), payload={"message": message}, no_commit_dispatched=True
+    )
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow_resume.git_changed_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="1",
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    provider.finalize_commit.assert_called_once()
+    provider.amend.assert_not_called()
+    assert mock_marker.call_count == 2
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(PROVIDER_TARGET)
+def test_resume_provenance_mismatch_fails_closed_and_keeps_checkpoint(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Foreign unpushed work is never adopted: fail closed and keep the checkpoint."""
+
+    remote = tmp_path / "remote.git"
+    _init_bare_remote(remote)
+    repo = tmp_path / "repo"
+    _init_live_repo(repo, remote)
+    (repo / "f.txt").write_text("b\n", encoding="utf-8")
+    _git(repo, "add", "f.txt")
+    _git(
+        repo,
+        "commit",
+        "-q",
+        "-m",
+        "fix: bug\n\nSASE_BEAD=other\nSASE_TYPE=stitch\nSASE_AGENT=other",
+    )
+
+    provider = make_resume_provider(head_subject="fix: bug")
+    mock_get.return_value = provider
+    save_resume_checkpoint(
+        cwd=str(repo),
+        payload={
+            "message": "fix: bug\n\nSASE_BEAD=sase-1h9.2\nSASE_TYPE=stitch\nSASE_AGENT=test.agent"
+        },
+        no_commit_dispatched=True,
+    )
+
+    with patch(
+        "sase.workflows.commit.workflow_resume.git_changed_files",
+        return_value=[],
+    ):
+        assert CommitWorkflow.resume() == RunResult.FAILED
+
+    provider.finalize_commit.assert_not_called()
+    provider.amend.assert_not_called()
+    assert (artifacts_dir / "commit_state.json").exists()
+    assert "sase stitch create --resume" in capsys.readouterr().out

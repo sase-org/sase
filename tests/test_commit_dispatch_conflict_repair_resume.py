@@ -307,3 +307,169 @@ def test_conflict_repair_resume_without_marker_hands_off_new_repo(
         for item in result.evidence
     )
     assert any(item.kind == "repair_handoff_declaration" for item in result.evidence)
+
+
+def _git(repo: Path, *args: str) -> None:
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, text=True
+    )
+    assert result.returncode == 0, f"git {args} failed: {result.stderr}"
+
+
+def _init_bare_remote(remote: Path) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(
+        ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+        cwd=str(remote),
+        capture_output=True,
+        check=False,
+    )
+
+
+def _init_live_repo(repo: Path, remote: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "-b", "main", "-q")
+    _git(repo, "config", "user.name", "SASE Test")
+    _git(repo, "config", "user.email", "sase-test@example.invalid")
+    (repo / "f.txt").write_text("a\n", encoding="utf-8")
+    _git(repo, "add", "f.txt")
+    _git(repo, "commit", "-q", "-m", "initial")
+    _git(repo, "remote", "add", "origin", str(remote))
+    _git(repo, "push", "-q", "-u", "origin", "HEAD")
+
+
+def _live_repo(
+    tmp_path: Path, *, ahead_message: str | None = None
+) -> tuple[Path, Path, DirtyRepo]:
+    remote = tmp_path / "remote.git"
+    _init_bare_remote(remote)
+    repo_path = tmp_path / "repo"
+    _init_live_repo(repo_path, remote)
+    if ahead_message is not None:
+        (repo_path / "f.txt").write_text("b\n", encoding="utf-8")
+        _git(repo_path, "add", "f.txt")
+        _git(repo_path, "commit", "-q", "-m", ahead_message)
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = _repo(repo_path, changed_files=("src/app.py",))
+    return repo_path, artifacts, dirty
+
+
+def _consuming_invoke(provider: MagicMock, artifacts: Path) -> MagicMock:
+    """Make the repair turn consume the run-owned checkpoint, like --resume."""
+
+    def _invoke(_prompt: str, **_kwargs: object) -> InvokeResult:
+        checkpoint = artifacts / "commit_state.json"
+        if checkpoint.is_file():
+            checkpoint.unlink()
+        return InvokeResult(content="resolved")
+
+    provider.invoke.side_effect = _invoke
+    return provider
+
+
+def test_conflict_repair_consumed_checkpoint_skips_host_resume_when_settled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The toobig-75 case: repair turn already ran --resume; do not fail stale."""
+
+    _repo_path, artifacts, dirty = _live_repo(tmp_path)
+    (artifacts / "commit_state.json").write_text("{}", encoding="utf-8")
+    changed_files: list[str] = []
+    provider = MagicMock()
+    _consuming_invoke(provider, artifacts)
+    provider.is_sync_in_progress.return_value = False
+    provider.get_conflicted_files.return_value = []
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.git_changed_files",
+        lambda _path: list(changed_files),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.git_head_commit_id",
+        lambda _path: "h" * 40,
+    )
+
+    resume_calls: list[str] = []
+
+    def stitch_runner(
+        _repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: Sequence[str],
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        return StitchCommandResult(returncode=EXIT_CODE_CONFLICT)
+
+    def resume_runner(
+        _repo_arg: DirtyRepo,
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        resume_calls.append("resume")
+        return StitchCommandResult(returncode=0, stdout="nothing to finish\n")
+
+    result = _dispatch(
+        repo=dirty,
+        artifacts=artifacts,
+        changed_files=changed_files,
+        stitch_runner=stitch_runner,
+        resume_runner=resume_runner,
+        provider=provider,
+    )
+
+    assert resume_calls == []
+    assert any(
+        item.kind == "conflict_repair" and item.value == "resolved_without_commit"
+        for item in result.evidence
+    )
+
+
+def test_conflict_repair_consumed_checkpoint_fails_unpushed_when_ahead(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A clean-but-ahead repo never reports success; it names the recovery."""
+
+    _repo_path, artifacts, dirty = _live_repo(
+        tmp_path, ahead_message="fix: rebased\n\nSASE_BEAD=x"
+    )
+    (artifacts / "commit_state.json").write_text("{}", encoding="utf-8")
+    changed_files: list[str] = []
+    provider = MagicMock()
+    _consuming_invoke(provider, artifacts)
+    provider.is_sync_in_progress.return_value = False
+    provider.get_conflicted_files.return_value = []
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.git_changed_files",
+        lambda _path: list(changed_files),
+    )
+
+    def stitch_runner(
+        _repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: Sequence[str],
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        return StitchCommandResult(returncode=EXIT_CODE_CONFLICT)
+
+    def resume_runner(
+        _repo_arg: DirtyRepo,
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        raise AssertionError("host resume must be skipped when checkpoint is gone")
+
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        _dispatch(
+            repo=dirty,
+            artifacts=artifacts,
+            changed_files=changed_files,
+            stitch_runner=stitch_runner,
+            resume_runner=resume_runner,
+            provider=provider,
+        )
+
+    assert exc_info.value.code == "unpushed_after_repair"
+    assert "sase stitch create --resume" in str(exc_info.value)

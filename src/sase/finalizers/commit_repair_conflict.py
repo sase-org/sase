@@ -8,6 +8,8 @@ import inspect
 import time
 from typing import Any, cast
 
+from pathlib import Path
+
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
     FinalizerOutcomeEvidenceWire,
@@ -36,7 +38,10 @@ from sase.finalizers.owned_turn import finalizer_owned_turn
 from sase.llm_provider._instruction_boundary import invoke_with_instructions
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_git import git_changed_files
-from sase.llm_provider.commit_finalizer_git_status import git_head_commit_id
+from sase.llm_provider.commit_finalizer_git_status import (
+    git_head_commit_id,
+    git_unpushed_commit_records,
+)
 from sase.llm_provider.commit_finalizer_prompting import append_response, merge_usage
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
@@ -46,6 +51,22 @@ _CONFLICT_PROMPT_STEM = "conflict_repair_prompt"
 _CONFLICT_RESPONSE_STEM = "conflict_repair_response"
 _GitChangedFiles = Callable[[str], Sequence[str]]
 _GitHeadCommitId = Callable[[str], str]
+_GitUnpushedRecords = Callable[[str], tuple[tuple[str, str, str], ...]]
+
+_CHECKPOINT_FILENAME = "commit_state.json"
+
+
+def _default_unpushed_records(repo_path: str) -> tuple[tuple[str, str, str], ...]:
+    try:
+        return git_unpushed_commit_records(repo_path, fetch=True)
+    except Exception:
+        return ()
+
+
+def _run_owned_checkpoint_path(artifacts_dir: str | None) -> Path | None:
+    if not artifacts_dir:
+        return None
+    return Path(artifacts_dir) / _CHECKPOINT_FILENAME
 
 
 @dataclass(frozen=True)
@@ -75,6 +96,7 @@ def resolve_commit_conflict(
     instance_id: str = "commit",
     git_changed_files_fn: _GitChangedFiles = git_changed_files,
     git_head_commit_id_fn: _GitHeadCommitId = git_head_commit_id,
+    git_unpushed_records_fn: _GitUnpushedRecords = _default_unpushed_records,
 ) -> ConflictRepairResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
@@ -90,6 +112,10 @@ def resolve_commit_conflict(
             ),
             invoke_result=invoke_result,
         )
+    checkpoint_path = _run_owned_checkpoint_path(context.artifacts_dir)
+    checkpoint_existed_before = bool(
+        checkpoint_path is not None and checkpoint_path.is_file()
+    )
     current_result = run_conflict_repair_turn(
         provider=provider,
         invoke_result=invoke_result,
@@ -117,6 +143,24 @@ def resolve_commit_conflict(
         )
         evidence.extend(marker_evidence(repaired_markers[-1]))
         return ConflictRepairResult(invoke_result=current_result)
+    if checkpoint_existed_before and (
+        checkpoint_path is None or not checkpoint_path.is_file()
+    ):
+        # The repair turn already ran `sase stitch create --resume` and
+        # consumed the run-owned checkpoint. Do not run the host resume
+        # again; verify repository state directly.
+        return _verify_settled_or_raise(
+            repo,
+            context,
+            provider=provider,
+            invoke_result=current_result,
+            attempts=attempts,
+            evidence=evidence,
+            instance_id=instance_id,
+            git_changed_files_fn=git_changed_files_fn,
+            git_head_commit_id_fn=git_head_commit_id_fn,
+            git_unpushed_records_fn=git_unpushed_records_fn,
+        )
     resumed = _call_resume_runner(
         resume_runner,
         repo,
@@ -189,47 +233,47 @@ def resolve_commit_conflict(
             FinalizerOutcomeEvidenceWire(kind="conflict_repair", value="success")
         )
         return ConflictRepairResult(invoke_result=current_result)
-    if _repo_is_settled_after_repair(
+    return _verify_settled_or_raise(
         repo,
+        context,
         provider=provider,
-        git_changed_files_fn=git_changed_files_fn,
-    ):
-        evidence.append(
-            FinalizerOutcomeEvidenceWire(
-                kind="conflict_repair", value="resolved_without_commit"
-            )
-        )
-        evidence.append(
-            FinalizerOutcomeEvidenceWire(
-                kind="head_sha", value=git_head_commit_id_fn(repo.path)
-            )
-        )
-        return ConflictRepairResult(
-            invoke_result=current_result,
-            resolved_without_commit=True,
-        )
-    message_text = (
-        f"sase stitch create --resume completed for {repo.name}, but no "
-        "commit_results.json entry was recorded and the repository is not clean"
-    )
-    raise BuiltinCommitFinalizerError(
-        message_text,
-        result=failed_result(
-            instance_id,
-            "missing_commit_result",
-            message_text,
-            attempts=attempts,
-            evidence=evidence,
-        ),
         invoke_result=current_result,
+        attempts=attempts,
+        evidence=evidence,
+        instance_id=instance_id,
+        git_changed_files_fn=git_changed_files_fn,
+        git_head_commit_id_fn=git_head_commit_id_fn,
+        git_unpushed_records_fn=git_unpushed_records_fn,
     )
 
 
-def _repo_is_settled_after_repair(
+def _safe_unpushed_records(
+    repo_path: str,
+    git_unpushed_records_fn: _GitUnpushedRecords,
+) -> tuple[tuple[str, str, str], ...]:
+    try:
+        records = git_unpushed_records_fn(repo_path)
+    except Exception:
+        return ()
+    return records or ()
+
+
+def _format_unpushed_lines(
+    records: tuple[tuple[str, str, str], ...],
+) -> str:
+    lines: list[str] = []
+    for sha, _tree, message in records:
+        subject = (message.strip().splitlines() or [""])[0].strip() or "(no subject)"
+        short = sha[:12] if len(sha) >= 12 else sha
+        lines.append(f"  {short} {subject}")
+    return "\n".join(lines)
+
+
+def _repo_is_clean_after_repair(
     repo: DirtyRepo,
     *,
     provider: Any,
-    git_changed_files_fn: _GitChangedFiles = git_changed_files,
+    git_changed_files_fn: _GitChangedFiles,
 ) -> bool:
     try:
         if provider.is_sync_in_progress(repo.path):  # type: ignore[attr-defined]
@@ -246,6 +290,93 @@ def _repo_is_settled_after_repair(
     except Exception:
         return False
     return not git_changed_files_fn(repo.path)
+
+
+def _repo_is_settled_after_repair(
+    repo: DirtyRepo,
+    *,
+    provider: Any,
+    git_changed_files_fn: _GitChangedFiles = git_changed_files,
+    git_unpushed_records_fn: _GitUnpushedRecords = _default_unpushed_records,
+) -> bool:
+    if not _repo_is_clean_after_repair(
+        repo, provider=provider, git_changed_files_fn=git_changed_files_fn
+    ):
+        return False
+    return not _safe_unpushed_records(repo.path, git_unpushed_records_fn)
+
+
+def _verify_settled_or_raise(
+    repo: DirtyRepo,
+    context: FinalizerExecutionContext,
+    *,
+    provider: Any,
+    invoke_result: InvokeResult,
+    attempts: list[FinalizerAttemptWire],
+    evidence: list[FinalizerOutcomeEvidenceWire],
+    instance_id: str,
+    git_changed_files_fn: _GitChangedFiles,
+    git_head_commit_id_fn: _GitHeadCommitId,
+    git_unpushed_records_fn: _GitUnpushedRecords,
+) -> ConflictRepairResult:
+    if _repo_is_settled_after_repair(
+        repo,
+        provider=provider,
+        git_changed_files_fn=git_changed_files_fn,
+        git_unpushed_records_fn=git_unpushed_records_fn,
+    ):
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(
+                kind="conflict_repair", value="resolved_without_commit"
+            )
+        )
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(
+                kind="head_sha", value=git_head_commit_id_fn(repo.path)
+            )
+        )
+        return ConflictRepairResult(
+            invoke_result=invoke_result,
+            resolved_without_commit=True,
+        )
+    unpushed = _safe_unpushed_records(repo.path, git_unpushed_records_fn)
+    clean = _repo_is_clean_after_repair(
+        repo, provider=provider, git_changed_files_fn=git_changed_files_fn
+    )
+    if clean and unpushed:
+        message_text = (
+            f"sase stitch create --resume completed for {repo.name}, but HEAD is "
+            "ahead of its upstream with unpushed commits and no "
+            "commit_results.json entry was recorded:\n"
+            + _format_unpushed_lines(unpushed)
+            + "\nRun `sase stitch create --resume` to publish the rebased HEAD."
+        )
+        raise BuiltinCommitFinalizerError(
+            message_text,
+            result=failed_result(
+                instance_id,
+                "unpushed_after_repair",
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            ),
+            invoke_result=invoke_result,
+        )
+    message_text = (
+        f"sase stitch create --resume completed for {repo.name}, but no "
+        "commit_results.json entry was recorded and the repository is not clean"
+    )
+    raise BuiltinCommitFinalizerError(
+        message_text,
+        result=failed_result(
+            instance_id,
+            "missing_commit_result",
+            message_text,
+            attempts=attempts,
+            evidence=evidence,
+        ),
+        invoke_result=invoke_result,
+    )
 
 
 def _call_resume_runner(

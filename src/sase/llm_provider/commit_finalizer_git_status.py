@@ -227,6 +227,131 @@ def git_upstream_ahead_count(repo_dir: str) -> int | None:
     return int(text)
 
 
+def git_fetch_origin(repo_dir: str, *, timeout: int = 60) -> bool:
+    """Best-effort ``git fetch origin``; never raises."""
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_dir, "fetch", "origin"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except Exception:
+        return False
+    return result.returncode == 0
+
+
+def _git_ref_exists(repo_dir: str, ref: str) -> bool:
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                repo_dir,
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                f"{ref}^{{commit}}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        return False
+    return result.returncode == 0
+
+
+def git_remote_tracking_ref(repo_dir: str) -> str | None:
+    """Resolve HEAD's upstream or the remote default branch, if any."""
+
+    try:
+        upstream = subprocess.run(
+            [
+                "git",
+                "-C",
+                repo_dir,
+                "rev-parse",
+                "--abbrev-ref",
+                "--symbolic-full-name",
+                "@{upstream}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        upstream = None  # type: ignore[assignment]
+    if upstream is not None and upstream.returncode == 0:
+        ref = upstream.stdout.strip()
+        if ref and ref != "@{upstream}" and _git_ref_exists(repo_dir, ref):
+            return ref
+    try:
+        branch_out = subprocess.run(
+            ["git", "-C", repo_dir, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        branch_out = None  # type: ignore[assignment]
+    if branch_out is not None and branch_out.returncode == 0:
+        branch = branch_out.stdout.strip()
+        if branch and branch != "HEAD":
+            candidate = f"origin/{branch}"
+            if _git_ref_exists(repo_dir, candidate):
+                return candidate
+    try:
+        head_ref = subprocess.run(
+            ["git", "-C", repo_dir, "symbolic-ref", "refs/remotes/origin/HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        head_ref = None  # type: ignore[assignment]
+    if head_ref is not None and head_ref.returncode == 0:
+        ref = head_ref.stdout.strip()
+        if ref.startswith("refs/remotes/"):
+            candidate = ref[len("refs/remotes/") :]
+            if candidate and _git_ref_exists(repo_dir, candidate):
+                return candidate
+    for candidate in ("origin/main", "origin/master"):
+        if _git_ref_exists(repo_dir, candidate):
+            return candidate
+    return None
+
+
+def git_unpushed_commit_records(
+    repo_dir: str, *, fetch: bool = True
+) -> tuple[tuple[str, str, str], ...]:
+    """Return ``(sha, tree, message)`` for commits in ``remote..HEAD``.
+
+    Fetches ``origin`` first when *fetch* is true (best-effort), then
+    compares against the upstream or remote default branch. Returns ``()``
+    when there is no remote to compare against or HEAD is not ahead.
+    """
+
+    if fetch:
+        git_fetch_origin(repo_dir)
+    ref = git_remote_tracking_ref(repo_dir)
+    if ref is None:
+        return ()
+    return git_log_commit_records(repo_dir, f"{ref}..HEAD")
+
+
+def git_is_ahead_of_upstream(repo_dir: str, *, fetch: bool = True) -> bool:
+    """Return whether HEAD holds commits not present on its remote ref."""
+
+    return bool(git_unpushed_commit_records(repo_dir, fetch=fetch))
+
+
 def git_log_commit_records(
     repo_dir: str, revision: str
 ) -> tuple[tuple[str, str, str], ...]:
