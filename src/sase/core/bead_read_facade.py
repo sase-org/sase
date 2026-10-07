@@ -17,6 +17,7 @@ from sase.core.bead_wire import (
     tier_values,
 )
 from sase.core.rust import optional_rust_binding, require_rust_binding
+from sase.task_types.fields import issue_matches_task_types
 
 
 @dataclass(frozen=True)
@@ -169,6 +170,108 @@ def list_issues(
         tier_values(tiers),
     )
     return issues_from_list(payload)
+
+
+def list_issue_page(
+    beads_dir: Path | str,
+    statuses: list[Status] | tuple[Status, ...] | None = None,
+    issue_types: list[IssueType] | tuple[IssueType, ...] | None = None,
+    tiers: list[BeadTier] | tuple[BeadTier, ...] | None = None,
+    task_types: list[str] | tuple[str, ...] | None = None,
+    limit: int | None = None,
+) -> tuple[int, list[Issue]]:
+    """Return ``(total, issues)`` for one filtered list query.
+
+    ``total`` counts every match before ``limit`` keeps the newest rows.
+    Cores that predate the ``bead_list_query`` binding filter and slice in
+    Python until the pin bump removes this fallback.
+    """
+    binding = optional_rust_binding("bead_list_query")
+    if binding is not None:
+        try:
+            payload: dict[str, Any] = binding(
+                str(beads_dir),
+                status_values(statuses),
+                issue_type_values(issue_types),
+                tier_values(tiers),
+                list(task_types) if task_types is not None else None,
+                limit,
+            )
+            return int(payload["total"]), issues_from_list(payload["issues"])
+        except Exception:
+            pass
+    issues = list_issues(
+        beads_dir,
+        statuses=statuses,
+        issue_types=issue_types,
+        tiers=tiers,
+    )
+    if task_types:
+        issues = [
+            issue
+            for issue in issues
+            if issue_matches_task_types(issue.task_type, task_types)
+        ]
+    total = len(issues)
+    if limit:
+        issues = issues[-limit:]
+    return total, issues
+
+
+def closed_ids(beads_dir: Path | str) -> list[str]:
+    """Return closed bead IDs in replay order.
+
+    Cores that predate the ``bead_closed_ids`` binding filter one
+    ``list_issues`` read in Python until the pin bump removes this
+    fallback.
+    """
+    binding = optional_rust_binding("bead_closed_ids")
+    if binding is not None:
+        try:
+            payload: list[str] = binding(str(beads_dir))
+            return [str(item) for item in payload]
+        except Exception:
+            pass
+    return [
+        issue.id for issue in list_issues(beads_dir) if issue.status is Status.CLOSED
+    ]
+
+
+def statuses_for_ids(
+    beads_dir: Path | str,
+    issue_ids: list[str] | tuple[str, ...],
+) -> dict[str, str]:
+    """Return requested bead IDs mapped to status values.
+
+    IDs that do not exist (or match ambiguously) are omitted, never errors.
+    Cores that predate the ``bead_statuses_for_ids`` binding answer from
+    one ``list_issues`` read until the pin bump removes this fallback.
+    """
+    wanted = list(issue_ids)
+    binding = optional_rust_binding("bead_statuses_for_ids")
+    if binding is not None:
+        try:
+            payload: dict[str, str] = binding(str(beads_dir), wanted)
+            return {str(key): str(value) for key, value in payload.items()}
+        except Exception:
+            pass
+    by_id: dict[str, Issue] = {}
+    by_suffix: dict[str, Issue | None] = {}
+    for issue in list_issues(beads_dir):
+        by_id[issue.id] = issue
+        suffix = issue.id.rsplit("-", 1)[-1]
+        if suffix == issue.id:
+            continue
+        by_suffix[suffix] = None if suffix in by_suffix else issue
+    statuses: dict[str, str] = {}
+    for bead_id in wanted:
+        matched = by_id.get(bead_id)
+        if matched is None:
+            matched = by_suffix.get(bead_id)
+        if matched is None:
+            continue
+        statuses[bead_id] = matched.status.value
+    return statuses
 
 
 def search(

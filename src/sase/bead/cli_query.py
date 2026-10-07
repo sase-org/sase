@@ -98,38 +98,64 @@ def handle_bead_list(args: argparse.Namespace) -> None:
         issue_types = [IssueType(t) for t in args.type] if args.type else None
         tiers = [BeadTier(t) for t in args.tier] if args.tier else None
         task_types = getattr(args, "task_type", None)
-        issues = _filter_by_task_type(
-            _filter_by_created_window(
-                view.list_issues(
-                    statuses=statuses, issue_types=issue_types, tiers=tiers
-                ),
-                window=window,
-            ),
-            task_types,
-        )
-        implicit_closed = False
-        if not issues and not explicit_statuses:
+        explicit_limit = getattr(args, "limit", None) is not None
+        if window == (None, None):
+            # Pushdown lane: task-type filtering, the newest-N limit, and
+            # the pre-limit total all resolve inside the read model, so
+            # bounded listings never hydrate the rows they drop.
+            limit = getattr(args, "limit", None)
+            if limit is None and Status.CLOSED in statuses:
+                limit = DEFAULT_CLOSED_LIST_LIMIT
+            total, issues = view.list_issue_page(
+                statuses=statuses,
+                issue_types=issue_types,
+                tiers=tiers,
+                task_types=task_types,
+                limit=limit,
+            )
+            implicit_closed = False
+            if not issues and not explicit_statuses:
+                statuses = [Status.CLOSED]
+                limit = getattr(args, "limit", None)
+                if limit is None:
+                    limit = DEFAULT_CLOSED_LIST_LIMIT
+                total, issues = view.list_issue_page(
+                    statuses=statuses,
+                    issue_types=issue_types,
+                    tiers=tiers,
+                    task_types=task_types,
+                    limit=limit,
+                )
+                implicit_closed = bool(issues)
+        else:
             issues = _filter_by_task_type(
                 _filter_by_created_window(
                     view.list_issues(
-                        statuses=[Status.CLOSED],
-                        issue_types=issue_types,
-                        tiers=tiers,
+                        statuses=statuses, issue_types=issue_types, tiers=tiers
                     ),
                     window=window,
                 ),
                 task_types,
             )
-            statuses = [Status.CLOSED]
-            implicit_closed = bool(issues)
-        total = len(issues)
-        closed_in_scope = implicit_closed or Status.CLOSED in statuses
-        explicit_limit = getattr(args, "limit", None) is not None
-        limit = getattr(args, "limit", None)
-        if limit is None and closed_in_scope and window == (None, None):
-            limit = DEFAULT_CLOSED_LIST_LIMIT
-        if limit:
-            issues = issues[-limit:]
+            implicit_closed = False
+            if not issues and not explicit_statuses:
+                issues = _filter_by_task_type(
+                    _filter_by_created_window(
+                        view.list_issues(
+                            statuses=[Status.CLOSED],
+                            issue_types=issue_types,
+                            tiers=tiers,
+                        ),
+                        window=window,
+                    ),
+                    task_types,
+                )
+                statuses = [Status.CLOSED]
+                implicit_closed = bool(issues)
+            total = len(issues)
+            limit = getattr(args, "limit", None)
+            if limit:
+                issues = issues[-limit:]
         summary_rows: Sequence[BeadSummaryRow] = issues
         summary = summarize_bead_rows(summary_rows, matched=total)
         implicit_limit = not explicit_limit

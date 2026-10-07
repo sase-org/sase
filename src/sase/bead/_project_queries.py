@@ -80,6 +80,31 @@ class BeadProjectQueryMixin:
             tiers=tiers,
         )
 
+    def list_issue_page(
+        self,
+        statuses: list[Status] | None = None,
+        issue_types: list[IssueType] | None = None,
+        tiers: list[BeadTier] | None = None,
+        task_types: list[str] | None = None,
+        limit: int | None = None,
+    ) -> tuple[int, list[Issue]]:
+        """List issues with optional filters plus a pre-limit total.
+
+        Task-type filtering and ``limit`` run inside the Rust read model
+        when the installed core exposes them, so bounded listings never
+        hydrate the rows they drop.
+        """
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.list_issue_page(
+            self.beads_dir,
+            statuses=statuses,
+            issue_types=issue_types,
+            tiers=tiers,
+            task_types=task_types,
+            limit=limit,
+        )
+
     def search(
         self,
         query: str,

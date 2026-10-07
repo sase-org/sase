@@ -70,11 +70,11 @@ def closed_bead_ids_for_project(project: str) -> frozenset[str] | None:
         beads_dir = canonical_beads_dir_for_project(project)
         if beads_dir is None:
             return None
-        with open_bead_project_for_beads_dir(beads_dir) as bead_project:
-            issues = bead_project.list_issues(statuses=[Status.CLOSED])
+        from sase.core import bead_read_facade as rust_beads
+
+        return frozenset(rust_beads.closed_ids(beads_dir))
     except Exception:  # noqa: BLE001 - unavailable stores must fail closed.
         return None
-    return frozenset(issue.id for issue in issues)
 
 
 def open_bead_candidates_for_project(project: str) -> tuple[Issue, ...] | None:
@@ -99,41 +99,18 @@ def bead_statuses_for_project(
     ``None`` means the project's canonical bead store was unavailable. IDs
     that do not exist in the store are omitted from the returned mapping.
 
-    The Rust ``bead_show`` binding is single-id only, so this uses one
-    ``list_issues`` store query and matches requested IDs in Python.
+    The Rust ``bead_statuses_for_ids`` multi-get answers from the read
+    model's indexes without hydrating full rows.
     """
     try:
         beads_dir = canonical_beads_dir_for_project(project)
         if beads_dir is None:
             return None
-        wanted = set(bead_ids)
-        with open_bead_project_for_beads_dir(beads_dir) as bead_project:
-            if not wanted:
-                return {}
-            return _statuses_from_issues(bead_project.list_issues(), wanted)
+        wanted = list(bead_ids)
+        if not wanted:
+            return {}
+        from sase.core import bead_read_facade as rust_beads
+
+        return rust_beads.statuses_for_ids(beads_dir, wanted)
     except Exception:  # noqa: BLE001 - unavailable stores must fail closed.
         return None
-
-
-def _statuses_from_issues(
-    issues: Iterable[Issue],
-    wanted: set[str],
-) -> dict[str, str]:
-    """Map requested IDs to statuses from one already-loaded issue list."""
-    by_id: dict[str, Issue] = {}
-    by_suffix: dict[str, Issue | None] = {}
-    for issue in issues:
-        by_id[issue.id] = issue
-        suffix = issue.id.rsplit("-", 1)[-1]
-        if suffix == issue.id:
-            continue
-        by_suffix[suffix] = None if suffix in by_suffix else issue
-    statuses: dict[str, str] = {}
-    for bead_id in wanted:
-        matched = by_id.get(bead_id)
-        if matched is None:
-            matched = by_suffix.get(bead_id)
-        if matched is None:
-            continue
-        statuses[bead_id] = matched.status.value
-    return statuses

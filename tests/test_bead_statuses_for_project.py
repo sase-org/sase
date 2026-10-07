@@ -40,7 +40,7 @@ def test_bead_statuses_for_project_reads_requested_ids_from_canonical_store(
     assert bead_statuses_for_project("unknown", [closed.id]) is None
 
 
-def test_bead_statuses_for_project_uses_one_list_query_instead_of_show_n_plus_one(
+def test_bead_statuses_for_project_uses_one_indexed_query_instead_of_show_n_plus_one(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -75,7 +75,9 @@ def test_bead_statuses_for_project_uses_one_list_query_instead_of_show_n_plus_on
         second.id: "in_progress",
     }
     assert show_calls == []
-    assert len(list_calls) == 1
+    # The indexed multi-get answers without hydrating rows; cores that
+    # predate the binding fall back to exactly one list read.
+    assert len(list_calls) <= 1
 
 
 def test_bead_statuses_for_project_resolves_unique_id_suffixes(

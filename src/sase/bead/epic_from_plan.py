@@ -330,7 +330,7 @@ def preview_parented_epic_id(proj: BeadProject, parent_id: str) -> str:
     """Preview Rust's next direct-child allocation without mutating the store."""
     prefix = f"{parent_id}."
     highest = 0
-    for issue in proj.list_issues():
+    for issue in proj.get_epic_children(parent_id):
         if issue.parent_id != parent_id or not issue.id.startswith(prefix):
             continue
         suffix = issue.id[len(prefix) :]
