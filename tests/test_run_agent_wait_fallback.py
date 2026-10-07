@@ -90,7 +90,7 @@ def test_named_wait_fallback_resolves_without_ready_marker(
         )
 
     assert blocked is True
-    assert sleep_calls == [2]
+    assert sleep_calls == [0.5]
     assert "Dependencies satisfied by runner fallback" in capsys.readouterr().out
     assert isinstance(agent_meta.get("wait_completed_at"), str)
     assert not (waiter_dir / "waiting.json").exists()
@@ -136,7 +136,7 @@ def test_named_wait_fallback_honors_memoized_identity_dependency(
             wait_identity_deps=[identity_dep],
         )
 
-    sleep_mock.assert_called_once_with(2)
+    sleep_mock.assert_called_once_with(0.5)
     assert not (waiter_dir / "waiting.json").exists()
     assert not (waiter_dir / "ready.json").exists()
 
@@ -187,7 +187,7 @@ def test_named_wait_fallback_starts_duration_floor_at_resolution(
             duration=3,
         )
 
-    assert sleep_calls == [2, 2]
+    assert sleep_calls == [0.5, 2]
     assert len(marker_snapshots) == 2
     assert "wait_until" not in marker_snapshots[0]
     assert isinstance(marker_snapshots[1].get("wait_until"), str)
@@ -273,7 +273,7 @@ def test_bead_wait_fallback_releases_after_bead_closes(
         )
 
     assert blocked is True
-    assert sleep_calls == [2]
+    assert sleep_calls == [0.5]
     assert "Dependencies satisfied by runner fallback" in capsys.readouterr().out
 
 

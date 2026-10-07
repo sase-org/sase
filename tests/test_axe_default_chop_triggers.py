@@ -38,10 +38,13 @@ _PATCH_GLOB_CHOPS = (
     "orphan_cleanup",
 )
 
-# waits-lane chops that share the per-project completion-pulse fs trigger.
-# Per-agent pulses written inside run directories never match this
-# project-level glob; only the project ``artifacts/.ace_refresh_pulse`` does.
-_PULSE_CHOPS = ("bead_claim_checks", "wait_checks")
+# Pulse-triggered chops and the lane each lives in. Per-agent pulses written
+# inside run directories never match this project-level glob; only the
+# project ``artifacts/.ace_refresh_pulse`` does.
+_PULSE_CHOPS = (
+    ("waits", "bead_claim_checks"),
+    ("agent_waits", "wait_checks"),
+)
 
 # Every shipped chop that got an fs trigger this phase, and the lane each
 # lives in - used by the shared max_quiet sweep and the shipped-defaults
@@ -55,7 +58,7 @@ _ALL_GUARDED_CHOPS = (
     ("hooks", "suffix_transforms"),
     ("hooks", "orphan_cleanup"),
     ("waits", "bead_claim_checks"),
-    ("waits", "wait_checks"),
+    ("agent_waits", "wait_checks"),
 )
 
 
@@ -148,42 +151,44 @@ def _real_run_dir(artifacts: Path, timestamp: str) -> Path:
     return run_dir
 
 
-def _pulse_baseline(chop_name: str) -> tuple[ChopConfig, datetime, Path, Path]:
-    """Record the pulse trigger checkpoint for one waits-lane chop.
+def _pulse_baseline(
+    lane: str, chop_name: str
+) -> tuple[ChopConfig, datetime, Path, Path]:
+    """Record the pulse trigger checkpoint for one pulse-triggered chop.
 
     Returns the chop, the baseline instant, the project's artifacts dir, and
     one pre-existing real-layout run dir. The project pulse file does not
     exist yet, so the baseline token is the stable no-pulse state.
     """
-    chop = _default_chop("waits", chop_name)
+    chop = _default_chop(lane, chop_name)
     tz = get_timezone()
     t0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz)
 
     artifacts = sase_home() / "projects" / "demo" / "artifacts"
     run_dir = _real_run_dir(artifacts, "20260101120500")
 
-    _fire_and_record("waits", chop, now=t0)
+    _fire_and_record(lane, chop, now=t0)
     return chop, t0, artifacts, run_dir
 
 
-@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
-def test_pulse_chops_skip_idle(chop_name: str) -> None:
-    chop, t0, _, _ = _pulse_baseline(chop_name)
+@pytest.mark.parametrize(("lane", "chop_name"), _PULSE_CHOPS)
+def test_pulse_chops_skip_idle(lane: str, chop_name: str) -> None:
+    chop, t0, _, _ = _pulse_baseline(lane, chop_name)
 
-    idle = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    idle = _tick(lane, chop, now=t0 + timedelta(seconds=10))
     assert idle.outcome == "skip", idle.reason
 
 
-@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
-def test_pulse_chops_fire_on_done_marker(chop_name: str) -> None:
+@pytest.mark.parametrize(("lane", "chop_name"), _PULSE_CHOPS)
+def test_pulse_chops_fire_on_done_marker(lane: str, chop_name: str) -> None:
     """A completion written through ``write_done_marker_and_update_index`` fires."""
     from sase.axe.run_agent_exec_markers import (  # noqa: PLC0415
         write_done_marker_and_update_index,
     )
 
-    chop, t0, _, run_dir = _pulse_baseline(chop_name)
+    chop, t0, _, run_dir = _pulse_baseline(lane, chop_name)
 
-    idle = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    idle = _tick(lane, chop, now=t0 + timedelta(seconds=10))
     assert idle.outcome == "skip", idle.reason
 
     write_done_marker_and_update_index(
@@ -191,17 +196,19 @@ def test_pulse_chops_fire_on_done_marker(chop_name: str) -> None:
         {"patch_name": "dep", "cl_name": "dep", "outcome": "completed"},
     )
 
-    changed = _tick("waits", chop, now=t0 + timedelta(seconds=20))
+    changed = _tick(lane, chop, now=t0 + timedelta(seconds=20))
     assert changed.outcome == "fire"
     assert "changed" in changed.reason
 
 
-@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
-def test_pulse_chops_fire_on_dependency_waiting_marker(chop_name: str) -> None:
+@pytest.mark.parametrize(("lane", "chop_name"), _PULSE_CHOPS)
+def test_pulse_chops_fire_on_dependency_waiting_marker(
+    lane: str, chop_name: str
+) -> None:
     """A dependency ``write_waiting_marker`` touches the pulse and fires."""
     from sase.axe.run_agent_wait_markers import write_waiting_marker  # noqa: PLC0415
 
-    chop, t0, artifacts, _ = _pulse_baseline(chop_name)
+    chop, t0, artifacts, _ = _pulse_baseline(lane, chop_name)
 
     waiter_dir = _real_run_dir(artifacts, "20260101120600")
     write_waiting_marker(
@@ -214,17 +221,17 @@ def test_pulse_chops_fire_on_dependency_waiting_marker(chop_name: str) -> None:
         },
     )
 
-    changed = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    changed = _tick(lane, chop, now=t0 + timedelta(seconds=10))
     assert changed.outcome == "fire"
     assert "changed" in changed.reason
 
 
-@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
-def test_pulse_chops_skip_slot_queue_marker(chop_name: str) -> None:
+@pytest.mark.parametrize(("lane", "chop_name"), _PULSE_CHOPS)
+def test_pulse_chops_skip_slot_queue_marker(lane: str, chop_name: str) -> None:
     """A slot-queue-style marker (no dependency fields) neither pulses nor fires."""
     from sase.axe.run_agent_wait_markers import write_waiting_marker  # noqa: PLC0415
 
-    chop, t0, artifacts, _ = _pulse_baseline(chop_name)
+    chop, t0, artifacts, _ = _pulse_baseline(lane, chop_name)
 
     queued_dir = _real_run_dir(artifacts, "20260101120700")
     write_waiting_marker(
@@ -240,21 +247,21 @@ def test_pulse_chops_skip_slot_queue_marker(chop_name: str) -> None:
     )
 
     assert not (artifacts / ".ace_refresh_pulse").exists()
-    skipped = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    skipped = _tick(lane, chop, now=t0 + timedelta(seconds=10))
     assert skipped.outcome == "skip", skipped.reason
 
 
-@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
-def test_pulse_chops_skip_lock_files_and_new_day_dir(chop_name: str) -> None:
+@pytest.mark.parametrize(("lane", "chop_name"), _PULSE_CHOPS)
+def test_pulse_chops_skip_lock_files_and_new_day_dir(lane: str, chop_name: str) -> None:
     """Leaked scheduler lock files and new (empty) day shards do not fire."""
-    chop, t0, artifacts, _ = _pulse_baseline(chop_name)
+    chop, t0, artifacts, _ = _pulse_baseline(lane, chop_name)
 
     ace_run = artifacts / "ace-run"
     (ace_run / "..gate-shell-abc123.lock").write_text("locked", encoding="utf-8")
     (ace_run / "..monitor-start-xyz.lock").write_text("locked", encoding="utf-8")
     (ace_run / "202601" / "02").mkdir(parents=True)
 
-    skipped = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    skipped = _tick(lane, chop, now=t0 + timedelta(seconds=10))
     assert skipped.outcome == "skip", skipped.reason
 
 
@@ -289,14 +296,43 @@ def test_stale_running_cleanup_keeps_the_always_trigger_in_both_lanes() -> None:
     assert checks_chop.trigger == {"provider": "always"}
 
 
-def test_epic_launch_flush_and_sidecar_auto_sync_are_unaffected() -> None:
-    """These already gate on ``run_every``; this phase does not touch them."""
+def test_waits_lane_holds_only_bead_claim_checks_and_epic_launch_flush() -> None:
+    """``wait_checks`` moved to ``agent_waits``; ``sidecar_auto_sync`` to ``sidecar_sync``."""
+    cfg = load_axe_config()
+    assert sorted(c.name for c in cfg.lumberjacks["waits"].chops) == [
+        "bead_claim_checks",
+        "epic_launch_flush",
+    ]
     epic_launch_flush = _default_chop("waits", "epic_launch_flush")
-    sidecar_auto_sync = _default_chop("waits", "sidecar_auto_sync")
     assert epic_launch_flush.trigger == {"provider": "always"}
     assert epic_launch_flush.run_every == 30
-    assert sidecar_auto_sync.trigger == {"provider": "always"}
-    assert sidecar_auto_sync.run_every == 30
+
+
+def test_shipped_lane_split_config() -> None:
+    """Living contract: ``agent_waits`` = wait_checks @ 2s; ``sidecar_sync`` = sidecar @ 30s."""
+    cfg = load_axe_config()
+    agent_waits = cfg.lumberjacks["agent_waits"]
+    assert agent_waits.interval == 2
+    assert [c.name for c in agent_waits.chops] == ["wait_checks"]
+    wait_checks = _default_chop("agent_waits", "wait_checks")
+    assert wait_checks.trigger.get("provider") == "fs"
+    assert wait_checks.trigger.get("max_quiet") == "120s"
+
+    sidecar_sync = cfg.lumberjacks["sidecar_sync"]
+    assert sidecar_sync.interval == 30
+    assert [c.name for c in sidecar_sync.chops] == ["sidecar_auto_sync"]
+    sync_chop = _default_chop("sidecar_sync", "sidecar_auto_sync")
+    assert sync_chop.trigger == {"provider": "always"}
+    assert sync_chop.run_every is None
+    assert sync_chop.timeout == 120
+
+
+def test_runner_ready_poll_interval_is_half_second() -> None:
+    """The parked runner stats ``ready.json`` every 0.5 s; fallback cadence is unchanged."""
+    from sase.axe import run_agent_wait  # noqa: PLC0415
+
+    assert run_agent_wait._WAIT_READY_POLL_INTERVAL == 0.5
+    assert run_agent_wait._WAIT_DEPENDENCY_FALLBACK_INTERVAL == 60.0
 
 
 def test_shipped_hooks_lane_has_exactly_seven_fs_guarded_chops() -> None:
@@ -351,3 +387,87 @@ def test_idle_tick_spawns_nothing_for_fs_guarded_hooks_lane_chops(
     mock_run.reset_mock()
     lumberjack._run_tick()
     assert mock_run.call_count == 0
+
+
+@patch("sase.axe.chop_runner.stream_chop_script")
+@patch("sase.axe.chop_runner.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_patches", return_value=[])
+def test_idle_agent_waits_tick_spawns_nothing_once_warmed(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+) -> None:
+    """An idle ``agent_waits`` tick spawns nothing once the pulse checkpoint warms up."""
+    axe_cfg = load_axe_config()
+    wait_chops = list(axe_cfg.lumberjacks["agent_waits"].chops)
+    assert [c.name for c in wait_chops] == ["wait_checks"]
+
+    config = LumberjackConfig(
+        name="agent_waits",
+        description="Wait lane fixture",
+        interval=2,
+        chops=wait_chops,
+    )
+    axe_config = AxeConfig(
+        max_hook_runners=3, max_agent_runners=3, zombie_timeout_seconds=3600, query=""
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.side_effect = streamed_ok()
+
+    lumberjack = Lumberjack("agent_waits", config, axe_config)
+
+    lumberjack._run_tick()
+    assert mock_run.call_count == len(wait_chops)
+
+    mock_run.reset_mock()
+    lumberjack._run_tick()
+    assert mock_run.call_count == 0
+
+
+def test_post_sync_pulse_fires_only_for_refreshed_beads_role(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Only a refreshed beads-role sync touches the project completion pulse."""
+    import sase.scripts.sase_chop_sidecar_auto_sync as sidecar_sync_chop  # noqa: PLC0415
+    from sase.sdd._store_types import BEADS_SIDECAR_ROLE  # noqa: PLC0415
+    from tests._axe_chop_sidecar_auto_sync_support import (  # noqa: PLC0415
+        configure_sidecar_sync,
+        make_project,
+        make_runtime,
+    )
+
+    record = make_project(tmp_path, name="proj")
+    configure_sidecar_sync(
+        monkeypatch,
+        tmp_path,
+        records=[record],
+        roles_by_project={"proj": (BEADS_SIDECAR_ROLE,)},
+        hinted_by_project={"proj": (BEADS_SIDECAR_ROLE,)},
+    )
+
+    touched: list[str] = []
+    monkeypatch.setattr(
+        "sase.turns.settlement.touch_turn_refresh_pulse",
+        lambda project: touched.append(project),
+    )
+
+    def refreshed_beads(*_a: object, **_k: object) -> MagicMock:
+        return MagicMock(status="refreshed", skipped=False, clone_dir=None)
+
+    monkeypatch.setattr(sidecar_sync_chop, "sync_primary_sidecar_role", refreshed_beads)
+    monkeypatch.setattr(
+        sidecar_sync_chop, "_publish_pending_goals_outboxes", lambda *a, **k: 0
+    )
+    sidecar_sync_chop._run(make_runtime(tmp_path))
+    assert touched == ["proj"]
+
+    touched.clear()
+
+    def up_to_date_beads(*_a: object, **_k: object) -> MagicMock:
+        return MagicMock(status="up_to_date", skipped=False, clone_dir=None)
+
+    monkeypatch.setattr(
+        sidecar_sync_chop, "sync_primary_sidecar_role", up_to_date_beads
+    )
+    sidecar_sync_chop._run(make_runtime(tmp_path))
+    assert touched == []

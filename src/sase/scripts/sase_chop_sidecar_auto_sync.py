@@ -491,6 +491,13 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             schedule_state[target.schedule_key] = _next_backstop_entry(now=now)
             if result.status == "refreshed":
                 refreshed += 1
+                if target.role == BEADS_SIDECAR_ROLE:
+                    try:
+                        from sase.turns.settlement import touch_turn_refresh_pulse
+
+                        touch_turn_refresh_pulse(target.project_key)
+                    except Exception:  # noqa: BLE001 - pulse is best-effort.
+                        pass
             elif result.status == "up_to_date":
                 up_to_date += 1
             elif result.status == "missing":

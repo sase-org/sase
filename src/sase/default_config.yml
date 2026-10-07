@@ -1316,11 +1316,11 @@ axe:
             exited without reporting.
     waits:
       description: |-
-        Resolve agent wait dependencies and keep bead claims and stores in sync
+        Reconcile bead claims and flush orphaned epic launches
 
-        Runs every ten seconds so waiting agents resume promptly and short-lived bead claims are reconciled quickly.
-        Put agent dependency, bead-claim, and bead-store coordination here; Patch lifecycle checks and general
-        cleanup belong in their dedicated lanes.
+        Runs every ten seconds so short-lived bead claims are reconciled quickly. Agent dependency resolution
+        lives in the agent_waits lane and sidecar syncing in the sidecar_sync lane; Patch lifecycle checks and
+        general cleanup belong in their dedicated lanes.
       interval: 10
       jobs:
         - name: bead_claim_checks
@@ -1345,20 +1345,15 @@ axe:
 
             Preserves deferrals while a matching detached epic-launch task is active, flushes unowned deferrals after
             a 90-second grace period with a resume command, and reaps unclaimed settle markers after one hour.
-        - name: sidecar_auto_sync
-          script: sase_job_sidecar_auto_sync
-          run_every: "30s"
-          timeout: "2m"
-          description: |-
-            Fetch and fast-forward opted-in primary sidecar clones (plans, beads, research, custom)
+    agent_waits:
+      description: |-
+        Resolve agent wait dependencies within seconds of completion
 
-            Scans every enabled project's auto_sync sidecar roles, syncing a role immediately when a publisher left a
-            pending hint and otherwise backstopping it at most every five minutes. Projects with a live agent waiting
-            on bead completion also hint the beads role every tick, even when that role has not opted into auto_sync,
-            so waiters unblock promptly instead of relying on the runner's coarser fallback. Only a clean, attached,
-            non-diverged clone with a matching remote is fetched and fast-forwarded; dirty, detached, diverged,
-            mismatched, missing, or busy clones are left untouched and reported. Bounded work budget and persistent
-            per-role backoff keep one unhealthy clone from stalling the rest.
+        Runs every two seconds so waiting agents resume promptly once a dependency finishes. Only agent
+        dependency resolution belongs here; bead-claim work lives in waits and sidecar syncing in sidecar_sync.
+      interval: 2
+      job_timeout: "2m"
+      jobs:
         - name: wait_checks
           script: sase_job_wait_checks
           trigger:
@@ -1374,6 +1369,28 @@ axe:
             counted in the dead-waiter backlog counter), and resolves named-agent, artifact, and closed-bead
             dependencies from filesystem agent metadata and canonical bead state. It writes ready.json only after
             every dependency is satisfied; invalid or already-ready markers are skipped without blocking other agents.
+    sidecar_sync:
+      description: |-
+        Fetch and fast-forward opted-in primary sidecar clones
+
+        Runs every thirty seconds so sidecar clones converge without delaying agent wait resolution. Only the
+        sidecar_auto_sync job belongs here; agent dependency resolution lives in agent_waits.
+      interval: 30
+      jobs:
+        - name: sidecar_auto_sync
+          script: sase_job_sidecar_auto_sync
+          timeout: "2m"
+          description: |-
+            Fetch and fast-forward opted-in primary sidecar clones (plans, beads, research, custom)
+
+            Scans every enabled project's auto_sync sidecar roles, syncing a role immediately when a publisher left a
+            pending hint and otherwise backstopping it at most every five minutes. Projects with a live agent waiting
+            on bead completion also hint the beads role every tick, even when that role has not opted into auto_sync,
+            so waiters unblock promptly instead of relying on the runner's coarser fallback. Only a clean, attached,
+            non-diverged clone with a matching remote is fetched and fast-forwarded; dirty, detached, diverged,
+            mismatched, missing, or busy clones are left untouched and reported. Bounded work budget and persistent
+            per-role backoff keep one unhealthy clone from stalling the rest. After a beads-role refresh, touches
+            the project's completion pulse so agent_waits re-evaluates bead waits on its next 2 s tick.
     checks:
       description: |-
         Poll slower PR-submission and workspace-claim checks on a five-minute cadence

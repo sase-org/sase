@@ -202,7 +202,7 @@ Use these related commands according to intent:
 
 ## Default Routines
 
-The scheduler ships with seven default routines:
+The scheduler ships with nine default routines:
 
 ### hooks (5-second interval)
 
@@ -231,14 +231,36 @@ PID does not touch any project, claim, or artifact file.
 
 ### waits (10-second interval)
 
+Bead-claim reconciliation and epic-launch flushing:
+
+| Job                 | Description                                                   |
+| ------------------- | ------------------------------------------------------------- |
+| `bead_claim_checks` | Acquire/release bead claims for pre-launch agents             |
+| `epic_launch_flush` | Flush planner completions orphaned by unsettled epic launches |
+
+### agent_waits (2-second interval)
+
 Fast-polling agent dependency resolution:
+
+| Job           | Description                                                        |
+| ------------- | ------------------------------------------------------------------ |
+| `wait_checks` | Resolve successful agent and closed-bead waits; write `ready.json` |
+
+`wait_checks` runs in its own 2-second routine so a slow `sidecar_auto_sync` pass can no
+longer convoy it behind a shared 10-second tick.
+
+### sidecar_sync (30-second interval)
+
+Primary sidecar convergence, isolated from wait resolution:
 
 | Job                 | Description                                                            |
 | ------------------- | ---------------------------------------------------------------------- |
-| `bead_claim_checks` | Acquire/release bead claims for pre-launch agents                      |
-| `epic_launch_flush` | Flush planner completions orphaned by unsettled epic launches          |
 | `sidecar_auto_sync` | Fetch/fast-forward opted-in primary sidecar clones (plans, beads, ...) |
-| `wait_checks`       | Resolve successful agent and closed-bead waits; write `ready.json`     |
+
+The routine interval provides the 30-second cadence (the old per-job `run_every` is
+gone; the per-job `2m` timeout stays). After a `beads`-role refresh, the chop touches
+that project's completion pulse so `agent_waits` re-evaluates bead waits on its next
+2-second tick.
 
 `bead_claim_checks` and `wait_checks` both ship with an `fs` trigger watching the
 per-project completion pulse
@@ -251,8 +273,8 @@ write, and TUI wait-target edits all touch the pulse; pure runner-slot queue rep
 deliberately do not, and per-agent pulses written inside run directories never match the
 project-level glob. Anything the pulse cannot observe — such as the dead-owner claim
 release, where no live process writes anything — still resolves on the `max_quiet`
-backstop. `epic_launch_flush` and `sidecar_auto_sync` are untouched by that guard; they
-already throttle via `run_every: "30s"`.
+backstop. `epic_launch_flush` is untouched by that guard; it already throttles via
+`run_every: "30s"`. `sidecar_auto_sync` lives in its own 30-second routine now.
 
 `wait_checks` unblocks a named dependency when the newest matching agent, or the newest
 matching workflow root and all of its children, has a successful terminal `done.json`
@@ -352,12 +374,20 @@ the marker only when every named bead is closed as well as every agent or artifa
 dependency being satisfied. Missing beads, unavailable stores, and read failures
 deliberately fail closed and leave the agent parked; sase's TUI run-now action remains
 the manual escape hatch. While live bead waits are outstanding, `sidecar_auto_sync`
-hints their projects' `beads` role every 30 seconds — even when that role has not opted
-into `auto_sync` — so the one conservative fetch/fast-forward sync policy converges it
+hints their projects' `beads` role every tick — even when that role has not opted into
+`auto_sync` — so the one conservative fetch/fast-forward sync policy converges it
 promptly instead of a competing managed-integration refresh path. The waiting runner
 also marks the same hint on a coarser ten-minute cadence as an outage backstop, in case
 a job failure ever leaves the tick-driven hint unconsumed. Setting
 `sdd.bead_refresh.mode: off` disables both hint paths.
+
+A parked runner with agent dependencies stats `ready.json` every 0.5 seconds; the
+60-second direct-resolution fallback cadence is unchanged.
+
+The `agent_waits` and `sidecar_sync` routines activate on the scheduler restart
+`sase update` performs. The moved jobs start with fresh per-routine state: the
+`wait_checks` trigger checkpoint fires once, and `sidecar_sync` re-checks every role
+once because its backoff schedule file lives in the routine state dir.
 
 ### checks (5-minute interval)
 

@@ -171,7 +171,7 @@ class TestLeakedOrchestratorIncidentRegression:
             )
 
         assert blocked is True
-        assert polls == [2]
+        assert polls == [0.5]
         assert "Dependencies satisfied by runner fallback" in capsys.readouterr().out
         assert isinstance(agent_meta.get("wait_completed_at"), str)
         assert not (waiter_dir / "waiting.json").exists()

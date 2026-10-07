@@ -40,6 +40,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 
 _WAIT_DEPENDENCY_FALLBACK_INTERVAL = 60.0
 _WAIT_BEAD_HINT_FALLBACK_INTERVAL = 600.0
+_WAIT_READY_POLL_INTERVAL = 0.5
 
 
 def remaining_until(wait_until: str) -> float:
@@ -282,7 +283,7 @@ def wait_for_dependencies(
             if now >= next_trim_at:
                 release_idle_memory()
                 next_trim_at = now + IDLE_TRIM_INTERVAL_SECONDS
-            time.sleep(_WAIT_POLL_INTERVAL)
+            time.sleep(_WAIT_READY_POLL_INTERVAL)
 
         # The dependency-release instant for latency telemetry, captured
         # at loop exit before any post-dependency duration floor starts.

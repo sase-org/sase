@@ -202,7 +202,7 @@ def test_stale_cancelled_ready_marker_is_removed_and_wait_continues(
             ],
         )
 
-    sleep_mock.assert_called_once_with(2)
+    sleep_mock.assert_called_once_with(0.5)
     assert not (waiter_dir / "waiting.json").exists()
     assert not (waiter_dir / "ready.json").exists()
 
@@ -258,7 +258,7 @@ def test_failed_identity_dependency_waits_until_waiter_is_killed(
         )
 
     assert exc_info.value.code == 143
-    sleep_mock.assert_called_once_with(2)
+    sleep_mock.assert_called_once_with(0.5)
     assert not (waiter_dir / "waiting.json").exists()
 
 
@@ -299,7 +299,7 @@ def test_named_duration_wait_starts_after_dependencies_are_ready(
             duration=3,
         )
 
-    assert sleep_calls == [2, 2, 2, 1]
+    assert sleep_calls == [0.5, 0.5, 2, 1]
     assert len(marker_snapshots) == 2
     assert marker_snapshots[0]["waiting_for"] == ["dep"]
     assert marker_snapshots[0]["wait_duration"] == 3
