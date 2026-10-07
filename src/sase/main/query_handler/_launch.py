@@ -196,6 +196,12 @@ def launch_query(query: str) -> None:
         )
         sys.exit(0)
 
+    # The provenance surface rides into each child's agent_meta.json
+    # alongside the origin: ACE prompt-bar launches arrive with
+    # allow_force_reuse, plain human shells do not.
+    provenance_surface = str(payload.get("source_surface") or "") or (
+        "ace" if allow_force_reuse else "cli"
+    )
     # Project tags resolve against this machine's projects: remote-dispatch
     # already returned above with the prompt forwarded verbatim, so validate
     # and expand here, before force-reuse, typed dispatch, MRU, and spawn.
@@ -286,6 +292,7 @@ def launch_query(query: str) -> None:
             unresolved_names=tuple(unresolved_names),
             history_query=(history_text if history_text is not None else history_query),
             history_origin=resolved_origin,
+            provenance_surface=provenance_surface,
         )
 
     launch_units = None
@@ -318,6 +325,7 @@ def launch_query(query: str) -> None:
                 launch_units=launch_units,
                 origin=resolved_origin,
                 history_text=launch_history_text,
+                source_surface=provenance_surface,
             )
         elif segment_extra_env is not None:
             results = launch_agents_from_cwd(
@@ -325,10 +333,14 @@ def launch_query(query: str) -> None:
                 segment_extra_env=segment_extra_env,
                 origin=resolved_origin,
                 history_text=launch_history_text,
+                source_surface=provenance_surface,
             )
         else:
             results = launch_agents_from_cwd(
-                query, origin=resolved_origin, history_text=launch_history_text
+                query,
+                origin=resolved_origin,
+                history_text=launch_history_text,
+                source_surface=provenance_surface,
             )
     except RuntimeError as e:
         from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
@@ -393,6 +405,7 @@ def _dispatch_direct_typed_launch_if_active(
     unresolved_names: Sequence[str],
     history_query: str | None = None,
     history_origin: PromptOrigin | None = "typed",
+    provenance_surface: str | None = None,
 ) -> None:
     """Admit a direct typed launch, or return so the legacy path can run.
 
@@ -418,6 +431,8 @@ def _dispatch_direct_typed_launch_if_active(
             query,
             source_surface=source_surface,
             safe_inputs=safe_inputs,
+            prompt_origin=history_origin,
+            prompt_source_surface=provenance_surface or source_surface,
         )
     except LaunchRequestError as exc:
         from sase.history.prompt import record_failed_launch_prompt

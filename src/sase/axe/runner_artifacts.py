@@ -81,6 +81,10 @@ def write_agent_meta(
         meta["patch_name"] = patch_name
     if tribe:
         meta["tribe"] = tribe
+    # Axe-spawned helper runners (mentor, fix-hook, crs) run agent-side:
+    # generated, never human-typed.
+    meta["prompt_origin"] = "generated"
+    meta.setdefault("prompt_source_surface", "unknown")
 
     try:
         write_agent_meta_atomic(artifacts_dir, meta)

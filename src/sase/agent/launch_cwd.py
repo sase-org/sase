@@ -31,6 +31,7 @@ def launch_agents_from_cwd(
     launch_units: Sequence[LaunchUnitInput] | None = None,
     origin: PromptOrigin | None = None,
     history_text: str | None = None,
+    source_surface: str | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve project context from CWD and launch background agents."""
     return launch_agents_from_cwd_impl(
@@ -42,6 +43,7 @@ def launch_agents_from_cwd(
         launch_units=launch_units,
         origin=origin,
         history_text=history_text,
+        source_surface=source_surface,
     )
 
 
@@ -54,6 +56,7 @@ def launch_agent_from_cwd(
     launch_units: Sequence[LaunchUnitInput] | None = None,
     origin: PromptOrigin | None = None,
     history_text: str | None = None,
+    source_surface: str | None = None,
 ) -> AgentLaunchResult:
     """Resolve project context from CWD and launch a background agent.
 
@@ -68,6 +71,7 @@ def launch_agent_from_cwd(
         launch_units=launch_units,
         origin=origin,
         history_text=history_text,
+        source_surface=source_surface,
     )
     if not results:
         raise RuntimeError("agent launch produced no results")

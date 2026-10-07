@@ -86,6 +86,26 @@ def _write_bootstrap_agent_meta(
             "output_path": output_path,
         }
     )
+    # Durable human-authorship provenance. An explicit launch stamp wins;
+    # a refreshed re-exec keeps its existing values; anything else is
+    # unknown (legacy launches), never a guess.
+    from sase.agent.launch_provenance import (
+        PROMPT_ORIGIN_ENV,
+        PROMPT_SOURCE_SURFACE_ENV,
+        normalize_prompt_origin,
+        normalize_prompt_source_surface,
+    )
+
+    if PROMPT_ORIGIN_ENV in os.environ:
+        agent_meta["prompt_origin"] = normalize_prompt_origin(
+            os.environ.get(PROMPT_ORIGIN_ENV)
+        )
+    if PROMPT_SOURCE_SURFACE_ENV in os.environ:
+        agent_meta["prompt_source_surface"] = normalize_prompt_source_surface(
+            os.environ.get(PROMPT_SOURCE_SURFACE_ENV)
+        )
+    agent_meta.setdefault("prompt_origin", "unknown")
+    agent_meta.setdefault("prompt_source_surface", "unknown")
     # Every descendant inherits the launch scratch key however it detaches, so
     # user-kill termination can find processes that left the runner's group.
     scratch_key = os.environ.get(SASE_LAUNCH_SCRATCH_KEY_ENV)

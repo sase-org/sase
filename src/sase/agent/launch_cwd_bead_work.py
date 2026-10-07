@@ -188,6 +188,12 @@ def launch_planned_bead_work_agents(
         record_failed_launch_prompt(normalized_query)
         raise
 
+    # Bead-work prompts are macro-rendered, never human-typed — even when
+    # a human ran `sase bead work`. Stamp every segment generated (the
+    # history classification above is untouched: the invocation itself is
+    # still the human's to recall).
+    from sase.agent.launch_provenance import stamp_segment_provenance
+
     try:
         return launch_multi_prompt_agents(
             segments=normalized_segments,
@@ -197,7 +203,11 @@ def launch_planned_bead_work_agents(
             project_name=project_name,
             is_home_mode=False,
             vcs_ref=vcs_ref,
-            segment_extra_env=list(segment_extra_env),
+            segment_extra_env=stamp_segment_provenance(
+                list(segment_extra_env),
+                origin="generated",
+                source_surface="bead_work",
+            ),
             preplanned_fanout_plans=preplanned_fanout_plans,
             allow_reserved_agent_session_separator_names=allow_bypass,
             default_bare_segments_to_home=True,

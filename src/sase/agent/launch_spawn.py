@@ -243,6 +243,13 @@ def spawn_agent_subprocess(
         RuntimeError: If workspace claiming/transfer fails (process is
             terminated before the error is raised).
     """
+    # Provenance default: classifying funnels stamp explicit provenance
+    # into extra_env; every other spawn inherits a valid ambient stamp
+    # (retry continuations) or records generated (fail closed).
+    from sase.agent.launch_provenance import fill_launch_provenance_default
+
+    extra_env = fill_launch_provenance_default(extra_env)
+
     from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.artifacts import (
         convert_timestamp_to_artifacts_format,

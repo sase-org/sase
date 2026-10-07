@@ -201,6 +201,15 @@ def create_followup_artifacts(
         followup_meta["name"] = agent_name_override
     if workflow_name is not None:
         followup_meta["workflow_name"] = workflow_name
+    # Follow-up agents (successors, gate-turn members, retries created
+    # in-process) always run agent-written prompts: they are generated,
+    # never human-typed. The surface that launched the lineage is kept.
+    followup_meta["prompt_origin"] = "generated"
+    base_surface = base_meta.get("prompt_source_surface")
+    if isinstance(base_surface, str) and base_surface.strip():
+        followup_meta["prompt_source_surface"] = base_surface.strip()
+    else:
+        followup_meta["prompt_source_surface"] = "unknown"
     followup_meta["role_suffix"] = canonical_suffix
     base_session = agent_session_value(base_meta)
     agent_session_name = (

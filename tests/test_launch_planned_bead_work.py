@@ -90,7 +90,16 @@ def test_adapter_passes_one_slot_preplanned_plans(
     assert all(len(plan.slots) == 1 for plan in plans)
     assert captured["project_name"] == "proj"
     assert captured["is_home_mode"] is False
-    assert list(captured["segment_extra_env"]) == envs
+    stamped_envs = list(captured["segment_extra_env"])
+    assert len(stamped_envs) == len(envs)
+    # Every segment keeps its planned env and gains the provenance stamp:
+    # bead-work prompts are agent-planned, so the origin is generated.
+    for stamped, env in zip(stamped_envs, envs, strict=True):
+        assert stamped is not None
+        for key, value in env.items():
+            assert stamped[key] == value
+        assert stamped["SASE_PROMPT_ORIGIN"] == "generated"
+        assert stamped["SASE_PROMPT_SOURCE_SURFACE"] == "bead_work"
     # All segments carry the internal-name bypass env, so reserved agent-session names
     # are permitted.
     assert captured["allow_reserved_agent_session_separator_names"] is True

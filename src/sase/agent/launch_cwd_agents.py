@@ -37,6 +37,7 @@ def launch_agents_from_cwd_impl(
     launch_units: Sequence[LaunchUnitInput] | None = None,
     origin: PromptOrigin | None = None,
     history_text: str | None = None,
+    source_surface: str | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve project context from CWD and launch one or more background agents.
 
@@ -70,6 +71,27 @@ def launch_agents_from_cwd_impl(
     # machine-originated launch writes no row on success or on failure alike.
     effective_origin: PromptOrigin | None = effective_prompt_origin(
         origin, launch_envs=(extra_env, *(segment_extra_env or ()))
+    )
+
+    # The same classification rides into every child's environment so its
+    # runner can persist prompt_origin/prompt_source_surface. The stamp is
+    # sticky across fan-out recursion: repeat/alt slots inherit the
+    # submitted prompt's origin instead of recomputing it.
+    from sase.agent.launch_provenance import (
+        stamp_segment_provenance,
+        with_launch_provenance,
+    )
+
+    extra_env = with_launch_provenance(
+        extra_env,
+        origin=effective_origin,
+        source_surface=source_surface,
+        launch_envs=tuple(segment_extra_env or ()),
+    )
+    segment_extra_env = stamp_segment_provenance(
+        segment_extra_env,
+        origin=effective_origin,
+        source_surface=source_surface,
     )
 
     from sase.agent.names import ensure_historical_auto_name_migration

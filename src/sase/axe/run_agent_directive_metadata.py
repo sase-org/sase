@@ -103,6 +103,8 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         "reasoning_effort",
         "model_alias",
         "model_alias_origin",
+        "prompt_origin",
+        "prompt_source_surface",
     ):
         value = existing_meta.get(key)
         if isinstance(value, str) and value:

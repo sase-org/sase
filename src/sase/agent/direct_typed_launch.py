@@ -10,8 +10,11 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from sase.history.prompt_store import PromptOrigin
 
 from sase.agent.launch_admission_store import UNITS_DIRNAME, admission_dir, read_json
 from sase.agent.launch_request_planning import (
@@ -120,10 +123,17 @@ def dispatch_direct_typed_launch(
     source_cwd: str | None = None,
     safe_inputs: Mapping[str, Any] | None = None,
     spawn_coordinator: bool = True,
+    prompt_origin: PromptOrigin | None = "typed",
+    prompt_source_surface: str | None = None,
 ) -> tuple[ApprovedLaunchDispatchResult, Path] | None:
     """Plan, persist, and admit a user-initiated typed launch.
 
     Returns ``None`` when the expanded prompt has no active ``%if`` / ``%proc``.
+
+    The admission engine spawns children that never pass through the
+    classifying launch funnels, so *prompt_origin* is published into this
+    process's environment for the duration of the dispatch: spawned
+    children inherit it ambiently and their runners persist it.
     """
     from sase.agent.launch_admission import dispatch_typed_launch_request
     from sase.core.agent_launch_facade import sanitize_condition_inputs
@@ -162,6 +172,28 @@ def dispatch_direct_typed_launch(
     )
     cwd_path = Path(cwd).expanduser()
     original_cwd = Path.cwd()
+    from sase.agent.launch_provenance import (
+        PROMPT_ORIGIN_ENV,
+        PROMPT_SOURCE_SURFACE_ENV,
+        normalize_prompt_origin,
+        normalize_prompt_source_surface,
+    )
+
+    resolved_origin = normalize_prompt_origin(prompt_origin)
+    # A generated downgrade (e.g. a generated relaunch carrying %if/%proc)
+    # must survive: only upgrade an unset ambient, never a valid stamp.
+    preset_origin = os.environ.get(PROMPT_ORIGIN_ENV)
+    if preset_origin not in ("typed", "generated", "unknown"):
+        preset_origin = None
+    if preset_origin is None:
+        preset_origin = resolved_origin
+    preset_surface = os.environ.get(PROMPT_SOURCE_SURFACE_ENV) or (
+        normalize_prompt_source_surface(prompt_source_surface or source_surface)
+    )
+    prev_origin = os.environ.get(PROMPT_ORIGIN_ENV)
+    prev_surface = os.environ.get(PROMPT_SOURCE_SURFACE_ENV)
+    os.environ[PROMPT_ORIGIN_ENV] = preset_origin
+    os.environ[PROMPT_SOURCE_SURFACE_ENV] = preset_surface
     try:
         if cwd_path.is_dir() and cwd_path.resolve() != original_cwd:
             os.chdir(cwd_path)
@@ -173,6 +205,14 @@ def dispatch_direct_typed_launch(
     finally:
         if Path.cwd() != original_cwd:
             os.chdir(original_cwd)
+        if prev_origin is None:
+            os.environ.pop(PROMPT_ORIGIN_ENV, None)
+        else:
+            os.environ[PROMPT_ORIGIN_ENV] = prev_origin
+        if prev_surface is None:
+            os.environ.pop(PROMPT_SOURCE_SURFACE_ENV, None)
+        else:
+            os.environ[PROMPT_SOURCE_SURFACE_ENV] = prev_surface
     return result, bundle_dir
 
 

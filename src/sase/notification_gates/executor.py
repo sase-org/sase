@@ -79,6 +79,23 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def gate_response_caller() -> str:
+    """Return ``human`` or ``agent`` for the process answering this gate.
+
+    Classified from the submitting process, failing closed to ``agent`` —
+    the same rule as :func:`sase.bead.attachments.provenance.current_actor`.
+    ``source`` stays self-reported; ``caller`` is the trustworthy bit the
+    memory-consent quote check reads.
+    """
+    try:
+        from sase.bead.attachments.provenance import current_actor
+
+        actor = current_actor()
+    except Exception:
+        return "agent"
+    return actor if actor in ("human", "agent") else "agent"
+
+
 def execute_gate_selection(
     bundle_path: Path,
     selected_option_ids: Sequence[str],
@@ -334,6 +351,7 @@ def execute_gate_selection(
             "option_results": option_results,
             "feedback": normalized_feedback,
             "source": source,
+            "caller": gate_response_caller(),
             "responded_at_unix": time.time(),
         }
         append_journal_event(
