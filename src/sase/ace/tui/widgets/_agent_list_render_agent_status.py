@@ -30,7 +30,10 @@ from ..models.agent_status import (
     STOPPED_GLYPH,
     STOPPED_STATUS,
 )
-from ..wait_status_presentation import format_wait_dependency_summary
+from ..wait_status_presentation import (
+    append_epic_follow_tokens,
+    format_wait_dependency_summary,
+)
 from ._agent_list_helpers import short_model_name
 from ._agent_list_styling import (
     _GATE_FAILURE_GLYPH_STYLE,
@@ -208,6 +211,16 @@ def append_agent_row_status(
         if count_text.cell_len:
             text.append(" ")
             text.append_text(count_text)
+        append_epic_follow_tokens(
+            text,
+            views=wait_agent,
+            waiting_for=wait_agent.waiting_for,
+            follows=(
+                wait_dependency_counts.follows
+                if wait_dependency_counts is not None
+                else None
+            ),
+        )
         if has_unresolvable_wait_target and wait_agent.waiting_for:
             text.append(" ")
             text.append(

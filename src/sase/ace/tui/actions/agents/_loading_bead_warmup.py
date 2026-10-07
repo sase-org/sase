@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ...agent_completion import (
@@ -29,6 +29,10 @@ from ...agent_completion import (
 from ...models.agent_bead import (
     should_resolve_bead_display,
     warm_confirmed_bead_displays,
+)
+from ...models.agent_epic_follow_progress import (
+    should_resolve_epic_follow_progress,
+    warm_epic_follow_progress,
 )
 from ...models.agent_wait_beads import (
     cached_wait_bead_status_snapshot,
@@ -52,14 +56,23 @@ class _AgentBeadWarmupCandidates:
 
     bead_display_agents: tuple[Agent, ...] = ()
     wait_bead_status_agents: tuple[Agent, ...] = ()
+    follow_progress_agents: tuple[Agent, ...] = field(default_factory=tuple)
 
     def __bool__(self) -> bool:
-        return bool(self.bead_display_agents or self.wait_bead_status_agents)
+        return bool(
+            self.bead_display_agents
+            or self.wait_bead_status_agents
+            or self.follow_progress_agents
+        )
 
     @property
     def total_count(self) -> int:
-        """Return total candidate rows across both bead warmup lanes."""
-        return len(self.bead_display_agents) + len(self.wait_bead_status_agents)
+        """Return total candidate rows across all bead warmup lanes."""
+        return (
+            len(self.bead_display_agents)
+            + len(self.wait_bead_status_agents)
+            + len(self.follow_progress_agents)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,15 +81,22 @@ class _AgentBeadWarmupResults:
 
     bead_display_results: dict[tuple[AgentType, str, str | None], bool]
     wait_bead_status_identities: set[tuple[AgentType, str, str | None]]
+    follow_progress_identities: set[tuple[AgentType, str, str | None]] = field(
+        default_factory=set
+    )
 
     def __bool__(self) -> bool:
-        return bool(self.bead_display_results or self.wait_bead_status_identities)
+        return bool(
+            self.bead_display_results
+            or self.wait_bead_status_identities
+            or self.follow_progress_identities
+        )
 
 
 def _warm_agent_bead_caches(
     candidates: _AgentBeadWarmupCandidates,
 ) -> _AgentBeadWarmupResults:
-    """Warm both bead display caches off the Textual event loop."""
+    """Warm bead display, wait-status, and follow-progress caches off-loop."""
     bead_display_results = (
         warm_confirmed_bead_displays(candidates.bead_display_agents)
         if candidates.bead_display_agents
@@ -87,9 +107,15 @@ def _warm_agent_bead_caches(
         if candidates.wait_bead_status_agents
         else set()
     )
+    follow_progress_identities = (
+        warm_epic_follow_progress(candidates.follow_progress_agents)
+        if candidates.follow_progress_agents
+        else set()
+    )
     return _AgentBeadWarmupResults(
         bead_display_results=bead_display_results,
         wait_bead_status_identities=wait_bead_status_identities,
+        follow_progress_identities=follow_progress_identities,
     )
 
 
@@ -167,6 +193,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
                 candidates=candidates.total_count,
                 bead_display_candidates=len(candidates.bead_display_agents),
                 wait_bead_status_candidates=len(candidates.wait_bead_status_agents),
+                follow_progress_candidates=len(candidates.follow_progress_agents),
                 source=self._bead_warmup_scan_source,
             ):
                 results = await asyncio.to_thread(_warm_agent_bead_caches, candidates)
@@ -186,17 +213,23 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         entry is missing or expired (``should_resolve_bead_display``). Fresh
         known-missing and already-confirmed candidates are skipped, so rapid
         refreshes do not repeatedly re-resolve them until the cache TTL expires.
+        Followed-epic phase counts warm only for WAITING rows with FOLLOWING
+        targets, through the existing epic-children binding.
         """
         bead_display_agents: list[Agent] = []
         wait_bead_status_agents: list[Agent] = []
+        follow_progress_agents: list[Agent] = []
         for agent in self._agents:
             if should_resolve_bead_display(agent):
                 bead_display_agents.append(agent)
             if agent.status == "WAITING" and should_resolve_wait_bead_statuses(agent):
                 wait_bead_status_agents.append(agent)
+            if agent.status == "WAITING" and should_resolve_epic_follow_progress(agent):
+                follow_progress_agents.append(agent)
         return _AgentBeadWarmupCandidates(
             bead_display_agents=tuple(bead_display_agents),
             wait_bead_status_agents=tuple(wait_bead_status_agents),
+            follow_progress_agents=tuple(follow_progress_agents),
         )
 
     def _apply_bead_warmup_results(
@@ -226,6 +259,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         changed_identities = {
             *results.bead_display_results,
             *results.wait_bead_status_identities,
+            *results.follow_progress_identities,
         }
         patched_identities: set[tuple[AgentType, str, str | None]] = set()
         for identity in current_by_identity:

@@ -10,6 +10,7 @@ the incomplete-load and index-repair handling in
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
@@ -45,6 +46,9 @@ from ._refresh_trace import classify_agents_data_cost, record_agents_refresh_tra
 if TYPE_CHECKING:
     from ...models.agent_loader import AgentLoadState
     from ...models.fold_state import FoldLevel
+
+
+log = logging.getLogger(__name__)
 
 
 class AgentLoadingApplyMixin(
@@ -501,6 +505,20 @@ class AgentLoadingApplyMixin(
             [*previous_agents_with_children, *previous_agents],
             [*self._agents_with_children, *self._agents],
         )
+        if not first_agents_load:
+            # One coalesced toast per newly followed epic, compared off the
+            # render path. Startup loads only establish the baseline.
+            try:
+                from ._epic_follow_toasts import announce_epic_follow_transitions
+
+                announce_epic_follow_transitions(
+                    self.notify,  # type: ignore[attr-defined]
+                    [*previous_agents_with_children, *previous_agents],
+                    [*self._agents_with_children, *self._agents],
+                    first_load=False,
+                )
+            except Exception:
+                log.debug("epic-follow toast compare failed", exc_info=True)
         self._fold_counts = fold_counts
         try:
             from ._notification_completion_arrival import (

@@ -12,9 +12,19 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.agent.status_buckets import QUEUED_STATUS_COLOR
+from sase.bead_status_presentation import BEAD_STATUS_VALUES
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.core.runner_slots import DEFAULT_QUEUE_WEIGHT
 from sase.core.wait_dependency_resolution import TribeWaitBinding
+from sase.core.wait_epic_follow_view import (
+    EpicFollowView,
+    armed_follow_targets,
+    authored_wait_beads,
+    describe_epic_follow,
+    epic_follow_views,
+)
+from sase.macro._directive_types import WAIT_FOR_EPIC_DEFAULT
+from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX
 
 from ...agent_completion import missing_wait_dependency_names
 from ...models.agent import Agent
@@ -27,6 +37,10 @@ from ...models.tribe_display import (
     named_tribe_identity_colors,
 )
 from ...wait_status_presentation import (
+    FOLLOW_GLYPH,
+    FOLLOW_GLYPH_STYLE,
+    FOLLOW_PENDING_STYLE,
+    WAIT_BEAD_ID_STYLE,
     WAIT_UNRESOLVABLE_GLYPH,
     WAIT_UNRESOLVABLE_GLYPH_STYLE,
     append_wait_bead_status_badge as _append_wait_bead_status_badge,
@@ -101,6 +115,109 @@ def _tribe_target(
         return None
 
 
+_FOLLOW_STATUS_WORDS: dict[str, str] = {
+    "open": "open",
+    "claimed": "claimed",
+    "ready": "ready",
+    "snoozed": "snoozed",
+    "in_progress": "in progress",
+    "closed": "closed",
+}
+
+_FOLLOW_RESOLUTION_WORDS: tuple[str, ...] = ("canceled", "superseded")
+
+
+def _follow_since_text(since: float) -> str | None:
+    """Return the `since HH:MM` suffix for a follow stage, if it has a time."""
+    if not isinstance(since, (int, float)) or since <= 0:
+        return None
+    try:
+        from datetime import datetime
+
+        return datetime.fromtimestamp(float(since)).strftime("%H:%M")
+    except (OSError, OverflowError, ValueError):
+        return None
+
+
+def _append_follow_annotation(
+    value: Text,
+    name: str,
+    *,
+    view: object = None,
+    armed: bool = False,
+    statuses_by_id: Mapping[str, str | None] | None = None,
+    epic_follow_progress: Mapping[str, object] | None = None,
+) -> None:
+    """Append the in-place `↪` hand-off narration for one `[agents]` target.
+
+    A cold epic cache renders the epic ID (and `since` when known) with no
+    status token, so the lane never claims a bead is missing. Pure in-memory
+    formatting over already-loaded state: never touches the filesystem.
+    """
+    if not isinstance(view, EpicFollowView):
+        if armed:
+            value.append(f" {FOLLOW_GLYPH}", style=FOLLOW_PENDING_STYLE)
+        elif WAIT_FOR_EPIC_DEFAULT and not name.endswith(PLAN_CHAIN_PLAN_SUFFIX):
+            value.append(" · agent only", style="dim #AF87FF")
+        return
+    if view.state == "launching":
+        value.append(f" {FOLLOW_GLYPH}", style=FOLLOW_GLYPH_STYLE)
+        value.append(" epic launching…", style=FOLLOW_PENDING_STYLE)
+        since_text = _follow_since_text(view.since)
+        if since_text is not None:
+            value.append(f" · since {since_text}", style="dim #AF87FF")
+        return
+    if view.state == "following":
+        for epic_id in view.epic_ids:
+            value.append(f" {FOLLOW_GLYPH}", style=FOLLOW_GLYPH_STYLE)
+            value.append(f" {epic_id}", style=WAIT_BEAD_ID_STYLE)
+            status = statuses_by_id.get(epic_id) if statuses_by_id is not None else None
+            if status in BEAD_STATUS_VALUES:
+                _append_wait_bead_status_badge(value, status)
+                word = _FOLLOW_STATUS_WORDS[status]
+                if status == "closed" and epic_follow_progress is not None:
+                    progress = epic_follow_progress.get(epic_id)
+                    resolution = getattr(progress, "resolution", None)
+                    if resolution in _FOLLOW_RESOLUTION_WORDS:
+                        word = str(resolution)
+                value.append(f" {word}", style="dim #AF87FF")
+                if epic_follow_progress is not None:
+                    progress = epic_follow_progress.get(epic_id)
+                    closed = getattr(progress, "closed", None)
+                    total = getattr(progress, "total", None)
+                    if isinstance(closed, int) and isinstance(total, int) and total > 0:
+                        value.append(
+                            f" · {closed}/{total} phases",
+                            style="dim #AF87FF",
+                        )
+            elif status is not None:
+                _append_wait_bead_status_badge(value, status)
+                value.append(" unknown", style="dim #AF87FF")
+        since_text = _follow_since_text(view.since)
+        if since_text is not None:
+            value.append(f" · since {since_text}", style="dim #AF87FF")
+        return
+    if view.state == "blocked":
+        # Share the phrasing with the CLI/Telegram surfaces: strip the
+        # `blocked: <target>'s ` prefix the lane's target name already shows.
+        tail = describe_epic_follow(view)
+        prefix = f"blocked: {view.target}'s "
+        if tail.startswith(prefix):
+            tail = tail[len(prefix) :]
+        resume_suffix = (
+            f" (resume: {view.resume_command})" if view.resume_command else ""
+        )
+        body = tail
+        if resume_suffix and tail.endswith(resume_suffix):
+            body = tail[: -len(resume_suffix)]
+        value.append(f" {FOLLOW_GLYPH}", style=FOLLOW_GLYPH_STYLE)
+        value.append(" !", style=WAIT_UNRESOLVABLE_GLYPH_STYLE)
+        if body:
+            value.append(f" {body}", style="dim #FF5F5F")
+        if view.resume_command:
+            value.append(f" · resume: {view.resume_command}", style="dim #FF5F5F")
+
+
 def build_wait_lanes(
     agent: Agent,
     *,
@@ -108,6 +225,7 @@ def build_wait_lanes(
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None,
     tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None,
     wait_bead_statuses: Sequence[tuple[str, str | None]] | None,
+    epic_follow_progress: Mapping[str, object] | None = None,
 ) -> tuple[WaitLane, ...]:
     """Build ordered, styled values for each active wait dimension."""
     from sase.ace.tui.models.agent import (
@@ -140,6 +258,13 @@ def build_wait_lanes(
         value = Text()
         missing_names = missing_wait_dependency_names(agent, agent_status_buckets)
         missing_name_set = set(missing_names or ())
+        views_by_target: dict[str, EpicFollowView] = {}
+        for follow_view in epic_follow_views(wait_agent):
+            views_by_target.setdefault(follow_view.target, follow_view)
+        armed_set = set(armed_follow_targets(wait_agent))
+        statuses_by_id = (
+            dict(wait_bead_statuses) if wait_bead_statuses is not None else None
+        )
         for index, name in enumerate(ordinary_targets):
             if index:
                 value.append(", ", style=_WAITING_VALUE_STYLE)
@@ -157,6 +282,14 @@ def build_wait_lanes(
                     None if name in missing_name_set else agent_status_buckets[name]
                 )
                 _append_wait_status_badge(value, target_bucket)
+            _append_follow_annotation(
+                value,
+                name,
+                view=views_by_target.get(name),
+                armed=name in armed_set,
+                statuses_by_id=statuses_by_id,
+                epic_follow_progress=epic_follow_progress,
+            )
         lanes.append(("agents", value))
 
     if tribe_targets:
@@ -204,22 +337,25 @@ def build_wait_lanes(
                 _append_clan_wait_members(value, clan_members)
         lanes.append(("tribes", value))
 
-    if wait_agent.waiting_for_beads:
+    # Followed epics are narrated in `[agents]` and never repeated here:
+    # only beads the user authored appear in `[beads]`.
+    authored_beads = authored_wait_beads(wait_agent)
+    if authored_beads:
         value = Text()
         if wait_bead_statuses is None:
             value.append(
-                ", ".join(wait_agent.waiting_for_beads),
+                ", ".join(authored_beads),
                 style=_WAITING_VALUE_STYLE,
             )
         else:
-            statuses_by_id = dict(wait_bead_statuses)
-            for index, bead_id in enumerate(wait_agent.waiting_for_beads):
+            authored_statuses_by_id = dict(wait_bead_statuses)
+            for index, bead_id in enumerate(authored_beads):
                 if index:
                     value.append(", ", style=_WAITING_VALUE_STYLE)
                 value.append(bead_id, style=_WAITING_VALUE_STYLE)
                 _append_wait_bead_status_badge(
                     value,
-                    statuses_by_id.get(bead_id),
+                    authored_statuses_by_id.get(bead_id),
                 )
         lanes.append(("beads", value))
 

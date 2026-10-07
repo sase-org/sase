@@ -11,6 +11,7 @@ from sase.core.agent_identity_facade import (
     present_agent_name,
     present_imported_agent_name,
 )
+from sase.core.wait_epic_follow_view import epic_follow_views
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
 from sase.gate_turn.state import is_real_gate_member
@@ -353,6 +354,27 @@ class Agent(AgentState):
             return "Unknown"
         return self.start_time.strftime("%Y-%m-%d %H:%M:%S")
 
+    def _epic_follow_milestones(self) -> list[tuple[datetime | None, str, str]]:
+        """Return one `↪EPIC` timeline milestone per followed epic.
+
+        Each milestone reads `↪EPIC | <since> | <epic> ← <target>` from the
+        mirrored `wait_epic_follows` stage. Entries without a recorded
+        `since` sort after the timed milestones with an `Unknown` time.
+        """
+        milestones: list[tuple[datetime | None, str, str]] = []
+        for view in epic_follow_views(self):
+            if view.state != "following":
+                continue
+            moment: datetime | None = None
+            if isinstance(view.since, (int, float)) and view.since > 0:
+                try:
+                    moment = datetime.fromtimestamp(float(view.since))
+                except (OSError, OverflowError, ValueError):
+                    moment = None
+            for epic_id in view.epic_ids:
+                milestones.append((moment, "↪EPIC", f"{epic_id} ← {view.target}"))
+        return milestones
+
     @property
     def timestamps_display(self) -> str:
         """Multi-timestamp display for the metadata panel.
@@ -364,6 +386,7 @@ class Agent(AgentState):
         - WAIT replaces START once an agent enters a pre-run wait phase
         - RUN is the actual execution timestamp when known
         - DONE shown for completed agents
+        - ↪EPIC marks each epic a `%wait(for_epic=)` target was followed into
         """
         parts: list[str] = []
         fmt = "%Y-%m-%d %H:%M:%S"
@@ -389,27 +412,35 @@ class Agent(AgentState):
             parts.append(_fmt("RUN", self.run_start_time.strftime(fmt)))
 
         # Collect remaining timestamps and sort chronologically
-        middle: list[tuple[datetime, str]] = []
+        middle: list[tuple[datetime, str, str | None]] = []
         for pt in self.plan_times:
-            middle.append((pt, "PLAN"))
+            middle.append((pt, "PLAN", None))
         for ft in self.feedback_times:
-            middle.append((ft, "FBACK"))
+            middle.append((ft, "FBACK", None))
         for qt in self.questions_times:
-            middle.append((qt, "QUEST"))
+            middle.append((qt, "QUEST", None))
         for rt in self.retry_times:
-            middle.append((rt, "RETRY"))
+            middle.append((rt, "RETRY", None))
         if self.code_time is not None:
-            middle.append((self.code_time, "CODE"))
+            middle.append((self.code_time, "CODE", None))
         if self.epic_time is not None:
-            middle.append((self.epic_time, "EPIC"))
+            middle.append((self.epic_time, "EPIC", None))
+        timeless: list[tuple[str, str | None]] = []
+        for follow_ts, follow_tag, follow_extra in self._epic_follow_milestones():
+            if follow_ts is None:
+                timeless.append((follow_tag, follow_extra))
+            else:
+                middle.append((follow_ts, follow_tag, follow_extra))
         middle.sort(key=lambda t: t[0])
-        for ts, tag in middle:
-            extra = None
-            if tag == "FBACK":
+        for ts, tag, preset_extra in middle:
+            extra = preset_extra
+            if tag == "FBACK" and extra is None:
                 path = self.feedback_plan_paths.get(ts)
                 if path:
                     extra = shorten_path(path)
             parts.append(_fmt(tag, ts.strftime(fmt), extra))
+        for tag, extra in timeless:
+            parts.append(_fmt(tag, "Unknown", extra))
 
         if self.stop_time is not None:
             parts.append(_fmt("DONE", self.stop_time.strftime(fmt)))

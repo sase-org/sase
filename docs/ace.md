@@ -2660,7 +2660,11 @@ prefixed by the bead's status glyph (or `?` for an unknown status). Multiple or 
 waits keep the counts. Unknown agents and unknown beads both render as `?N`; when both
 are present they appear as adjacent independent counts, as in `WAITING ?1 ?2`. These
 tokens sit directly after `WAITING` and before a reserved-tribe `!`, duration, or
-countdown annotation. They are not the trailing gold `◆` linked-bead badge that marks an
+countdown annotation. A `%wait(for_epic=)` follow appends teal `↪` tokens after the
+counts: `WAITING ↪ epic…` while the epic launch is in flight, `WAITING ↪ ◐ sase-7k`
+while following one epic, `WAITING ↪ ◐2` while following several epics, and
+`WAITING ↪ !` when the follow is blocked. An armed target with no recorded follow stage
+adds no row noise. They are not the trailing gold `◆` linked-bead badge that marks an
 agent launched by `sase bead work`. **Stopped** keeps the strict "you need to act"
 semantics for plan approval, questions, and workflow input.
 
@@ -6130,19 +6134,26 @@ the preferred card.
   dependency lists wrap with a hanging indent beneath that value column. The `[agents]`
   lane lists the dependency names recorded on the waiting agent, adds per-name status
   badges for currently known agents, clan containers, or session containers, and marks
-  unknown names with `?` so typos and stale references are obvious. The `[beads]` lane
-  uses the same status-bearing token as the compact row, without a count: `run-bead ◐`,
-  `done-bead ●`, and `bead-id ?` for an unknown bead. A WAITING list row keeps agent and
-  bead counts independent while placing matching bead statuses after their present agent
-  status (`▶1 ◐2`, `✓1 ●1`); unmatched bead tokens trail in bead order. Unknown targets
-  can render as adjacent independent counts (`?1 ?2`). Timed-only and capacity-only
-  waits do not receive those markers. Timed waits add compact duration, target time, and
-  countdown text when available. An authored capacity on a `QUEUED` row shows as the
-  same `cN` badge used elsewhere, and its detail context reports occupied capacity
-  against that row's own admission budget. A `QUEUED` detail uses a separate `Queue:`
-  line led by its rank and elapsed time since `slot_requested_at`, followed by cap
-  context. It deliberately suppresses the marker's stale dependency, bead, and time-wait
-  fields.
+  unknown names with `?` so typos and stale references are obvious. When a waited-on
+  target is followed into an epic it launched, the `[agents]` lane narrates the hand-off
+  in place with a teal `↪`:
+  `planner ✓ ↪ sase-7k ◐ in progress · 2/5 phases · since 14:32` while following,
+  `↪ epic launching…` while the launch is in flight, or
+  `↪ ! epic launch ended without an epic · resume: …` when blocked. A canceled or
+  superseded followed epic shows its resolution in place of the status word. Followed
+  epics are never repeated in `[beads]`; that lane lists only authored bead waits. The
+  `[beads]` lane uses the same status-bearing token as the compact row, without a count:
+  `run-bead ◐`, `done-bead ●`, and `bead-id ?` for an unknown bead. A WAITING list row
+  keeps agent and bead counts independent while placing matching bead statuses after
+  their present agent status (`▶1 ◐2`, `✓1 ●1`); unmatched bead tokens trail in bead
+  order. Unknown targets can render as adjacent independent counts (`?1 ?2`). Timed-only
+  and capacity-only waits do not receive those markers. Timed waits add compact
+  duration, target time, and countdown text when available. An authored capacity on a
+  `QUEUED` row shows as the same `cN` badge used elsewhere, and its detail context
+  reports occupied capacity against that row's own admission budget. A `QUEUED` detail
+  uses a separate `Queue:` line led by its rank and elapsed time since
+  `slot_requested_at`, followed by cap context. It deliberately suppresses the marker's
+  stale dependency, bead, and time-wait fields.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent session
   with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
   their types. A single contributing agent renders as a flat sorted key/value block;

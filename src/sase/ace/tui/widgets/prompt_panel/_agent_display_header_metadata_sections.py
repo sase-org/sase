@@ -15,6 +15,9 @@ from sase.agent.status_buckets import (
 from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 from ...models.agent import Agent
+from ...models.agent_epic_follow_progress import (
+    cached_epic_follow_progress_snapshot,
+)
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
 )
@@ -99,6 +102,7 @@ def append_wait_field(
         clan_wait_member_statuses=clan_wait_member_statuses,
         tribe_wait_bindings=tribe_wait_bindings,
         wait_bead_statuses=wait_bead_statuses,
+        epic_follow_progress=cached_epic_follow_progress_snapshot(agent),
     )
     if runners_only:
         lanes = tuple(lane for lane in lanes if lane[0] == "capacity")

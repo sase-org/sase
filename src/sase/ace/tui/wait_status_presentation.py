@@ -37,6 +37,14 @@ WAIT_UNRESOLVABLE_GLYPH = "!"
 WAIT_UNRESOLVABLE_GLYPH_STYLE = "bold #FF5F5F"
 WAIT_BEAD_ID_STYLE = "#FF87D7"
 
+# Teal `↪` hand-off for `%wait(for_epic=)` follows: the same teal as
+# `EPIC CREATED`. The pending `epic…` token stays dim; a resolved follow
+# reuses the followed bead's own glyph and style.
+FOLLOW_GLYPH = "↪"
+FOLLOW_GLYPH_STYLE = "bold #5FD7AF"
+FOLLOW_PENDING_STYLE = "dim #5FD7AF"
+FOLLOW_PENDING_TEXT = "epic…"
+
 # Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror the established
 # agent-row status accents.
 WAIT_STATUS_BADGES: dict[str, _WaitStatusBadge] = {
@@ -170,6 +178,105 @@ def _format_wait_dependency_status_counts(
     return rendered
 
 
+def append_epic_follow_tokens(
+    text: Text,
+    *,
+    views: object = (),
+    waiting_for: object = (),
+    follows: object = None,
+) -> None:
+    """Append the compact `↪` epic-follow tokens for one WAITING row.
+
+    Tokens sit after the existing agent/bead count tokens and before the
+    `!` and time annotations. An armed target with no persisted stage adds
+    no row noise. One followed epic names its bead ID; several epics reuse
+    the follow-segment bead counts; a blocked follow reads `↪ !` in red;
+    a launch in flight reads `↪ epic…` in dim teal. Pure in-memory
+    formatting over the already-loaded views and counts: never touches the
+    filesystem.
+    """
+    from sase.core.wait_epic_follow_view import epic_follow_views
+
+    names = (
+        set(waiting_for)
+        if isinstance(waiting_for, (list, tuple, set, frozenset))
+        else set()
+    )
+    active = [view for view in epic_follow_views(views) if view.target in names]
+    launching = [view for view in active if view.state == "launching"]
+    blocked = [view for view in active if view.state == "blocked"]
+    epic_ids: list[str] = []
+    for view in active:
+        if view.state != "following":
+            continue
+        for epic_id in view.epic_ids:
+            if epic_id not in epic_ids:
+                epic_ids.append(epic_id)
+    if epic_ids:
+        text.append(" ")
+        text.append(FOLLOW_GLYPH, style=FOLLOW_GLYPH_STYLE)
+        if len(epic_ids) == 1:
+            status = _sole_follow_status(follows)
+            if status is not None:
+                token, style = _wait_bead_status_token(
+                    None if status == "unknown" else status
+                )
+                text.append(f" {token}", style=style)
+            text.append(f" {epic_ids[0]}", style=WAIT_BEAD_ID_STYLE)
+        elif _follows_has_any(follows):
+            for status, count in _follow_nonzero_statuses(follows):
+                token, style = _wait_bead_status_token(
+                    None if status == "unknown" else status
+                )
+                text.append(f" {token}{count}", style=style)
+        else:
+            # Statuses still cold: a neutral count that claims no status.
+            text.append(f" {len(epic_ids)}", style=FOLLOW_GLYPH_STYLE)
+    elif launching:
+        text.append(" ")
+        text.append(FOLLOW_GLYPH, style=FOLLOW_GLYPH_STYLE)
+        text.append(f" {FOLLOW_PENDING_TEXT}", style=FOLLOW_PENDING_STYLE)
+    if blocked:
+        text.append(" ")
+        text.append(FOLLOW_GLYPH, style=FOLLOW_GLYPH_STYLE)
+        text.append(" ")
+        text.append(
+            WAIT_UNRESOLVABLE_GLYPH,
+            style=WAIT_UNRESOLVABLE_GLYPH_STYLE,
+        )
+
+
+def _sole_follow_status(follows: object) -> str | None:
+    """Return the single follow-segment status for a one-epic row, if known."""
+    statuses = _follow_nonzero_statuses(follows)
+    if len(statuses) != 1:
+        return None
+    status, count = statuses[0]
+    return status if count == 1 else None
+
+
+def _follows_has_any(follows: object) -> bool:
+    """Return whether a follow-segment count object has any counts."""
+    has_any = getattr(follows, "has_any", None)
+    if callable(has_any):
+        try:
+            return bool(has_any())
+        except Exception:
+            return False
+    return bool(has_any)
+
+
+def _follow_nonzero_statuses(follows: object) -> list[tuple[str, int]]:
+    """Return the follow segment's nonzero statuses in canonical bead order."""
+    iterator = getattr(follows, "nonzero_statuses", None)
+    if not callable(iterator):
+        return []
+    try:
+        return [(status, count) for status, count in iterator()]
+    except Exception:
+        return []
+
+
 def _sole_bead_status(
     counts: WaitDependencyStatusCounts | None,
 ) -> str | None:
@@ -210,6 +317,10 @@ def format_wait_dependency_summary(
 
 
 __all__ = [
+    "FOLLOW_GLYPH",
+    "FOLLOW_GLYPH_STYLE",
+    "FOLLOW_PENDING_STYLE",
+    "FOLLOW_PENDING_TEXT",
     "WAIT_BEAD_ID_STYLE",
     "WAIT_STATUS_BADGES",
     "WAIT_STATUS_COUNT_BUCKETS",
@@ -217,6 +328,7 @@ __all__ = [
     "WAIT_UNKNOWN_GLYPH_STYLE",
     "WAIT_UNRESOLVABLE_GLYPH",
     "WAIT_UNRESOLVABLE_GLYPH_STYLE",
+    "append_epic_follow_tokens",
     "append_wait_bead_status_badge",
     "append_wait_status_badge",
     "format_wait_dependency_summary",

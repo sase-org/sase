@@ -9,6 +9,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.core.wait_epic_follow_view import EpicFollowView
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_contains,
@@ -55,6 +56,77 @@ def _clear_wait_bead_status_cache() -> None:
     from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
 
     _WAIT_BEAD_STATUS_CACHE.clear()
+
+
+_FOLLOW_SINCE = datetime(2026, 10, 6, 14, 32, 0).timestamp()
+
+
+def _seed_epic_follow_cache() -> None:
+    from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
+
+    _WAIT_BEAD_STATUS_CACHE.clear()
+    _WAIT_BEAD_STATUS_CACHE.set(("sase", "sase-7k"), "in_progress")
+    _WAIT_BEAD_STATUS_CACHE.set(("sase", "sase-7m"), "in_progress")
+
+
+def _epic_follow_agents(
+    cl_name: str,
+    waiter_name: str,
+    *,
+    state: str,
+    epic_ids: tuple[str, ...] = ("sase-7k",),
+    reason: str | None = None,
+) -> list[Agent]:
+    project_file = "/workspace/sase/visual_epic_follow.sase"
+    if state == "following":
+        waiting_for_beads = list(epic_ids)
+        added_bead_ids = tuple(epic_ids)
+    else:
+        waiting_for_beads = []
+        added_bead_ids = ()
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=cl_name,
+            project_file=project_file,
+            status="WAITING",
+            start_time=datetime(2026, 10, 6, 14, 30, 0),
+            raw_suffix=f"20261006-143000-{waiter_name}",
+            agent_name=waiter_name,
+            waiting_for=["planner"],
+            waiting_for_beads=waiting_for_beads,
+            wait_for_epics_of=["planner"],
+            wait_epic_follows=[
+                EpicFollowView(
+                    target="planner",
+                    state=state,
+                    epic_ids=tuple(epic_ids) if state == "following" else (),
+                    added_bead_ids=added_bead_ids,
+                    members=("planner",),
+                    since=_FOLLOW_SINCE,
+                    reason=reason,
+                    resume_command=(
+                        "sase bead work plan:202610/wait_for_epic.md"
+                        if state == "blocked"
+                        else None
+                    ),
+                )
+            ],
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=cl_name,
+            project_file=project_file,
+            status="DONE",
+            start_time=datetime(2026, 10, 6, 14, 20, 0),
+            raw_suffix="20261006-142000-planner",
+            agent_name="planner",
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+    ]
 
 
 def _single_bead_wait_agents() -> list[Agent]:
@@ -347,6 +419,159 @@ async def test_agents_waiting_unknown_detail_header_png_snapshot(
                 page,
                 "agents_waiting_unknown_header_200x40",
                 title="ACE agents waiting unknown expanded header",
+            )
+    finally:
+        _clear_wait_bead_status_cache()
+
+
+async def test_agents_waiting_epic_follow_launching_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_epic_follow_cache()
+    try:
+        patch_startup_loaders(
+            monkeypatch,
+            agents=_epic_follow_agents(
+                "epic-follow-launching", "launch-waiter", state="launching"
+            ),
+        )
+
+        async with AcePage(query='"epic-follow"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press("shift+tab")
+            await page.expect_state("tab", "agents")
+            await page.expect_state("agent_count", 2)
+            await wait_for_svg_contains(page, "launch-waiter")
+            await wait_for_visual_idle(page)
+
+            assert_page_svg_styled_text_contains(page, "↪ epic…")
+            combined = prompt_header_and_body_text(
+                page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+            )
+            assert "Wait:" in combined
+            assert "[agents]" in combined
+            assert "epic launching…" in combined
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_waiting_epic_follow_launching_120x40",
+                title="ACE agents epic-follow launching row and lane",
+            )
+    finally:
+        _clear_wait_bead_status_cache()
+
+
+async def test_agents_waiting_epic_follow_following_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_epic_follow_cache()
+    try:
+        patch_startup_loaders(
+            monkeypatch,
+            agents=_epic_follow_agents(
+                "epic-follow-following", "follow-waiter", state="following"
+            ),
+        )
+
+        async with AcePage(query='"epic-follow"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press("shift+tab")
+            await page.expect_state("tab", "agents")
+            await page.expect_state("agent_count", 2)
+            await wait_for_svg_contains(page, "sase-7k")
+            await wait_for_visual_idle(page)
+
+            assert_page_svg_styled_text_contains(page, "↪ ◐ sase-7k")
+            combined = prompt_header_and_body_text(
+                page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+            )
+            assert "Wait:" in combined
+            assert "[agents]" in combined
+            assert "↪ sase-7k" in combined
+            assert "[beads]" not in combined
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_waiting_epic_follow_following_120x40",
+                title="ACE agents epic-follow following row and lane",
+            )
+    finally:
+        _clear_wait_bead_status_cache()
+
+
+async def test_agents_waiting_epic_follow_multi_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_epic_follow_cache()
+    try:
+        patch_startup_loaders(
+            monkeypatch,
+            agents=_epic_follow_agents(
+                "epic-follow-multi",
+                "multi-waiter",
+                state="following",
+                epic_ids=("sase-7k", "sase-7m"),
+            ),
+        )
+
+        async with AcePage(query='"epic-follow"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press("shift+tab")
+            await page.expect_state("tab", "agents")
+            await page.expect_state("agent_count", 2)
+            await wait_for_svg_contains(page, "sase-7m")
+            await wait_for_visual_idle(page)
+
+            assert_page_svg_styled_text_contains(page, "↪ ◐2")
+            combined = prompt_header_and_body_text(
+                page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+            )
+            assert "↪ sase-7k" in combined
+            assert "↪ sase-7m" in combined
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_waiting_epic_follow_multi_120x40",
+                title="ACE agents epic-follow multi-epic row and lane",
+            )
+    finally:
+        _clear_wait_bead_status_cache()
+
+
+async def test_agents_waiting_epic_follow_blocked_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_epic_follow_cache()
+    try:
+        patch_startup_loaders(
+            monkeypatch,
+            agents=_epic_follow_agents(
+                "epic-follow-blocked",
+                "blocked-waiter",
+                state="blocked",
+                reason="launch_ended_without_epic",
+            ),
+        )
+
+        async with AcePage(query='"epic-follow"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press("shift+tab")
+            await page.expect_state("tab", "agents")
+            await page.expect_state("agent_count", 2)
+            await wait_for_svg_contains(page, "blocked-waiter")
+            await wait_for_visual_idle(page)
+
+            assert_page_svg_styled_text_contains(page, "↪ !")
+            combined = prompt_header_and_body_text(
+                page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+            )
+            assert "ended without an epic" in combined
+            assert "resume:" in combined
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_waiting_epic_follow_blocked_120x40",
+                title="ACE agents epic-follow blocked row and lane",
             )
     finally:
         _clear_wait_bead_status_cache()
