@@ -12,11 +12,10 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from tests.perf._bead_corpus import (
-    _dump,
-    _export_projection,
-    _git_commit,
-    mint_event_id,
+from tests.perf._bead_corpus_common import dump_payload, mint_event_id
+from tests.perf._bead_corpus_store import (
+    export_projection,
+    git_commit,
     summarize_corpus,
 )
 
@@ -200,7 +199,7 @@ def copy_store_scaled(
                     )
                     event_ids[event["event_id"]] = event_id
                     renamed["event_id"] = event_id
-                    lines.append(_dump(renamed))
+                    lines.append(dump_payload(renamed))
             (streams_dir / f"{new_stream}.jsonl").write_text(
                 "".join(f"{line}\n" for line in lines), encoding="utf-8"
             )
@@ -234,8 +233,8 @@ def copy_store_scaled(
         shutil.copyfile(beads_db, dest / "beads.db")
     else:
         (dest / "beads.db").write_bytes(b"")
-    _export_projection(dest)
-    _git_commit(dest, f"Scaled bead corpus copies={copies} from {source}")
+    export_projection(dest)
+    git_commit(dest, f"Scaled bead corpus copies={copies} from {source}")
     shape = summarize_corpus(dest)
     shape.update({"copies": copies, "prefixes": prefixes, "source": str(source)})
     return shape
