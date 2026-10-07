@@ -8,6 +8,7 @@ from sase.core.agent_scan_wire import (
     WaitingMarkerWire,
 )
 from sase.core.output_variable_values import coerce_var_map
+from sase.core.wait_epic_follow_view import epic_follow_views
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.gate_turn.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
@@ -127,6 +128,10 @@ def enrich_agent_from_meta_wire(
         agent.waiting_for_beads = list(meta.wait_for_beads)
     if meta.wait_for_hoods:
         agent.waiting_for_hoods = list(meta.wait_for_hoods)
+    if meta.wait_for_epics_of:
+        agent.wait_for_epics_of = list(meta.wait_for_epics_of)
+    if meta.wait_epic_follows:
+        agent.wait_epic_follows = list(epic_follow_views(meta.wait_epic_follows))
     agent.queue_weight = meta.queue_weight
     agent.queue_weight_explicit = meta.queue_weight_explicit
     agent.queue_weight_invalid = meta.queue_weight_invalid
@@ -254,6 +259,10 @@ def enrich_agent_from_meta_wire(
             agent.waiting_for_beads = list(waiting.wait_for_beads)
         if waiting.wait_for_hoods:
             agent.waiting_for_hoods = list(waiting.wait_for_hoods)
+        if waiting.wait_for_epics_of:
+            agent.wait_for_epics_of = list(waiting.wait_for_epics_of)
+        if waiting.wait_epic_follows:
+            agent.wait_epic_follows = list(epic_follow_views(waiting.wait_epic_follows))
         if waiting.wait_duration is not None:
             agent.wait_duration = waiting.wait_duration
         if waiting.wait_until:

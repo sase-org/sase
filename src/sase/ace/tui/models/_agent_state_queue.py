@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase.core.wait_epic_follow_view import EpicFollowView
+
 from .agent_types import LinkedRepoMetadata
 
 
@@ -71,6 +73,15 @@ class AgentStateQueueFields:
 
     # Hood names whose current members this agent is waiting for.
     waiting_for_hoods: list[str] = field(default_factory=list)
+
+    # Effective positive `%wait(for_epic=)` armed targets: the ordered
+    # intersection of `wait_for_epics_of` and `waiting_for`. Absent means
+    # this waiter never follows an epic.
+    wait_for_epics_of: list[str] = field(default_factory=list)
+
+    # Persisted per-target epic-follow stages (`launching` / `following` /
+    # `blocked`), with `waiting.json` overriding `agent_meta.json` at load.
+    wait_epic_follows: list[EpicFollowView] = field(default_factory=list)
 
     # Duration wait in seconds (from %wait(time=5m) directive)
     wait_duration: float | None = None

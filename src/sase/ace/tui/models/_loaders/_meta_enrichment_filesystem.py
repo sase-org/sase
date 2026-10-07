@@ -9,6 +9,7 @@ from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.created_epics import created_epic_ids_from_meta
 from sase.core.output_variable_values import coerce_var_map
+from sase.core.wait_epic_follow_view import epic_follow_views
 from sase.plan_chain import (
     agent_session_parallel_value,
     agent_session_role_value,
@@ -202,6 +203,12 @@ def enrich_agent_from_meta(
         agent.waiting_for_beads = data["wait_for_beads"]
     if data.get("wait_for_hoods"):
         agent.waiting_for_hoods = data["wait_for_hoods"]
+    if data.get("wait_for_epics_of"):
+        agent.wait_for_epics_of = [
+            item for item in data["wait_for_epics_of"] if isinstance(item, str)
+        ]
+    if data.get("wait_epic_follows"):
+        agent.wait_epic_follows = list(epic_follow_views(data["wait_epic_follows"]))
     _apply_queue_weight_fields(agent, data)
     raw_auto_action = data.get("auto_approve_plan_action")
     auto_action = (
@@ -375,6 +382,18 @@ def enrich_agent_from_meta(
                     agent.waiting_for_beads = waiting_data["wait_for_beads"]
                 if waiting_data.get("wait_for_hoods"):
                     agent.waiting_for_hoods = waiting_data["wait_for_hoods"]
+                # waiting.json overrides agent_meta.json for the follow
+                # fields, matching the other wait-list keys above.
+                if waiting_data.get("wait_for_epics_of"):
+                    agent.wait_for_epics_of = [
+                        item
+                        for item in waiting_data["wait_for_epics_of"]
+                        if isinstance(item, str)
+                    ]
+                if waiting_data.get("wait_epic_follows"):
+                    agent.wait_epic_follows = list(
+                        epic_follow_views(waiting_data["wait_epic_follows"])
+                    )
                 # Read wait_duration from waiting.json (preferred source)
                 raw_dur = waiting_data.get("wait_duration")
                 if raw_dur is not None:

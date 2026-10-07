@@ -397,6 +397,8 @@ _lint-patch-stitch-terminology: _setup
 # sase-1fv.6 consumed snippet_existing_entries by wiring it into
 # SnippetLocationFlow; drop --epic-symbol rows once a phase lands a real
 # consumer (or re-key them onto a still-open bead).
+# sase-1h7.8 will consume describe_epic_follow for the TUI lanes and toast;
+# sase-1h7.9 reuses the same strings for CLI/Telegram parity.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -404,6 +406,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1h7.8(describe_epic_follow)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

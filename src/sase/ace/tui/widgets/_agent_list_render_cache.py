@@ -39,6 +39,7 @@ from sase.ace.tui.tool_runs.attribution import (
 from sase.ace.tui.tool_runs.row_chip import tool_run_chip_token
 from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 from sase.core.time import local_now
+from sase.core.wait_epic_follow_view import epic_follow_state_token
 from ._agent_list_helpers import ordered_row_providers
 from ._queue_weight_badge import queue_capacity_budget_display_enabled
 
@@ -369,6 +370,8 @@ def agent_render_key(
         tuple(wait_agent.waiting_for),
         tuple(wait_agent.waiting_for_beads),
         tuple(wait_agent.waiting_for_hoods),
+        tuple(wait_agent.wait_for_epics_of),
+        epic_follow_state_token(wait_agent),
         wait_deps_satisfied,
         wait_dependency_counts,
         has_unresolvable_wait_target,
