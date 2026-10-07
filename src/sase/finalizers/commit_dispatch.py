@@ -153,6 +153,54 @@ def dispatch_commit_decisions(
     sweep_used = False
     index = 0
 
+    def _follow_pinned_sibling_pin(
+        sibling: DirtyRepo,
+        pin_rel: str,
+        commit_sha: Any,
+    ) -> bool:
+        """Write a landed pinned sibling's SHA into the primary pin file.
+
+        Runs after the sibling's executed record -- and after the repair
+        handoff when the sibling was conflict-repaired -- so the host's own
+        pin write never lands inside the handoff's digest comparison window
+        and trips "repository obligation changed after submit". Main-commit
+        eligibility is computed from the post-handoff decisions, so a
+        repair declaration that newly defers main skips the pin. Returns
+        whether the pin was written (a skip leaves ``state`` current).
+        """
+        main_is_commit = any(
+            pending_repo.kind == "main"
+            and str(
+                active_decisions.get(repository_decision_id(pending_repo), {}).get(
+                    "action", ""
+                )
+            )
+            == "commit"
+            and repository_decision_id(pending_repo) not in active_deferrals
+            for pending_repo in pending
+        )
+        pin_evidence, pin_diagnostic = _maybe_write_revision_pin(
+            project_dir=project_dir,
+            sibling_name=sibling.name,
+            sibling_dir=sibling.path,
+            pin_rel=pin_rel,
+            commit_sha=(commit_sha if isinstance(commit_sha, str) else ""),
+            main_is_commit=main_is_commit,
+        )
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(kind="revision_pin", value=pin_evidence)
+        )
+        if pin_diagnostic is not None:
+            diagnostics.append(
+                FinalizerDiagnosticWire(
+                    code="revision_pin_skipped",
+                    message=pin_diagnostic,
+                    severity="warning",
+                )
+            )
+            return False
+        return True
+
     def _consume_attempt() -> int:
         try:
             return (
@@ -489,39 +537,17 @@ def dispatch_commit_decisions(
             repo_markers[-1],
             workspace_dir=project_dir,
         )
+        # Capture the pin follow here but write it after the executed
+        # record (and after the repair handoff when repaired), so the
+        # host's own pin write stays out of the handoff digest window.
         sibling_pin_rel = revision_pins.get(repo.name)
+        pending_pin: tuple[DirtyRepo, str, Any] | None = None
         if sibling_pin_rel is not None and repo.kind != "main":
-            commit_sha = repo_markers[-1].get("commit_sha")
-            main_is_commit = any(
-                pending_repo.kind == "main"
-                and str(
-                    active_decisions.get(repository_decision_id(pending_repo), {}).get(
-                        "action", ""
-                    )
-                )
-                == "commit"
-                and repository_decision_id(pending_repo) not in active_deferrals
-                for pending_repo in pending
+            pending_pin = (
+                repo,
+                sibling_pin_rel,
+                repo_markers[-1].get("commit_sha"),
             )
-            pin_evidence, pin_diagnostic = _maybe_write_revision_pin(
-                project_dir=project_dir,
-                sibling_name=repo.name,
-                sibling_dir=repo.path,
-                pin_rel=sibling_pin_rel,
-                commit_sha=(commit_sha if isinstance(commit_sha, str) else ""),
-                main_is_commit=main_is_commit,
-            )
-            evidence.append(
-                FinalizerOutcomeEvidenceWire(kind="revision_pin", value=pin_evidence)
-            )
-            if pin_diagnostic is not None:
-                diagnostics.append(
-                    FinalizerDiagnosticWire(
-                        code="revision_pin_skipped",
-                        message=pin_diagnostic,
-                        severity="warning",
-                    )
-                )
 
         remaining = unexpected_path_resolver(repo.path, protected)
         if remaining and repaired_conflict:
@@ -621,6 +647,10 @@ def dispatch_commit_decisions(
                 state=state,
                 declaration_loader=load_accepted_commit_declaration,
             )
+        if pending_pin is not None:
+            sibling_repo, pin_rel, pin_sha = pending_pin
+            if _follow_pinned_sibling_pin(sibling_repo, pin_rel, pin_sha):
+                state = prepare_dirty_state(project_dir, artifacts)
 
     return _CommitDispatchResult(
         invoke_result=current_result,
