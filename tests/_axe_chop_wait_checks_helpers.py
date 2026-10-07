@@ -35,6 +35,8 @@ def make_waiting_agent(
     wait_for_artifacts: list[dict[str, str]] | None = None,
     wait_for_fork_sources: list[dict[str, str]] | None = None,
     wait_for_beads: list[str] | None = None,
+    wait_for_epics_of: list[str] | None = None,
+    wait_epic_follows: list[dict] | None = None,
 ) -> Path:
     artifact_dir = base / ".sase/projects/proj/artifacts/ace-run" / suffix
     artifact_dir.mkdir(parents=True)
@@ -49,6 +51,10 @@ def make_waiting_agent(
         marker["wait_for_fork_sources"] = wait_for_fork_sources
     if wait_for_beads is not None:
         marker["wait_for_beads"] = wait_for_beads
+    if wait_for_epics_of is not None:
+        marker["wait_for_epics_of"] = wait_for_epics_of
+    if wait_epic_follows is not None:
+        marker["wait_epic_follows"] = wait_epic_follows
     (artifact_dir / "waiting.json").write_text(
         json.dumps(marker),
         encoding="utf-8",

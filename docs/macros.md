@@ -1978,25 +1978,25 @@ are extracted and stripped from the prompt before further processing.
 
 ### Supported Directives
 
-| Directive         | Alias | Description                                                                       |
-| ----------------- | ----- | --------------------------------------------------------------------------------- |
-| `%model`          | `%m`  | Override the LLM model for this prompt                                            |
-| `%effort`         | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                             |
-| `%id`             | `%i`  | Assign an id, clan, session, or user-managed tribe                                |
-| `%clan`           | `%c`  | Declare a new named, rootless parallel agent clan                                 |
-| `%wait`           | `%w`  | Wait for agents, closed beads, and/or a time floor                                |
-| `%queue`          | `%q`  | Set per-launch capacity budget or multiplier, queue priority, and/or claim weight |
-| `%hold`           |       | Declare a pre-run admission hold on selected agents and procs                     |
-| `%dispatch`       |       | Launch on one enrolled remote machine                                             |
-| `%tab`            |       | Place this launch's presentation root on a named agent tab                        |
-| `%if`             |       | Statically omit a segment, or attach a beta admission predicate                   |
-| `%proc`           |       | Define and natively dispatch a beta stand-alone process unit                      |
-| `%final`          |       | Select configured finalizer instances for this launch                             |
-| `%hide`           | `%h`  | Hide the agent from the default Agents tab display                                |
-| `%auto`           | `%a`  | Request automatic gate resolution; an optional argument is gate-owned             |
-| `%repeat`         | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                                 |
-| `%alt`            | `%{}` | Split prompt into variants with different text (brace shorthand)                  |
-| `%macros_enabled` |       | Enable or disable macro expansion for a text region                               |
+| Directive         | Alias | Description                                                                                       |
+| ----------------- | ----- | ------------------------------------------------------------------------------------------------- |
+| `%model`          | `%m`  | Override the LLM model for this prompt                                                            |
+| `%effort`         | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                                             |
+| `%id`             | `%i`  | Assign an id, clan, session, or user-managed tribe                                                |
+| `%clan`           | `%c`  | Declare a new named, rootless parallel agent clan                                                 |
+| `%wait`           | `%w`  | Wait for agents, closed beads, and/or a time floor; opt-in `for_epic=true` follows launched epics |
+| `%queue`          | `%q`  | Set per-launch capacity budget or multiplier, queue priority, and/or claim weight                 |
+| `%hold`           |       | Declare a pre-run admission hold on selected agents and procs                                     |
+| `%dispatch`       |       | Launch on one enrolled remote machine                                                             |
+| `%tab`            |       | Place this launch's presentation root on a named agent tab                                        |
+| `%if`             |       | Statically omit a segment, or attach a beta admission predicate                                   |
+| `%proc`           |       | Define and natively dispatch a beta stand-alone process unit                                      |
+| `%final`          |       | Select configured finalizer instances for this launch                                             |
+| `%hide`           | `%h`  | Hide the agent from the default Agents tab display                                                |
+| `%auto`           | `%a`  | Request automatic gate resolution; an optional argument is gate-owned                             |
+| `%repeat`         | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                                                 |
+| `%alt`            | `%{}` | Split prompt into variants with different text (brace shorthand)                                  |
+| `%macros_enabled` |       | Enable or disable macro expansion for a text region                                               |
 
 Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt
 directives are not launch aliases. Using either as a top-level directive now raises a
@@ -2045,7 +2045,7 @@ recipes appear only when the `typed_launch_units` beta flag is enabled. Retired 
 | `%final`          | Bare `%final`, `%final:...`, `%final(...)`                                                   | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                                                                                                                            |
 | `%id` / `%i`      | Bare `%id`, `%id:...`, `%id(...)`                                                            | `bead=`, `clan=`, `session=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, session, or tribe targets for those keyword values.                                                                                                                                                                                                                                                                                                                                                |
 | `%clan` / `%c`    | `%clan:...`, `%clan(...)`                                                                    | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                                                                                                                          |
-| `%wait` / `%w`    | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/session/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `hood=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, `hood=` completes current hood names, and `time=` suggests `5m` and `1430`.                                                                                                                                                                                                                      |
+| `%wait` / `%w`    | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/session/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `hood=`, `proc=`, `time=`, `unit=`, and `for_epic=` before target rows; `bead=` completes open bead IDs, `hood=` completes current hood names, `time=` suggests `5m` and `1430`, and `for_epic=` suggests `true` and `false`.                                                                                                                                                                |
 | `%queue` / `%q`   | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes positional capacity values, suggesting `1`, `100`, and `1.5x` (a multiplier of the effective `max_running_agents` budget). Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1` and `1.5x`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
 | `%hold`           | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows.                                                                                                                                                                                                                                  |
 | `%dispatch`       | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -2370,6 +2370,8 @@ Directives use the same argument syntax as macro references:
 %wait(bead=sase-87.2)        # Wait for a bead in this project to close
 %wait(hood=research)         # Wait for every current member of one hood
 %wait(agent1, bead=sase-87.2, hood=research) # Require every condition
+%wait(planner, for_epic=true)  # Wait for planner, then follow the epic it launched until closed
+%wait(planner, for_epic=false) # Same as %wait(planner); the default opts out of epic follow
 %wait(time=5m)               # Wait for 5 minutes before starting
 %wait(time=1h30m)            # Wait for 1 hour 30 minutes
 %wait(time=90s)              # Wait for 90 seconds
@@ -2751,6 +2753,17 @@ run at or before the waiter's launch counts; members launched later do not exten
 wait. An empty hood resolves immediately with a diagnostic instead of parking forever.
 Multiple `hood=` values are deduplicated in authored order and combine with agent, bead,
 and time conditions.
+
+The opt-in `for_epic=` keyword follows an agent into the epic it launched.
+`%wait(planner, for_epic=true)` waits for `planner` as usual, then also waits until the
+epic that planner launched is closed; `launching` and `blocked` follow states stay
+parked, and a marker with no `for_epic=` field never follows. The value is `true` or
+`false` per `%wait` occurrence, and the colon form uses the default (`false`). Four
+misuses are diagnostics: `for_epic=` without an agent target in the same `%wait`
+(`wait-for-epic-without-agent`), a value other than `true`/`false`
+(`wait-for-epic-invalid-value`), conflicting values for one target
+(`wait-for-epic-conflict`), and `for_epic=true` on a `--plan` row
+(`wait-for-epic-plan-row`). The default is `false`. `for_epic` is not tribe `@epic`.
 
 An `@<tribe>` dependency has next-entity semantics. `%wait:@review` ignores older tribe
 members and selects the earliest successfully completed eligible entity launched after

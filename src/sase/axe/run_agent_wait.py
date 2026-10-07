@@ -19,11 +19,12 @@ from pathlib import Path
 from typing import Any
 
 from sase.axe.run_agent_wait_deps import (
-    initial_dependencies_resolved,
     mark_bead_wait_sync_hint,
     read_ready_result,
+    resolve_initial_wait_release,
     waiting_marker_dependencies_resolved,
 )
+from sase.core.wait_dependency_resolution import set_waiting_until
 from sase.axe.run_agent_wait_markers import (
     record_wait_completed_at,
     write_waiting_marker,
@@ -131,18 +132,22 @@ def wait_for_dependencies(
         or wait_beads
         or wait_hoods
     )
-    dependencies_already_resolved = (
-        initial_dependencies_resolved(
+    initial_decision = (
+        resolve_initial_wait_release(
             wait_names,
             wait_identity_deps,
             wait_fork_sources=wait_fork_sources,
             wait_beads=wait_beads,
             wait_hoods=wait_hoods,
+            wait_for_epics_of=wait_for_epics_of,
             project_name=project_name,
             artifacts_dir=artifacts_dir,
         )
         if has_dependencies and duration is None and wait_until is None
-        else False
+        else None
+    )
+    dependencies_already_resolved = (
+        initial_decision.releasable if initial_decision is not None else False
     )
 
     if (
@@ -186,6 +191,12 @@ def wait_for_dependencies(
             waiting_data["wait_duration"] = duration
         if wait_until is not None:
             waiting_data["wait_until"] = wait_until
+        if initial_decision is not None and initial_decision.patch is not None:
+            waiting_data["wait_for_beads"] = list(initial_decision.patch.wait_for_beads)
+            waiting_data["resolved_deps"] = list(initial_decision.patch.resolved_deps)
+            waiting_data["wait_epic_follows"] = [
+                dict(entry) for entry in initial_decision.patch.wait_epic_follows
+            ]
         write_waiting_marker(artifacts_dir, waiting_data)
 
         parts = []
@@ -263,8 +274,7 @@ def wait_for_dependencies(
         ):
             deadline = datetime.now(UTC) + timedelta(seconds=duration)
             post_dependency_wait_until = deadline.isoformat()
-            waiting_data["wait_until"] = post_dependency_wait_until
-            write_waiting_marker(artifacts_dir, waiting_data)
+            set_waiting_until(artifacts_dir, post_dependency_wait_until)
 
         # If a post-dependency time floor is set, sleep until the target.
         if post_dependency_wait_until is not None and not was_killed():

@@ -308,8 +308,9 @@ session state for the next container selection.
 ### Epic bead-work example
 
 `sase bead work <epic-id>` puts every phase worker and the final land agent in clan
-`<epic-id>` and tribe `@epic`. For an epic named `sase-6g`, the generated prompt has
-this shape:
+`<epic-id>` and tribe `@epic`. `%wait(for_epic=)` follows epics an agent launches and is
+unrelated to tribe `@epic`. For an epic named `sase-6g`, the generated prompt has this
+shape:
 
 ```text
 %id(!sase-6g.1, bead=sase-6g.1)

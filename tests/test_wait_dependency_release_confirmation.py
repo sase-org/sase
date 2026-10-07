@@ -289,3 +289,44 @@ def test_identity_and_hood_waits_defer_on_stale_membership(tmp_path: Path) -> No
     assert not identity_confirmation.confirmed
     assert not hood_confirmation.confirmed
     assert hood_confirmation.status.blocked_on == ("hood=research",)
+
+
+def test_confirmation_withholds_epic_promotion_on_stale_membership(
+    tmp_path: Path,
+) -> None:
+    from sase.core.wait_dependency_resolution import resolve_wait_release
+
+    worker_done = make_agent(
+        tmp_path,
+        "proj",
+        "20261001090000",
+        "worker",
+        agent_session="worker",
+        done=True,
+        outcome="completed",
+        extra_meta={"created_epics": [{"bead_id": "sase-7k"}]},
+    )
+    worker_live = make_agent(
+        tmp_path,
+        "proj",
+        "20261001090100",
+        "worker",
+        agent_session="worker",
+        done=False,
+    )
+    waiter_dir = tmp_path / "waiter"
+    waiter_dir.mkdir(parents=True)
+    stale = _index(worker_done)
+    fresh = _index(worker_done, worker_live)
+    decision = resolve_wait_release(
+        stale,
+        {"waiting_for": ["worker"], "wait_for_epics_of": ["worker"]},
+        waiter_dir=waiter_dir,
+        closed_bead_ids=None,
+        now=1_800_000_000.0,
+        fresh_index=lambda: fresh,
+    )
+
+    assert decision.confirmation_failed is True
+    assert decision.patch is None
+    assert decision.releasable is False

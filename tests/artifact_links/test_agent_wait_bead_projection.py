@@ -73,6 +73,24 @@ def test_emits_one_row_per_distinct_bead_id(tmp_path: Path) -> None:
     assert all(edge.description for edge in edges)
 
 
+def test_promoted_epic_beads_project_awaits_edges(tmp_path: Path) -> None:
+    # A promotion persists its epic ids into the published wait_for_beads
+    # list (wait_epic_follows itself is never published: it is not an
+    # allowlisted sync field), so the projection case covers that output.
+    root = tmp_path / "agents-sidecar"
+    _write_agent(
+        root,
+        "alice.athena.9w",
+        _meta(metadata={"wait_for_beads": ["sase-7k"]}),
+    )
+
+    edges = project_agent_wait_bead_rows(_inputs(root))
+
+    assert {(edge.relation, edge.target_ref) for edge in edges} == {
+        ("awaits", "bead:sase-7k"),
+    }
+
+
 def test_deduplicates_repeated_bead_ids(tmp_path: Path) -> None:
     root = tmp_path / "agents-sidecar"
     _write_agent(

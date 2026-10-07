@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -134,14 +135,52 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
             artifacts_dir=artifacts_path,
         ):
             continue
-        if not name_succeeded and not identity_succeeded:
-            continue
         resolved_deps = waiting_data.get("resolved_deps")
         if not isinstance(resolved_deps, list):
             resolved_deps = []
         if wait_for_beads and not closed_bead_ids_resolved:
             closed_bead_ids = closed_bead_ids_for_project(project_name)
             closed_bead_ids_resolved = True
+        # An armed epic-follow target is dismissed by the deletion itself,
+        # not by the deleted run's outcome, so route it through the shared
+        # release before the success gate below can skip the waiter.
+        # Imported lazily to keep the TUI startup closure lean.
+        from sase.core.wait_dependency_resolution import armed_wait_epic_targets
+
+        armed_targets = armed_wait_epic_targets(waiting_data)
+        if deleted_name is not None and deleted_name in armed_targets:
+            if dependency_index is None:
+                try:
+                    dependency_index = build_wait_dependency_index(
+                        project_name,
+                        projects_root=projects_root,
+                    )
+                except Exception:
+                    dependency_index = None
+            if dependency_index is not None:
+                if _resolve_armed_waiter_for_dismiss(
+                    waiting_data,
+                    waiter_dir=waiter_dir,
+                    armed_target=deleted_name,
+                    dependency_index=dependency_index,
+                    project_name=project_name,
+                    projects_root=projects_root,
+                    closed_bead_ids=closed_bead_ids,
+                    dismissed_artifact_dir=artifacts_path,
+                ):
+                    continue
+                refreshed = read_json_dict(waiting_path)
+                if refreshed is not None:
+                    waiting_data = refreshed
+                    waiting_for = _string_list(waiting_data.get("waiting_for"))
+                    wait_for_beads = waiting_data.get("wait_for_beads")
+                    if not isinstance(wait_for_beads, list):
+                        wait_for_beads = []
+                    resolved_deps = waiting_data.get("resolved_deps")
+                    if not isinstance(resolved_deps, list):
+                        resolved_deps = []
+        if not name_succeeded and not identity_succeeded:
+            continue
         ready_data = _ready_data_for_completed_dependency(
             dependency_index,
             waiting_for=waiting_for,
@@ -179,6 +218,67 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
                 json.dump(ready_data, f, indent=2)
         except OSError:
             continue
+
+
+def _resolve_armed_waiter_for_dismiss(
+    waiting_data: dict[str, object],
+    *,
+    waiter_dir: Path,
+    armed_target: str,
+    dependency_index: WaitDependencyIndex,
+    project_name: str,
+    projects_root: Path,
+    closed_bead_ids: frozenset[str] | None,
+    dismissed_artifact_dir: Path,
+) -> bool:
+    """Route an armed waiter through the shared release before dismissal.
+
+    Applies a promotion or stage patch first. Returns True when the waiter
+    stays parked because of this dismiss: a ``launching`` target, a
+    ``blocked`` ``target_dismissed_during_launch`` target, a promotion
+    applied on this pass, or a compare-and-set abort. Returns False to keep
+    today's memoize-or-ready behavior.
+    """
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_dependency_resolution import (
+        apply_wait_epic_follow_patch,
+        resolve_wait_release,
+    )
+
+    def _fresh_dismiss_index() -> WaitDependencyIndex:
+        return build_wait_dependency_index(
+            project_name,
+            projects_root=projects_root,
+        )
+
+    try:
+        decision = resolve_wait_release(
+            dependency_index,
+            waiting_data,
+            waiter_dir=waiter_dir,
+            closed_bead_ids=closed_bead_ids,
+            now=time.time(),
+            dismissed_artifact_dir=str(dismissed_artifact_dir),
+            fresh_index=_fresh_dismiss_index,
+        )
+    except Exception:  # noqa: BLE001 - dismissal must not strand the waiter.
+        return False
+    if decision.patch is not None:
+        if not apply_wait_epic_follow_patch(waiter_dir, decision.patch):
+            return True
+    target_decision = next(
+        (follow for follow in decision.follows if follow.target == armed_target),
+        None,
+    )
+    if target_decision is not None and (
+        target_decision.state == "launching"
+        or (
+            target_decision.state == "blocked"
+            and target_decision.reason == "target_dismissed_during_launch"
+        )
+    ):
+        return True
+    return decision.patch is not None
 
 
 def _ready_data_for_completed_dependency(

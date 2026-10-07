@@ -234,6 +234,20 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
             "no index refresh is required."
         ),
     ),
+    (
+        "src/sase/core/wait_dependency_resolution/_epic_follow_release.py:"
+        "apply_wait_epic_follow_patch"
+    ): Review(
+        mutation_calls=("mkstemp", "dump", "os.replace", "unlink"),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
+    (
+        "src/sase/core/wait_dependency_resolution/_epic_follow_release.py:"
+        "set_waiting_until"
+    ): Review(
+        mutation_calls=("mkstemp", "dump", "os.replace", "unlink"),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
     "src/sase/axe/run_agent_wait_markers.py:remove_waiting_marker": Review(
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),

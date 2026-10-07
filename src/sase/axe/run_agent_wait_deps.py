@@ -8,18 +8,22 @@ outage cannot strand a waiting agent forever.
 
 import json
 import os
+import time
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from sase.axe.run_agent_wait_markers import read_json_dict
 from sase.bead.wait_status import closed_bead_ids_for_waits
 from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
+    WaitReleaseDecision,
+    apply_wait_epic_follow_patch,
     build_wait_dependency_index,
-    confirm_dependency_resolution,
-    dependency_resolution_status,
+    resolve_wait_release,
 )
 from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
+from sase.core.wait_dependency_resolution._types import WaitDependencyStatus
 
 
 def mark_bead_wait_sync_hint(project_name: str | None) -> None:
@@ -45,7 +49,21 @@ def mark_bead_wait_sync_hint(project_name: str | None) -> None:
         pass
 
 
-def initial_dependencies_resolved(
+def _parked_release_decision(
+    status: WaitDependencyStatus,
+    *,
+    confirmation_failed: bool = False,
+) -> WaitReleaseDecision:
+    return WaitReleaseDecision(
+        status,
+        (),
+        None,
+        False,
+        confirmation_failed,
+    )
+
+
+def resolve_initial_wait_release(
     wait_names: Iterable[object],
     wait_identity_deps: Iterable[object],
     *,
@@ -53,12 +71,44 @@ def initial_dependencies_resolved(
     wait_beads: Iterable[object] = (),
     wait_hoods: Iterable[object] = (),
     resolved_deps: Iterable[object] = (),
+    wait_for_epics_of: Iterable[object] = (),
+    wait_epic_follows: Iterable[object] = (),
     project_name: str | None,
     artifacts_dir: str,
-) -> bool:
-    """Resolve a dependency set directly, without consulting ``ready.json``."""
+) -> WaitReleaseDecision:
+    """Resolve a dependency set through the shared epic-follow release.
+
+    Builds the synthetic marker from the launch arguments and decides one
+    release pass with the same ``build_index`` closure as the fresh index.
+    Callers that need the promotion patch read it off the decision; the
+    ``initial_dependencies_resolved`` bool wrapper reads ``.releasable``.
+    """
+    marker: dict[str, Any] = {
+        "waiting_for": list(wait_names),
+        "wait_for_artifacts": list(wait_identity_deps),
+        "wait_for_fork_sources": list(wait_fork_sources),
+        "wait_for_beads": list(wait_beads),
+        "wait_for_hoods": list(wait_hoods),
+        "resolved_deps": list(resolved_deps),
+        "wait_for_epics_of": list(wait_for_epics_of),
+        "wait_epic_follows": list(wait_epic_follows),
+    }
+    return _resolve_marker_release(
+        marker,
+        project_name=project_name,
+        artifacts_dir=artifacts_dir,
+    )
+
+
+def _resolve_marker_release(
+    marker: dict[str, Any],
+    *,
+    project_name: str | None,
+    artifacts_dir: str,
+) -> WaitReleaseDecision:
+    """Decide one release pass for a marker with a freshly built index."""
     if not project_name:
-        return False
+        return _parked_release_decision(WaitDependencyStatus("waiting", ("<unknown>",)))
 
     try:
         global_stored_tribes = stored_tribe_names_for_resolution()
@@ -74,53 +124,70 @@ def initial_dependencies_resolved(
             f"Wait dependency check failed (index): {type(exc).__name__}: "
             f"{exc}; staying parked"
         )
-        return False
-    names = tuple(wait_names)
-    identity_deps = tuple(wait_identity_deps)
-    fork_sources = tuple(wait_fork_sources)
-    hoods = tuple(wait_hoods)
-    resolved = tuple(resolved_deps)
-    wait_bead_items = tuple(wait_beads)
+        return _parked_release_decision(WaitDependencyStatus("waiting", ("<unknown>",)))
+    wait_bead_items = tuple(marker.get("wait_for_beads", []))
     closed_bead_ids = None
     if wait_bead_items:
-        closed_bead_ids = closed_bead_ids_for_waits(
-            project_name,
-            wait_bead_items,
-            sync_hint=mark_bead_wait_sync_hint,
-        ).closed_ids
-
-    status = dependency_resolution_status(
-        dependency_index,
-        names,
-        identity_deps,
-        resolved,
-        wait_fork_sources=fork_sources,
-        wait_beads=wait_bead_items,
-        wait_hoods=hoods,
-        closed_bead_ids=closed_bead_ids,
-        self_artifact_dir=artifacts_dir,
-    )
-    if not status.resolved:
-        return False
+        try:
+            closed_bead_ids = closed_bead_ids_for_waits(
+                project_name,
+                wait_bead_items,
+                sync_hint=mark_bead_wait_sync_hint,
+            ).closed_ids
+        except Exception as exc:
+            print(
+                f"Wait dependency check failed (index): {type(exc).__name__}: "
+                f"{exc}; staying parked"
+            )
+            return _parked_release_decision(
+                WaitDependencyStatus("waiting", tuple(wait_bead_items))
+            )
     try:
-        return confirm_dependency_resolution(
+        decision = resolve_wait_release(
             dependency_index,
-            build_index,
-            names,
-            identity_deps,
-            resolved,
-            wait_fork_sources=fork_sources,
-            wait_beads=wait_bead_items,
-            wait_hoods=hoods,
+            marker,
+            waiter_dir=artifacts_dir,
             closed_bead_ids=closed_bead_ids,
-            self_artifact_dir=artifacts_dir,
-        ).confirmed
+            now=time.time(),
+            fresh_index=build_index,
+        )
     except Exception as exc:
         print(
             f"Wait dependency check failed (confirmation): {type(exc).__name__}: "
             f"{exc}; staying parked"
         )
-        return False
+        return _parked_release_decision(
+            WaitDependencyStatus("waiting", tuple(marker.get("waiting_for", [])))
+        )
+    if decision.confirmation_failed:
+        print("Wait dependency check failed (confirmation): staying parked")
+    return decision
+
+
+def initial_dependencies_resolved(
+    wait_names: Iterable[object],
+    wait_identity_deps: Iterable[object],
+    *,
+    wait_fork_sources: Iterable[object] = (),
+    wait_beads: Iterable[object] = (),
+    wait_hoods: Iterable[object] = (),
+    resolved_deps: Iterable[object] = (),
+    wait_for_epics_of: Iterable[object] = (),
+    project_name: str | None,
+    artifacts_dir: str,
+) -> bool:
+    """Resolve a dependency set directly, without consulting ``ready.json``."""
+    return resolve_initial_wait_release(
+        wait_names,
+        wait_identity_deps,
+        wait_fork_sources=wait_fork_sources,
+        wait_beads=wait_beads,
+        wait_hoods=wait_hoods,
+        resolved_deps=resolved_deps,
+        wait_for_epics_of=wait_for_epics_of,
+        project_name=project_name,
+        artifacts_dir=artifacts_dir,
+    ).releasable
 
 
 def read_ready_result(ready_path: str) -> bool:
@@ -186,13 +253,13 @@ def waiting_marker_dependencies_resolved(
     ):
         return False
 
-    return initial_dependencies_resolved(
-        wait_names,
-        wait_identity_deps,
-        wait_fork_sources=wait_fork_sources,
-        wait_beads=wait_beads,
-        wait_hoods=wait_hoods,
-        resolved_deps=resolved_deps,
+    decision = _resolve_marker_release(
+        waiting_data,
         project_name=project_name,
         artifacts_dir=artifacts_dir,
     )
+    if decision.patch is not None:
+        if not apply_wait_epic_follow_patch(artifacts_dir, decision.patch):
+            return False
+        return False
+    return decision.releasable

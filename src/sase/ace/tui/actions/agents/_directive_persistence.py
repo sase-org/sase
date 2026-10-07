@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import tempfile
@@ -504,21 +503,17 @@ def _rewrite_prompt_stash_exact(old_prompt: str, new_prompt: str) -> int:
 
 @contextmanager
 def _agent_directive_lock(artifacts_path: Path) -> Iterator[None]:
-    artifacts_path.mkdir(parents=True, exist_ok=True)
-    lock_path = artifacts_path / ".agent_directive_persistence.lock"
-    with open(lock_path, "a+", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    from sase.core.agent_directive_lock import agent_directive_lock
+
+    with agent_directive_lock(artifacts_path):
+        yield
 
 
 @contextmanager
 def _runner_slot_marker_lock() -> Iterator[None]:
-    from sase.core.runner_slots import runner_slot_admission_lock
+    from sase.core.agent_directive_lock import runner_slot_marker_lock
 
-    with runner_slot_admission_lock():
+    with runner_slot_marker_lock():
         yield
 
 

@@ -9,6 +9,7 @@ run-scoped ``agent_meta.json`` cache. Terminal-blocker detection lives in
 from __future__ import annotations
 
 import json
+import time
 import traceback
 from pathlib import Path
 from typing import Any
@@ -24,9 +25,9 @@ from sase.core.paths import sase_projects_dir
 from sase.core.wait_dependency_resolution import (
     KNOWN_DONE_OUTCOMES,
     WaitDependencyIndex,
-    confirm_dependency_resolution,
-    dependency_resolution_status,
+    apply_wait_epic_follow_patch,
     read_json_dict as _read_json_dict,
+    resolve_wait_release,
 )
 from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
 from sase.scripts._chop_incremental_index import (
@@ -160,6 +161,8 @@ def _run(
         wait_for_beads: list[Any],
         wait_for_hoods: list[Any],
         resolved_deps: list[Any],
+        wait_for_epics_of: list[Any],
+        wait_epic_follows: list[Any],
     ) -> None:
         """Resolve one waiter; any exception parks only this waiter."""
         nonlocal ready_written, skipped_ready, skipped_invalid
@@ -177,102 +180,103 @@ def _run(
                 sync_hint=mark_bead_wait_sync_hint,
             ).closed_ids
 
-        status = dependency_resolution_status(
-            dependency_index,
+        member_dirs = dependency_index.dependency_member_dirs(
             waiting_for,
             wait_for_artifacts,
             resolved_deps,
             wait_fork_sources=wait_for_fork_sources,
-            wait_beads=wait_for_beads,
             wait_hoods=wait_for_hoods,
-            closed_bead_ids=closed_bead_ids,
             self_artifact_dir=waiting_marker.waiting_path.parent,
         )
+        confirmation_projects = {waiting_marker.project_name}
+        confirmation_projects.update(
+            candidate.project_name
+            for candidate in dependency_index.artifacts_by_dir.values()
+            if artifact_dir_key(candidate.artifact_dir) in member_dirs
+            and candidate.project_name
+        )
+        confirmation_round = 0
+
+        def fresh_index(
+            projects: frozenset[str] = frozenset(confirmation_projects),
+        ) -> WaitDependencyIndex:
+            nonlocal confirmation_round
+            key = (tuple(sorted(projects)), confirmation_round)
+            confirmation_round += 1
+            cached = fresh_indexes.get(key)
+            if cached is not None:
+                return cached
+            fresh = WaitDependencyIndex.empty(
+                global_stored_tribes=dependency_index.global_stored_tribes,
+            )
+            # The resolving index may use a custom tribe-evidence path. Keep
+            # that already-loaded evidence exactly rather than allowing the
+            # confirmation pass to see a different tribe universe.
+            fresh.agent_tribes = dict(dependency_index.agent_tribes)
+            fresh.add_many(
+                _filesystem_dependency_rows(
+                    projects_dir,
+                    project_names=set(projects),
+                    meta_cache=meta_cache,
+                )
+            )
+            fresh_indexes[key] = fresh
+            return fresh
+
+        marker: dict[str, Any] = {
+            "waiting_for": waiting_for,
+            "wait_for_artifacts": wait_for_artifacts,
+            "wait_for_fork_sources": wait_for_fork_sources,
+            "wait_for_beads": wait_for_beads,
+            "wait_for_hoods": wait_for_hoods,
+            "resolved_deps": resolved_deps,
+            "wait_for_epics_of": wait_for_epics_of,
+            "wait_epic_follows": wait_epic_follows,
+        }
+        try:
+            decision = resolve_wait_release(
+                dependency_index,
+                marker,
+                waiter_dir=waiting_marker.waiting_path.parent,
+                closed_bead_ids=closed_bead_ids,
+                now=time.time(),
+                fresh_index=fresh_index,
+            )
+        except Exception as exc:  # noqa: BLE001 - a failed release check must park.
+            deferred_unconfirmed += 1
+            runtime.log(
+                "[wait_checks] Deferred release for "
+                f"{data.get('cl_name', 'unknown')}: could not confirm "
+                f"dependency membership ({exc})",
+            )
+            return
+        status = decision.status
         for diagnostic in status.diagnostics:
             runtime.log(f"[wait_checks] {diagnostic}")
-        if status.resolved:
-            member_dirs = dependency_index.dependency_member_dirs(
-                waiting_for,
-                wait_for_artifacts,
-                resolved_deps,
-                wait_fork_sources=wait_for_fork_sources,
-                wait_hoods=wait_for_hoods,
-                self_artifact_dir=waiting_marker.waiting_path.parent,
-            )
-            confirmation_projects = {waiting_marker.project_name}
-            confirmation_projects.update(
-                candidate.project_name
-                for candidate in dependency_index.artifacts_by_dir.values()
-                if artifact_dir_key(candidate.artifact_dir) in member_dirs
-                and candidate.project_name
-            )
-            confirmation_round = 0
-
-            def fresh_index(
-                projects: frozenset[str] = frozenset(confirmation_projects),
-            ) -> WaitDependencyIndex:
-                nonlocal confirmation_round
-                key = (tuple(sorted(projects)), confirmation_round)
-                confirmation_round += 1
-                cached = fresh_indexes.get(key)
-                if cached is not None:
-                    return cached
-                fresh = WaitDependencyIndex.empty(
-                    global_stored_tribes=dependency_index.global_stored_tribes,
-                )
-                # The resolving index may use a custom tribe-evidence path. Keep
-                # that already-loaded evidence exactly rather than allowing the
-                # confirmation pass to see a different tribe universe.
-                fresh.agent_tribes = dict(dependency_index.agent_tribes)
-                fresh.add_many(
-                    _filesystem_dependency_rows(
-                        projects_dir,
-                        project_names=set(projects),
-                        meta_cache=meta_cache,
-                    )
-                )
-                fresh_indexes[key] = fresh
-                return fresh
-
-            try:
-                confirmation = confirm_dependency_resolution(
-                    dependency_index,
-                    fresh_index,
-                    waiting_for,
-                    wait_for_artifacts,
-                    resolved_deps,
-                    wait_fork_sources=wait_for_fork_sources,
-                    wait_beads=wait_for_beads,
-                    wait_hoods=wait_for_hoods,
-                    closed_bead_ids=closed_bead_ids,
-                    self_artifact_dir=waiting_marker.waiting_path.parent,
-                )
-            except Exception as exc:  # noqa: BLE001 - a failed confirmation must park.
-                deferred_unconfirmed += 1
+        if decision.confirmation_failed:
+            deferred_unconfirmed += 1
+            cl_name = data.get("cl_name", "unknown")
+            if status.resolved:
                 runtime.log(
                     "[wait_checks] Deferred release for "
-                    f"{data.get('cl_name', 'unknown')}: could not confirm "
-                    f"dependency membership ({exc})",
+                    f"{cl_name}: dependency membership changed since the "
+                    "resolving view",
                 )
-                return
-            if not confirmation.confirmed:
-                deferred_unconfirmed += 1
-                cl_name = data.get("cl_name", "unknown")
-                if confirmation.new_member_dirs:
-                    runtime.log(
-                        "[wait_checks] Deferred release for "
-                        f"{cl_name}: dependency membership changed since the "
-                        "resolving view (new: "
-                        f"{', '.join(confirmation.new_member_dirs)})",
-                    )
-                else:
-                    blocked = ", ".join(confirmation.status.blocked_on)
-                    runtime.log(
-                        "[wait_checks] Deferred release for "
-                        f"{cl_name}: fresh dependency view remains unresolved "
-                        f"(blocked on: {blocked or '<unknown>'})",
-                    )
-                return
+            else:
+                blocked = ", ".join(status.blocked_on)
+                runtime.log(
+                    "[wait_checks] Deferred release for "
+                    f"{cl_name}: fresh dependency view remains unresolved "
+                    f"(blocked on: {blocked or '<unknown>'})",
+                )
+            return
+        if decision.patch is not None:
+            apply_wait_epic_follow_patch(
+                waiting_marker.waiting_path.parent, decision.patch
+            )
+            unresolved += 1
+            return
+        if status.resolved:
             cl_name = data.get("cl_name", "unknown")
             waited_on = ", ".join(waiting_for)
             if wait_for_beads:
@@ -354,6 +358,8 @@ def _run(
         wait_for_beads = data.get("wait_for_beads", [])
         wait_for_hoods = data.get("wait_for_hoods", [])
         resolved_deps = data.get("resolved_deps", [])
+        wait_for_epics_of = data.get("wait_for_epics_of", [])
+        wait_epic_follows = data.get("wait_epic_follows", [])
         if not isinstance(wait_for_artifacts, list):
             wait_for_artifacts = []
         if not isinstance(wait_for_fork_sources, list):
@@ -364,6 +370,10 @@ def _run(
             wait_for_hoods = []
         if not isinstance(resolved_deps, list):
             resolved_deps = []
+        if not isinstance(wait_for_epics_of, list):
+            wait_for_epics_of = []
+        if not isinstance(wait_epic_follows, list):
+            wait_epic_follows = []
         if not isinstance(waiting_for, list) or (
             not waiting_for
             and not wait_for_artifacts
@@ -384,6 +394,8 @@ def _run(
                 wait_for_beads,
                 wait_for_hoods,
                 resolved_deps,
+                wait_for_epics_of,
+                wait_epic_follows,
             )
         except Exception as exc:  # noqa: BLE001 - one bad waiter must not stall the tick.
             waiter_errors += 1

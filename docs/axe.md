@@ -256,9 +256,11 @@ already throttle via `run_every: "30s"`.
 
 `wait_checks` unblocks a named dependency when the newest matching agent, or the newest
 matching workflow root and all of its children, has a successful terminal `done.json`
-outcome: `"completed"`, `"noop"`, `"epic_approved"`, or `"plan_committed"`. A wait on an
-epic-approved planner waits for that planner, not for the host-owned epic it launched;
-use bead waits or a wait on the launched epic clan for that. `"noop"` agents can also
+outcome: `"completed"`, `"noop"`, `"epic_approved"`, or `"plan_committed"`. An ordinary
+wait on an epic-approved planner releases when that planner finishes.
+`%wait(planner, for_epic=true)` also waits until the epic that planner launched is
+closed. The runner initial check, the parked-runner fallback, `wait_checks`, and
+kill/dismiss share that decision. The default remains false. `"noop"` agents can also
 satisfy waits even though they are hidden from normal done-agent lists. Failed, killed,
 stopped, crashed, still-running, malformed, or missing `done.json` artifacts do not
 satisfy `%wait`; the dependent agent remains parked until a later successful run of the

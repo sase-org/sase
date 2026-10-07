@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from sase.agent.names._common import NamedAgent
 from sase.agent.running import kill_named_agent
+from tests._agent_names_fixtures import make_agent
 from tests._kill_named_agent_dismiss_helpers import (
     _isolated_dismissed_index as _isolated_dismissed_index,
 )
@@ -300,3 +301,43 @@ def test_kill_named_agent_meta_pid_recycling_guard_does_not_signal(
     finally:
         process.terminate()
         process.wait(timeout=5)
+
+
+def test_dismiss_armed_launching_planner_parks_without_ready(
+    tmp_path: Path,
+) -> None:
+    from sase.ace.tui.actions.agents._killing_utils import (
+        _resolve_waiters_before_artifact_delete,
+    )
+
+    member_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20261001090000",
+        "planner",
+        agent_session="planner",
+        done=True,
+        outcome="epic_approved",
+    )
+    (member_dir / "epic_launch_argv.json").write_text(
+        json.dumps(
+            {"argv": ["sase", "bead", "work", "202610/epic.md", "--yes-to-all"]}
+        ),
+        encoding="utf-8",
+    )
+    waiter_dir = (
+        tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "waiter"
+    )
+    waiter_dir.mkdir(parents=True)
+    (waiter_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "waiter"}), encoding="utf-8"
+    )
+    (waiter_dir / "waiting.json").write_text(
+        json.dumps({"waiting_for": ["planner"], "wait_for_epics_of": ["planner"]}),
+        encoding="utf-8",
+    )
+
+    _resolve_waiters_before_artifact_delete(str(member_dir))
+
+    assert not (waiter_dir / "ready.json").exists()
+    assert (waiter_dir / "waiting.json").exists()

@@ -32,6 +32,7 @@ __all__ = [
     "test_initial_dependencies_resolved_matches_terminal_outcome_semantics",
     "test_initial_dependencies_resolved_routes_full_bead_wait_to_owner_project",
     "test_initial_dependencies_resolved_uses_cross_project_stored_job_identity",
+    "test_initial_dependencies_resolved_withholds_armed_launching_planner",
     "test_mark_bead_wait_sync_hint_contains_hint_failures",
     "test_mark_bead_wait_sync_hint_honors_off_mode",
     "test_mark_bead_wait_sync_hint_marks_the_beads_role",
@@ -320,8 +321,14 @@ def test_runner_fallback_confirmation_failure_warns_and_stays_parked(
     def _boom(*args: object, **kwargs: object) -> object:
         raise RuntimeError("confirm exploded")
 
+    # Confirmation now runs inside the shared release decision; patch it
+    # at its canonical home. The release swallows the exception into a
+    # parked confirmation_failed decision, so the runner warning no longer
+    # carries the exception details.
     monkeypatch.setattr(
-        "sase.axe.run_agent_wait_deps.confirm_dependency_resolution", _boom
+        "sase.core.wait_dependency_resolution._epic_follow_release"
+        ".confirm_dependency_resolution",
+        _boom,
     )
 
     assert not initial_dependencies_resolved(
@@ -332,7 +339,6 @@ def test_runner_fallback_confirmation_failure_warns_and_stays_parked(
     )
     out = capsys.readouterr().out
     assert "Wait dependency check failed (confirmation)" in out
-    assert "RuntimeError" in out
     assert "staying parked" in out
 
 
@@ -368,3 +374,34 @@ def test_runner_fallback_index_failure_warns_and_stays_parked(
     out = capsys.readouterr().out
     assert "Wait dependency check failed (index)" in out
     assert "staying parked" in out
+
+
+def test_initial_dependencies_resolved_withholds_armed_launching_planner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "planner")
+    planner_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20261001090000",
+        "planner",
+        agent_session="planner",
+        done=True,
+        outcome="epic_approved",
+    )
+    (planner_dir / "epic_launch_argv.json").write_text(
+        json.dumps(
+            {"argv": ["sase", "bead", "work", "202610/epic.md", "--yes-to-all"]}
+        ),
+        encoding="utf-8",
+    )
+
+    assert not initial_dependencies_resolved(
+        ["planner"],
+        [],
+        wait_for_epics_of=["planner"],
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
+    )

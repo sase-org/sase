@@ -17,10 +17,12 @@ from tests._agent_names_fixtures import make_agent
 
 @contextmanager
 def _patch_index_updates(side_effect: Callable[[str], None]) -> Iterator[None]:
-    """Observe Tier 1 index refreshes from both wait modules.
+    """Observe Tier 1 index refreshes from every wait writer.
 
     ``waiting.json`` is published by ``run_agent_wait_markers`` while the wait
-    barrier removes it inline, so both bindings must be intercepted.
+    barrier removes it inline, and the two-stage ``wait_until`` rewrite in
+    the shared release module refreshes through its own binding, so every
+    binding must be intercepted.
     """
     with (
         patch(
@@ -29,6 +31,11 @@ def _patch_index_updates(side_effect: Callable[[str], None]) -> Iterator[None]:
         ),
         patch(
             "sase.axe.run_agent_wait_markers."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=side_effect,
+        ),
+        patch(
+            "sase.core.wait_dependency_resolution._epic_follow_release."
             "update_agent_artifact_index_for_marker_mutation",
             side_effect=side_effect,
         ),
@@ -273,13 +280,21 @@ def test_bead_wait_fallback_releases_after_bead_closes(
 def test_bead_wait_fallback_hints_before_resolution(
     tmp_path: Path,
 ) -> None:
+    from sase.core.wait_dependency_resolution import WaitReleaseDecision
+    from sase.core.wait_dependency_resolution._types import WaitDependencyStatus
+
     waiter_dir = _make_waiter(tmp_path)
     events: list[str] = []
+    parked = WaitReleaseDecision(
+        WaitDependencyStatus("waiting", ("sase-87.3",)), (), None, False, False
+    )
 
     with (
+        # The initial check now decides through resolve_initial_wait_release;
+        # park it so the waiter reaches the fallback loop below.
         patch(
-            "sase.axe.run_agent_wait.initial_dependencies_resolved",
-            return_value=False,
+            "sase.axe.run_agent_wait.resolve_initial_wait_release",
+            return_value=parked,
         ),
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
         patch("sase.axe.run_agent_wait._WAIT_DEPENDENCY_FALLBACK_INTERVAL", 0),
@@ -374,3 +389,45 @@ def test_named_wait_fallback_is_skipped_without_project_name(
         )
 
     fallback.assert_not_called()
+
+
+def test_fallback_withholds_armed_launching_planner_and_persists_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.axe.run_agent_wait_deps import waiting_marker_dependencies_resolved
+
+    dep_dir = make_agent(
+        tmp_path, "proj", "20260506010101", "dep", done=True, outcome="epic_approved"
+    )
+    (dep_dir / "epic_launch_argv.json").write_text(
+        json.dumps(
+            {"argv": ["sase", "bead", "work", "202610/epic.md", "--yes-to-all"]}
+        ),
+        encoding="utf-8",
+    )
+    waiter_dir = _make_waiter(tmp_path)
+    (waiter_dir / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": ["dep"],
+                "wait_for_epics_of": ["dep"],
+                "cl_name": "cl",
+                "timestamp": "20260506010102",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    assert (
+        waiting_marker_dependencies_resolved(
+            waiter_dir / "waiting.json",
+            project_name="proj",
+            artifacts_dir=str(waiter_dir),
+        )
+        is False
+    )
+    stored = json.loads((waiter_dir / "waiting.json").read_text(encoding="utf-8"))
+    assert stored["wait_epic_follows"][0]["state"] == "launching"
+    assert stored["wait_epic_follows"][0]["target"] == "dep"

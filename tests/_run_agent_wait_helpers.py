@@ -16,10 +16,12 @@ from tests._agent_names_fixtures import make_agent
 
 @contextmanager
 def patch_index_updates(side_effect: Callable[[str], None]) -> Iterator[None]:
-    """Observe Tier 1 index refreshes from both wait modules.
+    """Observe Tier 1 index refreshes from every wait marker publisher.
 
     ``waiting.json`` is published by ``run_agent_wait_markers`` while the wait
-    barrier removes it inline, so both bindings must be intercepted.
+    barrier removes it inline, so both bindings must be intercepted. The
+    post-dependency ``wait_until`` update goes through the shared release
+    helper, so its binding is intercepted as well.
     """
     with (
         patch(
@@ -28,6 +30,11 @@ def patch_index_updates(side_effect: Callable[[str], None]) -> Iterator[None]:
         ),
         patch(
             "sase.axe.run_agent_wait_markers."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=side_effect,
+        ),
+        patch(
+            "sase.core.wait_dependency_resolution._epic_follow_release."
             "update_agent_artifact_index_for_marker_mutation",
             side_effect=side_effect,
         ),

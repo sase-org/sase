@@ -28,6 +28,7 @@ from sase.core.agent_scan_wire_markers import (
     WorkflowStepStateWire,
     created_epics_from_value,
     finalizer_status_from_mapping,
+    wait_epic_follows_from_value,
     wait_for_epics_of_from_value,
 )
 from sase.core.agent_scan_wire_records import (
@@ -446,6 +447,9 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     kwargs["wait_for_epics_of"] = wait_for_epics_of_from_value(
         payload.get("wait_for_epics_of")
     )
+    kwargs["wait_epic_follows"] = wait_epic_follows_from_value(
+        payload.get("wait_epic_follows")
+    )
     return AgentMetaWire(**kwargs)
 
 
@@ -473,6 +477,9 @@ def _waiting_marker_from_dict(data: dict[str, Any]) -> WaitingMarkerWire:
     kwargs = _non_default_field_kwargs(WaitingMarkerWire, payload)
     kwargs["wait_for_epics_of"] = wait_for_epics_of_from_value(
         payload.get("wait_for_epics_of")
+    )
+    kwargs["wait_epic_follows"] = wait_epic_follows_from_value(
+        payload.get("wait_epic_follows")
     )
     return WaitingMarkerWire(**kwargs)
 
