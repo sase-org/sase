@@ -21,9 +21,9 @@ def migrate_projection_off_track(beads_dir: Path, repo_root: Path) -> tuple[bool
     add/commit flow: a tracked file missing from the worktree still shows
     up in ``--deleted`` enumeration, so ``git add`` stages the deletion and
     the commit records it. (``git rm --cached`` would hide the path from
-    that enumeration instead.) Nothing is staged here for the same reason:
-    a staged-new ``.gitignore`` is invisible to that enumeration, so the
-    ignore rule is left unstaged for the commit to pick up.
+    that enumeration instead.) Nothing is staged here even though commit
+    paths now pick up staged entries too: leaving the ignore rule unstaged
+    keeps the migration side-effect-free for stage-only callers.
 
     Returns ``(changed, gitignore_updated)``: callers committing with a
     directory-scoped pathspec must also include the repo ``.gitignore``

@@ -470,6 +470,10 @@ def test_commit_sdd_files_errors_on_unexpected_cached_diff_exit(
         "sase.sdd._commit_store.changed_sdd_files",
         lambda _sdd_dir, _pathspecs: ["plan.md"],
     )
+    monkeypatch.setattr(
+        "sase.sdd._commit_store.staged_sdd_files",
+        lambda _sdd_dir, _pathspecs: [],
+    )
 
     def fail_cached_diff(
         args: list[str],
@@ -541,3 +545,106 @@ def test_commit_sdd_files_waits_for_store_write_lock(
     writer.join(timeout=1)
     assert writer.is_alive() is False
     assert results == [True]
+
+
+def _porcelain(repo: Path) -> str:
+    return subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
+def _commit_paths(repo: Path) -> list[str]:
+    out = subprocess.run(
+        ["git", "show", "--name-status", "--format=", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return sorted(line.split("\t", 1)[1] for line in out.splitlines() if line.strip())
+
+
+def test_commit_sdd_files_commits_staged_only_changes(tmp_path: Path) -> None:
+    """Staged-only modification + staged deletion land in one commit."""
+    repo = tmp_path / "repo"
+    init_test_git_repo(repo)
+    (repo / "a.md").write_text("v1\n", encoding="utf-8")
+    (repo / "b.md").write_text("v1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True)
+    (repo / "a.md").write_text("v2\n", encoding="utf-8")
+    (repo / "b.md").unlink()
+    subprocess.run(["git", "add", "a.md", "b.md"], cwd=repo, check=True)
+    # Nothing left unstaged: worktree-only enumeration sees nothing.
+    assert _porcelain(repo).splitlines() == ["M  a.md", "D  b.md"]
+
+    assert commit_sdd_files(repo, "staged only") is True
+
+    assert _commit_paths(repo) == ["a.md", "b.md"]
+    assert _porcelain(repo) == ""
+
+
+def test_commit_sdd_files_mixed_untracked_and_staged_deletion(
+    tmp_path: Path,
+) -> None:
+    """An untracked file plus a staged deletion commit together."""
+    repo = tmp_path / "repo"
+    init_test_git_repo(repo)
+    (repo / "victim.md").write_text("gone\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True)
+    subprocess.run(["git", "rm", "-q", "victim.md"], cwd=repo, check=True)
+    (repo / "new.md").write_text("new\n", encoding="utf-8")
+
+    assert commit_sdd_files(repo, "mixed") is True
+
+    assert _commit_paths(repo) == ["new.md", "victim.md"]
+    assert _porcelain(repo) == ""
+
+
+def test_commit_sdd_files_targeted_scope_preserves_outside_staged(
+    tmp_path: Path,
+) -> None:
+    """A directory-scoped commit leaves outside staged changes alone."""
+    repo = tmp_path / "repo"
+    init_test_git_repo(repo)
+    keep = repo / "keep" / "k.md"
+    other = repo / "other" / "o.md"
+    keep.parent.mkdir(parents=True)
+    other.parent.mkdir(parents=True)
+    keep.write_text("k1\n", encoding="utf-8")
+    other.write_text("o1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True)
+    keep.write_text("k2\n", encoding="utf-8")
+    other.write_text("o2\n", encoding="utf-8")
+    subprocess.run(["git", "add", "keep/k.md", "other/o.md"], cwd=repo, check=True)
+
+    assert commit_sdd_files(repo, "scoped", paths=["keep"]) is True
+
+    assert _commit_paths(repo) == ["keep/k.md"]
+    assert _porcelain(repo).splitlines() == ["M  other/o.md"]
+
+
+def test_commit_sdd_files_excludes_staged_goals(tmp_path: Path) -> None:
+    """Root bead commits never sweep staged goal-ledger changes."""
+    repo = tmp_path / "repo"
+    init_test_git_repo(repo)
+    (repo / "goals").mkdir()
+    (repo / "plans").mkdir()
+    (repo / "goals" / "g.md").write_text("g1\n", encoding="utf-8")
+    (repo / "plans" / "p.md").write_text("p1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True)
+    (repo / "goals" / "g.md").write_text("g2\n", encoding="utf-8")
+    (repo / "plans" / "p.md").write_text("p2\n", encoding="utf-8")
+    subprocess.run(["git", "add", "goals/g.md", "plans/p.md"], cwd=repo, check=True)
+
+    assert commit_sdd_files(repo, "beads") is True
+
+    assert _commit_paths(repo) == ["plans/p.md"]
+    assert _porcelain(repo).splitlines() == ["M  goals/g.md"]

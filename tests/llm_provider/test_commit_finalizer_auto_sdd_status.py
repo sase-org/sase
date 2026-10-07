@@ -404,3 +404,27 @@ def test_dirty_separate_sdd_non_bead_file_is_prompted_and_blocks(
     assert "/sase_git_commit" in dirty_state.details
     assert "git status --short --branch" in dirty_state.details
     assert _run_git(sdd_store, "status", "--short") == "?? research/\n"
+
+
+def test_staged_only_bead_state_is_auto_committed_by_finalizer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Staged-only sidecar state commits instead of stranding the finalizer."""
+    repo = tmp_path / "sase_10"
+    sdd_store = _create_clean_repo_with_ignored_sdd_store(repo)
+    beads = sdd_store / "beads" / "issues.jsonl"
+    beads.parent.mkdir(parents=True, exist_ok=True)
+    beads.write_text('{"id":"beads-1"}\n', encoding="utf-8")
+    _run_git(sdd_store, "add", "beads/issues.jsonl")
+    assert _run_git(sdd_store, "status", "--porcelain").splitlines() == [
+        "A  beads/issues.jsonl"
+    ]
+    _set_agent_env(monkeypatch, repo)
+    _use_separate_sdd_store_config(monkeypatch)
+
+    outcome = _auto_commit_separate_sdd_store_if_possible(str(repo))
+
+    assert outcome.committed is True
+    assert outcome.reconcile_error is None
+    assert _run_git(sdd_store, "status", "--porcelain").strip() == ""

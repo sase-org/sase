@@ -131,11 +131,11 @@ def git_sync(beads_dir: Path, *, already_locked: bool = False) -> None:
             )
         require_sdd_repository_health(repo_root)
         _migrate_projection_off_track(beads_dir, repo_root)
-        files = _list_bead_state_changes_silent(beads_dir, repo_root)
-        if not files:
+        worktree_files, _ = _bead_state_change_sets_silent(beads_dir, repo_root)
+        if not worktree_files:
             return
         run_sdd_git_write(
-            ["add", "--", *files],
+            ["add", "--", *worktree_files],
             cwd=repo_root,
             capture_output=True,
             check=False,
@@ -304,7 +304,12 @@ def _commit_bead_state(
     mutation_origin: str = "user",
     operation_context: OperationContext | None = None,
 ) -> bool:
-    """Commit only changed bead-state files with a stage-specific message."""
+    """Commit only changed bead-state files with a stage-specific message.
+
+    Already-staged entries (including staged deletions whose paths match
+    nothing on disk) are committed without being passed to ``git add``;
+    only worktree changes are added.
+    """
     from sase.sdd._git import run_sdd_git
     from sase.sdd._repository_transaction import (
         SddRepositoryHealthError,
@@ -336,28 +341,38 @@ def _commit_bead_state(
             )
         require_sdd_repository_health(repo_root)
         gitignore_updated = _migrate_projection_off_track(beads_dir, repo_root)
-        files = _list_bead_state_changes(beads_dir, repo_root)
-        if gitignore_updated and ".gitignore" not in files:
+        worktree_files, staged_files = _bead_state_change_sets(beads_dir, repo_root)
+        commit_files = _union_preserving_order(worktree_files, staged_files)
+        if gitignore_updated and ".gitignore" not in commit_files:
             # The rule lives outside a directory-scoped commit's paths.
-            files.append(".gitignore")
-        if not files:
+            commit_files.append(".gitignore")
+        if not commit_files:
             return False
         from sase.bead._stream_integrity import prepare_event_streams_for_commit
 
-        prepared = prepare_event_streams_for_commit(repo_root, files)
+        prepared = prepare_event_streams_for_commit(repo_root, commit_files)
         if prepared.restored_paths:
-            files = _list_bead_state_changes(beads_dir, repo_root)
-            if not files:
+            worktree_files, staged_files = _bead_state_change_sets(beads_dir, repo_root)
+            commit_files = _union_preserving_order(worktree_files, staged_files)
+            if gitignore_updated and ".gitignore" not in commit_files:
+                commit_files.append(".gitignore")
+            if not commit_files:
                 return False
-        _run_git_write_or_raise(
-            ["add", "--", *files],
-            cwd=repo_root,
-            action=f"stage {rel_beads}",
-            op=f"{op_prefix}.add",
-        )
+        add_files = list(worktree_files)
+        if gitignore_updated and ".gitignore" not in add_files:
+            # The amended ignore rule is a worktree modification, so adding
+            # it is safe even when it was not enumerated above.
+            add_files.append(".gitignore")
+        if add_files:
+            _run_git_write_or_raise(
+                ["add", "--", *add_files],
+                cwd=repo_root,
+                action=f"stage {rel_beads}",
+                op=f"{op_prefix}.add",
+            )
 
         diff_result = run_sdd_git(
-            ["diff", "--cached", "--quiet", "--", *files],
+            ["diff", "--cached", "--quiet", "--", *commit_files],
             cwd=repo_root,
             capture_output=True,
             text=True,
@@ -379,7 +394,7 @@ def _commit_bead_state(
 
         message = apply_auto_commit_tags_with_runtime(message, auto_commit_type)
         _run_git_write_or_raise(
-            ["commit", "-m", message, "--", *files],
+            ["commit", "-m", message, "--", *commit_files],
             cwd=repo_root,
             action=f"commit {rel_beads}",
             op=f"{op_prefix}.commit",
@@ -465,11 +480,15 @@ def relative_pathspec(path: Path, repo_root: Path) -> str:
     return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
 
-def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
-    """Return the bead-state files (relative to ``repo_root``) with
-    uncommitted changes — modified, untracked, deleted, or staged-but-not-
-    committed — excluding any files matched by ``.gitignore`` (so
-    ``beads.db`` and its SQLite sidecars are never returned).
+def _bead_state_change_sets(
+    beads_dir: Path, repo_root: Path
+) -> tuple[list[str], list[str]]:
+    """Return ``(worktree, staged)`` bead-state changes.
+
+    The worktree list holds paths ``git add`` can match; the staged list
+    holds already-staged paths (including staged deletions absent from both
+    the worktree and the index) that must flow straight to the commit.
+    Both lists exclude ``beads.db*`` and share the unborn-``HEAD`` fallback.
     """
     from sase.sdd._git import run_sdd_git
 
@@ -530,18 +549,46 @@ def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
         staged_entries = []
 
     db_prefix = f"{rel_beads}/beads.db"
+
+    def _filter(entries: list[bytes]) -> list[str]:
+        filtered: list[str] = []
+        for entry in entries:
+            if not entry:
+                continue
+            path = entry.decode()
+            # Belt-and-suspenders: drop SQLite store paths even if .gitignore
+            # is not configured (e.g. in some test setups). Production
+            # always gitignores these, so this matches old pathspec-exclude
+            # semantics.
+            tail = path[len(db_prefix) :] if path.startswith(db_prefix) else None
+            if tail is not None and (tail == "" or tail.startswith("-")):
+                continue
+            if path not in filtered:
+                filtered.append(path)
+        return filtered
+
+    return (
+        _filter(list(worktree_result.stdout.split(b"\x00"))),
+        _filter(list(staged_entries)),
+    )
+
+
+def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
+    """Return the bead-state files (relative to ``repo_root``) with
+    uncommitted changes — modified, untracked, deleted, or staged-but-not-
+    committed — excluding any files matched by ``.gitignore`` (so
+    ``beads.db`` and its SQLite sidecars are never returned).
+    """
+    worktree_files, staged_files = _bead_state_change_sets(beads_dir, repo_root)
+    return _union_preserving_order(worktree_files, staged_files)
+
+
+def _union_preserving_order(first: list[str], second: list[str]) -> list[str]:
+    """Return the order-preserving union of two file lists."""
     seen: dict[str, None] = {}
-    for entry in (*worktree_result.stdout.split(b"\x00"), *staged_entries):
-        if not entry:
-            continue
-        path = entry.decode()
-        # Belt-and-suspenders: drop SQLite store paths even if .gitignore is
-        # not configured (e.g. in some test setups). Production always
-        # gitignores these, so this matches old pathspec-exclude semantics.
-        tail = path[len(db_prefix) :] if path.startswith(db_prefix) else None
-        if tail is not None and (tail == "" or tail.startswith("-")):
-            continue
-        seen.setdefault(path, None)
+    for path in (*first, *second):
+        if path:
+            seen.setdefault(path, None)
     return list(seen)
 
 
@@ -572,6 +619,21 @@ def _list_bead_state_changes_silent(beads_dir: Path, repo_root: Path) -> list[st
         return _list_bead_state_changes(beads_dir, repo_root)
     except BeadWorkLaunchCommitError:
         return []
+
+
+def _bead_state_change_sets_silent(
+    beads_dir: Path, repo_root: Path
+) -> tuple[list[str], list[str]]:
+    """Best-effort variant of :func:`_bead_state_change_sets`.
+
+    Returns ``([], [])`` on failure so ``git_sync`` keeps its
+    fire-and-forget contract while still splitting worktree from staged
+    entries on success.
+    """
+    try:
+        return _bead_state_change_sets(beads_dir, repo_root)
+    except BeadWorkLaunchCommitError:
+        return [], []
 
 
 def _run_git_write_or_raise(

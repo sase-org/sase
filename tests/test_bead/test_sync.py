@@ -99,3 +99,32 @@ def test_bead_git_writers_refuse_operations_before_staging(
         ).stdout
         == before
     )
+
+
+def test_git_sync_stages_worktree_despite_staged_deletion(tmp_path):
+    """A pre-existing staged deletion no longer poisons the sync add."""
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    jsonl = beads_dir / "issues.jsonl"
+    jsonl.write_text('{"id":"test"}\n')
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "tracked"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "rm", "-q", "sdd/beads/issues.jsonl"], cwd=tmp_path, check=True
+    )
+    stream = beads_dir / "events" / "streams" / "new.jsonl"
+    stream.parent.mkdir(parents=True)
+    stream.write_text('{"event_id":"new"}\n')
+
+    git_sync(beads_dir)
+
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "sdd/beads/events/streams/new.jsonl" in staged
+    assert "sdd/beads/issues.jsonl" in staged

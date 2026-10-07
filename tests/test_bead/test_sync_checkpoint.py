@@ -276,3 +276,50 @@ def test_commit_epic_graph_checkpoint_omits_agent_without_identity(tmp_path):
         message
         == "chore(beads): checkpoint approved epic graph sase-1\n\nSASE_TYPE=beads"
     )
+
+
+def test_checkpoint_commits_staged_deletion_plus_stream_change(tmp_path):
+    """Staged issues.jsonl deletion + new stream commit together, no raise."""
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    (beads_dir / "events" / "streams").mkdir(parents=True)
+    (beads_dir / "events" / "manifest.json").write_text(
+        '{"schema_version":1,"stream_count":0}\n', encoding="utf-8"
+    )
+    (beads_dir / "config.json").write_text(
+        '{"issue_prefix":"beads","next_counter":1}\n', encoding="utf-8"
+    )
+    (beads_dir / "issues.jsonl").write_text('{"id":"beads-1"}\n', encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "tracked projection"], cwd=tmp_path, check=True
+    )
+    # Stage the deletion (absent from worktree and index) plus a real change.
+    subprocess.run(
+        ["git", "rm", "-q", "sdd/beads/issues.jsonl"], cwd=tmp_path, check=True
+    )
+    stream = beads_dir / "events" / "streams" / "sase-9.jsonl"
+    stream.write_text('{"event_id":"sase-9:000001"}\n', encoding="utf-8")
+
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-9")
+
+    assert committed is True
+    names = subprocess.run(
+        ["git", "show", "--name-status", "--format=", "HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "sdd/beads/issues.jsonl" in names
+    assert "sdd/beads/events/streams/sase-9.jsonl" in names
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        == ""
+    )

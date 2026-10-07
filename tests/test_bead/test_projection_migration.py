@@ -174,3 +174,73 @@ def test_migration_supports_root_layout(tmp_path: Path) -> None:
     _run_git(repo, "add", ".gitignore", "issues.jsonl")
     _run_git(repo, "commit", "-q", "-m", "projection off the commit path")
     assert not _tracked(repo, "issues.jsonl")
+
+
+def _staged_names(repo: Path) -> list[str]:
+    return sorted(
+        _run_git(repo, "diff", "--cached", "--name-only").split(),
+    )
+
+
+def _commit_paths(repo: Path) -> list[str]:
+    out = _run_git(repo, "show", "--name-status", "--format=", "HEAD")
+    return sorted(line.split("\t", 1)[1] for line in out.splitlines() if line.strip())
+
+
+def _run_incident_regression(repo: Path, beads_dir: Path) -> None:
+    """Shared incident path: sync stages migration, SDD commit lands it."""
+    from sase.bead.sync import bead_state_is_clean, git_sync
+    from sase.sdd.files import commit_sdd_files
+
+    assert _tracked(repo, "beads/issues.jsonl") or _tracked(repo, "issues.jsonl")
+
+    git_sync(beads_dir)
+
+    staged = _staged_names(repo)
+    rel_issues = "issues.jsonl" if beads_dir == repo else "beads/issues.jsonl"
+    assert rel_issues in staged
+    assert not (beads_dir / "issues.jsonl").exists()
+    gitignore_text = (repo / ".gitignore").read_text(encoding="utf-8")
+    assert "issues.jsonl" in gitignore_text
+
+    if beads_dir == repo:
+        committed = commit_sdd_files(repo, "projection off path")
+    else:
+        committed = commit_sdd_files(
+            repo,
+            "projection off path",
+            paths=[beads_dir, repo / ".gitignore"],
+        )
+    assert committed is True
+
+    assert not _tracked(
+        repo,
+        "issues.jsonl" if beads_dir == repo else "beads/issues.jsonl",
+    )
+    committed_ignore = _run_git(repo, "show", "HEAD:.gitignore")
+    assert "issues.jsonl" in committed_ignore
+    assert _run_git(repo, "status", "--porcelain").strip() == ""
+    assert bead_state_is_clean(beads_dir) is True
+
+
+def test_sync_then_sdd_commit_lands_staged_migration_nested(
+    tmp_path: Path,
+) -> None:
+    """Incident regression: nested beads/ staged migration is committable."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    beads_dir = repo / "beads"
+    _make_event_store(repo, beads_dir, tracked_projection=True)
+    _run_incident_regression(repo, beads_dir)
+    assert "beads/issues.jsonl" in _commit_paths(repo)
+
+
+def test_sync_then_sdd_commit_lands_staged_migration_root(
+    tmp_path: Path,
+) -> None:
+    """Incident regression: root-layout staged migration is committable."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    _make_event_store(repo, repo, tracked_projection=True)
+    _run_incident_regression(repo, repo)
+    assert "issues.jsonl" in _commit_paths(repo)

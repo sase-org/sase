@@ -55,6 +55,11 @@ def commit_sdd_files(
     Returns true only when a new commit is created. No-ops if `sdd_dir` is not
     a git repo or there are no staged changes.
 
+    Staged-only changes under the target pathspecs are committed too, so this
+    agrees with staged-aware dirt detectors. Only worktree changes are passed
+    to ``git add``; already-staged entries (including staged deletions whose
+    paths match nothing on disk) flow straight to the commit.
+
     ``already_locked`` marks a caller that mutated the worktree under
     :func:`store_git_write_lock` and is committing that mutation inside the
     same span; the lock is handed off rather than reacquired.
@@ -92,31 +97,36 @@ def commit_sdd_files(
             )
         require_sdd_repository_health(sdd_dir)
         try:
-            changed_files = changed_sdd_files(sdd_dir, pathspecs)
+            add_files = changed_sdd_files(sdd_dir, pathspecs)
+            staged_files = staged_sdd_files(sdd_dir, pathspecs)
         except subprocess.CalledProcessError as exc:
             raise SddGitCommandError.from_error(exc) from exc
-        if not changed_files:
+        commit_files = _union_preserving_order(add_files, staged_files)
+        if not commit_files:
             return False
         from sase.bead._stream_integrity import prepare_event_streams_for_commit
 
-        prepared = prepare_event_streams_for_commit(sdd_dir, changed_files)
+        prepared = prepare_event_streams_for_commit(sdd_dir, commit_files)
         if prepared.restored_paths:
             try:
-                changed_files = changed_sdd_files(sdd_dir, pathspecs)
+                add_files = changed_sdd_files(sdd_dir, pathspecs)
+                staged_files = staged_sdd_files(sdd_dir, pathspecs)
             except subprocess.CalledProcessError as exc:
                 raise SddGitCommandError.from_error(exc) from exc
-            if not changed_files:
+            commit_files = _union_preserving_order(add_files, staged_files)
+            if not commit_files:
                 return False
-        run_sdd_git_write(
-            ["add", "--"] + changed_files,
-            cwd=sdd_dir,
-            check=True,
-            capture_output=True,
-            op="sdd.add",
-        )
+        if add_files:
+            run_sdd_git_write(
+                ["add", "--"] + add_files,
+                cwd=sdd_dir,
+                check=True,
+                capture_output=True,
+                op="sdd.add",
+            )
 
         result = run_sdd_git(
-            ["diff", "--cached", "--quiet", "--"] + changed_files,
+            ["diff", "--cached", "--quiet", "--"] + commit_files,
             cwd=sdd_dir,
             capture_output=True,
             check=False,
@@ -133,7 +143,7 @@ def commit_sdd_files(
             )
         diff_path = _capture_staged_sdd_diff(
             sdd_dir,
-            changed_files,
+            commit_files,
             artifacts_dir=artifacts_dir,
         )
         from sase.workflows.commit.runtime_tags import (
@@ -142,7 +152,7 @@ def commit_sdd_files(
 
         message = apply_auto_commit_tags_with_runtime(message, auto_commit_type)
         run_sdd_git_write(
-            ["commit", "-m", message, "--"] + changed_files,
+            ["commit", "-m", message, "--"] + commit_files,
             cwd=sdd_dir,
             check=True,
             capture_output=True,
@@ -165,7 +175,7 @@ def commit_sdd_files(
         sdd_dir,
         sidecar_role=sidecar_role,
         cause=cause,
-        changed_files=changed_files,
+        changed_files=commit_files,
     )
     return True
 
@@ -617,3 +627,57 @@ def changed_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
     if isinstance(stdout, str):
         return [path for path in stdout.split("\0") if path]
     return [path.decode("utf-8") for path in stdout.split(b"\0") if path]
+
+
+def staged_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
+    """Return staged-only files under ``pathspecs`` in the SDD git repo.
+
+    Uses the same pathspecs as :func:`changed_sdd_files` so the
+    ``:(exclude)goals`` contract keeps goal-ledger changes out of bead
+    commits. An unborn ``HEAD`` has nothing to diff against, so it returns
+    an empty list instead of failing.
+    """
+    try:
+        result = run_sdd_git(
+            [
+                "diff",
+                "--cached",
+                "--name-only",
+                "-z",
+                "--",
+                *pathspecs,
+            ],
+            cwd=sdd_dir,
+            check=True,
+            capture_output=True,
+            op="sdd.changed_files.staged",
+        )
+    except subprocess.CalledProcessError:
+        if not _sdd_has_head_commit(sdd_dir):
+            return []
+        raise
+    stdout = result.stdout or b""
+    if isinstance(stdout, str):
+        return [path for path in stdout.split("\0") if path]
+    return [path.decode("utf-8") for path in stdout.split(b"\0") if path]
+
+
+def _sdd_has_head_commit(sdd_dir: Path) -> bool:
+    """Return whether ``sdd_dir`` has at least one commit on ``HEAD``."""
+    result = run_sdd_git(
+        ["rev-parse", "--verify", "-q", "HEAD"],
+        cwd=sdd_dir,
+        capture_output=True,
+        check=False,
+        op="sdd.has_head_commit",
+    )
+    return result.returncode == 0
+
+
+def _union_preserving_order(first: list[str], second: list[str]) -> list[str]:
+    """Return the order-preserving union of two file lists."""
+    seen: dict[str, None] = {}
+    for path in (*first, *second):
+        if path:
+            seen.setdefault(path, None)
+    return list(seen)
