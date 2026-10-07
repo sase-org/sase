@@ -535,9 +535,11 @@ allocation, deterministic epic work planning, and common CLI output planning all
 freshness token with generation compare-and-swap rebuilds; appended events apply
 incrementally after the stored merge frontier, with rebuild fallback on any precondition
 failure and serve/tail/rebuild outcome telemetry; `sase bead doctor` reports its health
-and `sase bead doctor --verify-cache` diffs it against replay. Python remains the host
-layer for path discovery, VCS context, macro lookup, confirmation prompts,
-launch/rollback, and telemetry side effects.
+and `sase bead doctor --verify-cache` diffs it against replay. The sealed-archive watch
+(`bead_seal_watch_triggers`) measures the three gated triggers — hot stream file count,
+full stat sweep cost, and store working-tree size — against core threshold constants for
+doctor to render. Python remains the host layer for path discovery, VCS context, macro
+lookup, confirmation prompts, launch/rollback, and telemetry side effects.
 
 Golden contract fixtures live under `tests/test_bead/golden/`:
 

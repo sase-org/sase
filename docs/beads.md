@@ -33,6 +33,7 @@ DAG.
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
   - [Event Log + Compatibility Projections](#event-log-compatibility-projections)
+  - [Sealed Segments (Gated Design)](#sealed-segments-gated-design)
   - [Sync Mechanism](#sync-mechanism)
     - [Publication Verification](#publication-verification)
     - [Duplicate Bead IDs](#duplicate-bead-ids)
@@ -1328,6 +1329,33 @@ sync:
 
 The `.gitignore` excludes the local `beads.db*` flock files. The event store,
 `issues.jsonl`, and `config.json` are tracked in git.
+
+### Sealed Segments (Gated Design)
+
+"Archived" is logical today: the read model never re-parses unchanged closed history.
+The physical sealed archive below is **not built**. It waits behind measured triggers,
+and `sase bead doctor` reports each trigger as `OK` with its current value or `WARN`
+with a pointer back here:
+
+- **Hot stream files** warn above 10,000 files in `events/streams/`.
+- **Full stat sweep** warns above 50 ms for the read-model sweep pass.
+- **Store working tree** warns above ~250 MiB.
+
+The thresholds are core constants (`SEAL_WATCH_HOT_STREAM_FILES_WARN`,
+`SEAL_WATCH_SWEEP_MS_WARN`, `SEAL_WATCH_TREE_BYTES_WARN`), computed in Rust and rendered
+by doctor, so every frontend reports the same numbers.
+
+When a trigger fires, the gated build seals fully closed root lineages that have been
+quiet for at least 30 days and have no live dependents, claims, or pending outbox
+entries. Sealed streams move verbatim with `git mv` into `events/sealed/<YYYY-MM>/`,
+recorded in a SHA-256 manifest plus a sealed index. Thawing replays an overlay stream
+while the reducer de-duplicates by `event_id`; the integrity guard and conflict resolver
+compare hot plus sealed; every seal commit carries a parity proof proving the sealed
+read matches the pre-seal replay. Compressed bundles (zstd) exist only as off-repo
+backups, never as canonical state.
+
+Two triggers are not measurable and stay judgment calls: clone complaints that partial
+clones cannot fix, and parity proving itself becoming infeasible.
 
 ### Sync Mechanism
 

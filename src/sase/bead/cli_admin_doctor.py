@@ -99,6 +99,8 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
             )
         for line in _read_model_doctor_lines(proj, verify_cache=verify_cache):
             messages.append(line)
+        for line in _seal_watch_doctor_lines(proj):
+            messages.append(line)
         for msg in messages:
             print(msg)
         preview = (
@@ -238,6 +240,60 @@ def _render_read_model_verify(report: dict[str, Any] | None) -> list[str]:
             "Read model verify: differing ids: "
             f"{', '.join(str(item) for item in differing)}"
         )
+    return lines
+
+
+#: Pointer printed with every firing sealed-archive trigger.
+SEAL_WATCH_DESIGN_REF = "docs/beads.md#sealed-segments-gated-design"
+
+_SEAL_WATCH_TRIGGER_LABELS = {
+    "hot_stream_files": "hot stream files",
+    "stat_sweep_ms": "stat sweep",
+    "store_tree_bytes": "store tree",
+}
+
+
+def _seal_watch_doctor_lines(proj: object) -> list[str]:
+    """Return sealed-archive trigger lines for doctor."""
+    from sase.core import bead_read_facade as rust_beads
+
+    beads_dir = getattr(proj, "beads_dir", None)
+    if beads_dir is None:
+        return []
+    return _render_seal_watch_triggers(rust_beads.seal_watch_triggers(beads_dir))
+
+
+def _render_seal_watch_triggers(report: dict[str, Any] | None) -> list[str]:
+    """Render one doctor line per sealed-archive trigger."""
+    if report is None:
+        return ["Seal watch: unavailable with the installed core"]
+    if not report.get("available", False):
+        reason = report.get("reason") or "no measurement"
+        return [f"Seal watch: unavailable ({reason})"]
+    triggers = report.get("triggers")
+    if not isinstance(triggers, list):
+        return ["Seal watch: unavailable (malformed trigger report)"]
+    lines = []
+    for trigger in triggers:
+        if not isinstance(trigger, dict):
+            continue
+        name = str(trigger.get("name") or "unknown")
+        label = _SEAL_WATCH_TRIGGER_LABELS.get(name, name)
+        detail = str(trigger.get("detail") or "no measurement")
+        threshold = trigger.get("threshold")
+        unit = str(trigger.get("unit") or "")
+        limit = (
+            f"{threshold:,} {unit}".strip()
+            if isinstance(threshold, int)
+            else "unknown limit"
+        )
+        if trigger.get("warn", False):
+            lines.append(
+                f"Seal watch {label}: WARN ({detail} exceeds {limit}; "
+                f"see {SEAL_WATCH_DESIGN_REF})"
+            )
+        else:
+            lines.append(f"Seal watch {label}: OK ({detail}; warn above {limit})")
     return lines
 
 

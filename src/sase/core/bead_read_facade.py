@@ -319,6 +319,23 @@ def read_model_verify_cache(beads_dir: Path | str) -> dict[str, Any] | None:
     return dict(payload)
 
 
+def seal_watch_triggers(beads_dir: Path | str) -> dict[str, Any] | None:
+    """Report the measurable sealed-archive triggers for *beads_dir*.
+
+    Returns ``None`` when the installed core predates the
+    ``bead_seal_watch_triggers`` binding (sase-1h8.10). An unusable store is
+    a report (``available: False``), never an error, so doctor fails open.
+    """
+    binding = optional_rust_binding("bead_seal_watch_triggers")
+    if binding is None:
+        return None
+    try:
+        payload = binding(str(beads_dir))
+    except Exception:
+        return None
+    return dict(payload)
+
+
 def get_epic_children(beads_dir: Path | str, epic_id: str) -> list[Issue]:
     binding = require_rust_binding("bead_get_epic_children")
     payload: list[dict[str, Any]] = binding(str(beads_dir), epic_id)
@@ -387,6 +404,7 @@ __all__ = [
     "read_model_status",
     "read_model_verify_cache",
     "resolve_id",
+    "seal_watch_triggers",
     "search",
     "show",
     "show_issue_detail",
