@@ -13,17 +13,17 @@ Markdown document or generated page where SASE renders that artifact's typed lin
 
 The registry is closed. Use one of these slugs exactly:
 
-| Relation       | Inverse          | Directed | Written by                                               |
-| -------------- | ---------------- | -------- | -------------------------------------------------------- |
-| `cites`        | `cited-by`       | yes      | prompt references and structured header derivation       |
-| `read`         | `read-by`        | yes      | `sase artifact read`                                     |
-| `related`      | `related`        | no       | CLI / plan inlet; `RELATED:` migration                   |
-| `supersedes`   | `superseded-by`  | yes      | CLI / plan inlet                                         |
-| `implements`   | `implemented-by` | yes      | CLI / plan inlet; plan, agent, and stitch projections    |
-| `derives-from` | `derived-into`   | yes      | CLI / plan inlet; research lineage derivation            |
-| `produced-by`  | `produced`       | yes      | projected from a stitch's recorded agent                 |
-| `launched`     | `launched-by`    | yes      | projected from a configured job and its published agents |
-| `awaits`       | `awaited-by`     | yes      | projected from a published agent's `wait_for_beads`      |
+| Relation       | Inverse          | Directed | Written by                                                           |
+| -------------- | ---------------- | -------- | -------------------------------------------------------------------- |
+| `cites`        | `cited-by`       | yes      | prompt references and structured header derivation                   |
+| `read`         | `read-by`        | yes      | `sase artifact read`                                                 |
+| `related`      | `related`        | no       | CLI / plan inlet; `RELATED:` migration                               |
+| `supersedes`   | `superseded-by`  | yes      | CLI / plan inlet                                                     |
+| `implements`   | `implemented-by` | yes      | CLI / plan inlet; plan, agent, and stitch projections                |
+| `derives-from` | `derived-into`   | yes      | CLI / plan inlet; research lineage derivation                        |
+| `produced-by`  | `produced`       | yes      | projected from a stitch's recorded agent or an epic's creating agent |
+| `launched`     | `launched-by`    | yes      | projected from a configured job and its published agents             |
+| `awaits`       | `awaited-by`     | yes      | projected from a published agent's `wait_for_beads`                  |
 
 `blocks` and `depends-on` are reserved. Use `sase bead dep` for scheduling and blocking
 relationships instead of storing those as artifact links.
@@ -122,6 +122,9 @@ stored as link sidecars:
   `stitch:<sha> implements bead:<id>`;
 - a commit with a `SASE_AGENT` trailer (or legacy `AGENT`) projects
   `stitch:<sha> produced-by agent:<name>`; and
+- a published agent's `created_epic_ids` (recorded by `sase bead work`) projects
+  `bead:<epic> produced-by agent:<name>`, and an epic-tier plan bead whose `created_by`
+  names an agent projects the same edge, so unpublished planners get the edge too; and
 - a published job-agent name that resolves against the live AXE configuration projects
   `job:<routine>/<job> launched agent:<name>`; and
 - a published agent's `wait_for_beads` (from `%wait(bead=<id>)`) projects

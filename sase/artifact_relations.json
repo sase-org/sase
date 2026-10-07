@@ -96,11 +96,12 @@
       "inverse": "produced",
       "directed": true,
       "written_by": "projection",
-      "direction_note": "The stitch is the source; the agent that produced it is the target.",
+      "direction_note": "The stitch or bead is the source; the agent that produced it is the target.",
       "positive_example": "stitch:sase@0123456789abcdef0123456789abcdef01234567 produced-by agent:sase-tj.land",
       "negative_example": "agent:sase-tj.land produced-by stitch:sase@0123456789abcdef0123456789abcdef01234567",
       "recommended_source_kinds": [
-        "stitch"
+        "stitch",
+        "bead"
       ],
       "recommended_target_kinds": [
         "agent"

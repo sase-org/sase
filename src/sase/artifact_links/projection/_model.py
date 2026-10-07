@@ -31,3 +31,4 @@ class ProjectionInputs:
     primary_repo_root: Path | None
     primary_repo_name: str | None
     agents_sidecar_root: Path | None
+    bead_store_root: Path | None = None

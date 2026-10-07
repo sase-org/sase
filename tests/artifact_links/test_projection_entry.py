@@ -137,6 +137,10 @@ def test_project_link_rows_drops_edges_with_invalid_refs(
     )
     monkeypatch.setattr(_entry, "project_stitch_rules", lambda _inputs: (good, bad))
     monkeypatch.setattr(_entry, "project_agent_bead_rows", lambda _inputs: ())
+    monkeypatch.setattr(_entry, "project_agent_created_epic_rows", lambda _inputs: ())
+    monkeypatch.setattr(
+        _entry, "project_agent_created_epic_attributed_rows", lambda _inputs: ()
+    )
     monkeypatch.setattr(_entry, "project_agent_wait_bead_rows", lambda _inputs: ())
     monkeypatch.setattr(_entry, "project_chop_agent_rows", lambda _inputs: ())
     inputs = ProjectionInputs(

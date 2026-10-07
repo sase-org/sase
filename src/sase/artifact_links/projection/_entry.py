@@ -6,6 +6,10 @@ import logging
 from typing import Any
 
 from sase.artifact_links.projection._agent_bead import project_agent_bead_rows
+from sase.artifact_links.projection._agent_created_epic import (
+    project_agent_created_epic_attributed_rows,
+    project_agent_created_epic_rows,
+)
 from sase.artifact_links.projection._agent_wait_bead import (
     project_agent_wait_bead_rows,
 )
@@ -34,6 +38,8 @@ def project_link_rows(inputs: ProjectionInputs) -> tuple[dict[str, Any], ...]:
     edges: list[ProjectedEdge] = []
     edges.extend(project_stitch_rules(inputs))
     edges.extend(project_agent_bead_rows(inputs))
+    edges.extend(project_agent_created_epic_rows(inputs))
+    edges.extend(project_agent_created_epic_attributed_rows(inputs))
     edges.extend(project_agent_wait_bead_rows(inputs))
     edges.extend(project_chop_agent_rows(inputs))
     return tuple(_row_from_edge(edge) for edge in edges if _edge_refs_valid(edge))

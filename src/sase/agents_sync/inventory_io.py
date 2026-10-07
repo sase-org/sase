@@ -32,12 +32,16 @@ def portable_metadata(raw: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
         for key in V2_METADATA_FIELDS
         if key != "output_variables"
         and key != "wait_for_beads"
+        and key != "created_epic_ids"
         and key in raw
         and raw[key] is not None
     }
     wait_beads = _portable_wait_for_beads(raw)
     if wait_beads:
         metadata["wait_for_beads"] = wait_beads
+    created_epic_ids = _portable_created_epic_ids(raw)
+    if created_epic_ids:
+        metadata["created_epic_ids"] = created_epic_ids
     try:
         json.dumps(metadata, allow_nan=False)
     except (TypeError, ValueError):
@@ -75,6 +79,40 @@ def _portable_wait_for_beads(raw: dict[str, Any]) -> list[str]:
             continue
         seen.add(bead_id)
         result.append(bead_id)
+    return result
+
+
+def _portable_created_epic_ids(raw: dict[str, Any]) -> list[str]:
+    """Normalize recorded epic launches to a deduplicated list of bead ids.
+
+    Live runs record ``created_epics`` (a list of ``{bead_id, ...}`` entries)
+    on ``agent_meta.json``; an already-flat ``created_epic_ids`` list is
+    accepted as well. Omit the key when empty.
+    """
+
+    seen: set[str] = set()
+    result: list[str] = []
+
+    def _append(value: object) -> None:
+        if not isinstance(value, str):
+            return
+        bead_id = value.strip()
+        if not bead_id or bead_id in seen:
+            return
+        seen.add(bead_id)
+        result.append(bead_id)
+
+    raw_ids = raw.get("created_epic_ids", None)
+    if isinstance(raw_ids, list):
+        for item in raw_ids:
+            _append(item)
+    raw_entries = raw.get("created_epics", None)
+    if isinstance(raw_entries, list):
+        for entry in raw_entries:
+            if isinstance(entry, str):
+                _append(entry)
+            elif isinstance(entry, dict):
+                _append(entry.get("bead_id"))
     return result
 
 

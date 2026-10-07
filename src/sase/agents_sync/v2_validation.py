@@ -62,6 +62,7 @@ V2_METADATA_FIELDS = frozenset(
         "cl_name",
         "clan_summary",
         "clan_tribe",
+        "created_epic_ids",
         "epic_bead_id",
         "hidden",
         "llm_provider",

@@ -24,6 +24,7 @@ def build_projection_inputs(
         primary_repo_root=primary_repo_root,
         primary_repo_name=primary_repo_name,
         agents_sidecar_root=_resolve_agents_root(sdd_store),
+        bead_store_root=_resolve_bead_store_root(project_key),
     )
 
 
@@ -49,6 +50,18 @@ def _resolve_agents_root(sdd_store: SddStore | None) -> Path | None:
     except Exception:  # noqa: BLE001 - no agents sidecar means this rule is inert.
         return None
     return root if root.is_dir() else None
+
+
+def _resolve_bead_store_root(project_key: str) -> Path | None:
+    from sase.bead.store_locator import canonical_beads_dir_for_project
+
+    try:
+        beads_dir = canonical_beads_dir_for_project(project_key)
+    except Exception:  # noqa: BLE001 - no bead store means this rule is inert.
+        return None
+    if beads_dir is None or not beads_dir.is_dir():
+        return None
+    return beads_dir
 
 
 __all__ = ["build_projection_inputs"]

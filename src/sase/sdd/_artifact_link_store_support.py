@@ -38,7 +38,7 @@ _PROJECTION_RELATIONS = (
         "directed": True,
         "written_by": "projection",
         "direction_note": (
-            "The stitch is the source; the agent that produced it is the target."
+            "The stitch or bead is the source; the agent that produced it is the target."
         ),
         "positive_example": (
             "stitch:sase@0123456789abcdef0123456789abcdef01234567 "
@@ -48,7 +48,7 @@ _PROJECTION_RELATIONS = (
             "agent:sase-tj.land produced-by "
             "stitch:sase@0123456789abcdef0123456789abcdef01234567"
         ),
-        "recommended_source_kinds": ["stitch"],
+        "recommended_source_kinds": ["stitch", "bead"],
         "recommended_target_kinds": ["agent"],
     },
     {
