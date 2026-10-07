@@ -186,7 +186,9 @@ def test_bead_create_in_separate_repo_writes_and_commits_workspace_local_clone(
     assert _git_status(workspace_sdd) == ""
     log = _git(workspace_sdd, "log", "--oneline", "-1").stdout
     assert "chore(beads): create" in log
-    assert (workspace_sdd / "beads" / "issues.jsonl").exists()
+    # projection-off (sase-1h8.11): the create commit untracks the
+    # projection instead of rewriting it.
+    assert not (workspace_sdd / "beads" / "issues.jsonl").exists()
     assert not (primary_sdd / "beads" / "issues.jsonl").exists()
 
 

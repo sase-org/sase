@@ -58,6 +58,9 @@ def test_a_plus_one_reopen_archives_the_close_reason(tmp_path: Path) -> None:
         assert record.reopened_at == evidence.timestamp
         assert record.reopened_by == evidence.reporter
 
+        # Projection-off: export explicitly; the plus-one no longer
+        # rewrites issues.jsonl itself.
+        project._export()
         projection = json.loads(
             (project.beads_dir / "issues.jsonl").read_text(encoding="utf-8")
         )

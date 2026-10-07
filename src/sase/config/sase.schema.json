@@ -5143,7 +5143,7 @@
         },
         "push_after_commit": {
           "type": "boolean",
-          "description": "When true, run `git push` after `sase bead work` commits sdd/beads/issues.jsonl. Push failures only warn; the local commit is preserved.",
+          "description": "When true, run `git push` after `sase bead work` commits bead state (event streams; the issues.jsonl export is never committed). Push failures only warn; the local commit is preserved.",
           "default": true
         },
         "task_types": {

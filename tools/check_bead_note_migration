@@ -83,6 +83,16 @@ def _matches_with_added_attribution(old_notes: str, new_notes: str) -> bool:
 def _legacy_issue_notes(beads_dir: Path) -> dict[str, str]:
     path = beads_dir / "issues.jsonl"
     if not path.exists():
+        # Since projection-off (sase-1h8.11) the projection is an on-demand
+        # export that may not exist. Regenerate the git-ignored file so the
+        # comparison still runs, then read it below.
+        try:
+            import sase_core_rs  # type: ignore[import-not-found]
+
+            sase_core_rs.bead_export_jsonl(str(beads_dir))
+        except Exception:
+            return {}
+    if not path.exists():
         return {}
     notes: dict[str, str] = {}
     with path.open(encoding="utf-8") as handle:

@@ -34,10 +34,11 @@ def test_resolution_leaves_untouched_streams_alone(tmp_path: Path) -> None:
     result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
 
     assert result.ok is True, result.message
+    # Projection-off: event stores resolve through streams plus manifest;
+    # the on-demand export is never a resolved file.
     assert set(result.resolved_files) == {
         contested,
         f"{BEADS_DIRNAME}/events/manifest.json",
-        f"{BEADS_DIRNAME}/issues.jsonl",
     }
     assert {path: path.stat().st_mtime_ns for path in quiet_paths} == quiet_mtimes
     staged = _git(tmp_path, "diff", "--cached", "--name-only").stdout.split()
@@ -248,6 +249,9 @@ def test_resolution_preserves_non_ascii_bytes_in_untouched_streams(
     assert manifest_path.read_bytes() == manifest_bytes
     staged = _git(tmp_path, "diff", "--cached", "--name-only").stdout.split()
     assert not [path for path in staged if any(name in path for name in quiet)]
+    # Since projection-off the resolver never rewrites the export; the
+    # on-demand export must still carry the untouched UTF-8 bytes.
+    bead_mutation_facade.export_jsonl(tmp_path / BEADS_DIRNAME)
     issues = (tmp_path / BEADS_DIRNAME / "issues.jsonl").read_bytes()
     assert b"Qui\xc3\xa9t" in issues
     assert b"\\u" not in issues

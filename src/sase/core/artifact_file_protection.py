@@ -19,12 +19,13 @@ _CONSUMED_FILE_REF_RE = re.compile(r"file:(?P<id>(?:default|explicit):[0-9a-f]{2
 _TEXT_SUFFIXES = frozenset({".json", ".md", ".sase", ".txt", ".yml"})
 _REQUIRED_SIDECAR_ROLES = ("beads", "plans")
 _OPPORTUNISTIC_SIDECAR_ROLES = ("research",)
-# Beads carry canonical artifact references in their `refs` list, and page
-# publication can lag a `sase bead ref add`, so the store's current-state
-# projection is scanned by name rather than by suffix. The append-only event
-# streams under `events/` stay excluded: a `ReferenceRemoved` payload still
-# names the id it detached, so replaying them would protect artifacts forever.
-_ROLE_FILENAMES = {"beads": frozenset({"issues.jsonl"})}
+# Bead references come from the `bead_referenced_artifact_ids` core query
+# over current state (see `_collect_bead_store_ids`), not from a filename
+# scan: since projection-off (sase-1h8.11) `issues.jsonl` is an on-demand
+# export that may not exist. The append-only event streams under `events/`
+# stay excluded: a `ReferenceRemoved` payload still names the id it
+# detached, so replaying them would protect artifacts forever.
+_ROLE_FILENAMES: dict[str, frozenset[str]] = {}
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,13 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
                     suffixes=_TEXT_SUFFIXES,
                     extra_filenames=_ROLE_FILENAMES.get(role, frozenset()),
                 )
+                if role == "beads":
+                    _collect_bead_store_ids(
+                        root=root,
+                        ids=referenced_ids,
+                        scanned=scanned,
+                        unavailable=unavailable,
+                    )
             for role in _OPPORTUNISTIC_SIDECAR_ROLES:
                 root = _live_sidecar_root(records, role)
                 if root is None:
@@ -187,6 +195,60 @@ def _collect_linked_ids(
             unavailable.add(f"{path}: {exc}")
             continue
         scanned.add(str(path))
+        ids.update(match.group("id") for match in _ARTIFACT_ID_RE.finditer(text))
+
+
+def _bead_store_dirs(root: Path) -> tuple[Path, ...]:
+    """Return the bead store directories to query under a beads sidecar root."""
+
+    candidates = [root]
+    nested = root / "beads"
+    try:
+        if nested.is_dir() and (
+            (nested / "config.json").is_file() or (nested / "events").is_dir()
+        ):
+            candidates.append(nested)
+    except OSError:
+        pass
+    return tuple(candidates)
+
+
+def _collect_bead_store_ids(
+    *,
+    root: Path,
+    ids: set[str],
+    scanned: set[str],
+    unavailable: set[str],
+) -> None:
+    """Protect artifact IDs referenced by bead state under *root*.
+
+    Since projection-off (sase-1h8.11) ``issues.jsonl`` is an on-demand
+    export that may not exist, references come from the
+    ``bead_referenced_artifact_ids`` core query over current state. Against
+    an older core without that binding, the projection file is scanned
+    directly when it exists, exactly as before.
+    """
+
+    from sase.core import bead_read_facade
+
+    for beads_dir in _bead_store_dirs(root):
+        try:
+            referenced = bead_read_facade.referenced_artifact_ids(beads_dir)
+        except Exception as exc:
+            unavailable.add(f"{beads_dir} bead references: {exc}")
+            continue
+        if referenced is not None:
+            ids.update(referenced)
+            scanned.add(str(beads_dir))
+            continue
+        projection = beads_dir / "issues.jsonl"
+        try:
+            text = projection.read_text(encoding="utf-8", errors="ignore")
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            unavailable.add(f"{projection}: {exc}")
+            continue
         ids.update(match.group("id") for match in _ARTIFACT_ID_RE.finditer(text))
 
 

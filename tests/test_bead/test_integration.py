@@ -203,6 +203,9 @@ class TestJsonlRoundTrip:
         project.create("E1", IssueType.PLAN)
         project.create("E2", IssueType.PLAN)
 
+        # Projection-off: export explicitly; otherwise only the
+        # create-time materialization is on disk.
+        project._export()
         jsonl_path = project.beads_dir / "issues.jsonl"
         lines = jsonl_path.read_text().strip().splitlines()
         assert len(lines) == 2
@@ -217,6 +220,9 @@ class TestJsonlRoundTrip:
         for i in range(5):
             project.create(f"Epic {i}", IssueType.PLAN)
 
+        # Projection-off: export explicitly; otherwise only the
+        # create-time materialization is on disk.
+        project._export()
         jsonl_path = project.beads_dir / "issues.jsonl"
         lines = jsonl_path.read_text().strip().splitlines()
         ids = [json.loads(line)["id"] for line in lines]
@@ -305,7 +311,9 @@ class TestGitSyncWorkflow:
         git_project.create("Test epic", IssueType.PLAN)
         git_project.sync()
 
-        # Check that bead state is staged but not committed.
+        # Check that bead state is staged but not committed. Since
+        # projection-off (sase-1h8.11) the export is never staged for
+        # event stores.
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only"],
             cwd=git_project.root_dir,
@@ -313,7 +321,7 @@ class TestGitSyncWorkflow:
             text=True,
             check=True,
         )
-        assert "issues.jsonl" in result.stdout
+        assert "issues.jsonl" not in result.stdout
         assert "events/streams/" in result.stdout
 
     def test_sync_is_clean_after_sync(self, git_project):

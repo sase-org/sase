@@ -25,14 +25,16 @@ def test_git_sync_stages_bead_state(tmp_path):
 
     git_sync(beads_dir)
 
-    # Verify the bead state was staged but not committed.
+    # Verify the bead state was staged but not committed. Since
+    # projection-off (sase-1h8.11) the export is git-ignored and never
+    # staged for event stores.
     result = subprocess.run(
         ["git", "diff", "--cached", "--name-only"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
     )
-    assert "issues.jsonl" in result.stdout
+    assert "issues.jsonl" not in result.stdout
     assert "events/streams/test.jsonl" in result.stdout
 
 

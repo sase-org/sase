@@ -9730,6 +9730,57 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "b52e1b33ca044e84",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "export",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "output",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-o",
+                  "--output"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              }
+            ],
+            "path": [
+              "bead",
+              "export"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "d69c2f50fd5c6e24",
             "hidden": false,
             "mutex_groups": [],

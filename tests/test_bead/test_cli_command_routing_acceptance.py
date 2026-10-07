@@ -66,6 +66,7 @@ NON_EXISTING_ID_COMMANDS = frozenset(
     {
         "blocked",
         "doctor",
+        "export",
         "init",
         "list",
         "onboard",

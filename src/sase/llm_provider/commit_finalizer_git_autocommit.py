@@ -365,6 +365,11 @@ def _sdd_bead_reprojection_auto_commit_candidate(
     beads_dir = _bead_store_dir_for_issues_path(repo_dir, record_path)
     if beads_dir is None:
         return None
+    if (beads_dir / "events").is_dir():
+        # projection-off (sase-1h8.11): event stores never commit the
+        # git-ignored `issues.jsonl` export, so there is no reprojection
+        # diff to prove. Legacy stores without `events/` keep today's path.
+        return None
     if not _has_only_bead_issues_reprojection_diff(beads_dir):
         return None
     return _SddBeadReprojectionAutoCommitCandidate(

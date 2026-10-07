@@ -42,9 +42,11 @@ def test_commit_epic_graph_checkpoint_commits_bead_state(tmp_path):
         text=True,
         check=True,
     )
+    # Projection-off: the checkpoint stages the canonical stream plus the
+    # migration's .gitignore untrack rule; the on-demand export is ignored.
     assert files.stdout.strip().splitlines() == [
+        ".gitignore",
         "sdd/beads/events/streams/sase-1.jsonl",
-        "sdd/beads/issues.jsonl",
     ]
 
 
@@ -147,7 +149,9 @@ def test_commit_epic_graph_checkpoint_records_event_stream_deletion(tmp_path):
         check=True,
     ).stdout.splitlines()
     assert "D\tsdd/beads/events/streams/sase-1.jsonl" in name_status
-    assert "M\tsdd/beads/issues.jsonl" in name_status
+    # Projection-off: the migration untracks the on-demand export instead
+    # of committing a modified projection.
+    assert "D\tsdd/beads/issues.jsonl" in name_status
 
 
 def test_commit_epic_graph_checkpoint_picks_up_new_nested_subdirectory_files(tmp_path):

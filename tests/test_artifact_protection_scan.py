@@ -163,6 +163,56 @@ def test_bead_store_projection_protects_refs_without_a_published_page(
     assert result.sources_unavailable == ()
 
 
+def test_bead_ref_stays_protected_after_projection_is_gone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bead-referenced artifact stays protected with no issues.jsonl.
+
+    Regression test for projection-off (sase-1h8.11): references come from
+    the ``bead_referenced_artifact_ids`` core query over current state, so
+    removing the on-demand export must not shrink protection coverage. The
+    core query itself is covered in sase-core; here the installed core is
+    simulated by patching the facade.
+    """
+    projects = tmp_path / "projects"
+    plans = tmp_path / "plans"
+    beads = tmp_path / "beads"
+    for path in (projects, plans, beads):
+        path.mkdir()
+    stored_id = "default:111111111111111111111111"
+    assert not (beads / "issues.jsonl").exists()
+    inventory = RepoInventory(
+        (
+            _record("sase", tmp_path, kind="primary"),
+            _record("plans", plans),
+            _record("beads", beads),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.sase_projects_dir",
+        lambda: projects,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.collect_repo_inventory",
+        lambda: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.default_artifact_consumption_log_path",
+        lambda: tmp_path / "missing-consumption.jsonl",
+    )
+    monkeypatch.setattr(
+        "sase.core.bead_read_facade.referenced_artifact_ids",
+        lambda _beads_dir: frozenset({stored_id}),
+    )
+
+    result = collect_protected_artifact_ids()
+
+    assert stored_id in result.referenced_ids
+    assert stored_id in result.ids
+    assert result.sources_unavailable == ()
+
+
 def test_bead_store_projection_is_not_scanned_under_other_sidecar_roles(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

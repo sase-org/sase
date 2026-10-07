@@ -578,6 +578,9 @@ def test_fix_projection_repairs_expected_drift_and_second_run_is_noop(
     with BeadProject(project_dir) as project:
         issue = project.create("One", IssueType.PLAN)
         project.close([issue.id], reason="shipped")
+        # Projection-off: materialize the closed state before the helper
+        # derives the stale projection from the issues.jsonl content.
+        project._export()
     first_close, second_close = _append_redundant_close_and_stale_projection(
         project_dir,
         issue.id,
@@ -601,7 +604,9 @@ def test_fix_projection_repairs_expected_drift_and_second_run_is_noop(
     assert "Projection repair preview:" in output
     assert f"{json.dumps(second_close)} -> {json.dumps(first_close)}" in output
     assert "Reprojected 1 bead row from canonical events" in output
-    assert commits == ["chore(beads): reproject bead state from canonical events"]
+    # projection-off (sase-1h8.11): the regenerated file is a git-ignored
+    # local export, so the repair commits nothing.
+    assert commits == []
     with BeadProject(project_dir) as project:
         report = project.doctor_report()
         repaired = project.show(issue.id)
@@ -612,7 +617,7 @@ def test_fix_projection_repairs_expected_drift_and_second_run_is_noop(
     cli_admin.handle_bead_doctor(args)
 
     assert "No projection drift to repair." in capsys.readouterr().out
-    assert commits == ["chore(beads): reproject bead state from canonical events"]
+    assert commits == []
 
 
 def test_fix_projection_refuses_row_set_drift(

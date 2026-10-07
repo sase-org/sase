@@ -15,6 +15,11 @@ def bead_store_gitignore_patterns(prefix: str) -> tuple[str, ...]:
         f"{stem}beads.db-shm",
         f"{stem}beads.db-wal",
         f"{stem}.bead-mutation-lock.holder",
+        # projection-off (sase-1h8.11): `issues.jsonl` is an on-demand
+        # export regenerated from the canonical event streams, never a
+        # per-mutation commit. Ignoring it keeps old clients that still
+        # regenerate the file from ever staging it again.
+        f"{stem}issues.jsonl",
     )
 
 

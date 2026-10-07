@@ -147,6 +147,8 @@ def test_split_init_creates_both_repos_before_writing_record(
         "beads/beads.db-shm",
         "beads/beads.db-wal",
         "beads/.bead-mutation-lock.holder",
+        # projection-off (sase-1h8.11): the on-demand export is never staged.
+        "beads/issues.jsonl",
         *_ARTIFACT_LINK_GITIGNORE_LINES,
     ]
     assert (clones["research"] / "README.md").is_file()

@@ -55,6 +55,9 @@ def test_project_plus_one_promotes_and_round_trips_all_persistence(
         ]
         assert project.stats()["plus_one"] == 1
 
+        # Projection-off: export explicitly before asserting on the
+        # projected content; the mirror below round-trips through it.
+        project._export()
         projection = json.loads(
             (project.beads_dir / "issues.jsonl").read_text(encoding="utf-8")
         )
@@ -148,6 +151,9 @@ def test_project_plus_one_with_stale_observed_since_records_but_withholds_reopen
         assert outcome["reopen_withheld"] is True
         assert outcome["reopen_withheld_closed_at"] == closed.closed_at
 
+        # Projection-off: export explicitly before asserting on the
+        # projected content; the mirror below round-trips through it.
+        project._export()
         projection = json.loads(
             (project.beads_dir / "issues.jsonl").read_text(encoding="utf-8")
         )

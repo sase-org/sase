@@ -70,6 +70,9 @@ def test_snooze_round_trips_through_every_persistence_surface(
         # A snoozed bead stays live work: default filters must not hide it.
         assert task_id in {row.id for row in project.list_issues()}
 
+        # Projection-off: the snooze no longer rewrites issues.jsonl, so
+        # export explicitly before round-tripping the mirror through it.
+        project._export()
         beads_dir = project.beads_dir
         conn = bead_db.init_db(beads_dir / "mirror.db")
         try:

@@ -383,6 +383,27 @@ def store_fingerprint(beads_dir: Path | str) -> BeadStoreFingerprint | None:
         return None
 
 
+def referenced_artifact_ids(beads_dir: Path | str) -> frozenset[str] | None:
+    """Return the artifact IDs referenced by the current bead state.
+
+    Returns ``None`` when the installed core predates the
+    ``bead_referenced_artifact_ids`` binding (sase-1h8.11) or the store
+    cannot be read, so callers fall back to scanning the
+    ``issues.jsonl`` projection text when it exists.
+    """
+    binding = optional_rust_binding("bead_referenced_artifact_ids")
+    if binding is None:
+        return None
+    try:
+        payload = binding(str(beads_dir))
+    except Exception:
+        return None
+    try:
+        return frozenset(str(value) for value in payload)
+    except TypeError:
+        return None
+
+
 def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
     if "Issue not found:" in str(exc):
         raise KeyError(f"Issue not found: {issue_id}") from exc
@@ -403,6 +424,7 @@ __all__ = [
     "ready",
     "read_model_status",
     "read_model_verify_cache",
+    "referenced_artifact_ids",
     "resolve_id",
     "seal_watch_triggers",
     "search",

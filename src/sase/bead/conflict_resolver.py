@@ -25,6 +25,7 @@ from .conflict_resolver_git import (
     conflicted_files as _conflicted_files,
     git_add as _git_add,
     git_repo_root as _git_repo_root,
+    git_rm as _git_rm,
     unmerged_stages as _unmerged_stages,
     upstream_and_local_stages as _upstream_and_local_stages,
 )
@@ -234,6 +235,16 @@ def _resolve_bead_conflict_paths(
     issues = reduce_event_streams(ordered_streams)
     manifest = event_store_manifest(ordered_streams)
 
+    issues_conflict = _store_path(bead_prefix, "issues.jsonl")
+    drop_conflicted_projection = (
+        issues_conflict in store_conflicts and (resolved_beads_dir / "events").is_dir()
+    )
+    if drop_conflicted_projection:
+        # projection-off (sase-1h8.11): the export is never merged for
+        # event stores. Drop the conflicted tracked copy instead; the next
+        # mutation's migration untracks any copy an old client re-tracks.
+        store_conflicts.remove(issues_conflict)
+        _git_rm(repo_root, issues_conflict)
     resolved_paths = _write_resolved_store(
         resolved_beads_dir,
         repo_root,
@@ -242,13 +253,25 @@ def _resolve_bead_conflict_paths(
         manifest,
         merged_stream_ids,
     )
+    if drop_conflicted_projection:
+        # The removal is already staged by `git rm` above; it only joins
+        # the message below, never the `git add` that follows it.
+        resolved_paths.append(issues_conflict)
     staged_paths = _resolve_regenerable_conflicts(repo_root, regenerable_conflicts)
     resolved_paths.extend(
         path for path in store_conflicts if path not in resolved_paths
     )
     resolved_paths.extend(staged_paths)
     resolved_paths = sorted(dict.fromkeys(resolved_paths))
-    _git_add(repo_root, [path for path in resolved_paths if path not in staged_paths])
+    dropped_paths = {issues_conflict} if drop_conflicted_projection else set()
+    _git_add(
+        repo_root,
+        [
+            path
+            for path in resolved_paths
+            if path not in staged_paths and path not in dropped_paths
+        ],
+    )
 
     message = "resolved bead conflicts: " + ", ".join(resolved_paths)
     if relocated_beads:

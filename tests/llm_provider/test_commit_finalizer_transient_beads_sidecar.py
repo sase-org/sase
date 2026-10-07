@@ -127,6 +127,11 @@ def test_known_sdd_paths_classify_sibling_overlap_as_sdd(
 
 
 def _create_beads_repo_with_dirty_projection(tmp_path: Path) -> Path:
+    # Legacy store without `events/`: the reprojection auto-commit stays
+    # alive deliberately for legacy stores, while event stores never
+    # produce a candidate since projection-off (sase-1h8.11).
+    import shutil
+
     root = tmp_path / "state"
     root.mkdir()
     rust_beads.init_store(root, "beads", issue_prefix="beads")
@@ -142,6 +147,7 @@ def _create_beads_repo_with_dirty_projection(tmp_path: Path) -> Path:
     correct = (beads / "issues.jsonl").read_bytes()
     stale = correct.replace(b'"title":"One"', b'"title":"Stale"')
     assert stale != correct
+    shutil.rmtree(beads / "events")
     subprocess.run(["git", "init", "-q"], cwd=beads, check=True)
     _run_git(beads, "config", "user.name", "SASE Test")
     _run_git(beads, "config", "user.email", "sase-test@example.invalid")

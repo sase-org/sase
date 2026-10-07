@@ -1236,7 +1236,7 @@ sdd/beads/
     manifest.json       # Event-store schema and migration metadata
     streams/
       <root-id>.jsonl   # Canonical append-only event stream
-  issues.jsonl          # Generated compatibility projection
+  issues.jsonl          # On-demand export (gitignored; regenerate with `sase bead export`)
   beads.db              # Mutation flock (gitignored; never a cache)
 ```
 
@@ -1282,12 +1282,15 @@ record has no beads sidecar clone nothing extra.
 ### Event Log + Compatibility Projections
 
 Rust owns the bead storage/query/mutation path. The append-only event streams are the
-canonical git-portable state. `issues.jsonl` remains a generated compatibility
-projection, and `beads.db` is only the mutation flock, never a cache. They are kept in
-sync:
+canonical git-portable state. `issues.jsonl` is an on-demand export regenerated from
+those streams (never committed), and `beads.db` is only the mutation flock, never a
+cache.
 
-- **Writes** append canonical Rust events first, then regenerate `issues.jsonl`.
-  `beads.db` is touched only as the cooperative write lock.
+- **Writes** append canonical Rust events. Event stores never rewrite `issues.jsonl` on
+  the per-mutation path; `sase bead export -o <path>` regenerates it on demand (default:
+  the store's `issues.jsonl`), and `sase bead doctor --fix-projection` regenerates the
+  local untracked copy. Legacy stores without `events/` keep writing the tracked
+  projection. `beads.db` is touched only as the cooperative write lock.
 - **Reads** prefer `events/manifest.json` plus `events/streams/*.jsonl`, falling back to
   legacy `issues.jsonl` only when no event store is present.
 - **Read model.** Hot reads are served from a versioned SQLite read model under the
@@ -1327,8 +1330,8 @@ sync:
   whole-field replacements in the stream; on replay their blob is parsed back into
   individually timestamped and attributed records instead of one opaque string.
 
-The `.gitignore` excludes the local `beads.db*` flock files. The event store,
-`issues.jsonl`, and `config.json` are tracked in git.
+The `.gitignore` excludes the local `beads.db*` flock files and the `issues.jsonl`
+on-demand export. The event store and `config.json` are tracked in git.
 
 ### Sealed Segments (Gated Design)
 
@@ -1359,10 +1362,11 @@ clones cannot fix, and parity proving itself becoming infeasible.
 
 ### Sync Mechanism
 
-`sase bead sync` regenerates the compatibility projection from the canonical event store
-and stages the bead state in the owning git repo, including `events/**`, `issues.jsonl`,
-and `config.json`. The projection contains one JSON object per line, sorted by issue ID
-for clean diffs.
+`sase bead sync` stages the bead state in the owning git repo, including `events/**` and
+`config.json` (`issues.jsonl` is git-ignored and never staged). For legacy stores
+without `events/` it first regenerates the tracked projection. The export contains one
+JSON object per line, sorted by issue ID for clean diffs; regenerate it any time with
+`sase bead export`.
 
 When both stores exist, the event store wins. Manual edits to `issues.jsonl` do not
 change command output unless the event store is absent.
@@ -1844,9 +1848,9 @@ or any `closed_at` move later. `close_history` is allowed because the first repa
 upgrading to a sase-core release with close history legitimately materializes archived
 records for beads whose close reasons were destroyed by a reopen before sase-core
 started archiving them — see [Close History](#close-history). A successful repair
-commits `chore(beads): reproject bead state from canonical events`; a second clean run
-writes nothing. Use `--yes` for non-interactive repair after reviewing the preview
-through an external approval gate.
+regenerates the local git-ignored export and commits nothing; a second clean run writes
+nothing. Use `--yes` for non-interactive repair after reviewing the preview through an
+external approval gate.
 
 `--fix-issue-prefix` previews and, after confirmation, resets a store's issue prefix on
 demand when it was leaked as the project's ProjectSpec directory key (e.g.
@@ -2096,10 +2100,10 @@ when no ready bead has a stored size.
 ### `sase bead resolve-conflicts`
 
 Resolve merge or rebase conflicts in generated bead state from the current store. Only
-`issues.jsonl`, `events/manifest.json`, `config.json` (when only `next_counter`
-conflicts), and `events/streams/*.jsonl` conflicts are merged automatically; any other
-conflict is left for you. See [Duplicate Bead IDs](#duplicate-bead-ids) for how add/add
-stream conflicts are relocated.
+`events/manifest.json`, `config.json` (when only `next_counter` conflicts), and
+`events/streams/*.jsonl` conflicts are merged automatically; any other conflict is left
+for you. See [Duplicate Bead IDs](#duplicate-bead-ids) for how add/add stream conflicts
+are relocated.
 
 ### `sase bead rm <id> [<id2> ...]`
 

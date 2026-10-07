@@ -56,7 +56,7 @@ def _write_split_store_record(primary: Path, beads_remote: Path) -> None:
     )
 
 
-def test_claim_helper_claims_in_tree_store_and_refreshes_projection(
+def test_claim_helper_claims_in_tree_store_and_export_reflects_claim(
     tmp_path: Path,
 ) -> None:
     bead_id = _seed_store(tmp_path)
@@ -85,6 +85,9 @@ def test_claim_helper_claims_in_tree_store_and_refreshes_projection(
     assert issue.assignee == "worker"
     with BeadProject(tmp_path) as project:
         assert project.show(bead_id).assignee == "worker"
+        # Projection-off: the claim no longer rewrites issues.jsonl, so
+        # export explicitly before asserting on the projected content.
+        project._export()
     assert '"assignee":"worker"' in (tmp_path / "sdd/beads/issues.jsonl").read_text()
     commit.assert_not_called()
     publish.assert_not_called()

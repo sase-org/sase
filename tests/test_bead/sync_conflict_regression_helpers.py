@@ -216,7 +216,27 @@ def _event_records_by_id(repo: Path) -> dict[str, dict[str, Any]]:
     return records
 
 
+def _export_projection(repo: Path) -> Path:
+    """Regenerate the on-demand ``issues.jsonl`` export and return its path.
+
+    Since projection-off (sase-1h8.11) mutations and conflict resolution
+    never rewrite the export; tests asserting merged state read it through
+    this helper first. The regenerated file is git-ignored.
+    """
+    from sase.core import bead_mutation_facade
+
+    beads_dir = repo / "beads"
+    bead_mutation_facade.export_jsonl(beads_dir)
+    return beads_dir / "issues.jsonl"
+
+
 def _bead_artifact_bytes(repo: Path) -> dict[str, bytes]:
+    # Since projection-off the export may be absent; compare the on-demand
+    # export so converged stores still compare equal through it. The
+    # regenerated file is git-ignored and never disturbs status checks.
+    from sase.core import bead_mutation_facade
+
+    bead_mutation_facade.export_jsonl(repo / "beads")
     beads_dir = repo / "beads"
     paths = [
         *sorted((beads_dir / "events/streams").glob("*.jsonl")),
@@ -227,6 +247,11 @@ def _bead_artifact_bytes(repo: Path) -> dict[str, bytes]:
 
 
 def _assert_store_matches_fresh_reduction(repo: Path) -> None:
+    # Since projection-off the resolver never rewrites the export; compare
+    # the on-demand export against a fresh reduction instead.
+    from sase.core import bead_mutation_facade
+
+    bead_mutation_facade.export_jsonl(repo / "beads")
     streams = _read_streams(repo)
     expected_issues = bead_conflict_facade.reduce_event_streams(streams)
     expected_issue_bytes = "".join(

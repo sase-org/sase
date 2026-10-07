@@ -134,6 +134,9 @@ def test_doctor_detects_orphan(project):
     epic = project.create("Epic", IssueType.PLAN)
     child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
 
+    # Projection-off: mutations no longer rewrite issues.jsonl, so
+    # materialize current state before surgically editing the projection.
+    project._export()
     jsonl_path = project.beads_dir / "issues.jsonl"
     rows = [json.loads(line) for line in jsonl_path.read_text().splitlines()]
     jsonl_path.write_text(

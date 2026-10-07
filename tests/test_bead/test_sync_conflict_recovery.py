@@ -21,6 +21,7 @@ from sase.sdd._repository_transaction import (
 from .sync_conflict_regression_helpers import (
     _clone,
     _commit,
+    _export_projection,
     _git,
     _log_records,
     _seed_same_stream_remote,
@@ -480,9 +481,7 @@ def test_concurrently_minted_bead_id_relocates_instead_of_wedging_sync(
 
     titles = {
         json.loads(line)["title"]
-        for line in (left / "beads/issues.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
+        for line in _export_projection(left).read_text(encoding="utf-8").splitlines()
         if line.strip()
     }
     assert {"Left task", "Right task"} <= titles

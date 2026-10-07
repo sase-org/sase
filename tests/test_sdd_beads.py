@@ -83,8 +83,10 @@ def test_cli_init_beads_supports_repository_root_store(tmp_path: Path) -> None:
         cli_init_beads(tmp_path, BEADS_DIRNAME_ROOT)
 
     git_init.assert_called_once()
+    # Projection-off: root stores also ignore the on-demand export.
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == (
         "beads.db\nbeads.db-shm\nbeads.db-wal\n.bead-mutation-lock.holder\n"
+        "issues.jsonl\n"
     )
     bead_init.assert_called_once_with(
         tmp_path,

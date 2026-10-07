@@ -31,7 +31,9 @@ def test_root_store_event_stream_conflict_is_mergeable(tmp_path: Path) -> None:
     assert result.ok is True, result.message
     assert contested in result.resolved_files
     assert "events/manifest.json" in result.resolved_files
-    assert "issues.jsonl" in result.resolved_files
+    # Projection-off: event stores resolve through streams plus manifest;
+    # the on-demand export is never a resolved file.
+    assert "issues.jsonl" not in result.resolved_files
 
 
 def test_root_store_page_only_conflict_takes_upstream_without_store_merge(
@@ -72,10 +74,11 @@ def test_root_store_mixed_page_and_store_conflicts_resolve(
     result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path)
 
     assert result.ok is True, result.message
+    # Projection-off: event stores resolve through streams plus manifest;
+    # the on-demand export is never a resolved file.
     assert set(result.resolved_files) == {
         contested,
         "events/manifest.json",
-        "issues.jsonl",
         page,
     }
     assert (tmp_path / page).read_text(encoding="utf-8") == "upstream\n"

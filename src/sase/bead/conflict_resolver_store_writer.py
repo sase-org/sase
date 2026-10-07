@@ -17,8 +17,10 @@ def write_resolved_store(
 ) -> list[str]:
     """Write the resolved store, touching only what the merge actually changed.
 
-    The derived manifest and ``issues.jsonl`` stay authoritative because they
-    are reduced from every stream. The per-stream files, however, are inputs
+    The derived manifest stays authoritative because it is reduced from every
+    stream. (Legacy stores without ``events/`` also rewrite ``issues.jsonl``;
+    event stores never do: since projection-off the projection is an
+    on-demand export.) The per-stream files, however, are inputs
     for all but the conflicted ones, so rewriting them byte-for-byte only
     widens the window in which another writer sees a churning worktree. Even
     conflicted streams keep raw input event dicts when the merge did not change
@@ -31,6 +33,10 @@ def write_resolved_store(
     ``\\uXXXX``, so the comparison never matches and untouched streams get
     rewritten into the rebase commit as fresh merge rejections.
     """
+    # projection-off (sase-1h8.11): capture event-store layout before the
+    # stream write below materializes `events/` for legacy stores that do
+    # not have one yet.
+    event_store = (beads_dir / "events").is_dir()
     streams_dir = beads_dir / "events" / "streams"
     streams_dir.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
@@ -54,6 +60,12 @@ def write_resolved_store(
     if _file_text(manifest_path) != manifest_text:
         manifest_path.write_text(manifest_text, encoding="utf-8")
     written.append(manifest_path.relative_to(repo_root).as_posix())
+
+    if event_store:
+        # projection-off (sase-1h8.11): event stores resolve through the
+        # canonical streams plus manifest. The `issues.jsonl` compatibility
+        # projection is an on-demand export and is never rewritten here.
+        return written
 
     issues_path = beads_dir / "issues.jsonl"
     issues_text = "".join(

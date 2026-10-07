@@ -188,6 +188,29 @@ def _refuse_read_only_bead_store(
     )
 
 
+def _migrate_projection_off_track(location: Any) -> bool:
+    """Run the projection-off untracking migration, failing open.
+
+    The migration is idempotent and retries on the next mutation, so a
+    git failure here must not block committing the mutation's own events.
+    Returns whether the repo ``.gitignore`` was amended, so the commit can
+    include the rule (a directory-scoped pathspec would otherwise miss it).
+    """
+
+    try:
+        from sase.bead._projection_migration import (
+            migrate_projection_off_track,
+        )
+
+        _, gitignore_updated = migrate_projection_off_track(
+            location.beads_dir, location.root
+        )
+        return gitignore_updated
+    except Exception as exc:
+        _logger.debug("projection-off migration failed open: %s", exc)
+        return False
+
+
 def auto_commit_bead_store(
     message: str,
     *,
@@ -231,12 +254,19 @@ def auto_commit_bead_store(
             operation_context = ownership_context_for_commit(bead_context)
         if operation_context is not None:
             commit_kwargs["operation_context"] = operation_context
+        commit_paths: list[Any] = [location.beads_dir]
+        if _migrate_projection_off_track(location) and (
+            Path(location.beads_dir).resolve() != Path(location.root).resolve()
+        ):
+            # The ignore rule lives outside a nested store's directory
+            # scope; root-layout stores already commit the whole repo.
+            commit_paths.append(location.root / ".gitignore")
         return bool(
             commit_sdd_store_files(
                 store,
                 message,
                 auto_commit_type="beads",
-                paths=[location.beads_dir],
+                paths=commit_paths,
                 **commit_kwargs,
             )
         )

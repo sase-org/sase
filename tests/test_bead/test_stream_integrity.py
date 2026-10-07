@@ -14,6 +14,7 @@ from sase.bead._stream_integrity import (
     refuse_unpublished_event_stream_shrink,
 )
 from sase.bead._stream_integrity_analysis import analyze_stream_against_ancestor
+from sase.bead._projection_migration import migrate_projection_off_track
 from sase.bead._stream_integrity_files import (
     encode_stream_events,
     is_event_stream_relpath,
@@ -384,6 +385,11 @@ def test_commit_epic_graph_checkpoint_restores_exact_starting_stream(
 ) -> None:
     repo = tmp_path / "repo"
     issue_id, stream = _init_beads_repo(repo)
+    # Projection-off: land the untrack migration first so the checkpoint
+    # below exercises the steady state, where a pure restore commits nothing.
+    changed, _ = migrate_projection_off_track(repo, repo)
+    assert changed is True
+    _commit(repo, "seed projection-off untrack")
     committed = stream.read_text(encoding="utf-8")
     events = parse_stream_text(committed)
     _write_events(stream, events[:-1])

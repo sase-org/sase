@@ -119,7 +119,8 @@ def repair_projection(
             )
             return
         mutation.project.reproject_from_events()
-        mutation.commit("chore(beads): reproject bead state from canonical events")
+        # No commit: since projection-off (sase-1h8.11) the regenerated
+        # file is a git-ignored local export, so there is nothing to commit.
     print(
         f"✓ Reprojected {len(preview)} bead row"
         f"{'' if len(preview) == 1 else 's'} from canonical events"

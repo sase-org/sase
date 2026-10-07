@@ -2,11 +2,44 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.workspace_provider.ownership import OperationContext
+
+
+_logger = logging.getLogger(__name__)
+
+
+def _migrate_projection_off_track(beads_dir: Path, repo_root: Path) -> bool:
+    """Run the projection-off untracking migration, failing open.
+
+    The migration is idempotent and retries on the next mutation, so a
+    git failure here must not block staging the mutation's own events.
+    The worktree deletion flows through the caller's normal add of
+    enumerated changes. Returns whether the repo ``.gitignore`` was
+    amended, so a directory-scoped commit can include the rule.
+    """
+
+    try:
+        from sase.bead._projection_migration import (
+            migrate_projection_off_track,
+        )
+    except ImportError as exc:
+        _logger.debug("projection-off migration unavailable: %s", exc)
+        return False
+    try:
+        _, gitignore_updated = migrate_projection_off_track(beads_dir, repo_root)
+        return gitignore_updated
+    except Exception as exc:
+        _logger.debug("projection-off migration failed open: %s", exc)
+        return False
+
 
 if TYPE_CHECKING:
     from sase.workspace_provider.ownership import OperationContext
@@ -97,6 +130,7 @@ def git_sync(beads_dir: Path, *, already_locked: bool = False) -> None:
                 "lock; no bead files were staged"
             )
         require_sdd_repository_health(repo_root)
+        _migrate_projection_off_track(beads_dir, repo_root)
         files = _list_bead_state_changes_silent(beads_dir, repo_root)
         if not files:
             return
@@ -301,7 +335,11 @@ def _commit_bead_state(
                 "lock; no bead files were staged"
             )
         require_sdd_repository_health(repo_root)
+        gitignore_updated = _migrate_projection_off_track(beads_dir, repo_root)
         files = _list_bead_state_changes(beads_dir, repo_root)
+        if gitignore_updated and ".gitignore" not in files:
+            # The rule lives outside a directory-scoped commit's paths.
+            files.append(".gitignore")
         if not files:
             return False
         from sase.bead._stream_integrity import prepare_event_streams_for_commit
@@ -366,6 +404,10 @@ def bead_state_is_clean(beads_dir: Path) -> bool:
 def rebuild_from_jsonl(beads_dir: Path) -> bool:
     """Rebuild SQLite from JSONL if JSONL is newer than db.
 
+    Event stores ignore the projection mtime: per-mutation rewrites are off,
+    so the mirror is rebuilt from a fresh canonical export instead of the
+    possibly stale ``issues.jsonl`` file.
+
     Returns True if rebuild was performed.
     """
     from sase.bead import db as db_mod
@@ -374,11 +416,21 @@ def rebuild_from_jsonl(beads_dir: Path) -> bool:
     jsonl_path = beads_dir / "issues.jsonl"
     db_path = beads_dir / "beads.db"
 
-    if not jsonl_path.exists():
-        return False
+    if (beads_dir / "events").is_dir():
+        # Projection-off: export canonical state first so the mirror
+        # reflects current events. The export target is git-ignored and
+        # never staged for event stores.
+        from sase.core import bead_mutation_facade as rust_beads
 
-    # Rebuild if db doesn't exist or JSONL is newer
-    if db_path.exists():
+        try:
+            rust_beads.export_jsonl(beads_dir)
+        except (AttributeError, ImportError, ValueError):
+            if not jsonl_path.exists():
+                return False
+    elif not jsonl_path.exists():
+        return False
+    elif db_path.exists():
+        # Legacy stores only: rebuild if JSONL is newer than db.
         jsonl_mtime = jsonl_path.stat().st_mtime
         db_mtime = db_path.stat().st_mtime
         if db_mtime >= jsonl_mtime:

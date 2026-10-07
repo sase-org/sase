@@ -54,13 +54,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     beads_dir = plans_dir / "beads"
     issues_path = beads_dir / "issues.jsonl"
 
-    if not issues_path.is_file():
-        print(
-            f"error: production bead issues file is missing: {issues_path}",
-            file=sys.stderr,
-        )
-        return 2
-
     before = _snapshot(plans_dir, issues_path)
     print(f"[bead-store-soak] guarding {issues_path}", flush=True)
     print(f"[bead-store-soak] sidecar HEAD before: {before.head}", flush=True)
@@ -155,8 +148,15 @@ def _snapshot_failures(before: _Snapshot, after: _Snapshot) -> list[str]:
 
 
 def _sha256_file(path: Path) -> str:
+    # Since projection-off (sase-1h8.11) the projection is an on-demand
+    # export that may not exist. An absent file still guards the store: any
+    # appearance or content move during the suite is reported below.
+    try:
+        stream = path.open("rb")
+    except FileNotFoundError:
+        return "absent"
     digest = hashlib.sha256()
-    with path.open("rb") as stream:
+    with stream:
         while chunk := stream.read(1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()

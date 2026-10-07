@@ -12,16 +12,16 @@ sharing the plans repository's history or write lock.
 | --- | --- |
 | `README.md` | This generated guide. |
 | `assets/beads-directory-map.png` | The generated directory-map infographic used by this README. |
-| `.gitignore` | Excludes the local `beads.db`, `beads.db-shm`, and `beads.db-wal` SQLite cache files. |
+| `.gitignore` | Excludes the local `beads.db`, `beads.db-shm`, and `beads.db-wal` SQLite cache files, plus the `issues.jsonl` on-demand export. |
 | `config.json` | Bead store configuration. |
 | `metadata.json` | Bead store metadata. |
-| `issues.jsonl` | Generated compatibility projection of current bead state. |
+| `issues.jsonl` | On-demand export of current bead state (regenerate with `sase bead export`; never committed). |
 | `events/manifest.json` | Manifest for the canonical event store. |
 | `events/streams/*.jsonl` | Canonical append-only bead event streams. |
 | `pages/` | Generated Markdown pages for every bead lineage. |
 
-`events/**` is the append-only source of truth. `issues.jsonl` is generated only as a compatibility projection, while
-`beads.db*` is a gitignored local SQLite cache and never durable shared state.
+`events/**` is the append-only source of truth. `issues.jsonl` is an on-demand export regenerated from those streams,
+while `beads.db*` is a gitignored local SQLite cache and never durable shared state. Neither is committed.
 
 ## Published Pages
 

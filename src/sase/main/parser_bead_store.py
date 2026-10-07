@@ -196,6 +196,32 @@ def register_bead_doctor_parser(
     )
 
 
+def register_bead_export_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead export``."""
+    parser = subparsers.add_parser(
+        "export",
+        help="Export current bead state to issues.jsonl",
+        description=(
+            "Regenerate the issues.jsonl compatibility projection from the "
+            "canonical event streams. Mutations never rewrite the "
+            "projection; run this command when an external tool needs a "
+            "fresh copy. The projection is git-ignored and never committed."
+        ),
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Write the export to PATH instead of the store's issues.jsonl "
+            "(default: the store's issues.jsonl)"
+        ),
+    )
+
+
 def register_bead_init_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:

@@ -145,6 +145,8 @@ def test_fresh_init_records_and_seeds_root_beads_sidecar(
         "beads.db-shm",
         "beads.db-wal",
         ".bead-mutation-lock.holder",
+        # projection-off (sase-1h8.11): the on-demand export is never staged.
+        "issues.jsonl",
     ]
     assert not (clones["plans"] / "beads").exists()
     assert (

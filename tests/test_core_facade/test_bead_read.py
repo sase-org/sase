@@ -300,7 +300,9 @@ def test_event_store_reads_without_legacy_projection(tmp_path: Path) -> None:
 
     assert _ids(rust_beads.list_issues(beads_dir)) == ["beads-1", "beads-1.1"]
     assert _ids(rust_beads.get_epic_children(beads_dir, "beads-1")) == ["beads-1.1"]
-    assert "WARNING: issues.jsonl missing" in rust_beads.doctor(beads_dir)
+    # Projection-off: a missing issues.jsonl is expected for event stores,
+    # so doctor stays clean; the missing-projection warning is legacy-only.
+    assert rust_beads.doctor(beads_dir) == ["OK: no issues found"]
 
 
 def _write_event_store(beads_dir: Path, events: list[dict[str, object]]) -> None:

@@ -135,8 +135,11 @@ def test_remove_many_missing_id_is_atomic(project):
     child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
     survivor = project.create("Survivor", IssueType.PLAN)
     project.add_dependency(survivor.id, child.id)
-    projection_before = (project.beads_dir / "issues.jsonl").read_bytes()
+    # Projection-off: opening the mirror exports fresh state first, so
+    # snapshot the projection after the mirror is open. The atomicity
+    # assertions below (failed remove_many changes nothing) still hold.
     rows_before = project._conn.execute("SELECT id FROM issues ORDER BY id").fetchall()
+    projection_before = (project.beads_dir / "issues.jsonl").read_bytes()
 
     with pytest.raises(KeyError, match="Issue not found: missing"):
         project.remove_many([epic.id, "missing"])
@@ -168,6 +171,9 @@ def test_remove_not_found(project):
 def test_remove_updates_jsonl(project):
     epic = project.create("Epic", IssueType.PLAN)
     project.remove(epic.id)
+    # Projection-off: mutations no longer rewrite issues.jsonl, so export
+    # explicitly before asserting on the projected content.
+    project._export()
     jsonl = (project.beads_dir / "issues.jsonl").read_text()
     assert jsonl.strip() == ""
 
@@ -214,5 +220,8 @@ def test_update_rejects_is_ready_to_work(project):
 def test_mark_ready_to_work_persists_to_jsonl(project):
     epic = project.create("Epic", IssueType.PLAN)
     project.mark_ready_to_work(epic.id)
+    # Projection-off: mutations no longer rewrite issues.jsonl, so export
+    # explicitly before asserting on the projected content.
+    project._export()
     jsonl = (project.beads_dir / "issues.jsonl").read_text()
     assert '"is_ready_to_work":true' in jsonl

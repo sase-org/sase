@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.bead.cli_admin import (
     handle_bead_doctor,
+    handle_bead_export,
     handle_bead_onboard,
     handle_bead_resolve_conflicts,
     handle_bead_sync,
@@ -51,6 +52,7 @@ __all__ = [
     "handle_bead_dep_tree",
     "handle_bead_doctor",
     "handle_bead_epic_symbols",
+    "handle_bead_export",
     "handle_bead_init",
     "handle_bead_history",
     "handle_bead_list",

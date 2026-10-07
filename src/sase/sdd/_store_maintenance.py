@@ -14,11 +14,13 @@ _logger = logging.getLogger(__name__)
 
 _PACK_FILE_THRESHOLD = 8
 _LOOSE_OBJECT_THRESHOLD = 2_000
-# Bead sidecars commit a ~21 MB copy of the ``issues.jsonl`` projection
-# on every mutation, so a clone can hold gigabytes of loose objects while its
-# object *count* stays below ``_LOOSE_OBJECT_THRESHOLD`` (and below git's
-# count-based ``gc.auto``). Bound the ``--dissociate`` repack cost of fresh
-# workspace clones by triggering on loose-object *bytes* as well.
+# Bead sidecars used to commit a ~21 MB copy of the ``issues.jsonl``
+# projection on every mutation, so a clone can hold gigabytes of loose objects
+# while its object *count* stays below ``_LOOSE_OBJECT_THRESHOLD`` (and below
+# git's count-based ``gc.auto``). Since projection-off (sase-1h8.11) the
+# export is git-ignored, but historic clones still carry the bloat. Bound the
+# ``--dissociate`` repack cost of fresh workspace clones by triggering on
+# loose-object *bytes* as well.
 _LOOSE_OBJECT_BYTES_THRESHOLD = 256 * 1024 * 1024
 _GC_TIMEOUT_SECONDS = 600.0
 _HEX_DIGITS = frozenset("0123456789abcdef")

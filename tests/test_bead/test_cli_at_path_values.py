@@ -517,6 +517,7 @@ _DELIBERATELY_LITERAL_FREE_TEXT = frozenset(
         ("apply-status", "operation_request_path"),
         ("apply-status", "operation_result_path"),
         ("close", "phases"),
+        ("export", "output"),
         ("history", "field"),
         ("list", "task_type"),
         ("pages", "refresh", "bead"),

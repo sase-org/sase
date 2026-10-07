@@ -42,9 +42,10 @@ class BeadProjectStoreMixin:
             self._conn_cache = None
 
     def sync(self) -> None:
-        """Export compatibility projection and stage bead state in git."""
+        """Stage bead state in git, exporting the legacy projection first."""
         with bead_store_write_lock(self.beads_dir) as already_locked:
-            self._export()
+            if not (self.beads_dir / "events").is_dir():
+                self._export()
             git_sync(self.beads_dir, already_locked=already_locked)
 
     def sync_is_clean(self) -> bool:

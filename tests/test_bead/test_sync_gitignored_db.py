@@ -43,7 +43,9 @@ def test_git_sync_succeeds_when_gitignored_beads_db_present(tmp_path):
         text=True,
         check=True,
     ).stdout.splitlines()
-    assert "sdd/beads/issues.jsonl" in staged
+    # Since projection-off (sase-1h8.11) the export is git-ignored and
+    # never staged for event stores.
+    assert "sdd/beads/issues.jsonl" not in staged
     assert "sdd/beads/events/streams/sase-1.jsonl" in staged
     assert "sdd/beads/beads.db" not in staged
 
@@ -76,7 +78,10 @@ def test_commit_epic_graph_checkpoint_succeeds_when_gitignored_beads_db_present(
     assert "sdd/beads/beads.db" not in files
     assert "sdd/beads/beads.db-wal" not in files
     assert "sdd/beads/beads.db-shm" not in files
-    assert "sdd/beads/issues.jsonl" in files
+    # Since projection-off (sase-1h8.11) checkpoint commits never contain
+    # the git-ignored export; the ignore rule lands instead.
+    assert "sdd/beads/issues.jsonl" not in files
+    assert ".gitignore" in files
     assert "sdd/beads/events/streams/sase-1.jsonl" in files
 
 

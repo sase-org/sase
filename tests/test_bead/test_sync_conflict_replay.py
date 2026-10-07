@@ -19,6 +19,7 @@ from .sync_conflict_regression_helpers import (
     _clone,
     _commit,
     _event_records_by_id,
+    _export_projection,
     _git,
     _log_records,
     _opposite_direction_workspace,
@@ -64,9 +65,7 @@ def test_generic_sdd_push_reconciles_same_stream_and_derived_files(
     assert len(stream_path.read_text(encoding="utf-8").splitlines()) == 5
     projection = [
         json.loads(line)
-        for line in (left / "beads/issues.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
+        for line in _export_projection(left).read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
     assert len(projection) == 3
@@ -88,10 +87,11 @@ def test_generic_sdd_push_reconciles_same_stream_and_derived_files(
     resolution = next(
         record for record in records if record["event"] == "conflict_resolution"
     )
+    # Projection-off: resolution covers streams plus manifest; the
+    # on-demand export is never a resolved file.
     assert set(resolution["resolved_files"]) == {
         f"beads/events/streams/{epic_id}.jsonl",
         "beads/events/manifest.json",
-        "beads/issues.jsonl",
     }
     integration = next(record for record in records if record["event"] == "integration")
     assert set(integration["resolved_files"]) == set(resolution["resolved_files"])
@@ -143,7 +143,9 @@ def test_managed_sync_worker_replays_deep_multi_commit_divergence(
     _clone(remote, verify)
     assert _bead_artifact_bytes(verify) == _bead_artifact_bytes(local)
     records = _log_records(log_path)
-    assert sum(record["event"] == "conflict_resolution" for record in records) >= 3
+    # Projection-off: with no per-mutation projection rewrite there is no
+    # separate projection round, so each contested stream resolves once.
+    assert sum(record["event"] == "conflict_resolution" for record in records) >= 2
     assert records[-1]["event"] == "completed"
 
 

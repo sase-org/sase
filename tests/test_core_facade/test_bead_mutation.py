@@ -202,7 +202,7 @@ def test_external_ref_facade_create_update_clear_and_conflict(
     assert updated.external_ref == "bug:sase#42"
 
 
-def test_append_note_facade_returns_issue_and_repairs_projection(
+def test_append_note_facade_returns_issue_and_export_reflects_note(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "rust"
@@ -225,6 +225,9 @@ def test_append_note_facade_returns_issue_and_repairs_projection(
     assert outcome["operation"] == "note"
     assert outcome["issue_ids"] == [issue.id]
     assert noted.notes_text == "[2026-01-01T00:01:00Z · agent-1] done"
+    # Projection-off: mutations no longer rewrite issues.jsonl; export it
+    # explicitly before asserting on projected content.
+    rust_beads.export_jsonl(root / "sdd/beads")
     projection = json.loads(
         (root / "sdd/beads/issues.jsonl").read_text(encoding="utf-8")
     )

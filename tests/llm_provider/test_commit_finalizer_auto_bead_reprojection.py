@@ -55,9 +55,10 @@ def _create_clean_main_repo(path: Path) -> None:
     _commit_all(path, "initial main")
 
 
-def _create_beads_repo_with_dirty_projection(tmp_path: Path) -> Path:
-    root = tmp_path / "state"
-    root.mkdir()
+def _build_beads_store_with_projection(
+    root: Path,
+) -> tuple[Path, bytes, bytes]:
+    """Create one bead and return its dir plus correct/stale projections."""
     rust_beads.init_store(root, "beads", issue_prefix="beads")
     beads = root / "beads"
     rust_beads.create(
@@ -72,6 +73,38 @@ def _create_beads_repo_with_dirty_projection(tmp_path: Path) -> Path:
     correct_projection = (beads / "issues.jsonl").read_bytes()
     stale_projection = correct_projection.replace(b'"title":"One"', b'"title":"Stale"')
     assert stale_projection != correct_projection
+    return beads, correct_projection, stale_projection
+
+
+def _create_beads_repo_with_dirty_projection(tmp_path: Path) -> Path:
+    root = tmp_path / "state"
+    root.mkdir()
+    beads, correct_projection, stale_projection = _build_beads_store_with_projection(
+        root
+    )
+
+    _init_git_repo(beads)
+    (beads / "issues.jsonl").write_bytes(stale_projection)
+    _commit_all(beads, "stale projection")
+    (beads / "issues.jsonl").write_bytes(correct_projection)
+    return beads
+
+
+def _create_legacy_beads_repo_with_dirty_projection(tmp_path: Path) -> Path:
+    """Same dirty projection, but a legacy store without ``events/``.
+
+    The reprojection auto-commit stays alive deliberately for legacy
+    stores; event stores never produce a candidate since projection-off
+    (sase-1h8.11) left the export git-ignored.
+    """
+    import shutil
+
+    root = tmp_path / "legacy-state"
+    root.mkdir()
+    beads, correct_projection, stale_projection = _build_beads_store_with_projection(
+        root
+    )
+    shutil.rmtree(beads / "events")
 
     _init_git_repo(beads)
     (beads / "issues.jsonl").write_bytes(stale_projection)
@@ -155,7 +188,7 @@ def test_bead_projection_candidate_accepts_staged_and_unstaged_issues_jsonl(
     staged: bool,
     expected_stage_path: bool,
 ) -> None:
-    beads = _create_beads_repo_with_dirty_projection(tmp_path)
+    beads = _create_legacy_beads_repo_with_dirty_projection(tmp_path)
     if staged:
         _run_git(beads, "add", "issues.jsonl")
 
@@ -164,6 +197,23 @@ def test_bead_projection_candidate_accepts_staged_and_unstaged_issues_jsonl(
     assert candidate.path == "issues.jsonl"
     assert candidate.beads_dir == str(beads)
     assert candidate.stage_path is expected_stage_path
+
+
+def test_bead_projection_candidate_is_moot_for_event_stores(
+    tmp_path: Path,
+) -> None:
+    """Event stores never auto-commit an ``issues.jsonl`` reprojection.
+
+    Since projection-off (sase-1h8.11) the export is git-ignored, so a
+    dirty projection in an event store is not a committable candidate.
+    """
+    beads = _create_beads_repo_with_dirty_projection(tmp_path)
+
+    candidates = finalizer_autocommit.sdd_bead_reprojection_auto_commit_candidates(
+        _dirty_state_for(beads)
+    )
+
+    assert candidates == ()
 
 
 def test_bead_projection_candidate_rejects_extra_changed_file(tmp_path: Path) -> None:
@@ -212,7 +262,7 @@ def test_bead_projection_candidate_commits_and_records_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    beads = _create_beads_repo_with_dirty_projection(tmp_path)
+    beads = _create_legacy_beads_repo_with_dirty_projection(tmp_path)
     _run_git(beads, "add", "issues.jsonl")
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
@@ -241,7 +291,7 @@ def test_reprojection_only_beads_sidecar_is_clean_after_reconciliation(
     main = tmp_path / "main"
     _create_clean_main_repo(main)
     plans = tmp_path / "plans"
-    beads = _create_beads_repo_with_dirty_projection(tmp_path)
+    beads = _create_legacy_beads_repo_with_dirty_projection(tmp_path)
     _set_finalizer_env(monkeypatch, main)
     _configure_beads_sidecar(monkeypatch, plans_repo=plans, beads_repo=beads)
     artifacts = tmp_path / "artifacts"
@@ -261,7 +311,7 @@ def test_commit_finalizer_succeeds_when_reprojection_is_the_only_dirty_state(
     main = tmp_path / "main"
     _create_clean_main_repo(main)
     plans = tmp_path / "plans"
-    beads = _create_beads_repo_with_dirty_projection(tmp_path)
+    beads = _create_legacy_beads_repo_with_dirty_projection(tmp_path)
     _set_finalizer_env(monkeypatch, main)
     _configure_beads_sidecar(monkeypatch, plans_repo=plans, beads_repo=beads)
     artifacts = tmp_path / "artifacts"
