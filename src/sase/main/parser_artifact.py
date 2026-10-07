@@ -64,6 +64,23 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
     create_parser = artifact_subparsers.add_parser(
         "create",
         help="Store a file as an explicit artifact for the current agent",
+        description=(
+            "Store a file as an explicit artifact for the current agent.\n\n"
+            "On success prints:\n"
+            "  id: <explicit id>\n"
+            "  source: <absolute source path>\n"
+            "  path: <stored snapshot path>\n"
+            "  ref: file:<explicit id>\n"
+            "  var: artifacts[<index>]\n"
+            "  bead: <id> (only with --bead)\n\n"
+            "The artifact is also recorded in the agent's `artifacts` output\n"
+            "variable (shown in the Agents tab OUTPUT VARIABLES section,\n"
+            "readable with `sase var get` from inside the agent and by later\n"
+            'agents as `{{ agents["<name>"].artifacts }}`). Re-registering\n'
+            "the same label and source replaces that entry with the newer\n"
+            "snapshot."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     create_parser.add_argument(
         "-b",

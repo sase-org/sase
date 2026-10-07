@@ -3811,6 +3811,13 @@ Implement the plan at {{ agents["planner--plan"].plan_file }}.
 the synthesized value, and any other output variables the planner sets are preserved
 alongside it.
 
+`sase artifact create` exposes a SASE-managed `artifacts` list in the same `agents`
+namespace, without any `sase var set` call. A research-swarm researcher registers its
+report with `sase artifact create`, and a later `%wait` consumer renders it as
+`{{ agents["research.final"].artifacts[0].ref }}` or loops
+`{% for a in agents["research.final"].artifacts %}{{ a.label }}{% endfor %}`. Entries
+share field names (`ref`, `label`, `kind`, `path`, `source_path`) with `wait.artifacts`.
+
 sase's TUI renders loaded literal `---` multi-agent prompts as a prompt stack: each
 top-level segment becomes an editable pane, while prompt-level frontmatter and
 fenced-code separators keep the same parsing rules described below. A `#name` macro

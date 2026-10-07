@@ -92,7 +92,7 @@ def _run_disposition_style(disposition: str | None) -> FinalizerStateStyle:
     return STATE_STYLES[style_key]
 
 
-def _runs(node_view: Any) -> list[Any]:
+def _node_runs(node_view: Any) -> list[Any]:
     return list(getattr(node_view, "runs", ()) or ())
 
 
@@ -120,7 +120,7 @@ def _attempt_durations(run_instance: Any) -> float:
 def _instance_durations(node_view: Any) -> dict[str, float]:
     """Return total attempt seconds per instance id across every run."""
     totals: dict[str, float] = {}
-    for run in _runs(node_view):
+    for run in _node_runs(node_view):
         for item in getattr(run, "instances", ()) or ():
             instance_id = str(getattr(item, "instance_id", ""))
             totals[instance_id] = totals.get(instance_id, 0.0) + _attempt_durations(
@@ -130,7 +130,7 @@ def _instance_durations(node_view: Any) -> dict[str, float]:
 
 
 def _total_cycles(node_view: Any) -> int:
-    return sum(int(getattr(run, "cycles", 0) or 0) for run in _runs(node_view))
+    return sum(int(getattr(run, "cycles", 0) or 0) for run in _node_runs(node_view))
 
 
 def _shorten(text: str, budget: int) -> str:
@@ -192,7 +192,7 @@ def _header_line(node_view: Any, durations: dict[str, float], *, width: int) -> 
     style = _node_status_style(node_view)
     cycles = _total_cycles(node_view)
     total_seconds = sum(durations.values())
-    runs = _runs(node_view)
+    runs = _node_runs(node_view)
     digest: str | None = None
     for run in runs:
         candidate = getattr(run, "plan_digest", None)
@@ -218,7 +218,7 @@ def _plan_rows(
     lines: list[Text] = []
     blocked: dict[str, str] = {}
     waiting: dict[str, str] = {}
-    for run in _runs(node_view):
+    for run in _node_runs(node_view):
         for item in getattr(run, "instances", ()) or ():
             instance_id = str(getattr(item, "instance_id", ""))
             blocker = getattr(item, "blocked_by", None)
@@ -265,7 +265,7 @@ def _plan_rows(
 
 
 def _declaration_lines(node_view: Any, *, width: int) -> list[Text]:
-    runs = _runs(node_view)
+    runs = _node_runs(node_view)
     multi = len(runs) > 1
     lines: list[Text] = []
     for run in runs:
@@ -332,7 +332,7 @@ def _controller_lines(node_view: Any, *, width: int) -> list[Text]:
     if cycles <= 1:
         return []
     parts = [f"{cycles} cycles"]
-    for run in _runs(node_view):
+    for run in _node_runs(node_view):
         if getattr(run, "reactivated", False):
             label = str(getattr(run, "label", "") or getattr(run, "run_id", ""))
             parts.append(f"{label} reactivated" if label else "reactivated")
@@ -344,7 +344,7 @@ def _controller_lines(node_view: Any, *, width: int) -> list[Text]:
 def _drift_lines(node_view: Any, *, width: int) -> list[Text]:
     seen: set[str] = set()
     lines: list[Text] = []
-    for run in _runs(node_view):
+    for run in _node_runs(node_view):
         for entry in getattr(run, "drift", ()) or ():
             message = str(getattr(entry, "message", "") or "")
             if not message or message in seen:
@@ -360,7 +360,7 @@ def _drift_lines(node_view: Any, *, width: int) -> list[Text]:
 def _diagnostic_lines(node_view: Any, *, width: int) -> list[Text]:
     seen: set[tuple[str, str]] = set()
     lines: list[Text] = []
-    for run in _runs(node_view):
+    for run in _node_runs(node_view):
         for entry in getattr(run, "diagnostics", ()) or ():
             code = str(getattr(entry, "code", "") or "")
             message = str(getattr(entry, "message", "") or "")
@@ -418,7 +418,7 @@ def _run_ledger_entry(run: Any) -> tuple[str, str, str]:
 
 
 def _runs_lines(node_view: Any, *, width: int) -> list[Text]:
-    runs = _runs(node_view)
+    runs = _node_runs(node_view)
     if not runs:
         return []
     show = len(runs) > 1 or any(
@@ -456,7 +456,7 @@ def _unavailable_lines(node_view: Any, *, width: int) -> list[Text]:
     for a lone ``ran``/``active`` run that still carries a reason worth
     surfacing.
     """
-    runs = _runs(node_view)
+    runs = _node_runs(node_view)
     if len(runs) != 1:
         return []
     run = runs[0]
@@ -499,7 +499,7 @@ def render_overview_ledger_lines(node_view: Any, *, width: int = 120) -> list[Te
     from .run_blocks import is_final_block_run
 
     width = max(20, int(width))
-    runs = [run for run in _runs(node_view) if not is_final_block_run(run)]
+    runs = [run for run in _node_runs(node_view) if not is_final_block_run(run)]
     if not runs:
         return []
     entries = [

@@ -101,7 +101,7 @@ def decode_hood_snapshot(value: object) -> V2HoodSnapshot:
         raise AgentsSyncFormatError(
             "hood snapshot structural_ancestors must be unique and sorted"
         )
-    runs = _runs(data["runs"], owner)
+    runs = _decode_runs(data["runs"], owner)
     containers = _containers(data["containers"], owner)
     relationships = _relationships(data["relationships"])
     snapshot = V2HoodSnapshot(
@@ -127,7 +127,7 @@ def validate_snapshot(snapshot: V2HoodSnapshot) -> None:
     decode_hood_snapshot(snapshot.to_json_dict())
 
 
-def _runs(value: object, owner: AgentOwnerIdentity) -> tuple[V2RunRecord, ...]:
+def _decode_runs(value: object, owner: AgentOwnerIdentity) -> tuple[V2RunRecord, ...]:
     rows = json_list(value, "hood snapshot runs", MAX_RUNS)
     runs = tuple(_run(row, owner, index) for index, row in enumerate(rows))
     if tuple(sorted(runs, key=lambda item: item.source_run_id)) != runs:

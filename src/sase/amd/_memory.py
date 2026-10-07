@@ -295,19 +295,6 @@ def _web_memory_bodies(
     )
 
 
-def _render_web_sections(
-    web_memory_bodies: Mapping[str, GeneratedShortMemoryNote],
-) -> str:
-    """Return the Memory Webs section, or ``""`` when the root has no webs."""
-    if not web_memory_bodies:
-        return ""
-    bodies = "\n\n".join(
-        inline_memory_section(relative_path, note.body).rstrip("\n")
-        for relative_path, note in web_memory_bodies.items()
-    )
-    return f"## Memory Webs\n\n{_WEB_MEMORY_INTRO}\n\n{bodies}"
-
-
 def _short_memory_structure_blockers(
     short_memory_bodies: Mapping[str, GeneratedShortMemoryNote],
 ) -> tuple[str, ...]:

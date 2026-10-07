@@ -6155,13 +6155,14 @@ the preferred card.
   `slot_requested_at`, followed by cap context. It deliberately suppresses the marker's
   stale dependency, bead, and time-wait fields.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent session
-  with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
-  their types. A single contributing agent renders as a flat sorted key/value block;
-  multiple session members render with compact role labels so root, planner, coder,
-  tester, and follow-up values stay attributable. Lists, maps, and multi-line strings
-  use an indented YAML-shaped block with type-specific colors. The section is omitted
-  when the session has not published variables. These values are stored in
-  `agent_meta.json`, so they are visible metadata rather than secret storage.
+  with `sase var set` and by `sase artifact create` (the SASE-managed `artifacts` list).
+  Strings, numbers, booleans, null, lists, and nested maps retain their types. A single
+  contributing agent renders as a flat sorted key/value block; multiple session members
+  render with compact role labels so root, planner, coder, tester, and follow-up values
+  stay attributable. Lists, maps, and multi-line strings use an indented YAML-shaped
+  block with type-specific colors. The section is omitted when the session has not
+  published variables. These values are stored in `agent_meta.json`, so they are visible
+  metadata rather than secret storage.
 - **TRACEBACK**: When an agent or workflow step recorded an error traceback, it renders
   under its own `TRACEBACK` heading after the prompt, directly above the reply heading
   (`AGENT REPLY` while running, `AGENT CHAT` once done or failed, or `STEP OUTPUT` for a

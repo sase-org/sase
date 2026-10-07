@@ -599,19 +599,43 @@ instead of retaining the default workspace copy; it is intended for scratch file
 using it on a tracked file leaves a deletion in the working tree. `-p/--path` is
 required.
 
-On success the command prints four lines:
+On success the command prints five lines (`bead:` only with `--bead`):
 
 ```text
 id: explicit:<hash>
 source: /absolute/path/to/report.md
 path: /home/<user>/.sase/artifacts/agents/<project>/<timestamp>/report-<digest>.md
 ref: file:explicit:<hash>
+var: artifacts[0]
+bead: <id>
 ```
 
 The `source:` line records where the artifact came from, `path:` names the stored
-snapshot, and `ref:` is the copyable name to hand to a user or another agent. By default
-the source remains in place. Later source edits do not propagate to the stored snapshot;
-run `create` again to register a fresh one.
+snapshot, and `ref:` is the copyable name to hand to a user or another agent. `var:`
+names the entry index in the agent's `artifacts` output variable. By default the source
+remains in place. Later source edits do not propagate to the stored snapshot; run
+`create` again to register a fresh one.
+
+### `artifacts` output variable
+
+Every successful `create` also records the artifact in the agent's SASE-managed
+`artifacts` output variable (a list of maps in registration order):
+
+| Field         | Present                       | Meaning                                                |
+| ------------- | ----------------------------- | ------------------------------------------------------ |
+| `ref`         | always                        | Canonical `file:explicit:<hash>` identity.             |
+| `label`       | always                        | The `-l/--label` value (default: source file name).    |
+| `kind`        | always                        | `markdown`, `image`, `pdf`, `plan`, `chat`, or `file`. |
+| `path`        | always                        | Absolute path of the immutable stored snapshot.        |
+| `source_path` | only when the source was kept | Absolute path of the living source file.               |
+| `bead`        | only when `--bead` attached   | The bead id the artifact was attached to.              |
+
+Re-registering the same `ref`, or the same `label` and `source_path`, replaces that
+entry in place with the newer snapshot; registering 101 artifacts keeps the newest 100.
+An agent-owned `artifacts` value is left alone and recording is best-effort (it never
+changes `create`'s exit status). Render with
+`{{ agents["research.final"].artifacts[0].ref }}` or select with
+`sase var get 'research.final.artifacts[0]["ref"]' --format raw`.
 
 Every new index row also records `sha256` (the full digest of the stored file),
 `size_bytes`, and `mime_type`. All three are optional at index schema version 1, so rows

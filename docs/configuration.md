@@ -6867,7 +6867,8 @@ source metadata over stale installed distribution metadata, while `--verbose` an
 
 `sase var` inspects and publishes SASE agent output variables. Agents publish values
 with `sase var set`, which merges named JSON-shaped values into the current run's
-`agent_meta.json["output_variables"]`. The stored values appear in sase's TUI Agents-tab
+`agent_meta.json["output_variables"]`. `sase artifact create` also publishes the
+SASE-managed `artifacts` list there. The stored values appear in sase's TUI Agents-tab
 `OUTPUT VARIABLES` metadata panel, Telegram agent-completion messages, indexed agent
 history, and downstream `%wait` prompt contexts. Later agents that wait on a producer
 load that producer's stored values when they start and can render them through the
@@ -7312,8 +7313,10 @@ extension. `-m/--move` opts into removing the source after it is stored, `-l/--l
 sets the display label (default: the source file name), and `-b/--bead [ID]` attaches
 the new `file:` reference to a bead (a bare `-b` uses the agent's `SASE_BEAD_ID` bead).
 On success the command prints the artifact's `id:`, absolute `source:`, stored `path:`,
-and durable `ref:` (`file:<id>`). Only `create` is agent-gated; every other artifact
-subcommand works outside an agent run.
+durable `ref:` (`file:<id>`), and `var: artifacts[<index>]` (`bead:` follows with
+`--bead`). It also records the artifact in the agent's SASE-managed `artifacts` output
+variable. Only `create` is agent-gated; every other artifact subcommand works outside an
+agent run.
 
 | Form                                 | Flags                                                                                                                            | Description                                                                                                                                                  |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |

@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 
 from sase.core.artifact_file_facade import store_explicit_artifact_file
+from sase.core.artifact_file_types import ArtifactFile
 
 
 def handle_create(args: argparse.Namespace) -> int:
@@ -74,12 +75,79 @@ def handle_create(args: argparse.Namespace) -> int:
         reference, artifact_file.path, agent_artifacts_dir
     )
 
+    attached = True
     if bead_id is not None:
-        exit_code = _attach_reference_to_bead(bead_id, reference)
-        if exit_code != 0:
+        attached = _attach_reference_to_bead(bead_id, reference) == 0
+
+    _record_artifacts_output_variable(
+        agent_artifacts_dir,
+        artifact_file,
+        source_retained=not args.move,
+        bead_id=bead_id if attached else None,
+    )
+
+    if bead_id is not None:
+        if not attached:
             return _error(f"failed to attach {reference} to bead {bead_id}")
         print(f"bead: {bead_id}")
     return 0
+
+
+def _record_artifacts_output_variable(
+    agent_artifacts_dir: str,
+    artifact_file: ArtifactFile,
+    *,
+    source_retained: bool,
+    bead_id: str | None,
+) -> None:
+    """Best-effort: record the created artifact in the ``artifacts`` variable.
+
+    Never raises and never changes the command's exit status.
+    """
+    from sase.core.created_artifacts_variable import (
+        CREATED_ARTIFACTS_OUTPUT_VARIABLE,
+        CreatedArtifactEntryTooLargeError,
+        CreatedArtifactsShapeError,
+        record_created_artifact,
+    )
+
+    reference = f"file:{getattr(artifact_file, 'id', 'unknown')}"
+    try:
+        merge = record_created_artifact(
+            agent_artifacts_dir,
+            artifact_file,
+            source_retained=source_retained,
+            bead_id=bead_id,
+        )
+    except CreatedArtifactsShapeError:
+        print(
+            f"warning: existing '{CREATED_ARTIFACTS_OUTPUT_VARIABLE}' "
+            f"output variable is agent-managed; {reference} was not recorded",
+            file=sys.stderr,
+        )
+        return
+    except CreatedArtifactEntryTooLargeError as exc:
+        print(
+            f"warning: {CREATED_ARTIFACTS_OUTPUT_VARIABLE} output variable "
+            f"was not updated: {exc}",
+            file=sys.stderr,
+        )
+        return
+    except Exception as exc:  # noqa: BLE001 - best-effort recording.
+        print(
+            f"warning: {CREATED_ARTIFACTS_OUTPUT_VARIABLE} output variable "
+            f"was not updated: {exc}",
+            file=sys.stderr,
+        )
+        return
+    if merge.evicted:
+        print(
+            f"note: {merge.evicted} older artifact entries were dropped from "
+            f"the '{CREATED_ARTIFACTS_OUTPUT_VARIABLE}' output variable; "
+            "sase artifact list still has every artifact",
+            file=sys.stderr,
+        )
+    print(f"var: {CREATED_ARTIFACTS_OUTPUT_VARIABLE}[{merge.index}]")
 
 
 def _resolve_bead_target(bead: str | None) -> str | None:

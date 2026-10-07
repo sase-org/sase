@@ -476,12 +476,6 @@ def _macro_input_hint_to_wire(input_hint: object) -> dict[str, object]:
     )
 
 
-def _macro_input_choice_to_wire(choice: object) -> dict[str, str | None] | None:
-    from sase.macro._input_hint_wire import macro_input_choice_to_wire
-
-    return macro_input_choice_to_wire(choice)
-
-
 def _field(value: object, name: str, default: object) -> object:
     if isinstance(value, Mapping):
         return value.get(name, default)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +70,31 @@ def set_agent_output_variables(
     return update_agent_meta_locked(artifacts_dir, _merge)
 
 
+def update_agent_output_variable(
+    artifacts_dir: Path | str,
+    key: str,
+    update: Callable[[VarValue | None], VarValue],
+) -> VarValue:
+    """Atomically update one output variable and return the stored value."""
+    _validate_output_variable_key(key)
+
+    def _merge(meta: dict[str, Any]) -> VarValue:
+        current_map = coerce_var_map(meta.get(_OUTPUT_VARIABLES_FIELD))
+        current = current_map.get(key)
+        new_value = normalize_var_value(key, update(current))
+        merged = {**current_map}
+        merged[key] = new_value
+        if len(merged) > MAX_OUTPUT_VARIABLES:
+            raise ValueError(
+                f"output variables contain {len(merged)} entries; "
+                f"limit is {MAX_OUTPUT_VARIABLES}"
+            )
+        meta[_OUTPUT_VARIABLES_FIELD] = merged
+        return new_value
+
+    return update_agent_meta_locked(artifacts_dir, _merge)
+
+
 def _validate_output_variable_key(key: str) -> None:
     if not isinstance(key, str):
         raise ValueError("output variable key must be a string")
@@ -88,4 +113,5 @@ __all__ = [
     "parse_output_variable_assignments",
     "read_agent_output_variables",
     "set_agent_output_variables",
+    "update_agent_output_variable",
 ]

@@ -796,10 +796,12 @@ were saved explicitly with `sase artifact create`.
 
 When an agent sets output variables with `sase var set`, non-reserved variables are
 snapshotted into the completion notification as sorted JSON and rendered in Telegram
-agent-completion messages. The snapshot preserves structured values (including nested
-lists and maps); each value is already bounded by the 64 KiB encoded-variable limit, and
-the notification store does not impose a smaller `action_data` limit. The reserved
-repeat-control variable `STOP` is omitted from Telegram completion summaries.
+agent-completion messages. The SASE-managed `artifacts` list from `sase artifact create`
+is included like any other non-reserved variable. The snapshot preserves structured
+values (including nested lists and maps); each value is already bounded by the 64 KiB
+encoded-variable limit, and the notification store does not impose a smaller
+`action_data` limit. The reserved repeat-control variable `STOP` is omitted from
+Telegram completion summaries.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal
 agent is selected after it has been marked unread, or when the user jumps to it with the
