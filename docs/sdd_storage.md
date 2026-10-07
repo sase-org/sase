@@ -199,7 +199,7 @@ pending.
 1. Adoption is a no-op when the plans clone has no `beads/` directory, or when the beads
    clone already holds bead state.
 2. Otherwise every entry of `<plans>/beads/` is copied to the beads clone root,
-   excluding the local `beads.db`, `beads.db-shm`, and `beads.db-wal` cache files. A
+   excluding the local `beads.db`, `beads.db-shm`, and `beads.db-wal` flock files. A
    minimal store of only `config.json` and `issues.jsonl` is valid and copies cleanly.
 3. The copy is committed to the beads clone as
    `Import bead state from <plans-repo>@<sha>` and **pushed**. A failed push aborts

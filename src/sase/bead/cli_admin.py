@@ -52,6 +52,7 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
     fix_plan_archive = bool(getattr(args, "fix_plan_archive", False))
     fix_projection = bool(getattr(args, "fix_projection", False))
     fix_attachments = bool(getattr(args, "fix_attachments", False))
+    verify_cache = bool(getattr(args, "verify_cache", False))
     assume_yes = bool(getattr(args, "yes", False))
     archive_store = _resolve_doctor_plan_archive_store(
         materialize=fix_plan_archive,
@@ -103,6 +104,8 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
                 messages,
                 [f"WARNING: attachment doctor unavailable: {exc}"],
             )
+        for line in _read_model_doctor_lines(proj, verify_cache=verify_cache):
+            messages.append(line)
         for msg in messages:
             print(msg)
         preview = (
@@ -170,6 +173,71 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
         f"✓ Repaired {len(preview.repairs)} bead design reference"
         f"{'' if len(preview.repairs) == 1 else 's'}"
     )
+
+
+def _read_model_doctor_lines(proj: object, *, verify_cache: bool) -> list[str]:
+    """Return read-model status (and optional verify) lines for doctor."""
+    from sase.core import bead_read_facade as rust_beads
+
+    beads_dir = getattr(proj, "beads_dir", None)
+    if beads_dir is None:
+        return []
+    lines = [_render_read_model_status(rust_beads.read_model_status(beads_dir))]
+    if verify_cache:
+        lines.extend(
+            _render_read_model_verify(rust_beads.read_model_verify_cache(beads_dir))
+        )
+    return lines
+
+
+def _render_read_model_status(status: dict[str, Any] | None) -> str:
+    """Render one read-model cache health line for doctor output."""
+    if status is None:
+        return "Read model: unavailable with the installed core"
+    location = status.get("location")
+    if not isinstance(location, str) or not location:
+        reason = status.get("reason") or "no cache location"
+        return f"Read model: unavailable ({reason})"
+    age = status.get("last_sweep_age_secs")
+    age_text = f"{age}s ago" if isinstance(age, int) else "age unknown"
+    if status.get("fresh"):
+        freshness = "fresh"
+    else:
+        freshness = f"stale ({status.get('reason') or 'changed'})"
+    return (
+        f"Read model: {location} "
+        f"(generation {status.get('generation', 0)}, "
+        f"{status.get('size_bytes', 0)} bytes, "
+        f"{status.get('issues', 0)} issues, "
+        f"last sweep {age_text}, {freshness})"
+    )
+
+
+def _render_read_model_verify(report: dict[str, Any] | None) -> list[str]:
+    """Render cache-vs-replay verify lines for doctor --verify-cache."""
+    if report is None:
+        return ["Read model verify: unavailable with the installed core"]
+    if not report.get("compared", False):
+        reason = report.get("reason") or "comparison did not run"
+        return [f"Read model verify: not compared ({reason})"]
+    if report.get("matched", False):
+        return [
+            "Read model verify: cache matches replay "
+            f"({report.get('replay_issues', 0)} issues)"
+        ]
+    lines = [
+        "Read model verify: DRIFT "
+        f"({report.get('reason') or 'cache differs from replay'}; "
+        f"replay={report.get('replay_issues', 0)} "
+        f"cache={report.get('cache_issues', 0)})"
+    ]
+    differing = report.get("differing_ids")
+    if isinstance(differing, list) and differing:
+        lines.append(
+            "Read model verify: differing ids: "
+            f"{', '.join(str(item) for item in differing)}"
+        )
+    return lines
 
 
 def _extend_doctor_messages(messages: list[str], extra: list[str]) -> list[str]:
@@ -648,6 +716,7 @@ Quick Start:
   sase bead doctor --fix-plan-archive            Archive recoverable missing plans
   sase bead doctor --fix-projection              Repair issues.jsonl drift
   sase bead doctor --fix-attachments             Repair attachment orphans and uploads
+  sase bead doctor --verify-cache                Compare the read-model cache against replay
   sase bead work <target> [<target> ...]        Launch plan, epic, or task agents in order""")
 
 

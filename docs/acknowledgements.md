@@ -65,7 +65,7 @@ sase's architecture while drastically simplifying the surface area:
 
 - **Rust-backed events plus compatibility mirrors instead of Dolt** -- sase stores
   canonical append-only events under `events/**`, generates sorted `issues.jsonl` for
-  older tooling, and treats `beads.db` as a gitignored compatibility cache. Fresh clones
+  older tooling, and uses `beads.db` only as the gitignored mutation flock. Fresh clones
   read the tracked events directly and can rebuild both mirrors without an external
   database engine.
 - **Plan tiers, executable phases, and standalone tasks** -- plan-like beads carry

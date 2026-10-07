@@ -9498,7 +9498,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "8235cc3cf2429dd9",
+            "description_digest": "db8781161f74e12c",
             "hidden": false,
             "mutex_groups": [],
             "name": "doctor",
@@ -9595,6 +9595,22 @@
                 "strings": [
                   "-T",
                   "--fix-attachments"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "verify_cache",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-C",
+                  "--verify-cache"
                 ],
                 "takes_value": false,
                 "value_hint": null

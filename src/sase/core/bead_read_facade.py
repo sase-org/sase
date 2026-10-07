@@ -285,6 +285,40 @@ def doctor_report(
     return dict(payload)
 
 
+def read_model_status(beads_dir: Path | str) -> dict[str, Any] | None:
+    """Return the bead read-model cache health report for *beads_dir*.
+
+    Returns ``None`` when the installed core predates the
+    ``bead_read_model_status`` binding (sase-1h8.8) or the report cannot be
+    built, so doctor fails open to plain replay diagnostics.
+    """
+    binding = optional_rust_binding("bead_read_model_status")
+    if binding is None:
+        return None
+    try:
+        payload = binding(str(beads_dir))
+    except Exception:
+        return None
+    return dict(payload)
+
+
+def read_model_verify_cache(beads_dir: Path | str) -> dict[str, Any] | None:
+    """Compare the read-model cache against a forced full replay.
+
+    Returns ``None`` when the installed core predates the
+    ``bead_read_model_verify_cache`` binding (sase-1h8.8) or the comparison
+    cannot run. Drift is a report, never an error.
+    """
+    binding = optional_rust_binding("bead_read_model_verify_cache")
+    if binding is None:
+        return None
+    try:
+        payload = binding(str(beads_dir))
+    except Exception:
+        return None
+    return dict(payload)
+
+
 def get_epic_children(beads_dir: Path | str, epic_id: str) -> list[Issue]:
     binding = require_rust_binding("bead_get_epic_children")
     payload: list[dict[str, Any]] = binding(str(beads_dir), epic_id)
@@ -350,6 +384,8 @@ __all__ = [
     "history",
     "list_issues",
     "ready",
+    "read_model_status",
+    "read_model_verify_cache",
     "resolve_id",
     "search",
     "show",

@@ -527,12 +527,15 @@ append-only event streams under the resolved SDD bead store (`sdd/beads/events/*
 in-tree mode, `.sase/sdd/beads/events/**` in local or legacy separate-repo mode, the
 repository-root `events/**` in a schema-3 `--beads` sidecar, and `beads/events/**` in a
 schema-2 split `--plans` sidecar) when present; `issues.jsonl` is regenerated as a
-compatibility projection, and `beads.db` is a compatibility cache. Event reduction,
-JSONL/config parsing, cache refresh, mutations, single-store ID allocation,
-deterministic epic work planning, and common CLI output planning all live in `sase-core`
-and are exposed through `sase_core_rs`. Python remains the host layer for path
-discovery, VCS context, macro lookup, confirmation prompts, launch/rollback, and
-telemetry side effects.
+compatibility projection, and `beads.db` is only the mutation flock. Event reduction,
+JSONL/config parsing, read-model freshness and rebuild, mutations, single-store ID
+allocation, deterministic epic work planning, and common CLI output planning all live in
+`sase-core` and are exposed through `sase_core_rs`. The versioned SQLite read model
+(`<git-dir>/sase/bead-read-model/<key>.sqlite`) serves hot reads behind an O(1)
+freshness token with generation compare-and-swap rebuilds; `sase bead doctor` reports
+its health and `sase bead doctor --verify-cache` diffs it against replay. Python remains
+the host layer for path discovery, VCS context, macro lookup, confirmation prompts,
+launch/rollback, and telemetry side effects.
 
 Golden contract fixtures live under `tests/test_bead/golden/`:
 

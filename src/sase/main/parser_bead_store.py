@@ -180,6 +180,15 @@ def register_bead_doctor_parser(
         ),
     )
     parser.add_argument(
+        "-C",
+        "--verify-cache",
+        action="store_true",
+        help=(
+            "Compare the bead read-model cache against a forced full replay "
+            "and report drift"
+        ),
+    )
+    parser.add_argument(
         "-y",
         "--yes",
         action="store_true",

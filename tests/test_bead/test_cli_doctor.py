@@ -92,10 +92,117 @@ def _doctor_args(**overrides: bool) -> argparse.Namespace:
         "fix_issue_prefix": False,
         "fix_plan_archive": False,
         "fix_projection": False,
+        "verify_cache": False,
         "yes": False,
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
+
+
+def test_doctor_parser_accepts_verify_cache_alias_and_documents_help(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+    for flag in ("-C", "--verify-cache"):
+        args = parser.parse_args(["bead", "doctor", flag])
+        assert args.verify_cache is True
+
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["bead", "doctor", "-h"])
+    assert excinfo.value.code == 0
+    assert "--verify-cache" in capsys.readouterr().out
+
+
+def test_doctor_reports_read_model_status_without_git_backed_cache(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cli_admin.handle_bead_doctor(_doctor_args())
+
+    output = capsys.readouterr().out
+    assert "Read model: unavailable (" in output
+    assert "Read model verify:" not in output
+
+
+def test_doctor_verify_cache_reports_match(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.core import bead_read_facade
+
+    monkeypatch.setattr(
+        bead_read_facade,
+        "read_model_verify_cache",
+        lambda _beads_dir: {
+            "compared": True,
+            "matched": True,
+            "replay_issues": 3,
+            "cache_issues": 3,
+            "differing_ids": [],
+            "reason": "cache matches replay: 3 issues",
+        },
+    )
+
+    cli_admin.handle_bead_doctor(_doctor_args(verify_cache=True))
+
+    output = capsys.readouterr().out
+    assert "Read model: unavailable (" in output
+    assert "Read model verify: cache matches replay (3 issues)" in output
+
+
+def test_doctor_verify_cache_reports_drift(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.core import bead_read_facade
+
+    monkeypatch.setattr(
+        bead_read_facade,
+        "read_model_verify_cache",
+        lambda _beads_dir: {
+            "compared": True,
+            "matched": False,
+            "replay_issues": 3,
+            "cache_issues": 2,
+            "differing_ids": ["beads-9"],
+            "reason": "1 differing issue",
+        },
+    )
+
+    cli_admin.handle_bead_doctor(_doctor_args(verify_cache=True))
+
+    output = capsys.readouterr().out
+    assert "Read model verify: DRIFT (1 differing issue; replay=3 cache=2)" in output
+    assert "Read model verify: differing ids: beads-9" in output
+
+
+def test_doctor_renders_fresh_read_model_status_line() -> None:
+    line = cli_admin._render_read_model_status(
+        {
+            "location": "/repo/.git/sase/bead-read-model/model.sqlite",
+            "fresh": True,
+            "reason": "served from cache",
+            "generation": 4,
+            "size_bytes": 1024,
+            "last_sweep_age_secs": 3,
+            "streams": 2,
+            "issues": 7,
+        }
+    )
+
+    assert line == (
+        "Read model: /repo/.git/sase/bead-read-model/model.sqlite "
+        "(generation 4, 1024 bytes, 7 issues, last sweep 3s ago, fresh)"
+    )
+    assert (
+        cli_admin._render_read_model_status(None)
+        == "Read model: unavailable with the installed core"
+    )
+    assert cli_admin._render_read_model_verify(None) == [
+        "Read model verify: unavailable with the installed core"
+    ]
 
 
 def test_doctor_warns_about_leaked_key_prefix(

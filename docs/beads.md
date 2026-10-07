@@ -1236,7 +1236,7 @@ sdd/beads/
     streams/
       <root-id>.jsonl   # Canonical append-only event stream
   issues.jsonl          # Generated compatibility projection
-  beads.db              # SQLite compatibility cache (gitignored)
+  beads.db              # Mutation flock (gitignored; never a cache)
 ```
 
 Providerless local storage and legacy single-sidecar storage use `.sase/sdd/beads/` with
@@ -1282,12 +1282,22 @@ record has no beads sidecar clone nothing extra.
 
 Rust owns the bead storage/query/mutation path. The append-only event streams are the
 canonical git-portable state. `issues.jsonl` remains a generated compatibility
-projection, and `beads.db` remains a local compatibility cache. They are kept in sync:
+projection, and `beads.db` is only the mutation flock, never a cache. They are kept in
+sync:
 
-- **Writes** append canonical Rust events first, then regenerate `issues.jsonl` and
-  refresh `beads.db`.
+- **Writes** append canonical Rust events first, then regenerate `issues.jsonl`.
+  `beads.db` is touched only as the cooperative write lock.
 - **Reads** prefer `events/manifest.json` plus `events/streams/*.jsonl`, falling back to
   legacy `issues.jsonl` only when no event store is present.
+- **Read model.** Hot reads are served from a versioned SQLite read model under the
+  clone's git dir (`<git-dir>/sase/bead-read-model/<key>.sqlite`, WAL). A constant-cost
+  freshness token (streams-directory `mtime`/`inode` plus manifest and config
+  signatures) decides whether the cache serves; a full stat sweep runs whenever the
+  token changes, on every write, at least every 60 s, and on demand. Any schema,
+  reducer, or crate version mismatch drops and rebuilds the cache, and any cache error
+  falls back to plain replay. `sase bead doctor` prints a cache status line (location,
+  size, generation, last sweep), and `sase bead doctor --verify-cache` compares the
+  cache against a forced full replay and reports drift.
 - **History** replays those same streams in projection order; `sase bead history <id>`
   makes every recorded field revision readable without changing canonical state.
 - **Fresh clones** read directly from the tracked event streams and can rebuild the
@@ -1310,8 +1320,8 @@ projection, and `beads.db` remains a local compatibility cache. They are kept in
   whole-field replacements in the stream; on replay their blob is parsed back into
   individually timestamped and attributed records instead of one opaque string.
 
-The `.gitignore` excludes `beads.db*` files. The event store, `issues.jsonl`, and
-`config.json` are tracked in git.
+The `.gitignore` excludes the local `beads.db*` flock files. The event store,
+`issues.jsonl`, and `config.json` are tracked in git.
 
 ### Sync Mechanism
 
