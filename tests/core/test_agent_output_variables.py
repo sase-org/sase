@@ -59,8 +59,7 @@ def test_output_variable_value_rejects_nul_and_enforces_utf8_byte_limit(
 
     accepted = "é" * (MAX_OUTPUT_VARIABLE_VALUE_BYTES // 2)
     with patch(
-        "sase.core.agent_output_variables."
-        "update_agent_artifact_index_for_marker_mutation"
+        "sase.core.agent_meta_update.update_agent_artifact_index_for_marker_mutation"
     ):
         stored = set_agent_output_variables(artifacts_dir, {"body": accepted})
     assert stored["body"] == accepted
@@ -91,8 +90,7 @@ def test_set_agent_output_variables_merges_metadata_and_refreshes_index(
     )
 
     with patch(
-        "sase.core.agent_output_variables."
-        "update_agent_artifact_index_for_marker_mutation"
+        "sase.core.agent_meta_update.update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
         stored = set_agent_output_variables(
             artifacts_dir,
@@ -152,8 +150,7 @@ def test_set_agent_output_variables_round_trips_structured_values(
     }
 
     with patch(
-        "sase.core.agent_output_variables."
-        "update_agent_artifact_index_for_marker_mutation"
+        "sase.core.agent_meta_update.update_agent_artifact_index_for_marker_mutation"
     ):
         stored = set_agent_output_variables(artifacts_dir, values)
 

@@ -74,7 +74,7 @@ def test_var_set_persists_values_and_prints_context(
 
     with (
         patch(
-            "sase.core.agent_output_variables."
+            "sase.core.agent_meta_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         pytest.raises(SystemExit) as exc,
@@ -102,7 +102,7 @@ def test_var_set_value_preserves_spaces_and_newlines(
 
     with (
         patch(
-            "sase.core.agent_output_variables."
+            "sase.core.agent_meta_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         pytest.raises(SystemExit) as exc,
@@ -123,7 +123,7 @@ def test_var_set_value_file_strips_exactly_one_trailing_newline(
 
     with (
         patch(
-            "sase.core.agent_output_variables."
+            "sase.core.agent_meta_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         pytest.raises(SystemExit) as exc,
@@ -143,7 +143,7 @@ def test_var_set_value_file_reads_stdin(
 
     with (
         patch(
-            "sase.core.agent_output_variables."
+            "sase.core.agent_meta_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         pytest.raises(SystemExit) as exc,
@@ -184,7 +184,7 @@ def test_var_set_json_assignment_and_value_forms(
 
     with (
         patch(
-            "sase.core.agent_output_variables."
+            "sase.core.agent_meta_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         pytest.raises(SystemExit) as exc,
@@ -205,7 +205,7 @@ def test_var_set_json_value_file_preserves_json_whitespace(
 
     with (
         patch(
-            "sase.core.agent_output_variables."
+            "sase.core.agent_meta_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         pytest.raises(SystemExit) as exc,
@@ -235,7 +235,7 @@ def test_var_set_json_assignment_uses_structural_not_document_string_cap(
 
     with (
         patch(
-            "sase.core.agent_output_variables."
+            "sase.core.agent_meta_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         pytest.raises(SystemExit) as exc,
@@ -255,7 +255,7 @@ def test_var_set_json_value_file_reads_stdin(
 
     with (
         patch(
-            "sase.core.agent_output_variables."
+            "sase.core.agent_meta_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         pytest.raises(SystemExit) as exc,

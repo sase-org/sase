@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.core.created_epics import created_epic_ids_from_meta
 from sase.core.output_variable_values import coerce_var_map
 from sase.plan_chain import (
     agent_session_parallel_value,
@@ -170,6 +171,9 @@ def enrich_agent_from_meta(
     raw_phase_bead_id = data.get("phase_bead_id")
     if isinstance(raw_phase_bead_id, str) and raw_phase_bead_id:
         agent.phase_bead_id = raw_phase_bead_id
+    created_epic_ids = created_epic_ids_from_meta(data)
+    if created_epic_ids and not agent.created_epic_ids:
+        agent.created_epic_ids = tuple(created_epic_ids)
     if "linked_repos" in data:
         agent.linked_repos = parse_linked_repos(data.get("linked_repos"))
     commit_diff_path = data.get("commit_diff_path")

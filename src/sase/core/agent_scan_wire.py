@@ -101,6 +101,7 @@ from sase.core.agent_scan_wire_agent_session_turn import (
 )
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
+    CreatedEpicWire,
     DoneMarkerWire,
     FinalizerStatusInstanceWire,
     FinalizerStatusRunnerWire,
@@ -113,6 +114,7 @@ from sase.core.agent_scan_wire_markers import (
     WaitingMarkerWire,
     WorkflowStateWire,
     WorkflowStepStateWire,
+    created_epics_from_value,
     finalizer_status_from_mapping,
 )
 from sase.core.agent_scan_wire_records import (
@@ -162,6 +164,7 @@ __all__ = [
     "AgentArtifactScanWire",
     "AgentClanContextWire",
     "AgentMetaWire",
+    "CreatedEpicWire",
     "DoneMarkerWire",
     "FinalizerStatusInstanceWire",
     "FinalizerStatusRunnerWire",
@@ -191,4 +194,5 @@ __all__ = [
     "agent_scan_wire_to_json_dict",
     "agent_session_turn_from_mapping",
     "agent_session_turn_from_mapping",
+    "created_epics_from_value",
 ]

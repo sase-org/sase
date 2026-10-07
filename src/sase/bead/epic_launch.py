@@ -418,33 +418,27 @@ def _update_epic_launch_metadata(
     epic_id: str,
     sdd_plan_path: str,
 ) -> None:
-    """Best-effort back-fill of planner metadata after a host launch."""
+    """Best-effort back-fill of planner metadata after a host launch.
+
+    Worker rows (a ``phase_bead_id`` or ``epic_plan_ref`` is present) keep
+    their inherited ``epic_bead_id``: it names the epic they belong to, not
+    one they launched. A child epic a worker launched is recorded in its
+    ``created_epics`` list instead.
+    """
     if artifacts_dir is None:
         return
-    artifacts_path = Path(artifacts_dir).expanduser()
-    meta_path = artifacts_path / "agent_meta.json"
     try:
-        data = json.loads(meta_path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            data = {}
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        data = {}
-    data.update(
-        {
-            "epic_bead_id": epic_id,
-            "epic_started_at": datetime.now(UTC).isoformat(),
-            "plan_committed": True,
-            "sdd_plan_path": sdd_plan_path,
-        }
-    )
-    canonicalize_agent_tribe_metadata(data)
-    try:
-        meta_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-        from sase.core.agent_artifact_index_lifecycle import (
-            update_agent_artifact_index_for_marker_mutation,
-        )
+        from sase.core.agent_meta_update import update_agent_meta_locked
 
-        update_agent_artifact_index_for_marker_mutation(artifacts_path)
+        def _backfill(meta: dict[str, Any]) -> None:
+            if not meta.get("phase_bead_id") and not meta.get("epic_plan_ref"):
+                meta["epic_bead_id"] = epic_id
+            meta["epic_started_at"] = datetime.now(UTC).isoformat()
+            meta["plan_committed"] = True
+            meta["sdd_plan_path"] = sdd_plan_path
+            canonicalize_agent_tribe_metadata(meta)
+
+        update_agent_meta_locked(artifacts_dir, _backfill)
     except Exception:
         return
 

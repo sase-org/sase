@@ -21,8 +21,7 @@ def test_update_epic_launch_metadata_backfills_all_host_fields(
     meta_path.write_text('{"name": "planner"}\n', encoding="utf-8")
 
     with patch(
-        "sase.core.agent_artifact_index_lifecycle."
-        "update_agent_artifact_index_for_marker_mutation"
+        "sase.core.agent_meta_update.update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
         _update_epic_launch_metadata(
             artifacts,

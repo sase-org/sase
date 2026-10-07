@@ -65,6 +65,8 @@ def work_from_plan_file_locked(
     timer: LaunchTimingRecorder,
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
+    creator_artifacts_dir: Path | str | None = None,
+    creator_via: str | None = None,
 ) -> PlanFileWorkResult:
     """Run one mutation transaction while its store launch lock is held."""
     from sase.bead.cli_work_handler import preload_launch_imports
@@ -187,6 +189,8 @@ def work_from_plan_file_locked(
                 timer=timer,
                 extra_waits=extra_waits,
                 capacity=capacity,
+                creator_artifacts_dir=creator_artifacts_dir,
+                creator_via=creator_via,
             )
         stale_epic_id = linked_epic_id
         if render:
@@ -349,6 +353,16 @@ def work_from_plan_file_locked(
                 except Exception as rollback_exc:
                     detail += f"; rollback publication also failed: {rollback_exc}"
             elif exc.graph_published and exc.state_preserved:
+                if attempted_epic_ids:
+                    _record_created_epic(
+                        creator_artifacts_dir,
+                        creator_via,
+                        epic_id=attempted_epic_ids[-1],
+                        store=store,
+                        bead_context=bead_context,
+                        workspace_dir=workspace_dir,
+                        plan_ref=plan_ref,
+                    )
                 hooks.push_store_after_launch(
                     store,
                     no_push=no_push,
@@ -363,6 +377,15 @@ def work_from_plan_file_locked(
         ) from exc
 
     assert created is not None
+    _record_created_epic(
+        creator_artifacts_dir,
+        creator_via,
+        epic_id=created.epic.id,
+        store=store,
+        bead_context=bead_context,
+        workspace_dir=workspace_dir,
+        plan_ref=plan_ref,
+    )
     hooks.push_store_after_launch(
         store,
         no_push=no_push,
@@ -408,7 +431,11 @@ def resume_linked_epic(
     timer: LaunchTimingRecorder,
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
+    creator_artifacts_dir: Path | str | None = None,
+    creator_via: str | None = None,
 ) -> PlanFileWorkResult:
+    from sase.sdd.plan_refs import plan_ref_for_store
+
     return _resume_linked_epic_impl(
         location,
         store=store,
@@ -429,6 +456,58 @@ def resume_linked_epic(
         bead_context=bead_context,
         write_and_commit_plan_file=hooks.write_and_commit_plan_file,
         workspace_dir=workspace_dir,
+        creator_artifacts_dir=creator_artifacts_dir,
+        creator_via=creator_via,
+        creator_project=_creator_entry_project(store, bead_context, workspace_dir),
+        creator_plan_ref=plan_ref_for_store(
+            archived_path,
+            store,
+            workspace_dir=workspace_dir,
+        ),
+    )
+
+
+def _creator_entry_project(
+    store: SddStore,
+    bead_context: BeadOperationContext | None,
+    workspace_dir: Path,
+) -> str | None:
+    """Return the best-effort project identity for a created-epic entry."""
+    for candidate in (
+        getattr(bead_context, "project_key", None),
+        getattr(store, "project_key", None),
+    ):
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    try:
+        from sase.bead.epic_launch import resolve_epic_launch_project
+
+        return resolve_epic_launch_project(workspace_dir)
+    except Exception:
+        return None
+
+
+def _record_created_epic(
+    creator_artifacts_dir: Path | str | None,
+    creator_via: str | None,
+    *,
+    epic_id: str,
+    store: SddStore,
+    bead_context: BeadOperationContext | None,
+    workspace_dir: Path,
+    plan_ref: str | None,
+) -> None:
+    """Best-effort authoritative record of one created epic; never raises."""
+    if creator_artifacts_dir is None:
+        return
+    from sase.core.created_epics import HOST_LAUNCH_VIA, record_created_epic
+
+    record_created_epic(
+        creator_artifacts_dir,
+        bead_id=epic_id,
+        project=_creator_entry_project(store, bead_context, workspace_dir),
+        plan_ref=plan_ref,
+        via=creator_via or HOST_LAUNCH_VIA,
     )
 
 

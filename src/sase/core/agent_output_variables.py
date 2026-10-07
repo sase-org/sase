@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-import fcntl
-import json
-import os
 import re
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_meta_update import update_agent_meta_locked
 from sase.core.artifact_file_helpers import read_json_object
-from sase.core.agent_artifact_index_lifecycle import (
-    update_agent_artifact_index_for_marker_mutation,
-)
 from sase.core.output_variable_values import (
     MAX_OUTPUT_VARIABLES,
     MAX_OUTPUT_VARIABLE_VALUE_BYTES,
@@ -57,17 +51,12 @@ def set_agent_output_variables(
     variables: Mapping[str, VarValue],
 ) -> dict[str, VarValue]:
     """Merge output variables into ``agent_meta.json`` and return the stored map."""
-    artifacts_path = Path(artifacts_dir).expanduser()
-    if not artifacts_path.is_dir():
-        raise ValueError(f"agent artifacts directory not found: {artifacts_path}")
     normalized: dict[str, VarValue] = {}
     for key, value in variables.items():
         _validate_output_variable_key(key)
         normalized[key] = normalize_var_value(key, value)
 
-    meta_path = artifacts_path / "agent_meta.json"
-    with _locked_agent_meta(meta_path):
-        meta = read_json_object(meta_path)
+    def _merge(meta: dict[str, Any]) -> dict[str, VarValue]:
         merged = {**coerce_var_map(meta.get(_OUTPUT_VARIABLES_FIELD))}
         merged.update(normalized)
         if len(merged) > MAX_OUTPUT_VARIABLES:
@@ -76,10 +65,9 @@ def set_agent_output_variables(
                 f"limit is {MAX_OUTPUT_VARIABLES}"
             )
         meta[_OUTPUT_VARIABLES_FIELD] = merged
-        _write_json_object_atomic(meta_path, meta)
+        return merged
 
-    update_agent_artifact_index_for_marker_mutation(artifacts_path)
-    return merged
+    return update_agent_meta_locked(artifacts_dir, _merge)
 
 
 def _validate_output_variable_key(key: str) -> None:
@@ -92,26 +80,6 @@ def _validate_output_variable_key(key: str) -> None:
             "output variable key must be a valid Jinja attribute identifier "
             f"([A-Za-z_][A-Za-z0-9_]*): {key}"
         )
-
-
-@contextmanager
-def _locked_agent_meta(meta_path: Path) -> Iterator[None]:
-    lock_path = meta_path.with_name(f".{meta_path.name}.lock")
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
-
-def _write_json_object_atomic(path: Path, payload: dict[str, Any]) -> None:
-    tmp_path = path.with_name(f".{path.name}.tmp.{os.getpid()}")
-    with tmp_path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
-        handle.write("\n")
-    os.replace(tmp_path, path)
 
 
 __all__ = [

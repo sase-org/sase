@@ -26,6 +26,11 @@ class AgentStatePlanFields:
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None
 
+    # Authoritative epics this run launched (`created_epics` record).
+    # Preferred over the legacy ``epic_bead_id`` back-fill by readers that
+    # mean "the epic this run launched".
+    created_epic_ids: tuple[str, ...] = ()
+
     # Bug URL for agents with associated bug IDs
     bug: str | None = None
 

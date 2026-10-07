@@ -236,6 +236,8 @@ def from_bundle_dict(
             value = finalizer_status_from_mapping(value)
         elif f.name == "runner_capacity_blockers" and isinstance(value, list):
             value = tuple(item for item in value if isinstance(item, dict))
+        elif f.name == "created_epic_ids" and isinstance(value, list):
+            value = tuple(item for item in value if isinstance(item, str))
         elif f.name == "feedback_plan_paths" and isinstance(value, dict):
             parsed_paths: dict[datetime, str] = {}
             for k, v in value.items():

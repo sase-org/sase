@@ -106,6 +106,10 @@ def enrich_agent_from_meta_wire(
         agent.epic_bead_id = meta.epic_bead_id
     if meta.phase_bead_id:
         agent.phase_bead_id = meta.phase_bead_id
+    if meta.created_epics:
+        agent.created_epic_ids = tuple(
+            entry.bead_id for entry in meta.created_epics if entry.bead_id
+        )
     if agent.record_shape != "list":
         agent.linked_repos = parse_linked_repos(meta.linked_repos)
     if not agent.diff_path and meta.commit_diff_path:

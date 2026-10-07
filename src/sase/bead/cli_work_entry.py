@@ -94,6 +94,7 @@ def _handle_bead_work_locked(
         work_from_plan_file,
     )
     from sase.bead.epic_launch import finish_epic_launch
+    from sase.core.created_epics import resolve_creator_artifacts_dir
 
     if is_plan_file_target(target):
         if launch_feedback:
@@ -131,6 +132,9 @@ def _handle_bead_work_locked(
             target_count=target_count,
             correlation_id=correlation_id,
         )
+        creator_artifacts_dir, creator_via = resolve_creator_artifacts_dir(
+            artifacts_dir
+        )
         try:
             with timer, output_context:
                 result = work_from_plan_file(
@@ -145,6 +149,8 @@ def _handle_bead_work_locked(
                     timer=timer,
                     extra_waits=extra_waits,
                     capacity=capacity,
+                    creator_artifacts_dir=creator_artifacts_dir,
+                    creator_via=creator_via,
                 )
         except PlanFileWorkError as exc:
             finish_epic_launch(

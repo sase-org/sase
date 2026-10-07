@@ -171,6 +171,66 @@ def finalizer_status_from_mapping(
 
 
 @dataclass(frozen=True)
+class CreatedEpicWire:
+    """One entry of ``agent_meta.json``'s ``created_epics`` record.
+
+    Authoritative run → epic entry written by ``sase bead work`` when it
+    materializes an epic-tier plan bead on the run's behalf. ``via`` is
+    ``host_launch`` or ``agent_command``.
+    """
+
+    bead_id: str = ""
+    project: str | None = None
+    plan_ref: str | None = None
+    created_at: str | None = None
+    via: str | None = None
+
+
+def _created_epic_str(value: object) -> str | None:
+    """Return *value* as a stripped string, or None when not usable."""
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def created_epics_from_value(value: object) -> list[CreatedEpicWire]:
+    """Coerce a raw ``created_epics`` value leniently; never raises.
+
+    Entries without a string ``bead_id`` are dropped and unknown keys are
+    ignored, mirroring the Rust scanner's coercion.
+    """
+    if not isinstance(value, list):
+        return []
+    entries: list[CreatedEpicWire] = []
+    for item in value:
+        if isinstance(item, str):
+            bead_id = _created_epic_str(item)
+            if bead_id is not None:
+                entries.append(CreatedEpicWire(bead_id=bead_id))
+            continue
+        if isinstance(item, CreatedEpicWire):
+            if _created_epic_str(item.bead_id) is not None:
+                entries.append(item)
+            continue
+        if not isinstance(item, dict):
+            continue
+        bead_id = _created_epic_str(item.get("bead_id"))
+        if bead_id is None:
+            continue
+        entries.append(
+            CreatedEpicWire(
+                bead_id=bead_id,
+                project=_created_epic_str(item.get("project")),
+                plan_ref=_created_epic_str(item.get("plan_ref")),
+                created_at=_created_epic_str(item.get("created_at")),
+                via=_created_epic_str(item.get("via")),
+            )
+        )
+    return entries
+
+
+@dataclass(frozen=True)
 class DoneMarkerWire:
     """Compact projection of ``done.json`` (one per finished agent).
 
@@ -394,6 +454,10 @@ class AgentMetaWire:
     # existing scan payloads keep their key order; None serializes through
     # the facade but the Rust wire omits it so payloads stay byte-stable.
     finalizer_status: FinalizerStatusSummaryWire | None = None
+    # Authoritative epics this run launched (`sase bead work` record phase).
+    # Trailing for the same key-order stability; additive serde-default, so
+    # no schema bump is needed.
+    created_epics: list[CreatedEpicWire] = field(default_factory=list)
 
     @property
     def agent_session_shell(self) -> AgentSessionTurnWire | None:
@@ -573,6 +637,7 @@ class UsedMacroWire:
 
 __all__ = [
     "AgentMetaWire",
+    "CreatedEpicWire",
     "DoneMarkerWire",
     "FinalizerStatusInstanceWire",
     "FinalizerStatusRunnerWire",
@@ -585,5 +650,6 @@ __all__ = [
     "WaitingMarkerWire",
     "WorkflowStateWire",
     "WorkflowStepStateWire",
+    "created_epics_from_value",
     "finalizer_status_from_mapping",
 ]

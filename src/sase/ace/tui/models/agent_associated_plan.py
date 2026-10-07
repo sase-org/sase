@@ -20,6 +20,7 @@ from sase.agent.bead_display import (
 from sase.bead.flag_fields import flag_fields, is_flag_bead
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead_type_presentation import BeadTypeValue
+from sase.core.created_epics import launched_epic_bead_id
 from sase.phase_size_presentation import normalize_phase_size
 from sase.sdd.plan_validate import validate_plan
 
@@ -74,6 +75,7 @@ def associated_plan_cache_key(agent: Agent) -> tuple[object, ...]:
         agent.plan_committed,
         agent.plan_action,
         agent.epic_bead_id,
+        agent.created_epic_ids,
         agent.phase_bead_id,
         agent.agent_session_role,
         agent.agent_name,
@@ -537,9 +539,13 @@ def _lookup_issue(
 
 
 def _agent_bead_id(agent: Agent) -> str | None:
+    # The epic slot means "the epic this run launched": prefer the
+    # authoritative `created_epics` record over the legacy back-fill, so a
+    # phase worker that delegated still resolves its child epic here while
+    # its inherited `epic_bead_id` keeps naming the epic it belongs to.
     return (
         agent.phase_bead_id
-        or agent.epic_bead_id
+        or launched_epic_bead_id(agent)
         or derive_agent_bead_id_from_name(
             agent.presented_agent_name or agent.agent_name
         )

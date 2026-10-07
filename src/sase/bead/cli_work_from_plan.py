@@ -70,6 +70,8 @@ def work_from_plan_file(
     timer: LaunchTimingRecorder | None = None,
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
+    creator_artifacts_dir: Path | str | None = None,
+    creator_via: str | None = None,
 ) -> _PlanFileWorkResult:
     """Validate, archive, materialize, link, and launch one epic plan."""
     if timer is None:
@@ -89,6 +91,8 @@ def work_from_plan_file(
                 timer=owned_timer,
                 extra_waits=extra_waits,
                 capacity=capacity,
+                creator_artifacts_dir=creator_artifacts_dir,
+                creator_via=creator_via,
             )
 
     from sase.sdd.plan_archive import plan_archive_destination
@@ -288,6 +292,8 @@ def work_from_plan_file(
             timer=timer,
             extra_waits=extra_waits,
             capacity=capacity,
+            creator_artifacts_dir=creator_artifacts_dir,
+            creator_via=creator_via,
         )
 
 
@@ -324,6 +330,8 @@ def _work_from_plan_file_locked(
     timer: LaunchTimingRecorder,
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
+    creator_artifacts_dir: Path | str | None = None,
+    creator_via: str | None = None,
 ) -> _PlanFileWorkResult:
     return _work_from_plan_file_locked_impl(
         hooks=_launch_hooks(),
@@ -346,6 +354,8 @@ def _work_from_plan_file_locked(
         timer=timer,
         extra_waits=extra_waits,
         capacity=capacity,
+        creator_artifacts_dir=creator_artifacts_dir,
+        creator_via=creator_via,
     )
 
 

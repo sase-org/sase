@@ -26,6 +26,7 @@ from sase.core.agent_scan_wire_markers import (
     WaitingMarkerWire,
     WorkflowStateWire,
     WorkflowStepStateWire,
+    created_epics_from_value,
     finalizer_status_from_mapping,
 )
 from sase.core.agent_scan_wire_records import (
@@ -440,6 +441,7 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     kwargs["finalizer_status"] = finalizer_status_from_mapping(
         payload.get("finalizer_status")
     )
+    kwargs["created_epics"] = created_epics_from_value(payload.get("created_epics"))
     return AgentMetaWire(**kwargs)
 
 

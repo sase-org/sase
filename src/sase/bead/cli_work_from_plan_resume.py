@@ -86,6 +86,10 @@ def resume_linked_epic(
     bead_context: BeadOperationContext | None = None,
     write_and_commit_plan_file: _WriteAndCommitPlanFile | None = None,
     workspace_dir: Path | None = None,
+    creator_artifacts_dir: Path | str | None = None,
+    creator_via: str | None = None,
+    creator_project: str | None = None,
+    creator_plan_ref: str | None = None,
 ) -> PlanFileWorkResult:
     from sase.bead.cli_work_handler import (
         BeadWorkError,
@@ -206,6 +210,16 @@ def resume_linked_epic(
             store,
             no_push=no_push,
             archived_plan_path=archived_path,
+        )
+    if creator_artifacts_dir is not None:
+        from sase.core.created_epics import HOST_LAUNCH_VIA, record_created_epic
+
+        record_created_epic(
+            creator_artifacts_dir,
+            bead_id=epic_id,
+            project=creator_project,
+            plan_ref=creator_plan_ref,
+            via=creator_via or HOST_LAUNCH_VIA,
         )
     result = PlanFileWorkResult(
         archived_plan_path=archived_path,
