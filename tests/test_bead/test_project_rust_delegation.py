@@ -38,7 +38,7 @@ def test_bead_project_show_delegates_to_rust_read(tmp_path: Path, monkeypatch) -
         resolve_calls = _stub_resolve_id(project, monkeypatch)
 
         assert project.show("delegated-1") is expected
-        assert resolve_calls == ["delegated-1"]
+        assert resolve_calls == []
         assert calls == [(project.beads_dir, "delegated-1")]
 
 
@@ -299,7 +299,7 @@ def test_bead_project_remove_many_delegates_and_refreshes_once(
         resolve_calls = _stub_resolve_id(project, monkeypatch)
 
         assert project.remove_many(["delegated-1", "delegated-2"]) == removed
-        assert resolve_calls == ["delegated-1", "delegated-2"]
+        assert resolve_calls == []
         assert calls == [(project.beads_dir, ["delegated-1", "delegated-2"])]
         assert refreshes == [True]
 
@@ -332,12 +332,7 @@ def test_bead_project_update_many_delegates_and_refreshes_once(
         )
 
         assert result == updated
-        assert resolve_calls == [
-            "delegated-1",
-            "delegated-2",
-            "delegated-1",
-            "delegated-2",
-        ]
+        assert resolve_calls == []
         assert len(calls) == 1
         assert calls[0]["beads_dir"] == project.beads_dir
         assert calls[0]["issue_ids"] == ["delegated-1", "delegated-2"]
@@ -368,7 +363,7 @@ def test_bead_project_show_returns_issue_with_model(
         result = project.show("delegated-1")
         assert result is not None
         assert result.model == "codex/gpt-5.5"
-        assert resolve_calls == ["delegated-1"]
+        assert resolve_calls == []
         assert calls == [(project.beads_dir, "delegated-1")]
 
 

@@ -15,13 +15,14 @@ from sase.bead.cli_location import (
 from sase.bead.cross_project import (
     BeadStoreSnapshot,
     enabled_project_store_snapshots,
+    route_bead_target_via_probe,
 )
 from sase.bead.project import BEADS_DIRNAME
 from sase.bead.store_locator import open_bead_project_for_beads_dir
 from sase.core.bead_target_routing_facade import (
     BeadTargetRoute,
     BeadTargetStoreDescriptor,
-    route_bead_targets,
+    multiple_stores_batch_error,
 )
 
 
@@ -31,7 +32,14 @@ class BeadOperationRoutingError(RuntimeError):
 
 @dataclass(frozen=True)
 class _RoutedBeadTarget:
-    """One caller-supplied target resolved to a canonical bead ID and owner."""
+    """One caller-supplied target routed to its owning store.
+
+    ``resolved_id`` carries the requested ID forward (canonical for full
+    IDs, raw for shorthand): routing no longer resolves. The operation's
+    own locked load stays the authority for existence and ambiguity, so
+    callers must pass these IDs into the mutation or read that performs
+    the single store read instead of pre-resolving them.
+    """
 
     requested_id: str
     resolved_id: str
@@ -271,15 +279,14 @@ def _descriptor_for_location(
     *,
     project_key: str | None,
 ) -> BeadTargetStoreDescriptor | None:
+    # One-replay routing: building the descriptor never reads the store.
+    # Ownership comes from the filesystem probe (prefix plus lineage
+    # stems); ``issue_prefix`` is a config-file read, not a replay.
     if location is None:
         return None
-    issue_ids: set[str] = set()
     unavailable_reason: str | None = None
-    try:
-        with open_bead_project_for_beads_dir(location.beads_dir) as project:
-            issue_ids = {issue.id for issue in project.list_issues()}
-    except (OSError, RuntimeError, ValueError) as exc:
-        unavailable_reason = str(exc) or "not readable"
+    if not location.beads_dir.is_dir():
+        unavailable_reason = "not readable"
     return BeadTargetStoreDescriptor(
         store_key=_store_key(location.beads_dir),
         project_key=project_key,
@@ -288,7 +295,7 @@ def _descriptor_for_location(
         beads_dir=location.beads_dir,
         issue_prefix=_stored_issue_prefix(location.beads_dir),
         project_refs=() if project_key is None else (project_key,),
-        issue_ids=tuple(sorted(issue_ids)),
+        issue_ids=(),
         unavailable_reason=unavailable_reason,
     )
 
@@ -309,45 +316,55 @@ def _route_targets_local_first(
     local_descriptor: BeadTargetStoreDescriptor | None,
     require_single_store: bool,
 ) -> tuple[tuple[BeadTargetRoute, ...], Any | None]:
-    local_outcome = route_bead_targets(
-        list(targets),
-        local_store=local_descriptor,
-        candidate_stores=(),
-        require_single_store=require_single_store,
-    )
-    if local_outcome.batch_error is not None:
-        return local_outcome.routes, local_outcome.batch_error
+    # One-replay routing: no store is read here. Shorthand targets stay
+    # local by definition; full IDs probe lineage stems, consulting the
+    # enabled-project registry only when the local probe misses.
+    snapshots: tuple[BeadStoreSnapshot, ...] | None = None
+    routes: list[BeadTargetRoute] = []
+    for target in targets:
+        if _looks_like_full_bead_id(target) and not _local_probe_hit(
+            local_descriptor, target
+        ):
+            if snapshots is None:
+                snapshots = _candidate_snapshots_for_targets(local_descriptor)
+        routes.append(
+            route_bead_target_via_probe(
+                target,
+                local_store=local_descriptor,
+                candidates=(
+                    []
+                    if snapshots is None
+                    else [snapshot.descriptor() for snapshot in snapshots]
+                ),
+            )
+        )
+    if require_single_store:
+        batch_error = multiple_stores_batch_error(routes)
+        if batch_error is not None:
+            return tuple(routes), batch_error
+    return tuple(routes), None
 
-    fallback_indexes = tuple(
-        index
-        for index, route in enumerate(local_outcome.routes)
-        if _looks_like_full_bead_id(route.requested_id)
-        and route.error is not None
-        and route.error.kind == "not_found"
-    )
-    if not fallback_indexes:
-        return local_outcome.routes, None
 
-    snapshots = _candidate_snapshots_for_targets(local_descriptor)
-    if not snapshots:
-        return local_outcome.routes, None
+def _local_probe_hit(
+    local_descriptor: BeadTargetStoreDescriptor | None,
+    target: str,
+) -> bool:
+    """Report whether the local store's lineage stems own a full ID.
 
-    fallback_targets = [
-        local_outcome.routes[index].requested_id for index in fallback_indexes
-    ]
-    fallback_outcome = route_bead_targets(
-        fallback_targets,
-        local_store=local_descriptor,
-        candidate_stores=[snapshot.descriptor() for snapshot in snapshots],
-        require_single_store=require_single_store,
-    )
-    if fallback_outcome.batch_error is not None:
-        return fallback_outcome.routes, fallback_outcome.batch_error
+    Keeps the registry lookup lazy: a local hit never enumerates enabled
+    projects. Unknown layouts fall through to the registry path, which
+    applies the legacy ID-list fallback for them.
+    """
+    if (
+        local_descriptor is None
+        or local_descriptor.unavailable_reason is not None
+        or local_descriptor.beads_dir is None
+    ):
+        return False
+    from sase.bead.cross_project import probe_bead_target_owner
 
-    combined_routes = list(local_outcome.routes)
-    for index, route in zip(fallback_indexes, fallback_outcome.routes, strict=True):
-        combined_routes[index] = route
-    return tuple(combined_routes), None
+    status, _stem = probe_bead_target_owner(local_descriptor.beads_dir, target)
+    return status == "hit"
 
 
 def _location_for_store_route(

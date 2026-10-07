@@ -3,7 +3,7 @@
 Both flag states run against a temporary bead store. The flag-on tests cover
 close/+1/update notes with inline references, per-bead update composition with
 a single shared ingest, multi-file attach failures, stdin attach, and the +1
-fast-path rule. The flag-off tests pin today's behavior plus the attach
+slow-path rule. The flag-off tests pin today's behavior plus the attach
 enable hint.
 """
 
@@ -334,10 +334,32 @@ def test_fast_path_plus_one_with_embedded_at_stays_in_python() -> None:
         execute.assert_not_called()
 
 
-def test_fast_path_plus_one_without_at_keeps_fast_path() -> None:
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["note", "sase-1", "plain evidence"],
+        ["+1", "sase-1", "-n", "plain evidence"],
+        ["snooze", "sase-1", "--until", "2026-02-01T00:00:00Z"],
+        ["doctor"],
+        ["attach", "sase-1", "shot.png"],
+    ],
+)
+def test_fast_path_always_deferred_verbs_stay_in_python(argv: list[str]) -> None:
+    # Verbs with no arm in the Rust dispatcher must skip context
+    # resolution and the FFI round trip entirely.
+    from sase.main import bead_fast_path
+
+    with patch.object(bead_fast_path, "execute_bead_cli") as execute:
+        assert bead_fast_path.try_handle_bead_fast_path(argv) is None
+        execute.assert_not_called()
+
+
+def test_fast_path_plus_one_without_at_stays_in_python() -> None:
+    # One-replay: the Rust dispatcher has no +1 arm, so the fast path must
+    # not resolve a context and call across the FFI just to defer.
     from sase.main import bead_fast_path
 
     argv = ["+1", "sase-1", "-n", "plain evidence"]
-    with patch.object(bead_fast_path, "execute_bead_cli", return_value=7) as execute:
-        assert bead_fast_path.try_handle_bead_fast_path(argv) == 7
-        execute.assert_called_once()
+    with patch.object(bead_fast_path, "execute_bead_cli") as execute:
+        assert bead_fast_path.try_handle_bead_fast_path(argv) is None
+        execute.assert_not_called()

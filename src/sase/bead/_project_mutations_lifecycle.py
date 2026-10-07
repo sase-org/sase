@@ -19,10 +19,6 @@ class BeadProjectMutationLifecycleMixin:
     _record_mutation_outcome: Callable[[dict[str, object]], None]
     _refresh_db_from_jsonl: Callable[[], None]
 
-    if TYPE_CHECKING:
-
-        def resolve_id(self, issue_id: str) -> str: ...
-
     def close(
         self,
         issue_ids: list[str],
@@ -43,7 +39,8 @@ class BeadProjectMutationLifecycleMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        issue_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
+        # Raw IDs pass straight into the close binding, which resolves
+        # them inside its locked load.
         closed, outcome = rust_beads.close(
             self.beads_dir,
             issue_ids,
@@ -64,7 +61,6 @@ class BeadProjectMutationLifecycleMixin:
         from sase.core import bead_mutation_facade as rust_beads
         from sase.core.bead_wire import issues_from_list
 
-        issue_id = self.resolve_id(issue_id)
         issue, outcome = rust_beads.open_issue(
             self.beads_dir,
             issue_id,
@@ -97,7 +93,6 @@ class BeadProjectMutationLifecycleMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        issue_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
         removed, outcome = rust_beads.remove_many(self.beads_dir, issue_ids)
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
@@ -111,7 +106,6 @@ class BeadProjectMutationLifecycleMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        epic_id = self.resolve_id(epic_id)
         updated, outcome = rust_beads.mark_ready_to_work(
             self.beads_dir, epic_id, now=self._current_time()
         )
@@ -131,7 +125,6 @@ class BeadProjectMutationLifecycleMixin:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        epic_id = self.resolve_id(epic_id)
         updated, outcome = rust_beads.unmark_ready_to_work(
             self.beads_dir, epic_id, now=self._current_time()
         )

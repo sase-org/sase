@@ -86,31 +86,24 @@ def handle_bead_dep(args: argparse.Namespace) -> None:
                     ],
                 )
             )
-            issues = mutation.project.list_issues()
-            status_by_id = {issue.id: issue.status for issue in issues}
-            source = next(issue for issue in issues if issue.id == issue_id)
-            active_blockers = [
-                dependency.depends_on_id
-                for dependency in source.dependencies
-                if status_by_id.get(dependency.depends_on_id) in ACTIVE_STATUSES
-            ]
-            ready_ids = {issue.id for issue in mutation.project.ready()}
+            outcome = mutation.project.last_mutation_outcome
+            display_id, active_blockers = _dep_rm_post_state(outcome, issue_id)
         for dependency in removed:
             print(
                 "✗ Removed dependency: "
                 f"{dependency.issue_id} no longer depends on "
                 f"{dependency.depends_on_id}"
             )
-        if issue_id in ready_ids:
-            print(f"○ {issue_id} is now ready (no active blockers).")
+        if not active_blockers and _dep_rm_source_is_ready(outcome):
+            print(f"○ {display_id} is now ready (no active blockers).")
         elif active_blockers:
             blocker_word = "blocker" if len(active_blockers) == 1 else "blockers"
             print(
-                f"○ {issue_id} still has {len(active_blockers)} active "
+                f"○ {display_id} still has {len(active_blockers)} active "
                 f"{blocker_word}: {', '.join(active_blockers)}."
             )
         else:
-            print(f"○ {issue_id} has no active blockers.")
+            print(f"○ {display_id} has no active blockers.")
     elif args.dep_action == "list":
         handle_bead_dep_list(args)
     elif args.dep_action == "tree":
@@ -204,46 +197,101 @@ def _is_full_bead_id(value: str) -> bool:
     return bead_id_prefix(value) is not None
 
 
+def _dep_rm_post_state(
+    outcome: dict[str, Any],
+    raw_issue_id: str,
+) -> tuple[str, list[str]]:
+    """Read dep-rm display state from the mutation outcome without re-reading.
+
+    Returns the canonical source ID plus its post-removal active blockers,
+    both carried by the outcome since the in-mutation resolution.
+    """
+    from sase.core.bead_wire import issue_from_dict
+
+    display_id = raw_issue_id
+    payload = outcome.get("issue")
+    if isinstance(payload, dict):
+        try:
+            display_id = issue_from_dict(payload).id
+        except (KeyError, TypeError, ValueError):
+            pass
+    blockers = outcome.get("active_blocker_ids")
+    active_blockers = (
+        [str(value) for value in blockers] if isinstance(blockers, list) else []
+    )
+    return display_id, active_blockers
+
+
+def _dep_rm_source_is_ready(outcome: dict[str, Any]) -> bool:
+    """Mirror the ready-list membership check from the dep-rm outcome.
+
+    The core ready list holds task beads with ready status and no active
+    blocker; the outcome carries the post-mutation source issue, and the
+    caller already established there are no active blockers.
+    """
+    from sase.bead.model import IssueType, Status
+    from sase.core.bead_wire import issue_from_dict
+
+    payload = outcome.get("issue")
+    if not isinstance(payload, dict):
+        return False
+    try:
+        source = issue_from_dict(payload)
+    except (KeyError, TypeError, ValueError):
+        return False
+    return source.status is Status.READY and source.issue_type is IssueType.TASK
+
+
 def _resolve_dependency_removal_targets(
     raw_ids: Sequence[str],
     bead_context: BeadOperationContext,
 ) -> list[str]:
+    # Raw IDs pass into the mutation, which resolves them in its locked
+    # load. Only the same-store guard needs routing: shorthand targets
+    # stay in the issue's store by definition, and full IDs probe it.
     resolved_ids: list[str] = []
-    with _read_view(bead_context) as view:
-        resolve_id = getattr(view, "resolve_id", None)
-        for raw_id in raw_ids:
-            if resolve_id is not None:
-                try:
-                    resolved_ids.append(resolve_id(raw_id))
-                    continue
-                except KeyError:
-                    pass
-                except ValueError as exc:
-                    print(f"Error: {exc}", file=sys.stderr)
-                    sys.exit(1)
-            if _is_full_bead_id(raw_id):
-                try:
-                    routed = resolve_bead_operation_context(
-                        [raw_id],
-                        for_write=True,
-                        exit_on_error=False,
-                    )
-                except RuntimeError as exc:
-                    if not str(exc).startswith("issue not found: "):
-                        print(f"Error: {exc}", file=sys.stderr)
-                        sys.exit(1)
-                else:
-                    if _same_bead_store(routed, bead_context):
-                        resolved_ids.append(routed.resolved_ids[0])
-                        continue
-                    print(
-                        "Error: dependency target belongs to a different "
-                        f"bead store: {raw_id}",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
+    for raw_id in raw_ids:
+        if not _is_full_bead_id(raw_id):
             resolved_ids.append(raw_id)
+            continue
+        if _probe_hits_context_store(bead_context, raw_id):
+            resolved_ids.append(raw_id)
+            continue
+        try:
+            routed = resolve_bead_operation_context(
+                [raw_id],
+                for_write=True,
+                exit_on_error=False,
+            )
+        except RuntimeError as exc:
+            if not str(exc).startswith("issue not found: "):
+                print(f"Error: {exc}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            if _same_bead_store(routed, bead_context):
+                resolved_ids.append(raw_id)
+                continue
+            print(
+                f"Error: dependency target belongs to a different bead store: {raw_id}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        resolved_ids.append(raw_id)
     return resolved_ids
+
+
+def _probe_hits_context_store(
+    bead_context: BeadOperationContext,
+    raw_id: str,
+) -> bool:
+    """Probe whether a full ID's lineage stems live in the context store."""
+    from sase.bead.cross_project import probe_bead_target_owner
+
+    try:
+        status, _stem = probe_bead_target_owner(bead_context.beads_dir, raw_id)
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return status == "hit"
 
 
 def _same_bead_store(

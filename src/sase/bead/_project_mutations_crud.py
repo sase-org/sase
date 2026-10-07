@@ -30,7 +30,6 @@ class BeadProjectMutationCrudMixin:
     if TYPE_CHECKING:
 
         def show(self, issue_id: str) -> Issue: ...
-        def resolve_id(self, issue_id: str) -> str: ...
 
     def create(
         self,
@@ -65,9 +64,10 @@ class BeadProjectMutationCrudMixin:
         from sase.core import bead_mutation_facade as rust_beads
 
         self._last_prefix_repair = None
-        if parent_id is not None:
-            parent_id = self.resolve_id(parent_id)
-        else:
+        # The create binding resolves a raw parent ID inside its locked
+        # load (and reports a missing parent exactly as the old caller-side
+        # pre-resolve did), so no pre-read happens here.
+        if parent_id is None:
             self._repair_stale_key_prefix()
         issue, outcome = rust_beads.create(
             self.beads_dir,
@@ -98,7 +98,13 @@ class BeadProjectMutationCrudMixin:
         return issue
 
     def update(self, issue_id: str, **fields: Any) -> Issue:
-        """Update fields on an issue."""
+        """Update fields on an issue.
+
+        Raw IDs pass straight into the Rust mutation, which resolves them
+        inside its locked load. A pre-mutation read happens only when the
+        fields need the old issue (Python-side validation or a ``notes``
+        entry derived from current notes text).
+        """
         if "is_ready_to_work" in fields:
             raise ValueError(
                 "is_ready_to_work cannot be set via update(); "
@@ -106,15 +112,16 @@ class BeadProjectMutationCrudMixin:
             )
         from sase.core import bead_mutation_facade as rust_beads
 
-        issue_id = self.resolve_id(issue_id)
         notes_update = fields.pop("notes", None)
-        try:
-            old_issue: Issue | None = self.show(issue_id)
-        except KeyError:
-            old_issue = None
-        if old_issue is not None:
-            fields = _normalize_patch_fields(fields)
-            _validate_issue_update(old_issue, fields)
+        fields = _normalize_patch_fields(fields)
+        old_issue: Issue | None = None
+        if notes_update is not None or _fields_need_old_issue(fields):
+            try:
+                old_issue = self.show(issue_id)
+            except KeyError:
+                old_issue = None
+            if old_issue is not None:
+                _validate_issue_update(old_issue, fields)
         outcomes: list[dict[str, object]] = []
         now = self._current_time()
         if fields:
@@ -141,9 +148,12 @@ class BeadProjectMutationCrudMixin:
     def update_many(self, issue_ids: list[str], **fields: Any) -> list[Issue]:
         """Apply the same field changes to multiple issues in one mutation.
 
-        Every ID is resolved and validated against its pre-batch issue before
-        the atomic Rust-backed mutation runs, so an unknown ID or an invalid
-        field value leaves every named issue untouched.
+        Raw IDs pass straight into the Rust mutation, which resolves (and
+        dedupes after resolution) inside its locked load. Pre-batch reads
+        happen only when the fields need old issues: Python-side validation
+        or a ``notes`` entry derived from current notes text. Existence and
+        ambiguity stay authoritative in the mutation, so an unknown ID or
+        an invalid field value still leaves every named issue untouched.
         """
         if "is_ready_to_work" in fields:
             raise ValueError(
@@ -152,53 +162,95 @@ class BeadProjectMutationCrudMixin:
             )
         from sase.core import bead_mutation_facade as rust_beads
 
-        resolved_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
+        raw_ids = list(issue_ids)
         notes_update = fields.pop("notes", None)
         normalized_fields = _normalize_patch_fields(fields)
         old_issues: dict[str, Issue] = {}
-        for issue_id in resolved_ids:
-            try:
-                old_issue: Issue | None = self.show(issue_id)
-            except KeyError:
-                old_issue = None
-            if old_issue is not None:
-                old_issues[issue_id] = old_issue
-            if old_issue is not None:
+        if notes_update is not None or _fields_need_old_issue(normalized_fields):
+            for raw_id in dict.fromkeys(raw_ids):
+                try:
+                    old_issue: Issue | None = self.show(raw_id)
+                except KeyError:
+                    old_issue = None
+                if old_issue is not None:
+                    old_issues[raw_id] = old_issue
+            for raw_id, old_issue in old_issues.items():
                 _validate_issue_update(old_issue, normalized_fields)
         outcomes: list[dict[str, object]] = []
         now = self._current_time()
+        requested_ids = list(raw_ids)
         if normalized_fields:
             issues, outcome = rust_beads.update_many(
                 self.beads_dir,
-                resolved_ids,
+                raw_ids,
                 **normalized_fields,
                 now=now,
             )
             outcomes.append(outcome)
+            requested_ids = _outcome_requested_ids(outcome, raw_ids)
             issue_by_id = {issue.id: issue for issue in issues}
         else:
-            issue_by_id = {
-                issue_id: old_issues.get(issue_id, self.show(issue_id))
-                for issue_id in resolved_ids
-            }
+            issue_by_id = {}
+            requested_ids = []
+            for raw_id in raw_ids:
+                shown = (
+                    old_issues[raw_id] if raw_id in old_issues else self.show(raw_id)
+                )
+                requested_ids.append(shown.id)
+                issue_by_id[shown.id] = shown
         if notes_update is not None:
-            for issue_id in resolved_ids:
-                issue = issue_by_id[issue_id]
+            for raw_id, resolved_id in zip(raw_ids, requested_ids, strict=True):
+                issue = issue_by_id[resolved_id]
                 entry = _note_append_entry(issue.notes_text, notes_update)
                 if entry is None:
                     continue
                 issue, outcome = rust_beads.append_note(
                     self.beads_dir,
-                    issue_id,
+                    resolved_id,
                     entry,
                     now=now,
                 )
                 outcomes.append(outcome)
-                issue_by_id[issue_id] = issue
-        issues = [issue_by_id[issue_id] for issue_id in resolved_ids]
+                issue_by_id[resolved_id] = issue
+        issues = [issue_by_id[resolved_id] for resolved_id in requested_ids]
         self._record_mutation_outcome(combine_mutation_outcomes("update", outcomes))
         self._refresh_db_from_jsonl()
         return issues
+
+
+def _fields_need_old_issue(fields: dict[str, Any]) -> bool:
+    """Report whether update validation needs the pre-mutation issues.
+
+    Only task-type, flag-threshold, and patch-identity field updates
+    validate against the old issue; every other field updates without a
+    pre-read.
+    """
+    return any(
+        key in fields
+        for key in (
+            "task_type",
+            "task_type_fields",
+            "changespec_name",
+            "changespec_bug_id",
+        )
+    )
+
+
+def _outcome_requested_ids(
+    outcome: dict[str, object],
+    raw_ids: list[str],
+) -> list[str]:
+    """Map mutation inputs onto resolved IDs in request order.
+
+    The mutation resolves raw IDs inside its locked load and reports the
+    request-order resolution (with duplicates) in the outcome, so callers
+    align results without a second read. Falls back to the raw IDs when an
+    older core omits the field (full IDs are already canonical).
+    """
+    values = outcome.get("requested_issue_ids")
+    if isinstance(values, list) and len(values) == len(raw_ids):
+        return [str(value) for value in values]
+    return list(raw_ids)
 
 
 def _normalize_notes_text(value: object) -> str:

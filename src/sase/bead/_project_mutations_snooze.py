@@ -19,10 +19,6 @@ class BeadProjectMutationSnoozeMixin:
     _record_mutation_outcome: Callable[[dict[str, object]], None]
     _refresh_db_from_jsonl: Callable[[], None]
 
-    if TYPE_CHECKING:
-
-        def resolve_id(self, issue_id: str) -> str: ...
-
     def snooze(
         self,
         issue_id: str,
@@ -37,7 +33,7 @@ class BeadProjectMutationSnoozeMixin:
 
         issue, outcome = rust_beads.snooze(
             self.beads_dir,
-            self.resolve_id(issue_id),
+            issue_id,
             until=until,
             plus_ones=plus_ones,
             reason=reason,
@@ -54,7 +50,7 @@ class BeadProjectMutationSnoozeMixin:
 
         issue, outcome = rust_beads.cancel_snooze(
             self.beads_dir,
-            self.resolve_id(issue_id),
+            issue_id,
             actor=actor,
             now=self._current_time(),
         )

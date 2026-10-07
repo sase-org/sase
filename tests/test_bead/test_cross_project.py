@@ -275,3 +275,83 @@ def test_origin_for_project_ref_returns_none_for_unknown_ref(
     monkeypatch.setattr(cross_project, "list_project_records", lambda *a, **k: [])
 
     assert origin_for_project_ref("missing") is None
+
+
+def _seeded_store(root: Path) -> tuple[Path, str]:
+    from sase.bead.project import BeadProject
+
+    with BeadProject.init(root):
+        pass
+    with BeadProject(root) as project:
+        issue = project.create(
+            "Probe target", IssueType.TASK, task_type="bug", size="small"
+        )
+    return root / "sdd" / "beads", issue.id
+
+
+def test_probe_hits_tombstoned_stem_left_by_rm(tmp_path: Path) -> None:
+    """A removed bead's leftover stream file still routes to its store."""
+    from sase.bead.project import BeadProject
+
+    beads_dir, issue_id = _seeded_store(tmp_path / "owner")
+    with BeadProject(tmp_path / "owner") as project:
+        project.remove_many([issue_id])
+    assert (beads_dir / "events" / "streams" / f"{issue_id}.jsonl").is_file()
+
+    status, stem = cross_project.probe_bead_target_owner(beads_dir, issue_id)
+
+    assert status == "hit"
+    assert stem == issue_id
+
+
+def test_probe_hits_relocated_stem_without_resolvable_bead(tmp_path: Path) -> None:
+    """A stem file routes to its store even when the bead itself is gone."""
+    beads_dir, issue_id = _seeded_store(tmp_path / "owner")
+    prefix = issue_id.rsplit("-", 1)[0]
+    ghosts_id = f"{prefix}-999"
+    (beads_dir / "events" / "streams" / f"{ghosts_id}.jsonl").write_text(
+        "{}\n", encoding="utf-8"
+    )
+
+    status, stem = cross_project.probe_bead_target_owner(beads_dir, ghosts_id)
+
+    assert status == "hit"
+    assert stem == ghosts_id
+
+
+def test_probe_hits_phase_id_through_parent_stem(tmp_path: Path) -> None:
+    """A dotted phase ID probes its parent plan's stream file."""
+    from sase.bead.model import BeadTier
+    from sase.bead.project import BeadProject
+
+    root = tmp_path / "owner"
+    with BeadProject.init(root):
+        pass
+    with BeadProject(root) as project:
+        epic = project.create("Epic", IssueType.PLAN, tier=BeadTier.EPIC)
+        phase = project.create("Phase", IssueType.PHASE, parent_id=epic.id)
+    beads_dir = root / "sdd" / "beads"
+
+    status, stem = cross_project.probe_bead_target_owner(beads_dir, phase.id)
+
+    assert status == "hit"
+    assert stem == epic.id
+
+
+def test_probe_misses_unknown_id_and_shorthand(tmp_path: Path) -> None:
+    beads_dir, issue_id = _seeded_store(tmp_path / "owner")
+    prefix = issue_id.rsplit("-", 1)[0]
+    shorthand = issue_id.rsplit("-", 1)[1]
+
+    assert cross_project.probe_bead_target_owner(beads_dir, f"{prefix}-zz")[0] == "miss"
+    # Shorthand never routes away from the local store by definition.
+    assert cross_project.probe_bead_target_owner(beads_dir, shorthand)[0] == "miss"
+
+
+def test_probe_reports_unknown_for_legacy_layout(tmp_path: Path) -> None:
+    beads_dir = _store(tmp_path, "legacy", "bob-cli", "bob-cli-1e")
+
+    status, stem = cross_project.probe_bead_target_owner(beads_dir, "bob-cli-1e")
+
+    assert status == "unknown"
+    assert stem is None

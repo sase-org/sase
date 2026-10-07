@@ -55,6 +55,9 @@ def resolve_epic_phase_ids(
 ) -> list[str]:
     """Resolve phase number suffixes beneath one epic plan bead."""
     epic = project.show(epic_id)
+    # The show resolves raw IDs: normalize so child prefixes and error
+    # text always carry the canonical full epic ID.
+    epic_id = epic.id
     if epic.issue_type is not IssueType.PLAN or epic.tier is not BeadTier.EPIC:
         if epic.issue_type is not IssueType.PLAN:
             actual = epic.issue_type.value

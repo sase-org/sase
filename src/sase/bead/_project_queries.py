@@ -20,10 +20,14 @@ class BeadProjectQueryMixin:
     sync_is_clean: Callable[[], bool]
 
     def show(self, issue_id: str) -> Issue:
-        """Get a single issue by ID. Raises KeyError if not found."""
+        """Get a single issue by ID. Raises KeyError if not found.
+
+        The Rust read resolves raw IDs inside its single store read, so
+        callers pass IDs straight through instead of pre-resolving (and
+        pre-reading) first.
+        """
         from sase.core import bead_read_facade as rust_beads
 
-        issue_id = self.resolve_id(issue_id)
         return rust_beads.show(self.beads_dir, issue_id)
 
     def show_issue_detail(

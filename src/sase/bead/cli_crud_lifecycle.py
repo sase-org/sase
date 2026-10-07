@@ -118,20 +118,21 @@ def _print_close_result_row(
 
 
 def _refuse_leftover_epic_symbols(
-    project: BeadProject,
-    issue_ids: list[str],
+    issues: list[Issue],
     *,
     start: Path | None = None,
 ) -> None:
-    """Refuse a close that would stale remaining Justfile ``--epic-symbol`` entries."""
-    issues = [project.show(issue_id) for issue_id in issue_ids]
+    """Refuse a close that would stale remaining Justfile ``--epic-symbol`` entries.
+
+    Takes pre-fetched issues: the caller shares this single read with note
+    authoring so a close costs one authoring read plus the mutation load.
+    """
     raise_if_leftover_epic_symbols(issues, start=start)
     raise_if_surviving_flag_definition(issues, start=start)
 
 
 def _author_close_note(
-    mutation: Any,
-    resolved_ids: list[str],
+    pre_close_issues: list[Issue],
     text: str,
     *,
     allow_sensitive: bool,
@@ -142,7 +143,8 @@ def _author_close_note(
 
     The note is appended to every explicitly closed issue in one batch, so
     one roster — the union of every target's notes — feeds a single service
-    run. Exits non-zero when the text has attachment problems; nothing is
+    run. Takes the pre-fetched close issues so no second read happens.
+    Exits non-zero when the text has attachment problems; nothing is
     written then.
     """
     from sase.bead.attachments.authoring import (
@@ -151,8 +153,8 @@ def _author_close_note(
     )
 
     notes = []
-    for resolved_id in resolved_ids:
-        notes.extend(mutation.project.show(resolved_id).notes)
+    for issue in pre_close_issues:
+        notes.extend(issue.notes)
     from sase.bead.attachments.progress import transfer_progress
 
     try:
@@ -215,17 +217,20 @@ def handle_bead_close(args: argparse.Namespace) -> None:
     ) as mutation:
         try:
             resolved_ids = _resolve_close_ids(routed_ids, phases, mutation.project)
+            # One authoring read shared by the epic-symbol guard and note
+            # authoring; the close mutation itself is the only other read.
+            pre_close_issues = [
+                mutation.project.show(raw_id) for raw_id in dict.fromkeys(resolved_ids)
+            ]
             _refuse_leftover_epic_symbols(
-                mutation.project,
-                resolved_ids,
+                pre_close_issues,
                 start=_owner_symbol_start(bead_context),
             )
             author = resolve_mutation_author(mutation.project)
             note_attachments: list[dict[str, Any]] | None = None
             if note is not None:
                 authored = _author_close_note(
-                    mutation,
-                    resolved_ids,
+                    pre_close_issues,
                     note,
                     allow_sensitive=allow_sensitive,
                     audience_requested=audience_requested,

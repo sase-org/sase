@@ -220,6 +220,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
     )
 
     bead_context = None
+    requested_parent_id: str | None = None
     if parent_id:
         requested_parent_id = parent_id
         try:
@@ -253,15 +254,8 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         mutation_context = bead_store_mutation(auto_commit_bead_store)
     with mutation_context as mutation:
         proj = mutation.project
-        if parent_id:
-            try:
-                parent_id = proj.show(parent_id).id
-            except KeyError:
-                print(f"Error: parent bead not found: {parent_id}", file=sys.stderr)
-                sys.exit(1)
-            except ValueError as exc:
-                print(f"Error: {exc}", file=sys.stderr)
-                sys.exit(1)
+        # No parent pre-read: the create binding resolves the raw parent ID
+        # inside its locked load and reports a missing parent itself.
 
         try:
             issue = proj.create(
@@ -283,6 +277,12 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 task_type_fields=field_values,
                 creation_reason=creation_reason,
             )
+        except KeyError:
+            print(
+                f"Error: parent bead not found: {requested_parent_id}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)

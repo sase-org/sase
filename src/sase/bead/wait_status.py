@@ -9,11 +9,11 @@ from sase.bead.cross_project import (
     BeadStoreSnapshot,
     bead_id_prefix,
     enabled_project_store_snapshots,
+    route_bead_target_via_probe,
 )
 from sase.core.bead_target_routing_facade import (
     BeadTargetRoute,
     BeadTargetStoreDescriptor,
-    route_bead_targets,
 )
 
 type ClosedIdsResolver = Callable[[str], frozenset[str] | None]
@@ -86,13 +86,15 @@ def closed_bead_ids_for_waits(
         for snapshot in snapshots
         if local_store is None or snapshot.store_key != local_store.store_key
     ]
-    outcome = route_bead_targets(
-        full_ids,
-        local_store=local_store,
-        candidate_stores=candidate_stores,
-        require_single_store=False,
-    )
-    for route in outcome.routes:
+    routes = [
+        route_bead_target_via_probe(
+            bead_id,
+            local_store=local_store,
+            candidates=candidate_stores,
+        )
+        for bead_id in full_ids
+    ]
+    for route in routes:
         owner_project = _route_owner_project(route, fallback_project=project_name)
         if owner_project:
             owner_projects.add(owner_project)

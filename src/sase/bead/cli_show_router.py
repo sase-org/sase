@@ -8,11 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.bead.store_locator import open_bead_project_for_beads_dir
-from sase.core.bead_target_routing_facade import (
-    BeadTargetRoute,
-    BeadTargetStoreDescriptor,
-    route_bead_targets,
-)
+from sase.core.bead_target_routing_facade import BeadTargetRoute
 
 if TYPE_CHECKING:
     from sase.bead.cross_project import BeadStoreOrigin, BeadStoreSnapshot
@@ -143,27 +139,12 @@ class ShowStoreRouter:
         return self._store_for_origin(origin, requested_id=None)
 
     def _route_pinned_target(self, bead_id: str) -> _RoutedShowTarget:
+        # The pinned store owns every target by definition: carry the raw ID
+        # forward and let the show itself resolve it in its single read.
         store = self.primary_store()
-        descriptor = _descriptor_for_store(store, fallback_key="pinned")
-        route = _first_route(
-            route_bead_targets(
-                [bead_id],
-                local_store=descriptor,
-                project_pinned=True,
-            ),
-            bead_id,
-        )
-        if route is None:
-            raise KeyError(bead_id)
-        if route.error is not None:
-            if route.error.kind == "not_found":
-                raise KeyError(bead_id)
-            raise ShowStoreRoutingError(route.error.message)
-        if route.resolved_id is None:
-            raise KeyError(bead_id)
         return _RoutedShowTarget(
             requested_id=bead_id,
-            resolved_id=route.resolved_id,
+            resolved_id=bead_id,
             store=store,
         )
 
@@ -227,75 +208,6 @@ __all__ = [
     "ShowStoreRouter",
     "ShowStoreRoutingError",
 ]
-
-
-def _descriptor_for_store(
-    store: RoutedShowStore,
-    *,
-    fallback_key: str,
-) -> BeadTargetStoreDescriptor:
-    origin = store.origin
-    beads_dir = origin.beads_dir if origin is not None else _view_beads_dir(store.view)
-    store_key = _store_key(beads_dir, fallback_key=fallback_key)
-    return BeadTargetStoreDescriptor(
-        store_key=store_key,
-        project_key=None if origin is None else origin.project_key,
-        project_label=None if origin is None else origin.project_label,
-        primary_workspace=None if origin is None else origin.primary_workspace,
-        beads_dir=beads_dir,
-        issue_prefix=_view_issue_prefix(store.view),
-        project_refs=() if origin is None else _origin_refs(origin),
-        issue_ids=tuple(sorted(_view_issue_ids(store.view))),
-    )
-
-
-def _view_issue_ids(view: Any) -> set[str]:
-    try:
-        return {str(issue.id) for issue in view.list_issues()}
-    except (AttributeError, OSError, RuntimeError, ValueError):
-        return set()
-
-
-def _view_issue_prefix(view: Any) -> str | None:
-    beads_dir = _view_beads_dir(view)
-    if beads_dir is None:
-        return None
-    try:
-        import json
-
-        payload = json.loads((beads_dir / "config.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    prefix = payload.get("issue_prefix")
-    return prefix if isinstance(prefix, str) and prefix else None
-
-
-def _view_beads_dir(view: Any) -> Path | None:
-    beads_dir = getattr(view, "beads_dir", None)
-    return beads_dir if isinstance(beads_dir, Path) else None
-
-
-def _store_key(beads_dir: Path | None, *, fallback_key: str) -> str:
-    if beads_dir is None:
-        return fallback_key
-    return str(beads_dir.expanduser().resolve(strict=False))
-
-
-def _origin_refs(origin: BeadStoreOrigin) -> tuple[str, ...]:
-    refs = [origin.project_key, origin.project_label]
-    return tuple(dict.fromkeys(ref for ref in refs if ref))
-
-
-def _first_route(
-    outcome: Any,
-    bead_id: str,
-) -> BeadTargetRoute | None:
-    for route in outcome.routes:
-        if route.requested_id == bead_id:
-            return route
-    return None
 
 
 def _looks_like_full_bead_id(bead_id: str) -> bool:

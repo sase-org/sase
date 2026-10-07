@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -160,9 +161,100 @@ def _optional_path(value: object) -> Path | None:
     return None if text is None else Path(text)
 
 
+def _store_route_for_descriptor(
+    store: BeadTargetStoreDescriptor,
+) -> _BeadTargetStoreRoute:
+    """Return the owner-route shape for one routing descriptor."""
+    return _BeadTargetStoreRoute(
+        store_key=store.store_key,
+        project_key=store.project_key,
+        project_label=store.project_label,
+        primary_workspace=store.primary_workspace,
+        beads_dir=store.beads_dir,
+    )
+
+
+def resolved_bead_target_route(
+    requested_id: str,
+    resolved_id: str,
+    store: BeadTargetStoreDescriptor,
+) -> BeadTargetRoute:
+    """Build a successful route without consulting the ID router.
+
+    The mutation's locked resolution stays the authority for existence and
+    ambiguity: *resolved_id* is the requested ID carried forward (canonical
+    for full IDs, raw for shorthand) so callers can pass it straight into
+    the operation that performs the single store read.
+    """
+    return BeadTargetRoute(
+        requested_id=requested_id,
+        resolved_id=resolved_id,
+        store=_store_route_for_descriptor(store),
+        error=None,
+    )
+
+
+def error_bead_target_route(
+    requested_id: str,
+    *,
+    kind: str,
+    message: str,
+    candidates: Sequence[BeadTargetStoreDescriptor] = (),
+) -> BeadTargetRoute:
+    """Build a failed route with the router's error shape."""
+    return BeadTargetRoute(
+        requested_id=requested_id,
+        resolved_id=None,
+        store=None,
+        error=_BeadTargetRouteError(
+            kind=kind,
+            message=message,
+            candidates=tuple(
+                _store_route_for_descriptor(store) for store in candidates
+            ),
+        ),
+    )
+
+
+def _store_route_label(store: _BeadTargetStoreRoute) -> str:
+    """Mirror the core router's multi-store display label."""
+    label = store.project_label or store.project_key or store.store_key
+    if store.project_key and store.project_key != label:
+        return f"{label} ({store.project_key})"
+    return label
+
+
+def multiple_stores_batch_error(
+    routes: Sequence[BeadTargetRoute],
+) -> _BeadTargetRouteError | None:
+    """Mirror the core router's require-single-store batch error."""
+    if any(route.error is not None for route in routes):
+        return None
+    by_store: dict[str, _BeadTargetStoreRoute] = {}
+    for route in routes:
+        if route.store is None:
+            continue
+        by_store.setdefault(route.store.store_key, route.store)
+    if len(by_store) <= 1:
+        return None
+    candidates = list(by_store.values())
+    labels = ", ".join(_store_route_label(store) for store in candidates)
+    return _BeadTargetRouteError(
+        kind="incompatible_stores",
+        message=(
+            "bead targets resolve to multiple stores: "
+            f"{labels}; split the command by project"
+        ),
+        candidates=tuple(candidates),
+    )
+
+
 __all__ = [
     "BEAD_TARGET_ROUTING_WIRE_SCHEMA_VERSION",
     "BeadTargetRoute",
     "BeadTargetStoreDescriptor",
+    "error_bead_target_route",
+    "multiple_stores_batch_error",
+    "resolved_bead_target_route",
     "route_bead_targets",
 ]

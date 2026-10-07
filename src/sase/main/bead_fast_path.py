@@ -25,6 +25,11 @@ _MUTATING_VERBS = frozenset(
 _AT_PATH_VALUE_VERBS = frozenset({"+1", "close", "note", "snooze", "update"})
 _READ_ONLY_DEP_ACTIONS = frozenset({"list", "tree"})
 _READ_ONLY_REF_ACTIONS = frozenset({"list"})
+# Every verb below has a dedicated Python handler and no arm in the Rust
+# bead CLI dispatcher (``crates/sase_core/src/bead/cli/dispatch.rs``), so
+# the Rust core always declines them. Keep this set in sync with that
+# match: gating a verb Rust handles would silently drop the fast path.
+_ALWAYS_DEFERRED_VERBS = frozenset({"note", "+1", "snooze", "doctor", "attach"})
 
 
 def try_handle_bead_fast_path(argv: list[str]) -> int | None:
@@ -34,6 +39,11 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     the command through the compatibility slow path.
     """
     if not argv or any(arg in {"-h", "--help"} for arg in argv):
+        return None
+    # Verbs the Rust dispatcher always defers have dedicated Python lanes:
+    # resolving a context and calling across the FFI just to defer wastes
+    # a round trip, so they stay on the slow path without any fast-path work.
+    if argv[0] in _ALWAYS_DEFERRED_VERBS:
         return None
     # The Rust close fast path does not yet expose the classification fields
     # needed for truthful close/already-closed/noted/cascade rendering, and the

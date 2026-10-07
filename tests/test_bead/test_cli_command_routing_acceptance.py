@@ -633,7 +633,15 @@ def test_rejected_public_dispatch_preflights_leave_every_store_unchanged(
     roots = [Path(root) for root in data["snapshot_roots"]]
     before = {str(root): _tree_state(root) for root in roots}
 
-    def fail_binding(_name: str) -> object:
+    from sase.core import rust as rust_bindings
+
+    real_require = rust_bindings.require_rust_binding
+
+    def fail_binding(name: str) -> object:
+        # Ownership probes (and the ID router) never read the store; they
+        # are routing, not execution. Anything else must not run.
+        if name in {"bead_probe_target_owner", "bead_route_targets"}:
+            return real_require(name)
         raise AssertionError("routing failure must not reach Rust executor")
 
     monkeypatch.setattr("sase.core.rust.require_rust_binding", fail_binding)

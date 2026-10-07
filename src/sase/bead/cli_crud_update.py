@@ -93,23 +93,36 @@ def _author_update_notes(
     allow_sensitive: bool,
     audience_requested: str = "auto",
     audience_confirmed: bool = False,
-) -> list[tuple[str, AuthoredNoteAttachments]]:
+) -> tuple[dict[str, str], list[tuple[str, AuthoredNoteAttachments]]]:
     """Run the attachment authoring service once across every updated bead.
 
     Each unique path is ingested a single time, then the text is composed per
     bead against that bead's roster, so one filename can uniquify differently
-    on each bead. Returns ``(resolved_id, authored)`` pairs in unique-bead
-    order. Exits non-zero when the text has attachment problems; nothing is
-    written then.
+    on each bead. Returns the raw-to-resolved ID map plus ``(resolved_id,
+    authored)`` pairs in unique-bead order. Exits non-zero when the text has
+    attachment problems; nothing is written then.
     """
     from sase.bead.attachments.authoring import (
         NoteAttachmentAuthoringError,
         author_note_attachments_per_bead,
     )
 
-    resolved_ids = [proj.resolve_id(issue_id) for issue_id in issue_ids]
-    unique_ids = list(dict.fromkeys(resolved_ids))
-    notes_per_bead = [list(proj.show(resolved_id).notes) for resolved_id in unique_ids]
+    # One read per unique bead for the attachment roster: each show
+    # resolves its raw ID inside its single store read, and the resolved
+    # IDs dedupe mixed shorthand/full-form inputs exactly as the old
+    # caller-side pre-resolve did.
+    unique_ids: list[str] = []
+    resolved_by_raw: dict[str, str] = {}
+    notes_per_bead = []
+    seen: set[str] = set()
+    for raw_id in dict.fromkeys(issue_ids):
+        shown = proj.show(raw_id)
+        resolved_by_raw[raw_id] = shown.id
+        if shown.id in seen:
+            continue
+        seen.add(shown.id)
+        unique_ids.append(shown.id)
+        notes_per_bead.append(list(shown.notes))
     from sase.bead.attachments.progress import transfer_progress
 
     try:
@@ -125,7 +138,7 @@ def _author_update_notes(
     except NoteAttachmentAuthoringError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-    return list(zip(unique_ids, results, strict=True))
+    return resolved_by_raw, list(zip(unique_ids, results, strict=True))
 
 
 def _combined_outcome_ids(outcomes: list[dict[str, object]], field: str) -> list[str]:
@@ -137,6 +150,27 @@ def _combined_outcome_ids(outcomes: list[dict[str, object]], field: str) -> list
                 ids.append(issue_id)
                 seen.add(issue_id)
     return ids
+
+
+def _outcome_ancestor_issues(outcomes: list[dict[str, object]]) -> list[Issue]:
+    """Read reopened ancestors from mutation outcomes without re-reading.
+
+    The mutation carries the reopened ancestor issues in its outcome, so
+    printing them costs no extra store read.
+    """
+    from sase.core.bead_wire import issues_from_list
+
+    ancestors: list[Issue] = []
+    seen: set[str] = set()
+    for outcome in outcomes:
+        raw = outcome.get("reopened_ancestors")
+        if not isinstance(raw, list):
+            continue
+        for ancestor in issues_from_list(raw):
+            if ancestor.id not in seen:
+                seen.add(ancestor.id)
+                ancestors.append(ancestor)
+    return ancestors
 
 
 def handle_bead_update(args: argparse.Namespace) -> None:
@@ -255,7 +289,9 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         try:
             # Author attachments before any mutation: an attachment problem
             # must leave the bead store unchanged, including field updates.
-            authored_per_bead: list[tuple[str, AuthoredNoteAttachments]] | None = None
+            authored_per_bead: (
+                tuple[dict[str, str], list[tuple[str, AuthoredNoteAttachments]]] | None
+            ) = None
             if note is not None:
                 authored_per_bead = _author_update_notes(
                     proj,
@@ -267,7 +303,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                 )
                 union_wires: list[dict[str, Any]] = []
                 seen_digests: set[str] = set()
-                for _, result in authored_per_bead:
+                for _, result in authored_per_bead[1]:
                     for row in result.echo_rows:
                         if row not in echo_rows:
                             echo_rows.append(row)
@@ -295,22 +331,26 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                 issues = proj.update_many(issue_ids, **fields)
                 outcomes.append(proj.last_mutation_outcome)
             else:
-                issues = [proj.show(issue_id) for issue_id in issue_ids]
+                issues = []
             if note is not None:
                 author = resolve_mutation_author(proj)
                 if authored_per_bead is not None:
+                    resolved_by_raw, authored_pairs = authored_per_bead
                     note_outcomes: list[dict[str, object]] = []
-                    appended: dict[str, Issue] = {}
-                    for resolved_id, result in authored_per_bead:
-                        appended[resolved_id] = proj.append_note(
+                    appended_by_resolved: dict[str, Issue] = {}
+                    for resolved_id, result in authored_pairs:
+                        appended = proj.append_note(
                             resolved_id,
                             result.stored_text,
                             author=author,
                             attachments=(result.attachments or None),
                         )
+                        appended_by_resolved[resolved_id] = appended
                         note_outcomes.append(proj.last_mutation_outcome)
-                    resolved_ids = [proj.resolve_id(issue_id) for issue_id in issue_ids]
-                    issues = [appended[resolved_id] for resolved_id in resolved_ids]
+                    issues = [
+                        appended_by_resolved[resolved_by_raw[raw_id]]
+                        for raw_id in issue_ids
+                    ]
                     outcomes.append(combine_mutation_outcomes("update", note_outcomes))
                 else:
                     issues = proj.append_note_many(issue_ids, note, author=author)
@@ -324,10 +364,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
         changed_ids = _combined_outcome_ids(outcomes, "issue_ids")
-        reopened_ancestor_ids = _combined_outcome_ids(outcomes, "reopened_ancestor_ids")
-        reopened_ancestors = [
-            proj.show(ancestor_id) for ancestor_id in reopened_ancestor_ids
-        ]
+        reopened_ancestors = _outcome_ancestor_issues(outcomes)
         if placement in ("git", "large", "mixed", "public_pending") and placement_wires:
             from sase.bead.attachments.upload import post_write_queue
 

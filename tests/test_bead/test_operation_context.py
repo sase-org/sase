@@ -153,9 +153,19 @@ def test_fast_path_executes_foreign_target_with_owner_store_and_invocation_cwd(
         )
         return {"handled": True, "exit_code": 0, "stdout": ""}
 
+    from sase.core import rust as rust_bindings
+
+    real_require = rust_bindings.require_rust_binding
+
+    def require_binding(name: str) -> object:
+        if name == "bead_cli_execute":
+            return fake_binding
+        # Ownership probes never read the store; serve them for real.
+        return real_require(name)
+
     monkeypatch.setattr(
         "sase.core.rust.require_rust_binding",
-        lambda _name: fake_binding,
+        require_binding,
     )
 
     assert bead_fast_path.try_handle_bead_fast_path(["rm", issue_id]) == 0

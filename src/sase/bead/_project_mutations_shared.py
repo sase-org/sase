@@ -11,15 +11,41 @@ def combine_mutation_outcomes(
         return {"operation": operation, "issue_ids": []}
     issue_ids: list[str] = []
     reopened_ancestor_ids: list[str] = []
+    reopened_ancestors: list[dict[str, object]] = []
     for outcome in outcomes:
         _extend_unique(issue_ids, outcome.get("issue_ids"))
         _extend_unique(reopened_ancestor_ids, outcome.get("reopened_ancestor_ids"))
+        _extend_unique_issues(reopened_ancestors, outcome.get("reopened_ancestors"))
     combined = outcomes[-1].copy()
     combined["operation"] = operation
     combined["issue_ids"] = issue_ids
     if reopened_ancestor_ids:
         combined["reopened_ancestor_ids"] = reopened_ancestor_ids
+    if reopened_ancestors:
+        combined["reopened_ancestors"] = reopened_ancestors
     return combined
+
+
+def _extend_unique_issues(
+    target: list[dict[str, object]],
+    raw: object,
+) -> None:
+    """Merge outcome issue wires, deduped by ID, preserving first order."""
+    if not isinstance(raw, list):
+        return
+    seen = {
+        str(item.get("id"))
+        for item in target
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        issue_id = item.get("id")
+        if not isinstance(issue_id, str) or issue_id in seen:
+            continue
+        seen.add(issue_id)
+        target.append(item)
 
 
 def _extend_unique(target: list[str], raw: object) -> None:
