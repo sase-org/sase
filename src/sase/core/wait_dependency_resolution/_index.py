@@ -310,6 +310,9 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
                 else parent_timestamp or timestamp
             )
         clan_tribe = self._valid_tribe(meta.get("clan_tribe"))
+        recorded_epic_ids, legacy_epic_bead_id, is_epic_worker = (
+            _epic_follow_facts_from_meta(meta)
+        )
         artifact = ArtifactCandidate(
             name=name if isinstance(name, str) else str(workflow_name or ""),
             timestamp=timestamp,
@@ -331,6 +334,9 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             has_done_marker=has_done_marker,
             turn_followup_agent=turn_followup_handoff_agent(meta, done_data),
             turn_member_kind=turn_member_kind_for_meta(meta),
+            recorded_epic_ids=recorded_epic_ids,
+            legacy_epic_bead_id=legacy_epic_bead_id,
+            is_epic_worker=is_epic_worker,
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact
@@ -484,6 +490,44 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             or (prefer_on_tie and candidate.timestamp == latest.timestamp)
         ):
             self.named[name] = candidate
+
+
+def _epic_follow_facts_from_meta(
+    meta: Mapping[str, Any],
+) -> tuple[tuple[str, ...], str | None, bool]:
+    """Return hot-path epic-follow facts carried on every index candidate.
+
+    ``recorded_epic_ids`` is the authoritative ``created_epics`` bead list.
+    ``legacy_epic_bead_id`` is the pre-feature back-fill. ``is_epic_worker``
+    marks phase/land rows whose inherited ``epic_bead_id`` must never count
+    as an epic the run launched.
+    """
+    recorded: list[str] = []
+    raw_created = meta.get("created_epics")
+    if isinstance(raw_created, list):
+        for item in raw_created:
+            bead_id: str | None = None
+            if isinstance(item, str):
+                bead_id = item.strip() or None
+            elif isinstance(item, dict):
+                raw_bead = item.get("bead_id")
+                if isinstance(raw_bead, str) and raw_bead.strip():
+                    bead_id = raw_bead.strip()
+            if bead_id and bead_id not in recorded:
+                recorded.append(bead_id)
+    raw_legacy = meta.get("epic_bead_id")
+    legacy = (
+        raw_legacy.strip()
+        if isinstance(raw_legacy, str) and raw_legacy.strip()
+        else None
+    )
+    raw_phase = meta.get("phase_bead_id")
+    raw_plan_ref = meta.get("epic_plan_ref")
+    is_worker = bool(
+        (isinstance(raw_phase, str) and raw_phase.strip())
+        or (isinstance(raw_plan_ref, str) and raw_plan_ref.strip())
+    )
+    return tuple(recorded), legacy, is_worker
 
 
 def build_wait_dependency_index(

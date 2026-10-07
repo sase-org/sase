@@ -56,6 +56,14 @@ class ArtifactCandidate:
     has_done_marker: bool = False
     turn_followup_agent: str | None = None
     turn_member_kind: str | None = None
+    # Epic-follow facts carried on the hot path (no extra I/O at collect
+    # time). ``recorded_epic_ids`` is the authoritative ``created_epics``
+    # list; ``legacy_epic_bead_id`` is the pre-feature back-fill, honored
+    # only for non-worker rows; ``is_epic_worker`` marks phase/land rows
+    # whose inherited ``epic_bead_id`` must never count as launched.
+    recorded_epic_ids: tuple[str, ...] = ()
+    legacy_epic_bead_id: str | None = None
+    is_epic_worker: bool = False
 
 
 @dataclass(frozen=True)
