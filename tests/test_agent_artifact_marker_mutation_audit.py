@@ -224,6 +224,16 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
+    "src/sase/axe/run_agent_wait_markers.py:publish_ready_marker": Review(
+        mutation_calls=("mkstemp", "dump", "os.replace", "unlink"),
+        exemption=(
+            "Publishes the unprojected ready.json rendezvous marker via a "
+            "temp file plus no-clobber os.link; the Tier 1 scan projects a "
+            "fixed marker set (agent_scan_wire.py) that excludes ready.json, "
+            "and waiting.json is only existence-checked, never mutated, so "
+            "no index refresh is required."
+        ),
+    ),
     "src/sase/axe/run_agent_wait_markers.py:remove_waiting_marker": Review(
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),

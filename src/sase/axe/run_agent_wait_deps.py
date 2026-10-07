@@ -126,15 +126,20 @@ def initial_dependencies_resolved(
 def read_ready_result(ready_path: str) -> bool:
     """Return whether a ready marker resolves the wait.
 
-    Cancellation markers written by older SASE versions are stale state. Remove
-    them and keep waiting for an actual successful resolution marker.
+    A torn or otherwise unreadable marker is treated as not ready; the
+    runner retries on its next poll (and the periodic fallback, which
+    never reads ``ready.json``, still bounds the wait). Cancellation
+    markers written by older SASE versions are stale state. Remove them
+    and keep waiting for an actual successful resolution marker.
     """
     try:
         with open(ready_path, encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
-        return True
-    if not isinstance(data, dict) or not data.get("cancelled"):
+        return False
+    if not isinstance(data, dict):
+        return False
+    if not data.get("cancelled"):
         return True
     try:
         os.unlink(ready_path)

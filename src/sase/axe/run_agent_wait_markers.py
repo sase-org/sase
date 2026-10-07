@@ -7,6 +7,7 @@ to the TUI and to the runner-slot queue; ``agent_meta.json`` records the durable
 
 import json
 import os
+import tempfile
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -127,6 +128,51 @@ def write_waiting_marker(
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     if waiting_payload_has_dependencies(payload):
         touch_project_refresh_pulse_for_artifacts_dir(artifacts_dir)
+
+
+def publish_ready_marker(
+    artifacts_dir: str,
+    payload: dict[str, Any],
+) -> bool:
+    """Atomically publish ``ready.json``; the first writer wins.
+
+    The payload is written to a hidden temp file in the same directory
+    (flushed + fsynced) and then published with a no-clobber
+    :func:`os.link`, so a runner can never observe a half-written marker
+    and a late tick can never overwrite an existing one.
+
+    Returns ``False`` without writing anything when ``waiting.json`` is
+    already gone (the runner released and cleaned up) or when another
+    writer published first. Returns ``True`` only when this call
+    published. Other :class:`OSError` failures propagate to the caller.
+    """
+    ready_path = os.path.join(artifacts_dir, "ready.json")
+    if not os.path.exists(os.path.join(artifacts_dir, "waiting.json")):
+        return False
+    fd, temp_name = tempfile.mkstemp(
+        prefix=".ready.json.",
+        suffix=".tmp",
+        dir=artifacts_dir,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.link(temp_name, ready_path)
+        except FileExistsError:
+            return False
+        except OSError:
+            if os.path.exists(ready_path):
+                return False
+            os.replace(temp_name, ready_path)
+        return True
+    finally:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
 
 
 def remove_waiting_marker(artifacts_dir: str) -> None:

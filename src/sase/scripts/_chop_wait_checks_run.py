@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.axe.run_agent_wait_deps import mark_bead_wait_sync_hint
+from sase.axe.run_agent_wait_markers import publish_ready_marker
 from sase.bead.store_locator import closed_bead_ids_for_project
 from sase.bead.wait_status import WaitBeadStatusCache, closed_bead_ids_for_waits
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
@@ -161,7 +162,8 @@ def _run(
         resolved_deps: list[Any],
     ) -> None:
         """Resolve one waiter; any exception parks only this waiter."""
-        nonlocal ready_written, skipped_invalid, unresolved, unknown_outcome
+        nonlocal ready_written, skipped_ready, skipped_invalid
+        nonlocal unresolved, unknown_outcome
         nonlocal deferred_unconfirmed, terminal_blocker_logs
         nonlocal terminal_blocker_suppressed
         closed_bead_ids = None
@@ -284,16 +286,19 @@ def _run(
                 f"waited on: {waited_on}",
             )
             try:
-                with open(waiting_marker.ready_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        {"resolved_deps": waiting_for},
-                        f,
-                        indent=2,
-                    )
+                published = publish_ready_marker(
+                    str(waiting_marker.waiting_path.parent),
+                    {"resolved_deps": waiting_for},
+                )
             except OSError:
                 skipped_invalid += 1
             else:
-                ready_written += 1
+                if published:
+                    ready_written += 1
+                else:
+                    # Lost the publish race (another writer published
+                    # first) or the waiter already released and cleaned up.
+                    skipped_ready += 1
         else:
             unresolved += 1
             found_blockers: tuple[TerminalBlocker, ...] = terminal_blockers(
