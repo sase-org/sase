@@ -189,10 +189,33 @@ def test_doctor_renders_fresh_read_model_status_line() -> None:
             "last_sweep_age_secs": 3,
             "streams": 2,
             "issues": 7,
+            "serve_count": 11,
+            "tail_count": 2,
+            "rebuild_count": 1,
+            "last_refresh": "tail",
+            "last_refresh_reason": "3 tail events over 2 streams",
         }
     )
 
     assert line == (
+        "Read model: /repo/.git/sase/bead-read-model/model.sqlite "
+        "(generation 4, 1024 bytes, 7 issues, last sweep 3s ago, fresh, "
+        "outcomes serve=11 tail=2 rebuild=1, "
+        "last refresh: tail (3 tail events over 2 streams))"
+    )
+    legacy_line = cli_admin._render_read_model_status(
+        {
+            "location": "/repo/.git/sase/bead-read-model/model.sqlite",
+            "fresh": True,
+            "reason": "served from cache",
+            "generation": 4,
+            "size_bytes": 1024,
+            "last_sweep_age_secs": 3,
+            "streams": 2,
+            "issues": 7,
+        }
+    )
+    assert legacy_line == (
         "Read model: /repo/.git/sase/bead-read-model/model.sqlite "
         "(generation 4, 1024 bytes, 7 issues, last sweep 3s ago, fresh)"
     )

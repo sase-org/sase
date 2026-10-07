@@ -532,9 +532,11 @@ JSONL/config parsing, read-model freshness and rebuild, mutations, single-store 
 allocation, deterministic epic work planning, and common CLI output planning all live in
 `sase-core` and are exposed through `sase_core_rs`. The versioned SQLite read model
 (`<git-dir>/sase/bead-read-model/<key>.sqlite`) serves hot reads behind an O(1)
-freshness token with generation compare-and-swap rebuilds; `sase bead doctor` reports
-its health and `sase bead doctor --verify-cache` diffs it against replay. Python remains
-the host layer for path discovery, VCS context, macro lookup, confirmation prompts,
+freshness token with generation compare-and-swap rebuilds; appended events apply
+incrementally after the stored merge frontier, with rebuild fallback on any precondition
+failure and serve/tail/rebuild outcome telemetry; `sase bead doctor` reports its health
+and `sase bead doctor --verify-cache` diffs it against replay. Python remains the host
+layer for path discovery, VCS context, macro lookup, confirmation prompts,
 launch/rollback, and telemetry side effects.
 
 Golden contract fixtures live under `tests/test_bead/golden/`:

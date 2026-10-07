@@ -1295,9 +1295,15 @@ sync:
   signatures) decides whether the cache serves; a full stat sweep runs whenever the
   token changes, on every write, at least every 60 s, and on demand. Any schema,
   reducer, or crate version mismatch drops and rebuilds the cache, and any cache error
-  falls back to plain replay. `sase bead doctor` prints a cache status line (location,
-  size, generation, last sweep), and `sase bead doctor --verify-cache` compares the
-  cache against a forced full replay and reports drift.
+  falls back to plain replay. When the sweep finds changes, the cache applies only the
+  appended bytes after each stream's stored length instead of rebuilding, as long as
+  every changed stream is a pure append, no stream vanished, the manifest only grew by
+  stream additions, the parsed config is unchanged, and every new event sorts after the
+  stored merge frontier; any precondition failure rebuilds from a full replay.
+  `sase bead doctor` prints a cache status line (location, size, generation, last sweep,
+  serve/tail/rebuild outcome counts, last refresh and why), and
+  `sase bead doctor --verify-cache` compares the cache against a forced full replay and
+  reports drift.
 - **History** replays those same streams in projection order; `sase bead history <id>`
   makes every recorded field revision readable without changing canonical state.
 - **Fresh clones** read directly from the tracked event streams and can rebuild the

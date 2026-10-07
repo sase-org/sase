@@ -204,13 +204,23 @@ def _render_read_model_status(status: dict[str, Any] | None) -> str:
         freshness = "fresh"
     else:
         freshness = f"stale ({status.get('reason') or 'changed'})"
-    return (
+    line = (
         f"Read model: {location} "
         f"(generation {status.get('generation', 0)}, "
         f"{status.get('size_bytes', 0)} bytes, "
         f"{status.get('issues', 0)} issues, "
-        f"last sweep {age_text}, {freshness})"
+        f"last sweep {age_text}, {freshness}"
     )
+    serve = status.get("serve_count")
+    tail = status.get("tail_count")
+    rebuild = status.get("rebuild_count")
+    if isinstance(serve, int) and isinstance(tail, int) and isinstance(rebuild, int):
+        line += f", outcomes serve={serve} tail={tail} rebuild={rebuild}"
+        last_refresh = status.get("last_refresh") or ""
+        last_reason = status.get("last_refresh_reason") or ""
+        if last_refresh:
+            line += f", last refresh: {last_refresh} ({last_reason})"
+    return line + ")"
 
 
 def _render_read_model_verify(report: dict[str, Any] | None) -> list[str]:
