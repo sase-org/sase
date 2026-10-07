@@ -275,6 +275,7 @@ def handle_workflow_error(
     from sase.continuation_capture import (
         persist_agent_delta_best_effort,
         persist_workspace_facts_best_effort,
+        release_attempt_continuation_pointers,
     )
 
     persist_agent_delta_best_effort(
@@ -364,6 +365,7 @@ def handle_workflow_error(
     )
     if can_wait_and_retry:
         _snapshot("failed")
+        release_attempt_continuation_pointers(state, artifacts_dir)
         # Retry with wait
         tracker.retry_count += 1
         LLM_RETRIES.labels(provider=ctx.agent_llm_provider or "unknown").inc()
@@ -467,6 +469,7 @@ def handle_workflow_error(
         and not fallback_blocked_by_usage_limit
     ):
         _snapshot("failed")
+        release_attempt_continuation_pointers(state, artifacts_dir)
         # Fallback to alternate model
         tracker.using_fallback = True
         os.environ["SASE_MODEL_OVERRIDE"] = active_retry_cfg.fallback_model

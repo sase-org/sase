@@ -315,6 +315,13 @@ class _ReplayBuilder:
         for artifact_dir in self.seed_dirs:
             index.observe_dir(artifact_dir)
             index.observe_siblings(artifact_dir)
+        for node_id, node in list(self.records.items()):
+            canonical = index.canonical_parent_ids(node)
+            if list(node.get("parent_ids") or []) != canonical:
+                self.records[node_id] = cast(
+                    ContinuationNodeWire,
+                    {**node, "parent_ids": canonical},
+                )
         hydrated, omissions = hydrate_missing_parents(self.records, index)
         self.python_omissions.extend(omissions)
         for loaded in hydrated:

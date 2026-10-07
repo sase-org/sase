@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,6 +39,7 @@ class ContinuationNodeIndex:
         self._by_id: dict[str, _HydratedNode] = {}
         self._observed: set[Path] = set()
         self.omissions: list[dict[str, str | None]] = []
+        self._superseded_by_id: dict[str, Mapping[str, object]] = {}
 
     def observe_dir(self, artifact_dir: Path | None) -> None:
         if artifact_dir is None:
@@ -49,6 +50,7 @@ class ContinuationNodeIndex:
         self._observed.add(resolved)
         meta = load_agent_meta(resolved)
         self._index_dir(resolved, meta)
+        self._index_superseded_attempts(resolved)
         starter = json_string(meta, "monitor_starter_artifacts_dir")
         if starter:
             self.observe_dir(Path(starter))
@@ -72,6 +74,54 @@ class ContinuationNodeIndex:
 
     def resolve(self, node_id: str) -> _HydratedNode | None:
         return self._by_id.get(node_id)
+
+    def canonical_parent_ids(self, node: Mapping[str, object]) -> list[str]:
+        """Splice same-run archived attempt edges out of *node*'s parents.
+
+        A parent id proven to be an archived superseded attempt of the same
+        run is replaced with that archived node's own canonical parents,
+        recursively. Anything else is kept unchanged so unknown parents
+        still reach the planner as ``missing_parent``.
+        """
+
+        child_run = _owner_run_id(node)
+        initial = _node_parent_ids(node)
+        if not child_run:
+            return initial
+        result: list[str] = []
+        seen: set[str] = set()
+
+        def _visit(parent_id: str, chain: frozenset[str]) -> None:
+            if parent_id in chain:
+                return
+            archived = self._superseded_by_id.get(parent_id)
+            if archived is not None and _owner_run_id(archived) == child_run:
+                for sub_id in _node_parent_ids(archived):
+                    _visit(sub_id, chain | {parent_id})
+                return
+            if parent_id not in seen:
+                seen.add(parent_id)
+                result.append(parent_id)
+
+        for parent_id in initial:
+            _visit(parent_id, frozenset())
+        return result
+
+    def _index_superseded_attempts(self, artifact_dir: Path) -> None:
+        try:
+            paths = sorted(
+                (artifact_dir / "attempts").glob("*/continuation/nodes/*.json")
+            )
+        except OSError:
+            return
+        for path in paths[:MAX_HYDRATION_NODES]:
+            payload = load_json_object(path)
+            if not payload:
+                continue
+            node_id = payload.get("node_id")
+            if not isinstance(node_id, str) or not node_id:
+                continue
+            self._superseded_by_id.setdefault(node_id, payload)
 
     def _index_dir(self, artifact_dir: Path, meta: Mapping[str, object]) -> None:
         for raw_node in iter_captured_nodes(artifact_dir):
@@ -185,6 +235,21 @@ class ContinuationNodeIndex:
             )
 
 
+def _node_parent_ids(node: Mapping[str, object]) -> list[str]:
+    raw = node.get("parent_ids")
+    if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes, bytearray)):
+        return unique_strings(raw)
+    return []
+
+
+def _owner_run_id(node: Mapping[str, object]) -> str:
+    owner = node.get("owner")
+    if not isinstance(owner, Mapping):
+        return ""
+    run_id = owner.get("run_id")
+    return run_id if isinstance(run_id, str) else ""
+
+
 def hydrate_missing_parents(
     records: Mapping[str, ContinuationNodeWire],
     index: ContinuationNodeIndex,
@@ -209,6 +274,13 @@ def hydrate_missing_parents(
         loaded = index.resolve(parent_id)
         if loaded is None:
             continue
+        canonical = index.canonical_parent_ids(loaded.node)
+        if list(loaded.node.get("parent_ids") or []) != canonical:
+            loaded = _HydratedNode(
+                node={**loaded.node, "parent_ids": canonical},  # type: ignore[typeddict-item]
+                content=loaded.content,
+                artifact_dir=loaded.artifact_dir,
+            )
         seen.add(parent_id)
         hydrated.append(loaded)
         for grandparent_id in unique_strings(loaded.node.get("parent_ids") or []):

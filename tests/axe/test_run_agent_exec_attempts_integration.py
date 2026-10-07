@@ -128,6 +128,111 @@ def test_retry_branch_snapshots_failed_attempt(tmp_path: Path) -> None:
     assert (Path(ctx.artifacts_dir) / "continuation" / "workspace_facts.json").exists()
 
 
+def test_retry_branch_releases_attempt_continuation_pointers(tmp_path: Path) -> None:
+    from sase.continuation_capture import persist_agent_delta
+
+    ctx = _make_ctx(tmp_path)
+    artifacts = Path(ctx.artifacts_dir)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "agent",
+                "continuation_parent_node_ids": ["agent-delta:launch:parent"],
+                "continuation_node_id": "agent-delta:stale:attempt1",
+                "continuation_node_ref": "local:continuation/nodes/stale.json",
+                "continuation_manifest_ref": "local:continuation/manifest.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+    state = _make_state(ctx)
+    state.continuation_node_id = "agent-delta:stale:attempt1"
+    state.continuation_manifest_ref = "local:continuation/manifest.json"
+    tracker = RetryTracker(retry_cfg=_retry_cfg())
+    _pump_reply_bytes(artifacts, "attempt 1 partial output")
+
+    with (
+        patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+        patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+        patch("sase.axe.run_agent_exec_retry.prepare_workspace", MagicMock()),
+    ):
+        action = handle_workflow_error(
+            RuntimeError("API Error: 400 - Prompt is too long"),
+            tracker,
+            ctx,
+            state,
+        )
+
+    assert action == "continue"
+    meta = json.loads((artifacts / "agent_meta.json").read_text(encoding="utf-8"))
+    assert "continuation_node_id" not in meta
+    assert "continuation_node_ref" not in meta
+    assert "continuation_manifest_ref" not in meta
+    assert meta["continuation_parent_node_ids"] == ["agent-delta:launch:parent"]
+    assert state.continuation_node_id is None
+
+    attempt_manifest = json.loads(
+        (artifacts / "attempts" / "01" / "continuation" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    published = persist_agent_delta(
+        ctx,
+        state,
+        status="completed",
+        final_response="ATTEMPT_2_DONE",
+    )
+    node = json.loads(
+        (artifacts / "continuation" / "nodes" / f"{published.node_id}.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert node["parent_ids"] == ["agent-delta:launch:parent"]
+    assert attempt_manifest["node_id"] not in node["parent_ids"]
+
+
+def test_fallback_branch_releases_attempt_continuation_pointers(
+    tmp_path: Path,
+) -> None:
+    ctx = _make_ctx(tmp_path)
+    artifacts = Path(ctx.artifacts_dir)
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "agent",
+                "continuation_parent_node_ids": ["agent-delta:launch:parent"],
+                "continuation_node_id": "agent-delta:stale:attempt1",
+                "continuation_node_ref": "local:continuation/nodes/stale.json",
+                "continuation_manifest_ref": "local:continuation/manifest.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+    state = _make_state(ctx)
+    state.continuation_node_id = "agent-delta:stale:attempt1"
+    state.continuation_manifest_ref = "local:continuation/manifest.json"
+    # max_retries=0 routes straight to fallback branch.
+    tracker = RetryTracker(retry_cfg=_fallback_cfg())
+    _pump_reply_bytes(artifacts, "primary-model attempt output")
+
+    with (
+        patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+        patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+        patch("sase.axe.run_agent_exec_retry.prepare_workspace", MagicMock()),
+    ):
+        action = handle_workflow_error(
+            RuntimeError("Prompt is too long"), tracker, ctx, state
+        )
+
+    assert action == "continue"
+    meta = json.loads((artifacts / "agent_meta.json").read_text(encoding="utf-8"))
+    assert "continuation_node_id" not in meta
+    assert "continuation_node_ref" not in meta
+    assert "continuation_manifest_ref" not in meta
+    assert meta["continuation_parent_node_ids"] == ["agent-delta:launch:parent"]
+    assert state.continuation_node_id is None
+
+
 def test_exhausted_retries_snapshots_final_as_raised(tmp_path: Path) -> None:
     ctx = _make_ctx(tmp_path)
     state = _make_state(ctx)

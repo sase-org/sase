@@ -53,6 +53,26 @@ if TYPE_CHECKING:
     from sase.axe.run_agent_exec_types import AgentExecContext, LoopState
 
 
+#: Agent-meta node pointers owned by a single attempt.
+#:
+#: ``persist_agent_delta`` writes these keys to ``agent_meta.json``. When a
+#: failed attempt is archived by ``snapshot_attempt`` the root meta keeps
+#: pointing at the archived node; a retry attempt must release these keys so
+#: its own node is parented on the launch lineage instead of the superseded
+#: sibling. Launch-lineage keys (``continuation_parent_node_ids`` and
+#: friends) are deliberately not listed here.
+ATTEMPT_CONTINUATION_POINTER_KEYS: tuple[str, ...] = (
+    "continuation_node_id",
+    "continuation_manifest_ref",
+    "continuation_manifest_path",
+    "continuation_agent_delta_ref",
+    "continuation_node_ref",
+    "continuation_status",
+    "continuation_portable_content_ref",
+    "continuation_node_portable_ref",
+)
+
+
 def persist_agent_delta_best_effort(
     ctx: AgentExecContext,
     state: LoopState,
@@ -217,7 +237,7 @@ def persist_agent_delta(
         agent_delta_ref=delta_ref,
         workspace_ref=workspace_ref,
     )
-    fields: dict[str, Any] = {
+    field_values: dict[str, Any] = {
         "continuation_node_id": result.node_id,
         "continuation_manifest_ref": result.manifest_ref,
         "continuation_manifest_path": result.manifest_path,
@@ -241,20 +261,50 @@ def persist_agent_delta(
             required=True,
         )
         if delta_portable:
-            fields["continuation_portable_content_ref"] = delta_portable
+            field_values["continuation_portable_content_ref"] = delta_portable
         if node_portable:
-            fields["continuation_node_portable_ref"] = node_portable
+            field_values["continuation_node_portable_ref"] = node_portable
     except RequiredPortableCaptureError:
+        fields = {
+            key: field_values[key]
+            for key in ATTEMPT_CONTINUATION_POINTER_KEYS
+            if key in field_values
+        }
         update_agent_meta_fields(artifacts_dir, fields)
         if not allow_missing_validation:
             raise
         state.continuation_node_id = result.node_id
         state.continuation_manifest_ref = result.manifest_ref
         return result
+    fields = {
+        key: field_values[key]
+        for key in ATTEMPT_CONTINUATION_POINTER_KEYS
+        if key in field_values
+    }
     update_agent_meta_fields(artifacts_dir, fields)
     state.continuation_node_id = result.node_id
     state.continuation_manifest_ref = result.manifest_ref
     return result
+
+
+def release_attempt_continuation_pointers(
+    state: LoopState,
+    artifacts_dir: str | os.PathLike[str] | None,
+) -> None:
+    """Release the current attempt's continuation node pointers.
+
+    Called after a failed attempt is archived so the retry attempt starts
+    without a dangling ``continuation_node_id``. Launch-lineage keys
+    (``continuation_parent_node_ids`` and friends) and workspace /
+    prepared-prompt keys are left untouched.
+    """
+
+    if artifacts_dir is not None:
+        update_agent_meta_fields(
+            artifacts_dir, {}, remove_keys=list(ATTEMPT_CONTINUATION_POINTER_KEYS)
+        )
+    state.continuation_node_id = None
+    state.continuation_manifest_ref = None
 
 
 def read_latest_manifest_projection(
@@ -346,7 +396,9 @@ def _read_workspace_ref(artifacts_dir: str | os.PathLike[str]) -> str | None:
 
 
 __all__ = [
+    "ATTEMPT_CONTINUATION_POINTER_KEYS",
     "persist_agent_delta",
     "persist_agent_delta_best_effort",
     "read_latest_manifest_projection",
+    "release_attempt_continuation_pointers",
 ]

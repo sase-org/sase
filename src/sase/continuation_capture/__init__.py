@@ -26,10 +26,12 @@ from ._storage import (
     record_capture_error,
 )
 from .agent_delta import (
+    ATTEMPT_CONTINUATION_POINTER_KEYS,
     persist_agent_delta as _persist_agent_delta,
     persist_agent_delta,
     persist_agent_delta_best_effort,
     read_latest_manifest_projection,
+    release_attempt_continuation_pointers,
 )
 from .checkpoints import (
     AuthoredCheckpoint,
@@ -73,6 +75,7 @@ from .segments import (
 from .workspace import persist_workspace_facts, persist_workspace_facts_best_effort
 
 __all__ = [
+    "ATTEMPT_CONTINUATION_POINTER_KEYS",
     "AuthoredCheckpoint",
     "AuthoredCheckpointError",
     "CAPTURE_DISPOSITION_NEEDS_RECOVERY",
@@ -84,6 +87,7 @@ __all__ = [
     "PublicationTransaction",
     "_persist_agent_delta",
     "_record_prepared_prompt_capture",
+    "release_attempt_continuation_pointers",
     "canonicalize_authored_checkpoint",
     "complete_prompt_segments",
     "continuation_dispatch_blocked_reason",
