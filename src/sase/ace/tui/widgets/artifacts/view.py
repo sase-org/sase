@@ -352,6 +352,9 @@ class ArtifactsView(Vertical):
     def request_active_refresh(self) -> None:
         self._pane(self._current_subtab).request_refresh()
 
+    def request_active_explicit_refresh(self) -> None:
+        self._pane(self._current_subtab).request_explicit_refresh()
+
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
         """Forward configured key display to project-backed panes."""
 

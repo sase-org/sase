@@ -126,7 +126,7 @@ def test_tracked_submission_uses_operation_scoped_dedup_key() -> None:
     submit = Mock(return_value=SimpleNamespace(proc_id="task-1"))
     refresh = Mock()
     host = SimpleNamespace(_submit_session_worker=submit)
-    pane = SimpleNamespace(request_refresh=refresh)
+    pane = SimpleNamespace(request_explicit_refresh=refresh)
     task = Mock()
 
     ArtifactsBeadsActionsMixin._submit_beads_task(

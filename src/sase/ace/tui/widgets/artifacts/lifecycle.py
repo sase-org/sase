@@ -38,11 +38,25 @@ class ArtifactsPaneLifecycle:
         self.on_deactivate()
 
     def request_refresh(self) -> None:
-        """Ask the active pane to refresh through its non-blocking hook."""
+        """Ask the active pane to refresh through its non-blocking hook.
+
+        This is the auto-refresh tick path: panes decide from their
+        change tokens whether a reload is needed and must not force one.
+        """
         if not self._artifacts_active:
             return
         self.refresh_request_count += 1
         self.on_refresh()
+
+    def request_explicit_refresh(self) -> None:
+        """Ask the active pane for a user-initiated refresh.
+
+        Unlike :meth:`request_refresh`, this bypasses change-token caches.
+        """
+        if not self._artifacts_active:
+            return
+        self.refresh_request_count += 1
+        self.on_explicit_refresh()
 
     def on_first_activate(self) -> None:
         """Schedule one-time collection when a concrete pane needs it."""
@@ -55,6 +69,14 @@ class ArtifactsPaneLifecycle:
 
     def on_refresh(self) -> None:
         """Schedule a refresh; implementations must not block the event loop."""
+
+    def on_explicit_refresh(self) -> None:
+        """Schedule a user-initiated refresh, bypassing change-token caches.
+
+        The default keeps the tick behavior; panes with token-gated ticks
+        override this to force a reload.
+        """
+        self.on_refresh()
 
 
 __all__ = ["ArtifactsPaneLifecycle"]

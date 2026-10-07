@@ -12,6 +12,8 @@ import pytest
 from sase.ace.testing import make_patch
 from sase.ace.tui.widgets.artifacts import beads_data, beads_data_sources
 from sase.ace.tui.widgets.artifacts.beads_data import load_beads_snapshot
+from sase.ace.tui.widgets.artifacts.beads_data_models import ProjectBead
+from sase.core import bead_read_facade
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.notifications.models import Notification
@@ -471,3 +473,193 @@ def test_triage_gate_matches_request_payload_not_request_id(
     assert gate.notification_id == notification.id
     assert gate.request_id == "opaque-random-id"
     assert gate.created_at == "2026-08-01T10:00:00-04:00"
+
+
+def _stub_beads_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    beads_dir: Path,
+    fingerprint: object,
+) -> None:
+    monkeypatch.setattr(
+        beads_data,
+        "_resolve_projects",
+        lambda _project: (
+            SimpleNamespace(
+                project="alpha",
+                display_name="Alpha",
+                workspace_dir=str(tmp_path / "workspace"),
+            ),
+        ),
+    )
+    monkeypatch.setattr(beads_data, "_project_beads_dir", lambda _project: beads_dir)
+    monkeypatch.setattr(
+        beads_data, "_project_document_roots", lambda _project: {"plans": tmp_path}
+    )
+    monkeypatch.setattr(beads_data, "_store_fingerprint_key", lambda _path: fingerprint)
+    monkeypatch.setattr(
+        beads_data, "_notifications_mtime_key", lambda: (("notifications", 1, 1),)
+    )
+    monkeypatch.setattr(beads_data, "_load_pending_triage", lambda: {})
+    monkeypatch.setattr(
+        beads_data,
+        "_resolve_plan_link",
+        lambda *_args, **_kwargs: str(tmp_path / "resolved.md"),
+    )
+    monkeypatch.setattr("sase.__version__", "0.19.0")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.beads_data.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
+
+
+def test_snapshot_groups_phases_in_one_pass_like_legacy_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The single-pass grouping must match the old O(epics x issues) loop."""
+    beads_dir = tmp_path / "beads"
+    epic_one = Issue("alpha-1", "Epic One", issue_type=IssueType.PLAN)
+    epic_two = Issue("alpha-2", "Epic Two", issue_type=IssueType.PLAN)
+    lonely_epic = Issue("alpha-3", "Lonely Epic", issue_type=IssueType.PLAN)
+    # Deliberately out of hierarchical order, with an orphan whose parent
+    # is not among the epics.
+    phase_b = Issue(
+        "alpha-1.10", "Phase B", issue_type=IssueType.PHASE, parent_id="alpha-1"
+    )
+    phase_a = Issue(
+        "alpha-1.2", "Phase A", issue_type=IssueType.PHASE, parent_id="alpha-1"
+    )
+    phase_other = Issue(
+        "alpha-2.1", "Other", issue_type=IssueType.PHASE, parent_id="alpha-2"
+    )
+    orphan = Issue(
+        "alpha-9.1", "Orphan", issue_type=IssueType.PHASE, parent_id="alpha-9"
+    )
+    issues = [phase_b, epic_one, orphan, phase_other, epic_two, phase_a, lonely_epic]
+    epics = [epic_one, epic_two, lonely_epic]
+
+    def legacy_phases() -> dict[tuple[str, str], tuple[ProjectBead, ...]]:
+        grouped: dict[tuple[str, str], tuple[ProjectBead, ...]] = {}
+        for epic in epics:
+            grouped[("alpha", epic.id)] = tuple(
+                ProjectBead("alpha", issue)
+                for issue in sorted(
+                    (
+                        issue
+                        for issue in issues
+                        if issue.issue_type is IssueType.PHASE
+                        and issue.parent_id == epic.id
+                    ),
+                    key=lambda issue: beads_data._hierarchical_id_key(issue.id),
+                )
+            )
+        return grouped
+
+    monkeypatch.setattr(
+        beads_data,
+        "_load_project_beads",
+        lambda _path: (issues, frozenset(), frozenset()),
+    )
+    _stub_beads_project(tmp_path, monkeypatch, beads_dir, (("store", 1, 1),))
+
+    snapshot = load_beads_snapshot("alpha", force=True, include_external=False)
+
+    assert snapshot.phases_by_epic == legacy_phases()
+    assert [
+        item.issue.id for item in snapshot.phases_by_epic[("alpha", "alpha-1")]
+    ] == [
+        "alpha-1.2",
+        "alpha-1.10",
+    ]
+    assert snapshot.phases_by_epic[("alpha", "alpha-3")] == ()
+
+
+def test_snapshot_tick_skips_unchanged_store_and_reloads_on_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unchanged store performs no reload on a tick (sase-1h8.6)."""
+    beads_dir = tmp_path / "beads"
+    task = Issue("alpha-task", "Task", issue_type=IssueType.TASK)
+    key = [("store", 1, 1)]
+    calls = 0
+
+    def load(_path: Path) -> tuple[list[Issue], frozenset[str], frozenset[str]]:
+        nonlocal calls
+        calls += 1
+        return [task], frozenset(), frozenset()
+
+    monkeypatch.setattr(beads_data, "_load_project_beads", load)
+    _stub_beads_project(tmp_path, monkeypatch, beads_dir, tuple(key))
+
+    first = load_beads_snapshot("alpha", force=True, include_external=False)
+    assert calls == 1
+
+    tick = load_beads_snapshot("alpha", previous=first, include_external=False)
+    assert tick is first
+    assert calls == 1
+
+    key.append(("store", 2, 2))
+    monkeypatch.setattr(beads_data, "_store_fingerprint_key", lambda _path: tuple(key))
+    changed = load_beads_snapshot("alpha", previous=first, include_external=False)
+    assert changed is not first
+    assert calls == 2
+
+
+def test_load_project_beads_serves_board_from_one_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The board snapshot lane must not call list/ready/blocked (sase-1h8.6)."""
+    task = Issue("alpha-task", "Task", issue_type=IssueType.TASK)
+    snapshot = bead_read_facade.BeadBoardSnapshot(
+        issues=[task],
+        ready_ids=frozenset({task.id}),
+        blocked_ids=frozenset(),
+    )
+
+    def fail(_path: Path) -> object:
+        raise AssertionError("board lane must not use the three-read fallback")
+
+    monkeypatch.setattr(bead_read_facade, "board_snapshot", lambda _path: snapshot)
+    monkeypatch.setattr(bead_read_facade, "list_issues", fail)
+    monkeypatch.setattr(bead_read_facade, "ready", fail)
+    monkeypatch.setattr(bead_read_facade, "blocked", fail)
+
+    issues, ready_ids, blocked_ids = beads_data_sources.load_project_beads(
+        tmp_path / "beads"
+    )
+
+    assert issues == [task]
+    assert ready_ids == frozenset({task.id})
+    assert blocked_ids == frozenset()
+
+
+def test_load_project_beads_falls_back_without_board_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = Issue("alpha-task", "Task", issue_type=IssueType.TASK)
+    calls: list[str] = []
+
+    def record(name: str, result: object) -> object:
+        def load(_path: Path) -> object:
+            calls.append(name)
+            return result
+
+        return load
+
+    monkeypatch.setattr(bead_read_facade, "board_snapshot", lambda _path: None)
+    monkeypatch.setattr(bead_read_facade, "list_issues", record("list", [task]))
+    monkeypatch.setattr(bead_read_facade, "ready", record("ready", [task]))
+    monkeypatch.setattr(bead_read_facade, "blocked", record("blocked", []))
+
+    issues, ready_ids, blocked_ids = beads_data_sources.load_project_beads(
+        tmp_path / "beads"
+    )
+
+    assert issues == [task]
+    assert ready_ids == frozenset({task.id})
+    assert blocked_ids == frozenset()
+    assert calls == ["list", "ready", "blocked"]

@@ -24,9 +24,17 @@ from .plans_data_sources import (
 def load_project_beads(
     beads_dir: Path,
 ) -> tuple[list[Issue], frozenset[str], frozenset[str]]:
-    """Read one bead store entirely through the Rust-backed facade."""
+    """Read one bead store's board views through the Rust-backed facade.
+
+    The board snapshot serves issues plus ready and blocked IDs from one
+    core read (sase-1h8.6). Cores that predate the binding keep the legacy
+    three-read lane until the pin bump removes this fallback.
+    """
     from sase.core import bead_read_facade
 
+    snapshot = bead_read_facade.board_snapshot(beads_dir)
+    if snapshot is not None:
+        return snapshot.issues, snapshot.ready_ids, snapshot.blocked_ids
     issues = bead_read_facade.list_issues(beads_dir)
     ready_ids = frozenset(issue.id for issue in bead_read_facade.ready(beads_dir))
     blocked_ids = frozenset(issue.id for issue in bead_read_facade.blocked(beads_dir))

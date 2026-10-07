@@ -80,7 +80,7 @@ class RefreshPanelMixin:
                 self._schedule_patches_async_refresh()  # type: ignore[attr-defined]
                 note_surface_refreshed(self, "patches")
             else:
-                self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
+                self._request_active_artifacts_explicit_refresh()  # type: ignore[attr-defined]
                 note_surface_refreshed(self, "artifacts")
         else:  # axe
             # Targeted refresh repaints the focused panel first; the

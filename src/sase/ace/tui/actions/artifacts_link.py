@@ -142,7 +142,7 @@ class ArtifactsLinkActionsMixin:
             self.notify(  # type: ignore[attr-defined]
                 f"{kind} {result.relation} @{source.reference} -> @{target.reference}"
             )
-            refresh = getattr(self, "_request_active_artifacts_refresh", None)
+            refresh = getattr(self, "_request_active_artifacts_explicit_refresh", None)
             if callable(refresh):
                 refresh()
             refresh_links = getattr(self, "_schedule_link_index_refresh", None)

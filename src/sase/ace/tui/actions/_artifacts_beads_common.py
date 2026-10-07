@@ -225,7 +225,7 @@ class ArtifactsBeadsCommonMixin:
         refresh_notifications: bool = False,
     ) -> None:
         def completed(_completion: Any) -> None:
-            pane.request_refresh()
+            pane.request_explicit_refresh()
             if refresh_notifications:
                 refresh = getattr(self, "_refresh_notification_count", None)
                 if callable(refresh):

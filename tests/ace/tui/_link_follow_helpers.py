@@ -415,6 +415,9 @@ class _App(LinkFollowMixin, ArtifactsQueryHistoryActionsMixin):
     def _request_active_artifacts_refresh(self) -> None:
         self.active_artifacts_refreshes += 1
 
+    def _request_active_artifacts_explicit_refresh(self) -> None:
+        self.active_artifacts_refreshes += 1
+
     def _schedule_link_index_refresh(self, *, source: str) -> None:
         self.link_index_refreshes.append(source)
         event = getattr(self, "link_refresh_event", None)

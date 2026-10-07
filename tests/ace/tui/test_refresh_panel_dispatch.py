@@ -84,6 +84,9 @@ class _DispatchApp(BaseActionsMixin):
     def _request_active_artifacts_refresh(self) -> None:
         self.other_calls.append("artifacts")
 
+    def _request_active_artifacts_explicit_refresh(self) -> None:
+        self.other_calls.append("artifacts")
+
     def _schedule_targeted_axe_refresh(self) -> None:
         self.other_calls.append("targeted_axe")
 

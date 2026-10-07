@@ -138,16 +138,15 @@ def load_beads_snapshot(
                     today=today,
                     release=release,
                 )
+        phases_by_parent: dict[str, list[Issue]] = {}
+        for issue in issues:
+            if issue.issue_type is IssueType.PHASE and issue.parent_id is not None:
+                phases_by_parent.setdefault(issue.parent_id, []).append(issue)
         for epic in project_epics:
             phases = tuple(
                 ProjectBead(project_name, issue)
                 for issue in sorted(
-                    (
-                        issue
-                        for issue in issues
-                        if issue.issue_type is IssueType.PHASE
-                        and issue.parent_id == epic.id
-                    ),
+                    phases_by_parent.get(epic.id, []),
                     key=lambda issue: _hierarchical_id_key(issue.id),
                 )
             )

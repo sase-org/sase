@@ -85,7 +85,7 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
             return
 
         def completed(_completion: Any) -> None:
-            pane.request_refresh()
+            pane.request_explicit_refresh()
 
         self._submit_session_worker(  # type: ignore[attr-defined]
             f"bead-issue-{operation}",

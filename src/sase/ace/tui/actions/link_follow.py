@@ -171,7 +171,7 @@ class _LinkFollowPanelMixin:
                 f"removed {count} {chip.relation} link{plural} "
                 f"@{source_ref} -> @{target_ref}"
             )
-            refresh = getattr(self, "_request_active_artifacts_refresh", None)
+            refresh = getattr(self, "_request_active_artifacts_explicit_refresh", None)
             if callable(refresh):
                 refresh()
             refresh_links = getattr(self, "_schedule_link_index_refresh", None)

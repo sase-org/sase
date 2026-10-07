@@ -205,6 +205,46 @@ def blocked(beads_dir: Path | str) -> list[Issue]:
     return issues_from_list(payload)
 
 
+@dataclass(frozen=True)
+class BeadBoardSnapshot:
+    """The TUI board views served from a single store read.
+
+    ``issues`` matches :func:`list_issues` with no filters; ``ready_ids``
+    and ``blocked_ids`` match the IDs of :func:`ready` and :func:`blocked`.
+    """
+
+    issues: list[Issue]
+    ready_ids: frozenset[str]
+    blocked_ids: frozenset[str]
+
+
+def board_snapshot(beads_dir: Path | str) -> BeadBoardSnapshot | None:
+    """Return the board views from one core read.
+
+    Returns ``None`` when the installed core predates the
+    ``bead_board_snapshot`` binding (sase-1h8.6), so callers fail open to
+    the legacy three-read lane until the pin bump removes this fallback.
+    """
+    binding = optional_rust_binding("bead_board_snapshot")
+    if binding is None:
+        return None
+    try:
+        payload: dict[str, Any] = binding(str(beads_dir))
+    except Exception:
+        return None
+    try:
+        issues = issues_from_list(payload["issues"])
+        ready_ids = frozenset(str(item) for item in payload["ready_ids"])
+        blocked_ids = frozenset(str(item) for item in payload["blocked_ids"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return BeadBoardSnapshot(
+        issues=issues,
+        ready_ids=ready_ids,
+        blocked_ids=blocked_ids,
+    )
+
+
 def stats(beads_dir: Path | str) -> dict[str, int]:
     binding = require_rust_binding("bead_stats")
     payload: dict[str, int] = binding(str(beads_dir))
@@ -299,9 +339,11 @@ def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
 
 __all__ = [
     "BeadArtifactLinkRow",
+    "BeadBoardSnapshot",
     "BeadIssueDetailSnapshot",
     "BeadStoreFingerprint",
     "blocked",
+    "board_snapshot",
     "doctor",
     "doctor_report",
     "get_epic_children",

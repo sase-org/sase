@@ -534,6 +534,11 @@ class ArtifactsMixin(
         if view is not None:
             view.request_active_refresh()
 
+    def _request_active_artifacts_explicit_refresh(self) -> None:
+        view = self._artifacts_view()
+        if view is not None:
+            view.request_active_explicit_refresh()
+
 
 __all__ = [
     "ArtifactsMixin",

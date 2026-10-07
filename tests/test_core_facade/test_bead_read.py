@@ -81,6 +81,25 @@ def test_read_facade_matches_bead_project_queries(
         project.__exit__()
 
 
+def test_board_snapshot_matches_separate_queries(
+    bead_store: tuple[BeadProject, Path, dict[str, Issue]],
+) -> None:
+    """One board read must equal list/ready/blocked (sase-1h8.6)."""
+    project, beads_dir, _ = bead_store
+    try:
+        snapshot = rust_beads.board_snapshot(beads_dir)
+        assert snapshot is not None
+        assert _ids(snapshot.issues) == _ids(rust_beads.list_issues(beads_dir))
+        assert sorted(snapshot.ready_ids) == sorted(
+            issue.id for issue in rust_beads.ready(beads_dir)
+        )
+        assert sorted(snapshot.blocked_ids) == sorted(
+            issue.id for issue in rust_beads.blocked(beads_dir)
+        )
+    finally:
+        project.__exit__()
+
+
 def test_read_facade_show_issue_detail_can_skip_link_projection(
     tmp_path: Path,
 ) -> None:

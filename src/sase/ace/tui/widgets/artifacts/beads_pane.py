@@ -147,6 +147,11 @@ class ArtifactsBeadsPane(
             self._detail_debouncer.cancel()
 
     def on_refresh(self) -> None:
+        # Auto-refresh ticks must not force: the fingerprint-based source
+        # key decides whether the store needs re-reading (sase-1h8.6).
+        self._request_load(force=False)
+
+    def on_explicit_refresh(self) -> None:
         self._request_load(force=True)
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
