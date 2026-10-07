@@ -273,6 +273,30 @@ artifact directory plus the offending outcome. The job also emits a bounded samp
 waiters blocked by terminal dependencies so permanent stalls are diagnosable without
 spamming ordinary live waiters.
 
+An armed epic follow moves through `launching`, `following`, and `blocked` stages
+(`none` is never persisted). `launching` means the planner finished but no epic has
+appeared yet: the launch is still in flight, or it ended inside a short settle window (2
+minutes) that absorbs monitor/proc handoff lag. `following` means the launched epics
+were pinned into `wait_for_beads` and the wait now tracks them like ordinary bead waits.
+`blocked` means no epic will appear without operator action: the launch was skipped, it
+ended without an epic, the target was dismissed mid-launch, or the follow would cycle
+back onto the waiter. A `launching` follow stays quiet until its `since` is older than
+the 10-minute grace period; only then does `wait_checks` raise one deduplicated inbox
+entry per waiter and target, and likewise one entry per `blocked` follow (naming the
+reason with its resume command, jumping to the waiter) and one per followed epic whose
+land agent failed terminally (naming the waiter, the epic, and the land agent). Repeat
+ticks corroborate the single entry with +1 instead of duplicating it, and the entry is
+dismissed once its state resolves. Nothing about a follow ever releases on a timeout: an
+overdue or blocked waiter stays parked until an epic appears, the follow is cleared, or
+the wait is relaunched.
+
+Two guards keep a follow from deadlocking the epic machinery. The deadlock guard drops
+any launched epic that already contains the waiter: the waiter's own bead equals the
+epic, or nests under it (a phase bead `sase-7k.1` under epic `sase-7k`). The cycle guard
+blocks when a live agent in the launched epic's clan already waits on the waiter —
+through `waiting_for`, `wait_for`, or the approval "Wait for" field — because each side
+would otherwise wait out the other forever.
+
 Before writing `ready.json`, `wait_checks` confirms an agent-shaped release against a
 fresh on-disk membership view taken after the resolving marker read. If a session gained
 a member in between — for example, a coder just launched its monitor or gate — the

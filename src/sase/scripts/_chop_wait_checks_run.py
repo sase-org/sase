@@ -37,11 +37,28 @@ from sase.scripts._chop_incremental_index import (
 )
 from sase.scripts._chop_wait_checks_common import TerminalBlocker, WaitingMarker
 from sase.scripts._chop_wait_checks_terminal import (
+    epic_follow_blocked_dedup_key,
+    epic_follow_land_failed_dedup_key,
+    epic_follow_launching_dedup_key,
+    reconcile_epic_follow_notifications,
     terminal_blockers,
+    upsert_epic_follow_blocked_notification,
+    upsert_epic_follow_land_failed_notification,
+    upsert_epic_follow_launching_notification,
     upsert_terminal_blocked_wait_notification,
 )
 
 _MAX_TERMINAL_BLOCKER_LOGS = 10
+
+
+def _marker_has_epic_follows(waiting_path: Path) -> bool:
+    """Return whether a waiting marker carries persisted epic follows."""
+    try:
+        with open(waiting_path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (json.JSONDecodeError, OSError):
+        return False
+    return isinstance(data, dict) and bool(data.get("wait_epic_follows"))
 
 
 @builtin_chop("wait_checks")
@@ -77,6 +94,12 @@ def _run(
     waiter_error_logs = 0
     terminal_blocker_logs = 0
     terminal_blocker_suppressed = 0
+    # Epic-follow notification reconciliation: waiters evaluated cleanly this
+    # tick contribute their still-active dedup keys; anything they own that
+    # is not active gets dismissed afterwards in one pass.
+    epic_follow_seen = False
+    epic_follow_active_keys: set[str] = set()
+    epic_follow_reconciled_dirs: set[str] = set()
     dependency_index = WaitDependencyIndex.empty()
     pending_waiting_markers: list[WaitingMarker] = []
     artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
@@ -107,6 +130,12 @@ def _run(
                 ready_path = artifact_dir / "ready.json"
                 if ready_path.exists():
                     skipped_ready += 1
+                    # Already released: any epic-follow blocker rows it owns
+                    # are stale. Read the marker best-effort so the
+                    # end-of-tick reconcile can dismiss them.
+                    if _marker_has_epic_follows(waiting_path):
+                        epic_follow_seen = True
+                        epic_follow_reconciled_dirs.add(str(artifact_dir))
                 else:
                     pending_waiting_markers.append(
                         WaitingMarker(
@@ -152,6 +181,93 @@ def _run(
 
     wait_bead_cache = WaitBeadStatusCache()
 
+    def _epic_follow_notification_keys(
+        waiting_marker: WaitingMarker,
+        data: dict[str, Any],
+        wait_epic_follows: list[Any],
+        follows: Any,
+    ) -> set[str]:
+        """Upsert epic-follow blocker notifications; return active dedup keys.
+
+        Merges fresh follow decisions with persisted FOLLOWING entries (pinned
+        follows skip the collector) so a land agent that fails after pinning
+        still notifies. Never raises: notification failures must not park the
+        waiter or block its release.
+        """
+        waiter_dir = waiting_marker.waiting_path.parent
+        waiter_str = str(waiter_dir)
+        active: set[str] = set()
+        try:
+            fresh_by_target = {
+                decision.target: decision
+                for decision in follows
+                if getattr(decision, "target", None)
+            }
+            following_epics: list[str] = []
+            for decision in follows:
+                state = getattr(decision, "state", None)
+                target = getattr(decision, "target", None)
+                if not isinstance(target, str) or not target:
+                    continue
+                if state == "launching" and bool(
+                    getattr(decision, "launching_overdue", False)
+                ):
+                    upsert_epic_follow_launching_notification(
+                        waiting_marker, data, decision
+                    )
+                    active.add(epic_follow_launching_dedup_key(waiter_str, target))
+                elif state == "blocked":
+                    upsert_epic_follow_blocked_notification(
+                        waiting_marker, data, decision
+                    )
+                    active.add(epic_follow_blocked_dedup_key(waiter_str, target))
+                if state == "following":
+                    for epic_id in getattr(decision, "epic_ids", ()):
+                        if isinstance(epic_id, str) and epic_id:
+                            following_epics.append(epic_id)
+            for entry in wait_epic_follows:
+                if not isinstance(entry, dict):
+                    continue
+                target = entry.get("target")
+                if not isinstance(target, str) or target in fresh_by_target:
+                    continue
+                if entry.get("state") != "following":
+                    continue
+                epic_ids = entry.get("epic_ids")
+                if isinstance(epic_ids, list):
+                    for epic_id in epic_ids:
+                        if isinstance(epic_id, str) and epic_id:
+                            following_epics.append(epic_id)
+            for epic_id in dict.fromkeys(following_epics):
+                try:
+                    land_blockers = (
+                        dependency_index.terminal_blocking_artifacts_for_name(
+                            f"{epic_id}.land",
+                            exclude_artifact_dir=waiter_dir,
+                        )
+                    )
+                except Exception:  # noqa: BLE001 - best-effort land check.
+                    continue
+                for blocker in land_blockers:
+                    if blocker.outcome is None:
+                        continue
+                    land_name = blocker.name or f"{epic_id}.land"
+                    upsert_epic_follow_land_failed_notification(
+                        waiting_marker,
+                        data,
+                        epic_id,
+                        land_name,
+                        blocker.artifact_dir,
+                        blocker.outcome,
+                    )
+                    active.add(epic_follow_land_failed_dedup_key(waiter_str, epic_id))
+        except Exception as exc:  # noqa: BLE001 - notifications never park.
+            runtime.log(
+                "[wait_checks] Epic-follow notification failed for "
+                f"{waiter_dir}: {exc}",
+            )
+        return active
+
     def _process_one_waiter(
         waiting_marker: WaitingMarker,
         data: dict[str, Any],
@@ -169,6 +285,7 @@ def _run(
         nonlocal unresolved, unknown_outcome
         nonlocal deferred_unconfirmed, terminal_blocker_logs
         nonlocal terminal_blocker_suppressed
+        nonlocal epic_follow_seen
         closed_bead_ids = None
         if wait_for_beads:
             project_name = waiting_marker.project_name
@@ -270,13 +387,26 @@ def _run(
                     f"(blocked on: {blocked or '<unknown>'})",
                 )
             return
+        if wait_for_epics_of or wait_epic_follows:
+            epic_follow_seen = True
         if decision.patch is not None:
             apply_wait_epic_follow_patch(
                 waiting_marker.waiting_path.parent, decision.patch
             )
+            epic_follow_active_keys.update(
+                _epic_follow_notification_keys(
+                    waiting_marker, data, wait_epic_follows, decision.follows
+                )
+            )
+            epic_follow_reconciled_dirs.add(str(waiting_marker.waiting_path.parent))
             unresolved += 1
             return
-        if status.resolved:
+        # Gate on the shared releasable verdict, not the pre-follow status:
+        # a persisted-but-unchanged LAUNCHING/BLOCKED follow leaves no patch
+        # yet must still hold the waiter (never release on a timeout).
+        if decision.releasable:
+            if wait_for_epics_of or wait_epic_follows:
+                epic_follow_reconciled_dirs.add(str(waiting_marker.waiting_path.parent))
             cl_name = data.get("cl_name", "unknown")
             waited_on = ", ".join(waiting_for)
             if wait_for_beads:
@@ -305,6 +435,16 @@ def _run(
                     skipped_ready += 1
         else:
             unresolved += 1
+            if wait_for_epics_of or wait_epic_follows:
+                epic_follow_active_keys.update(
+                    _epic_follow_notification_keys(
+                        waiting_marker,
+                        data,
+                        wait_epic_follows,
+                        decision.follows,
+                    )
+                )
+                epic_follow_reconciled_dirs.add(str(waiting_marker.waiting_path.parent))
             found_blockers: tuple[TerminalBlocker, ...] = terminal_blockers(
                 dependency_index,
                 waiting_for,
@@ -418,6 +558,19 @@ def _run(
             "[wait_checks] Suppressed "
             f"{terminal_blocker_suppressed} additional terminal blocker log(s)",
         )
+
+    if epic_follow_seen and epic_follow_reconciled_dirs:
+        try:
+            cleared = reconcile_epic_follow_notifications(
+                epic_follow_active_keys, epic_follow_reconciled_dirs
+            )
+        except Exception as exc:  # noqa: BLE001 - reconcile never fails.
+            runtime.log(f"[wait_checks] Epic-follow reconcile failed: {exc}")
+            cleared = 0
+        if cleared:
+            runtime.log(
+                f"[wait_checks] Cleared {cleared} resolved epic-follow notification(s)",
+            )
 
     reason = None
     if ready_written == 0:

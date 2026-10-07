@@ -237,6 +237,13 @@ def collect_epic_follow_facts(
     active_keys = _active_launch_keys()
     attributed_cache: dict[tuple[str, str, str], tuple[str, ...]] = {}
 
+    from sase.core.wait_dependency_resolution._epic_follow_cycle import (
+        cycle_epic_ids_for_members,
+        waiter_wait_names,
+    )
+
+    waiter_names = waiter_wait_names(waiter_meta or {})
+
     wire_targets: list[EpicFollowTargetFacts] = []
     for target in targets:
         if _is_pinned_following(previous_follows, target):
@@ -265,15 +272,27 @@ def collect_epic_follow_facts(
         previous_since: float | None = None
         if isinstance(raw_since, (int, float)) and not isinstance(raw_since, bool):
             previous_since = float(raw_since)
-        # The cycle guard is filled by the safety phase; until then no epic
-        # is treated as a cycle.
+        try:
+            cycle_epic_ids = (
+                cycle_epic_ids_for_members(
+                    index,
+                    members,
+                    waiter_own_bead_ids=waiter_own_bead_ids,
+                    waiter_names=waiter_names,
+                    waiter_dir=waiter_dir,
+                )
+                if members
+                else ()
+            )
+        except Exception:
+            cycle_epic_ids = ()
         wire_targets.append(
             EpicFollowTargetFacts(
                 target=target,
                 agent_resolved=agent_resolved,
                 previous_state=previous_state,
                 previous_since=previous_since,
-                cycle_epic_ids=(),
+                cycle_epic_ids=cycle_epic_ids,
                 members=members,
             )
         )

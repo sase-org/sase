@@ -14,12 +14,26 @@ from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
     read_json_dict as _read_json_dict,
 )
+from sase.core.wait_dependency_resolution._epic_follow import EpicFollowDecision
 from sase.core.wait_dependency_resolution._types import ArtifactCandidate
 from sase.notifications.models import Notification, normalize_notification_tags
-from sase.notifications.store import upsert_notification
+from sase.notifications.store import (
+    load_notifications,
+    mark_dismissed,
+    upsert_notification,
+)
 from sase.scripts._chop_wait_checks_common import TerminalBlocker, WaitingMarker
 
 _TERMINAL_BLOCKED_WAIT_SENDER = "wait_checks"
+
+# Dedup-key namespace for epic-follow blocker notifications. Keys are per
+# waiter and target (or epic), so each case produces exactly one entry with
+# +1 corroboration on repeat ticks.
+_EPIC_FOLLOW_DEDUP_PREFIX = "wait_checks:epic-follow-"
+
+# Mirrors the collector's ``launching_grace_seconds`` default: a LAUNCHING
+# follow stays quiet until its ``since`` is older than this.
+_LAUNCHING_GRACE_SECONDS = 600.0
 
 
 def terminal_blockers(
@@ -229,7 +243,214 @@ def _dependency_label(dependency: Mapping[str, Any]) -> str:
     return "<artifact dependency>"
 
 
+def epic_follow_launching_dedup_key(waiter_dir: str, target: str) -> str:
+    return f"{_EPIC_FOLLOW_DEDUP_PREFIX}launching:{waiter_dir}:{target}"
+
+
+def epic_follow_blocked_dedup_key(waiter_dir: str, target: str) -> str:
+    return f"{_EPIC_FOLLOW_DEDUP_PREFIX}blocked:{waiter_dir}:{target}"
+
+
+def epic_follow_land_failed_dedup_key(waiter_dir: str, epic_id: str) -> str:
+    return f"{_EPIC_FOLLOW_DEDUP_PREFIX}land-failed:{waiter_dir}:{epic_id}"
+
+
+def _grace_label(seconds: float = _LAUNCHING_GRACE_SECONDS) -> str:
+    if seconds >= 60 and seconds % 60 == 0:
+        return f"{int(seconds // 60)}m"
+    return f"{int(seconds)}s"
+
+
+def _approved_label(since: float) -> str:
+    try:
+        return datetime.fromtimestamp(since, tz=get_timezone()).strftime("%H:%M")
+    except (OSError, OverflowError, ValueError):
+        return "unknown"
+
+
+def upsert_epic_follow_launching_notification(
+    waiting_marker: WaitingMarker,
+    waiting_data: Mapping[str, Any],
+    decision: EpicFollowDecision,
+) -> None:
+    """Notify once that a LAUNCHING follow is past its grace period.
+
+    Only overdue launches notify; a fresh reservation stays quiet. Repeat
+    ticks corroborate the single entry via +1.
+    """
+    waiter_dir = waiting_marker.waiting_path.parent
+    waiter_name = _waiting_agent_label(waiting_data, waiter_dir)
+    timestamp = datetime.now(get_timezone()).isoformat()
+    notification = Notification(
+        id=str(uuid4()),
+        timestamp=timestamp,
+        sender=_TERMINAL_BLOCKED_WAIT_SENDER,
+        icon="!",
+        color="#D14343",
+        notes=[
+            "Epic-follow launch is overdue",
+            f"Waiter: {waiter_name}",
+            (
+                f"{waiter_name} is waiting on {decision.target}'s epic launch "
+                f"(approved {_approved_label(decision.since)}; "
+                f"no epic after {_grace_label()})"
+            ),
+            (
+                "The planner was approved but no epic appeared; check whether "
+                "the epic launch stalled."
+            ),
+        ],
+        files=[str(waiter_dir)],
+        tags=normalize_notification_tags(["wait", "blocked", "epic-follow"]),
+        dedup_key=epic_follow_launching_dedup_key(str(waiter_dir), decision.target),
+    )
+    upsert_notification(
+        notification,
+        plus_one_note=(
+            f"Still waiting on {decision.target}'s epic launch: "
+            f"no epic after {_grace_label()}"
+        ),
+        plus_one_timestamp=timestamp,
+    )
+
+
+def upsert_epic_follow_blocked_notification(
+    waiting_marker: WaitingMarker,
+    waiting_data: Mapping[str, Any],
+    decision: EpicFollowDecision,
+) -> None:
+    """Notify once that an epic follow is BLOCKED, with the resume command.
+
+    The entry jumps to the waiter so the operator can resume or clear the
+    wait from there.
+    """
+    waiter_dir = waiting_marker.waiting_path.parent
+    waiter_name = _waiting_agent_label(waiting_data, waiter_dir)
+    timestamp = datetime.now(get_timezone()).isoformat()
+    reason = decision.detail or decision.reason or "unknown reason"
+    notes = [
+        "Epic follow is blocked",
+        f"Waiter: {waiter_name}",
+        f"Target: {decision.target}",
+        reason,
+    ]
+    if decision.resume_command:
+        notes.append(f"Resume with: `{decision.resume_command}`")
+    else:
+        notes.append(
+            "No resume command is known; inspect the target agent's "
+            "epic launch and relaunch it if needed."
+        )
+    notification = Notification(
+        id=str(uuid4()),
+        timestamp=timestamp,
+        sender=_TERMINAL_BLOCKED_WAIT_SENDER,
+        icon="!",
+        color="#D14343",
+        notes=notes,
+        files=[str(waiter_dir)],
+        tags=normalize_notification_tags(["wait", "blocked", "epic-follow"]),
+        action="JumpToAgent",
+        action_data={
+            "cl_name": waiter_name,
+            "raw_suffix": waiter_dir.name,
+        },
+        dedup_key=epic_follow_blocked_dedup_key(str(waiter_dir), decision.target),
+    )
+    upsert_notification(
+        notification,
+        plus_one_note=f"Still blocked on {decision.target}: {reason}",
+        plus_one_timestamp=timestamp,
+    )
+
+
+def upsert_epic_follow_land_failed_notification(
+    waiting_marker: WaitingMarker,
+    waiting_data: Mapping[str, Any],
+    epic_id: str,
+    land_agent_name: str,
+    land_artifact_dir: str,
+    outcome: str,
+) -> None:
+    """Notify once that a followed epic's land agent failed terminally.
+
+    The followed epic will never close on its own, so the wait cannot
+    resolve without operator action.
+    """
+    waiter_dir = waiting_marker.waiting_path.parent
+    waiter_name = _waiting_agent_label(waiting_data, waiter_dir)
+    timestamp = datetime.now(get_timezone()).isoformat()
+    notification = Notification(
+        id=str(uuid4()),
+        timestamp=timestamp,
+        sender=_TERMINAL_BLOCKED_WAIT_SENDER,
+        icon="!",
+        color="#D14343",
+        notes=[
+            "Followed epic will never close",
+            f"Waiter: {waiter_name}",
+            (
+                f"Epic {epic_id}: land agent {land_agent_name} "
+                f"({land_artifact_dir}) ended {outcome}"
+            ),
+            (
+                "Clear the epic follow or relaunch the epic; "
+                "the wait cannot resolve on its own."
+            ),
+        ],
+        files=[str(waiter_dir), land_artifact_dir],
+        tags=normalize_notification_tags(["wait", "blocked", "epic-follow"]),
+        dedup_key=epic_follow_land_failed_dedup_key(str(waiter_dir), epic_id),
+    )
+    upsert_notification(
+        notification,
+        plus_one_note=(
+            f"Epic {epic_id} still unclosable: land agent {land_agent_name} ({outcome})"
+        ),
+        plus_one_timestamp=timestamp,
+    )
+
+
+def reconcile_epic_follow_notifications(
+    active_dedup_keys: set[str],
+    waiter_dirs: set[str],
+) -> int:
+    """Dismiss stale epic-follow entries for successfully evaluated waiters.
+
+    A row is stale when its condition no longer holds (the follow moved to
+    FOLLOWING/NONE, or the waiter released) and its waiter was evaluated
+    this tick. Waiters that errored or deferred stay out of ``waiter_dirs``
+    so their entries fail open. Returns the dismissed count.
+    """
+    if not waiter_dirs:
+        return 0
+    dismissed = 0
+    for row in load_notifications():
+        if row.sender != _TERMINAL_BLOCKED_WAIT_SENDER:
+            continue
+        key = row.dedup_key or ""
+        if not key.startswith(_EPIC_FOLLOW_DEDUP_PREFIX):
+            continue
+        if key in active_dedup_keys:
+            continue
+        if not any(f":{waiter_dir}:" in key for waiter_dir in waiter_dirs):
+            continue
+        try:
+            if mark_dismissed(row.id):
+                dismissed += 1
+        except Exception:
+            continue
+    return dismissed
+
+
 __all__ = [
+    "epic_follow_blocked_dedup_key",
+    "epic_follow_land_failed_dedup_key",
+    "epic_follow_launching_dedup_key",
+    "reconcile_epic_follow_notifications",
     "terminal_blockers",
+    "upsert_epic_follow_blocked_notification",
+    "upsert_epic_follow_land_failed_notification",
+    "upsert_epic_follow_launching_notification",
     "upsert_terminal_blocked_wait_notification",
 ]
