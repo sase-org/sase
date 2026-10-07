@@ -244,7 +244,8 @@ def test_wait_checks_no_projects_dir_emits_noop_summary(
     run_wait_checks(tmp_path, monkeypatch)
 
     assert capsys.readouterr().out == (
-        "wait_checks: projects=0 artifacts=0 waiting=0 ready_written=0 "
+        "wait_checks: projects=0 artifacts=0 waiting=0 live_waiting=0 "
+        "dead_waiting=0 unknown_liveness=0 ready_written=0 "
         "deferred_unconfirmed=0 reason=no_projects_dir\n"
     )
 
@@ -257,7 +258,8 @@ def test_wait_checks_unresolved_dependency_emits_noop_reason(
     run_wait_checks(tmp_path, monkeypatch)
 
     out = capsys.readouterr().out
-    assert "wait_checks: projects=1 artifacts=1 waiting=1 ready_written=0" in out
+    assert "wait_checks: projects=1 artifacts=1 waiting=1 live_waiting=0" in out
+    assert "dead_waiting=0 unknown_liveness=1 ready_written=0" in out
     assert "unresolved=1" in out
     assert "unknown_outcome=0" in out
     assert "reason=dependencies_not_ready" in out

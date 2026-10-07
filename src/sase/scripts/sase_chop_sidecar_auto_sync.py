@@ -35,16 +35,12 @@ from sase._sidecar_sync_hints import (
     mark_sidecar_sync_hint,
     pending_sidecar_sync_roles,
 )
-from sase.agent.names import is_process_alive
+from sase.axe.wait_marker_scan import scan_waiting_markers, waiting_runner_liveness
 from sase.bead.sync import bead_refresh_mode
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
-from sase.core.agent_scan_facade import scan_agent_artifacts
-from sase.core.agent_scan_wire import (
-    AgentArtifactRecordWire,
-    AgentArtifactScanOptionsWire,
-)
 from sase.core.paths import sase_projects_dir
+from sase.core.wait_dependency_resolution import read_json_dict
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.sdd._store_maintenance import (
@@ -63,14 +59,6 @@ _MAX_BACKOFF_SECONDS = 30 * 60
 # A role with no pending hint is only re-checked this often, so scanning
 # every enabled project each tick stays cheap even at fleet scale.
 _BACKSTOP_INTERVAL_SECONDS = 5 * 60
-_BEAD_WAIT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
-    only_workflow_dirs=("ace-run",),
-    include_prompt_step_markers=False,
-    include_raw_prompt_snippets=False,
-    include_done_markers=False,
-    include_workflow_state=False,
-    include_waiting=True,
-)
 
 
 @dataclass(frozen=True)
@@ -210,38 +198,25 @@ def _enabled_project_records() -> list[ProjectRecordWire]:
     ]
 
 
-def _waiting_agent_is_alive(record: AgentArtifactRecordWire) -> bool | None:
-    meta: dict[str, object] = {}
-    if record.agent_meta is not None:
-        if record.agent_meta.pid is not None:
-            meta["pid"] = record.agent_meta.pid
-        if record.agent_meta.stopped_at is not None:
-            meta["stopped_at"] = record.agent_meta.stopped_at
-        process_identity = getattr(record.agent_meta, "process_identity", None)
-        if process_identity is not None:
-            meta["process_identity"] = process_identity
-    try:
-        return is_process_alive(meta, Path(record.artifact_dir))
-    except Exception:  # noqa: BLE001 - uncertain liveness must fail open.
-        return None
-
-
 def _projects_with_live_bead_waits(projects_root: Path) -> frozenset[str]:
-    """Return projects with a live agent parked on an unresolved bead wait."""
-    snapshot = scan_agent_artifacts(projects_root, _BEAD_WAIT_SCAN_OPTIONS)
+    """Return projects with a live agent parked on an unresolved bead wait.
+
+    Reuses the shared waiting-marker walk plus tri-state runner liveness:
+    a marker counts when it carries a non-empty ``wait_for_beads`` list, has
+    no ``ready.json``, and its runner is not provably dead.
+    """
     projects: set[str] = set()
-    for record in snapshot.records:
-        waiting = record.waiting
-        artifact_dir = Path(record.artifact_dir)
-        if (
-            waiting is None
-            or not waiting.wait_for_beads
-            or (artifact_dir / "ready.json").exists()
-        ):
+    for marker in scan_waiting_markers(projects_root).pending:
+        waiting = read_json_dict(marker.waiting_path)
+        if not isinstance(waiting, dict):
             continue
-        if _waiting_agent_is_alive(record) is False:
+        wait_for_beads = waiting.get("wait_for_beads")
+        if not isinstance(wait_for_beads, list) or not wait_for_beads:
             continue
-        projects.add(record.project_name)
+        meta = read_json_dict(marker.waiting_path.parent / "agent_meta.json")
+        if waiting_runner_liveness(marker.waiting_path.parent, meta) == "dead":
+            continue
+        projects.add(marker.project_name)
     return frozenset(projects)
 
 

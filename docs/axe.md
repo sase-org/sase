@@ -267,6 +267,17 @@ satisfy `%wait`; the dependent agent remains parked until a later successful run
 same dependency name appears. `"plan_rejected"` is deliberately identity-terminal for
 exact artifact waits but does not satisfy a named `%wait`.
 
+Each tick walks every project's `ace-run` directories for `waiting.json` markers and
+classifies each pending waiter (marker present, `ready.json` absent) by runner liveness:
+`alive` for a running recorded pid, `dead` for a `stopped_at` stamp or a provably gone
+pid (PID reuse guarded by `process_identity` and boot time), and `unknown` when no pid
+was recorded. Unknown waiters resolve as if live; dead waiters are skipped entirely — no
+resolution, no notifications — and counted in the `dead_waiting` backlog counter
+alongside `live_waiting` and `unknown_liveness`. With no live or unknown waiter pending,
+the tick emits its summary without building any dependency view, and `unresolved` counts
+only live/unknown waiters. The resolving view itself is built from filesystem
+`agent_meta.json` rows rather than the artifact index.
+
 If an unresolved dependency already has a terminal `done.json` outcome that wait
 resolution does not recognize, `wait_checks` increments `unknown_outcome` and logs the
 artifact directory plus the offending outcome. The job also emits a bounded sample of

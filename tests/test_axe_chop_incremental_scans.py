@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -15,9 +16,11 @@ from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     rebuild_agent_artifact_index,
 )
+from sase.core.process_identity import process_identity_token
+from sase.notifications.store import load_notifications
 from sase.scripts._chop_bead_claim_scan import BEAD_CLAIM_RECONCILED_MARKER
 from sase.scripts._chop_incremental_index import chop_scan_full_walk
-from tests._agent_names_fixtures import make_agent
+from tests._agent_names_fixtures import DEAD_PID, make_agent
 from tests._axe_chop_bead_claim_checks_helpers import make_runtime
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, run_wait_checks
 
@@ -131,7 +134,7 @@ def test_wait_checks_already_ready_does_not_read_agent_meta(
     assert (waiter / "ready.json").exists()
 
 
-def test_wait_checks_incremental_matches_full_walk_on_populated_tree(
+def test_wait_checks_filesystem_view_resolves_live_waiter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -147,29 +150,31 @@ def test_wait_checks_incremental_matches_full_walk_on_populated_tree(
     )
 
     run_wait_checks(tmp_path, monkeypatch)
-    incremental_out = capsys.readouterr().out
-    incremental_ready = (waiter / "ready.json").read_text(encoding="utf-8")
-    (waiter / "ready.json").unlink()
+    out = capsys.readouterr().out
 
-    monkeypatch.setenv(FULL_WALK_ENV, "1")
-    run_wait_checks(tmp_path, monkeypatch)
-    full_walk_out = capsys.readouterr().out
-    full_walk_ready = (waiter / "ready.json").read_text(encoding="utf-8")
-
-    assert (
-        json.loads(incremental_ready)
-        == json.loads(full_walk_ready)
-        == {"resolved_deps": ["foo"], "released_by": "wait_checks"}
-    )
-    assert "ready_written=1" in incremental_out
-    assert "ready_written=1" in full_walk_out
+    assert json.loads((waiter / "ready.json").read_text(encoding="utf-8")) == {
+        "resolved_deps": ["foo"],
+        "released_by": "wait_checks",
+    }
+    assert "ready_written=1" in out
+    # The fixture waiter writes no agent_meta.json, so it classifies as
+    # unknown liveness and resolves as if live.
+    assert "live_waiting=0" in out
+    assert "dead_waiting=0" in out
+    assert "unknown_liveness=1" in out
 
 
-def test_wait_checks_index_resolution_skips_filesystem_meta_reads(
+def _write_waiter_meta(waiter: Path, meta: dict) -> None:
+    (waiter / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+
+
+def test_wait_checks_only_dead_pending_skips_dependency_view(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     waiter = make_waiting_agent(tmp_path, "foo")
+    _write_waiter_meta(waiter, {"name": "dead-waiter", "pid": DEAD_PID})
     make_agent(
         tmp_path,
         "proj",
@@ -178,37 +183,129 @@ def test_wait_checks_index_resolution_skips_filesystem_meta_reads(
         done=True,
         outcome="completed",
     )
-    _rebuild_test_index(tmp_path, monkeypatch)
     reads = _count_wait_meta_reads(monkeypatch)
+    monkeypatch.setattr(
+        wait_checks_module,
+        "_filesystem_dependency_rows",
+        lambda *_args, **_kwargs: pytest.fail(
+            "dead-only tick must not build a dependency view"
+        ),
+    )
 
     run_wait_checks(tmp_path, monkeypatch)
+    out = capsys.readouterr().out
+
+    # Only the dead waiter's own meta is read, for classification.
+    assert reads[0] == 1
+    assert not (waiter / "ready.json").exists()
+    assert "dead_waiting=1" in out
+    assert "live_waiting=0" in out
+    assert "reason=no_live_waiters" in out
+
+
+def test_wait_checks_dead_waiter_with_satisfied_dep_stays_parked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waiter = make_waiting_agent(tmp_path, "foo")
+    _write_waiter_meta(waiter, {"name": "dead-waiter", "pid": DEAD_PID})
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter / "ready.json").exists()
+
+
+def test_wait_checks_pid_reuse_counts_as_dead(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    waiter = make_waiting_agent(tmp_path, "foo")
+    # A live pid with a mismatched process_identity is a reused pid: the
+    # original runner is gone.
+    _write_waiter_meta(
+        waiter,
+        {"name": "reused-pid", "pid": os.getpid(), "process_identity": "0:0"},
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+    out = capsys.readouterr().out
+
+    assert not (waiter / "ready.json").exists()
+    assert "dead_waiting=1" in out
+    assert "reason=no_live_waiters" in out
+
+
+def test_wait_checks_live_pid_waiter_still_resolves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    waiter = make_waiting_agent(tmp_path, "foo")
+    _write_waiter_meta(
+        waiter,
+        {
+            "name": "live-waiter",
+            "pid": os.getpid(),
+            "process_identity": process_identity_token(os.getpid()),
+        },
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+    out = capsys.readouterr().out
 
     assert json.loads((waiter / "ready.json").read_text(encoding="utf-8")) == {
         "resolved_deps": ["foo"],
         "released_by": "wait_checks",
     }
-    assert reads[0] == 0
+    assert "live_waiting=1" in out
+    assert "dead_waiting=0" in out
 
 
-def test_wait_checks_full_walk_still_reads_idle_agent_meta(
+def test_wait_checks_dead_waiter_with_terminal_blocker_notifies_nothing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    for index in range(8):
-        make_agent(
-            tmp_path,
-            "proj",
-            f"2026050601{index:04d}",
-            f"idle-{index}",
-            done=True,
-            outcome="completed",
-        )
-    monkeypatch.setenv(FULL_WALK_ENV, "1")
-    reads = _count_wait_meta_reads(monkeypatch)
+    waiter = make_waiting_agent(tmp_path, "wf")
+    _write_waiter_meta(waiter, {"name": "dead-waiter", "pid": DEAD_PID})
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "wf.1",
+        workflow_name="wf",
+        done=True,
+        outcome="failed",
+    )
 
     run_wait_checks(tmp_path, monkeypatch)
 
-    assert reads[0] == 8
+    assert not (waiter / "ready.json").exists()
+    assert load_notifications() == []
 
 
 def test_bead_claim_index_prepass_skips_full_scan_when_idle(

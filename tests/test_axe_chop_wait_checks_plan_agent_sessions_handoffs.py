@@ -87,22 +87,26 @@ def _stale_index_handoff_wait_fixture(tmp_path: Path) -> tuple[Path, Path]:
     return waiter_dir, next_monitor_dir
 
 
-def test_stale_index_membership_defers_agent_session_release(
+def test_stale_resolving_view_defers_agent_session_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     waiter_dir, next_monitor_dir = _stale_index_handoff_wait_fixture(tmp_path)
-    all_rows = wait_checks._filesystem_dependency_rows(tmp_path / ".sase/projects")
-    stale_rows = [row for row in all_rows if row[0] != next_monitor_dir]
-    monkeypatch.setattr(
-        wait_checks, "query_ace_run_index_records", lambda _root: [object()]
-    )
-    monkeypatch.setattr(
-        wait_checks,
-        "wait_rows_from_index_records",
-        lambda _records: stale_rows,
-    )
+    projects_root = tmp_path / ".sase/projects"
+    real_rows = wait_checks._filesystem_dependency_rows
+    stale_rows = [row for row in real_rows(projects_root) if row[0] != next_monitor_dir]
+
+    def _rows(projects_dir, *, project_names=None, meta_cache=None):
+        if project_names is None:
+            # The resolving view misses the just-launched member; the
+            # confirmation pass below re-reads the live tree.
+            return list(stale_rows)
+        return real_rows(
+            projects_dir, project_names=project_names, meta_cache=meta_cache
+        )
+
+    monkeypatch.setattr(wait_checks, "_filesystem_dependency_rows", _rows)
 
     run_wait_checks(tmp_path, monkeypatch)
 
@@ -112,7 +116,7 @@ def test_stale_index_membership_defers_agent_session_release(
     assert "Deferred release for waiter-cl" in out
 
 
-def test_complete_index_membership_still_releases_agent_session_waiter(
+def test_complete_membership_still_releases_agent_session_waiter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -120,13 +124,6 @@ def test_complete_index_membership_still_releases_agent_session_waiter(
     (next_monitor_dir / "done.json").write_text(
         json.dumps({"outcome": "monitored", "monitor_state": "completed"}),
         encoding="utf-8",
-    )
-    rows = wait_checks._filesystem_dependency_rows(tmp_path / ".sase/projects")
-    monkeypatch.setattr(
-        wait_checks, "query_ace_run_index_records", lambda _root: [object()]
-    )
-    monkeypatch.setattr(
-        wait_checks, "wait_rows_from_index_records", lambda _records: rows
     )
 
     run_wait_checks(tmp_path, monkeypatch)

@@ -16,6 +16,7 @@ from typing import Any
 
 from sase.axe.run_agent_wait_deps import mark_bead_wait_sync_hint
 from sase.axe.run_agent_wait_markers import publish_ready_marker
+from sase.axe.wait_marker_scan import scan_waiting_markers, waiting_runner_liveness
 from sase.bead.store_locator import closed_bead_ids_for_project
 from sase.bead.wait_status import WaitBeadStatusCache, closed_bead_ids_for_waits
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
@@ -31,11 +32,6 @@ from sase.core.wait_dependency_resolution import (
     resolve_wait_release,
 )
 from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
-from sase.scripts._chop_incremental_index import (
-    chop_scan_full_walk,
-    query_ace_run_index_records,
-    wait_rows_from_index_records,
-)
 from sase.scripts._chop_wait_checks_common import TerminalBlocker, WaitingMarker
 from sase.scripts._chop_wait_checks_terminal import (
     epic_follow_blocked_dedup_key,
@@ -65,8 +61,6 @@ def _marker_has_epic_follows(waiting_path: Path) -> bool:
 @builtin_chop("wait_checks")
 def _run(
     runtime: BuiltinChopRuntime,
-    *,
-    full_walk: bool | None = None,
 ) -> ChopResultBuilder:
     projects_dir = sase_projects_dir()
     if not projects_dir.exists():
@@ -75,13 +69,15 @@ def _run(
                 "projects": 0,
                 "artifacts": 0,
                 "waiting": 0,
+                "live_waiting": 0,
+                "dead_waiting": 0,
+                "unknown_liveness": 0,
                 "ready_written": 0,
                 "deferred_unconfirmed": 0,
             },
             reason="no_projects_dir",
         )
 
-    use_full_walk = chop_scan_full_walk() if full_walk is None else full_walk
     projects = 0
     artifacts = 0
     waiting_markers = 0
@@ -95,6 +91,9 @@ def _run(
     waiter_error_logs = 0
     terminal_blocker_logs = 0
     terminal_blocker_suppressed = 0
+    live_waiting = 0
+    dead_waiting = 0
+    unknown_liveness = 0
     # Epic-follow notification reconciliation: waiters evaluated cleanly this
     # tick contribute their still-active dedup keys; anything they own that
     # is not active gets dismissed afterwards in one pass.
@@ -102,7 +101,7 @@ def _run(
     epic_follow_active_keys: set[str] = set()
     epic_follow_reconciled_dirs: set[str] = set()
     dependency_index = WaitDependencyIndex.empty()
-    pending_waiting_markers: list[WaitingMarker] = []
+    live_waiting_markers: list[WaitingMarker] = []
     artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
     fresh_indexes: dict[tuple[tuple[str, ...], int], WaitDependencyIndex] = {}
     # Run-scoped agent_meta.json cache. The confirmation pass re-lists artifact
@@ -111,71 +110,54 @@ def _run(
     # scan-once contract. Index rows only read meta dicts, never mutate them.
     meta_cache: dict[Path, dict[str, Any] | None] = {}
 
-    walked_dirs: set[Path] = set()
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    # The shared walk reads no agent_meta.json itself: a tick with no live
+    # pending waiter costs only the directory walk plus one meta read per
+    # pending waiter for the liveness classification below.
+    scan = scan_waiting_markers(projects_dir)
+    projects = scan.projects
+    artifacts = scan.artifacts
+    waiting_markers = scan.waiting
+    skipped_ready = scan.already_ready
+    for already_ready_marker in scan.already_ready_markers:
+        # Already released: any epic-follow blocker rows it owns
+        # are stale. Read the marker best-effort so the
+        # end-of-tick reconcile can dismiss them.
+        if _marker_has_epic_follows(already_ready_marker.waiting_path):
+            epic_follow_seen = True
+            epic_follow_reconciled_dirs.add(
+                str(already_ready_marker.waiting_path.parent)
+            )
+
+    for waiting_marker in scan.pending:
+        waiter_dir = waiting_marker.waiting_path.parent
+        meta_path = waiter_dir / "agent_meta.json"
+        meta_cache[meta_path] = _read_json_dict(meta_path)
+        liveness = waiting_runner_liveness(waiter_dir, meta_cache[meta_path])
+        if liveness == "dead":
+            # Dead waiters get no resolution, no terminal-blocker
+            # notifications, and no logs beyond the backlog counter.
+            dead_waiting += 1
             continue
-        projects += 1
+        if liveness == "unknown":
+            unknown_liveness += 1
+        else:
+            live_waiting += 1
+        live_waiting_markers.append(waiting_marker)
 
-        for artifact_dir in iter_agent_artifact_dirs(
-            project_dir.name,
-            "ace-run",
-            projects_root=projects_dir,
-        ):
-            artifacts += 1
-            walked_dirs.add(artifact_dir)
-
-            waiting_path = artifact_dir / "waiting.json"
-            if waiting_path.exists():
-                waiting_markers += 1
-                ready_path = artifact_dir / "ready.json"
-                if ready_path.exists():
-                    skipped_ready += 1
-                    # Already released: any epic-follow blocker rows it owns
-                    # are stale. Read the marker best-effort so the
-                    # end-of-tick reconcile can dismiss them.
-                    if _marker_has_epic_follows(waiting_path):
-                        epic_follow_seen = True
-                        epic_follow_reconciled_dirs.add(str(artifact_dir))
-                else:
-                    pending_waiting_markers.append(
-                        WaitingMarker(
-                            project_name=project_dir.name,
-                            ready_path=ready_path,
-                            waiting_path=waiting_path,
-                        )
-                    )
-
-            if not use_full_walk:
-                continue
-            meta_path = artifact_dir / "agent_meta.json"
-            if meta_path not in meta_cache:
-                meta_cache[meta_path] = _read_json_dict(meta_path)
-            meta = meta_cache[meta_path]
-            if meta is not None:
-                artifact_rows.append((artifact_dir, meta, project_dir.name))
-
-    if pending_waiting_markers:
-        if not artifact_rows:
-            indexed = query_ace_run_index_records(projects_dir)
-            if indexed:
-                artifact_rows = wait_rows_from_index_records(indexed)
-            if not artifact_rows:
-                artifact_rows = _filesystem_dependency_rows(
-                    projects_dir, meta_cache=meta_cache
-                )
+    if live_waiting_markers:
+        artifact_rows = _filesystem_dependency_rows(projects_dir, meta_cache=meta_cache)
         dependency_index.add_many(artifact_rows)
-        # Seed the cache from the resolving view (index records or the walk
-        # above) so the confirmation rescan only reads metadata for artifact
-        # directories the resolving view never saw: exactly the new-member
-        # signal the confirmation exists to detect.
+        # Seed the cache from the resolving view (which reused the waiter
+        # metadata above) so the confirmation rescan only reads metadata for
+        # artifact directories the resolving view never saw: exactly the
+        # new-member signal the confirmation exists to detect.
         for artifact_dir, meta, _project_name in artifact_rows:
             meta_cache.setdefault(artifact_dir / "agent_meta.json", meta)
         # Seed negatives for walked directories whose meta file is absent
         # (waiter-only dirs usually): the rescan must not re-stat them into
         # reads, while a directory the walk never saw stays a cache miss and
         # is genuinely re-read.
-        for artifact_dir in walked_dirs:
+        for artifact_dir in scan.walked_dirs:
             meta_path = artifact_dir / "agent_meta.json"
             if meta_path not in meta_cache and not meta_path.exists():
                 meta_cache[meta_path] = None
@@ -489,7 +471,7 @@ def _run(
                 else:
                     terminal_blocker_suppressed += 1
 
-    for waiting_marker in pending_waiting_markers:
+    for waiting_marker in live_waiting_markers:
         try:
             with open(waiting_marker.waiting_path, encoding="utf-8") as f:
                 data = json.load(f)
@@ -589,6 +571,8 @@ def _run(
             reason = "no_waiting_markers"
         elif unresolved > 0:
             reason = "dependencies_not_ready"
+        elif dead_waiting > 0 and live_waiting == 0 and unknown_liveness == 0:
+            reason = "no_live_waiters"
         elif skipped_ready > 0:
             reason = "waiting_markers_already_ready"
         else:
@@ -598,6 +582,9 @@ def _run(
             "projects": projects,
             "artifacts": artifacts,
             "waiting": waiting_markers,
+            "live_waiting": live_waiting,
+            "dead_waiting": dead_waiting,
+            "unknown_liveness": unknown_liveness,
             "ready_written": ready_written,
             "already_ready": skipped_ready,
             "invalid": skipped_invalid,

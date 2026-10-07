@@ -1370,9 +1370,10 @@ axe:
           description: |-
             Resolve agent wait dependencies and write ready.json when satisfied
 
-            Scans waiting markers across projects and resolves named-agent, artifact, and closed-bead dependencies from
-            shared agent metadata and canonical bead state. It writes ready.json only after every dependency is
-            satisfied; invalid or already-ready markers are skipped without blocking other agents.
+            Walks waiting markers across projects, resolves only live waiters (provably dead runners are skipped and
+            counted in the dead-waiter backlog counter), and resolves named-agent, artifact, and closed-bead
+            dependencies from filesystem agent metadata and canonical bead state. It writes ready.json only after
+            every dependency is satisfied; invalid or already-ready markers are skipped without blocking other agents.
     checks:
       description: |-
         Poll slower PR-submission and workspace-claim checks on a five-minute cadence

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -10,6 +11,7 @@ import pytest
 
 import sase.scripts.sase_chop_sidecar_auto_sync as sidecar_sync_chop
 from sase._sidecar_auto_sync import SidecarSyncResult
+from tests._agent_names_fixtures import DEAD_PID
 from tests._axe_chop_sidecar_auto_sync_support import (
     configure_sidecar_sync,
     make_project,
@@ -57,7 +59,7 @@ def test_successful_sync_runs_sidecar_maintenance(
 
 
 class TestProjectsWithLiveBeadWaits:
-    """Unit coverage for the scan folded in from the retired waiter-refresh chop."""
+    """Unit coverage for the shared-walk live bead-wait scan."""
 
     def _record(
         self,
@@ -67,83 +69,72 @@ class TestProjectsWithLiveBeadWaits:
         suffix: str = "waiter",
         wait_for_beads: list[str] | None = None,
         ready: bool = False,
-    ) -> SimpleNamespace:
-        artifact_dir = tmp_path / project_name / suffix
+        meta: dict | None = None,
+        raw_waiting: str | None = None,
+    ) -> Path:
+        artifact_dir = tmp_path / project_name / "artifacts" / "ace-run" / suffix
         artifact_dir.mkdir(parents=True)
+        if raw_waiting is not None:
+            (artifact_dir / "waiting.json").write_text(raw_waiting, encoding="utf-8")
+        else:
+            (artifact_dir / "waiting.json").write_text(
+                json.dumps(
+                    {
+                        "waiting_for": [],
+                        "cl_name": "waiter",
+                        "wait_for_beads": (
+                            ["sase-1"] if wait_for_beads is None else wait_for_beads
+                        ),
+                    }
+                ),
+                encoding="utf-8",
+            )
+        if meta is not None:
+            (artifact_dir / "agent_meta.json").write_text(
+                json.dumps(meta), encoding="utf-8"
+            )
         if ready:
             (artifact_dir / "ready.json").write_text("{}\n", encoding="utf-8")
-        return SimpleNamespace(
-            project_name=project_name,
-            artifact_dir=str(artifact_dir),
-            waiting=SimpleNamespace(
-                wait_for_beads=(
-                    ["sase-1"] if wait_for_beads is None else wait_for_beads
-                )
-            ),
-            agent_meta=SimpleNamespace(pid=123, stopped_at=None),
-        )
+        return artifact_dir
 
-    def _scan(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        records: list[SimpleNamespace],
-    ) -> None:
-        monkeypatch.setattr(
-            sidecar_sync_chop,
-            "scan_agent_artifacts",
-            lambda _root, _options: SimpleNamespace(records=records),
-        )
-        monkeypatch.setattr(
-            sidecar_sync_chop, "is_process_alive", lambda _meta, _p: True
-        )
-
-    def test_live_bead_wait_is_reported(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        self._scan(monkeypatch, [self._record(tmp_path)])
+    def test_live_bead_wait_is_reported(self, tmp_path: Path) -> None:
+        self._record(tmp_path)
 
         assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == {"proj"}
 
     def test_multiple_waiters_in_one_project_are_deduplicated(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
-        self._scan(
-            monkeypatch,
-            [
-                self._record(tmp_path, suffix="one"),
-                self._record(tmp_path, suffix="two"),
-            ],
-        )
+        self._record(tmp_path, suffix="one")
+        self._record(tmp_path, suffix="two")
 
         assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == {"proj"}
 
-    def test_ready_bead_wait_is_excluded(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        self._scan(monkeypatch, [self._record(tmp_path, ready=True)])
+    def test_ready_bead_wait_is_excluded(self, tmp_path: Path) -> None:
+        self._record(tmp_path, ready=True)
 
         assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == frozenset()
 
-    def test_non_bead_wait_is_excluded(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        self._scan(monkeypatch, [self._record(tmp_path, wait_for_beads=[])])
+    def test_non_bead_wait_is_excluded(self, tmp_path: Path) -> None:
+        self._record(tmp_path, wait_for_beads=[])
+
+        assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == frozenset()
+
+    def test_malformed_bead_wait_is_excluded(self, tmp_path: Path) -> None:
+        self._record(tmp_path, raw_waiting="not json\n")
 
         assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == frozenset()
 
     def test_dead_waiter_is_dropped_but_uncertain_liveness_fails_open(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
-        dead = self._record(tmp_path, project_name="dead")
-        uncertain = self._record(tmp_path, project_name="uncertain")
-        self._scan(monkeypatch, [dead, uncertain])
-
-        def liveness(_meta: dict[str, object], artifact_dir: Path) -> bool:
-            if artifact_dir == Path(dead.artifact_dir):
-                return False
-            raise PermissionError("liveness unavailable")
-
-        monkeypatch.setattr(sidecar_sync_chop, "is_process_alive", liveness)
+        self._record(
+            tmp_path,
+            project_name="dead",
+            meta={"name": "dead-waiter", "pid": DEAD_PID},
+        )
+        # No agent_meta.json: liveness is unknown, so the waiter counts.
+        self._record(tmp_path, project_name="uncertain")
 
         assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == {
             "uncertain"

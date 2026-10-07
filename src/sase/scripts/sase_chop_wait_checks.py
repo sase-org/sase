@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Wait dependency resolution chop script.
 
-Consults waiting.json markers first and exits no_op before loading
-agent_meta.json when nothing is pending. Remaining waits resolve through
-the agent artifact index when it is present, else a targeted filesystem
-read of referenced artifacts. ``SASE_CHOP_SCAN_FULL_WALK=1`` restores the
-legacy full O(all-artifacts) meta walk for parity testing.
+Walks waiting.json markers first and exits no_op before building any
+dependency view when no live waiter is pending. Live waiters resolve
+through a filesystem view of agent metadata; waiters whose runner is
+provably dead are skipped and counted in the dead-waiter backlog
+counter. ``SASE_CHOP_SCAN_FULL_WALK=1`` still switches bead_claim_checks
+to its legacy full walk.
 """
 
 from sase.scripts._chop_wait_checks_run import main

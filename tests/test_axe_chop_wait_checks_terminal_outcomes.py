@@ -104,7 +104,8 @@ def test_completed_named_agent_success_path_writes_ready(
     assert ready == {"resolved_deps": ["foo"], "released_by": "wait_checks"}
     out = capsys.readouterr().out
     assert "[wait_checks] Dependencies satisfied for waiter-cl" in out
-    assert "wait_checks: projects=1 artifacts=2 waiting=1 ready_written=1" in out
+    assert "wait_checks: projects=1 artifacts=2 waiting=1 live_waiting=0" in out
+    assert "dead_waiting=0 unknown_liveness=1 ready_written=1" in out
 
 
 @pytest.mark.parametrize(
