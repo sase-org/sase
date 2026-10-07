@@ -173,6 +173,7 @@ def test_wait_arg_completion_orders_kinds_and_matches_bare_tribe() -> None:
     assert [candidate.insertion for candidate in candidates] == [
         "agent=",
         "bead=",
+        "for_epic=",
         "hood=",
         "proc=",
         "time=",
@@ -205,6 +206,7 @@ def test_wait_arg_completion_excludes_groups_and_deduplicates_insertions() -> No
     assert [candidate.insertion for candidate in candidates] == [
         "agent=",
         "bead=",
+        "for_epic=",
         "hood=",
         "proc=",
         "time=",
@@ -263,6 +265,7 @@ def test_wait_arg_completion_excludes_selected_keywords_case_insensitively() -> 
     assert [candidate.insertion for candidate in candidates] == [
         "agent=",
         "bead=",
+        "for_epic=",
         "hood=",
         "proc=",
         "unit=",

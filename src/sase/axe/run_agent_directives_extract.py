@@ -143,6 +143,7 @@ def extract_directives_and_write_meta(
         agent_session_attach_plan=agent_session_attach_plan,
     )
     wait_names = wait_state.wait_names
+    wait_for_epics_of = wait_state.wait_for_epics_of
     wait_identity_deps = wait_state.wait_identity_deps
     wait_fork_sources = wait_state.wait_fork_sources
     wait_beads = wait_state.wait_beads
@@ -209,6 +210,7 @@ def extract_directives_and_write_meta(
         epic_work=epic_work_metadata,
         cl_name=cl_name,
         vcs_ref=vcs_ref,
+        wait_for_epics_of=wait_for_epics_of,
     )
     identity = resolve_agent_identity(
         name_request,
@@ -289,6 +291,7 @@ def extract_directives_and_write_meta(
         meta=agent_meta,
         local_macros=multi.local_macros,
         hold=HoldFields.from_mapping(directives.hold),
+        wait_for_epics_of=wait_for_epics_of,
     )
 
 

@@ -38,6 +38,7 @@ class AgentInfo(NamedTuple):
     meta: dict[str, Any]
     local_macros: dict[str, Any]
     hold: HoldFields | None = None
+    wait_for_epics_of: list[str] | None = None
 
 
 __all__ = ["AgentInfo"]

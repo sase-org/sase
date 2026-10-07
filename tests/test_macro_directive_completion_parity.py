@@ -357,6 +357,7 @@ def test_failure_degradation_retains_static_directive_rows(tmp_path: Path) -> No
     assert [row.insertion for row in rows] == [
         "agent=",
         "bead=",
+        "for_epic=",
         "hood=",
         "proc=",
         "time=",

@@ -123,6 +123,7 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
         wait_capacity, wait_multiplier = _capacity_pair_from_payload(wait)
         meta_patch = wait_meta_patch_for_token(
             wait_names=tuple(wait.get("names") or ()),
+            wait_for_epics_of=tuple(wait.get("wait_for_epics_of") or ()),
             wait_beads=tuple(wait.get("beads") or ()),
             wait_hoods=tuple(wait.get("hoods") or ()),
             time_token=wait.get("time_token")
@@ -146,6 +147,7 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
         )
         waiting = waiting_marker_patch_for_token(
             wait_names=tuple(waiting_payload.get("names") or ()),
+            wait_for_epics_of=tuple(waiting_payload.get("wait_for_epics_of") or ()),
             wait_beads=tuple(waiting_payload.get("beads") or ()),
             wait_hoods=tuple(waiting_payload.get("hoods") or ()),
             time_token=waiting_payload.get("time_token")
@@ -542,6 +544,11 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
             beads=tuple(wait.get("beads") or ()),
             hoods=tuple(wait.get("hoods") or ()),
             capacity_multiplier=_capacity_multiplier_from_payload(wait),
+            epic_follow_agents=(
+                tuple(wait.get("epic_follow_agents") or ())
+                if wait.get("epic_follow_agents") is not None
+                else None
+            ),
         )
         return lambda prompt: set_prompt_wait_and_queue(prompt, directive)
     if kind == "set_queue":

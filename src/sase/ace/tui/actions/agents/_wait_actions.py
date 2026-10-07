@@ -239,15 +239,21 @@ class AgentWaitActionsMixin:
                 if agent.wait_priority_explicit
                 else None
             )
+            current_follow = list(getattr(agent, "wait_for_epics_of", None) or [])
+            preserved_follow = [n for n in current_follow if n in wait_names]
             wait_spec = PromptWaitDirective(
                 agents=tuple(wait_names),
                 priority=effective_priority,
                 beads=tuple(wait_beads),
                 hoods=tuple(wait_hoods),
+                epic_follow_agents=tuple(preserved_follow) or None,
             )
             prior_waiting_for = list(agent.waiting_for)
             prior_waiting_for_beads = list(agent.waiting_for_beads)
             prior_waiting_for_hoods = list(agent.waiting_for_hoods)
+            prior_wait_for_epics_of = list(
+                getattr(agent, "wait_for_epics_of", None) or []
+            )
             prior_wait_duration = agent.wait_duration
             prior_wait_until = agent.wait_until
             prior_priority = agent.wait_priority
@@ -266,6 +272,8 @@ class AgentWaitActionsMixin:
                 agent.waiting_for = prior_waiting_for
                 agent.waiting_for_beads = prior_waiting_for_beads
                 agent.waiting_for_hoods = prior_waiting_for_hoods
+                if hasattr(agent, "wait_for_epics_of"):
+                    agent.wait_for_epics_of = prior_wait_for_epics_of
                 agent.wait_duration = prior_wait_duration
                 agent.wait_until = prior_wait_until
                 agent.wait_priority = prior_priority
@@ -295,12 +303,18 @@ class AgentWaitActionsMixin:
                             "beads": list(wait_spec.beads),
                             "hoods": list(wait_spec.hoods),
                             "priority": wait_spec.priority,
+                            "epic_follow_agents": (
+                                list(wait_spec.epic_follow_agents)
+                                if wait_spec.epic_follow_agents is not None
+                                else None
+                            ),
                         },
                     },
                     "wait": {
                         "beads": wait_beads,
                         "hoods": wait_hoods,
                         "names": wait_names,
+                        "wait_for_epics_of": list(preserved_follow),
                         "update_wait_priority": update_wait_priority,
                         "wait_priority": result.priority,
                     },
@@ -308,6 +322,7 @@ class AgentWaitActionsMixin:
                         "beads": wait_beads,
                         "hoods": wait_hoods,
                         "names": wait_names,
+                        "wait_for_epics_of": list(preserved_follow),
                         "update_wait_priority": update_wait_priority,
                         "wait_priority": result.priority,
                     },
@@ -321,6 +336,8 @@ class AgentWaitActionsMixin:
             agent.waiting_for = wait_names
             agent.waiting_for_beads = wait_beads
             agent.waiting_for_hoods = wait_hoods
+            if hasattr(agent, "wait_for_epics_of"):
+                agent.wait_for_epics_of = list(preserved_follow)
             agent.wait_duration = None
             agent.wait_until = None
             if update_wait_priority:

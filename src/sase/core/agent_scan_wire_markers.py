@@ -194,6 +194,17 @@ def _created_epic_str(value: object) -> str | None:
     return stripped or None
 
 
+def wait_for_epics_of_from_value(value: object) -> list[str]:
+    """Coerce a raw ``wait_for_epics_of`` value leniently; never raises."""
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            result.append(item.strip())
+    return result
+
+
 def created_epics_from_value(value: object) -> list[CreatedEpicWire]:
     """Coerce a raw ``created_epics`` value leniently; never raises.
 
@@ -458,6 +469,9 @@ class AgentMetaWire:
     # Trailing for the same key-order stability; additive serde-default, so
     # no schema bump is needed.
     created_epics: list[CreatedEpicWire] = field(default_factory=list)
+    # Effective positive `%wait(for_epic=)` armed targets (`contract` phase).
+    # Trailing for the same stability; additive serde-default.
+    wait_for_epics_of: list[str] = field(default_factory=list)
 
     @property
     def agent_session_shell(self) -> AgentSessionTurnWire | None:
@@ -503,6 +517,7 @@ class WaitingMarkerWire:
     patch_name: str | None = None
     cl_name: str | None = None
     waiting_for: list[str] = field(default_factory=list)
+    wait_for_epics_of: list[str] = field(default_factory=list)
     wait_for_beads: list[str] = field(default_factory=list)
     wait_for_hoods: list[str] = field(default_factory=list)
     wait_duration: float | None = None
@@ -652,4 +667,5 @@ __all__ = [
     "WorkflowStepStateWire",
     "created_epics_from_value",
     "finalizer_status_from_mapping",
+    "wait_for_epics_of_from_value",
 ]

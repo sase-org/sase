@@ -29,6 +29,7 @@ class PromptWaitDirective:
     beads: tuple[str, ...] = ()
     hoods: tuple[str, ...] = ()
     capacity_multiplier: float | None = None
+    epic_follow_agents: tuple[str, ...] | None = None
 
     def __bool__(self) -> bool:
         return bool(
@@ -40,6 +41,7 @@ class PromptWaitDirective:
             or self.weight is not None
             or self.beads
             or self.hoods
+            or self.epic_follow_agents
         )
 
 
@@ -139,17 +141,39 @@ def _format_wait_directive(
 ) -> str | None:
     if not wait_spec:
         return None
-    parts = [format_directive_arg(agent) for agent in wait_spec.agents]
+    from ._directive_types import WAIT_FOR_EPIC_DEFAULT
+
+    follow = set(wait_spec.epic_follow_agents or ())
+    if wait_spec.epic_follow_agents is None:
+        main_agents = list(wait_spec.agents)
+        follow_agents: list[str] = []
+    elif WAIT_FOR_EPIC_DEFAULT:
+        main_agents = [a for a in wait_spec.agents if a not in follow]
+        follow_agents = [a for a in wait_spec.agents if a in follow]
+    else:
+        main_agents = [a for a in wait_spec.agents if a not in follow]
+        follow_agents = [a for a in wait_spec.agents if a in follow]
+    parts = [format_directive_arg(agent) for agent in main_agents]
     if wait_spec.time_token:
         parts.append(f"time={wait_spec.time_token}")
     directives = [f"%wait({', '.join(parts)})"] if parts else []
+    if follow_agents:
+        value = "true" if not WAIT_FOR_EPIC_DEFAULT else "true"
+        if WAIT_FOR_EPIC_DEFAULT:
+            # When the default flips, the positive list stays in the main
+            # occurrence and explicit-false agents split out instead; until
+            # then the positive list always renders with for_epic=true.
+            pass
+        follow_parts = [format_directive_arg(agent) for agent in follow_agents]
+        follow_parts.append(f"for_epic={value}")
+        directives.append(f"%wait({', '.join(follow_parts)})")
     directives.extend(
         f"%wait(bead={format_directive_arg(bead)})" for bead in wait_spec.beads
     )
     directives.extend(
         f"%wait(hood={format_directive_arg(hood)})" for hood in wait_spec.hoods
     )
-    return "\n".join(directives)
+    return "\n".join(directives) if directives else None
 
 
 def _existing_queue_capacity(prompt: str) -> tuple[int | None, float | None]:

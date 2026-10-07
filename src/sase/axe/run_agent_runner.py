@@ -135,6 +135,7 @@ def _wait_for_dependencies_phase(
         wait_hoods=info.wait_hoods,
         duration=info.wait_duration,
         wait_until=info.wait_until,
+        wait_for_epics_of=getattr(info, "wait_for_epics_of", None),
     )
 
 

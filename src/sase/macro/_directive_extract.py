@@ -112,6 +112,9 @@ def extract_prompt_directives(
         collected.seen["id"] = get_next_auto_name()
 
     resolve_wait_agent_args(collected.seen_multi)
+    _wait_for_epic_explicit = _resolve_wait_for_epic_explicit(
+        collected.wait_occurrences, process_references=process_references
+    )
     wait_units = resolve_wait_identifier_args(
         "unit", [process_references(arg) for arg in collected.wait_unit_args]
     )
@@ -205,6 +208,9 @@ def extract_prompt_directives(
         force_reuse=name_force_reuse,
     )
     resolve_wait_templates(expanded_multi)
+    wait_for_epics_of = _effective_wait_for_epics_of(
+        expanded_multi.get("wait", []), _wait_for_epic_explicit
+    )
 
     repeat_count = parse_repeat_count(expanded_args)
     if hold_fields is not None and repeat_count is not None:
@@ -295,6 +301,7 @@ def extract_prompt_directives(
         repeat_count=repeat_count,
         tribe=tribe,
         wait=expanded_multi.get("wait", []),
+        wait_for_epics_of=wait_for_epics_of,
         wait_units=wait_units,
         wait_procs=wait_procs,
         wait_beads=wait_beads,
@@ -383,6 +390,84 @@ def _owned_proc_options(prompt: str, span: tuple[int, int]) -> dict[str, str]:
             "%proc cannot combine a parenthesized body with a fenced body."
         )
     return {key: value for key, value in named_args.items() if key in supported_keys}
+
+
+def _resolve_wait_for_epic_explicit(
+    occurrences: list[dict[str, object]],
+    *,
+    process_references: Callable[[str], str],
+) -> dict[str, bool]:
+    """Validate per-occurrence ``for_epic=`` and return explicit values.
+
+    Mirrors the Rust ``typed_units`` and editor diagnostics with identical
+    messages. Per-occurrence ``for_epic=`` applies to every agent target in
+    its own occurrence.
+    """
+    explicit: dict[str, bool] = {}
+    for occurrence in occurrences:
+        agents = occurrence.get("agents")
+        raw_agents = list(agents) if isinstance(agents, list) else []
+        has_for_epic = occurrence.get("has_for_epic") is True
+        if not has_for_epic:
+            continue
+        raw_value = occurrence.get("for_epic_raw")
+        raw_text = str(raw_value) if raw_value is not None else ""
+        targets: list[str] = []
+        for raw_arg in raw_agents:
+            if not isinstance(raw_arg, str) or not raw_arg:
+                continue
+            expanded = (
+                process_references(raw_arg).strip() if "#" in raw_arg else raw_arg
+            )
+            if expanded:
+                targets.append(expanded)
+        if not targets:
+            raise DirectiveError(
+                "%wait(for_epic=...) needs an agent target in the same %wait, "
+                "e.g. %wait(planner, for_epic=false). bead=, hood=, proc=, "
+                "unit=, and time= waits never launch epics."
+            )
+        lowered = raw_text.strip().lower()
+        if lowered not in ("true", "false"):
+            raise DirectiveError(
+                f"Invalid %wait for_epic= value '{raw_text}': use true or false."
+            )
+        value = lowered == "true"
+        for target in targets:
+            if target.endswith("--plan") and value:
+                raise DirectiveError(
+                    f"%wait target '{target}' cannot use for_epic=true: --plan rows "
+                    "release when the plan is submitted. Use %wait:planner to wait "
+                    "through approval and into its epic."
+                )
+            if target in explicit:
+                if explicit[target] != value:
+                    raise DirectiveError(
+                        f"Conflicting for_epic= values for %wait target '{target}'."
+                    )
+                continue
+            explicit[target] = value
+    return explicit
+
+
+def _effective_wait_for_epics_of(
+    wait_targets: list[str], explicit: dict[str, bool]
+) -> list[str]:
+    """Compute the effective positive armed-target list.
+
+    An explicit value overrides the default; ``--plan`` targets are never
+    armed. With the current default (false) this is the explicit-true list.
+    """
+    from ._directive_types import WAIT_FOR_EPIC_DEFAULT
+
+    armed: list[str] = []
+    for target in wait_targets:
+        if target.endswith("--plan"):
+            continue
+        value = explicit.get(target, WAIT_FOR_EPIC_DEFAULT)
+        if value and target not in armed:
+            armed.append(target)
+    return armed
 
 
 def _remove_directive_regions(

@@ -75,6 +75,7 @@ class AgentMetadataInputs:
     epic_work: dict[str, Any]
     cl_name: str | None
     vcs_ref: tuple[str, str] | None = None
+    wait_for_epics_of: list[str] | None = None
 
 
 def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
@@ -244,6 +245,8 @@ def build_agent_meta(
         agent_meta["wait_for_beads"] = inputs.wait_beads
     if inputs.wait_hoods:
         agent_meta["wait_for_hoods"] = inputs.wait_hoods
+    if inputs.wait_for_epics_of:
+        agent_meta["wait_for_epics_of"] = list(inputs.wait_for_epics_of)
     if directives.wait_duration is not None:
         agent_meta["wait_duration"] = directives.wait_duration
     if directives.wait_until is not None:

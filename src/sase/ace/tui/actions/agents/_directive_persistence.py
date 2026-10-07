@@ -41,6 +41,7 @@ class _WaitingMarkerPatch:
     """Replacement contents for ``waiting.json``."""
 
     waiting_for: tuple[str, ...] = ()
+    wait_for_epics_of: tuple[str, ...] = ()
     wait_for_beads: tuple[str, ...] = ()
     wait_for_hoods: tuple[str, ...] = ()
     wait_duration: float | None = None
@@ -139,6 +140,7 @@ def persist_agent_directive_update(
 def wait_meta_patch_for_token(
     *,
     wait_names: tuple[str, ...] = (),
+    wait_for_epics_of: tuple[str, ...] = (),
     wait_beads: tuple[str, ...] = (),
     wait_hoods: tuple[str, ...] = (),
     time_token: str | None = None,
@@ -155,6 +157,7 @@ def wait_meta_patch_for_token(
     set_values: dict[str, object] = {}
     remove_keys = [
         "wait_for",
+        "wait_for_epics_of",
         "wait_for_beads",
         "wait_for_hoods",
         "wait_duration",
@@ -162,6 +165,8 @@ def wait_meta_patch_for_token(
     ]
     if wait_names:
         set_values["wait_for"] = list(_durable_wait_names(wait_names))
+    if wait_for_epics_of:
+        set_values["wait_for_epics_of"] = list(_durable_wait_names(wait_for_epics_of))
     if wait_beads:
         set_values["wait_for_beads"] = list(wait_beads)
     if wait_hoods:
@@ -204,6 +209,7 @@ def wait_meta_patch_for_token(
 def waiting_marker_patch_for_token(
     *,
     wait_names: tuple[str, ...] = (),
+    wait_for_epics_of: tuple[str, ...] = (),
     wait_beads: tuple[str, ...] = (),
     wait_hoods: tuple[str, ...] = (),
     time_token: str | None = None,
@@ -225,6 +231,7 @@ def waiting_marker_patch_for_token(
             wait_until = parse_absolute_time(time_token)
     return _WaitingMarkerPatch(
         waiting_for=_durable_wait_names(wait_names),
+        wait_for_epics_of=_durable_wait_names(wait_for_epics_of),
         wait_for_beads=wait_beads,
         wait_for_hoods=wait_hoods,
         wait_duration=wait_duration,
@@ -347,6 +354,7 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
         existing = _read_json_object(waiting_path)
         for condition_key in (
             "waiting_for",
+            "wait_for_epics_of",
             "wait_for_beads",
             "wait_for_hoods",
             "wait_duration",
@@ -354,6 +362,8 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
         ):
             existing.pop(condition_key, None)
         existing["waiting_for"] = list(patch.waiting_for)
+        if patch.wait_for_epics_of:
+            existing["wait_for_epics_of"] = list(patch.wait_for_epics_of)
         if patch.wait_for_beads:
             existing["wait_for_beads"] = list(patch.wait_for_beads)
         if patch.wait_for_hoods:

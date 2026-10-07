@@ -28,6 +28,7 @@ from sase.core.agent_scan_wire_markers import (
     WorkflowStepStateWire,
     created_epics_from_value,
     finalizer_status_from_mapping,
+    wait_for_epics_of_from_value,
 )
 from sase.core.agent_scan_wire_records import (
     SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS,
@@ -442,6 +443,9 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
         payload.get("finalizer_status")
     )
     kwargs["created_epics"] = created_epics_from_value(payload.get("created_epics"))
+    kwargs["wait_for_epics_of"] = wait_for_epics_of_from_value(
+        payload.get("wait_for_epics_of")
+    )
     return AgentMetaWire(**kwargs)
 
 
@@ -465,12 +469,12 @@ def _running_marker_from_dict(data: dict[str, Any]) -> RunningMarkerWire:
 
 
 def _waiting_marker_from_dict(data: dict[str, Any]) -> WaitingMarkerWire:
-    return WaitingMarkerWire(
-        **_non_default_field_kwargs(
-            WaitingMarkerWire,
-            _queue_capacity_alias_payload(_dual_patch_name_payload(data)),
-        )
+    payload = _queue_capacity_alias_payload(_dual_patch_name_payload(dict(data)))
+    kwargs = _non_default_field_kwargs(WaitingMarkerWire, payload)
+    kwargs["wait_for_epics_of"] = wait_for_epics_of_from_value(
+        payload.get("wait_for_epics_of")
     )
+    return WaitingMarkerWire(**kwargs)
 
 
 def _queue_capacity_alias_payload(data: dict[str, Any]) -> dict[str, Any]:

@@ -80,6 +80,7 @@ def wait_for_dependencies(
     wait_hoods: list[str] | None = None,
     duration: float | None = None,
     wait_until: str | None = None,
+    wait_for_epics_of: list[str] | None = None,
 ) -> bool:
     """Wait for named agent dependencies, a duration, or an absolute time.
 
@@ -122,6 +123,7 @@ def wait_for_dependencies(
     wait_fork_sources = list(wait_fork_sources or [])
     wait_beads = list(wait_beads or [])
     wait_hoods = list(wait_hoods or [])
+    wait_for_epics_of = list(wait_for_epics_of or [])
     has_dependencies = bool(
         wait_names
         or wait_identity_deps
@@ -177,6 +179,9 @@ def wait_for_dependencies(
             waiting_data["wait_for_beads"] = wait_beads
         if wait_hoods:
             waiting_data["wait_for_hoods"] = wait_hoods
+        if wait_for_epics_of:
+            assert set(wait_for_epics_of) <= set(wait_names)
+            waiting_data["wait_for_epics_of"] = list(wait_for_epics_of)
         if duration is not None:
             waiting_data["wait_duration"] = duration
         if wait_until is not None:

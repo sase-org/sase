@@ -16,6 +16,7 @@ class WaitResolution:
     """Normalized wait targets for dependency and runner-slot waits."""
 
     wait_names: list[str]
+    wait_for_epics_of: list[str]
     wait_identity_deps: list[dict[str, Any]]
     wait_fork_sources: list[dict[str, str]]
     wait_beads: list[str]
@@ -108,6 +109,14 @@ def resolve_wait_state(
 
     explicit_wait_names = {normalized_wait_name(name) for name in directives.wait}
     wait_names = list(dict.fromkeys(normalized_wait_name(name) for name in wait_names))
+    # Implicit targets added by fork sources, batch predecessors, and the
+    # session parent are never armed for epic-follow.
+    raw_epics_of = list(getattr(directives, "wait_for_epics_of", []))
+    wait_for_epics_of = list(
+        dict.fromkeys(normalized_wait_name(name) for name in raw_epics_of)
+    )
+    wait_for_epics_of = [name for name in wait_for_epics_of if name in set(wait_names)]
+    assert set(wait_for_epics_of) <= set(wait_names)
     if implicit_fork_wait_targets:
         from sase.agent.fork_waits import fork_wait_dependency
 
@@ -118,6 +127,7 @@ def resolve_wait_state(
         ]
     return WaitResolution(
         wait_names=wait_names,
+        wait_for_epics_of=wait_for_epics_of,
         wait_identity_deps=wait_identity_deps,
         wait_fork_sources=wait_fork_sources,
         wait_beads=wait_beads,

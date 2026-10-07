@@ -42,6 +42,7 @@ class _CollectedDirectives:
     wait_bead_args: list[str] = field(default_factory=list)
     wait_hood_args: list[str] = field(default_factory=list)
     wait_time_args: list[str] = field(default_factory=list)
+    wait_occurrences: list[dict[str, Any]] = field(default_factory=list)
     queue_occurrences: list[dict[str, Any]] = field(default_factory=list)
     hold_occurrences: list[dict[str, Any]] = field(default_factory=list)
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
@@ -131,6 +132,7 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                     supported_keys = {
                         "agent",
                         "bead",
+                        "for_epic",
                         "hood",
                         "proc",
                         "time",
@@ -145,7 +147,7 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         keys = ", ".join(f"{key}=" for key in unknown_keys)
                         raise DirectiveError(
                             f"Unsupported keyword on %wait: {keys}. "
-                            "Use unit=, agent=, proc=, bead=, hood=, or time=. "
+                            "Use unit=, agent=, proc=, bead=, hood=, time=, or for_epic=. "
                             "Queue controls belong on %queue."
                         )
                     if "agent" in named_args:
@@ -160,6 +162,13 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         collected.wait_hood_args.append(named_args["hood"])
                     if "time" in named_args:
                         collected.wait_time_args.append(named_args["time"])
+                    collected.wait_occurrences.append(
+                        {
+                            "agents": list(positional_args),
+                            "has_for_epic": "for_epic" in named_args,
+                            "for_epic_raw": named_args.get("for_epic", ""),
+                        }
+                    )
                 if name == "final" and named_args:
                     keys = ", ".join(f"{key}=" for key in sorted(named_args))
                     raise DirectiveError(
@@ -242,6 +251,10 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
         else:
             raw_args = [""]
 
+        if name == "wait" and not has_open_paren:
+            collected.wait_occurrences.append(
+                {"agents": list(raw_args), "has_for_epic": False, "for_epic_raw": ""}
+            )
         if is_multi:
             collected.seen_multi.setdefault(name, []).extend(raw_args)
         else:
