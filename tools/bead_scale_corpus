@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Copy a bead store for benchmarking, optionally as prefix-renamed k× copies."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests.perf._bead_corpus import generate_corpus  # noqa: E402
+from tests.perf._bead_scale_copy import copy_store_scaled  # noqa: E402
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Copy a bead store into a scratch directory for benchmarking, "
+            "either from a real store (--source) or by generating a "
+            "deterministic synthetic corpus (--generate). With --copies k "
+            "the destination holds k prefix-renamed copies of the source "
+            "(the research report's scaling method), so replay cost can be "
+            "measured at any multiple of today's history. The source is "
+            "never modified, and destinations inside a sidecar clone are "
+            "refused."
+        )
+    )
+    parser.add_argument(
+        "-c",
+        "--copies",
+        type=int,
+        default=1,
+        help="Number of prefix-renamed copies to lay down (default: 1).",
+    )
+    parser.add_argument(
+        "-d",
+        "--dest",
+        type=Path,
+        required=True,
+        help="Destination beads directory; must not exist yet.",
+    )
+    parser.add_argument(
+        "-g",
+        "--generate",
+        action="store_true",
+        help="Generate a synthetic corpus instead of copying --source.",
+    )
+    parser.add_argument(
+        "-o",
+        "--owner",
+        default="bench-owner@example.invalid",
+        help="Owner recorded in a generated store's config.json.",
+    )
+    parser.add_argument(
+        "-p",
+        "--prefix",
+        default="bench",
+        help="Issue prefix for a generated store (default: bench).",
+    )
+    parser.add_argument(
+        "-s",
+        "--scale",
+        type=float,
+        default=1.0,
+        help="History multiplier for --generate (default: 1.0).",
+    )
+    parser.add_argument(
+        "-e",
+        "--seed",
+        type=int,
+        default=20261006,
+        help="Deterministic seed for --generate (default: 20261006).",
+    )
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=None,
+        help="Real beads directory to copy (read-only).",
+    )
+    args = parser.parse_args(argv)
+
+    if args.generate == (args.source is not None):
+        print(
+            "error: pass exactly one of --generate or --source",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        if args.generate:
+            shape = generate_corpus(
+                args.dest,
+                scale=args.scale,
+                seed=args.seed,
+                prefix=args.prefix,
+                owner=args.owner,
+            )
+        else:
+            shape = copy_store_scaled(args.source, args.dest, copies=args.copies)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(shape, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

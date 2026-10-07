@@ -1346,6 +1346,41 @@ bead-perf-smoke *args: _setup
         --output sdd/plans/202605/perf_artifacts/bead_perf_smoke.json \
         {{ args }}
 
+# Run the scale-aware bead benchmark over synthetic corpora (sase-1h8.1).
+# Slow: generates 1/2/4/8x corpora under /tmp and records binding, CLI,
+# mutation, and TUI timings. Record-only: no thresholds are enforced.
+bead-perf-scale *args: _setup
+    @printf "\n---------- Scaled-corpus bead benchmark (sase-1h8.1) ----------\n"
+    mkdir -p sdd/plans/202610/perf_artifacts
+    {{ venv_bin }}/python tests/perf/bench_bead_scale.py \
+        --scale 1 --scale 2 --scale 4 --scale 8 \
+        --remote \
+        --output sdd/plans/202610/perf_artifacts/bead_perf_scale.json \
+        {{ args }}
+
+# Copy a real bead store (read-only) into a scratch directory, optionally
+# as prefix-renamed k× copies, for ad-hoc scale benchmarking (sase-1h8.1).
+# The destination must not exist yet and must not sit inside a sidecar clone.
+bead-scale-copy source dest copies="2" *args: _setup
+    @printf "\n---------- Scaled bead-store copy (sase-1h8.1) ----------\n"
+    {{ venv_bin }}/python tools/bead_scale_corpus \
+        --source {{ source }} \
+        --dest {{ dest }} \
+        --copies {{ copies }} \
+        {{ args }}
+
+# Record-only 4x scaled-corpus run for CI (sase-1h8.1). Trims the op set to
+# the binding reads so the job stays within a few minutes; no thresholds.
+bead-perf-scale-record *args: _setup
+    @printf "\n---------- Scaled-corpus record-only 4x (sase-1h8.1) ----------\n"
+    mkdir -p sdd/plans/202605/perf_artifacts
+    {{ venv_bin }}/python tests/perf/bench_bead_scale.py \
+        --scale 4 \
+        --runs 2 \
+        --only show_detail_open,show_detail_closed,ready,blocked,list_default,list_closed_20,stats,search \
+        --output sdd/plans/202605/perf_artifacts/bead_perf_scale4.json \
+        {{ args }}
+
 # Run the Python status state machine benchmark. Times the pure
 # line-based helpers (read_status_from_lines, apply_status_update,
 # is_valid_transition, remove_workspace_suffix) and the
