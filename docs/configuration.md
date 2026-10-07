@@ -3299,7 +3299,7 @@ axe:
             max_quiet: "120s"
             paths:
               - path: projects
-                glob: "*/artifacts/ace-run/*"
+                glob: "*/artifacts/.ace_refresh_pulse"
           description: |-
             Acquire missing bead claims for live pre-launch agents and release claims held by dead ones
 
@@ -3335,7 +3335,7 @@ axe:
             max_quiet: "120s"
             paths:
               - path: projects
-                glob: "*/artifacts/ace-run/*"
+                glob: "*/artifacts/.ace_refresh_pulse"
           description: |-
             Resolve agent wait dependencies and write ready.json when satisfied
 

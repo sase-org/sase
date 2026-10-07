@@ -7,6 +7,7 @@ to the TUI and to the runner-slot queue; ``agent_meta.json`` records the durable
 
 import json
 import os
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,47 @@ def hold_marker_fields(blockers: object) -> dict[str, Any]:
     return {}
 
 
+#: ``waiting.json`` fields that park an agent on a dependency. A marker carrying
+#: any non-empty one of these must nudge the project refresh pulse so the
+#: ``wait_checks`` fs trigger fires; pure runner-slot queue markers carry none
+#: of them and must not cause wake churn. ``wait_for_epics_of`` is a subset of
+#: ``waiting_for`` by construction but is listed so a lone epics marker still
+#: counts as a dependency wait.
+_DEPENDENCY_WAIT_FIELDS = (
+    "waiting_for",
+    "wait_for_artifacts",
+    "wait_for_fork_sources",
+    "wait_for_epics_of",
+    "wait_for_beads",
+    "wait_for_hoods",
+)
+
+
+def waiting_payload_has_dependencies(payload: Mapping[str, Any]) -> bool:
+    """Return True when a ``waiting.json`` payload parks on dependencies."""
+    for key in _DEPENDENCY_WAIT_FIELDS:
+        value = payload.get(key)
+        if isinstance(value, (list, tuple, set, frozenset)):
+            if len(value):
+                return True
+        elif value:
+            return True
+    return False
+
+
+def touch_project_refresh_pulse_for_artifacts_dir(artifacts_dir: str) -> None:
+    """Nudge the project refresh pulse best-effort; never raises."""
+    try:
+        from sase.turns.settlement import (
+            project_name_from_artifacts_dir,
+            touch_turn_refresh_pulse,
+        )
+
+        touch_turn_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
+    except Exception:  # noqa: BLE001 - pulse must never fail the marker write
+        pass
+
+
 def write_waiting_marker(
     artifacts_dir: str,
     waiting_data: dict[str, Any],
@@ -83,6 +125,8 @@ def write_waiting_marker(
     with open(waiting_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    if waiting_payload_has_dependencies(payload):
+        touch_project_refresh_pulse_for_artifacts_dir(artifacts_dir)
 
 
 def remove_waiting_marker(artifacts_dir: str) -> None:

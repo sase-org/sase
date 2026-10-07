@@ -401,6 +401,16 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
                 existing["queue_weight"] = patch.queue_weight
         _write_json_file(waiting_path, existing)
     update_agent_artifact_index_for_marker_mutation(str(artifacts_path))
+    from sase.axe.run_agent_wait_markers import (
+        touch_project_refresh_pulse_for_artifacts_dir,
+        waiting_payload_has_dependencies,
+    )
+
+    try:
+        if waiting_payload_has_dependencies(existing):
+            touch_project_refresh_pulse_for_artifacts_dir(str(artifacts_path))
+    except Exception:  # noqa: BLE001 - pulse must never fail the TUI edit
+        pass
 
 
 def _write_ready_marker(artifacts_path: Path, patch: ReadyMarkerPatch) -> None:

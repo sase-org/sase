@@ -241,9 +241,17 @@ Fast-polling agent dependency resolution:
 | `wait_checks`       | Resolve successful agent and closed-bead waits; write `ready.json`     |
 
 `bead_claim_checks` and `wait_checks` both ship with an `fs` trigger watching the
-agent-artifact tree (`paths: [{path: projects, glob: "*/artifacts/ace-run/*"}]`,
-`max_quiet: "120s"`), so an idle tick only re-scans when a project gains a new agent
-artifact. `epic_launch_flush` and `sidecar_auto_sync` are untouched by that guard; they
+per-project completion pulse
+(`paths: [{path: projects, glob: "*/artifacts/.ace_refresh_pulse"}]`,
+`max_quiet: "120s"`), so an idle tick only re-scans when something touches that
+project's `artifacts/.ace_refresh_pulse` file. Agent completions (via
+`write_done_marker_and_update_index` and the hook-runner done writer), gate/monitor turn
+settlement, handoff and repeat-stop finalization, a dependency-carrying `waiting.json`
+write, and TUI wait-target edits all touch the pulse; pure runner-slot queue republishes
+deliberately do not, and per-agent pulses written inside run directories never match the
+project-level glob. Anything the pulse cannot observe — such as the dead-owner claim
+release, where no live process writes anything — still resolves on the `max_quiet`
+backstop. `epic_launch_flush` and `sidecar_auto_sync` are untouched by that guard; they
 already throttle via `run_every: "30s"`.
 
 `wait_checks` unblocks a named dependency when the newest matching agent, or the newest

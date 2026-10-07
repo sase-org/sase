@@ -4,7 +4,8 @@ Verifies the pre-spawn guards wired into ``default_config.yml`` against each
 chop's real input surface: Patch (ProjectSpec) files back every hooks-lane
 chop except ``pending_checks_poll`` (the sharded ``~/.sase/checks/`` output
 directory) and ``stale_running_cleanup`` (no fs-observable input at all - see
-below); the agent-artifact tree backs ``bead_claim_checks``/``wait_checks``.
+below); the per-project completion pulse
+(``artifacts/.ace_refresh_pulse``) backs ``bead_claim_checks``/``wait_checks``.
 """
 
 from __future__ import annotations
@@ -37,8 +38,10 @@ _PATCH_GLOB_CHOPS = (
     "orphan_cleanup",
 )
 
-# waits-lane chops that share the agent-artifact-tree fs trigger.
-_ARTIFACT_GLOB_CHOPS = ("bead_claim_checks", "wait_checks")
+# waits-lane chops that share the per-project completion-pulse fs trigger.
+# Per-agent pulses written inside run directories never match this
+# project-level glob; only the project ``artifacts/.ace_refresh_pulse`` does.
+_PULSE_CHOPS = ("bead_claim_checks", "wait_checks")
 
 # Every shipped chop that got an fs trigger this phase, and the lane each
 # lives in - used by the shared max_quiet sweep and the shipped-defaults
@@ -138,29 +141,121 @@ def test_pending_checks_poll_skips_idle_and_fires_on_new_check_result() -> None:
     assert "changed" in changed.reason
 
 
-@pytest.mark.parametrize("chop_name", _ARTIFACT_GLOB_CHOPS)
-def test_artifact_glob_chops_skip_idle_and_fire_on_new_agent_artifact(
-    chop_name: str,
-) -> None:
+def _real_run_dir(artifacts: Path, timestamp: str) -> Path:
+    """Create a run dir on the real day-sharded ``ace-run/YYYYMM/DD/<run>`` layout."""
+    run_dir = artifacts / "ace-run" / timestamp[:6] / timestamp[6:8] / timestamp
+    run_dir.mkdir(parents=True)
+    return run_dir
+
+
+def _pulse_baseline(chop_name: str) -> tuple[ChopConfig, datetime, Path, Path]:
+    """Record the pulse trigger checkpoint for one waits-lane chop.
+
+    Returns the chop, the baseline instant, the project's artifacts dir, and
+    one pre-existing real-layout run dir. The project pulse file does not
+    exist yet, so the baseline token is the stable no-pulse state.
+    """
     chop = _default_chop("waits", chop_name)
     tz = get_timezone()
     t0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz)
 
-    # A project that already ran at least one agent has an existing month
-    # shard; the interesting change is a *new* artifact dir appearing in it.
-    shard = sase_home() / "projects" / "demo" / "artifacts" / "ace-run" / "202601"
-    shard.mkdir(parents=True)
+    artifacts = sase_home() / "projects" / "demo" / "artifacts"
+    run_dir = _real_run_dir(artifacts, "20260101120500")
 
     _fire_and_record("waits", chop, now=t0)
+    return chop, t0, artifacts, run_dir
+
+
+@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
+def test_pulse_chops_skip_idle(chop_name: str) -> None:
+    chop, t0, _, _ = _pulse_baseline(chop_name)
 
     idle = _tick("waits", chop, now=t0 + timedelta(seconds=10))
     assert idle.outcome == "skip", idle.reason
 
-    (shard / "20260101_120500_agent-name").mkdir()
+
+@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
+def test_pulse_chops_fire_on_done_marker(chop_name: str) -> None:
+    """A completion written through ``write_done_marker_and_update_index`` fires."""
+    from sase.axe.run_agent_exec_markers import (  # noqa: PLC0415
+        write_done_marker_and_update_index,
+    )
+
+    chop, t0, _, run_dir = _pulse_baseline(chop_name)
+
+    idle = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    assert idle.outcome == "skip", idle.reason
+
+    write_done_marker_and_update_index(
+        str(run_dir),
+        {"patch_name": "dep", "cl_name": "dep", "outcome": "completed"},
+    )
 
     changed = _tick("waits", chop, now=t0 + timedelta(seconds=20))
     assert changed.outcome == "fire"
     assert "changed" in changed.reason
+
+
+@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
+def test_pulse_chops_fire_on_dependency_waiting_marker(chop_name: str) -> None:
+    """A dependency ``write_waiting_marker`` touches the pulse and fires."""
+    from sase.axe.run_agent_wait_markers import write_waiting_marker  # noqa: PLC0415
+
+    chop, t0, artifacts, _ = _pulse_baseline(chop_name)
+
+    waiter_dir = _real_run_dir(artifacts, "20260101120600")
+    write_waiting_marker(
+        str(waiter_dir),
+        {
+            "waiting_for": ["dep"],
+            "patch_name": "waiter",
+            "cl_name": "waiter",
+            "timestamp": "20260101120600",
+        },
+    )
+
+    changed = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    assert changed.outcome == "fire"
+    assert "changed" in changed.reason
+
+
+@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
+def test_pulse_chops_skip_slot_queue_marker(chop_name: str) -> None:
+    """A slot-queue-style marker (no dependency fields) neither pulses nor fires."""
+    from sase.axe.run_agent_wait_markers import write_waiting_marker  # noqa: PLC0415
+
+    chop, t0, artifacts, _ = _pulse_baseline(chop_name)
+
+    queued_dir = _real_run_dir(artifacts, "20260101120700")
+    write_waiting_marker(
+        str(queued_dir),
+        {
+            "patch_name": "queued",
+            "cl_name": "queued",
+            "timestamp": "20260101120700",
+            "queue_capacity": 0,
+            "queue_capacity_explicit": True,
+            "slot_requested_at": "2026-01-01T12:07:00+00:00",
+        },
+    )
+
+    assert not (artifacts / ".ace_refresh_pulse").exists()
+    skipped = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    assert skipped.outcome == "skip", skipped.reason
+
+
+@pytest.mark.parametrize("chop_name", _PULSE_CHOPS)
+def test_pulse_chops_skip_lock_files_and_new_day_dir(chop_name: str) -> None:
+    """Leaked scheduler lock files and new (empty) day shards do not fire."""
+    chop, t0, artifacts, _ = _pulse_baseline(chop_name)
+
+    ace_run = artifacts / "ace-run"
+    (ace_run / "..gate-shell-abc123.lock").write_text("locked", encoding="utf-8")
+    (ace_run / "..monitor-start-xyz.lock").write_text("locked", encoding="utf-8")
+    (ace_run / "202601" / "02").mkdir(parents=True)
+
+    skipped = _tick("waits", chop, now=t0 + timedelta(seconds=10))
+    assert skipped.outcome == "skip", skipped.reason
 
 
 @pytest.mark.parametrize(("lane", "chop_name"), _ALL_GUARDED_CHOPS)
