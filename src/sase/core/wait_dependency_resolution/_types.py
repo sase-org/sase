@@ -55,6 +55,11 @@ class ArtifactCandidate:
     outcome: str | None = None
     has_done_marker: bool = False
     turn_followup_agent: str | None = None
+    # Raw turn follow-up outcome (``"launched"``, ``"not-launchable"``, ...)
+    # for monitor/gate turn members, even when no follow-up agent name was
+    # recorded. Terminal-blocker detection uses it to spare a monitor whose
+    # follow-up launched from a false "can never self-resolve" alert.
+    turn_followup_outcome: str | None = None
     turn_member_kind: str | None = None
     # Epic-follow facts carried on the hot path (no extra I/O at collect
     # time). ``recorded_epic_ids`` is the authoritative ``created_epics``

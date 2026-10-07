@@ -285,6 +285,142 @@ def test_failed_monitor_not_superseded_by_newer_different_kind_shell_member(
     )
 
 
+def _launched_followup_session(
+    tmp_path: Path,
+    *,
+    successor_outcome: str | None | bool,
+) -> tuple[Path, Path, Path | None]:
+    """Session where a failed ``--mon`` launched its follow-up (sase-1h8.2 shape).
+
+    The clan shares the session name, so the clan entity ties the
+    agent-session entity and its unfiltered members reach terminal-blocker
+    detection.
+    """
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813085800",
+        "monitor-lane--plan",
+        workflow_name="monitor-lane",
+        agent_session="monitor-lane",
+        role_suffix="--plan",
+        parent_timestamp=None,
+        done=True,
+        outcome="completed",
+    )
+    monitor_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090000",
+        "monitor-lane--mon",
+        workflow_name="monitor-lane",
+        agent_session="monitor-lane",
+        role_suffix="--mon",
+        parent_timestamp=root_dir.name,
+    )
+    _update_meta(
+        monitor_dir,
+        monitor_state="failed",
+        monitor_followup_outcome="launched",
+        monitor_followup_agent="monitor-lane--1",
+    )
+    _write_monitor_done(
+        monitor_dir,
+        monitor_state="failed",
+        followup_outcome="launched",
+        followup_agent="monitor-lane--1",
+    )
+    successor_dir: Path | None = None
+    if successor_outcome is not None:
+        successor_dir = make_agent(
+            tmp_path,
+            "proj",
+            "20260813090100",
+            "monitor-lane--1",
+            workflow_name="monitor-lane",
+            agent_session="monitor-lane",
+            role_suffix="--1",
+            parent_timestamp=monitor_dir.name,
+            done=isinstance(successor_outcome, str),
+            outcome=successor_outcome if isinstance(successor_outcome, str) else None,
+        )
+    for member_dir in (
+        root_dir,
+        monitor_dir,
+        *((successor_dir,) if successor_dir is not None else ()),
+    ):
+        _update_meta(
+            member_dir,
+            agent_clan="monitor-lane",
+            agent_clan_generation=root_dir.name,
+        )
+    return root_dir, monitor_dir, successor_dir
+
+
+@pytest.mark.parametrize("successor_outcome", [False, "completed"])
+def test_failed_monitor_with_launched_followup_raises_no_terminal_alert(
+    tmp_path: Path,
+    successor_outcome: str | bool,
+) -> None:
+    """A failed monitor whose follow-up launched is not a terminal blocker.
+
+    Whether the follow-up is still running or already completed, the failed
+    ``--mon`` was superseded and must not raise a "can never self-resolve"
+    alert through the unfiltered clan entity.
+    """
+    _root_dir, monitor_dir, _successor_dir = _launched_followup_session(
+        tmp_path,
+        successor_outcome=successor_outcome,
+    )
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    monitor = index.artifacts_by_dir[str(monitor_dir)]
+    assert monitor.outcome == "failed"
+    assert monitor.turn_member_kind == "monitor"
+    assert monitor.turn_followup_outcome == "launched"
+    assert index.terminal_blocking_artifacts_for_name("monitor-lane") == ()
+
+
+def test_newest_member_failed_remains_terminal_blocker(tmp_path: Path) -> None:
+    """The session's newest member failed (the sase-1h7.3--2 shape): alert fires."""
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813085800",
+        "plain-lane--plan",
+        workflow_name="plain-lane",
+        agent_session="plain-lane",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    failed_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090000",
+        "plain-lane--1",
+        workflow_name="plain-lane",
+        agent_session="plain-lane",
+        role_suffix="--1",
+        parent_timestamp=root_dir.name,
+        done=True,
+        outcome="failed",
+    )
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert index.terminal_blocking_artifacts_for_name("plain-lane") == (
+        index.artifacts_by_dir[str(failed_dir)],
+    )
+
+
 @pytest.mark.parametrize(
     ("monitor_state", "expected"),
     [

@@ -33,6 +33,7 @@ from ._artifact_state import (
     artifact_succeeded_for_identity,
     done_outcome_from_data,
     turn_followup_handoff_agent,
+    turn_followup_outcome,
     turn_member_kind_for_meta,
     waiting_marker_crossed_dependency_barrier,
 )
@@ -333,6 +334,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             outcome=outcome,
             has_done_marker=has_done_marker,
             turn_followup_agent=turn_followup_handoff_agent(meta, done_data),
+            turn_followup_outcome=turn_followup_outcome(meta, done_data),
             turn_member_kind=turn_member_kind_for_meta(meta),
             recorded_epic_ids=recorded_epic_ids,
             legacy_epic_bead_id=legacy_epic_bead_id,

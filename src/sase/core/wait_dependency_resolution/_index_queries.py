@@ -20,6 +20,7 @@ from ._tribe_binding import TribeMemberRow, resolve_tribe_wait_binding
 from ._types import (
     ArtifactCandidate,
     AgentSessionCandidate,
+    SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES,
     TribeCandidate,
     WAIT_SUCCESS_OUTCOMES,
     WaitCandidate,
@@ -34,6 +35,67 @@ def _member_is_pending(candidate: ArtifactCandidate) -> bool:
         or candidate.archived_completion is not None
         or candidate.is_resolved
     )
+
+
+def _member_may_still_run(candidate: ArtifactCandidate) -> bool:
+    """Return whether a member may still run or change its outcome.
+
+    Covers running members (no done marker yet), queued members waiting on a
+    runner slot, and members still parked behind their own dependency barrier.
+    """
+    return (
+        _member_is_pending(candidate)
+        or candidate.is_queued
+        or candidate.is_dependency_parked
+    )
+
+
+def _terminal_blocker_members(
+    members: tuple[ArtifactCandidate, ...],
+) -> tuple[ArtifactCandidate, ...]:
+    """Return the failed done members that terminally block a wait.
+
+    A failed member blocks terminally only when it is the entity's newest
+    failed member (an older failure is superseded by the newer one), no
+    running, queued, or waiting member is newer than it (the wait may still
+    self-resolve through them), and it is not a monitor whose follow-up
+    already launched and whose recorded follow-up agent is present as a
+    newer member. A launched follow-up with no recorded agent, or whose
+    follow-up never materialized, still blocks: the handoff lane is
+    unproven.
+    """
+    failed = [
+        member
+        for member in members
+        if member.has_done_marker
+        and member.outcome is not None
+        and member.outcome not in WAIT_SUCCESS_OUTCOMES
+    ]
+    if not failed:
+        return ()
+    newest_failed_timestamp = max(member.timestamp for member in failed)
+    blockers: list[ArtifactCandidate] = []
+    for member in failed:
+        if member.timestamp != newest_failed_timestamp:
+            continue
+        if any(
+            other.timestamp > member.timestamp and _member_may_still_run(other)
+            for other in members
+        ):
+            continue
+        if (
+            member.turn_member_kind == "monitor"
+            and member.turn_followup_outcome in SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES
+            and member.turn_followup_agent is not None
+            and any(
+                other.timestamp > member.timestamp
+                and other.name == member.turn_followup_agent
+                for other in members
+            )
+        ):
+            continue
+        blockers.append(member)
+    return tuple(blockers)
 
 
 class WaitDependencyIndexQueries(
@@ -400,13 +462,7 @@ class WaitDependencyIndexQueries(
             return ()
         if latest.is_resolved and latest.is_done:
             return ()
-        return tuple(
-            member
-            for member in latest.members
-            if member.has_done_marker
-            and member.outcome is not None
-            and member.outcome not in WAIT_SUCCESS_OUTCOMES
-        )
+        return _terminal_blocker_members(latest.members)
 
     def terminal_blocking_artifacts_for_hood(
         self,
@@ -422,13 +478,7 @@ class WaitDependencyIndexQueries(
         )
         if entity is None or (entity.is_resolved and entity.is_done):
             return ()
-        return tuple(
-            member
-            for member in entity.members
-            if member.has_done_marker
-            and member.outcome is not None
-            and member.outcome not in WAIT_SUCCESS_OUTCOMES
-        )
+        return _terminal_blocker_members(entity.members)
 
     def dependency_member_dirs(
         self,

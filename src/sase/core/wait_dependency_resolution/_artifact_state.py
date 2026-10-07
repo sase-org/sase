@@ -107,10 +107,11 @@ def _agent_session_turn_field(
     return None
 
 
-def turn_followup_handoff_agent(
+def _terminal_turn_kind(
     meta: Mapping[str, Any],
     done_data: Mapping[str, Any] | None,
 ) -> str | None:
+    """Return the turn kind when a monitor/gate turn member reached a terminal state."""
     if done_data is None:
         return None
     outcome = done_data.get("outcome")
@@ -125,6 +126,44 @@ def turn_followup_handoff_agent(
     )
     if not isinstance(state, str) or state not in _TERMINAL_STATES_BY_TURN_KIND[kind]:
         return None
+    return kind
+
+
+def turn_followup_outcome(
+    meta: Mapping[str, Any],
+    done_data: Mapping[str, Any] | None,
+) -> str | None:
+    """Return a monitor/gate turn member's recorded follow-up outcome, if any.
+
+    Unlike :func:`turn_followup_handoff_agent`, this reports the raw outcome
+    (``"launched"``, ``"not-launchable"``, ...) even when no follow-up agent
+    name was recorded, so terminal-blocker detection can tell a monitor whose
+    follow-up launched from one whose handoff never happened.
+    """
+    kind = _terminal_turn_kind(meta, done_data)
+    if kind is None:
+        return None
+    followup_outcome = _agent_session_turn_field(
+        done_data,
+        kind=kind,
+        field="followup_outcome",
+    ) or _agent_session_turn_field(meta, kind=kind, field="followup_outcome")
+    if not isinstance(followup_outcome, str) or not followup_outcome:
+        return None
+    return followup_outcome
+
+
+def turn_followup_handoff_agent(
+    meta: Mapping[str, Any],
+    done_data: Mapping[str, Any] | None,
+) -> str | None:
+    kind = _terminal_turn_kind(meta, done_data)
+    if kind is None:
+        return None
+
+    state = _agent_session_turn_field(done_data, kind=kind, field="state") or (
+        _agent_session_turn_field(meta, kind=kind, field="state")
+    )
 
     followup_outcome = _agent_session_turn_field(
         done_data,

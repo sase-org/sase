@@ -153,3 +153,24 @@ def test_failed_hood_member_is_terminal_blocker(tmp_path: Path) -> None:
     )
 
     assert [Path(candidate.artifact_dir) for candidate in blockers] == [failed]
+
+
+def test_superseded_failed_hood_member_raises_no_terminal_alert(
+    tmp_path: Path,
+) -> None:
+    _agent(
+        tmp_path,
+        "20260717010101",
+        "research.old",
+        done=True,
+        outcome="failed",
+    )
+    _agent(tmp_path, "20260717010202", "research.new", done=False)
+    index = build_wait_dependency_index("proj", projects_root=tmp_path)
+
+    blockers = index.terminal_blocking_artifacts_for_hood(
+        "research",
+        launched_at_or_before="20260717020000",
+    )
+
+    assert blockers == ()
