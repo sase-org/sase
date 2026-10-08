@@ -129,6 +129,10 @@ def test_bindings_use_shared_branch_actions_and_drop_presets() -> None:
         "submit_primary",
         "submit_branch",
         "open_inputs",
+        "decision_next",
+        "decision_prev",
+        "decision_reset",
+        "decision_reset_all",
     } <= actions
     assert {"approve", "tale", "epic", "reject", "feedback"}.isdisjoint(actions)
 
@@ -186,7 +190,7 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
         assert "Tale" in tale_label
         assert str(modal.query_one("#gate-singleton-1", Button).label).startswith("2 ")
         assert str(modal.query_one("#gate-singleton-2", Button).label).startswith("3 ")
-        assert str(modal.query_one("#plan-approval-cancel", Button).label) == "Cancel"
+        assert not modal.query("#plan-approval-cancel")
         await pilot.press("space")
         await pilot.press("1")
         await pilot.pause()
@@ -275,7 +279,8 @@ async def test_plan_cancel_button_dismisses_without_result(tmp_path) -> None:
     async with _TestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal, results.append)
         await pilot.pause()
-        await pilot.click("#plan-approval-cancel")
+        assert not modal.query("#plan-approval-cancel")
+        await pilot.press("q")
         await pilot.pause()
 
     assert results == [None]

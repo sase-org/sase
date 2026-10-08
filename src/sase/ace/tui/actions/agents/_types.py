@@ -22,6 +22,9 @@ class PlanFeedbackContext:
     agent_identity: tuple[AgentType, str, str | None] | None
     plan_file: str
     notification: Notification | None = None
+    carries: tuple[str, ...] = ()
+    decision_inputs: dict[str, dict[str, object]] | None = None
+    review_revision: int | None = None
 
 
 @dataclass

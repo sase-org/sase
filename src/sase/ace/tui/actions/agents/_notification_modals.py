@@ -199,6 +199,36 @@ def handle_plan_approval(
             agent = _find(app, notification)
             agent_identity = agent.identity if agent is not None else None
 
+            from sase.sdd._plan_display_decisions import format_decision_value
+
+            carries: list[str] = []
+            feedback_inputs: dict[str, object] = {}
+            try:
+                raw_inputs = dict(result.option_inputs or {}).get("feedback", {})
+                if isinstance(raw_inputs, dict):
+                    feedback_inputs = dict(raw_inputs)
+            except Exception:
+                feedback_inputs = {}
+            definitions = (
+                list(_loaded.decision_definitions) if _loaded is not None else []
+            )
+            for definition in definitions:
+                decision_id = str(definition.get("id", ""))
+                if not decision_id:
+                    continue
+                key = f"decision_{decision_id}"
+                if key not in feedback_inputs:
+                    continue
+                effective = definition.get(
+                    "effective_default", definition.get("default")
+                )
+                value = feedback_inputs.get(key)
+                if value == effective:
+                    continue
+                carries.append(
+                    f"Carries: {decision_id} → {format_decision_value(value)}"
+                )
+
             from ._types import PlanFeedbackContext
 
             app._plan_feedback_context = PlanFeedbackContext(  # type: ignore[attr-defined]
@@ -207,6 +237,11 @@ def handle_plan_approval(
                 agent_identity=agent_identity,
                 plan_file=plan_file,
                 notification=notification,
+                carries=tuple(carries),
+                decision_inputs={"feedback": feedback_inputs}
+                if feedback_inputs
+                else None,
+                review_revision=result.review_revision,
             )
             # Phase ``space-hot-spare``: feedback keeps a fresh mount.
             try:
@@ -400,6 +435,14 @@ def handle_plan_approval(
             gate_keymaps=getattr(getattr(app, "_keymap_registry", None), "gate", None),
             actions=actions,
             action_runner=action_runner,
+            decision_definitions=list(_loaded.decision_definitions)
+            if _loaded is not None
+            else None,
+            review_revision=_loaded.review_revision if _loaded is not None else None,
+            request_id=_loaded.request_id
+            if _loaded is not None and _loaded.request_id
+            else notification.id,
+            settled_text=_loaded.settled_text if _loaded is not None else None,
         ),
         on_dismiss,
     )

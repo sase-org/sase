@@ -246,6 +246,18 @@ class CustomGateModal(
     def action_toggle_option(self) -> None:
         self.query_one(GateBranchControls).toggle_focused_option()
 
+    def action_decision_next(self) -> None:
+        return
+
+    def action_decision_prev(self) -> None:
+        return
+
+    def action_decision_reset(self) -> None:
+        return
+
+    def action_decision_reset_all(self) -> None:
+        return
+
     def action_submit_primary(self) -> None:
         self.query_one(GateBranchControls).submit_primary_branch()
 

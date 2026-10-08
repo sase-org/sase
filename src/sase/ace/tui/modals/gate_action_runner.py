@@ -90,11 +90,13 @@ def gate_modal_taken_keys(
     """
     taken = {GateActionControls.DISCARD_DRAFT_KEY}
     taken.update(key for key, _action, _description in static_bindings)
-    taken.update(
-        value
-        for value in vars(keymaps).values()
-        if isinstance(value, str) and len(value) == 1
-    )
+    for value in vars(keymaps).values():
+        if not isinstance(value, str):
+            continue
+        for part in value.split(","):
+            piece = part.strip()
+            if len(piece) == 1:
+                taken.add(piece)
     return taken
 
 

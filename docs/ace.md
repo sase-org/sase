@@ -6525,22 +6525,26 @@ Like bare `%auto`, it also auto-settles question gates.
 
 ### Plan Approval Keybindings
 
-| Key          | Action                                                                  |
-| ------------ | ----------------------------------------------------------------------- |
-| `j` / `k`    | Move between decision controls                                          |
-| `Space`      | Toggle the focused add-on checkbox                                      |
-| `Enter`      | Submit the primary (approve) decision with the current add-ons          |
-| `Ctrl+S`     | Submit the focused decision (for example reject or feedback)            |
-| `1`–`9`      | Submit the correspondingly numbered decision                            |
-| `i`          | Open the input panel for the focused decision's note or declared fields |
-| `c`          | Open [Custom Approval](#custom-approval)                                |
-| `e`          | Edit the plan file in `$EDITOR`                                         |
-| `y`          | Copy the plan file path to the clipboard                                |
-| `Y`          | Copy the plan content to the clipboard                                  |
-| `d`          | Open Gate Debug                                                         |
-| `Ctrl+D`/`U` | Scroll plan content down / up                                           |
-| `g` / `G`    | Scroll to top / bottom                                                  |
-| `q` / `Esc`  | Cancel                                                                  |
+| Key           | Action                                                                  |
+| ------------- | ----------------------------------------------------------------------- |
+| `j` / `k`     | Move through Actions, then Decisions, then Verdict                      |
+| `Space`       | Next choice (wrapping) or flip a toggle; on an AND member, toggle       |
+| `l` / `Right` | Next choice, or set yes                                                 |
+| `h` / `Left`  | Previous choice, or set no                                              |
+| `r`           | Reset the focused decision row to ★                                     |
+| `R`           | Reset every decision row to ★                                           |
+| `Enter`       | Submit the primary (approve) decision with the values on display        |
+| `Ctrl+S`      | Submit the focused decision (for example reject or feedback)            |
+| `1`–`9`       | Submit the correspondingly numbered decision                            |
+| `i`           | Open the input panel for the focused decision's note or declared fields |
+| `c`           | Open [Custom Approval](#custom-approval)                                |
+| `e`           | Edit the plan file in `$EDITOR`                                         |
+| `y`           | Copy the plan file path to the clipboard                                |
+| `Y`           | Copy the plan content to the clipboard                                  |
+| `d`           | Open Gate Debug                                                         |
+| `Ctrl+D`/`U`  | Scroll plan content down / up                                           |
+| `g` / `G`     | Scroll to top / bottom                                                  |
+| `q` / `Esc`   | Cancel                                                                  |
 
 The navigation, submit, and input-panel keys are the shared gate-modal keys; see
 [Remapping Gate Modal Keys](#remapping-gate-modal-keys).
@@ -6792,6 +6796,10 @@ ace:
       open_inputs: "o"
       next_input: "ctrl+n"
       previous_input: "ctrl+p"
+      decision_next: "l,right"
+      decision_prev: "h,left"
+      decision_reset: "r"
+      decision_reset_all: "R"
 ```
 
 These bindings dispatch only while a branch-driven gate modal is open, and its footer

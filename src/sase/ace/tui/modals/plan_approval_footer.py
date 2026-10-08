@@ -19,6 +19,9 @@ def plan_approval_footer_text(
     gate: GateBranchData,
     keys: GateModalKeymaps,
     action_hints: Text,
+    *,
+    has_decisions: bool = False,
+    enter_badge: Text | None = None,
 ) -> Text:
     """Return footer hints with the declared primary action emphasized."""
     hints = Text()
@@ -30,10 +33,22 @@ def plan_approval_footer_text(
     hints.append("=Navigate  ")
     hints.append(key_display_name(keys.toggle_option), style="green")
     hints.append("=Toggle  ")
-    hints.append_text(primary_action_badge(gate, keys.submit_primary))
+    if enter_badge is not None:
+        hints.append_text(enter_badge)
+    else:
+        hints.append_text(primary_action_badge(gate, keys.submit_primary))
     hints.append("  ")
     hints.append(key_display_name(keys.submit_branch), style="green")
     hints.append("=Submit  ")
+    if has_decisions:
+        hints.append(key_display_name(keys.decision_next), style="green")
+        hints.append("=Next choice  ")
+        hints.append(key_display_name(keys.decision_prev), style="green")
+        hints.append("=Prev choice  ")
+        hints.append(key_display_name(keys.decision_reset), style="green")
+        hints.append("=Reset  ")
+        hints.append(key_display_name(keys.decision_reset_all), style="green")
+        hints.append("=Reset all  ")
     has_inputs, _ = gate_declares_inputs(gate.options, HOST_COLLECTED_PROPERTIES)
     if has_inputs or any(option.feedback != "disabled" for option in gate.options):
         hints.append(key_display_name(keys.open_inputs), style="green")

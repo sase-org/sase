@@ -107,6 +107,9 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
             note = _humanize_notification_text(notification.notes[0])
             if len(note) > 50:
                 note = note[:47] + "..."
+            suffix = _plan_decisions_inbox_suffix(notification.notes)
+            if suffix:
+                note = f"{note}{suffix}"
             if notification.muted:
                 text.append(note, style=body_style)
             else:
@@ -331,3 +334,32 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
 
 def _humanize_notification_text(text: str) -> str:
     return humanize_cl_names_in_text(humanize_vcs_refs_in_text(text))
+
+
+def _plan_decisions_inbox_suffix(notes: list[str]) -> str:
+    """Return the `` · ◉N[ 🧠]`` suffix for a plan gate second note."""
+    import re
+
+    if len(notes) < 2:
+        return ""
+    second = str(notes[1])
+    match = re.search(r"(\d+)\s+decisions?", second)
+    if not match:
+        return ""
+    try:
+        total = int(match.group(1))
+    except ValueError:
+        return ""
+    if total <= 0:
+        return ""
+    mem_match = re.search(r"🧠\s*(\d+)", second)
+    memos = 0
+    if mem_match:
+        try:
+            memos = int(mem_match.group(1))
+        except ValueError:
+            memos = 0
+    suffix = f" · ◉{total}"
+    if memos > 0:
+        suffix += " 🧠"
+    return suffix

@@ -25,6 +25,41 @@ from .plan_approval_results import (
 )
 
 
+def build_decision_option_inputs(
+    gate: GateBranchData,
+    selected_option_ids: tuple[str, ...],
+    decision_map: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Write the same ``decision_*`` map into every selected declaring option.
+
+    Only options whose input schema declares the key receive it, so
+    ``approve`` and ``commit`` cannot disagree and ``reject`` (whose
+    schema declares none) sends none.
+    """
+    if not decision_map:
+        return {}
+    declaring: dict[str, set[str]] = {}
+    for option in gate.options:
+        if option.id not in selected_option_ids:
+            continue
+        schema = getattr(option, "input_schema", None)
+        props = schema.get("properties") if isinstance(schema, dict) else None
+        if not isinstance(props, dict):
+            continue
+        declaring[option.id] = {
+            str(name) for name in props if str(name).startswith("decision_")
+        }
+    merged: dict[str, dict[str, Any]] = {}
+    for option_id in selected_option_ids:
+        keys = declaring.get(option_id)
+        if not keys:
+            continue
+        merged[option_id] = {
+            key: value for key, value in decision_map.items() if key in keys
+        }
+    return merged
+
+
 class PlanApprovalDecisionsMixin:
     """Turn plan-review actions into modal results.
 
@@ -38,18 +73,8 @@ class PlanApprovalDecisionsMixin:
     _plan_file: str
 
     # -- branch submission -------------------------------------------------
-
-    def on_gate_branch_controls_resolved(
-        self, event: GateBranchControls.Resolved
-    ) -> None:
-        event.stop()
-        self.dismiss(  # type: ignore[attr-defined]
-            self._result_for_selection(
-                event.selected_option_ids,
-                feedback=event.feedback,
-                option_inputs=event.option_inputs,
-            )
-        )
+    # The modal owns the only ``Resolved`` handler; this mixin only
+    # builds results so a second handler cannot double-dismiss.
 
     def _result_for_selection(
         self,
@@ -235,4 +260,4 @@ class PlanApprovalDecisionsMixin:
         )
 
 
-__all__ = ["PlanApprovalDecisionsMixin"]
+__all__ = ["PlanApprovalDecisionsMixin", "build_decision_option_inputs"]

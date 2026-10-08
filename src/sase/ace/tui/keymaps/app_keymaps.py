@@ -405,6 +405,10 @@ class GateModalKeymaps:
     open_inputs: str = "i"
     next_input: str = "tab"
     previous_input: str = "shift+tab"
+    decision_next: str = "l,right"
+    decision_prev: str = "h,left"
+    decision_reset: str = "r"
+    decision_reset_all: str = "R"
 
 
 @dataclass

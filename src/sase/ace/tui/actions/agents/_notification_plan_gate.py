@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.tui.actions._durable_ops import (
     durable_fingerprint,
@@ -37,6 +37,10 @@ class PlanGateModalLoad:
     gate: GateBranchData
     actions: GateActionsData
     bundle: ResolvedGateBundle
+    decision_definitions: tuple[dict[str, Any], ...] = ()
+    review_revision: int | None = None
+    request_id: str = ""
+    settled_text: str | None = None
 
 
 def load_neutral_plan_modal_data(
@@ -59,6 +63,20 @@ def load_neutral_plan_modal_data(
     default_choice: PlanApprovalModalChoice = "epic" if kind == "epic_plan" else "tale"
     plan_file = notification.files[0]
     plan_content = Path(plan_file).expanduser().read_text(encoding="utf-8")
+    payload = envelope.get("payload") if isinstance(envelope, dict) else None
+    definitions = (
+        list(payload.get("decisions", []))
+        if isinstance(payload, dict) and isinstance(payload.get("decisions"), list)
+        else []
+    )
+    try:
+        revision = (
+            int(envelope.get("review_revision", 1)) if isinstance(envelope, dict) else 1
+        )
+    except Exception:
+        revision = 1
+    request_id = str(notification.action_data.get("request_id") or notification.id)
+    settled_text = _settled_text_for_bundle(bundle, definitions, default_choice)
     return PlanGateModalLoad(
         plan_file=plan_file,
         plan_content=plan_content,
@@ -66,7 +84,87 @@ def load_neutral_plan_modal_data(
         gate=GateBranchData.from_envelope(envelope),
         actions=load_gate_actions(bundle.root, dict(envelope)),
         bundle=bundle,
+        decision_definitions=tuple(
+            item for item in definitions if isinstance(item, dict)
+        ),
+        review_revision=revision,
+        request_id=request_id,
+        settled_text=settled_text,
     )
+
+
+def _settled_text_for_bundle(
+    bundle: Any,
+    definitions: list[dict[str, Any]],
+    default_choice: PlanApprovalModalChoice,
+) -> str | None:
+    """Return the settled-elsewhere banner, or ``None`` when still pending."""
+    try:
+        from sase.notification_gates.debug_artifacts import terminal_artifact
+        from sase.notification_gates.debug_models import GateDebugBundlePaths
+
+        paths = GateDebugBundlePaths(
+            bundle.root,
+            bundle.request,
+            bundle.response,
+            bundle.cancellation,
+            bundle.legacy,
+        )
+        terminal, payload, kind = terminal_artifact(paths)
+    except Exception:
+        return None
+    if kind != "response":
+        return None
+    try:
+        status_ok = terminal.status == "ok"
+    except Exception:
+        status_ok = False
+    if not status_ok:
+        return None
+    if not isinstance(payload, dict) or not payload.get("selected_option_ids"):
+        return None
+    surface = "another surface"
+    try:
+        raw_source = str(payload.get("source") or "").strip().lower()
+        if raw_source in ("telegram", "cli", "tui", "mobile"):
+            surface = {
+                "telegram": "Telegram",
+                "cli": "CLI",
+                "tui": "ACE",
+                "mobile": "Mobile",
+            }[raw_source]
+    except Exception:
+        pass
+    summary = ""
+    try:
+        from sase.ace.tui.modals.plan_decision_sheet import (
+            PlanDecisionDraft,
+            verdict_for_selection,
+        )
+
+        values: dict[str, Any] = {}
+        option_inputs = payload.get("option_inputs")
+        if isinstance(option_inputs, dict):
+            for inputs in option_inputs.values():
+                if not isinstance(inputs, dict):
+                    continue
+                for key, value in inputs.items():
+                    if str(key).startswith("decision_"):
+                        decision_id = str(key).removeprefix("decision_")
+                        if decision_id not in values:
+                            values[decision_id] = value
+        draft = PlanDecisionDraft(definitions, values=values or None)
+        selected = tuple(payload.get("selected_option_ids") or ())
+        epic = default_choice == "epic"
+        commit = "commit" in selected
+        run = "approve" in selected
+        verdict = verdict_for_selection(commit_plan=commit, run_coder=run, epic=epic)
+        summary = draft.full_summary(verdict)
+    except Exception:
+        summary = ""
+    if summary:
+        return f"Approved via {surface} · {summary}"
+    return f"Approved via {surface}"
 
 
 def submit_neutral_plan_response(
@@ -101,19 +199,24 @@ def submit_neutral_plan_response(
 
     def work() -> TrackedProcResult[object]:
         try:
+            kwargs: dict[str, Any] = {
+                "feedback": result.feedback,
+                "commit_plan": result.commit_plan,
+                "run_coder": result.run_coder,
+                "coder_prompt": result.coder_prompt,
+                "coder_model": result.coder_model,
+                "wait": result.wait_spec,
+                "capacity": result.capacity,
+                "epic_launch_mode": "launch",
+                "epic_launch_origin": "ace",
+                "option_inputs": result.option_inputs or None,
+            }
+            if result.review_revision is not None:
+                kwargs["expected_review_revision"] = result.review_revision
             action_result = execute_plan_approval_response(
                 plan_context_from_notification(notification),
                 choice,
-                feedback=result.feedback,
-                commit_plan=result.commit_plan,
-                run_coder=result.run_coder,
-                coder_prompt=result.coder_prompt,
-                coder_model=result.coder_model,
-                wait=result.wait_spec,
-                capacity=result.capacity,
-                epic_launch_mode="launch",
-                epic_launch_origin="ace",
-                option_inputs=result.option_inputs or None,
+                **kwargs,  # type: ignore[arg-type]
             )
         except Exception as exc:
             return TrackedProcResult(
@@ -238,6 +341,15 @@ def _submit_durable_neutral_plan_response(
         or (notification.files[0] if notification.files else bundle.root)
     )
 
+    payload_kwargs: dict[str, Any] = {
+        "feedback": result.feedback,
+        "input_data": None if per_option_inputs is not None else input_data,
+        "option_ids": list(selected_option_ids),
+        "option_inputs": per_option_inputs,
+        "source": "tui",
+    }
+    if result.review_revision is not None:
+        payload_kwargs["review_revision"] = result.review_revision
     task = submit(
         sase_argv(
             "gate",
@@ -250,13 +362,7 @@ def _submit_durable_neutral_plan_response(
             "--json",
         ),
         operation=GATE_ANSWER,
-        request=durable_request_payload(
-            feedback=result.feedback,
-            input_data=None if per_option_inputs is not None else input_data,
-            option_ids=list(selected_option_ids),
-            option_inputs=per_option_inputs,
-            source="tui",
-        ),
+        request=durable_request_payload(**payload_kwargs),
         request_fingerprint=durable_fingerprint(
             GATE_ANSWER,
             request_kind,

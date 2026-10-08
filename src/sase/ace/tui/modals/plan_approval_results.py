@@ -36,6 +36,7 @@ class PlanApprovalResult:
     choice: PlanApprovalChoice | None = None
     selected_option_ids: tuple[str, ...] = ()
     option_inputs: Mapping[str, dict[str, Any]] = field(default_factory=dict)
+    review_revision: int | None = None
 
 
 @dataclass

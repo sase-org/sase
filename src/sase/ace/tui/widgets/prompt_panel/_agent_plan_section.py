@@ -42,6 +42,42 @@ from ._agent_context_common import (
 )
 
 
+_PLAN_SHEET_CACHE: dict[str, tuple[int, dict | None, str | None, str | None]] = {}
+
+
+def _load_plan_sheet(
+    summary: AssociatedPlanSummary,
+) -> tuple[dict | None, str | None, str | None]:
+    path = str(getattr(summary, "actual_path", "") or "")
+    if not path:
+        return None, None, None
+    try:
+        import os as _os
+
+        mtime = _os.stat(path).st_mtime_ns
+    except OSError:
+        return None, None, None
+    cached = _PLAN_SHEET_CACHE.get(path)
+    if cached is not None and cached[0] == mtime:
+        return cached[1], cached[2], cached[3]
+    try:
+        from sase.sdd.plan_decision_handoff import load_stamped_decisions
+
+        stamped = load_stamped_decisions(path)
+    except Exception:
+        stamped = None
+    if stamped is None:
+        _PLAN_SHEET_CACHE[path] = (mtime, None, None, None)
+        return None, None, None
+    _PLAN_SHEET_CACHE[path] = (
+        mtime,
+        stamped.sheet,
+        stamped.decided_by,
+        stamped.decided_via,
+    )
+    return stamped.sheet, stamped.decided_by, stamped.decided_via
+
+
 @dataclass(slots=True)
 class ResponsivePlanSection:
     """One logical descriptive lane that reflows its fields at render time."""
@@ -52,7 +88,14 @@ class ResponsivePlanSection:
     @property
     def logical_text(self) -> Text:
         """Return the unwrapped styled lane used by header inspection."""
-        return plan_logical_text(self.summary, hint_number=self.hint_number)
+        sheet, decided_by, decided_via = _load_plan_sheet(self.summary)
+        return plan_logical_text(
+            self.summary,
+            hint_number=self.hint_number,
+            sheet=sheet,
+            decided_by=decided_by,
+            decided_via=decided_via,
+        )
 
     def __rich_console__(
         self,
@@ -69,6 +112,19 @@ class ResponsivePlanSection:
             value.no_wrap = False
             table.add_row(Text(label, style=COLOR_SUMMARY), value)
         yield from console.render(table, options.update_width(width))
+        sheet, decided_by, decided_via = _load_plan_sheet(self.summary)
+        if sheet is not None:
+            from sase.sdd._plan_display_decisions import (
+                accepted_decisions_text,
+                pending_decisions_text,
+            )
+
+            decisions = (
+                accepted_decisions_text(sheet, decided_by, decided_via)
+                if decided_by
+                else pending_decisions_text(sheet)
+            )
+            yield from console.render(decisions, options.update_width(width))
         render_options = options.update_width(width)
         if self.summary.phase_availability != "available":
             return

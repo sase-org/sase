@@ -312,6 +312,10 @@ _GATE_BINDING_META: tuple[tuple[str, str], ...] = (
     ("submit_primary", "Submit primary"),
     ("submit_branch", "Submit"),
     ("open_inputs", "Open inputs"),
+    ("decision_next", "Next decision choice"),
+    ("decision_prev", "Previous decision choice"),
+    ("decision_reset", "Reset decision row"),
+    ("decision_reset_all", "Reset all decisions"),
 )
 
 # Focus-ring bindings owned by ``GateInputPanel``.

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import re
+from typing import Any
 
 from rich.cells import cell_len
 from rich.console import Console
@@ -234,6 +235,9 @@ def plan_logical_text(
     summary: PlanDisplay,
     *,
     hint_number: int | None = None,
+    sheet: dict[str, Any] | None = None,
+    decided_by: str | None = None,
+    decided_via: str | None = None,
 ) -> Text:
     """Return the canonical unwrapped PLAN document used for search/copy."""
     text = plan_lane_header(summary)
@@ -245,10 +249,27 @@ def plan_logical_text(
         text.append(label, style=COLOR_PLAN_SUMMARY)
         text.append_text(value)
         text.append("\n")
+    if sheet is not None:
+        text.append_text(_plan_decisions_logical_text(sheet, decided_by, decided_via))
     if summary.phase_availability == "available":
         for ordinal, phase in enumerate(summary.phases, start=1):
             text.append_text(plan_phase_logical_text(ordinal, phase))
     return text
+
+
+def _plan_decisions_logical_text(
+    sheet: dict[str, Any],
+    decided_by: str | None,
+    decided_via: str | None,
+) -> Text:
+    from sase.sdd._plan_display_decisions import (
+        accepted_decisions_text,
+        pending_decisions_text,
+    )
+
+    if decided_by:
+        return accepted_decisions_text(sheet, decided_by, decided_via)
+    return pending_decisions_text(sheet)
 
 
 def render_plan_document(
@@ -258,6 +279,9 @@ def render_plan_document(
     hint_number: int | None = None,
     bead_page_url: str | None = None,
     include_counts: bool = False,
+    sheet: dict[str, Any] | None = None,
+    decided_by: str | None = None,
+    decided_via: str | None = None,
 ) -> _RenderedPlanDocument:
     """Render complete Rich lines at ``width`` without filesystem access.
 
@@ -301,6 +325,9 @@ def render_plan_document(
             page_rendered = True
     if bead_page_url is not None and not page_rendered:
         intro.append(_bead_page_line(bead_page_url))
+
+    if sheet is not None:
+        intro.append(_plan_decisions_logical_text(sheet, decided_by, decided_via))
 
     phase_blocks: list[tuple[Text, ...]] = []
     if summary.phase_availability == "available":

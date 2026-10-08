@@ -200,6 +200,10 @@ def _plan_toast(n: Notification) -> tuple[str, Severity]:
         if detail_line:
             message = f"{message}\n{detail_line}"
 
+    second = _second_note(n)
+    if second and "decision" in second:
+        message = f"{message}\n[dim]{_markup_safe(_truncate(second))}[/]"
+
     return (message, "warning")
 
 

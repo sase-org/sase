@@ -297,6 +297,10 @@ def test_default_config_covers_all_gate_modal_keymaps() -> None:
         "open_inputs": "i",
         "next_input": "tab",
         "previous_input": "shift+tab",
+        "decision_next": "l,right",
+        "decision_prev": "h,left",
+        "decision_reset": "r",
+        "decision_reset_all": "R",
     }
     assert field_names == set(defaults)
 

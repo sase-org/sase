@@ -2625,6 +2625,22 @@
                 "previous_input": {
                   "type": "string",
                   "description": "Focus the previous input in the gate input panel"
+                },
+                "decision_next": {
+                  "type": "string",
+                  "description": "Next decision choice"
+                },
+                "decision_prev": {
+                  "type": "string",
+                  "description": "Previous decision choice"
+                },
+                "decision_reset": {
+                  "type": "string",
+                  "description": "Reset decision row"
+                },
+                "decision_reset_all": {
+                  "type": "string",
+                  "description": "Reset all decisions"
                 }
               }
             },

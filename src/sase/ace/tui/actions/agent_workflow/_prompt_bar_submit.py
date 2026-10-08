@@ -139,7 +139,13 @@ class PromptBarSubmitMixin:
                     self,
                     ctx.notification,
                     agent,
-                    PlanApprovalResult(action="reject", feedback=feedback),
+                    PlanApprovalResult(
+                        action="reject",
+                        feedback=feedback,
+                        selected_option_ids=("feedback",),
+                        option_inputs=dict(ctx.decision_inputs or {}),
+                        review_revision=ctx.review_revision,
+                    ),
                 )
                 if submitted:
                     self._plan_feedback_context = None

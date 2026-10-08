@@ -267,6 +267,10 @@ def _decision_group(summary: GateSummary) -> list[RenderableType]:
     for index, branch in enumerate(summary.branches, start=1):
         parts.append(_branch_block(branch, index, terminal))
 
+    decisions_block = _plan_decisions_block(summary)
+    if decisions_block is not None:
+        parts.append(decisions_block)
+
     if summary.feedback:
         parts.append(Text("Note", style="bold"))
         parts.append(Text(summary.feedback))
@@ -325,7 +329,12 @@ def _option_row(
 def _pending_option_summary(option: GateSummaryOption) -> str:
     """Pending-state ``✎ n inputs`` / note wording for one option row."""
     parts: list[str] = []
-    count_label = option_input_count_label(len(option.input_fields))
+    visible_fields = [
+        field
+        for field in option.input_fields
+        if not str(getattr(field, "id", "")).startswith("decision_")
+    ]
+    count_label = option_input_count_label(len(visible_fields))
     if count_label:
         parts.append(count_label)
     if option.feedback == "required":
@@ -340,6 +349,7 @@ def _option_input_lines(option: GateSummaryOption, *, terminal: bool) -> list[Te
 
     ``feedback`` is skipped here even when it rides along as an ordinary
     declared field, because the pane already shows it in the "Note" section.
+    ``decision_*`` fields never appear here; the Decisions block owns them.
     """
     if terminal:
         if not option.selected or not option.submitted_input:
@@ -348,13 +358,45 @@ def _option_input_lines(option: GateSummaryOption, *, terminal: bool) -> list[Te
         return [
             _submitted_input_line(labels.get(field_id, field_id), value)
             for field_id, value in option.submitted_input.items()
-            if field_id != "feedback"
+            if field_id != "feedback" and not str(field_id).startswith("decision_")
         ]
     return [
         _declared_input_line(field)
         for field in option.input_fields
-        if field.id != "feedback"
+        if field.id != "feedback" and not str(field.id).startswith("decision_")
     ]
+
+
+def _plan_decisions_block(summary: GateSummary) -> RenderableType | None:
+    """Return the Decisions block for a plan gate, or ``None``."""
+    definitions = list(getattr(summary, "plan_decision_definitions", ()) or ())
+    if not definitions:
+        return None
+    from sase.sdd._plan_display_decisions import format_decision_value
+
+    values = dict(getattr(summary, "plan_decision_values", {}) or {})
+    terminal = summary.status in _TERMINAL_STATUSES
+    grid = Table.grid(expand=True, padding=(0, 1))
+    grid.add_column(ratio=1)
+    grid.add_row(Text("Decisions", style="bold"))
+    for definition in definitions:
+        decision_id = str(definition.get("id", ""))
+        if not decision_id:
+            continue
+        value = values.get(
+            decision_id,
+            definition.get("effective_default", definition.get("default")),
+        )
+        effective = definition.get("effective_default", definition.get("default"))
+        changed = value != effective
+        shown = format_decision_value(value)
+        if terminal:
+            mark = " ●" if changed else " ★"
+            grid.add_row(Text(f"{decision_id}: {shown}{mark}"))
+        else:
+            mark = " ●" if changed else " ★"
+            grid.add_row(Text(f"◉ {decision_id}  {shown}{mark}"))
+    return grid
 
 
 def _declared_input_line(field: GateInputField) -> Text:

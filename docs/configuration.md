@@ -1129,16 +1129,20 @@ scopes, app-wide bindings, and prefix-mode maps:
 **`gate`** — Bindings active in the shared branch controls used by plan and custom gate
 modals, plus the input panel those modals open when a selection needs typed input:
 
-| Field              | Default     | Description                                                            |
-| ------------------ | ----------- | ---------------------------------------------------------------------- |
-| `next_control`     | `j`         | Focus the next branch control.                                         |
-| `previous_control` | `k`         | Focus the previous branch control.                                     |
-| `toggle_option`    | `space`     | Toggle the focused option in an AND group.                             |
-| `submit_primary`   | `enter`     | Submit the gate's declared primary branch.                             |
-| `submit_branch`    | `ctrl+s`    | Submit the currently active branch and feedback.                       |
-| `open_inputs`      | `i`         | Open the input panel for the focused option's note or declared fields. |
-| `next_input`       | `tab`       | Focus the next field in the gate input panel.                          |
-| `previous_input`   | `shift+tab` | Focus the previous field in the gate input panel.                      |
+| Field                | Default     | Description                                                            |
+| -------------------- | ----------- | ---------------------------------------------------------------------- |
+| `next_control`       | `j`         | Focus the next branch control.                                         |
+| `previous_control`   | `k`         | Focus the previous branch control.                                     |
+| `toggle_option`      | `space`     | Toggle the focused option in an AND group.                             |
+| `submit_primary`     | `enter`     | Submit the gate's declared primary branch.                             |
+| `submit_branch`      | `ctrl+s`    | Submit the currently active branch and feedback.                       |
+| `open_inputs`        | `i`         | Open the input panel for the focused option's note or declared fields. |
+| `next_input`         | `tab`       | Focus the next field in the gate input panel.                          |
+| `previous_input`     | `shift+tab` | Focus the previous field in the gate input panel.                      |
+| `decision_next`      | `l,right`   | Next decision choice, or set yes.                                      |
+| `decision_prev`      | `h,left`    | Previous decision choice, or set no.                                   |
+| `decision_reset`     | `r`         | Reset the focused decision row to ★.                                   |
+| `decision_reset_all` | `R`         | Reset every decision row to ★.                                         |
 
 Gate keys are scoped to the active modal and may overlap app-level bindings.
 `open_inputs` is bound on the gate modal and opens the panel even when the selection

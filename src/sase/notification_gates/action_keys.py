@@ -32,7 +32,7 @@ RESERVED_GATE_ACTION_KEYS = frozenset(
 GATE_ACTION_FALLBACK_KEYS = tuple(
     key
     for key in "abcefhilmnoprstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ"
-    if key not in RESERVED_GATE_ACTION_KEYS
+    if key not in RESERVED_GATE_ACTION_KEYS and key not in {"h", "l", "r", "R"}
 )
 
 

@@ -112,6 +112,8 @@ class GateSummary:
     bundle_path: Path | None
     unavailable_reason: str | None
     option_inputs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    plan_decision_definitions: tuple[dict[str, Any], ...] = ()
+    plan_decision_values: dict[str, Any] = field(default_factory=dict)
 
 
 def gate_summary_from_notification(notification: Notification) -> GateSummary | None:
@@ -254,6 +256,42 @@ def load_gate_summary(notification: Notification) -> GateSummary | None:
             for branch in branch_data.branches
         )
 
+        payload = envelope.get("payload") if isinstance(envelope, dict) else None
+        definitions: tuple[dict[str, Any], ...] = ()
+        if isinstance(payload, dict) and isinstance(payload.get("decisions"), list):
+            definitions = tuple(
+                item for item in payload["decisions"] if isinstance(item, dict)
+            )
+        decision_values: dict[str, Any] = {}
+        if definitions:
+            if status == "answered" and option_inputs:
+                collected: dict[str, Any] = {}
+                for inputs in option_inputs.values():
+                    if not isinstance(inputs, dict):
+                        continue
+                    for key, value in inputs.items():
+                        if str(key).startswith("decision_"):
+                            decision_id = str(key).removeprefix("decision_")
+                            if decision_id not in collected:
+                                collected[decision_id] = value
+                for definition in definitions:
+                    decision_id = str(definition.get("id", ""))
+                    if decision_id in collected:
+                        decision_values[decision_id] = collected[decision_id]
+                    else:
+                        effective = definition.get(
+                            "effective_default", definition.get("default")
+                        )
+                        decision_values[decision_id] = effective
+            else:
+                for definition in definitions:
+                    decision_id = str(definition.get("id", ""))
+                    if not decision_id:
+                        continue
+                    decision_values[decision_id] = definition.get(
+                        "effective_default", definition.get("default")
+                    )
+
         return GateSummary(
             kind=kind,
             display_title=instant.display_title,
@@ -270,6 +308,8 @@ def load_gate_summary(notification: Notification) -> GateSummary | None:
             bundle_path=bundle.root,
             unavailable_reason=None,
             option_inputs=option_inputs,
+            plan_decision_definitions=definitions,
+            plan_decision_values=decision_values,
         )
     except Exception as exc:  # noqa: BLE001 - the "never raises" contract is structural
         return dataclasses.replace(

@@ -1770,6 +1770,34 @@ SudoRequestModal > #sudo-request-container {
     margin-right: 1;
 }
 
+.gate-review-body > .gate-review-actions--decisions {
+    width: 50;
+}
+
+.plan-decision-rows {
+    height: auto;
+    max-height: 16;
+}
+
+.plan-decision-row {
+    height: auto;
+    text-align: left;
+}
+
+.gate-review-verdict-summary {
+    height: auto;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+.gate-review-settled {
+    height: auto;
+    color: $text-muted;
+    text-style: bold;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
 .gate-review-actions {
     border: solid $secondary;
     padding: 0 1;
