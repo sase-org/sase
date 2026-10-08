@@ -72,7 +72,7 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/dispatch/launch.py"),
     Path("src/sase/dispatch/launch_submit.py"),
     Path("src/sase/gate_turn/store.py"),
-    Path("src/sase/integrations/_agent_list_entry_builder.py"),
+    Path("src/sase/integrations/_agent_list_entry_build.py"),
     Path("src/sase/monitor/store.py"),
     Path("src/sase/scripts/_agent_chat_from_name_common.py"),
     Path("src/sase/turns/followup.py"),
