@@ -7,6 +7,8 @@ tests so its import path keeps working.
 
 from __future__ import annotations
 
+import pytest
+
 from sase.ace.tui.widgets.directive_completion import (
     DirectiveArgCompletionMetadata,
     build_directive_clause_candidates,
@@ -14,6 +16,7 @@ from sase.ace.tui.widgets.directive_completion import (
 )
 from sase.legacy_xprompt_names import LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME
 from sase.macro._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
+from sase.macro._exceptions import DirectiveError
 from sase.macro.directives import extract_prompt_directives
 from sase.macro.effort import EFFORT_LEVELS_ORDERED
 
@@ -140,17 +143,22 @@ def test_auto_argument_completion_suggests_compatibility_values_without_closing_
     None
 ):
     # Keep these suggestions aligned with Rust directive_argument_candidates("auto")
-    # in sase-core. They are not a parser allowlist: the eventual gate adapter
-    # owns validation of the retained raw argument.
-    assert AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS == ("plan", "tale", "epic")
+    # in sase-core. They are the closed launch grammar, including the
+    # manual/off spellings that disable automatic approval.
+    assert AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS == (
+        "plan",
+        "tale",
+        "epic",
+        "manual",
+        "off",
+    )
     candidates, _ = build_directive_arg_completion_candidates("auto", "")
     assert tuple(candidate.insertion for candidate in candidates) == (
         AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
     )
 
-    cleaned, directives = extract_prompt_directives("%auto:foo\nDo the work")
-    assert cleaned == "Do the work"
-    assert directives.auto_argument == "foo"
+    with pytest.raises(DirectiveError, match="Invalid %auto spelling"):
+        extract_prompt_directives("%auto:foo\nDo the work")
 
 
 def test_legacy_enabled_directive_offers_bool_values() -> None:

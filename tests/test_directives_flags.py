@@ -66,13 +66,61 @@ def test_auto_duplicate_raises() -> None:
         extract_prompt_directives("%auto\n%a\nDo the work")
 
 
-def test_auto_argument_is_retained_for_adapter_validation() -> None:
-    """The parser retains opaque auto arguments for the eventual gate adapter."""
-    cleaned, directives = extract_prompt_directives("%auto:foo\nDo the work")
+@pytest.mark.parametrize(
+    ("token", "enabled", "mode", "argument"),
+    [
+        ("%auto", True, "plan", None),
+        ("%a", True, "plan", None),
+        ("%auto+", True, "plan", None),
+        ("%auto:true", True, "plan", None),
+        ("%auto:plan", True, "plan", "plan"),
+        ("%auto:tale", True, "tale", "tale"),
+        ("%auto:epic", True, "epic", "epic"),
+        ("%a:tale", True, "tale", "tale"),
+        ("%auto:manual", False, None, None),
+        ("%auto:off", False, None, None),
+        ("%a:off", False, None, None),
+    ],
+)
+def test_auto_closed_grammar(
+    token: str, enabled: bool, mode: str | None, argument: str | None
+) -> None:
+    """Every closed %auto spelling extracts its launch fields."""
+    cleaned, directives = extract_prompt_directives(f"{token}\nDo the work")
     assert cleaned == "Do the work"
-    assert directives.auto_enabled is True
-    assert directives.auto_argument == "foo"
-    assert directives.auto_mode == "foo"
+    assert directives.auto_enabled is enabled
+    assert directives.auto_mode == mode
+    assert directives.auto_argument == argument
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "%auto(plan=ask)",
+        "%a(epic=ask)",
+        "%auto(plan, epic)",
+        "%auto(sudo=approve)",
+        "%auto()",
+        "%auto(tale)",
+        "%auto(",
+        "%auto:foo",
+        "%auto:first",
+        "%auto:epic_plan",
+        "%auto:offload",
+        "%auto:x(plan=ask)",
+        "%auto:`foo`",
+    ],
+)
+def test_auto_open_spellings_raise_directive_error(token: str) -> None:
+    """Named args, extra positionals, and unknown colon values fail closed."""
+    with pytest.raises(DirectiveError, match="Invalid %auto spelling"):
+        extract_prompt_directives(f"{token}\nDo the work")
+
+
+def test_auto_unknown_argument_is_rejected_for_adapter_validation() -> None:
+    """Unknown %auto arguments fail at launch instead of reaching adapters."""
+    with pytest.raises(DirectiveError, match="Invalid %auto spelling"):
+        extract_prompt_directives("%auto:foo\nDo the work")
 
 
 def test_auto_default_none() -> None:

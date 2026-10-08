@@ -284,6 +284,15 @@ def test_set_prompt_auto_mode_canonical_forms() -> None:
     assert set_prompt_auto_mode("%auto:epic\nDo work", None) == "Do work"
 
 
+def test_set_prompt_auto_mode_replaces_manual_spellings() -> None:
+    """Rewriting over %auto:manual/%auto:off replaces rather than duplicates."""
+    assert (
+        set_prompt_auto_mode("%auto:manual\nDo work", "tale") == "%auto:tale\nDo work"
+    )
+    assert set_prompt_auto_mode("%auto:off\nDo work", "plan") == "%auto\nDo work"
+    assert set_prompt_auto_mode("%a:off\nDo work", None) == "Do work"
+
+
 def test_set_prompt_wait_replaces_alias_and_time_forms() -> None:
     prompt = "%w:old\n#t:5m\n%time:1h\nDo work"
     rewritten = set_prompt_wait(

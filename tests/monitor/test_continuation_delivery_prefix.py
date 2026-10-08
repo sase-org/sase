@@ -131,6 +131,13 @@ def test_queue_launch_prefix_reauthors_capacity_multiplier() -> None:
         ({"approve": True, "auto_approve_argument": ""}, "%auto\n"),
         ({"approve": True, "auto_approve_argument": "   "}, "%auto\n"),
         ({"approve": True, "auto_approve_argument": 123}, "%auto\n"),
+        # Legacy values outside the closed grammar never re-emit: they fall
+        # through to the action/approve checks so a stale meta cannot
+        # produce a follow-up prompt that now fails at launch.
+        ({"approve": True, "auto_approve_argument": "foo"}, "%auto\n"),
+        ({"approve": True, "auto_approve_argument": "off"}, "%auto\n"),
+        ({"approve": True, "auto_approve_argument": "manual"}, "%auto\n"),
+        ({"auto_approve_argument": "foo"}, ""),
     ],
 )
 def test_auto_launch_prefix_reauthors_auto_directive(

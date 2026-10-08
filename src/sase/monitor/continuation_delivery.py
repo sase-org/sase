@@ -217,8 +217,14 @@ def auto_launch_prefix(meta: Mapping[str, Any]) -> str:
     """Return a live ``%auto`` prefix carrying starter auto-approve state."""
 
     argument = meta.get("auto_approve_argument")
-    if isinstance(argument, str) and argument.strip():
-        return f"%auto:{argument}\n"
+    if isinstance(argument, str):
+        normalized = argument.strip()
+        # Only re-emit arguments the closed %auto grammar still accepts.
+        # Any other legacy value (foo, off, manual, ...) falls through to
+        # the action/approve checks below, so a stale meta can never
+        # produce a follow-up prompt that now fails at launch.
+        if normalized in {"plan", "tale", "epic"}:
+            return f"%auto:{normalized}\n"
 
     action = meta.get("auto_approve_plan_action")
     if action in {"tale", "epic"}:

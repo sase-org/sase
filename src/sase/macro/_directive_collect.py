@@ -19,6 +19,7 @@ from ._directive_types import (
     _KNOWN_DIRECTIVES,
     _MULTI_VALUE_DIRECTIVES,
 )
+from ._directive_values import reject_auto_paren
 from ._exceptions import DirectiveError
 from ._parsing import (
     find_matching_brace_for_args,
@@ -97,6 +98,10 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
             paren_start = match.end() - 1
             paren_end = find_matching_paren_for_args(prompt, paren_start)
             if paren_end is not None:
+                if name == "auto":
+                    # Parenthesized %auto forms fail closed with the core
+                    # message, before any generic single-value handling below.
+                    reject_auto_paren(prompt[match.start() : paren_end + 1])
                 paren_content = prompt[paren_start + 1 : paren_end]
                 try:
                     positional_args, named_args = parse_args(
@@ -223,6 +228,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                     raise DirectiveError(
                         "Malformed %tab(...) directive: missing closing ')'."
                     )
+                if name == "auto":
+                    reject_auto_paren(prompt[match.start() : match.end()])
                 raw_args = [""]
         elif colon_arg is not None:
             if colon_arg.startswith("`") and colon_arg.endswith("`"):

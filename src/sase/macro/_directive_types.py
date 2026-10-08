@@ -62,12 +62,15 @@ _MULTI_VALUE_DIRECTIVES = frozenset({"final", "wait"})
 # `--plan` rows never follow.
 WAIT_FOR_EPIC_DEFAULT = True
 
-# Compatibility argument suggestions for the %auto/%a directive. The parser
-# retains arbitrary raw arguments; the adapter that opens a gate owns validation.
+# Validated argument vocabulary for the %auto/%a directive. The parser
+# enforces this closed grammar and raises DirectiveError for anything else;
+# gate adapters keep their own strict allowlists for hand-built specs.
 AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS: tuple[str, ...] = (
     "plan",
     "tale",
     "epic",
+    "manual",
+    "off",
 )
 
 # Removed directive spellings that should raise targeted migration errors when
@@ -174,11 +177,16 @@ class PromptDirectives:
         proc_options: Optional `%proc` kwargs (timeout, cwd, workspace, label).
         final: Ordered raw selector operations from repeatable ``%final``
             directives. Resolution is owned by the finalizer launch gate.
-        auto_mode: Compatibility rendering of the raw ``%auto`` argument;
-            bare ``%auto`` is ``"plan"`` and absence is None.
-        auto_enabled: Whether ``%auto``/``%a`` was present.
-        auto_argument: The optional raw argument, validated later by the gate
-            adapter that owns the interaction kind.
+        auto_mode: Validated ``%auto`` mode from the closed grammar
+            (``plan``, ``tale``, or ``epic``); bare ``%auto`` is ``"plan"``,
+            and absence or ``:manual``/``:off`` is None.
+        auto_enabled: Whether ``%auto``/``%a`` enables automatic approval.
+            ``:manual``/``:off`` report False, exactly as if no ``%auto``
+            were present.
+        auto_argument: The validated ``%auto`` argument (``plan``,
+            ``tale``, or ``epic``), or None for bare ``%auto`` and for
+            the manual spellings. Unknown spellings never reach here:
+            extraction raises ``DirectiveError`` at launch.
         dispatch: Remote machine alias requested via the %dispatch directive,
             or None for a local launch.
         agent_tab: Canonical stored tab name from ``%tab``, or None for the

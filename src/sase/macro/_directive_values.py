@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import NoReturn
 
 from ._directive_time import parse_absolute_time, parse_duration
 from ._exceptions import DirectiveError
@@ -503,25 +504,71 @@ def resolve_reasoning_effort(
     return directive_effort or model_effort
 
 
+def classify_auto_spelling(
+    *, form: str, value: str, spelling: str
+) -> tuple[bool, str | None, str | None]:
+    """Classify one ``%auto``/``%a`` spelling through the sase-core grammar.
+
+    Returns ``(enabled, mode, argument)`` in launch-extractor field shape.
+    Rejected spellings raise :class:`DirectiveError` with the exact message
+    every surface (Rust extractor, editor diagnostics, LSP) shows.
+    """
+    from sase.core.rust import require_rust_binding
+
+    classify = require_rust_binding("classify_auto_directive")
+    try:
+        result = classify({"form": form, "value": value, "spelling": spelling})
+    except ValueError as exc:
+        raise DirectiveError(str(exc)) from exc
+    return (
+        bool(result["enabled"]),
+        result["mode"],
+        result["argument"],
+    )
+
+
+def reject_auto_paren(spelling: str) -> NoReturn:
+    """Raise the core launch error for a parenthesized ``%auto`` spelling."""
+    classify_auto_spelling(form="paren", value="", spelling=spelling)
+    raise AssertionError("the core auto grammar must reject paren forms")
+
+
+def _resolve_auto_fields(
+    expanded_args: dict[str, str],
+) -> tuple[bool, str | None, str | None]:
+    """Classify the expanded ``%auto`` value through the core grammar."""
+    raw = expanded_args["auto"]
+    if raw == "":
+        form, spelling = "bare", "%auto"
+    else:
+        form, spelling = "colon", f"%auto:{raw}"
+    return classify_auto_spelling(form=form, value=raw, spelling=spelling)
+
+
 def resolve_auto_mode(expanded_args: dict[str, str]) -> str | None:
-    """Return a compatibility mode while retaining validation for adapters."""
+    """Return the validated ``%auto`` mode, or None when auto is off/absent.
+
+    Bare ``%auto`` (plus ``%auto+`` and ``%auto:true``) means ``"plan"``;
+    ``:plan``/``:tale``/``:epic`` mean that mode; ``:manual``/``:off``
+    disable auto exactly as if no ``%auto`` were present. Anything else
+    raises ``DirectiveError`` at launch.
+    """
     if "auto" not in expanded_args:
         return None
-
-    raw_auto_mode = expanded_args["auto"] or "plan"
-    if raw_auto_mode == "true":
-        raw_auto_mode = "plan"
-    return raw_auto_mode
+    _enabled, mode, _argument = _resolve_auto_fields(expanded_args)
+    return mode
 
 
 def resolve_auto_argument(expanded_args: dict[str, str]) -> tuple[bool, str | None]:
-    """Return presence plus the opaque optional ``%auto`` argument."""
+    """Return presence plus the validated ``%auto`` argument.
+
+    Manual spellings (``:manual``/``:off``) report ``(False, None)`` and
+    write no meta keys downstream; unknown values raise ``DirectiveError``.
+    """
     if "auto" not in expanded_args:
         return False, None
-    raw = expanded_args["auto"]
-    if raw in {"", "true"}:
-        return True, None
-    return True, raw
+    enabled, _mode, argument = _resolve_auto_fields(expanded_args)
+    return enabled, argument
 
 
 def _validate_model_alias_prefix(model: str, *, had_alias_prefix: bool) -> str:
