@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import datetime
 import os
-import subprocess
 import sys
 
 
@@ -93,12 +92,9 @@ def try_handle_goal_fast_path(argv: list[str]) -> int | None:
 def _spawn_fetch_worker(project: str) -> None:
     """Spawn the TTL fetch worker; failures stay silent (fail-open)."""
     try:
-        subprocess.Popen(
-            [sys.executable, "-m", "sase.goals.fetch_worker", project],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        # Local import keeps this module stdlib-only at import time.
+        from sase.goals.fetch_worker import spawn_fetch_worker
+
+        spawn_fetch_worker(project)
     except Exception:  # noqa: BLE001 - spawn fails open.
         pass

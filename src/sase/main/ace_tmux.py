@@ -36,12 +36,23 @@ _LEGACY_ACE_COMMAND = "ace"
 
 
 def _run_tmux_command(
-    cmd: list[str], *, runner: _RunCommand, timeout: _TimeoutValue, action: str
+    cmd: list[str],
+    *,
+    runner: _RunCommand,
+    timeout: _TimeoutValue,
+    action: str,
+    start_new_session: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run a tmux command through the facade's patchable subprocess seam."""
     if runner is subprocess.run:
         runner = subprocess.run
-    return run_tmux_command(cmd, runner=runner, timeout=timeout, action=action)
+    return run_tmux_command(
+        cmd,
+        runner=runner,
+        timeout=timeout,
+        action=action,
+        start_new_session=start_new_session,
+    )
 
 
 def _default_runner(runner: _RunCommand | None) -> _RunCommand:

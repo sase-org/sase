@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import uuid
 
+from sase.detach_scope import detach_scope
+
 from sase.main.ace_tmux_support import (
     _AGENTS_TMUX_SESSION,
     _BOOTSTRAP_WINDOW_PREFIX,
@@ -61,23 +63,32 @@ def _create_agents_tmux_session_with_bootstrap(
     *, runner: _RunCommand, timeout: _TimeoutValue, run_command: _RunTmuxCommand
 ) -> ResolvedSession:
     bootstrap_name = f"{_BOOTSTRAP_WINDOW_PREFIX}{uuid.uuid4().hex[:12]}"
+    # When this bootstrap starts the tmux server, the server must live in its
+    # own scope instead of the agent's. ``systemd-run --scope --quiet`` keeps
+    # the ``-P -F`` stdout.
+    launch = detach_scope(
+        [
+            "tmux",
+            "new-session",
+            "-d",
+            "-s",
+            _AGENTS_TMUX_SESSION,
+            "-n",
+            bootstrap_name,
+            "-P",
+            "-F",
+            "#{session_name}\t#{window_id}\t#{window_name}",
+        ],
+        description="SASE agents tmux session bootstrap",
+        unit_prefix="sase-tmux",
+    )
     try:
         created = run_command(
-            [
-                "tmux",
-                "new-session",
-                "-d",
-                "-s",
-                _AGENTS_TMUX_SESSION,
-                "-n",
-                bootstrap_name,
-                "-P",
-                "-F",
-                "#{session_name}\t#{window_id}\t#{window_name}",
-            ],
+            launch.argv,
             runner=runner,
             timeout=timeout,
             action=f"create tmux session '{_AGENTS_TMUX_SESSION}'",
+            start_new_session=launch.start_new_session,
         )
     except Exception:
         kill_window_best_effort(

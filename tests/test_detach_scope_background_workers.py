@@ -329,3 +329,272 @@ def test_async_bead_push_worker_noop_outside_sase_unit(
     assert isinstance(popen_kwargs, dict)
     assert popen_kwargs["start_new_session"] is True
     assert handle is not None
+
+
+def _delete_trash_in_background(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    launch: _Launch,
+) -> dict[str, object]:
+    import sase._linked_repo_workspaces as trash_module
+
+    captured: dict[str, object] = {}
+
+    def fake_detach_scope(argv: list[str], **kwargs: object) -> _DetachScopeCommand:
+        captured["detach_argv"] = list(argv)
+        captured["detach_kwargs"] = kwargs
+        return launch(list(argv))
+
+    monkeypatch.setattr(trash_module, "detach_scope", fake_detach_scope)
+    monkeypatch.setattr(
+        trash_module.subprocess, "Popen", fake_popen_class(captured, pid=4340)
+    )
+    trash_module._delete_paths_in_background(  # noqa: SLF001
+        [tmp_path / "clone.sase-reclone-trash-abc123"]
+    )
+    return captured
+
+
+def test_trash_delete_uses_detach_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured = _delete_trash_in_background(monkeypatch, tmp_path, escaped_launch)
+
+    detach_argv = captured["detach_argv"]
+    assert isinstance(detach_argv, list)
+    assert detach_argv[0] == sys.executable
+    assert detach_argv[1] == "-c"
+    assert captured["detach_kwargs"] == {
+        "description": "SASE trash background delete",
+        "unit_prefix": "sase-trash-delete",
+    }
+    assert captured["popen_argv"] == ["scope", *detach_argv]
+    popen_kwargs = captured["popen_kwargs"]
+    assert isinstance(popen_kwargs, dict)
+    assert popen_kwargs["start_new_session"] is False
+
+
+def test_trash_delete_noop_outside_sase_unit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured = _delete_trash_in_background(monkeypatch, tmp_path, noop_launch)
+
+    assert captured["popen_argv"] == captured["detach_argv"]
+    popen_kwargs = captured["popen_kwargs"]
+    assert isinstance(popen_kwargs, dict)
+    assert popen_kwargs["start_new_session"] is True
+
+
+def _spawn_goal_fetch_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    launch: _Launch,
+) -> dict[str, object]:
+    import sase.goals.fetch_worker as fetch_module
+
+    captured: dict[str, object] = {}
+
+    def fake_detach_scope(argv: list[str], **kwargs: object) -> _DetachScopeCommand:
+        captured["detach_argv"] = list(argv)
+        captured["detach_kwargs"] = kwargs
+        return launch(list(argv))
+
+    monkeypatch.setattr("sase.detach_scope.detach_scope", fake_detach_scope)
+    monkeypatch.setattr(
+        fetch_module.subprocess, "Popen", fake_popen_class(captured, pid=4341)
+    )
+    assert fetch_module.spawn_fetch_worker("proj") is True
+    return captured
+
+
+def test_goal_fetch_worker_uses_detach_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = _spawn_goal_fetch_worker(monkeypatch, escaped_launch)
+
+    assert captured["detach_argv"] == [
+        sys.executable,
+        "-m",
+        "sase.goals.fetch_worker",
+        "proj",
+    ]
+    assert captured["detach_kwargs"] == {
+        "description": "SASE goal fetch worker",
+        "unit_prefix": "sase-goal-fetch",
+    }
+    detach_argv = captured["detach_argv"]
+    assert isinstance(detach_argv, list)
+    assert captured["popen_argv"] == ["scope", *detach_argv]
+    popen_kwargs = captured["popen_kwargs"]
+    assert isinstance(popen_kwargs, dict)
+    assert popen_kwargs["start_new_session"] is False
+
+
+def test_goal_fetch_worker_noop_outside_sase_unit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = _spawn_goal_fetch_worker(monkeypatch, noop_launch)
+
+    assert captured["popen_argv"] == captured["detach_argv"]
+    popen_kwargs = captured["popen_kwargs"]
+    assert isinstance(popen_kwargs, dict)
+    assert popen_kwargs["start_new_session"] is True
+
+
+def test_goal_fast_path_uses_shared_fetch_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.goals.fetch_worker as fetch_module
+    import sase.main.goal_fast_path as fast_path_module
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        fetch_module,
+        "spawn_fetch_worker",
+        lambda project: calls.append(project) or True,
+    )
+    fast_path_module._spawn_fetch_worker("proj")  # noqa: SLF001
+
+    assert calls == ["proj"]
+
+
+def _start_federation_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    launch: _Launch,
+) -> dict[str, object]:
+    import types as _types
+
+    import sase.dispatch.federation._supervisor as supervisor_module
+
+    captured: dict[str, object] = {}
+
+    def fake_detach_scope(argv: list[str], **kwargs: object) -> _DetachScopeCommand:
+        captured["detach_argv"] = list(argv)
+        captured["detach_kwargs"] = kwargs
+        return launch(list(argv))
+
+    monkeypatch.setattr("sase.detach_scope.detach_scope", fake_detach_scope)
+    monkeypatch.setattr(
+        supervisor_module.FederationWorkerSupervisor,
+        "_healthy",
+        lambda self, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        supervisor_module.FederationWorkerSupervisor,
+        "_wait_for_health",
+        lambda self, timeout: None,
+    )
+    monkeypatch.setattr(
+        supervisor_module.FederationWorkerSupervisor,
+        "_ensure_configured",
+        lambda self, timeout: None,
+    )
+    settings = _types.SimpleNamespace(
+        sase_home=tmp_path,
+        resolved_socket_path=tmp_path / "worker.sock",
+        idle_timeout_seconds=3,
+        max_frame_bytes=1024,
+        run_root=None,
+    )
+    supervisor = supervisor_module.FederationWorkerSupervisor(
+        config=_types.SimpleNamespace(worker=settings),
+        command_resolver=lambda _settings: ("worker-bin",),
+        popen=fake_popen_class(captured, pid=4342),
+    )
+    supervisor.ensure_started(1)
+    return captured
+
+
+def test_federation_worker_uses_detach_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured = _start_federation_worker(monkeypatch, tmp_path, escaped_launch)
+
+    detach_argv = captured["detach_argv"]
+    assert isinstance(detach_argv, list)
+    assert detach_argv[:1] == ["worker-bin"]
+    assert captured["detach_kwargs"] == {
+        "description": "SASE federation worker",
+        "unit_prefix": "sase-federation",
+    }
+    assert captured["popen_argv"] == ["scope", *detach_argv]
+    popen_kwargs = captured["popen_kwargs"]
+    assert isinstance(popen_kwargs, dict)
+    assert popen_kwargs["start_new_session"] is False
+
+
+def test_federation_worker_noop_outside_sase_unit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured = _start_federation_worker(monkeypatch, tmp_path, noop_launch)
+
+    assert captured["popen_argv"] == captured["detach_argv"]
+    popen_kwargs = captured["popen_kwargs"]
+    assert isinstance(popen_kwargs, dict)
+    assert popen_kwargs["start_new_session"] is True
+
+
+def _bootstrap_tmux_session(
+    monkeypatch: pytest.MonkeyPatch,
+    launch: _Launch,
+) -> tuple[dict[str, object], dict[str, object]]:
+    import subprocess as _subprocess
+
+    import sase.main.ace_tmux_session as session_module
+
+    captured: dict[str, object] = {}
+    calls: dict[str, object] = {}
+
+    def fake_detach_scope(argv: list[str], **kwargs: object) -> _DetachScopeCommand:
+        captured["detach_argv"] = list(argv)
+        captured["detach_kwargs"] = kwargs
+        return launch(list(argv))
+
+    def fake_run_command(
+        cmd: list[str], **kwargs: object
+    ) -> _subprocess.CompletedProcess[str]:
+        calls["argv"] = list(cmd)
+        calls["kwargs"] = dict(kwargs)
+        session = cmd[cmd.index("-s") + 1]
+        name = cmd[cmd.index("-n") + 1]
+        return _subprocess.CompletedProcess(cmd, 0, f"{session}\t@7\t{name}\n", "")
+
+    monkeypatch.setattr(session_module, "detach_scope", fake_detach_scope)
+    resolved = session_module._create_agents_tmux_session_with_bootstrap(  # noqa: SLF001
+        runner=_subprocess.run,
+        timeout=None,
+        run_command=fake_run_command,  # type: ignore[arg-type]
+    )
+    assert resolved.session
+    assert resolved.bootstrap_window is not None
+    return captured, calls
+
+
+def test_tmux_bootstrap_uses_detach_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured, calls = _bootstrap_tmux_session(monkeypatch, escaped_launch)
+
+    detach_argv = captured["detach_argv"]
+    assert isinstance(detach_argv, list)
+    assert detach_argv[:3] == ["tmux", "new-session", "-d"]
+    assert "-P" in detach_argv and "-F" in detach_argv
+    assert captured["detach_kwargs"] == {
+        "description": "SASE agents tmux session bootstrap",
+        "unit_prefix": "sase-tmux",
+    }
+    assert calls["argv"] == ["scope", *detach_argv]
+    run_kwargs = calls["kwargs"]
+    assert isinstance(run_kwargs, dict)
+    assert run_kwargs["start_new_session"] is False
+
+
+def test_tmux_bootstrap_noop_outside_sase_unit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured, calls = _bootstrap_tmux_session(monkeypatch, noop_launch)
+
+    assert calls["argv"] == captured["detach_argv"]
+    run_kwargs = calls["kwargs"]
+    assert isinstance(run_kwargs, dict)
+    assert run_kwargs["start_new_session"] is True

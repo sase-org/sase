@@ -117,13 +117,33 @@ class FederationWorkerSupervisor:
                     "sase-core with `cargo build -p sase_gateway`"
                 )
             argv = self._worker_argv(command)
-            self._proc = self.popen(
-                argv,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=os.name != "nt",
-            )
+            if os.name == "nt":
+                self._proc = self.popen(
+                    argv,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=False,
+                )
+            else:
+                # The worker is shared over a socket by the TUI and other
+                # clients, so it escapes the agent scope into its own scope.
+                # ``systemd-run --scope`` execs in place, so ``self._proc.pid``
+                # still names the worker.
+                from sase.detach_scope import detach_scope
+
+                launch = detach_scope(
+                    argv,
+                    description="SASE federation worker",
+                    unit_prefix="sase-federation",
+                )
+                self._proc = self.popen(
+                    launch.argv,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=launch.start_new_session,
+                )
             self._wait_for_health(timeout_seconds)
             self._ensure_configured(timeout_seconds)
 

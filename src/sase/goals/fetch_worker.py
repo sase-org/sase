@@ -19,6 +19,41 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+FETCH_WORKER_DESCRIPTION = "SASE goal fetch worker"
+FETCH_WORKER_UNIT_PREFIX = "sase-goal-fetch"
+
+
+def fetch_worker_argv(project_key: str) -> list[str]:
+    """Return the argv that runs one fetch worker for *project_key*."""
+    return [sys.executable, "-m", "sase.goals.fetch_worker", project_key]
+
+
+def spawn_fetch_worker(project_key: str) -> bool:
+    """Spawn a detached fetch worker escaped from SASE scopes.
+
+    Returns True when a worker was spawned. Never raises: spawn failures
+    only warn (fail-open), since the next stale read retries.
+    """
+    try:
+        from sase.detach_scope import detach_scope
+
+        launch = detach_scope(
+            fetch_worker_argv(project_key),
+            description=FETCH_WORKER_DESCRIPTION,
+            unit_prefix=FETCH_WORKER_UNIT_PREFIX,
+        )
+        subprocess.Popen(  # noqa: S603
+            launch.argv,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=launch.start_new_session,
+        )
+    except Exception as exc:  # noqa: BLE001 - spawn fails open.
+        logger.warning("goals fetch spawn for %s failed: %s", project_key, exc)
+        return False
+    return True
+
 
 def run_goals_fetch(
     project_key: str,
@@ -184,17 +219,10 @@ def maybe_spawn_goals_fetch(project_key: str) -> bool:
                 probe.close()
         except OSError:
             return False
-        subprocess.Popen(  # noqa: S603
-            [sys.executable, "-m", "sase.goals.fetch_worker", project_key],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        return spawn_fetch_worker(project_key)
     except Exception as exc:  # noqa: BLE001 - spawn fails open.
         logger.warning("goals fetch spawn for %s failed: %s", project_key, exc)
         return False
-    return True
 
 
 def main(argv: list[str] | None = None) -> int:

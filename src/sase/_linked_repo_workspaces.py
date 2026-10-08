@@ -12,6 +12,7 @@ from typing import Any
 import uuid
 
 from sase._git_remote import git_remotes_match
+from sase.detach_scope import detach_scope
 from sase._linked_repo_config import normalize_path
 from sase._linked_repo_paths import (
     LINKED_REPO_CLONES_SUBDIR,
@@ -51,20 +52,31 @@ def _delete_paths_in_background(paths: Sequence[Path]) -> None:
 
     if not paths:
         return
+    argv = [
+        sys.executable,
+        "-c",
+        _DELETE_PATHS_SCRIPT,
+        *(str(path) for path in paths),
+    ]
     try:
-        kwargs: dict[str, Any] = {"start_new_session": True}
+        kwargs: dict[str, Any]
         if os.name == "nt":
             kwargs = {
                 "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
                 | getattr(subprocess, "DETACHED_PROCESS", 0)
             }
+        else:
+            # Escape the agent scope so a scope sweep never kills the delete
+            # mid-run and leaks ``*.sase-reclone-trash-*`` clones.
+            launch = detach_scope(
+                argv,
+                description="SASE trash background delete",
+                unit_prefix="sase-trash-delete",
+            )
+            argv = launch.argv
+            kwargs = {"start_new_session": launch.start_new_session}
         subprocess.Popen(
-            [
-                sys.executable,
-                "-c",
-                _DELETE_PATHS_SCRIPT,
-                *(str(path) for path in paths),
-            ],
+            argv,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

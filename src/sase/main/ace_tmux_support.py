@@ -75,11 +75,21 @@ def _timeout_kwargs(timeout: _TimeoutValue) -> dict[str, float]:
 
 
 def run_tmux_command(
-    cmd: list[str], *, runner: _RunCommand, timeout: _TimeoutValue, action: str
+    cmd: list[str],
+    *,
+    runner: _RunCommand,
+    timeout: _TimeoutValue,
+    action: str,
+    start_new_session: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     try:
         return runner(
-            cmd, capture_output=True, text=True, check=False, **_timeout_kwargs(timeout)
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            start_new_session=start_new_session,
+            **_timeout_kwargs(timeout),
         )
     except subprocess.TimeoutExpired as exc:
         raise TmuxLaunchError(f"timed out while trying to {action}") from exc
