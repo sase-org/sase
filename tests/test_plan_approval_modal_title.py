@@ -177,19 +177,22 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
         await pilot.pause()
         controls = modal.query_one(GateBranchControls)
         assert controls.selected_option_ids(0) == ("approve", "commit")
-        coder_label = str(modal.query_one("#gate-option-0-0", Button).label)
+        coder_button = modal.query_one("#gate-option-0-0", Button)
+        coder_label = str(coder_button.label)
         assert "🚀" in coder_label
         assert "Launch coder" in coder_label
         assert "Launch coder agent" not in coder_label
+        # The compact Verdict shows the short label; the full label stays
+        # available as the toggle's tooltip.
+        assert "Launch coder agent" in str(coder_button.tooltip or "")
         assert not coder_label.startswith("1 ")
-        commit_label = str(modal.query_one("#gate-option-0-1", Button).label)
+        commit_button = modal.query_one("#gate-option-0-1", Button)
+        commit_label = str(commit_button.label)
+        assert "💾" in commit_label
         assert "Commit plan" in commit_label
         assert "Commit plan file to the plans sidecar" not in commit_label
-        assert "Launch coder agent" in str(
-            modal.query_one("#gate-option-0-0", Button).tooltip or ""
-        )
         assert "Commit plan file to the plans sidecar" in str(
-            modal.query_one("#gate-option-0-1", Button).tooltip or ""
+            commit_button.tooltip or ""
         )
         tale_label = str(modal.query_one("#gate-group-submit-0", Button).label)
         assert tale_label.startswith("1 ")

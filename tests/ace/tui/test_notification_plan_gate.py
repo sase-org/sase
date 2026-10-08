@@ -163,18 +163,21 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
         assert modal._copy_plan_path == str(plan)
         assert modal._gate.branches[0] == ("approve", "commit")
         await wait_for(pilot, lambda: _has_button(modal, "#gate-option-0-0"))
-        coder_label = str(modal.query_one("#gate-option-0-0", Button).label)
+        coder_button = modal.query_one("#gate-option-0-0", Button)
+        coder_label = str(coder_button.label)
         assert "🚀" in coder_label
         assert "Launch coder" in coder_label
         assert "Launch coder agent" not in coder_label
-        commit_label = str(modal.query_one("#gate-option-0-1", Button).label)
+        # The compact Verdict shows the short label; the full label stays
+        # available as the toggle's tooltip.
+        assert "Launch coder agent" in str(coder_button.tooltip or "")
+        commit_button = modal.query_one("#gate-option-0-1", Button)
+        commit_label = str(commit_button.label)
+        assert "💾" in commit_label
         assert "Commit plan" in commit_label
         assert "Commit plan file to the plans sidecar" not in commit_label
-        assert "Launch coder agent" in str(
-            modal.query_one("#gate-option-0-0", Button).tooltip or ""
-        )
         assert "Commit plan file to the plans sidecar" in str(
-            modal.query_one("#gate-option-0-1", Button).tooltip or ""
+            commit_button.tooltip or ""
         )
         assert "Tale" in str(modal.query_one("#gate-group-submit-0", Button).label)
         assert str(modal.query_one("#gate-group-submit-0", Button).label).startswith(

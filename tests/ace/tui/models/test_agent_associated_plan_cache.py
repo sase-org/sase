@@ -10,6 +10,10 @@ import pytest
 
 import sase.ace.tui.models.agent_associated_plan as plan_model
 import sase.ace.tui.models._agent_associated_plan_cache as cache_model
+from sase.ace.tui.models._agent_associated_plan_summary import (
+    _ASSOCIATED_PLAN_SHEET_CACHE,
+    associated_plan_sheet_for,
+)
 from sase.ace.tui.models.agent_associated_plan import resolve_agent_plan_enrichment
 from sase.bead.model import BeadNote, BeadTier, Issue, IssueType
 from tests.ace.tui.models._agent_associated_plan_helpers import (
@@ -24,9 +28,11 @@ from tests.ace.tui.widgets._agent_display_helpers import make_agent
 def _clear_plan_caches() -> Iterator[None]:
     plan_model._PLAN_FILE_CACHE.clear()
     plan_model._PLAN_ASSOCIATION_CACHE.clear()
+    _ASSOCIATED_PLAN_SHEET_CACHE.clear()
     yield
     plan_model._PLAN_FILE_CACHE.clear()
     plan_model._PLAN_ASSOCIATION_CACHE.clear()
+    _ASSOCIATED_PLAN_SHEET_CACHE.clear()
 
 
 def test_bead_tier_preserves_known_epic_fallback_on_association_cache_hit(
@@ -217,6 +223,107 @@ def test_title_is_normalized_cached_and_invalidated_with_file_signature(
     assert updated is not None
     assert updated.title == "Updated title"
     assert reads == 2
+
+
+def test_accepted_sheet_cache_tracks_sibling_lifecycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sibling creation, change, and removal each refresh the accepted sheet."""
+    import json as _json
+
+    import sase.sdd.plan_decision_handoff as handoff
+
+    plan = tmp_path / "decided.md"
+    plan.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Decided plan\n"
+        "goal: Cover sheet invalidation\n"
+        "size: small\n"
+        "decisions:\n"
+        "  tui_note:\n"
+        "    ask: Authored ask text?\n"
+        "    memory: [tui.md]\n"
+        '    requested: "please also update the tui memory note"\n'
+        "    default: true\n"
+        "    answer: true\n"
+        "decided_by: reviewer\n"
+        "decided_via: tui\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    sibling = tmp_path / "decided.plan-decisions.json"
+
+    def write_sibling(ask: str) -> None:
+        sibling.write_text(
+            _json.dumps(
+                {
+                    "schema": 1,
+                    "definitions": [
+                        {
+                            "id": "tui_note",
+                            "kind": "toggle",
+                            "ask": ask,
+                            "default": True,
+                            "effective_default": True,
+                            "memory": {"selectors": ["tui.md"]},
+                            "resolved": [],
+                        }
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        now_ns = sibling.stat().st_mtime_ns
+        os.utime(sibling, ns=(sibling.stat().st_atime_ns, now_ns + 1_000_000))
+
+    real_load = handoff.load_stamped_decisions
+    loads: list[str] = []
+
+    def counting_load(path: object, tier: object = None) -> object:
+        loads.append(str(path))
+        return real_load(path, tier)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(handoff, "load_stamped_decisions", counting_load)
+
+    agent = make_agent(archived_plan_path=str(plan), plan_path=str(plan))
+
+    def sheet_ask() -> str | None:
+        resolve_agent_associated_plan(agent)
+        sheet, decided_by, _via = associated_plan_sheet_for(str(plan))
+        assert sheet is not None
+        assert decided_by == "reviewer"
+        rows = sheet.get("rows")
+        assert isinstance(rows, list) and len(rows) == 1
+        return rows[0].get("ask")
+
+    # No sibling: the neutral synthesis of the authored map applies, loaded once.
+    assert sheet_ask() == "Authored ask text?"
+    assert sheet_ask() == "Authored ask text?"
+    assert len(loads) == 1
+
+    # Sibling creation refreshes the accepted sheet.
+    write_sibling("Frozen sibling ask?")
+    assert sheet_ask() == "Frozen sibling ask?"
+    assert len(loads) == 2
+
+    # An unchanged tree never re-reads.
+    assert sheet_ask() == "Frozen sibling ask?"
+    assert len(loads) == 2
+
+    # Sibling change refreshes again.
+    write_sibling("Frozen sibling ask v2?")
+    assert sheet_ask() == "Frozen sibling ask v2?"
+    assert len(loads) == 3
+
+    # Sibling removal falls back without stale frozen provenance.
+    sibling.unlink()
+    assert sheet_ask() == "Authored ask text?"
+    assert len(loads) == 4
 
 
 def test_epic_phase_cache_reuses_validation_until_signature_changes(
