@@ -10,14 +10,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from sase.instructions import agy as agy_parser
 from sase.instructions import claude as claude_parser
 from sase.instructions import codex as codex_parser
 from sase.instructions import fingerprints as fp
 from sase.instructions import grok as grok_parser
 from sase.instructions import muse as muse_parser
 from sase.instructions.models import SessionObservation
-from sase.instructions.verify import aggregate_rows
+from sase.instructions.verify import _aggregate_rows
 
 FIXTURES = Path(__file__).parent / "fixtures"
 HOME_H1 = "Synthetic Home"
@@ -212,17 +211,6 @@ def test_grok_after_state_row() -> None:
     assert fields["native_full_count"] == 0
 
 
-def test_agy_is_unverifiable_but_directive_observable() -> None:
-    """agy reports directive presence only; every column else is unverifiable."""
-    conversation = json.loads(
-        (FIXTURES / "agy" / "conversation.json").read_text(encoding="utf-8")
-    )
-    fields = agy_parser.observe_agy_session(conversation)
-    assert fields["directive"] is True
-    assert fields["home"] is False
-    assert fields["project"] is None
-
-
 def test_baseline_table_aggregation() -> None:
     """Parser outputs aggregate to the plan's baseline table."""
     observations = [
@@ -288,7 +276,7 @@ def test_baseline_table_aggregation() -> None:
             native_full_count=0,
         ),
     ]
-    rows = {row.provider: row for row in aggregate_rows(observations, [])}
+    rows = {row.provider: row for row in _aggregate_rows(observations, [])}
     assert rows["claude"].contract == "2×"
     assert (rows["claude"].home, rows["claude"].project, rows["claude"].directive) == (
         "✓",

@@ -41,7 +41,7 @@ def test_doctor_coverage_skips_without_manifests(
     from sase.instructions import run_index as run_mod
 
     monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [])
-    check = checks_instructions.check_instructions_coverage(_doctor_context(tmp_path))
+    check = checks_instructions._check_instructions_coverage(_doctor_context(tmp_path))
     assert check.status == "SKIP"
 
 
@@ -51,7 +51,7 @@ def test_doctor_coverage_warns_on_uncovered_and_errors(
     """The coverage check WARNs naming uncovered sessions and error runs."""
     from sase.doctor import checks_instructions
     from sase.instructions import run_index as run_mod
-    from sase.instructions.manifests import RunManifest
+    from sase.instructions.manifests import _RunManifest
 
     artifacts, manifest, _ = write_shadow_run(tmp_path, rendered_at=RENDERED)
     write_shadow_error(artifacts, provider="codex", seq=1)
@@ -73,7 +73,7 @@ def test_doctor_coverage_warns_on_uncovered_and_errors(
     monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [run])
     monkeypatch.setattr(coverage_mod, "run_manifest_records", lambda _adir: [record])
     monkeypatch.setattr(coverage_mod, "root_sessions", lambda _runs: [session])
-    error_entry = RunManifest(
+    error_entry = _RunManifest(
         seq=1,
         provider="unknown",
         bundle_path=None,
@@ -84,7 +84,7 @@ def test_doctor_coverage_warns_on_uncovered_and_errors(
     monkeypatch.setattr(
         "sase.instructions.manifests.read_run_manifests", lambda _adir: [error_entry]
     )
-    check = checks_instructions.check_instructions_coverage(_doctor_context(tmp_path))
+    check = checks_instructions._check_instructions_coverage(_doctor_context(tmp_path))
     assert check.status == "WARN"
     assert "agent-s/rollout-s" in check.summary
     assert "agent-s seq 1" in check.summary
@@ -114,14 +114,14 @@ def test_doctor_coverage_ok_when_fully_covered(
     monkeypatch.setattr(
         "sase.instructions.manifests.read_run_manifests", lambda _adir: []
     )
-    check = checks_instructions.check_instructions_coverage(_doctor_context(tmp_path))
+    check = checks_instructions._check_instructions_coverage(_doctor_context(tmp_path))
     assert check.status == "OK"
 
 
 def test_json_carries_coverage_and_section_diff(tmp_path: Path) -> None:
     """``-j`` keeps ``schema_version: 1`` with additive coverage keys."""
     from sase.instructions.models import ProviderRow, SessionObservation, VerifyReport
-    from sase.instructions.render import report_to_json_dict
+    from sase.instructions.render import _report_to_json_dict
 
     artifacts, manifest, bundle = write_shadow_run(tmp_path)
     record = make_record(manifest, artifacts)
@@ -175,7 +175,7 @@ def test_json_carries_coverage_and_section_diff(tmp_path: Path) -> None:
             ),
         ),
     )
-    payload = report_to_json_dict(
+    payload = _report_to_json_dict(
         report,
         include_observations=True,
         coverage_block=block,
@@ -188,6 +188,6 @@ def test_json_carries_coverage_and_section_diff(tmp_path: Path) -> None:
     assert payload["observations"][0]["section_diff"]["rows"][0]["id"] == (
         "proj.core.gotchas"
     )
-    plain = report_to_json_dict(report, include_observations=False)
+    plain = _report_to_json_dict(report, include_observations=False)
     assert "coverage" not in plain
     assert "observations" not in plain

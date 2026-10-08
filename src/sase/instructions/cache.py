@@ -66,7 +66,7 @@ _HELPER_TEMPLATE_RESOURCE = ("templates", "claude_helper_instructions.md")
 
 
 @dataclass(frozen=True)
-class CacheKeyInputs:
+class _CacheKeyInputs:
     """Resolved inputs hashed into one render-cache key."""
 
     compiler_version: int
@@ -102,7 +102,7 @@ def bundle_store_path(home: Path, sha256: str) -> Path:
     return home / "bundles" / sha256[:2] / f"{sha256}.md"
 
 
-def cache_entry_path(home: Path, key: str) -> Path:
+def _cache_entry_path(home: Path, key: str) -> Path:
     """Return the cache entry path for *key* under *home*."""
     return home / "cache" / f"{key}.json"
 
@@ -297,7 +297,7 @@ def collect_key_inputs(
     project: str | None,
     project_root: Path,
     home_root: Path,
-) -> CacheKeyInputs:
+) -> _CacheKeyInputs:
     """Enumerate every key input class for one render (no heavy imports)."""
     files: list[tuple[str, str]] = []
     files.extend(_memory_files(project_root, "project"))
@@ -339,7 +339,7 @@ def collect_key_inputs(
             if digest is not None:
                 directive_digest = digest
                 break
-    return CacheKeyInputs(
+    return _CacheKeyInputs(
         compiler_version=compiler_version,
         sase_version=_sase_version(),
         actor=actor,
@@ -354,7 +354,7 @@ def collect_key_inputs(
     )
 
 
-def compute_cache_key(inputs: CacheKeyInputs) -> str:
+def compute_cache_key(inputs: _CacheKeyInputs) -> str:
     """Return the sha256 cache key for resolved *inputs*."""
     canonical = json.dumps(
         {
@@ -419,7 +419,7 @@ def write_store_blob(home: Path, sha256: str, text: str) -> Path:
 
 def read_cache_entry(home: Path, key: str) -> dict[str, Any] | None:
     """Return the cache entry for *key*, or null when missing/corrupt."""
-    path = cache_entry_path(home, key)
+    path = _cache_entry_path(home, key)
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError:
@@ -445,17 +445,17 @@ def write_cache_entry(home: Path, key: str, entry: Mapping[str, Any]) -> Path:
     """Write *entry* atomically and prune to the newest entries."""
     cache_dir = home / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    path = cache_entry_path(home, key)
+    path = _cache_entry_path(home, key)
     payload = dict(entry)
     payload["version"] = CACHE_ENTRY_VERSION
     tmp = cache_dir / f".tmp-{os.getpid()}-{time.time_ns()}"
     tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     os.replace(tmp, path)
-    prune_cache_entries(home)
+    _prune_cache_entries(home)
     return path
 
 
-def prune_cache_entries(home: Path, *, limit: int = MAX_CACHE_ENTRIES) -> int:
+def _prune_cache_entries(home: Path, *, limit: int = MAX_CACHE_ENTRIES) -> int:
     """Drop the oldest cache entries beyond *limit*; return removals."""
     cache_dir = home / "cache"
     try:
@@ -493,13 +493,13 @@ __all__ = [
     "CODE_PACKAGES",
     "MAX_CACHE_ENTRIES",
     "TASK_TYPE_ENTRY_POINT_GROUP",
-    "CacheKeyInputs",
+    "_CacheKeyInputs",
     "bundle_store_path",
-    "cache_entry_path",
+    "_cache_entry_path",
     "collect_key_inputs",
     "compute_cache_key",
     "instructions_home",
-    "prune_cache_entries",
+    "_prune_cache_entries",
     "read_cache_entry",
     "read_store_blob",
     "write_cache_entry",

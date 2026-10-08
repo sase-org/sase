@@ -14,7 +14,7 @@ from typing import Any
 
 from sase.instructions import coverage as coverage_mod
 from sase.instructions.run_index import ScoredRun
-from sase.instructions.manifests import RunManifest
+from sase.instructions.manifests import _RunManifest
 
 RENDERED = "2026-10-06T12:00:00Z"
 COVERED_START = datetime(2026, 10, 6, 12, 1, tzinfo=UTC)
@@ -45,7 +45,7 @@ def make_run(
 
 
 def make_record(manifest: dict[str, Any], artifacts: Path, seq: int = 0) -> Any:
-    entry = RunManifest(
+    entry = _RunManifest(
         seq=seq,
         provider=str(manifest["facts"]["provider"]),
         bundle_path=artifacts / "instructions" / f"{seq:02d}-x.md",

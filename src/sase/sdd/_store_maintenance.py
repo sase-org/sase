@@ -176,7 +176,7 @@ def _try_machine_event_lock(project_key: str) -> Iterator[bool]:
         yield True
 
 
-def maybe_gc_hidden_sidecar_clone(
+def _maybe_gc_hidden_sidecar_clone(
     clone_dir: Path,
     primary: Path,
     *,
@@ -219,7 +219,7 @@ def maybe_gc_hidden_sidecar_clone(
         return False
 
 
-def hidden_sidecar_clone_dirs(project_key: str) -> list[Path]:
+def _hidden_sidecar_clone_dirs(project_key: str) -> list[Path]:
     """Return the existing hidden sidecar clone dirs for *project_key*."""
 
     from sase.core.paths import sase_projects_dir
@@ -243,9 +243,9 @@ def maintain_hidden_sidecar_clones(project_key: str, primary: Path) -> int:
     """
 
     collected = 0
-    for clone_dir in hidden_sidecar_clone_dirs(project_key):
+    for clone_dir in _hidden_sidecar_clone_dirs(project_key):
         try:
-            if maybe_gc_hidden_sidecar_clone(
+            if _maybe_gc_hidden_sidecar_clone(
                 clone_dir, primary, project_key=project_key
             ):
                 collected += 1
@@ -259,8 +259,8 @@ def maintain_hidden_sidecar_clones(project_key: str, primary: Path) -> int:
 
 
 __all__ = [
-    "hidden_sidecar_clone_dirs",
+    "_hidden_sidecar_clone_dirs",
     "maintain_hidden_sidecar_clones",
-    "maybe_gc_hidden_sidecar_clone",
+    "_maybe_gc_hidden_sidecar_clone",
     "maybe_gc_sidecar_clone",
 ]

@@ -47,7 +47,7 @@ class PluginCommandOmission:
 
 
 @dataclass(frozen=True, slots=True)
-class RuntimeCompletionSpec:
+class _RuntimeCompletionSpec:
     """The merged runtime spec plus every omitted plugin subtree."""
 
     spec: CompletionSpec
@@ -58,7 +58,7 @@ class RuntimeCompletionSpec:
         return self.spec.structural_view()
 
 
-def build_runtime_spec() -> RuntimeCompletionSpec:
+def build_runtime_spec() -> _RuntimeCompletionSpec:
     """Return the builtin spec plus one root child per mounted command.
 
     Each child comes from its adapter's ``build_parser(prog=f"sase {name}")``
@@ -128,11 +128,11 @@ def build_runtime_spec() -> RuntimeCompletionSpec:
         version=builtin.version,
         root=replace(builtin.root, subcommands=tuple(children)),
     )
-    return RuntimeCompletionSpec(spec=merged, omissions=tuple(omissions))
+    return _RuntimeCompletionSpec(spec=merged, omissions=tuple(omissions))
 
 
 __all__ = [
     "PluginCommandOmission",
-    "RuntimeCompletionSpec",
+    "_RuntimeCompletionSpec",
     "build_runtime_spec",
 ]

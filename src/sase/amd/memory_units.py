@@ -78,7 +78,7 @@ class ContractInputs:
 
 
 @dataclass(frozen=True)
-class CoreMemoryUnit:
+class _CoreMemoryUnit:
     """One ordered core note, inlined into Core Memory."""
 
     stem: str
@@ -92,7 +92,7 @@ class CoreMemoryUnit:
 
 
 @dataclass(frozen=True)
-class ReferenceMemoryUnit:
+class _ReferenceMemoryUnit:
     """One ordered top-level reference note for Reference Memory."""
 
     stem: str
@@ -105,7 +105,7 @@ class ReferenceMemoryUnit:
 
 
 @dataclass(frozen=True)
-class WebMemoryUnit:
+class _WebMemoryUnit:
     """One ordered memory web descriptor for Memory Webs."""
 
     stem: str
@@ -118,7 +118,7 @@ class WebMemoryUnit:
 
 
 @dataclass(frozen=True)
-class MemoryIntroTexts:
+class _MemoryIntroTexts:
     """Intro paragraphs preceding each rendered memory group."""
 
     core: str
@@ -133,10 +133,10 @@ class MemoryRootUnits:
     root: Path
     title: str | None
     contract_inputs: ContractInputs
-    core: tuple[CoreMemoryUnit, ...]
-    references: tuple[ReferenceMemoryUnit, ...]
-    webs: tuple[WebMemoryUnit, ...]
-    intros: MemoryIntroTexts
+    core: tuple[_CoreMemoryUnit, ...]
+    references: tuple[_ReferenceMemoryUnit, ...]
+    webs: tuple[_WebMemoryUnit, ...]
+    intros: _MemoryIntroTexts
 
 
 def _source_bytes(source_path: Path, *, fallback: str) -> str:
@@ -473,7 +473,7 @@ def collect_memory_root_units(
         )
     }
 
-    core: list[CoreMemoryUnit] = []
+    core: list[_CoreMemoryUnit] = []
     for relative_path, short_note in short_bodies.items():
         disk_note = disk_notes.get(relative_path)
         if disk_note is not None:
@@ -481,7 +481,7 @@ def collect_memory_root_units(
         else:
             source_path = root / relative_path
         core.append(
-            CoreMemoryUnit(
+            _CoreMemoryUnit(
                 stem=Path(relative_path).stem,
                 relative_path=relative_path,
                 title=_unit_title(short_note.body),
@@ -496,7 +496,7 @@ def collect_memory_root_units(
             )
         )
 
-    references: list[ReferenceMemoryUnit] = []
+    references: list[_ReferenceMemoryUnit] = []
     for ref_note in top_level_notes:
         # A falsy entry is treated as missing, mirroring the legacy
         # `descriptions.get(...) or _long_memory_description(...)` fallback.
@@ -512,7 +512,7 @@ def collect_memory_root_units(
             )
         source_path = root / ref_note.source_relative_path
         references.append(
-            ReferenceMemoryUnit(
+            _ReferenceMemoryUnit(
                 stem=Path(ref_note.relative_path).stem,
                 relative_path=ref_note.relative_path,
                 description=resolved,
@@ -525,7 +525,7 @@ def collect_memory_root_units(
             )
         )
 
-    webs: list[WebMemoryUnit] = []
+    webs: list[_WebMemoryUnit] = []
     for relative_path, web_note in web_bodies.items():
         disk_note = disk_notes.get(relative_path)
         if disk_note is not None:
@@ -533,7 +533,7 @@ def collect_memory_root_units(
         else:
             descriptor_source = root / relative_path
         webs.append(
-            WebMemoryUnit(
+            _WebMemoryUnit(
                 stem=Path(relative_path).stem,
                 relative_path=relative_path,
                 title=_unit_title(web_note.body),
@@ -561,7 +561,7 @@ def collect_memory_root_units(
         core=tuple(core),
         references=tuple(references),
         webs=tuple(webs),
-        intros=MemoryIntroTexts(
+        intros=_MemoryIntroTexts(
             core=_CORE_MEMORY_INTRO,
             reference=_LONG_MEMORY_INTRO,
             webs=_WEB_MEMORY_INTRO,
@@ -678,12 +678,12 @@ def render_memory_root_units(
 
 __all__ = [
     "ContractInputs",
-    "CoreMemoryUnit",
+    "_CoreMemoryUnit",
     "GENERATED_CONTRACT_RELATIVE_PATH",
-    "MemoryIntroTexts",
+    "_MemoryIntroTexts",
     "MemoryRootUnits",
-    "ReferenceMemoryUnit",
-    "WebMemoryUnit",
+    "_ReferenceMemoryUnit",
+    "_WebMemoryUnit",
     "collect_memory_root_units",
     "render_memory_root_units",
 ]

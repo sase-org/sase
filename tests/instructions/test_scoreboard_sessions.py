@@ -279,7 +279,7 @@ def test_root_session_starts_from_provider_files(
         + "\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(run_mod, "codex_sessions_root", lambda: codex_root)
+    monkeypatch.setattr(run_mod, "_codex_sessions_root", lambda: codex_root)
     grok_dir = tmp_path / "grok-cwd"
     grok_dir.mkdir(parents=True)
     session_dir = grok_dir / "session-k"
@@ -288,7 +288,7 @@ def test_root_session_starts_from_provider_files(
         json.dumps({"working_directory": WORKSPACE, "build_timestamp_utc": SESSION_TS}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(run_mod, "grok_cwd_dir", lambda _cwd: grok_dir)
+    monkeypatch.setattr(run_mod, "_grok_cwd_dir", lambda _cwd: grok_dir)
     muse_log = tmp_path / "muse.jsonl"
     muse_log.write_text(json.dumps({"timestamp": SESSION_TS}) + "\n")
     muse_artifacts = tmp_path / "muse-run"

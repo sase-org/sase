@@ -206,7 +206,7 @@ def test_diff_grok_home_sections_zero(
     (session_dir / "system_prompt.txt").write_text(
         "<human_rules>SASE single-turn instructions for Grok: fixture.</human_rules>"
     )
-    monkeypatch.setattr(run_mod, "grok_cwd_dir", lambda _cwd: grok_dir)
+    monkeypatch.setattr(run_mod, "_grok_cwd_dir", lambda _cwd: grok_dir)
     run = make_run("grok", "agent-o", artifacts)
     session = coverage_mod.RootSession(
         provider="grok",

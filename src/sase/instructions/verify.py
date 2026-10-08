@@ -408,7 +408,7 @@ def _observe_muse(
     ]
 
 
-def aggregate_rows(
+def _aggregate_rows(
     observations: list[SessionObservation],
     scored_runs: list[runs.ScoredRun],
     coverages: dict[str, str] | None = None,
@@ -543,7 +543,7 @@ def build_report(
     coverages: dict[str, str] | None = None,
 ) -> VerifyReport:
     """Build a ``VerifyReport`` from runs and observations."""
-    rows = aggregate_rows(observations, scored_runs, coverages)
+    rows = _aggregate_rows(observations, scored_runs, coverages)
     return VerifyReport(
         provider_rows=tuple(rows),
         observations=tuple(observations),
@@ -553,7 +553,7 @@ def build_report(
 
 
 __all__ = [
-    "aggregate_rows",
+    "_aggregate_rows",
     "build_report",
     "collect_observations",
 ]

@@ -24,8 +24,8 @@ from sase.plugin_commands.adapter import (
 from sase.plugin_commands.dispatch import try_handle_plugin_command
 from sase.plugin_commands.registry import (
     discover_plugin_commands,
-    reserved_command_names,
-    validate_command_name,
+    _reserved_command_names,
+    _validate_command_name,
 )
 from sase.plugin_commands.scan import (
     commands_disabled,
@@ -115,7 +115,7 @@ def test_dispatch_module_object_value(fake_plugin_commands) -> None:
 
 
 def test_reserved_names_cover_builtins_legacy_aliases_and_help() -> None:
-    reserved = reserved_command_names()
+    reserved = _reserved_command_names()
 
     assert {"doctor", "bead", "plugin", "completion"} <= reserved
     # Legacy aliases share registrars and stay reserved.
@@ -140,7 +140,7 @@ def test_reserved_names_cover_builtins_legacy_aliases_and_help() -> None:
     ],
 )
 def test_validate_command_name(name: str, valid: bool) -> None:
-    assert validate_command_name(name) == valid
+    assert _validate_command_name(name) == valid
 
 
 def test_shadowed_builtin_and_legacy_names_fall_through(fake_plugin_commands) -> None:
@@ -394,20 +394,6 @@ def test_unknown_word_without_hint_falls_through(fake_plugin_commands) -> None:
 
 def test_command_chip_plain_and_rich() -> None:
     assert chip_module.format_command_chip("listen") == "❯ sase listen"
-    assert (
-        chip_module.format_command_chip_with_state("listen", "new")
-        == "❯ sase listen  new command"
-    )
-    assert (
-        chip_module.format_command_chip_with_state("listen", "removed")
-        == "❯ sase listen  removed"
-    )
-    assert chip_module.format_command_chip_with_state("listen") == "❯ sase listen"
-
-    text = chip_module.rich_command_chip("listen")
-    assert text.plain == "❯ sase listen"
-    assert "magenta" in str(text.style)
-    assert "red" in str(chip_module.rich_command_chip("listen", "problem").style)
 
 
 def test_scan_module_stays_free_of_parser_imports(tmp_path: Path) -> None:

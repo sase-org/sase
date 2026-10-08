@@ -20,7 +20,7 @@ _COLUMNS = (
 )
 
 
-def coverage_block_to_json_dict(block: Any) -> dict[str, Any]:
+def _coverage_block_to_json_dict(block: Any) -> dict[str, Any]:
     """Return the stable ``-c`` top-level ``coverage`` block."""
     rows: list[dict[str, Any]] = []
     errors_total = 0
@@ -47,7 +47,7 @@ def coverage_block_to_json_dict(block: Any) -> dict[str, Any]:
     return {"rows": rows, "errors_total": errors_total}
 
 
-def section_diff_to_json_dict(diff: Any) -> dict[str, Any] | None:
+def _section_diff_to_json_dict(diff: Any) -> dict[str, Any] | None:
     """Return the stable per-observation ``section_diff`` document."""
     if diff is None:
         return None
@@ -68,7 +68,7 @@ def section_diff_to_json_dict(diff: Any) -> dict[str, Any] | None:
     }
 
 
-def report_to_json_dict(
+def _report_to_json_dict(
     report: VerifyReport,
     *,
     include_observations: bool,
@@ -78,7 +78,7 @@ def report_to_json_dict(
     """Return the stable ``-j`` JSON document for *report*."""
     payload = report.to_json_dict(include_observations=include_observations)
     if coverage_block is not None:
-        payload["coverage"] = coverage_block_to_json_dict(coverage_block)
+        payload["coverage"] = _coverage_block_to_json_dict(coverage_block)
     if section_diffs:
         observations_json = payload.get("observations")
         if isinstance(observations_json, list):
@@ -87,7 +87,7 @@ def report_to_json_dict(
                     continue
                 key = (str(entry.get("run")), str(entry.get("session")))
                 if key in section_diffs:
-                    entry["section_diff"] = section_diff_to_json_dict(
+                    entry["section_diff"] = _section_diff_to_json_dict(
                         section_diffs[key]
                     )
     return payload
@@ -209,7 +209,7 @@ def render_json(
 ) -> str:
     """Return the pretty-printed ``-j`` JSON document."""
     return json.dumps(
-        report_to_json_dict(
+        _report_to_json_dict(
             report,
             include_observations=include_observations,
             coverage_block=coverage_block,
@@ -242,12 +242,12 @@ def render_helper_rows(report: VerifyReport, *, console: Any | None = None) -> N
 
 
 __all__ = [
-    "coverage_block_to_json_dict",
+    "_coverage_block_to_json_dict",
     "render_coverage",
     "render_helper_rows",
     "render_json",
     "render_section_diffs",
     "render_table",
-    "report_to_json_dict",
-    "section_diff_to_json_dict",
+    "_report_to_json_dict",
+    "_section_diff_to_json_dict",
 ]

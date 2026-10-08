@@ -82,7 +82,7 @@ class _BeadTargetRoutingOutcome:
     batch_error: _BeadTargetRouteError | None = None
 
 
-def route_bead_targets(
+def _route_bead_targets(
     targets: tuple[str, ...] | list[str],
     *,
     local_store: BeadTargetStoreDescriptor | None = None,
@@ -256,5 +256,5 @@ __all__ = [
     "error_bead_target_route",
     "multiple_stores_batch_error",
     "resolved_bead_target_route",
-    "route_bead_targets",
+    "_route_bead_targets",
 ]

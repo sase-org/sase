@@ -471,7 +471,7 @@ def test_commit_sdd_files_errors_on_unexpected_cached_diff_exit(
         lambda _sdd_dir, _pathspecs: ["plan.md"],
     )
     monkeypatch.setattr(
-        "sase.sdd._commit_store.staged_sdd_files",
+        "sase.sdd._commit_store._staged_sdd_files",
         lambda _sdd_dir, _pathspecs: [],
     )
 

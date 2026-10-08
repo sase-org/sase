@@ -400,7 +400,7 @@ def test_tui_grammar_first_load_stores_key(
         is False
     )
     assert grammar_module.command_line_grammar_for(app) == "handle-1"
-    assert grammar_module.command_line_grammar_spec_key_for(app) == "key-1"
+    assert grammar_module._command_line_grammar_spec_key_for(app) == "key-1"
     assert ready == ["ready"]
     assert events == ["sync-load"]
 
@@ -436,7 +436,7 @@ def test_tui_grammar_recheck_reloads_only_on_key_change(
     # Changed key: the background recheck reloads and records the new key.
     assert grammar_module.ensure_command_line_grammar_loaded(app) is True
     assert grammar_module.command_line_grammar_for(app) == "handle-2"
-    assert grammar_module.command_line_grammar_spec_key_for(app) == "key-2"
+    assert grammar_module._command_line_grammar_spec_key_for(app) == "key-2"
     assert events == ["sync-load", "sync-load"]
     assert not grammar_module.is_command_line_grammar_pending(app)
 

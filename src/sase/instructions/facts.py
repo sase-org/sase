@@ -161,7 +161,7 @@ def parse_facts(facts: Mapping[str, Any]) -> InstructionFacts:
     )
 
 
-def default_provider() -> str:
+def _default_provider() -> str:
     """Return the configured default execution provider name."""
     try:
         from sase.llm_provider.model_launch_settings import (
@@ -179,7 +179,7 @@ def default_provider() -> str:
     return names[0]
 
 
-def detect_host() -> str:
+def _detect_host() -> str:
     """Return the short hostname for the ``host`` fact."""
     return socket.gethostname().split(".", 1)[0] or "unknown"
 
@@ -230,9 +230,9 @@ def default_facts(
             "actor": "sase_root",
             "mode": "runtime",
             "purpose": purpose,
-            "provider": provider or default_provider(),
+            "provider": provider or _default_provider(),
             "project": resolved_project,
-            "host": detect_host(),
+            "host": _detect_host(),
             "vcs": resolved_vcs,
         }
     )
@@ -246,8 +246,8 @@ __all__ = [
     "InstructionFacts",
     "InstructionFactsError",
     "default_facts",
-    "default_provider",
-    "detect_host",
+    "_default_provider",
+    "_detect_host",
     "detect_project",
     "detect_vcs",
     "parse_facts",

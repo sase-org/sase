@@ -18,27 +18,27 @@ def instructions_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             id="instructions.delivery",
             group="instructions",
             title="Instruction delivery matches the contract",
-            runner=lambda: check_instructions_delivery(context),
+            runner=lambda: _check_instructions_delivery(context),
             deep=True,
         ),
         CheckSpec(
             id="instructions.helpers",
             group="instructions",
             title="No helper accepted a final declaration",
-            runner=lambda: check_instructions_helpers(context),
+            runner=lambda: _check_instructions_helpers(context),
             deep=True,
         ),
         CheckSpec(
             id="instructions.coverage",
             group="instructions",
             title="Shadow instruction manifests cover observed sessions",
-            runner=lambda: check_instructions_coverage(context),
+            runner=lambda: _check_instructions_coverage(context),
             deep=True,
         ),
     )
 
 
-def check_instructions_delivery(context: DoctorContext) -> DiagnosticCheck:
+def _check_instructions_delivery(context: DoctorContext) -> DiagnosticCheck:
     """Warn on rows that break contract 1x, project, directive, or native."""
     from sase.instructions import run_index as run_mod
     from sase.instructions.verify import build_report, collect_observations
@@ -99,7 +99,7 @@ def check_instructions_delivery(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def check_instructions_helpers(context: DoctorContext) -> DiagnosticCheck:
+def _check_instructions_helpers(context: DoctorContext) -> DiagnosticCheck:
     """Warn on any accepted helper declaration or root guard denial."""
     from sase.instructions import run_index as run_mod
     from sase.instructions.verify import collect_observations
@@ -144,7 +144,7 @@ def check_instructions_helpers(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def check_instructions_coverage(context: DoctorContext) -> DiagnosticCheck:
+def _check_instructions_coverage(context: DoctorContext) -> DiagnosticCheck:
     """Warn on observed sessions without a shadow manifest, or shadow errors."""
     from sase.instructions import run_index as run_mod
     from sase.instructions import coverage as coverage_mod
@@ -223,8 +223,8 @@ def _run_started_after(
 
 
 __all__ = [
-    "check_instructions_coverage",
-    "check_instructions_helpers",
-    "check_instructions_delivery",
+    "_check_instructions_coverage",
+    "_check_instructions_helpers",
+    "_check_instructions_delivery",
     "instructions_check_specs",
 ]

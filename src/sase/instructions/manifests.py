@@ -1,6 +1,6 @@
 """Read back per-run shadow instruction manifests (E2 decision 9).
 
-:func:`read_run_manifests` lists one :class:`RunManifest` per ``NN`` sequence
+:func:`read_run_manifests` lists one :class:`_RunManifest` per ``NN`` sequence
 in ``<artifacts>/instructions/``, sorted by sequence. Missing and corrupt
 files are tolerated and flagged on the record instead of raising, so the
 scoreboard can report coverage over partial runs. Manifests validate
@@ -16,7 +16,7 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class RunManifest:
+class _RunManifest:
     """One per-invocation shadow record, possibly partial."""
 
     seq: int
@@ -39,7 +39,7 @@ def _read_json(path: Path) -> tuple[Any | None, str | None]:
         return None, f"corrupt {path.name}: {exc}"
 
 
-def read_run_manifests(artifacts_dir: str | Path) -> list[RunManifest]:
+def read_run_manifests(artifacts_dir: str | Path) -> list[_RunManifest]:
     """Return the shadow records under ``<artifacts>/instructions/`` by seq."""
     from sase.core.instruction_manifest import normalize_instruction_manifest
 
@@ -54,7 +54,7 @@ def read_run_manifests(artifacts_dir: str | Path) -> list[RunManifest]:
         if len(prefix) != 2 or not prefix.isdigit():
             continue
         groups.setdefault(prefix, {})[rest] = instructions_dir / name
-    records: list[RunManifest] = []
+    records: list[_RunManifest] = []
     for prefix in sorted(groups):
         files = groups[prefix]
         seq = int(prefix)
@@ -108,7 +108,7 @@ def read_run_manifests(artifacts_dir: str | Path) -> list[RunManifest]:
         if manifest_file is None and error is None:
             problems.append(f"no manifest or error record for sequence {prefix}")
         records.append(
-            RunManifest(
+            _RunManifest(
                 seq=seq,
                 provider=provider,
                 bundle_path=bundle_path,
@@ -121,4 +121,4 @@ def read_run_manifests(artifacts_dir: str | Path) -> list[RunManifest]:
     return records
 
 
-__all__ = ["RunManifest", "read_run_manifests"]
+__all__ = ["_RunManifest", "read_run_manifests"]

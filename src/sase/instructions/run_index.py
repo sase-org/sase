@@ -193,7 +193,7 @@ def project_h1(workspace_dir: str) -> str | None:
         return None
 
 
-def claude_projects_root() -> Path:
+def _claude_projects_root() -> Path:
     """Return the Claude projects root, honoring ``CLAUDE_CONFIG_DIR``."""
     override = os.environ.get("CLAUDE_CONFIG_DIR")
     if override:
@@ -207,19 +207,19 @@ def claude_project_dir(cwd: str) -> Path:
         encode_cwd_for_claude_project_dir,
     )
 
-    return claude_projects_root() / encode_cwd_for_claude_project_dir(
+    return _claude_projects_root() / encode_cwd_for_claude_project_dir(
         cwd.rstrip("/") or cwd
     )
 
 
-def codex_sessions_root() -> Path:
+def _codex_sessions_root() -> Path:
     """Return the real Codex sessions root (never a per-run shadow home)."""
     from sase.llm_provider.codex import real_codex_home
 
     return real_codex_home() / "sessions"
 
 
-def grok_sessions_root() -> Path:
+def _grok_sessions_root() -> Path:
     """Return the Grok sessions root, honoring ``GROK_HOME``."""
     override = os.environ.get("GROK_HOME") or os.environ.get("SASE_GROK_HOME")
     if override:
@@ -227,10 +227,10 @@ def grok_sessions_root() -> Path:
     return Path.home() / ".grok" / "sessions"
 
 
-def grok_cwd_dir(cwd: str) -> Path:
+def _grok_cwd_dir(cwd: str) -> Path:
     """Return the Grok sessions dir for *cwd* (URL-encoded leaf)."""
     normalized = cwd.rstrip("/") or cwd
-    return grok_sessions_root() / urllib.parse.quote(normalized, safe="")
+    return _grok_sessions_root() / urllib.parse.quote(normalized, safe="")
 
 
 def _first_json_timestamp(path: Path, *, max_lines: int = 10) -> datetime | None:
@@ -300,7 +300,7 @@ def find_claude_helpers(session_path: Path) -> list[tuple[Path, str]]:
 
 def find_codex_sessions(run: ScoredRun) -> list[Path]:
     """Find Codex rollouts whose ``session_meta`` matches *run*."""
-    root = codex_sessions_root()
+    root = _codex_sessions_root()
     if not root.is_dir():
         return []
     end = run.ended_at or datetime.now(tz=UTC)
@@ -350,7 +350,7 @@ def _codex_rollout_matches(path: Path, run: ScoredRun, end: datetime) -> bool:
 
 def find_grok_sessions(run: ScoredRun) -> list[Path]:
     """Find Grok session dirs for *run* within its time window."""
-    directory = grok_cwd_dir(run.workspace_dir)
+    directory = _grok_cwd_dir(run.workspace_dir)
     if not directory.is_dir():
         return []
     end = run.ended_at or datetime.now(tz=UTC)
@@ -437,16 +437,16 @@ __all__ = [
     "ROOT_TRANSCRIPT_BYTE_CAP",
     "ScoredRun",
     "claude_project_dir",
-    "claude_projects_root",
-    "codex_sessions_root",
+    "_claude_projects_root",
+    "_codex_sessions_root",
     "enumerate_runs",
     "find_claude_helpers",
     "find_claude_sessions",
     "find_codex_sessions",
     "find_grok_sessions",
     "find_muse_session_id",
-    "grok_cwd_dir",
-    "grok_sessions_root",
+    "_grok_cwd_dir",
+    "_grok_sessions_root",
     "home_h1",
     "parse_when",
     "project_h1",

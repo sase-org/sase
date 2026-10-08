@@ -21,10 +21,10 @@ def handle_instructions_command(args: argparse.Namespace) -> None:
         sys.exit(run_amd_list(args))
 
     if sub == "render":
-        sys.exit(run_instructions_render(args))
+        sys.exit(_run_instructions_render(args))
 
     if sub == "verify":
-        sys.exit(run_instructions_verify(args))
+        sys.exit(_run_instructions_verify(args))
 
     print("Usage: sase instructions {list,render,verify}", file=sys.stderr)
     sys.exit(1)
@@ -172,7 +172,7 @@ def _changed_section_ids(
     return changed
 
 
-def run_instructions_render(args: argparse.Namespace) -> int:
+def _run_instructions_render(args: argparse.Namespace) -> int:
     """Render the memory-built bundle preview and return the exit code."""
     import sys as _sys
 
@@ -303,7 +303,7 @@ def _render_sections_table(compiled: Any) -> None:
     Console().print(table)
 
 
-def run_instructions_verify(args: argparse.Namespace) -> int:
+def _run_instructions_verify(args: argparse.Namespace) -> int:
     """Run the observed-mode scoreboard and render it."""
     from sase.instructions import run_index as run_mod
     from sase.instructions import coverage as coverage_mod
@@ -448,6 +448,6 @@ def run_instructions_verify(args: argparse.Namespace) -> int:
 
 __all__ = [
     "handle_instructions_command",
-    "run_instructions_render",
-    "run_instructions_verify",
+    "_run_instructions_render",
+    "_run_instructions_verify",
 ]

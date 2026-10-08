@@ -613,7 +613,7 @@ def test_load_project_beads_serves_board_from_one_snapshot(
 ) -> None:
     """The board snapshot lane must not call list/ready/blocked (sase-1h8.6)."""
     task = Issue("alpha-task", "Task", issue_type=IssueType.TASK)
-    snapshot = bead_read_facade.BeadBoardSnapshot(
+    snapshot = bead_read_facade._BeadBoardSnapshot(
         issues=[task],
         ready_ids=frozenset({task.id}),
         blocked_ids=frozenset(),

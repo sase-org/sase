@@ -32,7 +32,7 @@ def _inner_records(envelopes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return inner
 
 
-def context_block_texts(payload: dict[str, Any]) -> list[str]:
+def _context_block_texts(payload: dict[str, Any]) -> list[str]:
     """Return native ``rules_file`` context-block texts of one payload."""
     texts: list[str] = []
     if payload.get("source") == "rules_file" and isinstance(payload.get("text"), str):
@@ -55,7 +55,7 @@ def context_block_texts(payload: dict[str, Any]) -> list[str]:
 def _payload_texts(payload: dict[str, Any]) -> list[str]:
     """Return candidate texts of one session payload."""
     texts: list[str] = []
-    texts.extend(context_block_texts(payload))
+    texts.extend(_context_block_texts(payload))
     event = payload.get("event")
     if isinstance(event, dict):
         for key in ("text", "prompt"):
@@ -80,7 +80,7 @@ def rules_texts(envelopes: list[dict[str, Any]]) -> list[str]:
         payload = envelope.get("payload")
         if not isinstance(payload, dict):
             continue
-        texts.extend(context_block_texts(payload))
+        texts.extend(_context_block_texts(payload))
     for record in _inner_records(envelopes):
         payload = record.get("payload")
         if not isinstance(payload, dict):
@@ -165,7 +165,7 @@ def observe_muse_session(
 
 
 __all__ = [
-    "context_block_texts",
+    "_context_block_texts",
     "observe_muse_session",
     "prompt_texts",
     "rules_texts",

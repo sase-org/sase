@@ -50,7 +50,7 @@ _MAX_SEQ_ATTEMPTS = 25
 _SAFE_LABEL_RE = re.compile(r"[^A-Za-z0-9_-]+")
 
 
-def instruction_shadow_render_enabled() -> bool:
+def _instruction_shadow_render_enabled() -> bool:
     """Return whether the shadow-render sunset flag is on.
 
     Falls back to the registry default (on for a sunset flag) when the flag
@@ -327,7 +327,7 @@ def invoke_with_instructions(
             f"invalid shadow purpose {purpose!r}; "
             f"valid purposes: {', '.join(_VALID_PURPOSES)}"
         )
-    if not artifacts_dir or not instruction_shadow_render_enabled():
+    if not artifacts_dir or not _instruction_shadow_render_enabled():
         return provider.invoke(prompt, **invoke_kwargs)
     label = _sanitize_label(
         _resolve_provider_label(provider, artifacts_dir, provider_name)
@@ -362,6 +362,6 @@ __all__ = [
     "AGENT_META_KEY",
     "INSTRUCTIONS_DIR_NAME",
     "MANIFEST_SCHEMA_VERSION",
-    "instruction_shadow_render_enabled",
+    "_instruction_shadow_render_enabled",
     "invoke_with_instructions",
 ]

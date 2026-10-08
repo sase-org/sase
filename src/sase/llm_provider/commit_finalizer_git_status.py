@@ -227,7 +227,7 @@ def git_upstream_ahead_count(repo_dir: str) -> int | None:
     return int(text)
 
 
-def git_fetch_origin(repo_dir: str, *, timeout: int = 60) -> bool:
+def _git_fetch_origin(repo_dir: str, *, timeout: int = 60) -> bool:
     """Best-effort ``git fetch origin``; never raises."""
 
     try:
@@ -265,7 +265,7 @@ def _git_ref_exists(repo_dir: str, ref: str) -> bool:
     return result.returncode == 0
 
 
-def git_remote_tracking_ref(repo_dir: str) -> str | None:
+def _git_remote_tracking_ref(repo_dir: str) -> str | None:
     """Resolve HEAD's upstream or the remote default branch, if any."""
 
     try:
@@ -339,17 +339,11 @@ def git_unpushed_commit_records(
     """
 
     if fetch:
-        git_fetch_origin(repo_dir)
-    ref = git_remote_tracking_ref(repo_dir)
+        _git_fetch_origin(repo_dir)
+    ref = _git_remote_tracking_ref(repo_dir)
     if ref is None:
         return ()
     return git_log_commit_records(repo_dir, f"{ref}..HEAD")
-
-
-def git_is_ahead_of_upstream(repo_dir: str, *, fetch: bool = True) -> bool:
-    """Return whether HEAD holds commits not present on its remote ref."""
-
-    return bool(git_unpushed_commit_records(repo_dir, fetch=fetch))
 
 
 def git_log_commit_records(

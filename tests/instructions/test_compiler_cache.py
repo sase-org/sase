@@ -322,7 +322,7 @@ def test_prune_keeps_newest_entries(
     isolated_instructions_home: Path, tmp_path: Path
 ) -> None:
     """Cache writes prune entries beyond the newest 512."""
-    from sase.instructions.cache import prune_cache_entries, write_cache_entry
+    from sase.instructions.cache import _prune_cache_entries, write_cache_entry
 
     cache_dir = isolated_instructions_home / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -330,6 +330,6 @@ def test_prune_keeps_newest_entries(
         path = cache_dir / f"entry-{index}.json"
         path.write_text(json.dumps({"version": 1}), encoding="utf-8")
     write_cache_entry(isolated_instructions_home, "probe", {"bundle_sha256": "x"})
-    removed = prune_cache_entries(isolated_instructions_home, limit=3)
+    removed = _prune_cache_entries(isolated_instructions_home, limit=3)
     assert removed == 3
     assert len(list(cache_dir.glob("*.json"))) == 3

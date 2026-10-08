@@ -11,7 +11,7 @@ import pytest
 from sase.doctor.runner import DoctorContext, build_doctor_registry
 from sase.instructions import run_index as run_mod
 from sase.instructions.models import ProviderRow, SessionObservation, VerifyReport
-from sase.instructions.render import report_to_json_dict
+from sase.instructions.render import _report_to_json_dict
 from sase.main.parser import create_parser
 from tests.main.parser_help_helpers import flat_help, parser_for
 
@@ -104,14 +104,14 @@ def test_verify_help_documents_flags() -> None:
 
 def test_json_schema_shape() -> None:
     """``-j`` prints ``schema_version: 1`` with filters and provider rows."""
-    payload = report_to_json_dict(_report(), include_observations=False)
+    payload = _report_to_json_dict(_report(), include_observations=False)
     assert payload["schema_version"] == 1
     assert payload["generated_at"] == "2026-10-01T00:00:00+00:00"
     assert payload["filters"] == {"limit": 20}
     assert payload["providers"][0]["provider"] == "codex"
     assert "observations" not in payload
 
-    detailed = report_to_json_dict(_report(), include_observations=True)
+    detailed = _report_to_json_dict(_report(), include_observations=True)
     assert detailed["observations"][0]["contract_count"] == 2
 
 
@@ -146,7 +146,7 @@ def test_window_excludes_later_run_sessions_in_same_cwd(
     }
     (day / "rollout-early.jsonl").write_text(json.dumps(early) + "\n", encoding="utf-8")
     (day / "rollout-late.jsonl").write_text(json.dumps(late) + "\n", encoding="utf-8")
-    monkeypatch.setattr(run_mod, "codex_sessions_root", lambda: sessions_root)
+    monkeypatch.setattr(run_mod, "_codex_sessions_root", lambda: sessions_root)
     run = ScoredRun(
         provider="codex",
         name="synthetic",
@@ -182,8 +182,8 @@ def test_session_roots_ignore_trailing_slash(tmp_path: Path) -> None:
         == run_mod.claude_project_dir("/work/synthetic").name
     )
     assert (
-        run_mod.grok_cwd_dir("/work/synthetic/").name
-        == run_mod.grok_cwd_dir("/work/synthetic").name
+        run_mod._grok_cwd_dir("/work/synthetic/").name
+        == run_mod._grok_cwd_dir("/work/synthetic").name
     )
 
 
@@ -207,11 +207,11 @@ def test_verify_rejects_bare_since_with_exit_2(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A bare ``-s 24`` is a clean CLI error (exit 2), not a traceback."""
-    from sase.main.instructions_handler import run_instructions_verify
+    from sase.main.instructions_handler import _run_instructions_verify
     from sase.main.parser import create_parser
 
     args = create_parser().parse_args(["instructions", "verify", "-s", "24"])
-    assert run_instructions_verify(args) == 2
+    assert _run_instructions_verify(args) == 2
     captured = capsys.readouterr()
     assert "invalid --since/--until value" in captured.err
 
@@ -481,7 +481,7 @@ def test_doctor_delivery_skips_without_runs(
 
     monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [])
     context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
-    check = checks_instructions.check_instructions_delivery(context)
+    check = checks_instructions._check_instructions_delivery(context)
     assert check.status == "SKIP"
 
 
@@ -515,7 +515,7 @@ def test_doctor_helpers_warns_on_accepted_declaration(
         "sase.instructions.verify.collect_observations", lambda _runs: [accepted]
     )
     context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
-    check = checks_instructions.check_instructions_helpers(context)
+    check = checks_instructions._check_instructions_helpers(context)
     assert check.status == "WARN"
 
 
@@ -549,7 +549,7 @@ def test_doctor_helpers_ignores_root_accepted(
         "sase.instructions.verify.collect_observations", lambda _runs: [root]
     )
     context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
-    check = checks_instructions.check_instructions_helpers(context)
+    check = checks_instructions._check_instructions_helpers(context)
     assert check.status == "OK"
 
 
@@ -582,5 +582,5 @@ def test_doctor_helpers_warns_on_root_guard_denial(
         "sase.instructions.verify.collect_observations", lambda _runs: [denied_root]
     )
     context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
-    check = checks_instructions.check_instructions_helpers(context)
+    check = checks_instructions._check_instructions_helpers(context)
     assert check.status == "WARN"

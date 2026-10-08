@@ -309,7 +309,7 @@ def blocked(beads_dir: Path | str) -> list[Issue]:
 
 
 @dataclass(frozen=True)
-class BeadBoardSnapshot:
+class _BeadBoardSnapshot:
     """The TUI board views served from a single store read.
 
     ``issues`` matches :func:`list_issues` with no filters; ``ready_ids``
@@ -321,7 +321,7 @@ class BeadBoardSnapshot:
     blocked_ids: frozenset[str]
 
 
-def board_snapshot(beads_dir: Path | str) -> BeadBoardSnapshot | None:
+def board_snapshot(beads_dir: Path | str) -> _BeadBoardSnapshot | None:
     """Return the board views from one core read.
 
     Returns ``None`` when the installed core predates the
@@ -341,7 +341,7 @@ def board_snapshot(beads_dir: Path | str) -> BeadBoardSnapshot | None:
         blocked_ids = frozenset(str(item) for item in payload["blocked_ids"])
     except (KeyError, TypeError, ValueError):
         return None
-    return BeadBoardSnapshot(
+    return _BeadBoardSnapshot(
         issues=issues,
         ready_ids=ready_ids,
         blocked_ids=blocked_ids,
@@ -446,7 +446,7 @@ def get_epic_children(beads_dir: Path | str, epic_id: str) -> list[Issue]:
 
 
 @dataclass(frozen=True)
-class BeadStoreFingerprint:
+class _BeadStoreFingerprint:
     """Exact stat-only change token for one bead store.
 
     Event stores hash ``config.json``, ``events/manifest.json`` and every
@@ -461,7 +461,7 @@ class BeadStoreFingerprint:
     streams: int
 
 
-def store_fingerprint(beads_dir: Path | str) -> BeadStoreFingerprint | None:
+def store_fingerprint(beads_dir: Path | str) -> _BeadStoreFingerprint | None:
     """Return the exact stat-only fingerprint for *beads_dir*.
 
     Returns ``None`` when the installed core predates the
@@ -476,7 +476,7 @@ def store_fingerprint(beads_dir: Path | str) -> BeadStoreFingerprint | None:
     except Exception:
         return None
     try:
-        return BeadStoreFingerprint(
+        return _BeadStoreFingerprint(
             token=str(payload["token"]),
             layout=str(payload.get("layout") or ""),
             files=int(payload.get("files") or 0),
@@ -514,9 +514,9 @@ def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
 
 __all__ = [
     "BeadArtifactLinkRow",
-    "BeadBoardSnapshot",
+    "_BeadBoardSnapshot",
     "BeadIssueDetailSnapshot",
-    "BeadStoreFingerprint",
+    "_BeadStoreFingerprint",
     "blocked",
     "board_snapshot",
     "doctor",

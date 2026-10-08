@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 
-def macro_input_choice_to_wire(choice: object) -> dict[str, str | None] | None:
+def _macro_input_choice_to_wire(choice: object) -> dict[str, str | None] | None:
     """Normalize one choice to the Rust wire shape, or None when invalid."""
     if isinstance(choice, str):
         return {"value": choice, "label": None, "description": None}
@@ -71,11 +71,11 @@ def macro_input_hint_to_wire(
         "choices": [
             wire_choice
             for choice in raw_choices
-            if (wire_choice := macro_input_choice_to_wire(choice)) is not None
+            if (wire_choice := _macro_input_choice_to_wire(choice)) is not None
         ],
         "named_type": named_type,
         "value_role": value_role,
     }
 
 
-__all__ = ["macro_input_choice_to_wire", "macro_input_hint_to_wire"]
+__all__ = ["_macro_input_choice_to_wire", "macro_input_hint_to_wire"]

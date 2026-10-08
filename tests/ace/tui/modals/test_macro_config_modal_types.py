@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.modals.macro_config_modal import validate_config_input_type
+from sase.ace.tui.modals.macro_config_modal import _validate_config_input_type
 from sase.macro.plugin_input_types import _clear_plugin_input_type_registry_cache
 
 
@@ -19,18 +19,18 @@ def _clear_cache():
 
 
 def test_named_builtin_types_accepted() -> None:
-    assert validate_config_input_type("level", "effort") is None
-    assert validate_config_input_type("claude_model", "model") is None
+    assert _validate_config_input_type("level", "effort") is None
+    assert _validate_config_input_type("claude_model", "model") is None
 
 
 def test_inline_enum_rejected() -> None:
-    error = validate_config_input_type("status", "enum")
+    error = _validate_config_input_type("status", "enum")
     assert error is not None
     assert "choices" in error.casefold()
 
 
 def test_typo_suggests_enum() -> None:
-    error = validate_config_input_type("status", "enmu")
+    error = _validate_config_input_type("status", "enmu")
     assert error is not None
     assert "enum" in error
 
@@ -70,6 +70,6 @@ def test_plugin_type_resolves_with_fixture_registry(
     )
     _clear_plugin_input_type_registry_cache()
     assert (
-        validate_config_input_type("edition", "sase-research-artifacts@audio_edition")
+        _validate_config_input_type("edition", "sase-research-artifacts@audio_edition")
         is None
     )

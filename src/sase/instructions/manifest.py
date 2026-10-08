@@ -11,7 +11,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sase.core.instruction_manifest import normalize_instruction_manifest
+from sase.core.instruction_manifest import (
+    InstructionManifestError,
+    normalize_instruction_manifest,
+)
 from sase.instructions.compile import (
     COMPILER_NAME,
     COMPILER_VERSION,
@@ -30,10 +33,6 @@ _REQUIRED_DELIVERY_FIELDS = (
     "model",
     "rendered_at",
 )
-
-
-class InstructionManifestError(ValueError):
-    """Raised when manifest inputs fail Python-side validation."""
 
 
 def preview_delivery(
@@ -130,7 +129,6 @@ def build_manifest(
 
 
 __all__ = [
-    "InstructionManifestError",
     "build_manifest",
     "preview_delivery",
 ]

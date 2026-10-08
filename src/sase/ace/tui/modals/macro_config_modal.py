@@ -17,12 +17,12 @@ from sase.macro.loader_parsing import parse_input_type
 from sase.macro.models import InputType, MacroValidationError
 
 
-def advertised_config_type_names() -> list[str]:
+def _advertised_config_type_names() -> list[str]:
     """Return sorted advertised catalog type names for the hint line."""
     return sorted(descriptor.name for descriptor in input_type_schema())
 
 
-def validate_config_input_type(arg_name: str, arg_type: str) -> str | None:
+def _validate_config_input_type(arg_name: str, arg_type: str) -> str | None:
     """Return an error message for a config ``name type`` pair, or None when valid.
 
     Uses the Rust-backed resolver so builtin, named, and plugin types resolve
@@ -137,7 +137,7 @@ class MacroConfigEntryModal(ModalScreen[MacroConfigEntry | None]):
         input_input.focus()
         input_input._update_vim_mode_display()
 
-        types_str = ", ".join(advertised_config_type_names())
+        types_str = ", ".join(_advertised_config_type_names())
         hints = self.query_one("#config-entry-hints", Static)
         hints.update(f"Types: {types_str}  |  Enter: add/finish  Esc Esc: cancel")
 
@@ -156,7 +156,7 @@ class MacroConfigEntryModal(ModalScreen[MacroConfigEntry | None]):
             return
 
         arg_name, arg_type = parts
-        if (error := validate_config_input_type(arg_name, arg_type)) is not None:
+        if (error := _validate_config_input_type(arg_name, arg_type)) is not None:
             self._show_error(error)
             return
 

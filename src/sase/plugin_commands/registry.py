@@ -50,12 +50,12 @@ class PluginCommandSet:
         return None
 
 
-def validate_command_name(name: str) -> bool:
+def _validate_command_name(name: str) -> bool:
     """Return whether *name* is eligible to mount as a top-level command."""
     return COMMAND_NAME_RE.match(name) is not None
 
 
-def reserved_command_names() -> frozenset[str]:
+def _reserved_command_names() -> frozenset[str]:
     """Return the command names plugins may never claim.
 
     Built-in registrars (including legacy aliases) always win, as do the
@@ -71,7 +71,7 @@ def reserved_command_names() -> frozenset[str]:
 def discover_plugin_commands(*, honor_disable: bool = True) -> PluginCommandSet:
     """Classify ``sase_commands`` records into mounted commands and problems."""
     records = scan_plugin_commands(honor_disable=honor_disable)
-    reserved = reserved_command_names()
+    reserved = _reserved_command_names()
     by_name: dict[str, list[PluginCommandRecord]] = {}
     for record in records:
         by_name.setdefault(record.name, []).append(record)
@@ -81,7 +81,7 @@ def discover_plugin_commands(*, honor_disable: bool = True) -> PluginCommandSet:
     for name in sorted(by_name):
         owned = sorted(by_name[name], key=lambda record: record.distribution.casefold())
         distributions = tuple(record.distribution for record in owned)
-        if not validate_command_name(name):
+        if not _validate_command_name(name):
             problems.append(
                 PluginCommandProblem(
                     name=name,

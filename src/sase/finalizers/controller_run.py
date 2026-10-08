@@ -47,7 +47,7 @@ from sase.finalizers.status_summary import FinalizerStatusTracker
 from sase.llm_provider.types import ModelTier
 
 
-def controller_failure_for_handoff(
+def _controller_failure_for_handoff(
     exc: BaseException,
     artifacts_dir: str | None,
 ) -> tuple[str, str] | None:
@@ -412,7 +412,7 @@ def run_finalizers(
             "success"
         ):
             instance_id = active_instance_id or entries[0]["instance_id"]
-            handoff_failure = controller_failure_for_handoff(exc, artifacts_dir)
+            handoff_failure = _controller_failure_for_handoff(exc, artifacts_dir)
             if handoff_failure is not None:
                 code, message = handoff_failure
             else:

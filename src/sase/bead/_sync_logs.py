@@ -22,7 +22,7 @@ _DEFAULT_PUSH_LOG_KEEP_COUNT = 200
 _DEFAULT_PUSH_LOG_MIN_INTERVAL_SECONDS = 3600.0
 
 
-def bead_push_log_retention_config() -> tuple[float, int, float]:
+def _bead_push_log_retention_config() -> tuple[float, int, float]:
     """Return ``(max_age_days, keep_count, min_interval_seconds)``.
 
     A non-positive value disables that predicate. Falls back to defaults when
@@ -81,7 +81,7 @@ def prune_old_bead_sync_logs(
 
     import time
 
-    config_max_age, config_keep, config_interval = bead_push_log_retention_config()
+    config_max_age, config_keep, config_interval = _bead_push_log_retention_config()
     if max_age_days is None:
         max_age_days = config_max_age
     if keep_count is None:

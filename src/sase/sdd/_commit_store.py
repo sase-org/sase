@@ -98,7 +98,7 @@ def commit_sdd_files(
         require_sdd_repository_health(sdd_dir)
         try:
             add_files = changed_sdd_files(sdd_dir, pathspecs)
-            staged_files = staged_sdd_files(sdd_dir, pathspecs)
+            staged_files = _staged_sdd_files(sdd_dir, pathspecs)
         except subprocess.CalledProcessError as exc:
             raise SddGitCommandError.from_error(exc) from exc
         commit_files = _union_preserving_order(add_files, staged_files)
@@ -110,7 +110,7 @@ def commit_sdd_files(
         if prepared.restored_paths:
             try:
                 add_files = changed_sdd_files(sdd_dir, pathspecs)
-                staged_files = staged_sdd_files(sdd_dir, pathspecs)
+                staged_files = _staged_sdd_files(sdd_dir, pathspecs)
             except subprocess.CalledProcessError as exc:
                 raise SddGitCommandError.from_error(exc) from exc
             commit_files = _union_preserving_order(add_files, staged_files)
@@ -629,7 +629,7 @@ def changed_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
     return [path.decode("utf-8") for path in stdout.split(b"\0") if path]
 
 
-def staged_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
+def _staged_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:
     """Return staged-only files under ``pathspecs`` in the SDD git repo.
 
     Uses the same pathspecs as :func:`changed_sdd_files` so the

@@ -11,7 +11,7 @@ import pytest
 import sase.sdd._store_maintenance as maintenance
 from sase.sdd._store_maintenance import (
     maintain_hidden_sidecar_clones,
-    maybe_gc_hidden_sidecar_clone,
+    _maybe_gc_hidden_sidecar_clone,
     maybe_gc_sidecar_clone,
 )
 
@@ -239,10 +239,10 @@ def test_hidden_clone_dirs_ignores_non_clones(
     (projects_dir / "proj" / "repos" / "plain-file").write_text("x", encoding="utf-8")
     _redirect_projects_dir(monkeypatch, projects_dir)
 
-    assert maintenance.hidden_sidecar_clone_dirs("proj") == [
+    assert maintenance._hidden_sidecar_clone_dirs("proj") == [
         projects_dir / "proj" / "repos" / "beads"
     ]
-    assert maintenance.hidden_sidecar_clone_dirs("missing") == []
+    assert maintenance._hidden_sidecar_clone_dirs("missing") == []
 
 
 def test_maintain_hidden_clones_visits_each_clone(
@@ -284,7 +284,7 @@ def test_hidden_clone_gc_skips_when_materialization_lock_busy(
     )
 
     assert (
-        maybe_gc_hidden_sidecar_clone(
+        _maybe_gc_hidden_sidecar_clone(
             clone_dir, tmp_path / "primary", project_key="proj"
         )
         is False
@@ -311,7 +311,7 @@ def test_hidden_clone_gc_skips_when_machine_writer_busy(
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         try:
             assert (
-                maybe_gc_hidden_sidecar_clone(
+                _maybe_gc_hidden_sidecar_clone(
                     clone_dir, tmp_path / "primary", project_key="proj"
                 )
                 is False
@@ -332,5 +332,7 @@ def test_hidden_clone_gc_runs_when_locks_free(
     _write_pack_files(clone_dir, 1)
     calls = _run_git_spy(monkeypatch)
 
-    assert maybe_gc_hidden_sidecar_clone(clone_dir, primary, project_key="proj") is True
+    assert (
+        _maybe_gc_hidden_sidecar_clone(clone_dir, primary, project_key="proj") is True
+    )
     assert [call["args"] for call in calls] == [["gc"]]

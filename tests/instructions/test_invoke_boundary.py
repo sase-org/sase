@@ -349,11 +349,11 @@ def test_flag_off_matches_today_behavior(shadow_env: dict[str, Any]) -> None:
 def test_flag_both_states_read(shadow_env: dict[str, Any], flag_value: bool) -> None:
     """The boundary enablement follows the flag in both states."""
     from sase.llm_provider._instruction_boundary import (
-        instruction_shadow_render_enabled,
+        _instruction_shadow_render_enabled,
     )
 
     with override_flags(instruction_shadow_render=flag_value):
-        assert instruction_shadow_render_enabled() is flag_value
+        assert _instruction_shadow_render_enabled() is flag_value
 
 
 def test_compiler_failure_still_invokes_and_writes_error(

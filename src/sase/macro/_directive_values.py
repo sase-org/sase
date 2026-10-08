@@ -504,7 +504,7 @@ def resolve_reasoning_effort(
     return directive_effort or model_effort
 
 
-def classify_auto_spelling(
+def _classify_auto_spelling(
     *, form: str, value: str, spelling: str
 ) -> tuple[bool, str | None, str | None]:
     """Classify one ``%auto``/``%a`` spelling through the sase-core grammar.
@@ -529,7 +529,7 @@ def classify_auto_spelling(
 
 def reject_auto_paren(spelling: str) -> NoReturn:
     """Raise the core launch error for a parenthesized ``%auto`` spelling."""
-    classify_auto_spelling(form="paren", value="", spelling=spelling)
+    _classify_auto_spelling(form="paren", value="", spelling=spelling)
     raise AssertionError("the core auto grammar must reject paren forms")
 
 
@@ -542,7 +542,7 @@ def _resolve_auto_fields(
         form, spelling = "bare", "%auto"
     else:
         form, spelling = "colon", f"%auto:{raw}"
-    return classify_auto_spelling(form=form, value=raw, spelling=spelling)
+    return _classify_auto_spelling(form=form, value=raw, spelling=spelling)
 
 
 def resolve_auto_mode(expanded_args: dict[str, str]) -> str | None:

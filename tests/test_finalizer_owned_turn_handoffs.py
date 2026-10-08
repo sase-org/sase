@@ -15,8 +15,8 @@ from sase.agent.pending_handoff_write import (
     handoff_guard,
     write_pending_handoff_marker,
 )
-from sase.axe.run_agent_exec_finalize import finalizer_reports_failure
-from sase.finalizers.controller_run import controller_failure_for_handoff
+from sase.axe.run_agent_exec_finalize import _finalizer_reports_failure
+from sase.finalizers.controller_run import _controller_failure_for_handoff
 from sase.finalizers.owned_turn import (
     SASE_FINALIZER_OWNED_TURN_ENV,
     finalizer_owned_turn,
@@ -25,7 +25,7 @@ from sase.finalizers.owned_turn import (
 )
 from sase.monitor import MonitorError
 from sase.monitor.start_flow import (
-    finalizer_owned_monitor_refusal,
+    _finalizer_owned_monitor_refusal,
     refuse_finalizer_owned_monitor_start,
 )
 from sase.tool.routing import escalation_block, escalation_json, is_joinable
@@ -87,7 +87,7 @@ def test_refuse_finalizer_owned_monitor_start(
     monkeypatch.setenv(SASE_FINALIZER_OWNED_TURN_ENV, "1")
     with pytest.raises(MonitorError, match="sase monitor start"):
         refuse_finalizer_owned_monitor_start()
-    assert "sase tool wait" in finalizer_owned_monitor_refusal()
+    assert "sase tool wait" in _finalizer_owned_monitor_refusal()
 
 
 def test_start_monitor_refuses_before_side_effects(
@@ -190,12 +190,12 @@ def test_escalation_json_not_joinable_has_no_join_command() -> None:
 
 def test_controller_failure_for_handoff(tmp_path: Path) -> None:
     exc = RuntimeError("provider exited 143")
-    assert controller_failure_for_handoff(exc, None) is None
-    assert controller_failure_for_handoff(exc, str(tmp_path)) is None
+    assert _controller_failure_for_handoff(exc, None) is None
+    assert _controller_failure_for_handoff(exc, str(tmp_path)) is None
     (tmp_path / ".sase_monitor_pending").write_text(
         json.dumps({"monitor_id": "m"}), encoding="utf-8"
     )
-    failure = controller_failure_for_handoff(exc, str(tmp_path))
+    failure = _controller_failure_for_handoff(exc, str(tmp_path))
     assert failure is not None
     code, message = failure
     assert code == "finalizer_turn_handoff"
@@ -204,12 +204,12 @@ def test_controller_failure_for_handoff(tmp_path: Path) -> None:
 
 
 def test_finalizer_reports_failure(tmp_path: Path) -> None:
-    assert finalizer_reports_failure(None) is False
-    assert finalizer_reports_failure(str(tmp_path)) is False
+    assert _finalizer_reports_failure(None) is False
+    assert _finalizer_reports_failure(str(tmp_path)) is False
     result = tmp_path / "finalizer_result.json"
     result.write_text(json.dumps({"status": "success"}), encoding="utf-8")
-    assert finalizer_reports_failure(str(tmp_path)) is False
+    assert _finalizer_reports_failure(str(tmp_path)) is False
     result.write_text(json.dumps({"status": "failed"}), encoding="utf-8")
-    assert finalizer_reports_failure(str(tmp_path)) is True
+    assert _finalizer_reports_failure(str(tmp_path)) is True
     result.write_text("{not json", encoding="utf-8")
-    assert finalizer_reports_failure(str(tmp_path)) is False
+    assert _finalizer_reports_failure(str(tmp_path)) is False

@@ -59,7 +59,7 @@ from .store_lane import LaneMonitorReads
 from .transaction import monitor_lane_lock_path
 
 
-def finalizer_owned_monitor_refusal() -> str:
+def _finalizer_owned_monitor_refusal() -> str:
     """Return the refusal for ``sase monitor start`` in a finalizer turn."""
     return finalizer_owned_turn_refusal(
         "sase monitor start",
@@ -79,7 +79,7 @@ def refuse_finalizer_owned_monitor_start() -> None:
     no monitor record, proc, transferred claim, or pending handoff behind.
     """
     if finalizer_owned_turn_is_active():
-        raise MonitorError(finalizer_owned_monitor_refusal())
+        raise MonitorError(_finalizer_owned_monitor_refusal())
 
 
 def _prepared_completion_accept(
@@ -355,7 +355,7 @@ def _replayed_lane_monitor(
 
 
 __all__ = [
-    "finalizer_owned_monitor_refusal",
+    "_finalizer_owned_monitor_refusal",
     "refuse_finalizer_owned_monitor_start",
     "start_monitor",
 ]

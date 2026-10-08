@@ -31,7 +31,7 @@ _BACKTICK_RE = re.compile(r"`([^`]+)`")
 
 
 @dataclass(frozen=True)
-class ParityIssue:
+class _ParityIssue:
     """One parity failure: a missing unit, repo, or contract problem."""
 
     kind: str
@@ -40,11 +40,11 @@ class ParityIssue:
 
 
 @dataclass(frozen=True)
-class ParityReport:
+class _ParityReport:
     """Result of :func:`legacy_parity`."""
 
     ok: bool
-    issues: tuple[ParityIssue, ...] = ()
+    issues: tuple[_ParityIssue, ...] = ()
     additions: tuple[str, ...] = ()
     contract_count: int = 0
     missing_sections: tuple[str, ...] = ()
@@ -113,7 +113,7 @@ def legacy_parity(
     compiled: Any,
     project_root: Path | str,
     home_root: Path | str,
-) -> ParityReport:
+) -> _ParityReport:
     """Compare *compiled* against the legacy native files.
 
     *compiled* is a :class:`CompiledBundle` (or any object with ``text`` and
@@ -153,7 +153,7 @@ def legacy_parity(
         1 for text in section_texts.values() if CONTRACT_MARKER in text
     )
 
-    issues: list[ParityIssue] = []
+    issues: list[_ParityIssue] = []
     missing_sections: list[str] = []
     mapped_ids: set[str] = set()
 
@@ -183,7 +183,7 @@ def legacy_parity(
             if section_id not in covered:
                 missing_sections.append(section_id)
                 issues.append(
-                    ParityIssue(
+                    _ParityIssue(
                         kind="missing_section",
                         detail=f"legacy {prefix} {kind_group} {path!r} "
                         f"has no bundle section {section_id!r}",
@@ -201,7 +201,7 @@ def legacy_parity(
         if name not in bundle_repos and name not in repos_text:
             missing_repos.append(name)
             issues.append(
-                ParityIssue(
+                _ParityIssue(
                     kind="missing_repo",
                     detail=f"legacy repository {name!r} is missing from pkg.sase.repos",
                 )
@@ -211,7 +211,7 @@ def legacy_parity(
 
     if contract_count != 1:
         issues.append(
-            ParityIssue(
+            _ParityIssue(
                 kind="contract",
                 detail=f"expected exactly one included section containing "
                 f"{CONTRACT_MARKER!r}, found {contract_count}",
@@ -222,7 +222,7 @@ def legacy_parity(
         sorted(section_id for section_id in included if section_id not in mapped_ids)
     )
     ok = not issues
-    return ParityReport(
+    return _ParityReport(
         ok=ok,
         issues=tuple(issues),
         additions=additions,
@@ -232,7 +232,7 @@ def legacy_parity(
     )
 
 
-def render_parity_table(report: ParityReport, *, console: Any | None = None) -> None:
+def render_parity_table(report: _ParityReport, *, console: Any | None = None) -> None:
     """Render *report* as a Rich table (missing units fail, extras inform)."""
     from rich.console import Console
     from rich.table import Table
@@ -258,8 +258,8 @@ def render_parity_table(report: ParityReport, *, console: Any | None = None) -> 
 
 __all__ = [
     "CONTRACT_MARKER",
-    "ParityIssue",
-    "ParityReport",
+    "_ParityIssue",
+    "_ParityReport",
     "legacy_parity",
     "render_parity_table",
 ]

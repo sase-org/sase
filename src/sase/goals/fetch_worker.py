@@ -23,7 +23,7 @@ FETCH_WORKER_DESCRIPTION = "SASE goal fetch worker"
 FETCH_WORKER_UNIT_PREFIX = "sase-goal-fetch"
 
 
-def fetch_worker_argv(project_key: str) -> list[str]:
+def _fetch_worker_argv(project_key: str) -> list[str]:
     """Return the argv that runs one fetch worker for *project_key*."""
     return [sys.executable, "-m", "sase.goals.fetch_worker", project_key]
 
@@ -38,7 +38,7 @@ def spawn_fetch_worker(project_key: str) -> bool:
         from sase.detach_scope import detach_scope
 
         launch = detach_scope(
-            fetch_worker_argv(project_key),
+            _fetch_worker_argv(project_key),
             description=FETCH_WORKER_DESCRIPTION,
             unit_prefix=FETCH_WORKER_UNIT_PREFIX,
         )

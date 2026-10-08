@@ -43,7 +43,7 @@ _COMMAND_LINE_GRAMMAR_RECHECK_ATTR = "_command_line_grammar_rechecking"
 __all__ = [
     "CompletionSpecCacheError",
     "command_line_grammar_for",
-    "command_line_grammar_spec_key_for",
+    "_command_line_grammar_spec_key_for",
     "ensure_command_line_grammar_loaded",
     "is_command_line_grammar_pending",
     "resolve_command_line",
@@ -55,7 +55,7 @@ def command_line_grammar_for(app: Any) -> Any | None:
     return getattr(app, _COMMAND_LINE_GRAMMAR_ATTR, None)
 
 
-def command_line_grammar_spec_key_for(app: Any) -> str | None:
+def _command_line_grammar_spec_key_for(app: Any) -> str | None:
     """Return the spec key the app-held grammar handle was built from."""
     key = getattr(app, _COMMAND_LINE_GRAMMAR_KEY_ATTR, None)
     return key if isinstance(key, str) else None
@@ -180,7 +180,7 @@ async def _recheck_grammar_key(app: Any) -> None:
         except Exception as error:  # noqa: BLE001 - recheck is advisory.
             log.debug("command-line grammar key recheck failed: %s", error)
             return
-        if key == command_line_grammar_spec_key_for(app):
+        if key == _command_line_grammar_spec_key_for(app):
             _take_grammar_callbacks(app)
             return
         try:
