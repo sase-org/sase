@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from rich.text import Text
 
@@ -11,6 +12,7 @@ from sase.ace.tui.agent_completion import (
     WaitBeadStatusCounts,
     WaitDependencyStatusCounts,
 )
+from sase.core.time import format_local
 from sase.ace.tui.actions.agents._epic_follow_toasts import (
     announce_epic_follow_transitions,
     _epic_follow_toast_messages,
@@ -28,8 +30,18 @@ from sase.ace.tui.widgets.prompt_panel._agent_wait_section import build_wait_lan
 from sase.core.wait_epic_follow_view import EpicFollowView
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
-_SINCE = datetime(2026, 10, 6, 14, 32).timestamp()
-_SINCE_TEXT = datetime.fromtimestamp(_SINCE).strftime("%H:%M")
+_SINCE = datetime(2026, 10, 6, 14, 32, tzinfo=ZoneInfo("America/New_York")).timestamp()
+
+
+def _since_text() -> str:
+    """Expected `since HH:MM` text through the presentation contract.
+
+    Resolved at call time, not import time: the ``_pin_configured_timezone``
+    conftest fixture only pins ``get_timezone()`` for the duration of a test, so
+    an import-time conversion would use the host's timezone instead and skew
+    the expectation by the UTC offset on hosts that aren't Eastern (CI).
+    """
+    return format_local(_SINCE, "%H:%M")
 
 
 def _follow_view(**overrides: object) -> EpicFollowView:
@@ -166,7 +178,7 @@ def test_lane_following_narrates_epic_progress_and_since() -> None:
     assert "planner ✓" in line
     assert "↪ sase-7k ◐ in progress" in line
     assert "2/5 phases" in line
-    assert f"since {_SINCE_TEXT}" in line
+    assert f"since {_since_text()}" in line
 
 
 def test_lane_launching_reads_pending_text() -> None:
@@ -176,7 +188,7 @@ def test_lane_launching_reads_pending_text() -> None:
     line = _agents_line(agent)
 
     assert "↪ epic launching…" in line
-    assert f"since {_SINCE_TEXT}" in line
+    assert f"since {_since_text()}" in line
 
 
 def test_lane_blocked_names_resume_command() -> None:
