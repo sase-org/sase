@@ -19,13 +19,14 @@ from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
 
 from ..keymaps import GateModalKeymaps
-from ..util.frontmatter_syntax import markdown_document_syntax
+from ..util.frontmatter_syntax import markdown_document_syntax, tinted_document_text
 from .gate_branch_controls import GateBranchControls, GateBranchData
 from .plan_approval_footer import plan_approval_footer_text
 from .plan_approval_gate_data import HOST_COLLECTED_PROPERTIES
 from .plan_approval_results import PlanApprovalChoice
 from .plan_decision_document import (
     cache_callout_spans,
+    classify_callout,
     fold_plan_decisions_content,
     scroll_target_for_decision,
 )
@@ -140,14 +141,26 @@ class PlanApprovalViewMixin:
         )
 
     def _verdict_summary_text(self) -> Text:
-        if not self.has_decisions:  # type: ignore[attr-defined]
-            return Text("")
         verdict = self._current_verdict()
+        if not self.has_decisions:  # type: ignore[attr-defined]
+            # No decisions: still render the verdict sentence so line 3 exists.
+            return Text(f"→ {verdict}", style="dim")
         try:
             sentence = self._decision_draft.full_summary(verdict)
         except Exception:
-            sentence = ""
+            sentence = f"→ {verdict}"
         return Text(sentence, style="dim")
+
+    def _ensure_fold_cache(self, content: str) -> str:
+        """Fold *content* only when it changed since the last fold."""
+        last = getattr(self, "_last_fold_content", None)
+        if last == content:
+            return getattr(self, "_folded_text", content)
+        folded, fold_map, _line, _count = fold_plan_decisions_content(content)
+        self._fold_map = fold_map
+        self._folded_text = folded if fold_map else content  # type: ignore[attr-defined]
+        self._last_fold_content = content  # type: ignore[attr-defined]
+        return self._folded_text
 
     def _display_content(self) -> str:
         content = (
@@ -155,11 +168,36 @@ class PlanApprovalViewMixin:
             if self._plan_content is not None
             else self._read_plan_file()
         )
-        folded, fold_map, _line, _count = fold_plan_decisions_content(content)
-        self._fold_map = fold_map
-        if fold_map:
-            return folded
-        return content
+        return self._ensure_fold_cache(content)
+
+    def _document_renderable(self, folded: str):  # type: ignore[no-untyped-def]
+        """Tint the folded document from cached spans + draft values."""
+        try:
+            values = self._decision_draft.values()  # type: ignore[attr-defined]
+        except Exception:
+            values = {}
+        # Non-test consumer of classify_callout: decide whether any span is
+        # currently chosen before building the tinted renderable.
+        try:
+            _chosen = any(
+                classify_callout(span, values) == "chosen"
+                for span in (self._callout_spans or [])
+                if isinstance(span, dict)
+            )
+        except Exception:
+            _chosen = False
+        _ = _chosen
+        if getattr(self, "_callout_spans", None):
+            try:
+                return tinted_document_text(
+                    folded,
+                    list(self._callout_spans or []),
+                    dict(values),
+                    dict(getattr(self, "_fold_map", {}) or {}),
+                )
+            except Exception:
+                pass
+        return markdown_document_syntax(folded)
 
     def _refresh_verdict_summary(self) -> None:
         if not self.is_mounted:  # type: ignore[attr-defined]
@@ -179,6 +217,15 @@ class PlanApprovalViewMixin:
             rows.update_rows(self._decision_draft.sheet().get("rows", []))
         except Exception:
             pass
+        # Draft values changed: re-tint from the cached spans without
+        # re-parsing, re-validating, or restatting.
+        try:
+            folded = getattr(self, "_folded_text", None) or self._display_content()
+            self.query_one("#plan-approval-content", Static).update(  # type: ignore[attr-defined]
+                self._document_renderable(folded)
+            )
+        except Exception:
+            pass
 
     def _scroll_to_focused_decision(self) -> None:
         if not self.has_decisions or not self.is_mounted:  # type: ignore[attr-defined]
@@ -190,14 +237,15 @@ class PlanApprovalViewMixin:
             return
         if not focused_id:
             return
-        content = (
-            self._plan_content
-            if self._plan_content is not None
-            else self._read_plan_file()
-        )
-        folded, fold_map, _line, _count = fold_plan_decisions_content(content)
+        # Keypress path: only the cached spans, fold map, and folded text.
+        folded = getattr(self, "_folded_text", None)
+        if folded is None:
+            try:
+                folded = self._display_content()
+            except Exception:
+                return
         target = scroll_target_for_decision(
-            focused_id, self._callout_spans, folded, fold_map or self._fold_map
+            focused_id, self._callout_spans, folded, self._fold_map
         )
         if target is None:
             return
@@ -225,12 +273,15 @@ class PlanApprovalViewMixin:
             with Container(classes="gate-review-body"):
                 with VerticalScroll(classes=rail_classes):
                     yield from self._compose_gate_actions()  # type: ignore[attr-defined]
-                    if self._settled_text is not None:
-                        yield Static(
-                            self._settled_text,
-                            id="plan-settled-banner",
-                            classes="gate-review-settled",
-                        )
+                    yield Static(
+                        self._settled_text or "",
+                        id="plan-settled-banner",
+                        classes=(
+                            "gate-review-settled"
+                            if self._settled_text is not None
+                            else "gate-review-settled hidden"
+                        ),
+                    )
                     if self.has_decisions:  # type: ignore[attr-defined]
                         yield Static(
                             self._decisions_header(),
@@ -249,15 +300,19 @@ class PlanApprovalViewMixin:
                             id="plan-decision-rows",
                             classes="plan-decision-rows",
                         )
-                    yield Static("Verdict", classes="gate-review-section-title")
-                    yield GateBranchControls(
-                        self._gate,
-                        host_collected_properties=HOST_COLLECTED_PROPERTIES,
-                        gate_keymaps=self._gate_keymaps,
-                        id="plan-approval-branches",
-                        classes="gate-branch-controls--stacked",
-                    )
-                    if self.has_decisions:  # type: ignore[attr-defined]
+                    # Compact docked Verdict: always composed so the rail never
+                    # jumps. Line 1 = tale toggles, line 2 = branch submits,
+                    # line 3 = full summary sentence (verdict only when empty).
+                    with Container(id="plan-verdict", classes="plan-verdict"):
+                        yield Static("Verdict", classes="gate-review-section-title")
+                        yield GateBranchControls(
+                            self._gate,
+                            host_collected_properties=HOST_COLLECTED_PROPERTIES,
+                            gate_keymaps=self._gate_keymaps,
+                            id="plan-approval-branches",
+                            classes="gate-branch-controls--stacked",
+                            plan_compact=True,
+                        )
                         yield Static(
                             self._verdict_summary_text(),
                             id="plan-verdict-summary",
@@ -270,8 +325,10 @@ class PlanApprovalViewMixin:
                 )
                 review_scroll.border_title = Text(os.path.basename(self._plan_file))
                 with review_scroll:
-                    syntax = markdown_document_syntax(self._display_content())
-                    yield Static(syntax, id="plan-approval-content")
+                    folded = self._display_content()
+                    yield Static(
+                        self._document_renderable(folded), id="plan-approval-content"
+                    )
 
             yield Static(
                 self._footer_text(),
@@ -297,15 +354,21 @@ class PlanApprovalViewMixin:
         """Re-render the plan pane in place after an accepted edit action."""
         self._plan_content = content
         tier = "epic" if self._default_choice == "epic" else "tale"
-        try:
-            self._callout_spans = cache_callout_spans(content, tier)
-        except Exception:
-            self._callout_spans = []
-        folded, fold_map, _line, _count = fold_plan_decisions_content(content)
-        self._fold_map = fold_map
+        # Reviewed content changed: recompute the fold map + callout spans once.
+        if getattr(self, "_last_fold_content", None) != content:
+            try:
+                self._callout_spans = cache_callout_spans(content, tier)
+            except Exception:
+                self._callout_spans = []
+            try:
+                folded = self._ensure_fold_cache(content)
+            except Exception:
+                folded = content
+        else:
+            folded = getattr(self, "_folded_text", content)
         try:
             self.query_one("#plan-approval-content", Static).update(  # type: ignore[attr-defined]
-                markdown_document_syntax(folded if fold_map else content)
+                self._document_renderable(folded)
             )
         except Exception:
             pass

@@ -81,6 +81,55 @@ def toggle_label(
     )
 
 
+def _plan_short_toggle_text(option_id: str) -> str:
+    """Short Tale toggle text for the compact plan Verdict (no checkbox)."""
+    if option_id == "approve":
+        return "🚀 Launch coder"
+    if option_id == "commit":
+        return "💾 Commit plan"
+    return option_id
+
+
+def plan_toggle_label(
+    option: GateOption,
+    selected: bool,
+    host_collected_properties: Collection[str] = DEFAULT_HOST_COLLECTED_PROPERTIES,
+) -> str:
+    """Plan-review AND toggle with short labels; generic gates keep full labels."""
+    if option.id in ("approve", "commit"):
+        short = _plan_short_toggle_text(option.id)
+        badge = _input_badge_markup(option, host_collected_properties)
+        base = f"{'☑️' if selected else '⬜'} {short}"
+        return f"{base} {badge}" if badge else base
+    return toggle_label(option, selected, host_collected_properties)
+
+
+def plan_branch_submit_text(
+    branch_index: int,
+    branch: Sequence[str],
+    options_by_id: dict[str, GateOption],
+    group_label: str | None = None,
+) -> str:
+    """Numbered compact submit text for one plan branch."""
+    number = branch_index + 1
+    if len(branch) > 1:
+        # Tale AND submit.
+        return f"{number} ✅ Tale"
+    option_id = branch[0]
+    if option_id == "approve" and group_label is None:
+        # Epic approve (no commit option in gate).
+        return f"{number} ✅ Epic"
+    if option_id == "reject":
+        return f"{number} ❌ Reject"
+    if option_id == "feedback":
+        return f"{number} 💬 Feedback"
+    option = options_by_id.get(option_id)
+    label = option.label if option is not None else option_id
+    icon = option.icon if option is not None and option.icon else ""
+    text = f"{icon} {label}".strip() if icon else label
+    return f"{number} {text}"
+
+
 def _group_label(group: GateGroup) -> str:
     """The group's icon and label, safe to render as Rich markup."""
     value = f"{group.icon} {group.label}" if group.icon else str(group.label)
@@ -174,5 +223,7 @@ __all__ = [
     "compose_group",
     "compose_singleton_row",
     "parse_option_control_id",
+    "plan_branch_submit_text",
+    "plan_toggle_label",
     "toggle_label",
 ]

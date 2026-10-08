@@ -135,10 +135,25 @@ class PlanApprovalControlsMixin:
             else self._read_plan_file()  # type: ignore[attr-defined]
         )
         tier = "epic" if self._default_choice == "epic" else "tale"
+        if getattr(self, "_last_fold_content", None) != content:
+            try:
+                self._callout_spans = cache_callout_spans(content, tier)
+            except Exception:
+                self._callout_spans = []
+            try:
+                self._ensure_fold_cache(content)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        # First display: tint the folded document from the cached spans.
         try:
-            self._callout_spans = cache_callout_spans(content, tier)
+            from textual.widgets import Static as _Static
+
+            folded = getattr(self, "_folded_text", None) or content
+            self.query_one("#plan-approval-content", _Static).update(  # type: ignore[attr-defined]
+                self._document_renderable(folded)  # type: ignore[attr-defined]
+            )
         except Exception:
-            self._callout_spans = []
+            pass
         if self._settled_text is not None:
             try:
                 branch = self.query_one(GateBranchControls)  # type: ignore[attr-defined]
@@ -400,6 +415,21 @@ class PlanApprovalControlsMixin:
         message = str(getattr(outcome, "message", "") or "")
         frozen_head, _, _ = DECISIONS_FROZEN_MESSAGE.partition(". ")
         if frozen_head in message:
+            # Freeze still leaves an unaccepted draft: apply the base draft
+            # banner + submission block, keeping the freeze sentence on top.
+            try:
+                content = getattr(outcome, "content", None)
+                if content is not None:
+                    self.render_reviewed_content(content)  # type: ignore[attr-defined]
+                controls = self._mounted_action_controls()  # type: ignore[attr-defined]
+                if controls is not None:
+                    controls.set_draft(
+                        operation_id if getattr(outcome, "draft", False) else None,
+                        getattr(outcome, "draft_path", None),
+                    )
+                self._sync_submission_block()  # type: ignore[attr-defined]
+            except Exception:
+                pass
             try:
                 self.notify(  # type: ignore[attr-defined]
                     message, title="Draft not accepted", severity="error", timeout=15

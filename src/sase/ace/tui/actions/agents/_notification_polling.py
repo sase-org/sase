@@ -246,6 +246,23 @@ class AgentNotificationPollingMixin:
             new_notifications,
         )
         delivered_activity_cursors.update(new_activity_cursors)
+        # Settled-elsewhere check off the UI thread; banner apply stays on it.
+        try:
+            from ._notification_plan_gate import (
+                prepare_settled_texts_for_notifications as _prepare_settled,
+            )
+
+            settled_map = await asyncio.to_thread(_prepare_settled, list(notifications))
+        except Exception:
+            settled_map = {}
+        try:
+            from ._notification_plan_gate import (
+                apply_settled_text_to_open_modal as _apply_settled,
+            )
+
+            _apply_settled(self, settled_map)
+        except Exception:
+            pass
         # The guarded read (above) already cached this snapshot as soon as
         # the disk parse landed; no need to set it again here.
         apply_disappeared_plan_notification_refresh(

@@ -25,6 +25,8 @@ from .gate_branch_layout import (
     compose_group,
     compose_singleton_row,
     parse_option_control_id,
+    plan_branch_submit_text,
+    plan_toggle_label,
     toggle_label,
 )
 from .gate_input_panel import GateInputPanel, GateInputPanelResult
@@ -64,10 +66,12 @@ class GateBranchControls(VerticalScroll):
         gate_keymaps: GateModalKeymaps | None = None,
         id: str | None = None,
         classes: str | None = None,
+        plan_compact: bool = False,
     ) -> None:
         super().__init__(id=id, classes=classes)
         self.data = data
         self._host_collected_properties = host_collected_properties
+        self._plan_compact = plan_compact
         self._gate_keymaps = gate_keymaps or GateModalKeymaps()
         self._options_by_id = {option.id: option for option in data.options}
         self._groups_by_members = {
@@ -92,6 +96,9 @@ class GateBranchControls(VerticalScroll):
         self._panel_open = False
 
     def compose(self) -> ComposeResult:
+        if self._plan_compact:
+            yield from self._compose_plan_compact()
+            return
         branch_index = 0
         while branch_index < len(self.data.branches):
             if len(self.data.branches[branch_index]) == 1:
@@ -121,6 +128,65 @@ class GateBranchControls(VerticalScroll):
                 host_collected_properties=self._host_collected_properties,
             )
             branch_index += 1
+
+    def _is_plan_tale(self) -> bool:
+        return any(len(branch) > 1 for branch in self.data.branches)
+
+    def _compose_plan_compact(self) -> ComposeResult:
+        """Three-line compact Verdict for plan reviews only (tale + epic)."""
+        from textual.containers import Horizontal
+
+        tale = self._is_plan_tale()
+        if tale:
+            # Line 1: AND toggles with short labels + full-label tooltips.
+            with Horizontal(classes="plan-verdict-toggles", id="plan-verdict-line1"):
+                for option_index, option in enumerate(self._branch_options(0)):
+                    selected = option.id in self._selected_by_branch.get(0, set())
+                    yield GateControlButton(
+                        plan_toggle_label(
+                            option, selected, self._host_collected_properties
+                        ),
+                        branch_index=0,
+                        id=f"gate-option-0-{option_index}",
+                        classes="gate-option-toggle",
+                        tooltip=option.label,
+                    )
+        # Line 2: one row of branch submits, numbered.
+        with Horizontal(classes="plan-verdict-branches", id="plan-verdict-line2"):
+            for branch_index, branch in enumerate(self.data.branches):
+                primary = branch_index == self._primary_branch_index
+                if len(branch) > 1:
+                    label = plan_branch_submit_text(
+                        branch_index, branch, self._options_by_id
+                    )
+                    selected_ids = self._selected_by_branch.get(branch_index, set())
+                    yield GateControlButton(
+                        label,
+                        branch_index=branch_index,
+                        id=f"gate-group-submit-{branch_index}",
+                        classes=(
+                            "gate-group-submit gate-primary"
+                            if primary
+                            else "gate-group-submit"
+                        ),
+                        variant="success" if primary else "default",
+                        disabled=not selected_ids,
+                    )
+                else:
+                    label = plan_branch_submit_text(
+                        branch_index, branch, self._options_by_id
+                    )
+                    yield GateControlButton(
+                        label,
+                        branch_index=branch_index,
+                        id=f"gate-singleton-{branch_index}",
+                        classes=(
+                            "gate-singleton gate-primary"
+                            if primary
+                            else "gate-singleton"
+                        ),
+                        variant="success" if primary else "default",
+                    )
 
     def _branch_options(self, branch_index: int) -> list[GateOption]:
         return [
@@ -167,6 +233,9 @@ class GateBranchControls(VerticalScroll):
 
     def expand_group(self, branch_index: int) -> None:
         """Expand one AND group and collapse every other group."""
+        if self._plan_compact:
+            self._set_active_branch(branch_index)
+            return
         if len(self.data.branches[branch_index]) <= 1:
             return
         for index, branch in enumerate(self.data.branches):
@@ -195,11 +264,17 @@ class GateBranchControls(VerticalScroll):
         else:
             selected.add(option_id)
         option = self._options_by_id[option_id]
+        if self._plan_compact:
+            label = plan_toggle_label(
+                option, option_id in selected, self._host_collected_properties
+            )
+        else:
+            label = toggle_label(
+                option, option_id in selected, self._host_collected_properties
+            )
         self.query_one(
             f"#gate-option-{branch_index}-{option_index}", Button
-        ).label = toggle_label(
-            option, option_id in selected, self._host_collected_properties
-        )
+        ).label = label
         self._set_active_branch(branch_index)
         self._update_submit_state(branch_index)
 
@@ -266,17 +341,40 @@ class GateBranchControls(VerticalScroll):
             if self.is_mounted:
                 for option_index, option_id in enumerate(branch):
                     option = self._options_by_id[option_id]
+                    if self._plan_compact:
+                        label = plan_toggle_label(
+                            option,
+                            option_id in selected,
+                            self._host_collected_properties,
+                        )
+                    else:
+                        label = toggle_label(
+                            option,
+                            option_id in selected,
+                            self._host_collected_properties,
+                        )
                     self.query_one(
                         f"#gate-option-{branch_index}-{option_index}", Button
-                    ).label = toggle_label(
-                        option, option_id in selected, self._host_collected_properties
-                    )
+                    ).label = label
                 self._update_submit_state(branch_index)
             return
 
     def visible_control_ids(self) -> list[str]:
         """Return this section's focusable control ids, in render order."""
-        ids: list[str] = []
+        if self._plan_compact:
+            ids: list[str] = []
+            if self._is_plan_tale():
+                ids.extend(
+                    f"gate-option-0-{option_index}"
+                    for option_index in range(len(self.data.branches[0]))
+                )
+            for branch_index, branch in enumerate(self.data.branches):
+                if len(branch) > 1:
+                    ids.append(f"gate-group-submit-{branch_index}")
+                else:
+                    ids.append(f"gate-singleton-{branch_index}")
+            return ids
+        ids = []
         for branch_index, branch in enumerate(self.data.branches):
             if len(branch) == 1:
                 ids.append(f"gate-singleton-{branch_index}")

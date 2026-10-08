@@ -135,6 +135,11 @@ def _settled_text_for_bundle(
             }[raw_source]
     except Exception:
         pass
+    selected = tuple(payload.get("selected_option_ids") or ())
+    if "reject" in selected:
+        return f"Rejected via {surface}"
+    if "feedback" in selected:
+        return f"Feedback via {surface}"
     summary = ""
     try:
         from sase.ace.tui.modals.plan_decision_sheet import (
@@ -154,7 +159,6 @@ def _settled_text_for_bundle(
                         if decision_id not in values:
                             values[decision_id] = value
         draft = PlanDecisionDraft(definitions, values=values or None)
-        selected = tuple(payload.get("selected_option_ids") or ())
         epic = default_choice == "epic"
         commit = "commit" in selected
         run = "approve" in selected
@@ -224,6 +228,7 @@ def submit_neutral_plan_response(
                 success=False,
                 message=str(exc),
                 error=str(exc),
+                payload={"code": getattr(exc, "code", None)},
             )
         return TrackedProcResult(
             success=True,
@@ -233,6 +238,20 @@ def submit_neutral_plan_response(
 
     def on_complete(completion: object) -> None:
         if not getattr(completion, "success", False):
+            payload = getattr(completion, "payload", None)
+            code = payload.get("code") if isinstance(payload, dict) else None
+            if code is None:
+                try:
+                    from sase.notification_gates.models import GateError as _GateError
+
+                    err = getattr(completion, "error", "")
+                    if isinstance(err, _GateError):
+                        code = err.code
+                except Exception:
+                    code = None
+            if code == "stale_review":
+                if _handle_stale_review(app, notification, result):
+                    return
             app.notify(  # type: ignore[attr-defined]
                 getattr(completion, "message", "Plan command failed"),
                 severity="error",
@@ -301,6 +320,11 @@ def _submit_durable_neutral_plan_response(
                 )
                 _refresh_notifications(app)
 
+            if isinstance(payload, dict) and payload.get("code") == "stale_review":
+                if _handle_stale_review(app, notification, result):
+                    return
+                report_failure()
+                return
             if isinstance(payload, dict) and payload.get("code") == "partial_attempt":
                 from ._notification_gate_execution import (
                     GateSubmission,
@@ -454,3 +478,198 @@ def _refresh_notifications(app: object) -> None:
     refresh = getattr(app, "_refresh_notification_count", None)
     if callable(refresh):
         refresh()
+
+
+def prepare_settled_texts_for_notifications(
+    notifications: list[Any],
+) -> dict[str, str]:
+    """Off-thread settled check: request id -> truthful banner, no UI work."""
+    settled: dict[str, str] = {}
+    try:
+        from sase.notification_gates.paths import resolve_notification_bundle
+    except Exception:
+        return settled
+    for notification in notifications or []:
+        try:
+            action = getattr(notification, "action", "")
+            if action not in ("PlanApproval", "EpicApproval"):
+                continue
+            bundle = resolve_notification_bundle(notification)
+            if bundle is None or getattr(bundle, "legacy", False):
+                continue
+            from sase.notification_gates.hashing import load_and_verify_bundle
+
+            try:
+                envelope, _adapter = load_and_verify_bundle(bundle.root)
+            except Exception:
+                continue
+            payload = envelope.get("payload") if isinstance(envelope, dict) else None
+            definitions = (
+                list(payload.get("decisions", []))
+                if isinstance(payload, dict)
+                and isinstance(payload.get("decisions"), list)
+                else []
+            )
+            kind = envelope.get("kind")
+            default_choice: PlanApprovalModalChoice = (
+                "epic" if kind == "epic_plan" else "tale"
+            )
+            text = _settled_text_for_bundle(bundle, definitions, default_choice)
+            if text is None:
+                continue
+            request_id = str(
+                getattr(notification, "action_data", {}).get("request_id")
+                or getattr(notification, "id", "")
+            )
+            if request_id:
+                settled[request_id] = text
+        except Exception:
+            continue
+    return settled
+
+
+def apply_settled_text_to_open_modal(app: object, settled: dict[str, str]) -> None:
+    """UI-thread banner + block for an open plan modal that just settled."""
+    if not settled:
+        return
+    try:
+        screen = getattr(app, "screen", None)
+    except Exception:
+        return
+    # The open plan modal is the current screen when reviewing.
+    try:
+        from ...modals.plan_approval_modal import PlanApprovalModal
+
+        modal = screen if isinstance(screen, PlanApprovalModal) else None
+        if modal is None:
+            # Also check a pushed modal on the stack when available.
+            stack = getattr(app, "screen_stack", None) or []
+            for entry in reversed(list(stack)):
+                candidate = getattr(entry, "screen", entry)
+                if isinstance(candidate, PlanApprovalModal):
+                    modal = candidate
+                    break
+    except Exception:
+        return
+    if modal is None:
+        return
+    try:
+        request_id = str(getattr(modal, "_request_id", "") or "")
+    except Exception:
+        return
+    text = settled.get(request_id)
+    if not text:
+        return
+    if getattr(modal, "_settled_text", None) == text:
+        return
+    modal._settled_text = text  # type: ignore[attr-defined]
+    try:
+        from textual.widgets import Static as _Static
+
+        try:
+            banner = modal.query_one("#plan-settled-banner", _Static)
+            banner.update(text)
+            try:
+                banner.remove_class("hidden")
+            except Exception:
+                pass
+        except Exception:
+            try:
+                modal.mount(_Static(text, id="plan-settled-banner"))
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        from ...modals.gate_branch_controls import GateBranchControls
+
+        branch = modal.query_one(GateBranchControls)
+        branch.block_submission("Settled elsewhere; submit is disabled")
+    except Exception:
+        pass
+
+
+def _handle_stale_review(
+    app: object,
+    notification: Any,
+    result: Any,
+) -> bool:
+    """Reload a stale review, keeping values by id; True when handled."""
+    try:
+        reloaded = load_neutral_plan_modal_data(notification)
+    except Exception:
+        return False
+    try:
+        kept = dict(getattr(result, "option_inputs", None) or {})
+        # Flatten decision_* values by decision id from the stale submit.
+        kept_values: dict[str, Any] = {}
+        for inputs in kept.values():
+            if not isinstance(inputs, dict):
+                continue
+            for key, value in inputs.items():
+                if str(key).startswith("decision_"):
+                    decision_id = str(key).removeprefix("decision_")
+                    if decision_id not in kept_values:
+                        kept_values[decision_id] = value
+        # Also keep draft values when the modal is still open for this request.
+        try:
+            from ...modals.plan_approval_modal import PlanApprovalModal
+
+            screen = getattr(app, "screen", None)
+            modal = screen if isinstance(screen, PlanApprovalModal) else None
+            if modal is not None and str(getattr(modal, "_request_id", "")) == str(
+                getattr(notification, "action_data", {}).get("request_id")
+                or getattr(notification, "id", "")
+            ):
+                modal._review_revision = reloaded.review_revision  # type: ignore[attr-defined]
+                modal._decision_definitions = list(reloaded.decision_definitions)  # type: ignore[attr-defined]
+                try:
+                    from ...modals.plan_decision_sheet import PlanDecisionDraft
+
+                    new_ids = {
+                        str(d.get("id", ""))
+                        for d in reloaded.decision_definitions
+                        if isinstance(d, dict)
+                    }
+                    current = dict(modal._decision_draft.values())  # type: ignore[attr-defined]
+                    merged = {
+                        key: value
+                        for key, value in {**current, **kept_values}.items()
+                        if key in new_ids
+                    }
+                    modal._decision_draft = PlanDecisionDraft(  # type: ignore[attr-defined]
+                        list(reloaded.decision_definitions),
+                        values=merged or None,
+                        review_revision=int(reloaded.review_revision or 0),
+                    )
+                    modal._refresh_verdict_summary()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Persist kept values for the next open when the modal is gone.
+        try:
+            from ...modals._plan_approval_modal_state import esc_drafts
+
+            request_id = str(
+                getattr(notification, "action_data", {}).get("request_id")
+                or getattr(notification, "id", "")
+            )
+            if request_id and kept_values:
+                esc_drafts[request_id] = kept_values
+        except Exception:
+            pass
+        try:
+            app.notify(  # type: ignore[attr-defined]
+                "The plan changed; your review was reloaded with your values kept.",
+                severity="warning",
+            )
+        except Exception:
+            pass
+        try:
+            _refresh_notifications(app)
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False

@@ -42,40 +42,26 @@ from ._agent_context_common import (
 )
 
 
-_PLAN_SHEET_CACHE: dict[str, tuple[int, dict | None, str | None, str | None]] = {}
+_PLAN_SHEET_CACHE: dict[str, tuple[dict | None, str | None, str | None]] = {}
 
 
 def _load_plan_sheet(
     summary: AssociatedPlanSummary,
 ) -> tuple[dict | None, str | None, str | None]:
+    """Lookup-only sheet read for the render path: never stats or loads."""
     path = str(getattr(summary, "actual_path", "") or "")
     if not path:
         return None, None, None
     try:
-        import os as _os
-
-        mtime = _os.stat(path).st_mtime_ns
-    except OSError:
-        return None, None, None
-    cached = _PLAN_SHEET_CACHE.get(path)
-    if cached is not None and cached[0] == mtime:
-        return cached[1], cached[2], cached[3]
-    try:
-        from sase.sdd.plan_decision_handoff import load_stamped_decisions
-
-        stamped = load_stamped_decisions(path)
+        from ...models._agent_associated_plan_summary import (
+            associated_plan_sheet_for,
+        )
     except Exception:
-        stamped = None
-    if stamped is None:
-        _PLAN_SHEET_CACHE[path] = (mtime, None, None, None)
         return None, None, None
-    _PLAN_SHEET_CACHE[path] = (
-        mtime,
-        stamped.sheet,
-        stamped.decided_by,
-        stamped.decided_via,
-    )
-    return stamped.sheet, stamped.decided_by, stamped.decided_via
+    try:
+        return associated_plan_sheet_for(path)
+    except Exception:
+        return None, None, None
 
 
 @dataclass(slots=True)

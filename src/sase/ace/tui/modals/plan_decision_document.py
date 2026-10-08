@@ -150,14 +150,19 @@ def scroll_target_for_decision(
 def classify_callout(span: dict[str, Any], values: dict[str, Any]) -> str:
     """Classify one callout span as ``chosen`` or ``dimmed``.
 
-    A toggle callout answered no is dimmed. Never hides a branch.
+    A no-branch span is chosen only when the toggle is false; a bare or
+    yes span is chosen only when it is true. Choice spans match on key.
+    Never hides a branch.
     """
     decision_id = str(span.get("id", ""))
     branch = span.get("branch")
     key = span.get("key")
     value = values.get(decision_id)
     if isinstance(value, bool):
-        # Toggle: a callout answered no dims; answered yes is chosen.
+        # Toggle: branch "no" is chosen when false, otherwise chosen when true.
+        # Bare callouts validate as branch "yes".
+        if str(branch or "") == "no":
+            return "chosen" if value is False else "dimmed"
         return "chosen" if value is True else "dimmed"
     if key is not None and value is not None:
         return "chosen" if str(key) == str(value) else "dimmed"

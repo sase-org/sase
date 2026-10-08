@@ -89,8 +89,82 @@ def markdown_document_syntax(content: str, *, word_wrap: bool = True) -> Syntax:
     )
 
 
+def tinted_document_text(
+    folded: str,
+    spans: list[dict[str, object]],
+    values: dict[str, object],
+    fold_map: dict[int, int] | None = None,
+) -> object:
+    """Tint folded callout lines from cached spans without hiding any line.
+
+    Warms the cached frontmatter token stream for *folded* and returns a
+    ``rich.text.Text`` where the chosen branch header is green+bold and
+    unchosen branches are dimmed. Every line stays visible. Callers must
+    only pass the cached spans + draft values; this never validates,
+    parses YAML, or stats.
+    """
+    from rich.text import Text as _Text
+
+    try:
+        _cached_frontmatter_tokens(folded)
+    except Exception:
+        pass
+    try:
+        from sase.ace.tui.modals.plan_decision_document import (
+            classify_callout as _classify,
+        )
+    except Exception:
+        _classify = None  # type: ignore[assignment]
+
+    lines = folded.splitlines()
+    # Folded index -> style. Raw spans are 1-based; fold_map is 0-based raw->folded.
+    line_styles: dict[int, str] = {}
+    for span in spans or []:
+        if not isinstance(span, dict):
+            continue
+        try:
+            raw_start = int(str(span.get("start_line", 0))) - 1
+            raw_end = int(str(span.get("end_line", raw_start + 1))) - 1
+        except Exception:
+            continue
+        if _classify is not None:
+            try:
+                kind = _classify(span, values)  # type: ignore[arg-type]
+            except Exception:
+                kind = "dimmed"
+        else:
+            kind = "dimmed"
+        # Header line of a chosen span is green bold; everything else dims.
+        for raw in range(max(0, raw_start), max(0, raw_end) + 1):
+            folded_index = raw
+            if fold_map is not None:
+                folded_index = fold_map.get(raw, raw)
+            if not 0 <= folded_index < len(lines):
+                continue
+            if kind == "chosen":
+                # Only the header gets the green bold; continuation stays plain
+                # so multi-line callouts do not flood the pane.
+                if raw == max(0, raw_start):
+                    line_styles[folded_index] = "bold green"
+                elif folded_index not in line_styles:
+                    line_styles[folded_index] = ""
+            else:
+                line_styles.setdefault(folded_index, "dim")
+    text = _Text()
+    for index, line in enumerate(lines):
+        style = line_styles.get(index, "")
+        # Preserve trailing newline structure of the original folded text.
+        if index:
+            text.append("\n")
+        text.append(line, style=style or None)
+    if folded.endswith("\n"):
+        text.append("\n")
+    return text
+
+
 __all__ = [
     "FRONTMATTER_MARKDOWN_LEXER",
     "FrontmatterMarkdownLexer",
     "markdown_document_syntax",
+    "tinted_document_text",
 ]

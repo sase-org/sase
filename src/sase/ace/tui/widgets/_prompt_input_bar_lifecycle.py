@@ -70,6 +70,10 @@ class PromptInputBarLifecycleMixin(_MixinBase):
                 classes="hidden",
             )
             yield Static("", id="prompt-dispatch-context", classes="hidden")
+        if self._mode == "feedback":
+            yield Static(
+                "", id="prompt-feedback-carries", classes="prompt-feedback-carries"
+            )
         yield Static("", id="prompt-g-prefix-hints", classes="hidden")
         yield Static("", id="prompt-search-command", classes="hidden")
         with Vertical(id="prompt-stack"):
@@ -146,6 +150,11 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         self.set_prompt_mode_subtitle(self.insert_mode_subtitle())
         if self._mode in ("feedback", "approve_prompt"):
             self.add_class("feedback-mode")
+        if self._mode == "feedback":
+            try:
+                self._refresh_feedback_carries()
+            except Exception:
+                pass
         self._schedule_macro_stale_check(force=True)
         # First-keystroke essentials stay synchronous: macro assist entries
         # and the VCS project completion catalog were measured, and moving
@@ -159,6 +168,39 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         self._schedule_height_update()
         self.refresh_cursor_readouts()
         self._schedule_deferred_mount_warmups()
+
+    def _refresh_feedback_carries(self) -> None:
+        """Render read-only Carries lines above the feedback editor."""
+        try:
+            carries = getattr(
+                getattr(self, "app", None), "_plan_feedback_context", None
+            )
+            lines = tuple(getattr(carries, "carries", ()) or ())
+        except Exception:
+            lines = ()
+        try:
+            widget = self.query_one("#prompt-feedback-carries", Static)
+        except Exception:
+            return
+        if not lines:
+            widget.update("")
+            try:
+                widget.add_class("hidden")
+            except Exception:
+                pass
+            return
+        try:
+            widget.remove_class("hidden")
+        except Exception:
+            pass
+        from rich.text import Text as _Text
+
+        text = _Text()
+        for index, line in enumerate(lines):
+            if index:
+                text.append("\n")
+            text.append(str(line), style="dim")
+        widget.update(text)
 
     def _schedule_deferred_mount_warmups(self) -> None:
         """Defer non-essential catalog warm-ups one paint past first paint.

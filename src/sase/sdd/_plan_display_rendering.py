@@ -279,9 +279,6 @@ def render_plan_document(
     hint_number: int | None = None,
     bead_page_url: str | None = None,
     include_counts: bool = False,
-    sheet: dict[str, Any] | None = None,
-    decided_by: str | None = None,
-    decided_via: str | None = None,
 ) -> _RenderedPlanDocument:
     """Render complete Rich lines at ``width`` without filesystem access.
 
@@ -325,9 +322,6 @@ def render_plan_document(
             page_rendered = True
     if bead_page_url is not None and not page_rendered:
         intro.append(_bead_page_line(bead_page_url))
-
-    if sheet is not None:
-        intro.append(_plan_decisions_logical_text(sheet, decided_by, decided_via))
 
     phase_blocks: list[tuple[Text, ...]] = []
     if summary.phase_availability == "available":

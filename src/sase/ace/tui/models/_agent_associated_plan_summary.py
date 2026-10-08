@@ -20,6 +20,38 @@ from .agent import Agent
 PlanMetadataLoader = Callable[[Path], PlanFileMetadata]
 PlanReferenceResolver = Callable[[Agent, str, str], Path]
 
+# Accepted-sheet cache populated off the render path (enrichment worker).
+# The PLAN lane reads through lookup only; a miss returns no sheet and never
+# stats, validates, or loads.
+_ASSOCIATED_PLAN_SHEET_CACHE: dict[str, tuple[dict | None, str | None, str | None]] = {}
+
+
+def associated_plan_sheet_for(path: str) -> tuple[dict | None, str | None, str | None]:
+    """Return the cached accepted sheet for *path*, or a miss."""
+    cached = _ASSOCIATED_PLAN_SHEET_CACHE.get(path)
+    if cached is None:
+        return None, None, None
+    return cached[0], cached[1], cached[2]
+
+
+def _cache_associated_plan_sheet(plan_path: Path) -> None:
+    try:
+        from sase.sdd.plan_decision_handoff import load_stamped_decisions
+    except Exception:
+        return
+    try:
+        stamped = load_stamped_decisions(str(plan_path))
+    except Exception:
+        return
+    if stamped is None:
+        _ASSOCIATED_PLAN_SHEET_CACHE.pop(str(plan_path), None)
+        return
+    _ASSOCIATED_PLAN_SHEET_CACHE[str(plan_path)] = (
+        stamped.sheet,
+        stamped.decided_by,
+        stamped.decided_via,
+    )
+
 
 def build_associated_plan_summary(
     agent: Agent,
@@ -36,6 +68,11 @@ def build_associated_plan_summary(
         metadata,
         known_epic=known_epic,
     )
+    # Off-render-path sheet load: the associated plan is already read here.
+    try:
+        _cache_associated_plan_sheet(plan_path)
+    except Exception:
+        pass
     return AssociatedPlanSummary(
         title=metadata.title,
         goal=metadata.goal,

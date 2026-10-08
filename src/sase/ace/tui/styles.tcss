@@ -1784,6 +1784,19 @@ SudoRequestModal > #sudo-request-container {
     text-align: left;
 }
 
+#plan-verdict {
+    dock: bottom;
+    height: auto;
+}
+
+.plan-verdict-toggles {
+    height: auto;
+}
+
+.plan-verdict-branches {
+    height: auto;
+}
+
 .gate-review-verdict-summary {
     height: auto;
     color: $text-muted;

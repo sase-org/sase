@@ -393,6 +393,10 @@ def _plan_decisions_block(summary: GateSummary) -> RenderableType | None:
         if terminal:
             mark = " ●" if changed else " ★"
             grid.add_row(Text(f"{decision_id}: {shown}{mark}"))
+        elif str(definition.get("kind", "")) == "toggle":
+            glyph = "☑️" if value is True else "⬜"
+            mark = " ●" if changed else " ★"
+            grid.add_row(Text(f"{glyph} {decision_id}  {shown}{mark}"))
         else:
             mark = " ●" if changed else " ★"
             grid.add_row(Text(f"◉ {decision_id}  {shown}{mark}"))

@@ -37,10 +37,12 @@ def _memory_type_chips(memory: dict[str, Any]) -> list[str]:
             kind = "web"
         if kind and kind not in chips:
             chips.append(kind)
+        if record.get("exists") is False and "new" not in chips:
+            chips.append("new")
     return chips
 
 
-def is_unverified_row(
+def _is_unverified_row(
     row: dict[str, Any], definition: dict[str, Any] | None = None
 ) -> bool:
     memory = row.get("memory")
@@ -56,7 +58,7 @@ def is_unverified_row(
     return False
 
 
-def collapsed_row_text(
+def _collapsed_row_text(
     row: dict[str, Any], *, definition: dict[str, Any] | None = None
 ) -> Text:
     text = Text()
@@ -93,7 +95,15 @@ def collapsed_row_text(
         if provenance:
             second += f" · {provenance}"
         text.append(second, style="dim")
-        if ask.strip() and not is_unverified_row(row, definition):
+        if _is_unverified_row(row, definition):
+            quote = memory.get("quote")
+            quote_text = str(quote).strip() if isinstance(quote, str) else ""
+            text.append("\n")
+            text.append(
+                f'⚠ "{quote_text}" — not in your messages · off until you turn it on',
+                style="yellow",
+            )
+        elif ask.strip():
             truncated = ask.strip()
             if len(truncated) > 60:
                 truncated = truncated[:57] + "..."
@@ -106,7 +116,7 @@ def collapsed_row_text(
     return text
 
 
-def expanded_row_text(
+def _expanded_row_text(
     row: dict[str, Any], *, definition: dict[str, Any] | None = None
 ) -> Text:
     text = Text()
@@ -129,7 +139,17 @@ def expanded_row_text(
                 pass
         text.append("\n")
     else:
-        text.append(f"{DECISION_SELECTED_MARK} {decision_id}", style="bold")
+        shown = str(value)
+        mark = f" {DECISION_MODIFIED_MARK}" if changed else ""
+        text.append(
+            f"{DECISION_SELECTED_MARK} {decision_id}  {shown}{mark}", style="bold"
+        )
+        if changed:
+            try:
+                start = len(f"{DECISION_SELECTED_MARK} {decision_id}  {shown}")
+                text.stylize("#FFD700", start, start + 2)
+            except Exception:
+                pass
         text.append("\n")
     if ask.strip():
         text.append(ask.strip())
@@ -172,7 +192,7 @@ def expanded_row_text(
         chips = _memory_type_chips(memory)
         provenance = provenance_chip(str(memory.get("provenance") or ""))
         quote = memory.get("quote")
-        if is_unverified_row(row, definition) and value is not True:
+        if _is_unverified_row(row, definition):
             quote_text = str(quote).strip() if isinstance(quote, str) else ""
             text.append(
                 f'  ⚠ "{quote_text}" — not in your messages · off until you turn it on',
@@ -258,8 +278,8 @@ class PlanDecisionRows(VerticalScroll):
     def _row_label(self, index: int, row: dict[str, Any]) -> Text:
         definition = self._by_id.get(str(row.get("id", "")))
         if index == self._focused_index:
-            return expanded_row_text(row, definition=definition)
-        return collapsed_row_text(row, definition=definition)
+            return _expanded_row_text(row, definition=definition)
+        return _collapsed_row_text(row, definition=definition)
 
     def refresh_rows(self) -> None:
         for index, row in enumerate(self._rows):
@@ -295,7 +315,7 @@ class PlanDecisionRows(VerticalScroll):
 
 __all__ = [
     "PlanDecisionRows",
-    "collapsed_row_text",
-    "expanded_row_text",
-    "is_unverified_row",
+    "_collapsed_row_text",
+    "_expanded_row_text",
+    "_is_unverified_row",
 ]
