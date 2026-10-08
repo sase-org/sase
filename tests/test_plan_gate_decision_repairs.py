@@ -155,21 +155,21 @@ def test_caller_for_decide_fails_closed(monkeypatch) -> None:
 
 
 def test_review_revision_validation() -> None:
-    from sase.notification_gates.cli_answer import _request_review_revision
+    from sase.notification_gates.cli_answer_inputs import request_review_revision
     from sase.notification_gates.cli_support import GateCliError
 
-    assert _request_review_revision({}) is None
-    assert _request_review_revision({"review_revision": 3}) == 3
-    assert _request_review_revision({"review_revision": "4"}) == 4
+    assert request_review_revision({}) is None
+    assert request_review_revision({"review_revision": 3}) == 3
+    assert request_review_revision({"review_revision": "4"}) == 4
     for bad in (True, False, 1.5, "abc", "", {"n": 1}, [1]):
         with pytest.raises(GateCliError):
-            _request_review_revision({"review_revision": bad})
+            request_review_revision({"review_revision": bad})
 
 
 def test_detached_payload_carries_revision_and_source(tmp_path) -> None:
     from types import SimpleNamespace
     from pathlib import Path
-    from sase.notification_gates import cli_answer as mod
+    from sase.notification_gates import cli_answer_submit as mod
 
     captured: dict = {}
 
@@ -188,7 +188,7 @@ def test_detached_payload_carries_revision_and_source(tmp_path) -> None:
         fake_bundle = SimpleNamespace(
             request_id="r", kind="plan", response_path=Path("/tmp/x")
         )
-        mod._submit_detached_answer(
+        mod.submit_detached_answer(
             fake_bundle,
             (opt,),
             input_data=None,

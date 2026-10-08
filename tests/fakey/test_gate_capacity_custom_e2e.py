@@ -22,7 +22,7 @@ from sase.gate_turn.member import create_gate_turn_member
 from sase.gate_turn.store import read_gate_turn_marker
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
-import sase.notification_gates.cli_answer as gate_cli_answer_module
+import sase.notification_gates.cli_answer_handle as gate_cli_answer_module
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.model_turn import GateTurnSpec
 from sase.notification_gates.models import GateSpec
@@ -313,7 +313,9 @@ def test_detached_gate_route_reacquires_runner_slot_capacity_through_the_real_cl
         submitted["argv"] = request.argv  # type: ignore[attr-defined]
         return type("Proc", (), {"proc_id": "proc-1"})()
 
-    monkeypatch.setattr(gate_cli_answer_module, "submit_proc_request", fake_submit)
+    monkeypatch.setattr(
+        "sase.notification_gates.cli_answer_submit.submit_proc_request", fake_submit
+    )
 
     code, payload = dispatch_gate_answer(
         ["answer", "-i", "detached-1", "-k", "custom", "-o", "run", "--detach"]

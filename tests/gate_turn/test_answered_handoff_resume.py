@@ -10,7 +10,7 @@ import pytest
 
 from sase.gate_turn.settlement import settle_gate_turn
 from sase.gate_turn.store import read_gate_turn_marker
-from sase.notification_gates.cli_answer import _resume_answered_shell
+from sase.notification_gates.cli_answer_resume import resume_answered_shell
 from sase.notification_gates.cli_support import GateCliError
 from sase.notification_gates.decision import read_current_receipt, receipt_acceptance_id
 from sase.notification_gates.executor import execute_gate_selection
@@ -52,13 +52,13 @@ def test_answered_resume_rejects_conflicting_options(
     settle_gate_turn(record, gate_state="answered", reason="gate answered")
     record = read_gate_turn_marker("proj", artifacts_dir)
     monkeypatch.setattr(
-        "sase.notification_gates.cli_answer.find_gate_turn_by_gate_id",
+        "sase.notification_gates.cli_answer_resume.find_gate_turn_by_gate_id",
         lambda *a, **k: record,
     )
 
     bundle = _bundle(request_id)
     with pytest.raises(GateCliError, match="stored options"):
-        _resume_answered_shell(
+        resume_answered_shell(
             bundle,
             selected_ids=["reject"],
             input_data=None,
@@ -96,11 +96,11 @@ def test_answered_resume_after_success_reports_the_successor(
     settle_gate_turn(record, gate_state="answered", reason="gate answered")
     record = read_gate_turn_marker("proj", artifacts_dir)
     monkeypatch.setattr(
-        "sase.notification_gates.cli_answer.find_gate_turn_by_gate_id",
+        "sase.notification_gates.cli_answer_resume.find_gate_turn_by_gate_id",
         lambda *a, **k: record,
     )
 
-    payload = _resume_answered_shell(
+    payload = resume_answered_shell(
         _bundle(request_id),
         selected_ids=["cleanup"],
         input_data=None,
@@ -120,7 +120,7 @@ def test_answered_resume_reruns_side_effects_then_tracks_the_follow_up_stage(
 ) -> None:
     """A recorded side-effects failure is retried before the shell settles.
 
-    Regression coverage for bead sase-zr.7.1.1.2: ``_resume_answered_shell``
+    Regression coverage for bead sase-zr.7.1.1.2: ``resume_answered_shell``
     must call back into ``execute_gate_selection(..., retry="resume")``
     before settling when a current ``side_effects`` failure is on record, and
     must bracket its own ``settle_gate_turn`` call with ``follow_up`` stage
@@ -134,7 +134,7 @@ def test_answered_resume_reruns_side_effects_then_tracks_the_follow_up_stage(
     execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
 
     # Simulate a side-effects failure recorded against the current receipt's
-    # acceptance -- the state ``_resume_answered_shell`` must repair before
+    # acceptance -- the state ``resume_answered_shell`` must repair before
     # settling the shell.
     receipt = read_current_receipt(gate.bundle_path)
     append_journal_event(
@@ -159,11 +159,11 @@ def test_answered_resume_reruns_side_effects_then_tracks_the_follow_up_stage(
     settle_gate_turn(record, gate_state="answered", reason="gate answered")
     record = read_gate_turn_marker("proj", artifacts_dir)
     monkeypatch.setattr(
-        "sase.notification_gates.cli_answer.find_gate_turn_by_gate_id",
+        "sase.notification_gates.cli_answer_resume.find_gate_turn_by_gate_id",
         lambda *a, **k: record,
     )
 
-    payload = _resume_answered_shell(
+    payload = resume_answered_shell(
         _bundle(request_id),
         selected_ids=["cleanup"],
         input_data=None,

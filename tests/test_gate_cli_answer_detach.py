@@ -109,7 +109,9 @@ def _make_gate_turn_member(request_id: str, bundle_path: Path) -> str:
 
 def _mock_submit(monkeypatch: pytest.MonkeyPatch, proc_id: str = "proc-1") -> MagicMock:
     mock = MagicMock(return_value=MagicMock(proc_id=proc_id))
-    monkeypatch.setattr("sase.notification_gates.cli_answer.submit_proc_request", mock)
+    monkeypatch.setattr(
+        "sase.notification_gates.cli_answer_submit.submit_proc_request", mock
+    )
     return mock
 
 
@@ -196,7 +198,7 @@ def test_gate_turn_no_detach_runs_inline_and_settles(
     record = read_gate_turn_marker("proj", artifacts_dir)
     assert record is not None
     monkeypatch.setattr(
-        "sase.notification_gates.cli_answer.find_gate_turn_by_gate_id",
+        "sase.notification_gates.cli_answer_handle.find_gate_turn_by_gate_id",
         lambda _project, _gate_id: record,
     )
 
