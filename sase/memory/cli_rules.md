@@ -31,3 +31,11 @@ When adding or changing CLI subcommands or options:
 - Flags owned by `list` still belong after the explicit `list` token (e.g.
   `sase plan list --json`, not `sase plan --json`). Document the bare default in the
   group's help/description, matching `sase plan`.
+
+## Plugin-Mounted Command Subtrees
+
+Plugin-mounted top-level commands (`sase <name>` from the `sase_commands` entry-point
+group) are exempt from these CLI rules. Sase routes the untouched argv after the command
+word to the plugin's own `main(argv, prog)` and never post-processes the subtree: no
+default-`list` delegation, no sase help formatter, and no short-alias or sorting
+requirements. See the Command plugins section in `docs/plugins.md`.

@@ -49,6 +49,7 @@ from tests._conftest_shared import (
     make_patch,
     project_display_case,
 )
+from tests._plugin_commands_fake import fake_plugin_commands
 from tests._sase_global_state_isolation import (
     restore_sase_environment,
     snapshot_sase_environment,
@@ -158,6 +159,22 @@ def _disable_detach_scope_by_default() -> Iterator[None]:
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setenv("SASE_DETACH_SCOPE_DISABLE", "1")
     monkeypatch.setenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", "1")
+    try:
+        yield
+    finally:
+        monkeypatch.undo()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _disable_plugin_commands_by_default() -> Iterator[None]:
+    """Keep tests hermetic against developer-installed command plugins.
+
+    This name must stay in ``_ENV_KEYS_TO_IGNORE`` for the same reason as the
+    detach guards above. Feature tests for plugin commands unset it
+    explicitly with ``monkeypatch.delenv("SASE_DISABLE_PLUGIN_COMMANDS")``.
+    """
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("SASE_DISABLE_PLUGIN_COMMANDS", "1")
     try:
         yield
     finally:

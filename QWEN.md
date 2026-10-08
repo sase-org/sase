@@ -224,18 +224,21 @@ costs, and the condition that would reopen it.
 20. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
     not build memory retrieval or linking machinery ahead of a corpus that demonstrably
     needs it.
-21. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`) - Verdict
+21. **Plugins May Mount Top-Level Commands** (`plugin-commands`) - Plugins may mount
+    top-level `sase <name>` commands through `sase_commands`; listen's standalone-only
+    stance is superseded.
+22. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`) - Verdict
     receipts are proof for host completion, never execution skip or reuse; reuse waits
     for measured content-equivalent repeat opportunity plus a hermeticity proof.
-22. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
+23. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
     size aliases run a model at xhigh on its first appearance from @xlarge down and one
     rung lower on each reappearance; every alias should span more than one provider.
-23. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+24. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
     in sase-core with no Python fallback and no env-var backend switch.
-24. **Triage Annotates; It Never Changes an Exit Code**
+25. **Triage Annotates; It Never Changes an Exit Code**
     (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
     witness; triage classifies failure evidence without changing command outcomes.
-25. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
+26. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
     `check-full-is-explicit`]_ just check is the agent default and just check-full gates
     landing, because host capacity is the constraint, not test speed.
 

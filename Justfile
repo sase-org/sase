@@ -411,6 +411,11 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1if.3(rich_command_chip)' \
+        --epic-symbol 'sase-1if.3(format_command_chip_with_state)' \
+        --epic-symbol 'sase-1if.3(resolve_command_summary)' \
+        --epic-symbol 'sase-1if.6(reserved_command_names)' \
+        --epic-symbol 'sase-1if.6(validate_command_name)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

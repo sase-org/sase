@@ -52,6 +52,16 @@ def main() -> NoReturn:
         handle_run_special_cases(args_after_run)
         # If we get here, no special case was handled, continue to argparse
 
+    # Plugin-mounted top-level commands (e.g. `sase listen`) dispatch here so
+    # an unknown root word never pays for a full argparse build. Built-in
+    # words fall through untouched.
+    if len(sys.argv) >= 2:
+        from sase.plugin_commands.dispatch import try_handle_plugin_command
+
+        exit_code = try_handle_plugin_command(sys.argv[1:])
+        if exit_code is not None:
+            sys.exit(exit_code)
+
     from .parser import (
         create_parser,
         default_list_delegation_notice,

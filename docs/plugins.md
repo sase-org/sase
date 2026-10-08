@@ -12,7 +12,7 @@ internal workflows, or integrations without changing the core package.
 
 ## Plugin Groups
 
-Sase defines eleven entry point groups:
+Sase defines twelve entry point groups:
 
 | Entry Point Group      | Entry Point Value | Purpose                                             | Example Plugin                  |
 | ---------------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
@@ -27,6 +27,7 @@ Sase defines eleven entry point groups:
 | `sase_macros`          | Package module    | Macro templates and workflows                       | `my_sase_plugin`                |
 | `sase_config`          | Package module    | Default configuration (`default_config.yml`)        | `sase-github`, `my_sase_plugin` |
 | `sase_plugin_manifest` | Package module    | Plugin metadata resource used by diagnostics        | third-party plugin packages     |
+| `sase_commands`        | Command module    | Top-level `sase <name>` commands                    | `sase-listen` (`listen`)        |
 
 Provider-class entry points resolve to a class that is instantiated and registered with
 pluggy. Package-module entry points resolve to a module whose package resources are read
@@ -45,6 +46,70 @@ An `sase_macros` package may provide ordinary templates in `macros/`.
 | `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations          | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_macros: sase_github`, `sase_task_types: github`                                       |
 | `sase-telegram` | Telegram integration via job scripts (`sase_job_tg_outbound`, `sase_job_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                                                 |
 | `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                 | standalone Neovim plugin files (not Python entry points)                                                                                                              |
+
+## Command Plugins
+
+A plugin can mount a top-level `sase <name>` command — for example, `sase-listen` ships
+`sase listen`, which behaves exactly like the standalone `sase-listen` binary. Wherever
+a plugin command appears, it renders as the same command chip: `❯ sase listen`.
+
+A distribution declares one entry point per command in the `sase_commands` group. The
+entry-point **name** is the command name, and the **value** is a module (or
+`module:object`) exposing this contract:
+
+| Member                  | Required | Meaning                                                                                            |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `main(argv, prog)`      | yes      | Runs the command on the untouched argv after the command word. Returns an exit code (`None` is 0). |
+| `build_parser(prog)`    | yes      | The full parser, used only for completion — never for dispatch. It must have no side effects.      |
+| `SUMMARY: str`          | no       | One-line description for help and completion. Falls back to the distribution's `Summary` metadata. |
+| `SASE_COMMAND_API: int` | no       | Contract version. Absent means 1; newer than sase supports is refused with an update hint.         |
+
+```toml
+# pyproject.toml
+[project.entry-points."sase_commands"]
+listen = "sase_listen.sase_command"
+```
+
+```python
+# sase_listen/sase_command.py — cheap to import, and never imports sase
+SASE_COMMAND_API = 1
+SUMMARY = "Turn Markdown into chaptered MP3 audio editions"
+
+
+def build_parser(prog="sase listen"):
+    from sase_listen.cli import app
+
+    return app.build_parser(prog=prog)
+
+
+def main(argv=None, *, prog="sase listen"):
+    from sase_listen import cli
+
+    return cli.main(argv, prog=prog)
+```
+
+The execution model is in-process: sase routes, the plugin parses. Sase sets `sys.argv`
+to `[f"sase {name}", *argv]` and calls `main(argv, prog=f"sase {name}")`, so libraries
+that read `sys.argv` see a standalone-shaped invocation. `SystemExit` raised inside the
+plugin propagates unchanged, and exceptions from the plugin's own `main` are never
+caught by sase — parity with the standalone binary holds by construction. Sase never
+post-processes a plugin subtree: no default-`list` delegation, no sase help formatter. A
+plugin may not patch or extend built-in commands, and plugin subtrees are exempt from
+sase's CLI rules.
+
+Name rules and collisions:
+
+- Names must match `^[a-z][a-z0-9-]{0,31}$`.
+- Built-in command names (including legacy aliases), legacy root words, and `help` are
+  reserved — built-ins always win and a plugin claiming one stays shadowed.
+- If two distributions claim one name, the command is disabled for both and every
+  surface names both owners. Sase never picks a winner by entry-point order.
+
+Path completion: an argparse action may set `action.sase_completion = "path"` or `"dir"`
+to request path completion; otherwise only argparse `choices` produce candidates.
+
+Disable switches: `SASE_DISABLE_PLUGINS` or `SASE_DISABLE_PLUGIN_COMMANDS` turns the
+whole group off. Both are permanent operational switches, not feature flags.
 
 ## Installation
 
@@ -880,6 +945,7 @@ disabled via environment variables:
 | `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable artifact-reference provider entry points only       |
 | `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable file-hook provider entry points only                |
 | `SASE_DISABLE_PLUGIN_TASK_TYPES`    | Disable task-type plugin entry points only                  |
+| `SASE_DISABLE_PLUGIN_COMMANDS`      | Disable plugin-mounted `sase <name>` commands only          |
 
 Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries
 load their provider entry points directly and do not consult these switches. These
