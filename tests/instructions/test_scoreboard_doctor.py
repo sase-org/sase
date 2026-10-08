@@ -38,7 +38,7 @@ def test_doctor_coverage_skips_without_manifests(
 ) -> None:
     """The coverage check SKIPs when the window holds no manifests."""
     from sase.doctor import checks_instructions
-    from sase.instructions import _runs as run_mod
+    from sase.instructions import run_index as run_mod
 
     monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [])
     check = checks_instructions.check_instructions_coverage(_doctor_context(tmp_path))
@@ -50,7 +50,7 @@ def test_doctor_coverage_warns_on_uncovered_and_errors(
 ) -> None:
     """The coverage check WARNs naming uncovered sessions and error runs."""
     from sase.doctor import checks_instructions
-    from sase.instructions import _runs as run_mod
+    from sase.instructions import run_index as run_mod
     from sase.instructions.manifests import RunManifest
 
     artifacts, manifest, _ = write_shadow_run(tmp_path, rendered_at=RENDERED)
@@ -95,7 +95,7 @@ def test_doctor_coverage_ok_when_fully_covered(
 ) -> None:
     """The coverage check is OK when every session has a manifest."""
     from sase.doctor import checks_instructions
-    from sase.instructions import _runs as run_mod
+    from sase.instructions import run_index as run_mod
 
     artifacts, manifest, _ = write_shadow_run(tmp_path, rendered_at=RENDERED)
     run = make_run("codex", "agent-t", artifacts)

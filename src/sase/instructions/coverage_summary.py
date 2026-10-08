@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sase.instructions import _runs as runs
+from sase.instructions import run_index as runs
 from sase.instructions.coverage_records import ManifestRecord, matching_manifests
 from sase.instructions.coverage_sessions import RootSession
 

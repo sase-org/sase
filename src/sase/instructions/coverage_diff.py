@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.instructions import _runs as runs
+from sase.instructions import run_index as runs
 from sase.instructions.coverage_records import ManifestRecord, matching_manifests
 from sase.instructions.coverage_sessions import RootSession
 

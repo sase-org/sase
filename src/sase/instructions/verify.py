@@ -6,7 +6,7 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sase.instructions import _runs as runs
+from sase.instructions import run_index as runs
 from sase.instructions import claude as claude_parser
 from sase.instructions import fingerprints as fp
 from sase.instructions.models import ProviderRow, SessionObservation, VerifyReport

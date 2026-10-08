@@ -57,7 +57,7 @@ def _read_json_file(path: Path) -> dict[str, Any]:
 
 def _latest_agent_run(agent: str) -> tuple[str, dict[str, Any]] | None:
     """Return ``(artifact_dir, agent_meta)`` for *agent*'s newest run."""
-    from sase.instructions import _runs as run_mod
+    from sase.instructions import run_index as run_mod
 
     scored = run_mod.enumerate_runs(
         limit_per_provider=200,
@@ -305,7 +305,7 @@ def _render_sections_table(compiled: Any) -> None:
 
 def run_instructions_verify(args: argparse.Namespace) -> int:
     """Run the observed-mode scoreboard and render it."""
-    from sase.instructions import _runs as run_mod
+    from sase.instructions import run_index as run_mod
     from sase.instructions import coverage as coverage_mod
     from sase.instructions.render import (
         render_coverage,

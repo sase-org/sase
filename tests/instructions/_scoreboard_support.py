@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.instructions import coverage as coverage_mod
-from sase.instructions._runs import ScoredRun
+from sase.instructions.run_index import ScoredRun
 from sase.instructions.manifests import RunManifest
 
 RENDERED = "2026-10-06T12:00:00Z"

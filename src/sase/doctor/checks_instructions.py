@@ -40,7 +40,7 @@ def instructions_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
 
 def check_instructions_delivery(context: DoctorContext) -> DiagnosticCheck:
     """Warn on rows that break contract 1x, project, directive, or native."""
-    from sase.instructions import _runs as run_mod
+    from sase.instructions import run_index as run_mod
     from sase.instructions.verify import build_report, collect_observations
 
     now = datetime.now(tz=UTC)
@@ -101,7 +101,7 @@ def check_instructions_delivery(context: DoctorContext) -> DiagnosticCheck:
 
 def check_instructions_helpers(context: DoctorContext) -> DiagnosticCheck:
     """Warn on any accepted helper declaration or root guard denial."""
-    from sase.instructions import _runs as run_mod
+    from sase.instructions import run_index as run_mod
     from sase.instructions.verify import collect_observations
 
     now = datetime.now(tz=UTC)
@@ -146,7 +146,7 @@ def check_instructions_helpers(context: DoctorContext) -> DiagnosticCheck:
 
 def check_instructions_coverage(context: DoctorContext) -> DiagnosticCheck:
     """Warn on observed sessions without a shadow manifest, or shadow errors."""
-    from sase.instructions import _runs as run_mod
+    from sase.instructions import run_index as run_mod
     from sase.instructions import coverage as coverage_mod
 
     title = "Shadow instruction manifests cover observed sessions"

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.instructions import _runs as run_mod
+from sase.instructions import run_index as run_mod
 from sase.instructions import coverage as coverage_mod
 from tests.instructions._scoreboard_support import (
     COVERED_START,

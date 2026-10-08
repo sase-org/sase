@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.doctor.runner import DoctorContext, build_doctor_registry
-from sase.instructions import _runs as run_mod
+from sase.instructions import run_index as run_mod
 from sase.instructions.models import ProviderRow, SessionObservation, VerifyReport
 from sase.instructions.render import report_to_json_dict
 from sase.main.parser import create_parser
@@ -119,7 +119,7 @@ def test_window_excludes_later_run_sessions_in_same_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A later run's Codex sessions never leak into an earlier run's window."""
-    from sase.instructions._runs import ScoredRun
+    from sase.instructions.run_index import ScoredRun
 
     sessions_root = tmp_path / "sessions"
     day = sessions_root / "2026" / "10" / "01"
@@ -490,7 +490,7 @@ def test_doctor_helpers_warns_on_accepted_declaration(
 ) -> None:
     """The helpers check WARNs on any accepted helper declaration."""
     from sase.doctor import checks_instructions
-    from sase.instructions._runs import ScoredRun
+    from sase.instructions.run_index import ScoredRun
 
     run = ScoredRun(
         provider="claude",
@@ -524,7 +524,7 @@ def test_doctor_helpers_ignores_root_accepted(
 ) -> None:
     """A root's own accepted submit never WARNs as a helper declaration."""
     from sase.doctor import checks_instructions
-    from sase.instructions._runs import ScoredRun
+    from sase.instructions.run_index import ScoredRun
 
     run = ScoredRun(
         provider="claude",
@@ -558,7 +558,7 @@ def test_doctor_helpers_warns_on_root_guard_denial(
 ) -> None:
     """A root guard denial WARNs even with no accepted declaration."""
     from sase.doctor import checks_instructions
-    from sase.instructions._runs import ScoredRun
+    from sase.instructions.run_index import ScoredRun
 
     run = ScoredRun(
         provider="claude",

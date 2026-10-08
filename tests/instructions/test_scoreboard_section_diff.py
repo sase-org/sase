@@ -14,9 +14,9 @@ from typing import Any
 
 import pytest
 
-from sase.instructions import _runs as run_mod
+from sase.instructions import run_index as run_mod
 from sase.instructions import coverage as coverage_mod
-from sase.instructions._runs import ScoredRun
+from sase.instructions.run_index import ScoredRun
 from tests.instructions._scoreboard_support import (
     COVERED_START,
     RENDERED,

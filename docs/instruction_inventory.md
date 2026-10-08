@@ -53,5 +53,5 @@ none tracked — only `README.md`. Nothing to migrate there.
 | Codex shadow-home `AGENTS.md` | Per-run `CODEX_HOME` symlinks `~/AGENTS.md` in when no global file wins (`_link_home_agents_fallback` in `codex.py`) | `deferred`  | E3 (native suppression) |
 
 No other provider config points at `~/AGENTS.md`: Grok receives `--rules` explicitly,
-Claude loads natively, and the `~/AGENTS.md` read in `instructions/_runs.py` is the
+Claude loads natively, and the `~/AGENTS.md` read in `instructions/run_index.py` is the
 scoreboard's own expected-H1 lookup, not delivery.

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sase.instructions import _runs as runs
+from sase.instructions import run_index as runs
 
 
 def parse_time(value: object) -> datetime | None:
