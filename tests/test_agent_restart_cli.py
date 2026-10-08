@@ -321,9 +321,12 @@ def test_wipe_failed_exits_1_and_prints_recovery_dir(
     )
     assert rc == 1
     stderr = capsys.readouterr().err
+    # The recovery path hard-wraps at the console width under a long
+    # basetemp, so normalize wrapping before asserting the exact path.
+    unwrapped = stderr.replace("\n", "")
     assert "boom" in stderr
     assert "Recovery directory" in stderr
-    assert recovery.name in stderr
+    assert str(recovery) in unwrapped
     assert "never released" in stderr
     assert "sase's TUI" in stderr
     assert "sase run" not in stderr

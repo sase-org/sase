@@ -202,6 +202,12 @@ def test_bead_candidates_lists_ids_and_titles(
 def test_bead_candidates_without_a_store_returns_empty_list(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Isolate the resolver itself: the upward walk from tmp_path would
+    # otherwise find the host's live bead store and return real bead ids.
+    monkeypatch.setattr(
+        "sase.completion.candidates.catalog_sdd._resolve_beads_dir",
+        lambda: None,
+    )
     monkeypatch.chdir(tmp_path)
 
     assert candidates_for("bead", "", project=None, limit=200) == []

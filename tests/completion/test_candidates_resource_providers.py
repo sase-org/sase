@@ -174,6 +174,9 @@ def test_plan_candidates_emit_canonical_references(
     month.mkdir(parents=True)
     (month / "cli_completion.md").write_text("# Plan\n", encoding="utf-8")
     monkeypatch.setattr(core_paths, "sase_subdir", lambda name: plans)
+    # Bound the repo-root walk at this fake root: walking above tmp_path
+    # would otherwise find the host's live plan archive and emit extra refs.
+    (tmp_path / ".git").mkdir()
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         rust,

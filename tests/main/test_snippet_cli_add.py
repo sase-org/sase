@@ -19,8 +19,18 @@ from sase.macro.snippet_config_yaml import snippet_config_digest
 from .snippet_cli_helpers import install_writable_snippet_project
 
 
-def _console(output: StringIO) -> Console:
-    return Console(file=output, force_terminal=False, color_system=None, width=160)
+def _console(output: StringIO, *, width: int = 160) -> Console:
+    return Console(file=output, force_terminal=False, color_system=None, width=width)
+
+
+def _wide_console(output: StringIO, path: Path) -> Console:
+    """Return a console wide enough that the write table cannot truncate.
+
+    The Path cell ellipsizes past the console width, so a fixed width
+    drops long basetemp paths. Size the width from the asserted path
+    instead; this changes only the test capture, never product rendering.
+    """
+    return _console(output, width=len(str(path)) + 128)
 
 
 def test_add_rich_format_states_created_action(
@@ -43,7 +53,7 @@ def test_add_rich_format_states_created_action(
         ]
     )
 
-    cli_add.handle_snippet_add_command(args, console=_console(output))
+    cli_add.handle_snippet_add_command(args, console=_wide_console(output, config_path))
 
     text = output.getvalue()
     assert "CREATED" in text

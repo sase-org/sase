@@ -32,6 +32,12 @@ def test_project_beads_skips_when_store_is_absent(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    # Isolate the resolver itself: the upward walk from tmp_path would
+    # otherwise find the host's live bead store and return OK.
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads._find_existing_beads_dir",
+        lambda _context: None,
+    )
     monkeypatch.setattr(
         "sase.doctor.checks_beads.resolve_current_project_record",
         lambda _context: None,
