@@ -9,8 +9,8 @@ from sase.ace.tui.modals.gate_branch_controls import GateBranchControls
 from sase.ace.tui.modals.plan_approval_modal import (
     PlanApprovalModal,
     PlanApprovalResult,
-    _provider_badge_markup,
 )
+from sase.ace.tui.modals.plan_approval_modal_view import _provider_badge_markup
 
 
 class _TestApp(App[None]):

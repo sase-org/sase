@@ -491,7 +491,7 @@ def test_copy_actions_never_expose_collected_input_values(
         return None
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.plan_approval_modal.schedule_copy_delivery",
+        "sase.ace.tui.modals.plan_approval_modal_controls.schedule_copy_delivery",
         fake_schedule,
     )
 

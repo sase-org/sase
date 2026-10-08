@@ -11,7 +11,7 @@ import pytest
 from rich.text import Text
 
 from sase.ace.tui.modals.model_picker_options import build_model_options
-from sase.ace.tui.modals.plan_approval_modal import _provider_badge_markup
+from sase.ace.tui.modals.plan_approval_modal_view import _provider_badge_markup
 from sase.ace.tui.widgets.prompt_panel._helpers import append_model_field
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
 from sase.llm_provider.registry import (

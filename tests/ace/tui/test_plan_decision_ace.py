@@ -244,8 +244,8 @@ def test_custom_gate_decision_handlers_noop() -> None:
 async def test_modal_decisions_focus_step_reset_and_enter(tmp_path) -> None:
     from textual.app import App
 
+    from sase.ace.tui.modals._plan_approval_modal_state import esc_drafts
     from sase.ace.tui.modals.plan_approval_modal import (
-        _ESC_DRAFTS,
         PlanApprovalModal,
         PlanApprovalResult,
     )
@@ -275,7 +275,7 @@ async def test_modal_decisions_focus_step_reset_and_enter(tmp_path) -> None:
         await pilot.press("l")
         await pilot.pause()
         assert modal._decision_draft.value_for("grouping") == "mode"
-        assert _ESC_DRAFTS.get("req-decisions-1", {}).get("grouping") == "mode"
+        assert esc_drafts.get("req-decisions-1", {}).get("grouping") == "mode"
         await pilot.press("j")
         await pilot.pause()
         await pilot.press("k")
@@ -312,14 +312,14 @@ async def test_modal_decisions_focus_step_reset_and_enter(tmp_path) -> None:
 
 
 def test_esc_store_freeze_and_settled() -> None:
-    from sase.ace.tui.modals.plan_approval_modal import (
-        _DECISIONS_FROZEN_MESSAGE,
-        _ESC_DRAFTS,
-        PlanApprovalModal,
+    from sase.ace.tui.modals._plan_approval_modal_state import (
+        DECISIONS_FROZEN_MESSAGE,
+        esc_drafts,
     )
+    from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
 
-    assert "Decisions are fixed for this review" in _DECISIONS_FROZEN_MESSAGE
-    _ESC_DRAFTS["req-esc-1"] = {"grouping": "mode"}
+    assert "Decisions are fixed for this review" in DECISIONS_FROZEN_MESSAGE
+    esc_drafts["req-esc-1"] = {"grouping": "mode"}
     modal = PlanApprovalModal(
         "/tmp/plan.md",
         default_choice="tale",
