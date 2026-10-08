@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING
 from rich.syntax import Syntax
 from rich.text import Text
 
-from sase.core.wait_dependency_resolution import TribeWaitBinding
-
 from sase.ace.tui.llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
 from ...models.agent import Agent, AgentType
@@ -75,6 +73,8 @@ from ._identity_header import (
 from ._identity_header_compact import build_agent_compact_lines
 
 if TYPE_CHECKING:
+    from sase.core.wait_dependency_resolution import TribeWaitBinding
+
     from ...models._agent_clan_sections import ClanSectionSnapshot
     from ...models.sase_agent_neighbors import SaseAgentNeighborProjection
     from ...models.agent_runner_slots import RunnerCapacitySnapshot

@@ -11,7 +11,6 @@ from sase.core.agent_identity_facade import (
     present_agent_name,
     present_imported_agent_name,
 )
-from sase.core.wait_epic_follow_view import epic_follow_views
 from sase.core.paths import shorten_path
 from sase.core.time import local_now, parse_local, to_local
 from sase.gate_turn.state import is_real_gate_member
@@ -361,6 +360,9 @@ class Agent(AgentState):
         mirrored `wait_epic_follows` stage. Entries without a recorded
         `since` sort after the timed milestones with an `Unknown` time.
         """
+        # Imported lazily to keep the TUI startup closure lean.
+        from sase.core.wait_epic_follow_view import epic_follow_views
+
         milestones: list[tuple[datetime | None, str, str]] = []
         for view in epic_follow_views(self):
             if view.state != "following":

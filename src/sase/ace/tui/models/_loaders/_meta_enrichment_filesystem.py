@@ -8,7 +8,6 @@ from pathlib import Path
 from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.output_variable_values import coerce_var_map
-from sase.core.wait_epic_follow_view import epic_follow_views
 from sase.plan_chain import (
     agent_session_parallel_value,
     agent_session_role_value,
@@ -110,6 +109,9 @@ def enrich_agent_from_meta(
         agent: The Agent to enrich (modified in place).
         artifacts_dir: Path to the artifacts directory, or None.
     """
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_epic_follow_view import epic_follow_views
+
     if not artifacts_dir:
         agent.refresh_raw_presented_agent_name()
         return

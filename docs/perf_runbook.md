@@ -1143,6 +1143,28 @@ values fall back to the default):
 SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS=0.05 sase tui
 ```
 
+### TUI import-budget ratchet (sase-13p)
+
+`tests/ace/tui/test_app_import_budget.py` guards the fresh-interpreter module count for
+`import sase.ace.tui.app` with a strict `<` against `_MAX_MODULE_COUNT` (measured plus
+20). The cap only moves down: raising it requires a named module that is genuinely
+needed on the first-paint path with deferral impossible, recorded in the test comment
+with its commit, and the raise covers only the attributed amount. Never redefine success
+as `<=` and never raise the cap to absorb unattributed drift. New TUI code must not add
+eager imports to the startup closure; use use-site or `TYPE_CHECKING` imports and extend
+the test's `deferred_modules` probe with the deferred heavy modules.
+
+Measure and attribute with the closure tool (run it with the project venv):
+
+```bash
+.venv/bin/python tools/tui_import_closure
+.venv/bin/python tools/tui_import_closure --diff $(git merge-base HEAD origin/master)
+```
+
+The bare form prints the current closure count. `--diff REV` measures the same import at
+`REV` from a temporary detached worktree (removed afterwards) and lists the `sase.*`
+modules added and removed.
+
 ## Synthetic-data benchmark harness
 
 The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory Patch and

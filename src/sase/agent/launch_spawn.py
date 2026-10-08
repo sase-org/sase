@@ -7,7 +7,6 @@ from dataclasses import replace
 from functools import lru_cache
 
 from sase.agent.launch_types import AgentLaunchResult
-from sase.agent.scope_sweep import AGENT_SCOPE_UNIT_PREFIX
 from sase.detach_scope import detach_scope
 from sase.core.paths import sase_projects_dir
 from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
@@ -352,6 +351,9 @@ def spawn_agent_subprocess(
             ),
         )
     with timer.stage("detach_scope"):
+        # Imported lazily to keep the TUI startup closure lean.
+        from sase.agent.scope_sweep import AGENT_SCOPE_UNIT_PREFIX
+
         scoped_launch = detach_scope(
             prepared.argv,
             description="SASE agent runner",

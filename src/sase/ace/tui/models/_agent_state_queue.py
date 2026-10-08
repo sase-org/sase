@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
-
-from sase.core.wait_epic_follow_view import EpicFollowView
+from typing import Any, TYPE_CHECKING
 
 from .agent_types import LinkedRepoMetadata
+
+if TYPE_CHECKING:
+    from sase.core.wait_epic_follow_view import EpicFollowView
 
 
 @dataclass

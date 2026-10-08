@@ -11,7 +11,6 @@ from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core import agent_tribe as agent_tribe_paths
 from sase.core.agent_tribe import canonical_agent_tribes_path, load_raw_agent_tribes
 from sase.core.paths import sase_home, sase_projects_dir
-from sase.core.wait_dependency_resolution import WaitDependencyIndex, read_json_dict
 
 _CACHE_LOCK = RLock()
 # Keyed by path identity; the value carries the file-version signature the
@@ -99,6 +98,8 @@ def _build_stored_tribe_names(
     agent_tribes_path: Path,
     legacy_store_path: Path,
 ) -> tuple[str, ...]:
+    from sase.core.wait_dependency_resolution import WaitDependencyIndex, read_json_dict
+
     index = WaitDependencyIndex(
         named={},
         workflows={},

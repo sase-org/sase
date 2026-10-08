@@ -17,15 +17,10 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
 from sase.core.agent_identity_facade import agent_name_in_hood
-from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
-from sase.core.wait_dependency_resolution import (
-    WaitDependencyIndex,
-    build_wait_dependency_index,
-    dependency_resolution_status,
-    read_json_dict,
-)
 
 if TYPE_CHECKING:
+    from sase.core.wait_dependency_resolution import WaitDependencyIndex
+
     from ...models import Agent
 
 
@@ -72,6 +67,12 @@ def delete_agent_artifacts(
 
 
 def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_dependency_resolution import (
+        build_wait_dependency_index,
+        read_json_dict,
+    )
+
     artifacts_path = Path(artifacts_dir)
     meta = read_json_dict(artifacts_path / "agent_meta.json")
     deleted_name = _meta_name(meta)
@@ -242,6 +243,7 @@ def _resolve_armed_waiter_for_dismiss(
     # Imported lazily to keep the TUI startup closure lean.
     from sase.core.wait_dependency_resolution import (
         apply_wait_epic_follow_patch,
+        build_wait_dependency_index,
         resolve_wait_release,
     )
 
@@ -295,6 +297,9 @@ def _ready_data_for_completed_dependency(
     """Return ready marker data only when all waiter dependencies are satisfied."""
     if dependency_index is None:
         return None
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_dependency_resolution import dependency_resolution_status
+
     status = dependency_resolution_status(
         dependency_index,
         waiting_for,
@@ -387,6 +392,9 @@ def _meta_name(meta: dict[str, object] | None) -> str | None:
 
 
 def _dependency_successes(artifacts_path: Path) -> tuple[bool, bool]:
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_dependency_resolution import read_json_dict
+
     done_data = read_json_dict(artifacts_path / "done.json")
     if done_data is None:
         return False, False
@@ -456,6 +464,9 @@ def _identity_dependency_matches(
 
 
 def _same_artifact_dir(left: str | Path, right: str | Path) -> bool:
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
+
     return artifact_dir_key(str(left)) == artifact_dir_key(str(right))
 
 

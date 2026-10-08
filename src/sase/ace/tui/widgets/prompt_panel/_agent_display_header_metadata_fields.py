@@ -5,10 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.text import Text
-
-from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 from ...models.agent import Agent
 from ._agent_display_header_metadata_identity import (
@@ -29,6 +28,9 @@ from ._agent_page_section import ResponsiveAgentPageSection
 from ._agent_turn_section import ResponsiveTurnSection
 from ._agent_wait_section import ResponsiveWaitSection
 from ._helpers import extract_meta_fields
+
+if TYPE_CHECKING:
+    from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 
 @dataclass(frozen=True, slots=True)

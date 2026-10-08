@@ -9,23 +9,16 @@ import textwrap
 from typing import Any
 
 _MAX_ELAPSED_SECONDS = 5.0
-# Feature growth and mechanical toobig splits (the agent-deck cutover, the
-# command line, launch-cwd and usage-refresh helpers) added ~110 small modules
-# since the closure measured 3246. A second ~70 (mostly toobig splits, plus
-# FINAL-deck glance surfaces, agent tabs, update-gear state and deck views)
-# took it to 3425. Machine tabs, the ToolRun cutover leftovers, and the
-# catalog/stop actions took the closure to 3458. Pager memory-history mixins
-# (read view, word diff, time band, timeline picker) imported eagerly through
-# PagerScreen and toobig splits (finalizers, monitor, agents display) took CI
-# to ~3490. Dependency/environment drift has since taken the clean-tree
-# closure to 3536 (verified identical with and without the pager working
-# tree, stable across repeated measures). Restart-dependency helpers
-# (TUI-local blocker collector, overlay/submit accessors, install-mutation
-# classification) keep their extra imports lazy. The tui-completion module
-# rename (sase-1eq.5.1.3) is also in this closure; the measured closure is
-# 3563. The deferred-module probe below is the heavy-edge guard; this
-# count only catches a wholesale closure regression.
-_MAX_MODULE_COUNT = 3570
+# Ratchet policy: the cap only moves down. Importing ``sase.ace.tui.app``
+# measured 3493 modules on 2026-10-08, so the cap is measured plus 20 with
+# a strict ``<``. Raising the cap requires a named module that is genuinely
+# needed on the first-paint path with deferral impossible: the comment must
+# name that module and its commit, and the raise covers only the attributed
+# amount. Never redefine success as ``<=`` and never raise the cap to absorb
+# unattributed drift. When this guard fails, attribute the growth with
+# ``tools/tui_import_closure --diff $(git merge-base HEAD origin/master)``
+# and defer the new edges with use-site or ``TYPE_CHECKING`` imports.
+_MAX_MODULE_COUNT = 3513
 
 
 def _measure_tui_app_import() -> dict[str, Any]:
@@ -51,6 +44,12 @@ def _measure_tui_app_import() -> dict[str, Any]:
                         name for name in (
                             "sase.agent.multi_prompt",
                             "sase.agent.multi_prompt_launcher",
+                            "sase.agent.scope_sweep",
+                            "sase.artifact_cli.create",
+                            "sase.artifact_links.projection._agent_created_epic",
+                            "sase.core.wait_dependency_resolution",
+                            "sase.core.wait_epic_follow_view",
+                            "sase.finalizers.commit_memory_guard",
                             "sase.service.status",
                             "sase.service.control",
                             "sase.dev_update",
@@ -69,8 +68,15 @@ def _measure_tui_app_import() -> dict[str, Any]:
     )
     assert result.returncode == 0, result.stderr + result.stdout
     payload = json.loads(result.stdout)
-    assert payload["deferred_modules"] == []
-    assert payload["module_count"] < _MAX_MODULE_COUNT
+    assert payload["deferred_modules"] == [], (
+        f"TUI startup eagerly imports deferred modules: {payload['deferred_modules']!r}"
+    )
+    assert payload["module_count"] < _MAX_MODULE_COUNT, (
+        f"TUI app import loads {payload['module_count']} modules "
+        f"against the {_MAX_MODULE_COUNT} cap; attribute the growth with "
+        f"`tools/tui_import_closure --diff "
+        f"$(git merge-base HEAD origin/master)` and defer the new edges"
+    )
     return payload
 
 

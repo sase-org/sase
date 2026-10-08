@@ -39,7 +39,6 @@ from sase.ace.tui.tool_runs.attribution import (
 from sase.ace.tui.tool_runs.row_chip import tool_run_chip_token
 from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 from sase.core.time import local_now
-from sase.core.wait_epic_follow_view import epic_follow_state_token
 from ._agent_list_helpers import ordered_row_providers
 from ._queue_weight_badge import queue_capacity_budget_display_enabled
 
@@ -270,6 +269,9 @@ def agent_render_key(
     intentionally explicit (no ``vars(agent)``) so adding a new visible
     field is a deliberate edit here rather than a silent cache desync.
     """
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_epic_follow_view import epic_follow_state_token
+
     wait_agent = wait_display_agent(agent)
     visible_clan_counts = (
         (

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKETS
 from sase.bead_status_presentation import BEAD_STATUS_VALUES
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
-from sase.core.wait_dependency_resolution import TribeWaitBinding
+
+if TYPE_CHECKING:
+    from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 
 @dataclass(frozen=True, slots=True)

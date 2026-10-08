@@ -35,7 +35,6 @@ from sase.finalizers.commit_repair import (
     run_stitch_create,
     run_stitch_resume,
 )
-from sase.finalizers.commit_memory_guard import memory_guard_for_new_markers
 from sase.finalizers.commit_transient import (
     already_clean_fingerprint_before,
     context_for_accepted_assigned_bead,
@@ -442,6 +441,9 @@ def execute_commit_finalizer(
         attempts=attempts,
         evidence=evidence,
     )
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.finalizers.commit_memory_guard import memory_guard_for_new_markers
+
     diagnostics = (
         *diagnostics,
         *memory_guard_for_new_markers(

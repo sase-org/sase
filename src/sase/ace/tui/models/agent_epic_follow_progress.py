@@ -18,8 +18,6 @@ from threading import RLock
 from time import monotonic
 from typing import Any, Final
 
-from sase.core.wait_epic_follow_view import epic_follow_views
-
 EpicProgressCacheKey = tuple[str, str]
 
 _CACHE_TTL_SECONDS: Final = 15.0
@@ -106,6 +104,9 @@ def _followed_epic_ids(agent: Any) -> tuple[str, ...]:
     already-loaded agent: never touches the filesystem.
     """
     from sase.ace.tui.models.agent_time import wait_display_agent
+
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_epic_follow_view import epic_follow_views
 
     wait_agent = wait_display_agent(agent)  # type: ignore[arg-type]
     allowed = set(wait_agent.waiting_for)

@@ -17,14 +17,10 @@ from sase.agent.status_buckets import (
     agent_status_bucket,
     aggregate_agent_group_bucket,
 )
-from sase.core.wait_dependency_resolution import (
-    TribeMemberRow,
-    TribeWaitBinding,
-    resolve_tribe_wait_binding,
-)
 
 if TYPE_CHECKING:
     from sase.ace.tui.models import Agent
+    from sase.core.wait_dependency_resolution import TribeMemberRow, TribeWaitBinding
 
 # When an agent-session wait resolves to multiple agents, active work takes
 # precedence over terminal states, and a successful terminal attempt satisfies
@@ -67,6 +63,9 @@ def collect_agent_wait_status_maps(
 ) -> AgentWaitStatusMaps:
     """Return ordinary and tribe wait state from one in-memory snapshot."""
     from sase.ace.tui.models.agent_time import wait_display_agent
+
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_dependency_resolution import resolve_tribe_wait_binding
 
     all_agents = list(agents)
     buckets: dict[str, str] = {}
@@ -143,6 +142,9 @@ def collect_agent_wait_status_maps(
 
 def _collect_tribe_member_rows(agents: list[Agent]) -> tuple[TribeMemberRow, ...]:
     """Project loaded agent rows into the pure tribe-binding input shape."""
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_dependency_resolution import TribeMemberRow
+
     effective_clan_tribes: dict[tuple[str, str], set[str]] = {}
     for agent in agents:
         clan_key = _agent_clan_key(agent)

@@ -17,17 +17,11 @@ from sase.ace.tui._agent_completion_wait_models import (
 )
 from sase.agent.status_buckets import AGENT_STATUS_BUCKETS
 from sase.bead_status_presentation import BEAD_STATUS_VALUES
-from sase.core.wait_dependency_resolution import TribeWaitBinding
-from sase.core.wait_epic_follow_view import (
-    FOLLOW_BLOCKING_STATES,
-    armed_follow_targets,
-    authored_wait_beads,
-    epic_follow_views,
-)
 
 if TYPE_CHECKING:
     from sase.ace.tui.models import Agent
     from sase.ace.tui.models.agent_wait_beads import WaitBeadStatusSnapshot
+    from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 
 def _has_blocking_follow_stage(agent: Agent) -> bool:
@@ -38,6 +32,13 @@ def _has_blocking_follow_stage(agent: Agent) -> bool:
     the persisted ``launching``/``blocked`` stages hold the row. Memory-only
     over the already-loaded agent: no I/O.
     """
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_epic_follow_view import (
+        FOLLOW_BLOCKING_STATES,
+        armed_follow_targets,
+        epic_follow_views,
+    )
+
     armed = armed_follow_targets(agent)
     if not armed:
         return False
@@ -134,6 +135,9 @@ def wait_dependency_status_counts(
     ``added_bead_ids`` leave the authored bead counts.
     """
     from sase.ace.tui.models.agent_time import wait_display_agent
+
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_epic_follow_view import authored_wait_beads, epic_follow_views
 
     wait_agent = wait_display_agent(agent)
     if (

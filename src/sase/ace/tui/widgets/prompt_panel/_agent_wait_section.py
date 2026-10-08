@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from rich.cells import cell_len
 from rich.console import Console, ConsoleOptions, RenderResult
@@ -16,14 +17,6 @@ from sase.bead_status_presentation import BEAD_STATUS_VALUES
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.core.runner_slots import DEFAULT_QUEUE_WEIGHT
 from sase.core.time import parse_local
-from sase.core.wait_dependency_resolution import TribeWaitBinding
-from sase.core.wait_epic_follow_view import (
-    EpicFollowView,
-    armed_follow_targets,
-    authored_wait_beads,
-    describe_epic_follow,
-    epic_follow_views,
-)
 from sase.macro._directive_types import WAIT_FOR_EPIC_DEFAULT
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX
 
@@ -48,6 +41,10 @@ from ...wait_status_presentation import (
     append_wait_status_badge as _append_wait_status_badge,
 )
 from .._queue_weight_badge import queue_capacity_budget_display_enabled
+
+if TYPE_CHECKING:
+    from sase.core.wait_dependency_resolution import TribeWaitBinding
+    from sase.core.wait_epic_follow_view import EpicFollowView
 
 WAIT_SECTION_ID = "wait"
 WAIT_FIELD_LABEL = "Wait: "
@@ -151,6 +148,9 @@ def _append_follow_annotation(
     status token, so the lane never claims a bead is missing. Pure in-memory
     formatting over already-loaded state: never touches the filesystem.
     """
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_epic_follow_view import EpicFollowView, describe_epic_follow
+
     if not isinstance(view, EpicFollowView):
         if armed:
             value.append(f" {FOLLOW_GLYPH}", style=FOLLOW_PENDING_STYLE)
@@ -230,6 +230,13 @@ def build_wait_lanes(
         format_wait_until,
         wait_display_agent,
         wait_remaining_seconds,
+    )
+
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_epic_follow_view import (
+        armed_follow_targets,
+        authored_wait_beads,
+        epic_follow_views,
     )
 
     wait_agent = wait_display_agent(agent)

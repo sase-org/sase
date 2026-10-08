@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping, Sequence
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 
@@ -12,8 +13,6 @@ from sase.agent.status_buckets import (
     QUEUED_STATUS_COLOR,
     agent_status_bucket,
 )
-from sase.core.wait_dependency_resolution import TribeWaitBinding
-
 from ...models.agent import Agent
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
@@ -39,6 +38,9 @@ from ._helpers import (
     append_section_heading,
     should_render_agent_detail_model,
 )
+
+if TYPE_CHECKING:
+    from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 
 LEGACY_MEMBER_STATUS_STYLES: dict[str, str] = {

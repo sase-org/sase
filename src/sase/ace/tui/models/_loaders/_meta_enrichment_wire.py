@@ -8,7 +8,6 @@ from sase.core.agent_scan_wire import (
     WaitingMarkerWire,
 )
 from sase.core.output_variable_values import coerce_var_map
-from sase.core.wait_epic_follow_view import epic_follow_views
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.gate_turn.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
@@ -72,6 +71,9 @@ def enrich_agent_from_meta_wire(
     *meta* is ``None`` the function is a no-op (matching the original's
     early-return when ``agent_meta.json`` is missing or unreadable).
     """
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.core.wait_epic_follow_view import epic_follow_views
+
     if plan_path_marker:
         agent.archived_plan_path = plan_path_marker
         agent.plan_path = plan_path_marker

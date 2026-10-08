@@ -6,10 +6,6 @@ import logging
 from typing import Any
 
 from sase.artifact_links.projection._agent_bead import project_agent_bead_rows
-from sase.artifact_links.projection._agent_created_epic import (
-    project_agent_created_epic_attributed_rows,
-    project_agent_created_epic_rows,
-)
 from sase.artifact_links.projection._agent_wait_bead import (
     project_agent_wait_bead_rows,
 )
@@ -34,6 +30,12 @@ def project_link_rows(inputs: ProjectionInputs) -> tuple[dict[str, Any], ...]:
     another's rows. Edges whose endpoints fail ref validation are dropped
     here so one malformed row can never reach the machine-local aggregate.
     """
+
+    # Imported lazily to keep the TUI startup closure lean.
+    from sase.artifact_links.projection._agent_created_epic import (
+        project_agent_created_epic_attributed_rows,
+        project_agent_created_epic_rows,
+    )
 
     edges: list[ProjectedEdge] = []
     edges.extend(project_stitch_rules(inputs))
