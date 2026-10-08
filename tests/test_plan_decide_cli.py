@@ -412,3 +412,379 @@ def test_direct_approval_request_decide_defaults_empty() -> None:
     from sase.main.plan_direct_approval_types import DirectApprovalRequest
 
     assert DirectApprovalRequest(selector="x").decide == ()
+
+
+def _card_lines_for_values(raw_map: dict[str, str]) -> list[str]:
+    from sase.main.plan_decide import resolve_decide_values
+    from sase.sdd.plan_decisions import sheet_binding
+
+    definitions = _definitions()
+    values, rows = resolve_decide_values(definitions, raw_map, caller="human")
+    sheet = sheet_binding(definitions, values, 4)
+    return decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=True,
+    )
+
+
+def test_card_clamped_source_renders_default_origin() -> None:
+    from sase.main.plan_decide import decision_card_lines
+    from sase.sdd.plan_decisions import sheet_binding
+
+    definitions = _definitions()
+    sheet = sheet_binding(definitions, {"grouping": "pane", "tui_note": False}, 4)
+    rows = [
+        {"id": "grouping", "value": "pane", "source": "default", "changed": False},
+        {"id": "tui_note", "value": False, "source": "clamped", "changed": False},
+    ]
+    lines = decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=True,
+    )
+    tui_line = next(line for line in lines if "tui_note" in line)
+    assert "default" in tui_line
+    assert "-D" not in tui_line
+
+
+def test_card_unchanged_row_carries_star() -> None:
+    lines = _card_lines_for_values({"grouping": "mode"})
+    tui_line = next(line for line in lines if "tui_note" in line)
+    assert "★" in tui_line
+    grouping_line = next(line for line in lines if "grouping" in line)
+    assert "●" in grouping_line
+    assert "was ★ pane" in grouping_line
+
+
+def test_card_memory_chips_do_not_duplicate_or_contradict() -> None:
+    from sase.main.plan_decide import decision_card_lines
+    from sase.sdd.plan_decisions import sheet_binding
+
+    definitions = _definitions()
+    sheet = sheet_binding(definitions, {"grouping": "pane", "tui_note": True}, 4)
+    for row in sheet["rows"]:
+        if row["id"] == "tui_note" and isinstance(row.get("memory"), dict):
+            row["memory"]["provenance"] = "asked"
+            row["memory"]["quote"] = "and note the convention"
+    rows = [
+        {"id": "grouping", "value": "pane", "source": "default", "changed": False},
+        {"id": "tui_note", "value": True, "source": "submitted", "changed": True},
+    ]
+    lines = decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=True,
+    )
+    asked_line = next(line for line in lines if "tui_note" in line)
+    assert asked_line.count("you asked") == 1
+
+    for row in sheet["rows"]:
+        if row["id"] == "tui_note" and isinstance(row.get("memory"), dict):
+            row["memory"]["provenance"] = "quote_not_found"
+            row["memory"]["quote"] = "and note the convention"
+    lines = decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=True,
+    )
+    warned_line = next(line for line in lines if "tui_note" in line)
+    assert "quote not found" in warned_line
+    assert "you asked:" not in warned_line
+
+
+def test_card_renders_new_chip_for_missing_note() -> None:
+    from sase.main.plan_decide import decision_card_lines
+    from sase.sdd.plan_decisions import sheet_binding
+
+    definitions = _definitions()
+    sheet = sheet_binding(definitions, {"grouping": "pane", "tui_note": False}, 4)
+    for row in sheet["rows"]:
+        if row["id"] == "tui_note" and isinstance(row.get("memory"), dict):
+            row["memory"]["resolved"] = [
+                {
+                    "selector": "fresh_note.md",
+                    "kind": "note",
+                    "scope": "project",
+                    "path": "sase/memory/fresh_note.md",
+                    "type": "reference",
+                    "exists": False,
+                }
+            ]
+            row["memory"]["selectors"] = ["fresh_note.md"]
+    rows = [
+        {"id": "grouping", "value": "pane", "source": "default", "changed": False},
+        {"id": "tui_note", "value": False, "source": "default", "changed": False},
+    ]
+    lines = decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=True,
+    )
+    assert any("new" in line and "tui_note" in line for line in lines)
+
+
+def test_pending_text_renders_new_chip_and_no_duplicate() -> None:
+    from sase.sdd._plan_display_decisions import (
+        _memory_type_chips,
+        pending_decisions_text,
+    )
+
+    memory: dict[str, object] = {
+        "selectors": ["fresh_note.md"],
+        "resolved": [
+            {
+                "selector": "fresh_note.md",
+                "kind": "note",
+                "scope": "project",
+                "path": "sase/memory/fresh_note.md",
+                "type": "reference",
+                "exists": False,
+            }
+        ],
+        "provenance": "asked",
+        "quote": "please record this",
+    }
+    assert "new" in _memory_type_chips(memory)  # type: ignore[arg-type]
+    sheet = {
+        "rows": [
+            {
+                "id": "tui_note",
+                "kind": "toggle",
+                "ask": "Record?",
+                "default": False,
+                "memory": memory,
+            }
+        ]
+    }
+    text = pending_decisions_text(sheet).plain  # type: ignore[arg-type]
+    assert "new" in text
+    assert text.count("you asked") == 1
+
+
+def test_validate_json_envelope_holds_sheet_and_auto_note() -> None:
+    from sase.main.plan_validate_handler import _decision_json_envelope
+    from sase.sdd.plan_validate import validate_plan
+
+    validation = validate_plan(PENDING_TALE, "tale")
+    assert validation.ok
+    envelope = _decision_json_envelope(validation)
+    assert envelope is not None
+    assert isinstance(envelope["sheet"], dict)
+    assert "grouping" in str(envelope["sheet_text"])
+    assert envelope["auto_note"] in (
+        None,
+        "auto-approved: every decision takes its default",
+    )
+
+
+def test_validate_json_stdout_is_single_document(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import argparse
+    import json
+
+    from sase.main import plan_validate_handler
+
+    plan = tmp_path / "plan.md"
+    plan.write_text(PENDING_TALE, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT_CONTEXT", "")
+    monkeypatch.delenv("SASE_AGENT_CONTEXT", raising=False)
+    args = argparse.Namespace(
+        plan_file=str(plan), explain=False, json=True, quiet=False
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        plan_validate_handler.handle_plan_validate_command(args)
+    assert excinfo.value.code in (0, 1)
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert "decisions" in payload
+    assert isinstance(payload["decisions"], dict)
+    assert "sheet_text" in payload["decisions"]
+
+
+def test_plan_decision_candidates_scope_to_selector(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.completion.candidates.catalog_plans as catalog
+
+    def _bundle(plan_id: str, decisions: list[dict[str, object]]) -> dict[str, object]:
+        bundle = tmp_path / plan_id
+        bundle.mkdir(exist_ok=True)
+        (bundle / "plan_request.json").write_text(
+            json.dumps({"payload": {"decisions": decisions}}), encoding="utf-8"
+        )
+        return {
+            "id": plan_id,
+            "action": "PlanApproval",
+            "action_data": {"response_dir": str(bundle)},
+            "timestamp": datetime.now(UTC).isoformat(),
+            "dismissed": False,
+        }
+
+    row_a = _bundle(
+        "aaa-plan",
+        [
+            {
+                "id": "grouping",
+                "kind": "choice",
+                "ask": "Group?",
+                "choices": [
+                    {"key": "pane", "label": "By pane"},
+                    {"key": "mode", "label": "By mode"},
+                ],
+                "default": "pane",
+            }
+        ],
+    )
+    row_b = _bundle(
+        "bbb-plan",
+        [{"id": "other_choice", "kind": "toggle", "default": True}],
+    )
+    monkeypatch.setattr(catalog, "_load_plan_approval_rows", lambda: [row_a, row_b])
+    monkeypatch.setattr(catalog, "_load_pending_action_store", lambda: {})
+    monkeypatch.setattr(catalog, "_gate_turn_terminal", lambda _gate_id: False)
+    monkeypatch.setattr(
+        catalog, "_archive_path_for_row", lambda row: str(row.get("id"))
+    )
+
+    merged = {candidate.value for candidate in catalog.plan_decision_candidates(None)}
+    assert "grouping=" in merged
+    assert "other_choice=yes" in merged
+
+    scoped = {
+        candidate.value
+        for candidate in catalog.plan_decision_candidates(None, selector="aaa-plan")
+    }
+    assert "grouping=" in scoped
+    assert "other_choice=yes" not in scoped
+
+    fallback = {
+        candidate.value
+        for candidate in catalog.plan_decision_candidates(None, selector="no-such-plan")
+    }
+    assert fallback == merged
+
+
+def test_approve_help_has_single_retry_example(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main.parser import create_parser
+
+    parser = create_parser()
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["plan", "approve", "-h"])
+    assert excinfo.value.code == 0
+    help_text = capsys.readouterr().out
+    assert help_text.count("retry a failed coder") == 1
+    assert "relaunch a failed coder" not in help_text
+    assert "-D" in help_text
+
+
+def test_live_decision_inputs_carry_revision_and_values() -> None:
+    from sase.main.plan_approve_handler import _LiveDecisionContext
+
+    context = _LiveDecisionContext(
+        definitions=[{"id": "grouping"}],
+        review_revision=7,
+        values={"grouping": "mode", "tui_note": False},
+        rows=[],
+        sheet={},
+        declaring_options={"approve", "commit"},
+        tier="tale",
+    )
+    inputs = context.option_inputs_for(
+        resolved_choice="approve", selected=("approve", "reject")
+    )
+    assert inputs is not None
+    assert inputs["approve"] == {
+        "decision_grouping": "mode",
+        "decision_tui_note": False,
+    }
+    assert "reject" not in inputs
+    assert context.review_revision == 7
+
+
+def test_direct_file_decide_submission_resolves_values() -> None:
+    from sase.main.plan_decide import resolve_direct_decisions
+    from sase.sdd.plan_validate import validate_plan
+
+    validation = validate_plan(PENDING_TALE, "tale")
+    assert validation.ok
+    resolved = resolve_direct_decisions(
+        validation, {"grouping": "mode"}, caller="human"
+    )
+    assert resolved is not None
+    values, rows, sheet = resolved
+    assert values["grouping"] == "mode"
+    assert any(row.get("id") == "grouping" for row in rows)
+    assert isinstance(sheet, dict)
+
+
+def test_show_compact_counts_and_json_attach(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.main.plan_show_handler import _attach_decision_json
+    from sase.main.plan_show_render import _decision_counts, _decisions_section
+
+    plan = tmp_path / "plan.md"
+    plan.write_text(PENDING_TALE, encoding="utf-8")
+
+    fake_sheet = {
+        "rows": [
+            {"id": "grouping", "kind": "choice", "ask": "Group?"},
+            {
+                "id": "tui_note",
+                "kind": "toggle",
+                "ask": "Record?",
+                "memory": {"selectors": ["tui.md"]},
+            },
+        ]
+    }
+
+    class _Stamped:
+        sheet = fake_sheet
+        decided_by = None
+        decided_via = None
+        values = {"grouping": "pane", "tui_note": False}
+
+    class _FakePlan:
+        path = str(plan)
+
+    class _FakeRecord:
+        plan = _FakePlan()
+
+    import sase.sdd.plan_decision_handoff as handoff
+
+    monkeypatch.setattr(handoff, "load_stamped_decisions", lambda _path: _Stamped())
+    record = _FakeRecord()
+    section = _decisions_section(record)  # type: ignore[arg-type]
+    assert section is not None
+    counts = _decision_counts(record)  # type: ignore[arg-type]
+    assert counts is not None
+    total, memos = counts
+    assert total == 2
+    assert memos == 1
+    payload: dict[str, object] = {}
+    _attach_decision_json(payload, record)  # type: ignore[arg-type]
+    assert isinstance(payload.get("decisions"), dict)

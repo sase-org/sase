@@ -63,6 +63,13 @@ def _memory_type_chips(memory: dict[str, Any]) -> list[str]:
             kind = "web"
         if kind and kind not in chips:
             chips.append(kind)
+    if any(
+        isinstance(record, dict) and record.get("exists") is False
+        for record in resolved
+        if isinstance(record, dict)
+    ):
+        if "new" not in chips:
+            chips.append("new")
     return chips
 
 
@@ -128,12 +135,24 @@ def _append_pending_row(text: Text, row: dict[str, Any]) -> None:
         chips = _memory_type_chips(memory)
         if chips:
             text.append(f" \u00b7 {', '.join(chips)}", style="dim")
-        chip = provenance_chip(str(memory.get("provenance") or ""))
-        if chip:
-            text.append(f" \u00b7 {chip}", style="dim")
-        quote = memory.get("quote")
-        if isinstance(quote, str) and quote.strip():
-            text.append(f" \u00b7 you asked: {quote.strip()!r}", style="dim")
+        provenance = str(memory.get("provenance") or "").strip()
+        chip = provenance_chip(provenance)
+        quote_raw = memory.get("quote")
+        quote = (
+            quote_raw.strip()
+            if isinstance(quote_raw, str) and quote_raw.strip()
+            else ""
+        )
+        if provenance == "quote_not_found":
+            if chip:
+                text.append(f" \u00b7 {chip}", style="dim")
+        elif provenance == "asked" and quote:
+            text.append(f" \u00b7 you asked: {quote!r}", style="dim")
+        else:
+            if chip:
+                text.append(f" \u00b7 {chip}", style="dim")
+            if quote:
+                text.append(f" \u00b7 you asked: {quote!r}", style="dim")
 
 
 def accepted_decisions_text(

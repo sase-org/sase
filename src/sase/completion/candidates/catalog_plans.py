@@ -435,17 +435,73 @@ def plan_decision_source_path(_project: str | None) -> Path | None:
     return pending_plan_source_path(_project)
 
 
-def plan_decision_candidates(_project: str | None) -> list[Candidate]:
+def _scope_rows_to_selector(
+    visible: list[dict[str, Any]], selector: str
+) -> list[dict[str, Any]] | None:
+    """Return the single visible proposal *selector* names, else None.
+
+    Matches the display name, archive path, notification id, or id prefix
+    of one visible row; returns None when the selector is ambiguous or
+    matches nothing so callers keep the merged fallback.
+    """
+    from sase.plan_names import plan_display_names
+
+    want = selector.strip()
+    if not want:
+        return None
+    archives = [_archive_path_for_row(row) or "" for row in visible]
+    display = plan_display_names(
+        [
+            path or str(row.get("id") or "")
+            for path, row in zip(archives, visible, strict=True)
+        ]
+    )
+    matches: list[dict[str, Any]] = []
+    lowered = want.lower()
+    for row, archive in zip(visible, archives, strict=True):
+        key = archive or str(row.get("id") or "")
+        label = display.get(key, key)
+        candidates = {
+            str(label or "").strip(),
+            str(key or "").strip(),
+            str(row.get("id") or "").strip(),
+            Path(str(archive)).stem.strip() if archive else "",
+            Path(str(archive)).name.strip() if archive else "",
+        }
+        candidates = {item for item in candidates if item}
+        if any(item == want or item.lower() == lowered for item in candidates):
+            matches.append(row)
+            continue
+        if any(
+            item.startswith(want) or item.lower().startswith(lowered)
+            for item in candidates
+            if item
+        ):
+            matches.append(row)
+    if len(matches) == 1:
+        return matches
+    return None
+
+
+def plan_decision_candidates(
+    _project: str | None, selector: str | None = None
+) -> list[Candidate]:
     """Offer ``id=`` then ``id=value`` pairs for visible pending decisions.
 
     The shell prefix-filters these values, so both stages are served from
     one list: a bare ``id=`` entry completes the decision name, and an
-    ``id=value`` entry completes its value. Definitions merge across every
-    visible pending plan proposal, newest first; the command-line resolver
-    still validates ``-D`` against the selected proposal only.
+    ``id=value`` entry completes its value. When *selector* names one
+    visible pending proposal, only that proposal's decisions are offered;
+    otherwise definitions merge across every visible pending plan proposal,
+    newest first. The command-line resolver still validates ``-D`` against
+    the selected proposal only.
     """
     import json
+    import os
 
+    if selector is None:
+        env_selector = os.environ.get("SASE_COMPLETION_PLAN_SELECTOR", "").strip()
+        selector = env_selector or None
     rows = _load_plan_approval_rows()
     if not rows:
         return []
@@ -457,6 +513,9 @@ def plan_decision_candidates(_project: str | None) -> list[Candidate]:
         if _row_is_available(row, store, now) and _row_is_gate_visible(row)
     ]
     visible.sort(key=_row_sort_key, reverse=True)
+    scoped = _scope_rows_to_selector(visible, selector) if selector else None
+    if scoped is not None:
+        visible = scoped
     definitions: dict[str, dict[str, Any]] = {}
     for row in visible:
         action_data = row.get("action_data")

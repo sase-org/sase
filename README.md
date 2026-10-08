@@ -138,8 +138,8 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Scheduler and Service Host](https://sase.sh/axe/) — scheduled and background agent
   work
 - [Spec-Driven Development](https://sase.sh/sdd/) — plans, epics, and beads
-- [Plan Decisions](https://sase.sh/sdd/#plan-decisions-beta) — beta review choices,
-  defaults, and memory-consent checks
+- [Plan Decisions](https://sase.sh/sdd/#plan-decisions) — review choices, defaults, and
+  memory-consent checks
 - [Plugins](https://sase.sh/plugins/) — GitHub, Telegram, editor, and provider
   integrations
 - [CLI Reference](https://sase.sh/cli/) — command index and links to detailed guides

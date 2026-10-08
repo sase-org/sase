@@ -531,16 +531,17 @@ to stderr. Otherwise `-j/--json` returns `schema_version`, `ok`, the authored `t
 `path`, the complete diagnostics list, and the expected schema. Exit status is 0 for
 valid plans, 1 for validation failures, and 2 for command-usage errors.
 
-Plan Decisions mix human text into `sase plan validate` output when the plan has
-decisions. Outside an agent, stdout prints `quote verification runs at propose` before
-the result, including in `--json` mode. After the JSON object or the human render, the
-command also prints the Decision Sheet whenever the validated plan still has decisions.
-That includes the outside-agent path. When an auto plan-approval action is active
-(`%auto`), one more line follows the sheet:
-`auto-approved: every decision takes its default`. That line is not printed merely
-because the process is inside an agent. If agent-context host checks add diagnostics,
-the plan is cleared and the sheet is skipped. A machine parser cannot treat `--json`
-stdout as one JSON document for these plans. Ordinary plans without decisions keep the
+Plan Decisions add human text to `sase plan validate` output when the plan has
+decisions. Outside an agent, the command prints `quote verification runs at propose`
+(stdout in human mode, stderr in `--json` mode) before the result. After the human
+render, or on stderr after the JSON object in `--json` mode, the command also prints the
+Decision Sheet whenever the validated plan still has decisions. That includes the
+outside-agent path. When an auto plan-approval action is active (`%auto`), one more line
+follows the sheet: `auto-approved: every decision takes its default`. That line is not
+printed merely because the process is inside an agent. In `--json` mode stdout stays one
+JSON document: the sheet, the `%auto` note, and the outside-agent quote-verification
+note live inside the `decisions` envelope. If agent-context host checks add diagnostics,
+the plan is cleared and the sheet is skipped. Ordinary plans without decisions keep the
 JSON-only contract.
 
 ### Plan Decisions

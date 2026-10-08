@@ -123,6 +123,17 @@ def _allowed_line(definition: dict[str, Any]) -> str:
     return f"  {decision_id}: {default_word} ★, {other}"
 
 
+def _memory_is_new(memory: dict[str, Any]) -> bool:
+    """Return True when a memory row grants a note that does not exist yet."""
+    resolved = memory.get("resolved")
+    if not isinstance(resolved, list):
+        return False
+    return any(
+        isinstance(record, dict) and record.get("exists") is False
+        for record in resolved
+    )
+
+
 def _did_you_mean(unknown: str, ids: list[str]) -> str:
     matches = get_close_matches(unknown, ids, n=1, cutoff=_SUGGESTION_CUTOFF)
     if matches:
@@ -394,9 +405,12 @@ def decision_card_lines(
 ) -> list[str]:
     """Build the Section 1.4 decision card as plain lines.
 
-    Row sources read ``-D`` for submitted values and ``default`` otherwise;
-    changed rows name the prior default with ``was ★`` and carry memory
-    chips. The closing line is the core summary sentence.
+    Row sources read ``-D`` for submitted values and ``default`` otherwise
+    (a ``clamped`` source is a default with a quote warning, never ``-D``);
+    changed rows carry ``●`` and name the prior default with ``was ★``,
+    unchanged rows carry ``★``, and memory rows carry provenance chips
+    without duplication plus the ``new`` chip for missing notes.
+    The closing line is the core summary sentence.
     """
     from sase.sdd._plan_display_decisions import format_decision_value
     from sase.sdd.plan_decisions import summary_binding
@@ -421,9 +435,9 @@ def decision_card_lines(
         value = row.get("value", sheet_row.get("value", sheet_row.get("default")))
         changed = bool(row.get("changed", sheet_row.get("changed", False)))
         source = str(row.get("source", "default"))
-        origin = "-D" if source in ("submitted", "clamped") else "default"
+        origin = "-D" if source == "submitted" else "default"
         display = format_decision_value(value)
-        mark = " ●" if changed else ""
+        mark = " ●" if changed else " ★"
         line = f"  {decision_id.ljust(width)}   {display}{mark}   {origin}"
         if changed:
             default = sheet_row.get("default", row.get("default"))
@@ -444,11 +458,24 @@ def decision_card_lines(
                 "inherited": "approved in epic",
             }.get(provenance, provenance)
             bits = f"🧠 {names}" if names else "🧠"
-            if chip:
-                bits += f" · {chip}"
-            quote = memory.get("quote")
-            if isinstance(quote, str) and quote.strip():
-                bits += f" · you asked: {quote.strip()!r}"
+            quote_raw = memory.get("quote")
+            quote = (
+                quote_raw.strip()
+                if isinstance(quote_raw, str) and quote_raw.strip()
+                else ""
+            )
+            if provenance == "quote_not_found":
+                if chip:
+                    bits += f" · {chip}"
+            elif provenance == "asked" and quote:
+                bits += f" · you asked: {quote!r}"
+            else:
+                if chip:
+                    bits += f" · {chip}"
+                if quote:
+                    bits += f" · you asked: {quote!r}"
+            if _memory_is_new(memory):
+                bits += " · new"
             line += f"   {bits}"
         lines.append(line)
     try:

@@ -79,6 +79,7 @@ def _handle_completion_candidates(args: argparse.Namespace) -> int:
         str(getattr(args, "prefix", "") or ""),
         project=getattr(args, "project", None),
         limit=int(args.limit),
+        selector=getattr(args, "selector", None),
     )
     output = render_candidates(candidates)
     if output:

@@ -120,6 +120,16 @@ def _register_candidates_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Scope candidates to project NAME",
     )
+    candidates_parser.add_argument(
+        "-S",
+        "--selector",
+        metavar="SELECTOR",
+        default=None,
+        help=(
+            "Scope plan_decision candidates to one pending proposal "
+            "(name, path, or notification ID prefix)"
+        ),
+    )
 
 
 def _register_list_parser(subparsers: argparse._SubParsersAction) -> None:

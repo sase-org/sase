@@ -18,9 +18,22 @@ from sase.main.completion_fast_path import (
 def _stub_candidates_for(monkeypatch: pytest.MonkeyPatch, result: list[Candidate]):
     calls: list[dict[str, object]] = []
 
-    def fake(kind: str, prefix: str, *, project: str | None, limit: int):
+    def fake(
+        kind: str,
+        prefix: str,
+        *,
+        project: str | None,
+        limit: int,
+        selector: str | None = None,
+    ):
         calls.append(
-            {"kind": kind, "prefix": prefix, "project": project, "limit": limit}
+            {
+                "kind": kind,
+                "prefix": prefix,
+                "project": project,
+                "limit": limit,
+                "selector": selector,
+            }
         )
         return result
 
@@ -38,7 +51,9 @@ def test_fast_path_prints_wire_lines_and_returns_zero(
     assert try_handle_completion_candidates(["bead"]) == 0
 
     assert capsys.readouterr().out == "sase-1\tFix the thing\nsase-2\n"
-    assert calls == [{"kind": "bead", "prefix": "", "project": None, "limit": 200}]
+    assert calls == [
+        {"kind": "bead", "prefix": "", "project": None, "limit": 200, "selector": None}
+    ]
 
 
 def test_fast_path_prints_nothing_for_no_candidates(
@@ -59,7 +74,13 @@ def test_fast_path_parses_prefix_positional(
     assert try_handle_completion_candidates(["bead", "sase-o"]) == 0
 
     assert calls == [
-        {"kind": "bead", "prefix": "sase-o", "project": None, "limit": 200}
+        {
+            "kind": "bead",
+            "prefix": "sase-o",
+            "project": None,
+            "limit": 200,
+            "selector": None,
+        }
     ]
 
 
@@ -78,7 +99,9 @@ def test_fast_path_parses_limit_flag_forms(
 
     assert try_handle_completion_candidates(argv) == 0
 
-    assert calls == [{"kind": "project", "prefix": "", "project": None, "limit": 5}]
+    assert calls == [
+        {"kind": "project", "prefix": "", "project": None, "limit": 5, "selector": None}
+    ]
 
 
 @pytest.mark.parametrize(
@@ -96,7 +119,41 @@ def test_fast_path_parses_project_flag_forms(
 
     assert try_handle_completion_candidates(argv) == 0
 
-    assert calls == [{"kind": "bead", "prefix": "", "project": "sase", "limit": 200}]
+    assert calls == [
+        {
+            "kind": "bead",
+            "prefix": "",
+            "project": "sase",
+            "limit": 200,
+            "selector": None,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["bead", "-S", "my-plan"],
+        ["bead", "--selector", "my-plan"],
+        ["bead", "--selector=my-plan"],
+    ],
+)
+def test_fast_path_parses_selector_flag_forms(
+    argv: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _stub_candidates_for(monkeypatch, [])
+
+    assert try_handle_completion_candidates(argv) == 0
+
+    assert calls == [
+        {
+            "kind": "bead",
+            "prefix": "",
+            "project": None,
+            "limit": 200,
+            "selector": "my-plan",
+        }
+    ]
 
 
 def test_fast_path_defers_on_empty_argv() -> None:
@@ -124,6 +181,7 @@ def test_fast_path_defers_on_help_flag(argv: list[str]) -> None:
         ["bead", "-l", "not-a-number"],
         ["bead", "--limit=not-a-number"],
         ["bead", "-p"],
+        ["bead", "-S"],
         ["bead", "--unknown-flag"],
     ],
 )

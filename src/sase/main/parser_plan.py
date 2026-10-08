@@ -72,7 +72,6 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan approve abcdef12 --wait 'sase-s7.2,bead=sase-64.3'\n"
             "  sase plan approve big_epic --kind epic\n"
             "  sase plan approve abcdef12 --kind commit\n"
-            "  sase plan approve my_plan   # relaunch a failed coder"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

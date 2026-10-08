@@ -18,6 +18,7 @@ _ENSURE_LOADER_PATH_FLAGS = frozenset({"-p", "--loader-path"})
 _ENSURE_OWNER_FLAGS = frozenset({"-O", "--owner"})
 _ENSURE_TARGET_FLAGS = frozenset({"-t", "--target"})
 _PROJECT_FLAGS = frozenset({"-p", "--project"})
+_SELECTOR_FLAGS = frozenset({"-S", "--selector"})
 _SUPPORTED_SHELLS = frozenset({"bash", "fish", "zsh"})
 
 
@@ -35,13 +36,13 @@ def try_handle_completion_candidates(argv: list[str]) -> int | None:
     parsed = _parse_argv(argv)
     if parsed is None:
         return None
-    kind, prefix, project, limit = parsed
+    kind, prefix, project, limit, selector = parsed
 
     from sase.completion.candidates.protocol import render_candidates
     from sase.completion.candidates.providers import candidates_for
 
     output = render_candidates(
-        candidates_for(kind, prefix, project=project, limit=limit)
+        candidates_for(kind, prefix, project=project, limit=limit, selector=selector)
     )
     if output:
         sys.stdout.write(output)
@@ -80,12 +81,15 @@ def try_handle_completion_ensure(argv: list[str]) -> int | None:
     return 0
 
 
-def _parse_argv(argv: list[str]) -> tuple[str, str, str | None, int] | None:
+def _parse_argv(
+    argv: list[str],
+) -> tuple[str, str, str | None, int, str | None] | None:
     """Parse ``candidates`` argv, or ``None`` for any shape argparse should own."""
     from sase.completion.candidates.protocol import DEFAULT_LIMIT
 
     positionals: list[str] = []
     project: str | None = None
+    selector: str | None = None
     limit = DEFAULT_LIMIT
 
     index = 0
@@ -110,6 +114,14 @@ def _parse_argv(argv: list[str]) -> tuple[str, str, str | None, int] | None:
         elif arg.startswith("--project="):
             project = arg[len("--project=") :]
             index += 1
+        elif arg in _SELECTOR_FLAGS:
+            value, index = _take_value(argv, index)
+            if value is None:
+                return None
+            selector = value
+        elif arg.startswith("--selector="):
+            selector = arg[len("--selector=") :]
+            index += 1
         elif arg.startswith("-") and arg not in {"-", "--"}:
             # An unrecognized flag: defer so argparse reports it properly.
             return None
@@ -121,7 +133,7 @@ def _parse_argv(argv: list[str]) -> tuple[str, str, str | None, int] | None:
         return None
     kind = positionals[0]
     prefix = positionals[1] if len(positionals) == 2 else ""
-    return kind, prefix, project, limit
+    return kind, prefix, project, limit, selector
 
 
 def _parse_ensure_argv(

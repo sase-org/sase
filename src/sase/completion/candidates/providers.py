@@ -40,6 +40,7 @@ def candidates_for(
     project: str | None,
     limit: int,
     use_disk_cache: bool = True,
+    selector: str | None = None,
 ) -> list[Candidate]:
     """Return up to *limit* candidates for *kind* matching *prefix*.
 
@@ -67,6 +68,12 @@ def candidates_for(
     if value_kind is ValueKind.MEMORY:
         try:
             return filter_candidates(fetch(project), prefix, limit)
+        except Exception:
+            return []
+    if value_kind is ValueKind.PLAN_DECISION and selector:
+        try:
+            scoped = fetch(project, selector)  # type: ignore[call-arg]
+            return filter_candidates(scoped, prefix, limit)
         except Exception:
             return []
 
