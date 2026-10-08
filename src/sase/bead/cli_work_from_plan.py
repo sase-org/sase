@@ -110,6 +110,7 @@ def work_from_plan_file(
             f"epic plan validation failed: {source_path}",
             validation=validation,
         )
+    _stamp_bead_work_decisions(source_path, validation, dry_run=dry_run)
 
     with ExitStack() as stack:
         plan = validation.plan
@@ -295,6 +296,50 @@ def work_from_plan_file(
             creator_artifacts_dir=creator_artifacts_dir,
             creator_via=creator_via,
         )
+
+
+def _stamp_bead_work_decisions(
+    source_path: Path, validation: object, *, dry_run: bool
+) -> None:
+    """Stamp effective defaults for a gateless epic approval, once."""
+    if dry_run:
+        return
+    try:
+        from sase.sdd.frontmatter import parse_frontmatter
+        from sase.sdd.plan_decisions import is_enabled
+
+        if not is_enabled():
+            return
+        try:
+            frontmatter, _body, had = parse_frontmatter(
+                source_path.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError):
+            return
+        if had and (frontmatter.get("decided_by") is not None):
+            return
+        raw_decisions = frontmatter.get("decisions") if had else None
+        if isinstance(raw_decisions, dict) and any(
+            isinstance(value, dict) and "answer" in value
+            for value in raw_decisions.values()
+        ):
+            return
+        plan = getattr(validation, "plan", None)
+        if plan is None or not getattr(plan, "decisions", ()):
+            return
+        from sase.sdd.plan_decisions import resolve_plan_decisions_for_direct_approval
+
+        resolved = resolve_plan_decisions_for_direct_approval(validation, {}, "agent")
+        values = resolved.get("values") if isinstance(resolved, dict) else {}
+        if not isinstance(values, dict) or not values:
+            return
+        from sase.plan_gate_stamp import stamp_direct_file
+
+        stamp_direct_file(
+            source_path, dict(values), decided_by="agent", decided_via=None
+        )
+    except Exception:
+        return
 
 
 def _launch_hooks() -> _PlanFileWorkLaunchHooks:

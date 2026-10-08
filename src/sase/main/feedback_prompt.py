@@ -21,13 +21,56 @@ def assemble_feedback_replan_prompt(
     original_prompt: str,
     feedback_bullets: list[str],
     qa_rounds: list[QARound] | None = None,
+    decision_rows: list[dict[str, object]] | None = None,
 ) -> str:
     """Build the same feedback replan body the plan runner uses."""
     base = original_prompt
     if qa_rounds:
         base += "\n\n" + merge_qa_for_prompt(qa_rounds)
     reqs = "\n".join(f"- {fb}" for fb in feedback_bullets)
-    return f"{base}\n\n{_ADDITIONAL_REQUIREMENTS_HEADING}\n\n{reqs}"
+    prompt = f"{base}\n\n{_ADDITIONAL_REQUIREMENTS_HEADING}\n\n{reqs}"
+    section = _render_provisional_decisions_section(decision_rows or [])
+    if section:
+        prompt += f"\n\n{section}"
+    return prompt
+
+
+def _render_provisional_decisions_section(
+    rows: list[dict[str, object]],
+) -> str:
+    """Render ``### Reviewer's provisional decisions`` for changed values."""
+    lines: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if not row.get("changed"):
+            continue
+        decision_id = str(row.get("id", ""))
+        value = row.get("value")
+        default = row.get("default")
+        is_memory = bool(row.get("memory"))
+        value_text = _decision_value_text(value)
+        default_text = _decision_value_text(default)
+        if is_memory and value is True:
+            lines.append(
+                f"- {decision_id} = {value_text} "
+                "(not authorization; default it on only by quoting human feedback text)"
+            )
+        elif default_text:
+            lines.append(f"- {decision_id} = {value_text} (was {default_text})")
+        else:
+            lines.append(f"- {decision_id} = {value_text}")
+    if not lines:
+        return ""
+    return "### Reviewer's provisional decisions\n\n" + "\n".join(lines)
+
+
+def _decision_value_text(value: object) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return str(value)
 
 
 def _append_feedback_replan_prompt(existing_prompt: str, feedback: str) -> str:

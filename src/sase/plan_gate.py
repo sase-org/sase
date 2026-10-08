@@ -124,6 +124,53 @@ def _build_plan_gate_spec(
         action_data.update(encode_plan_counts(counts_summary))
     option_ids = plan_gate_option_ids(tier)
     plan_name = plan_file.name
+    from sase.sdd.plan_decisions import (
+        build_definitions,
+        compile_input_properties,
+        count_memory,
+        is_enabled,
+    )
+
+    has_decisions = bool(getattr(getattr(validation, "plan", None), "decisions", ()))
+    if not is_enabled() and has_decisions:
+        raise GateError(
+            "decisions-disabled",
+            str(plan_file),
+            "plan contains decisions: but the plan_decisions flag is off",
+        )
+    definitions: list[dict[str, Any]] = []
+    decision_properties: dict[str, dict[str, Any]] = {}
+    if is_enabled() and has_decisions:
+        artifacts_dir = str(os.environ.get("SASE_ARTIFACTS_DIR") or "")
+        try:
+            definitions = build_definitions(validation, artifacts_dir)
+        except GateError:
+            raise
+        except Exception as exc:
+            raise GateError(
+                "decision-payload-failed",
+                str(plan_file),
+                f"plan decisions failed to resolve: {exc}",
+            ) from exc
+        decision_properties = compile_input_properties(definitions)
+    notes = [
+        ("Epic ready for review: " if tier == "epic" else "Tale ready for review: ")
+        + plan_name
+    ]
+    if definitions:
+        total = len(definitions)
+        memos = count_memory(definitions)
+        noun = "decision" if total == 1 else "decisions"
+        notes.append(f"{total} {noun} · 🧠 {memos}")
+    payload: dict[str, Any] = {
+        "authored_tier": tier,
+        "original_plan_file": str(plan_file),
+        "plan_resource": PLAN_RESOURCE_PATH,
+        "session_id": session_id,
+        "timestamp": time.time(),
+    }
+    if definitions:
+        payload["decisions"] = definitions
     return {
         "schema_version": 3,
         "kind": "plan" if tier == "tale" else "epic_plan",
@@ -141,22 +188,9 @@ def _build_plan_gate_spec(
             if value
         },
         "continuation_mode": PLAN_CONTINUATION_MODE,
-        "payload": {
-            "authored_tier": tier,
-            "original_plan_file": str(plan_file),
-            "plan_resource": PLAN_RESOURCE_PATH,
-            "session_id": session_id,
-            "timestamp": time.time(),
-        },
+        "payload": payload,
         "presentation": {
-            "notes": [
-                (
-                    "Epic ready for review: "
-                    if tier == "epic"
-                    else "Tale ready for review: "
-                )
-                + plan_name
-            ],
+            "notes": notes,
             "tags": ["epic" if tier == "epic" else "plan"],
             "files": [PLAN_RESOURCE_PATH],
             "action_data": action_data,
@@ -168,7 +202,10 @@ def _build_plan_gate_spec(
             else [PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID]
         ),
         "options": [
-            _plan_gate_option(option_id, tier=tier) for option_id in option_ids
+            _plan_gate_option(
+                option_id, tier=tier, decision_properties=decision_properties or None
+            )
+            for option_id in option_ids
         ],
         "groups": ([TALE_PLAN_SUBMIT_GROUP.to_dict()] if tier == "tale" else []),
         "operations": [plan_gate_edit_operation(tier)],
@@ -222,30 +259,58 @@ def _plan_action_data(
     return {key: value for key, value in values.items() if value}
 
 
-def _plan_gate_option(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
+def _plan_gate_option(
+    option_id: str,
+    *,
+    tier: PlanGateTier,
+    decision_properties: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     return {
         "id": option_id,
         "label": plan_gate_option_label(option_id, tier=tier),
         "icon": plan_gate_option_icon(option_id, tier=tier),
         "default_selected": True,
         "command": {"argv": [f"commands/{option_id}"]},
-        "input_schema": _plan_input_schema(option_id, tier=tier),
-        "result_schema": _plan_result_schema(option_id, tier=tier),
+        "input_schema": _plan_input_schema(
+            option_id, tier=tier, decision_properties=decision_properties
+        ),
+        "result_schema": _plan_result_schema(
+            option_id, tier=tier, decision_properties=decision_properties
+        ),
         "feedback": (
             "required" if option_id == PLAN_FEEDBACK_OPTION_ID else "disabled"
         ),
     }
 
 
-def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
+def _decision_options_for_input(option_id: str, *, tier: PlanGateTier) -> bool:
+    """Return whether *option_id* carries ``decision_*`` raw properties."""
+    if tier == "tale":
+        return option_id in {
+            PLAN_APPROVE_OPTION_ID,
+            PLAN_COMMIT_OPTION_ID,
+            PLAN_FEEDBACK_OPTION_ID,
+        }
+    return option_id in {PLAN_APPROVE_OPTION_ID, PLAN_FEEDBACK_OPTION_ID}
+
+
+def _plan_input_schema(
+    option_id: str,
+    *,
+    tier: PlanGateTier,
+    decision_properties: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     if option_id == PLAN_FEEDBACK_OPTION_ID:
+        properties: dict[str, Any] = {"feedback": {"type": "string", "minLength": 1}}
+        if decision_properties and _decision_options_for_input(option_id, tier=tier):
+            properties.update(decision_properties)
         return {
             "type": "object",
             "required": ["feedback"],
-            "properties": {"feedback": {"type": "string", "minLength": 1}},
+            "properties": properties,
             "additionalProperties": False,
         }
-    properties: dict[str, Any] = {}
+    properties = {}
     if tier == "tale" and option_id in {
         PLAN_APPROVE_OPTION_ID,
         PLAN_COMMIT_OPTION_ID,
@@ -265,6 +330,8 @@ def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
         properties["epic_launch_mode"] = {"enum": list(get_args(EpicLaunchMode))}
         properties["wait"] = {"type": "string"}
         properties["capacity"] = dict(PLAN_GATE_CAPACITY_SCHEMA)
+    if decision_properties and _decision_options_for_input(option_id, tier=tier):
+        properties.update(decision_properties)
     return {
         "type": "object",
         "properties": properties,
@@ -272,7 +339,12 @@ def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
     }
 
 
-def _plan_result_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
+def _plan_result_schema(
+    option_id: str,
+    *,
+    tier: PlanGateTier,
+    decision_properties: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     if option_id in {PLAN_REJECT_OPTION_ID, PLAN_FEEDBACK_OPTION_ID}:
         properties: dict[str, Any] = {"action": {"const": "reject"}}
         required = ["action"]
@@ -301,9 +373,25 @@ def _plan_result_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]
     }
     if tier == "epic":
         approve_properties["capacity"] = dict(PLAN_GATE_CAPACITY_SCHEMA)
+    required = ["action", "commit_plan", "run_coder"]
+    if decision_properties and option_id in {
+        PLAN_APPROVE_OPTION_ID,
+        PLAN_COMMIT_OPTION_ID,
+    }:
+        decisions_props = {
+            key.removeprefix("decision_"): schema
+            for key, schema in decision_properties.items()
+        }
+        approve_properties["decisions"] = {
+            "type": "object",
+            "required": sorted(decisions_props.keys()),
+            "properties": decisions_props,
+            "additionalProperties": False,
+        }
+        required.append("decisions")
     return {
         "type": "object",
-        "required": ["action", "commit_plan", "run_coder"],
+        "required": required,
         "properties": approve_properties,
         "additionalProperties": False,
     }

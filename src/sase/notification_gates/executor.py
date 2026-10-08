@@ -110,6 +110,7 @@ def execute_gate_selection(
     on_output_line: Callable[[str, str, str, str], None] | None = None,
     on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None = None,
     sudo_headless_authorization: Mapping[str, Any] | None = None,
+    expected_review_revision: int | None = None,
 ) -> GateExecutionResult:
     """Execute a non-empty subset of one branch and persist one response.
 
@@ -147,8 +148,40 @@ def execute_gate_selection(
     response_path = bundle_path / RESPONSE_FILENAME
     cancellation_path = bundle_path / CANCELLATION_FILENAME
     envelope, adapter = load_and_verify_bundle(bundle_path)
+    if expected_review_revision is not None:
+        try:
+            current_revision = int(envelope.get("review_revision", 1))
+        except (TypeError, ValueError):
+            current_revision = 1
+        if int(expected_review_revision) != current_revision:
+            raise GateError(
+                "stale_review",
+                "review_revision",
+                "plan changed since this review was shown; refresh and resubmit",
+            )
     options = options_from_envelope(envelope)
     selected = resolve_selection(envelope, options, selected_option_ids)
+    _caller = gate_response_caller()
+    _payload = (
+        envelope.get("payload") if isinstance(envelope.get("payload"), dict) else {}
+    )
+    if isinstance(_payload, dict) and _payload.get("decisions"):
+        if input_data is not None and option_inputs is None:
+            option_inputs = {option.id: input_data for option in selected}
+            input_data = None
+        try:
+            normalized = adapter.normalize_option_inputs(
+                envelope,
+                [option.id for option in selected],
+                option_inputs,
+                source=source,
+                caller=_caller,
+            )
+        except GateError:
+            raise
+        except Exception as exc:
+            raise GateError("decision-resolve-failed", "decisions", str(exc)) from exc
+        option_inputs = normalized
     reject_unavailable_option_transport(
         bundle_path,
         envelope,

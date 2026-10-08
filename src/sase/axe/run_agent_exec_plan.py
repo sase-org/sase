@@ -222,10 +222,17 @@ def _continue_after_plan_result(
         )
 
         # Reconstruct prompt: original + merged Q&A + requirements.
+        try:
+            from sase.plan_gate_decisions import feedback_rows_for_artifacts
+
+            _rows = feedback_rows_for_artifacts(state.current_artifacts_dir)
+        except Exception:
+            _rows = []
         feedback_prompt = assemble_feedback_replan_prompt(
             state.original_prompt,
             state.feedback_bullets,
             state.qa_rounds,
+            _rows,
         )
         continue_as_successor(
             ctx,

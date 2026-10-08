@@ -149,6 +149,12 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     )
     source = _request_source(request.payload) or "cli"
     selected_ids = [option.id for option in selected]
+    expected_review_revision = request.payload.get("review_revision")
+    if expected_review_revision is not None:
+        try:
+            expected_review_revision = int(expected_review_revision)
+        except (TypeError, ValueError):
+            expected_review_revision = None
 
     # A shell-backed gate is defined by the envelope's ``shell`` block (the
     # source of truth per the gate-turn design), never by whether the
@@ -194,6 +200,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
         source=source,
         retry=retry,
         option_inputs=option_inputs,
+        expected_review_revision=expected_review_revision,
         **execution_kwargs,
     )
     if gate_turn is not None:

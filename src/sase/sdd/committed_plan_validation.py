@@ -85,7 +85,9 @@ def inspect_committed_plan(
     # An invalid authored tier cannot select its own schema. Validate against
     # tale as a deterministic fallback; the tier diagnostic still makes the
     # document fail, while the engine can report its other problems in one run.
-    validation = validate_plan(content, normalized_tier or "tale")
+    # Archived is as strict as Authoring and also allows the system-written
+    # answer, decided_by, and decided_via fields on stamped plans.
+    validation = validate_plan(content, normalized_tier or "tale", mode="archived")
     return tuple(
         CommittedPlanIssue(
             path=display_path,

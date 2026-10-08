@@ -14,6 +14,7 @@ from sase.notification_gates.entrypoints import (
 from ._plan_gate_metadata import plan_gate_option_ids
 from ._plan_gate_shared import (
     PLAN_APPROVE_OPTION_ID,
+    PLAN_COMMIT_OPTION_ID,
     PLAN_FEEDBACK_OPTION_ID,
     PLAN_REJECT_OPTION_ID,
     PLAN_RESOURCE_PATH,
@@ -81,6 +82,14 @@ def execute_plan_gate_command(option_id: str) -> int:
             wait_spec=wait_spec,
             capacity=capacity,
         )
+        if option_id in {PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID}:
+            decisions = {
+                key.removeprefix("decision_"): value
+                for key, value in raw_input.items()
+                if isinstance(key, str) and key.startswith("decision_")
+            }
+            if decisions:
+                result["decisions"] = decisions
         if protocol_choice == "epic":
             mode = raw_input.get("epic_launch_mode", "launch")
             if mode not in {"launch", "detached", "skip"}:

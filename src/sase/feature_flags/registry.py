@@ -43,6 +43,7 @@ class FeatureFlag(StrEnum):
     claude_helper_channel = "claude_helper_channel"
     instruction_shadow_render = "instruction_shadow_render"
     typed_launch_units = "typed_launch_units"
+    plan_decisions = "plan_decisions"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -264,6 +265,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "SASE_INSTRUCTIONS_FILE during the call."
         ),
         bead="sase-1h4",
+    ),
+    FeatureFlag.plan_decisions: FeatureFlagDefinition(
+        key=FeatureFlag.plan_decisions,
+        kind="beta",
+        description=(
+            "Plan validate, propose, and the plan gate compile, resolve, "
+            "freeze, and stamp Plan Decisions."
+        ),
+        bead="sase-1hq",
     ),
 }
 

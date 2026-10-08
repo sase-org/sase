@@ -278,6 +278,9 @@ def prepare_plan_terminal_response(
     notification: PlanApprovalActionContext,
     choice: str,
     response_json: dict[str, Any],
+    *,
+    source: str | None = None,
+    caller: str | None = None,
 ) -> None:
     """Prepare runner-visible plan response fields before terminal publication."""
     del choice
@@ -286,6 +289,7 @@ def prepare_plan_terminal_response(
         return
 
     _sync_reviewed_plan_to_durable_best_effort(notification)
+    _stamp_decisions_best_effort(notification, response_json, source, caller)
 
     if _response_requires_host_plan_archive(response_json, persisted_action):
         archive = _archive_plan_for_approval(
@@ -307,6 +311,54 @@ def prepare_plan_terminal_response(
     if response_json.get("action") in {"approve", "epic"}:
         response_json["plan_archive_owner"] = "none"
         response_json["plan_archive_state"] = "not_requested"
+
+
+def _stamp_decisions_best_effort(
+    notification: PlanApprovalActionContext,
+    response_json: dict[str, Any],
+    source: str | None,
+    caller: str | None,
+) -> None:
+    """Stamp accepted Plan Decisions into the durable file when present."""
+    if not isinstance(response_json.get("decisions"), dict):
+        return
+    try:
+        from sase.sdd.plan_decisions import is_enabled
+    except Exception:
+        return
+    if not is_enabled():
+        return
+    resolved_source = source or str(
+        response_json.get("_gate_source") or "plan_response"
+    )
+    resolved_caller = caller or str(
+        response_json.get("_gate_caller") or _default_stamp_caller()
+    )
+    response_json.pop("_gate_source", None)
+    response_json.pop("_gate_caller", None)
+    from sase.plan_gate_stamp import stamp_durable_plan
+
+    try:
+        stamp_durable_plan(
+            notification, response_json, source=resolved_source, caller=resolved_caller
+        )
+    except Exception as exc:
+        from sase.notification_gates.models import GateError
+
+        if isinstance(exc, (PlanApprovalActionError, GateError)):
+            raise
+        raise PlanApprovalActionError(
+            "plan_archive_failed", "durable_plan", str(exc)
+        ) from exc
+
+
+def _default_stamp_caller() -> str:
+    try:
+        from sase.notification_gates.executor import gate_response_caller
+
+        return gate_response_caller()
+    except Exception:
+        return "human"
 
 
 def _response_requires_host_plan_archive(

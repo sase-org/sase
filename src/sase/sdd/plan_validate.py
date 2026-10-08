@@ -64,6 +64,40 @@ class ValidatedPlanPhase:
 
 
 @dataclass(frozen=True)
+class _PlanDecisionChoice:
+    """One authored choice option for a plan decision."""
+
+    key: str
+    label: str
+
+
+@dataclass(frozen=True)
+class _PlanDecision:
+    """One validated plan decision in author order."""
+
+    id: str
+    kind: str
+    ask: str
+    why: str | None
+    choices: tuple[_PlanDecisionChoice, ...]
+    default: Any
+    memory: tuple[str, ...] | None
+    requested: str | None
+    answer: Any
+
+
+@dataclass(frozen=True)
+class _PlanDecisionCallout:
+    """One parsed decision branch callout."""
+
+    id: str
+    key: str | None
+    branch: str
+    start_line: int
+    end_line: int
+
+
+@dataclass(frozen=True)
 class _ValidatedPlan:
     """Normalized plan data available only after error-free validation."""
 
@@ -79,6 +113,10 @@ class _ValidatedPlan:
     bead: str | None
     parent: str | None
     proposed_by: str | None
+    decisions: tuple[_PlanDecision, ...] = ()
+    decision_callouts: tuple[_PlanDecisionCallout, ...] = ()
+    decided_by: str | None = None
+    decided_via: str | None = None
 
 
 @dataclass(frozen=True)
@@ -105,6 +143,8 @@ def validate_plan(
 
     ``mode`` defaults to strict authoring validation. Launch consumers may pass
     ``"launch"`` to let core normalize legacy sizes while retaining warnings.
+    ``"archived"`` is as strict as authoring and also allows the
+    system-written ``answer``, ``decided_by``, and ``decided_via`` fields.
     """
     binding = require_rust_binding("plan_validate")
     content = _content_for_core_plan_validator(content)
@@ -220,8 +260,10 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
         goal=str(payload["goal"]),
         size=_optional_str(payload.get("size")),
         model=_optional_str(payload.get("model")),
-        title=str(payload["title"]),
-        phases=tuple(_validated_phase_from_dict(item) for item in payload["phases"]),
+        title=str(payload.get("title") or ""),
+        phases=tuple(
+            _validated_phase_from_dict(item) for item in payload.get("phases", ())
+        ),
         patch=_optional_str(
             payload.get("patch", payload.get("changespec"))  # legacy core field
         ),
@@ -230,6 +272,56 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
         bead=_optional_str(payload.get("bead")),
         parent=_optional_str(payload.get("parent")),
         proposed_by=_optional_str(payload.get("proposed_by")),
+        decisions=tuple(
+            _validated_decision_from_dict(item)
+            for item in payload.get("decisions", ())
+            if isinstance(item, dict)
+        ),
+        decision_callouts=tuple(
+            _validated_callout_from_dict(item)
+            for item in payload.get("decision_callouts", ())
+            if isinstance(item, dict)
+        ),
+        decided_by=_optional_str(payload.get("decided_by")),
+        decided_via=_optional_str(payload.get("decided_via")),
+    )
+
+
+def _validated_decision_from_dict(payload: dict[str, Any]) -> _PlanDecision:
+    choices = tuple(
+        _PlanDecisionChoice(
+            key=str(item.get("key", "")), label=str(item.get("label", ""))
+        )
+        for item in payload.get("choices", ())
+        if isinstance(item, dict)
+    )
+    memory = payload.get("memory")
+    selectors: tuple[str, ...] | None = None
+    if isinstance(memory, dict):
+        raw_selectors = memory.get("selectors", ())
+        selectors = tuple(str(item) for item in raw_selectors or ())
+    elif isinstance(memory, (list, tuple)):
+        selectors = tuple(str(item) for item in memory)
+    return _PlanDecision(
+        id=str(payload.get("id", "")),
+        kind=str(payload.get("kind", "")),
+        ask=str(payload.get("ask", "")),
+        why=_optional_str(payload.get("why")),
+        choices=choices,
+        default=payload.get("default"),
+        memory=selectors,
+        requested=_optional_str(payload.get("requested")),
+        answer=payload.get("answer"),
+    )
+
+
+def _validated_callout_from_dict(payload: dict[str, Any]) -> _PlanDecisionCallout:
+    return _PlanDecisionCallout(
+        id=str(payload.get("id", "")),
+        key=_optional_str(payload.get("key")),
+        branch=str(payload.get("branch", "")),
+        start_line=int(payload.get("start_line", 0) or 0),
+        end_line=int(payload.get("end_line", 0) or 0),
     )
 
 

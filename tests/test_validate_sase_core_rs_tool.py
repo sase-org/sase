@@ -18,6 +18,13 @@ def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
     plan_bindings = {
         "plan_validate",
         "plan_frontmatter_schema",
+        "plan_decisions_payload",
+        "plan_decisions_digest",
+        "plan_decisions_resolve",
+        "plan_decision_quote_match",
+        "plan_decision_sheet",
+        "plan_decision_summary",
+        "plan_decisions_prompt_block",
         "plan_reference_parse",
         "plan_reference_render",
         "plan_reference_canonicalize",

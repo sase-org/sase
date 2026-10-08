@@ -179,10 +179,17 @@ def _feedback_next_action(
         return declared
     from sase.axe.run_agent_helpers import assemble_feedback_replan_prompt
 
+    try:
+        from sase.plan_gate_decisions import feedback_rows_for_artifacts
+
+        _rows = feedback_rows_for_artifacts(artifacts_dir, response)
+    except Exception:
+        _rows = []
     return assemble_feedback_replan_prompt(
         original_prompt,
         feedback,
         _plan_qa_rounds(artifacts_dir),
+        _rows,
     )
 
 

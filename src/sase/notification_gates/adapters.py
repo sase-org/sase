@@ -75,6 +75,35 @@ class GateAdapter:
             )
         return _default_branch_selection(spec.primary_branch, by_id)
 
+    def normalize_option_inputs(
+        self,
+        envelope: Mapping[str, Any],
+        selected_option_ids: Sequence[str],
+        option_inputs: Mapping[str, object] | None,
+        *,
+        source: str,
+        caller: str,
+    ) -> Mapping[str, object] | None:
+        """Normalize per-option inputs before acceptance and execution.
+
+        The base implementation returns the inputs unchanged. The plan
+        adapter resolves Plan Decisions here so the receipt and the
+        execution paths consume one identical vector.
+        """
+        if self.kind not in {"plan", "epic_plan"}:
+            return option_inputs
+        try:
+            from sase.plan_gate_decisions import normalize_plan_option_inputs
+        except Exception:
+            return option_inputs
+        return normalize_plan_option_inputs(
+            envelope,
+            selected_option_ids,
+            option_inputs,
+            source=source,
+            caller=caller,
+        )
+
     def preflight_decision(self, *, selected_option_ids: Sequence[str]) -> None:
         """Refuse a decision the host already knows it cannot carry out.
 
@@ -312,6 +341,8 @@ class GateAdapter:
                 plan_context_from_envelope(bundle_path, envelope),
                 _plan_action_for_selection(self.kind, selected_ids),
                 result,
+                source=str(response.get("source") or "plan_response"),
+                caller=str(response.get("caller") or "human"),
             )
         except PlanApprovalActionError as exc:
             raise GateError(exc.code, exc.target, str(exc)) from exc
@@ -322,10 +353,78 @@ class GateAdapter:
             return
         from sase.plan_approval_actions import require_plan_approval_validation
 
-        require_plan_approval_validation(
+        validation = require_plan_approval_validation(
             path,
             "epic" if self.kind == "epic_plan" else "tale",
         )
+        try:
+            from sase.notification_gates.durability import read_json_object
+
+            bundle_path = path.parent
+            envelope = read_json_object(bundle_path / "request.json")
+            payload_decisions = envelope.get("payload", {}).get("decisions")
+        except Exception:
+            payload_decisions = None
+        if not payload_decisions:
+            return
+        from sase.sdd.frontmatter import parse_frontmatter
+
+        try:
+            frontmatter, _body, had = parse_frontmatter(
+                path.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError):
+            frontmatter, had = {}, False
+        if had and any(
+            key in frontmatter for key in ("answer", "decided_by", "decided_via")
+        ):
+            raise GateError(
+                "decision-frozen",
+                str(path),
+                "Decisions are fixed for this review. Change answers in the Decisions panel, or send feedback to change the questions.",
+            )
+        decisions_map = frontmatter.get("decisions") if had else None
+        if isinstance(decisions_map, dict) and any(
+            isinstance(value, dict) and "answer" in value
+            for value in decisions_map.values()
+        ):
+            raise GateError(
+                "decision-frozen",
+                str(path),
+                "Decisions are fixed for this review. Change answers in the Decisions panel, or send feedback to change the questions.",
+            )
+        try:
+            from sase.sdd.plan_decisions import (
+                digest_binding,
+                payload_binding,
+                validated_to_wire_dict,
+            )
+
+            frozen_by_id = {
+                str(item.get("id")): item
+                for item in payload_decisions
+                if isinstance(item, dict) and item.get("id")
+            }
+            wired = validated_to_wire_dict(validation.plan)
+            host_facts = {}
+            for decision in getattr(validation.plan, "decisions", ()):
+                frozen = frozen_by_id.get(decision.id, {})
+                host_facts[decision.id] = {
+                    "requested_verified": bool(frozen.get("requested_verified", False)),
+                    "provenance": frozen.get("provenance", "not_asked"),
+                    "resolved": list(frozen.get("resolved", [])),
+                }
+            rebuilt = payload_binding(wired, host_facts)
+            if digest_binding(rebuilt) != digest_binding(list(payload_decisions)):
+                raise GateError(
+                    "decision-frozen",
+                    str(path),
+                    "Decisions are fixed for this review. Change answers in the Decisions panel, or send feedback to change the questions.",
+                )
+        except GateError:
+            raise
+        except Exception as exc:
+            raise GateError("decision-frozen", str(path), str(exc)) from exc
 
     def regenerate_previews(self, *, bundle_path: Path) -> None:
         """Regenerate adapter-owned previews after an edit."""

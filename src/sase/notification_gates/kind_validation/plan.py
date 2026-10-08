@@ -21,6 +21,7 @@ def validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
     _validate_plan_operations(spec, tier)
     _validate_plan_resources(spec, expected_commands)
     _validate_plan_gate_turn(spec, tier)
+    _validate_plan_decisions(spec, tier)
 
 
 def _validate_plan_payload(spec: GateSpec, tier: PlanGateTier, kind: str) -> None:
@@ -170,3 +171,130 @@ def _validate_plan_gate_turn(spec: GateSpec, tier: PlanGateTier) -> None:
             "shell",
             f"{tier} plan gate turn block does not match the registered adapter",
         )
+
+
+def _validate_plan_decisions(spec: GateSpec, tier: PlanGateTier) -> None:
+    """Pin compiled Plan Decision properties and result schemas."""
+    from sase.plan_gate import (
+        PLAN_APPROVE_OPTION_ID,
+        PLAN_COMMIT_OPTION_ID,
+        PLAN_FEEDBACK_OPTION_ID,
+    )
+
+    payload_decisions = spec.payload.get("decisions")
+    by_id = {option.id: option for option in spec.options}
+    if payload_decisions is None:
+        for option in spec.options:
+            props = option.input_schema.get("properties") or {}
+            offenders = [name for name in props if name.startswith("decision_")]
+            if offenders:
+                raise GateError(
+                    "invalid_plan_decisions",
+                    f"options.{option.id}.input_schema",
+                    "decision properties require payload.decisions",
+                )
+            result_props = option.result_schema.get("properties") or {}
+            if "decisions" in result_props:
+                raise GateError(
+                    "invalid_plan_decisions",
+                    f"options.{option.id}.result_schema",
+                    "result decisions require payload.decisions",
+                )
+        return
+    if not isinstance(payload_decisions, list):
+        raise GateError(
+            "invalid_plan_decisions",
+            "payload.decisions",
+            "payload.decisions must be a frozen definition vector",
+        )
+    try:
+        from sase.sdd.plan_decisions import compile_input_properties, digest_binding
+    except Exception as exc:
+        raise GateError(
+            "invalid_plan_decisions", "payload.decisions", str(exc)
+        ) from exc
+    try:
+        first = digest_binding(list(payload_decisions))
+        second = digest_binding(list(payload_decisions))
+    except Exception as exc:
+        raise GateError(
+            "invalid_plan_decisions", "payload.decisions", str(exc)
+        ) from exc
+    if first != second:
+        raise GateError(
+            "invalid_plan_decisions",
+            "payload.decisions",
+            "payload.decisions does not round-trip through core",
+        )
+    expected_inputs = compile_input_properties(list(payload_decisions))
+    expected_ids = sorted(
+        key.removeprefix("decision_") for key in expected_inputs.keys()
+    )
+    decision_options: tuple[str, ...]
+    if tier == "tale":
+        decision_options = (
+            PLAN_APPROVE_OPTION_ID,
+            PLAN_COMMIT_OPTION_ID,
+            PLAN_FEEDBACK_OPTION_ID,
+        )
+    else:
+        decision_options = (PLAN_APPROVE_OPTION_ID, PLAN_FEEDBACK_OPTION_ID)
+    for option_id in decision_options:
+        opt = by_id.get(option_id)
+        if opt is None:
+            continue
+        props = dict(opt.input_schema.get("properties") or {})
+        actual = {
+            name: value for name, value in props.items() if name.startswith("decision_")
+        }
+        if actual != expected_inputs:
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{option_id}.input_schema",
+                "decision properties do not match payload.decisions",
+            )
+        required = opt.input_schema.get("required") or []
+        if any(name.startswith("decision_") for name in required):
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{option_id}.input_schema",
+                "decision properties are never required",
+            )
+    for option_id in (PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID):
+        result_opt = by_id.get(option_id)
+        if result_opt is None:
+            continue
+        if tier == "epic" and option_id == PLAN_COMMIT_OPTION_ID:
+            continue
+        result_props = dict(result_opt.result_schema.get("properties") or {})
+        decisions_schema = result_props.get("decisions")
+        if not isinstance(decisions_schema, dict):
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{option_id}.result_schema",
+                "approve and commit results require a decisions object",
+            )
+        required = result_opt.result_schema.get("required") or []
+        if "decisions" not in required:
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{option_id}.result_schema",
+                "result decisions must be required",
+            )
+        actual_props = decisions_schema.get("properties") or {}
+        stripped = dict(expected_inputs)
+        expected_result_props = {
+            key.removeprefix("decision_"): value for key, value in stripped.items()
+        }
+        if dict(actual_props) != expected_result_props:
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{option_id}.result_schema",
+                "result decisions do not match payload.decisions",
+            )
+        if sorted(decisions_schema.get("required") or []) != expected_ids:
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{option_id}.result_schema",
+                "result decisions must require every decision id",
+            )

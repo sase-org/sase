@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import NoReturn, cast
+from typing import Any, NoReturn, cast
 
 from sase.agent.pending_handoff import PLAN_PENDING_MARKER
 from sase.agent.pending_handoff_write import (
@@ -103,15 +103,93 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     validation = validate_plan(original, target_tier)
+    from sase.sdd.plan_decisions import (
+        content_has_decisions_key,
+        filter_schema_for_flag,
+        is_enabled as _decisions_enabled,
+    )
+
+    _filtered_schema = filter_schema_for_flag(plan_frontmatter_schema(target_tier))
+    if not _decisions_enabled() and content_has_decisions_key(original):
+        from sase.sdd.plan_validate import PlanDiagnosticSeverity
+
+        render_validation_human(
+            validation,
+            tier=target_tier,
+            path=plan_file,
+            schema=_filtered_schema,
+            console=error_console,
+        )
+        print(
+            "Error [decisions-disabled]: plan contains decisions: but the plan_decisions flag is off",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if (
+        _decisions_enabled()
+        and validation.plan is not None
+        and getattr(validation.plan, "decisions", cast(Any, ()))
+    ):
+        from sase.sdd.plan_decisions import (
+            artifacts_dir_from_env,
+            count_memory,
+            validate_host_checks,
+        )
+        from sase.sdd.plan_validate import PlanValidationResult
+
+        try:
+            extra = validate_host_checks(
+                original,
+                validation,
+                artifacts_dir,
+                strict_quotes=True,
+            )
+        except Exception:
+            extra = []
+        if extra:
+            failed = PlanValidationResult(
+                schema_version=validation.schema_version,
+                ok=False,
+                diagnostics=(*validation.diagnostics, *extra),
+                plan=None,
+            )
+            render_validation_human(
+                failed,
+                tier=target_tier,
+                path=plan_file,
+                schema=_filtered_schema,
+                console=error_console,
+            )
+            sys.exit(1)
     if not validation.ok:
         render_validation_human(
             validation,
             tier=target_tier,
             path=plan_file,
-            schema=plan_frontmatter_schema(target_tier),
+            schema=_filtered_schema,
             console=error_console,
         )
         sys.exit(1)
+    if (
+        _decisions_enabled()
+        and validation.plan is not None
+        and getattr(validation.plan, "decisions", cast(Any, ()))
+    ):
+        from sase.sdd.plan_decisions import count_memory as _count_memory
+
+        _n = len(getattr(validation.plan, "decisions", cast(Any, ())))
+        _m = _count_memory(getattr(validation.plan, "decisions", cast(Any, ())))
+        print(f"Plan Decisions: {_n} (🧠 {_m})")
+        try:
+            from sase.main.plan_approve_handler import (
+                get_auto_plan_approval_action as _auto,
+            )
+
+            _auto_action = _auto()
+        except Exception:
+            _auto_action = None
+        if _auto_action is not None:
+            print("auto-approved: every decision takes its default")
     auto_action = get_auto_plan_approval_action()
     if auto_action is not None:
         from sase.notification_gates.models import GateError
