@@ -5,7 +5,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-from sase.axe.agent_meta import write_agent_meta_atomic
+from sase.axe.agent_meta import overlay_live_auto_keys, write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -30,6 +30,9 @@ def persist_refreshed_clan_summary(
         pass
 
     merged_meta = {**disk_meta, **agent_meta, "clan_summary": clan_summary}
+    # Memory-wins merge must not resurrect auto state an ``A`` toggle
+    # stripped from disk: the live on-disk auto keys win.
+    overlay_live_auto_keys(artifacts_dir, merged_meta, disk_meta=disk_meta)
     write_agent_meta(artifacts_dir, merged_meta)
     agent_meta.update(merged_meta)
     return merged_meta
@@ -97,6 +100,9 @@ def record_run_started_at(
             merged_meta["runner_slot_wait_s"] = run_started_epoch - float(
                 slot_wait_started_at
             )
+    # Memory-wins merge must not resurrect auto state an ``A`` toggle
+    # stripped from disk: the live on-disk auto keys win.
+    overlay_live_auto_keys(artifacts_dir, merged_meta, disk_meta=disk_meta)
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
     return run_started_at

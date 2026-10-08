@@ -187,6 +187,5 @@ def test_auto_plan_action_rejects_commit_value(
         encoding="utf-8",
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
-    monkeypatch.setenv("SASE_AGENT_AUTO_APPROVE_PLAN_ACTION", auto_action)
 
     assert get_auto_plan_approval_action() is None

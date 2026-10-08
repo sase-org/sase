@@ -66,7 +66,14 @@ def _read_agent_meta() -> dict[str, object]:
 
 
 def get_auto_plan_approval_action() -> PlanAutoApprovalAction | None:
-    """Return the plan-specific auto-approval action, if one is active."""
+    """Return the plan-specific auto-approval action, if one is active.
+
+    The live ``agent_meta.json`` under ``SASE_ARTIFACTS_DIR`` is the only
+    source. The ``SASE_AGENT_AUTO_*`` launch-time snapshot is never
+    consulted, so an ``A`` toggle-off that strips the meta keys takes
+    effect at the next gate. Missing, unreadable, or non-dict meta means
+    no auto (fail closed).
+    """
     raw_argument, has_raw_argument = _raw_auto_plan_argument()
     if has_raw_argument:
         if raw_argument == "epic":
@@ -76,20 +83,13 @@ def get_auto_plan_approval_action() -> PlanAutoApprovalAction | None:
         # ``approve`` is an enabled-state compatibility sentinel. The plan
         # adapter receives and validates the opaque argument separately.
         return "approve"
-    for env_name in (
-        "SASE_AGENT_AUTO_APPROVE_PLAN_ACTION",
-        "SASE_AGENT_AUTO_PLAN_ACTION",
-    ):
-        action = _normalize_plan_action(os.environ.get(env_name))
-        if action is not None:
-            return action
 
     meta = _read_agent_meta()
     action = _normalize_plan_action(meta.get("auto_approve_plan_action"))
     if action is not None:
         return action
 
-    if os.environ.get("SASE_AGENT_AUTO_APPROVE") or meta.get("approve"):
+    if meta.get("approve"):
         return "approve"
 
     return None
@@ -102,13 +102,12 @@ def get_auto_plan_approval_argument() -> str | None:
 
 
 def _raw_auto_plan_argument() -> tuple[str | None, bool]:
-    for env_name in (
-        "SASE_AGENT_AUTO_APPROVE_ARGUMENT",
-        "SASE_AGENT_AUTO_PLAN_ARGUMENT",
-    ):
-        if env_name in os.environ:
-            value = os.environ.get(env_name, "").strip()
-            return value or None, True
+    """Return the raw ``%auto`` argument from live meta only.
+
+    The ``SASE_AGENT_AUTO_APPROVE_ARGUMENT`` / ``SASE_AGENT_AUTO_PLAN_ARGUMENT``
+    launch-time snapshot is never consulted (see
+    :func:`get_auto_plan_approval_action`).
+    """
     meta = _read_agent_meta()
     if "auto_approve_argument" in meta:
         raw_value = meta.get("auto_approve_argument")
@@ -631,18 +630,16 @@ def _validate_wait_spec_for_cli(wait: str | None) -> None:
 
 
 def is_auto_approve_active() -> bool:
-    """Check if auto-approve is active via env var or agent_meta.json.
+    """Check if auto-approve is active from the live agent_meta.json.
 
-    Returns True if SASE_AGENT_AUTO_APPROVE env var is set, or if the
-    ``approve`` field is truthy in the agent's ``agent_meta.json`` (located
-    via SASE_ARTIFACTS_DIR).
+    Returns True if the agent's ``agent_meta.json`` (located via
+    SASE_ARTIFACTS_DIR) carries auto state. The ``SASE_AGENT_AUTO_APPROVE``
+    launch-time snapshot is never consulted, so an ``A`` toggle-off takes
+    effect at the next question gate. Missing, unreadable, or non-dict
+    meta means no auto (fail closed).
     """
     _argument, has_argument = _raw_auto_plan_argument()
-    return bool(
-        has_argument
-        or os.environ.get("SASE_AGENT_AUTO_APPROVE")
-        or _read_agent_meta().get("approve")
-    )
+    return bool(has_argument or _read_agent_meta().get("approve"))
 
 
 def get_tmux_prefix() -> str:

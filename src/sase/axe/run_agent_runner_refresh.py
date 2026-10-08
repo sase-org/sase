@@ -92,6 +92,58 @@ def runner_code_identity() -> str | None:
     return _source_code_identity(_editable_sase_source_root())
 
 
+def _live_auto_prompt_mode(live_meta: Mapping[str, Any]) -> str | None:
+    """Return the ``%auto`` mode the live meta describes, or ``None`` to strip.
+
+    Mirrors the live-meta readers: a present ``auto_approve_argument``
+    string enables auto (``tale``/``epic`` keep their mode, anything else
+    is bare ``%auto``); otherwise a normalizable ``auto_approve_plan_action``
+    (``approve`` means bare) or a truthy ``approve`` enables it. No auto
+    keys means the ``A`` toggle turned auto off, so the prompt's stale
+    ``%auto`` must be stripped before re-extraction.
+    """
+    raw_argument = live_meta.get("auto_approve_argument")
+    if isinstance(raw_argument, str):
+        if raw_argument.strip() in ("tale", "epic"):
+            return raw_argument.strip()
+        return "plan"
+    raw_action = live_meta.get("auto_approve_plan_action")
+    if isinstance(raw_action, str):
+        normalized = raw_action.strip().lower()
+        if normalized in ("tale", "epic"):
+            return normalized
+        if normalized == "approve":
+            return "plan"
+    if live_meta.get("approve"):
+        return "plan"
+    return None
+
+
+def _reconcile_prompt_with_live_auto_state(
+    submitted_prompt: str,
+    artifacts_dir: str | None,
+) -> str:
+    """Rewrite *submitted_prompt*'s ``%auto`` from the live agent meta.
+
+    The refreshed pass re-extracts directives from this prompt, so the
+    live ``agent_meta.json`` auto state must win over the stale in-memory
+    prompt: otherwise an ``A`` toggle-off is undone (the ``%auto`` still in
+    the prompt re-enables auto) and a toggle-on is lost (no ``%auto`` in
+    the prompt drops auto). Without an artifacts dir there is no live
+    meta to consult and the prompt passes through unchanged.
+    """
+    if not artifacts_dir:
+        return submitted_prompt
+    from typing import cast
+
+    from sase.axe.agent_meta import read_live_agent_meta
+    from sase.macro.directive_edit import AutoMode, set_prompt_auto_mode
+
+    live_meta = read_live_agent_meta(artifacts_dir)
+    mode = cast(AutoMode | None, _live_auto_prompt_mode(live_meta))
+    return set_prompt_auto_mode(submitted_prompt, mode)
+
+
 def refresh_runner_code_after_wait(
     startup_identity: str | None,
     *,
@@ -124,6 +176,12 @@ def refresh_runner_code_after_wait(
         "Refreshing sase runner code after dependency wait: "
         f"{startup_identity} -> {current_identity}",
         flush=True,
+    )
+    # The refreshed pass re-extracts directives from this file: reconcile
+    # its stale ``%auto`` with the live meta first so an ``A`` toggle made
+    # during the wait survives the re-exec.
+    submitted_prompt = _reconcile_prompt_with_live_auto_state(
+        submitted_prompt, artifacts_dir
     )
     try:
         Path(prompt_file).write_text(submitted_prompt, encoding="utf-8")

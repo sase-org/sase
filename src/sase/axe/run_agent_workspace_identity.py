@@ -107,11 +107,16 @@ def _publish_workspace_env(*, workspace_dir: str, workspace_num: int) -> None:
 
 
 def _persist_agent_meta(ctx: AgentExecContext, artifacts_dir: str) -> None:
+    from sase.axe.agent_meta import overlay_live_auto_keys
     from sase.axe.run_agent_runner_setup import (
         refresh_linked_repos_for_workspace,
         write_agent_meta,
     )
 
+    # The rebind must not write stale in-memory auto keys back over an ``A``
+    # toggle: the live on-disk values win (this also covers the fallback
+    # write when the linked-repo refresh raises).
+    overlay_live_auto_keys(artifacts_dir, ctx.agent_meta)
     ctx.agent_meta["workspace_dir"] = ctx.workspace_dir
     ctx.agent_meta["workspace_num"] = ctx.workspace_num
     ctx.agent_meta["patch_name"] = ctx.cl_name

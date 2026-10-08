@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from sase.axe.agent_meta import overlay_live_auto_keys
 from sase.axe.clan_summary_script import (
     POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL,
     resolve_clan_summary_script,
@@ -76,6 +77,9 @@ def _prepare_workspace_and_repos(
                 "workspace_num": state.workspace_num,
             }
         )
+        # A toggle made between bootstrap and this claim must survive: the
+        # live on-disk auto keys win over this stale in-memory copy.
+        overlay_live_auto_keys(state.artifacts_dir, bootstrap.agent_meta)
         write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
 
     fresh_sidecar_paths = prepare_workspace_if_needed(
@@ -231,6 +235,9 @@ def _promote_bead_claim(
             force_reuse_prior_owner=(bootstrap.force_reuse_bead_association.owner_name),
         )
     bootstrap.agent_meta["bead_claim_promoted"] = True
+    # The bead-claim promotion must not resurrect auto state an ``A``
+    # toggle already stripped from disk.
+    overlay_live_auto_keys(state.artifacts_dir, bootstrap.agent_meta)
     write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
     clear_bead_claim_marker(state.artifacts_dir)
     state.held_bead_claim = None
@@ -315,12 +322,16 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     sdd_base_sha = capture_sdd_base_sha(state.workspace_dir, state.workspace_num)
     if sdd_base_sha:
         bootstrap.agent_meta["sdd_base_sha"] = sdd_base_sha
+        # Stale in-memory auto keys must not undo an ``A`` toggle here.
+        overlay_live_auto_keys(state.artifacts_dir, bootstrap.agent_meta)
         write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
 
     try:
         before_keys = set(bootstrap.agent_meta)
         capture_launch_evidence(state.workspace_dir, bootstrap.agent_meta)
         if set(bootstrap.agent_meta) - before_keys:
+            # Launch-evidence capture must not resurrect toggled-off auto.
+            overlay_live_auto_keys(state.artifacts_dir, bootstrap.agent_meta)
             write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
     except Exception:  # noqa: BLE001 - launch evidence is fail-open.
         import logging

@@ -254,6 +254,11 @@ def refresh_linked_repos_for_workspace(
     )
     resolution = _without_hidden_sidecars(resolution)
     apply_linked_repo_env(os.environ, resolution)
+    from sase.axe.agent_meta import overlay_live_auto_keys
+
+    # A workspace refresh that runs after an ``A`` toggle must keep the
+    # live on-disk auto keys instead of persisting stale in-memory ones.
+    overlay_live_auto_keys(artifacts_dir, agent_meta)
     agent_meta["workspace_dir"] = workspace_dir
     if resolution.repos:
         # Canonical key plus the deprecated alias for existing readers.

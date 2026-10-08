@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sase.axe.agent_meta import overlay_live_auto_keys
 from sase.axe.run_agent_markers import write_agent_meta
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -262,6 +263,9 @@ def record_wait_completed_at(
                 merged_meta["wait_release_latency_s"] = max(
                     0.0, float(wait_released_at) - satisfied
                 )
+    # Memory-wins merge must not resurrect auto state an ``A`` toggle
+    # stripped from disk: the live on-disk auto keys win.
+    overlay_live_auto_keys(artifacts_dir, merged_meta, disk_meta=disk_meta)
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
     return wait_completed_at

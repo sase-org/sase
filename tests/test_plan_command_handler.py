@@ -320,7 +320,11 @@ def test_plan_command_rejects_invalid_or_auto_mismatched_plan_without_side_effec
     monkeypatch.setenv("SASE_AGENT", "agent-x")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
     if auto_action is not None:
-        monkeypatch.setenv("SASE_AGENT_AUTO_APPROVE_PLAN_ACTION", auto_action)
+        # Auto state travels through the live agent meta, never the
+        # SASE_AGENT_AUTO_* launch-time snapshot.
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps({"auto_approve_plan_action": auto_action}), encoding="utf-8"
+        )
 
     with (
         patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill_mock,
