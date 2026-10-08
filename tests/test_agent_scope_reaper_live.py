@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from sase.agent.scope_sweep import (
-    discover_agent_scopes,
+    _discover_agent_scopes,
     _read_scope_members,
     reap_orphaned_agent_scopes,
 )
@@ -92,7 +92,7 @@ def test_live_reaper_sweeps_orphaned_scope(
         assert preview.scanned == 1, f"expected one scope, got {preview}"
         assert len(preview.reaped) == 1
         assert preview.reaped[0].unit == unit
-        for scope in discover_agent_scopes(only_units={unit}):
+        for scope in _discover_agent_scopes(only_units={unit}):
             loop_pids.extend(member.pid for member in _read_scope_members(scope.path))
         assert loop_pids, "expected the background loop to hold the scope"
 

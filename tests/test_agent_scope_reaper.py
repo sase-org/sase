@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 from sase.agent.scope_sweep import (
+    _discover_agent_scopes,
     _parse_scope_created_ns,
     _user_manager_root,
-    discover_agent_scopes,
     reap_orphaned_agent_scopes,
 )
 
@@ -148,7 +148,7 @@ def test_discovery_depth_limit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     (deep_parent / f"sase-agent-2-{_OLD_NS}.scope").mkdir()
     (cgroup_root / "app.slice" / "other-1-2.scope").mkdir()
     _write_self_cgroup(proc_root)
-    scopes = discover_agent_scopes(cgroup_root=cgroup_root, proc_root=proc_root)
+    scopes = _discover_agent_scopes(cgroup_root=cgroup_root, proc_root=proc_root)
     assert [s.unit for s in scopes] == [f"sase-agent-1-{_OLD_NS}.scope"]
 
 
@@ -163,7 +163,7 @@ def test_discovery_only_units_filter(
             parents=True
         )
     _write_self_cgroup(proc_root)
-    scopes = discover_agent_scopes(
+    scopes = _discover_agent_scopes(
         cgroup_root=cgroup_root,
         only_units={f"sase-agent-11-{_OLD_NS}.scope"},
         proc_root=proc_root,
@@ -178,7 +178,7 @@ def test_pytest_guard_refuses_unfiltered_real_scan(
     proc_root = tmp_path / "proc"
     _write_self_cgroup(proc_root)
     with pytest.raises(RuntimeError, match="explicit cgroup_root or only_units"):
-        discover_agent_scopes(proc_root=proc_root)
+        _discover_agent_scopes(proc_root=proc_root)
 
 
 def test_pytest_guard_allows_explicit_filter_without_root(
@@ -191,7 +191,7 @@ def test_pytest_guard_allows_explicit_filter_without_root(
         "sase.agent.scope_sweep._iter_scope_dirs",
         lambda _root, max_depth=3: [],
     )
-    assert discover_agent_scopes(only_units={"x.scope"}, proc_root=proc_root) == []
+    assert _discover_agent_scopes(only_units={"x.scope"}, proc_root=proc_root) == []
 
 
 def _build_mixed_tree(

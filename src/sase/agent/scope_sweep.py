@@ -6,7 +6,7 @@ through :func:`sase.detach_scope.detach_scope` into its own scope. Anything
 still in the scope that is not the runner, not one of the runner's live
 descendants, and not a spared shared daemon is a leak and gets terminated.
 
-The same pure selection rule (:func:`plan_scope_sweep`) is used at runner
+The same pure selection rule (:func:`_plan_scope_sweep`) is used at runner
 exit, between in-process successor turns, and by the orphaned-scope reaper
 backstop (:func:`reap_orphaned_agent_scopes`).
 """
@@ -54,7 +54,7 @@ _SWEEP_ARGV_WIDTH = 120
 
 
 @dataclass(frozen=True)
-class ScopeMember:
+class _ScopeMember:
     """One live process found in a scope's ``cgroup.procs``."""
 
     pid: int
@@ -65,12 +65,12 @@ class ScopeMember:
 
 
 @dataclass(frozen=True)
-class ScopeSweepPlan:
+class _ScopeSweepPlan:
     """Pure selection result: what a sweep would signal."""
 
-    targets: tuple[ScopeMember, ...]
-    spared: tuple[ScopeMember, ...]
-    protected: tuple[ScopeMember, ...]
+    targets: tuple[_ScopeMember, ...]
+    spared: tuple[_ScopeMember, ...]
+    protected: tuple[_ScopeMember, ...]
     spare_patterns: tuple[str, ...] = ()
     protect_root_pid: int | None = None
 
@@ -80,8 +80,8 @@ class _ScopeSweepResult:
     """Outcome of :func:`_execute_scope_sweep`."""
 
     unit: str
-    terminated: tuple[ScopeMember, ...]
-    survivors: tuple[ScopeMember, ...]
+    terminated: tuple[_ScopeMember, ...]
+    survivors: tuple[_ScopeMember, ...]
     rounds: int
 
 
@@ -146,7 +146,7 @@ def _read_argv(proc_root: Path, pid: int) -> tuple[str, ...] | None:
 
 def _read_scope_members(
     scope_dir: Path, *, proc_root: Path = Path("/proc")
-) -> list[ScopeMember]:
+) -> list[_ScopeMember]:
     """Return live members listed in ``scope_dir/cgroup.procs``.
 
     Zombies and unreadable pids are skipped.
@@ -155,7 +155,7 @@ def _read_scope_members(
         procs = (scope_dir / "cgroup.procs").read_text(encoding="utf-8")
     except OSError:
         return []
-    members: list[ScopeMember] = []
+    members: list[_ScopeMember] = []
     for line in procs.splitlines():
         line = line.strip()
         if not line.isdigit():
@@ -174,7 +174,7 @@ def _read_scope_members(
         if argv is None:
             continue
         members.append(
-            ScopeMember(
+            _ScopeMember(
                 pid=pid,
                 ppid=ppid,
                 comm=comm,
@@ -185,7 +185,7 @@ def _read_scope_members(
     return members
 
 
-def is_agent_runner(member: ScopeMember) -> bool:
+def _is_agent_runner(member: _ScopeMember) -> bool:
     """Whether *member* looks like the agent runner process."""
     for arg in member.argv[:3]:
         if PurePosixPath(arg).name == RUNNER_SCRIPT_NAME:
@@ -215,12 +215,12 @@ def _descendants(roots: set[int], by_ppid: Mapping[int, list[int]]) -> set[int]:
     return seen
 
 
-def plan_scope_sweep(
-    members: list[ScopeMember] | tuple[ScopeMember, ...],
+def _plan_scope_sweep(
+    members: list[_ScopeMember] | tuple[_ScopeMember, ...],
     *,
-    protect_root: ScopeMember | int | None,
+    protect_root: _ScopeMember | int | None,
     spare_patterns: tuple[str, ...] | list[str] = (),
-) -> ScopeSweepPlan:
+) -> _ScopeSweepPlan:
     """Apply the shared selection rule to *members*.
 
     The protect root (plus its live ``ppid`` descendants in the member set)
@@ -238,7 +238,7 @@ def plan_scope_sweep(
     root_pid: int | None = None
     if protect_root is not None:
         root_pid = (
-            protect_root.pid if isinstance(protect_root, ScopeMember) else protect_root
+            protect_root.pid if isinstance(protect_root, _ScopeMember) else protect_root
         )
         if root_pid in by_pid:
             protected_ids = _descendants({root_pid}, by_ppid)
@@ -260,7 +260,7 @@ def plan_scope_sweep(
     targets = tuple(
         m for m in member_list if m.pid not in protected_ids and m.pid not in spared_ids
     )
-    return ScopeSweepPlan(
+    return _ScopeSweepPlan(
         targets=targets,
         spared=spared,
         protected=protected,
@@ -283,13 +283,13 @@ def _identity_matches(
 
 
 def _signal_targets(
-    targets: tuple[ScopeMember, ...],
+    targets: tuple[_ScopeMember, ...],
     sig: signal.Signals,
     *,
     proc_root: Path,
     kill: Callable[[int, int], None],
-) -> list[ScopeMember]:
-    signalled: list[ScopeMember] = []
+) -> list[_ScopeMember]:
+    signalled: list[_ScopeMember] = []
     for target in targets:
         if not _identity_matches(target.pid, target.identity, proc_root=proc_root):
             continue
@@ -301,7 +301,7 @@ def _signal_targets(
     return signalled
 
 
-def _still_alive(member: ScopeMember, *, proc_root: Path = Path("/proc")) -> bool:
+def _still_alive(member: _ScopeMember, *, proc_root: Path = Path("/proc")) -> bool:
     stat = _read_stat_fields(proc_root, member.pid)
     if stat is None:
         return False
@@ -311,7 +311,7 @@ def _still_alive(member: ScopeMember, *, proc_root: Path = Path("/proc")) -> boo
 
 
 def _execute_scope_sweep(
-    plan: ScopeSweepPlan,
+    plan: _ScopeSweepPlan,
     scope_dir: Path,
     *,
     grace_seconds: float = 3.0,
@@ -329,7 +329,7 @@ def _execute_scope_sweep(
     unit = scope_dir.name
     grace = max(0.0, float(grace_seconds))
     deadline = clock() + grace + _SWEEP_OVERRUN_SECONDS
-    terminated: list[ScopeMember] = []
+    terminated: list[_ScopeMember] = []
 
     # Round 1: SIGTERM, wait out the grace, then SIGKILL the survivors.
     signalled = _signal_targets(
@@ -351,7 +351,7 @@ def _execute_scope_sweep(
         fresh = _read_scope_members(scope_dir, proc_root=proc_root)
         if not fresh:
             break
-        replanned = plan_scope_sweep(
+        replanned = _plan_scope_sweep(
             fresh,
             protect_root=plan.protect_root_pid,
             spare_patterns=plan.spare_patterns,
@@ -372,7 +372,7 @@ def _execute_scope_sweep(
             sleep(_SWEEP_POLL_SECONDS)
 
     # Deduplicate by pid, keeping first occurrence; survivors are re-checked.
-    deduped: list[ScopeMember] = []
+    deduped: list[_ScopeMember] = []
     seen: set[int] = set()
     for member in terminated:
         if member.pid not in seen:
@@ -453,7 +453,7 @@ def _own_agent_scope(
     return scope_dir
 
 
-def _format_entry(member: ScopeMember) -> str:
+def _format_entry(member: _ScopeMember) -> str:
     argv = " ".join(member.argv)
     if len(argv) > _SWEEP_ARGV_WIDTH:
         argv = argv[:_SWEEP_ARGV_WIDTH]
@@ -495,7 +495,7 @@ def sweep_own_agent_scope(
             else get_agent_scope_teardown_term_grace_seconds()
         )
         members = _read_scope_members(scope_dir, proc_root=proc_root)
-        plan = plan_scope_sweep(
+        plan = _plan_scope_sweep(
             members, protect_root=os.getpid(), spare_patterns=patterns
         )
         if not plan.targets:
@@ -536,7 +536,7 @@ _REAPER_PYTEST_GUARD_MESSAGE = (
 
 
 @dataclass(frozen=True)
-class AgentScope:
+class _AgentScope:
     """One ``sase-agent-*.scope`` directory found under the user manager."""
 
     unit: str
@@ -545,7 +545,7 @@ class AgentScope:
 
 
 @dataclass(frozen=True)
-class ReapedScope:
+class _ReapedScope:
     """Per-scope detail recorded for a reapable orphaned scope."""
 
     unit: str
@@ -556,7 +556,7 @@ class ReapedScope:
 
 
 @dataclass(frozen=True)
-class ReapResult:
+class _ReapResult:
     """Outcome of :func:`reap_orphaned_agent_scopes`."""
 
     scanned: int
@@ -564,7 +564,7 @@ class ReapResult:
     skipped_young: int
     empty: int
     spared_only: int
-    reaped: tuple[ReapedScope, ...]
+    reaped: tuple[_ReapedScope, ...]
     terminated: int
     errors: int
     reason: str | None = None
@@ -593,7 +593,7 @@ def _is_agent_scope_name(name: str) -> bool:
     return name.startswith(AGENT_SCOPE_UNIT_PREFIX + "-") and name.endswith(".scope")
 
 
-def _is_systemd_run_member(member: ScopeMember) -> bool:
+def _is_systemd_run_member(member: _ScopeMember) -> bool:
     if member.comm == _SYSTEMD_RUN_BASENAME:
         return True
     return any(
@@ -667,12 +667,12 @@ def _iter_scope_dirs(search_root: Path, *, max_depth: int = 3) -> list[Path]:
     return found
 
 
-def discover_agent_scopes(
+def _discover_agent_scopes(
     *,
     cgroup_root: Path | str | None = None,
     only_units: set[str] | frozenset[str] | None = None,
     proc_root: Path = Path("/proc"),
-) -> list[AgentScope]:
+) -> list[_AgentScope]:
     """Locate ``sase-agent-*.scope`` directories under the user manager.
 
     With *cgroup_root* given, that tree is searched directly (tests pass a
@@ -704,14 +704,14 @@ def discover_agent_scopes(
             return []
         search_root = _user_manager_root(cgroup_text, uid=uid)
     wanted = set(only_units) if only_units is not None else None
-    scopes: list[AgentScope] = []
+    scopes: list[_AgentScope] = []
     for scope_dir in _iter_scope_dirs(
         search_root, max_depth=_REAPER_MAX_DISCOVERY_DEPTH
     ):
         if wanted is not None and scope_dir.name not in wanted:
             continue
         scopes.append(
-            AgentScope(
+            _AgentScope(
                 unit=scope_dir.name,
                 path=scope_dir,
                 created_ns=_parse_scope_created_ns(scope_dir.name),
@@ -751,19 +751,19 @@ def reap_orphaned_agent_scopes(
     kill: Callable[[int, int], None] | None = None,
     clock: Callable[[], float] | None = None,
     sleep: Callable[[float], None] | None = None,
-) -> ReapResult:
+) -> _ReapResult:
     """Sweep ``sase-agent`` scopes whose runner is gone.
 
     Each discovered scope classifies as ``skipped_young`` (younger than
     *min_age_seconds*, or with an unparsable trailing timestamp, which fails
     closed), ``live`` (holds a runner or ``systemd-run`` member), ``empty``
     (no live members), ``spared_only`` (every member spared), or
-    ``reapable``. Reapable scopes run :func:`plan_scope_sweep` with no
+    ``reapable``. Reapable scopes run :func:`_plan_scope_sweep` with no
     protect root and, when *apply* is true, :func:`_execute_scope_sweep`;
     with ``apply=False`` nothing is signalled.
     """
     if sys.platform != "linux":
-        return ReapResult(
+        return _ReapResult(
             scanned=0,
             live=0,
             skipped_young=0,
@@ -775,7 +775,7 @@ def reap_orphaned_agent_scopes(
             reason="not_linux",
         )
     if not _cgroup_v2_unified(proc_root=proc_root):
-        return ReapResult(
+        return _ReapResult(
             scanned=0,
             live=0,
             skipped_young=0,
@@ -820,14 +820,14 @@ def reap_orphaned_agent_scopes(
 
     # The pytest guard lives in discovery; let its refusal propagate so a
     # test that forgets its fake root fails loudly instead of scanning host.
-    scopes = discover_agent_scopes(
+    scopes = _discover_agent_scopes(
         cgroup_root=cgroup_root, only_units=only_units, proc_root=proc_root
     )
     live = 0
     skipped_young = 0
     empty = 0
     spared_only = 0
-    reaped: list[ReapedScope] = []
+    reaped: list[_ReapedScope] = []
     terminated_total = 0
     errors = 0
     for scope in scopes:
@@ -844,12 +844,12 @@ def reap_orphaned_agent_scopes(
                 empty += 1
                 continue
             if any(
-                is_agent_runner(member) or _is_systemd_run_member(member)
+                _is_agent_runner(member) or _is_systemd_run_member(member)
                 for member in members
             ):
                 live += 1
                 continue
-            plan = plan_scope_sweep(
+            plan = _plan_scope_sweep(
                 members, protect_root=None, spare_patterns=spare_patterns
             )
             if not plan.targets:
@@ -875,7 +875,7 @@ def reap_orphaned_agent_scopes(
                 terminated_here = len(sweep_result.terminated)
                 terminated_total += terminated_here
             reaped.append(
-                ReapedScope(
+                _ReapedScope(
                     unit=scope.unit,
                     agent_name=agent_name,
                     targets=len(plan.targets),
@@ -886,7 +886,7 @@ def reap_orphaned_agent_scopes(
         except Exception:  # noqa: BLE001 - one bad scope never stops the pass.
             log.exception("Orphaned agent scope reap failed for %s", scope.unit)
             errors += 1
-    return ReapResult(
+    return _ReapResult(
         scanned=len(scopes),
         live=live,
         skipped_young=skipped_young,
@@ -902,14 +902,6 @@ __all__ = [
     "AGENT_SCOPE_UNIT_PREFIX",
     "DEFAULT_SPARE_PROCESS_PATTERNS",
     "RUNNER_SCRIPT_NAME",
-    "AgentScope",
-    "ReapResult",
-    "ReapedScope",
-    "ScopeMember",
-    "ScopeSweepPlan",
-    "discover_agent_scopes",
-    "is_agent_runner",
-    "plan_scope_sweep",
     "reap_orphaned_agent_scopes",
     "sweep_own_agent_scope",
 ]

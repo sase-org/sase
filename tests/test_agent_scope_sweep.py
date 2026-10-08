@@ -14,12 +14,12 @@ import pytest
 from sase.agent.scope_sweep import (
     AGENT_SCOPE_UNIT_PREFIX,
     RUNNER_SCRIPT_NAME,
-    ScopeMember,
+    _ScopeMember,
     _execute_scope_sweep,
+    _is_agent_runner,
     _own_agent_scope,
+    _plan_scope_sweep,
     _read_scope_members,
-    is_agent_runner,
-    plan_scope_sweep,
     sweep_own_agent_scope,
 )
 
@@ -115,8 +115,10 @@ def _make_scope(
 
 def _member(
     pid: int, ppid: int = 1, comm: str = "sh", argv: tuple[str, ...] = ("sh",)
-) -> ScopeMember:
-    return ScopeMember(pid=pid, ppid=ppid, comm=comm, argv=argv, identity=f"boot:{pid}")
+) -> _ScopeMember:
+    return _ScopeMember(
+        pid=pid, ppid=ppid, comm=comm, argv=argv, identity=f"boot:{pid}"
+    )
 
 
 class _Clock:
@@ -137,7 +139,7 @@ def test_protect_root_descendants_survive() -> None:
     child = _member(101, ppid=100)
     grandchild = _member(102, ppid=101)
     leak = _member(103, ppid=1)
-    plan = plan_scope_sweep(
+    plan = _plan_scope_sweep(
         [runner, child, grandchild, leak], protect_root=runner, spare_patterns=()
     )
     assert {m.pid for m in plan.protected} == {100, 101, 102}
@@ -148,7 +150,7 @@ def test_protect_root_descendants_survive() -> None:
 def test_protect_root_pid_form() -> None:
     runner = _member(100, ppid=1)
     child = _member(101, ppid=100)
-    plan = plan_scope_sweep([runner, child], protect_root=100, spare_patterns=())
+    plan = _plan_scope_sweep([runner, child], protect_root=100, spare_patterns=())
     assert {m.pid for m in plan.protected} == {100, 101}
     assert plan.targets == ()
 
@@ -161,7 +163,7 @@ def test_spare_by_comm_and_cmdline_plus_descendants() -> None:
     mux = _member(202, ppid=1, comm="ssh", argv=("ssh:", "user@host", "[mux]"))
     mux_child = _member(203, ppid=202, argv=("sh",))
     leak = _member(204, ppid=1)
-    plan = plan_scope_sweep(
+    plan = _plan_scope_sweep(
         [agent, ssh_agent, mux, mux_child, leak],
         protect_root=agent,
         spare_patterns=(
@@ -176,12 +178,12 @@ def test_spare_by_comm_and_cmdline_plus_descendants() -> None:
 
 
 def test_is_agent_runner_first_three_argv() -> None:
-    assert is_agent_runner(_member(1, argv=("python", "run_agent_runner.py", "--x")))
-    assert is_agent_runner(
+    assert _is_agent_runner(_member(1, argv=("python", "run_agent_runner.py", "--x")))
+    assert _is_agent_runner(
         _member(1, argv=("python", "-u", "/a/b/run_agent_runner.py"))
     )
-    assert not is_agent_runner(_member(1, argv=("python", "other.py")))
-    assert not is_agent_runner(
+    assert not _is_agent_runner(_member(1, argv=("python", "other.py")))
+    assert not _is_agent_runner(
         _member(
             1,
             argv=("a", "b", "c", "run_agent_runner.py"),
@@ -212,7 +214,7 @@ def test_execute_identity_pinning_skips_recycled_pid(tmp_path: Path) -> None:
     (scope_dir / "cgroup.procs").write_text("400\n", encoding="utf-8")
     members = _read_scope_members(scope_dir, proc_root=proc_root)
     assert len(members) == 1
-    plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
+    plan = _plan_scope_sweep(members, protect_root=None, spare_patterns=())
     assert [m.pid for m in plan.targets] == [400]
     # The target exits and its pid is recycled by a process outside the
     # scope: the scope no longer lists it, and its start time changed.
@@ -241,7 +243,7 @@ def test_execute_grace_escalation_term_then_kill(tmp_path: Path) -> None:
     _write_proc(proc_root, 500, ["busy-loop"])
     (scope_dir / "cgroup.procs").write_text("500\n", encoding="utf-8")
     members = _read_scope_members(scope_dir, proc_root=proc_root)
-    plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
+    plan = _plan_scope_sweep(members, protect_root=None, spare_patterns=())
 
     calls: list[tuple[int, int]] = []
     clock = _Clock()
@@ -269,7 +271,7 @@ def test_execute_late_arrival_gets_sigkill_directly(tmp_path: Path) -> None:
     _write_proc(proc_root, 600, ["first"])
     (scope_dir / "cgroup.procs").write_text("600\n", encoding="utf-8")
     members = _read_scope_members(scope_dir, proc_root=proc_root)
-    plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
+    plan = _plan_scope_sweep(members, protect_root=None, spare_patterns=())
 
     calls: list[tuple[int, int]] = []
     clock = _Clock()
@@ -297,7 +299,7 @@ def test_execute_late_arrival_gets_sigkill_directly(tmp_path: Path) -> None:
 
 def test_invalid_spare_regex_is_ignored() -> None:
     leak = _member(700)
-    plan = plan_scope_sweep([leak], protect_root=None, spare_patterns=("[bad",))
+    plan = _plan_scope_sweep([leak], protect_root=None, spare_patterns=("[bad",))
     assert [m.pid for m in plan.targets] == [700]
 
 
@@ -384,7 +386,7 @@ def test_execute_real_signal_only_targets_created_pids(tmp_path: Path) -> None:
         (scope_dir / "cgroup.procs").write_text(f"{proc.pid}\n", encoding="utf-8")
         members = _read_scope_members(scope_dir)
         assert [m.pid for m in members] == [proc.pid]
-        plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
+        plan = _plan_scope_sweep(members, protect_root=None, spare_patterns=())
         assert [m.pid for m in plan.targets] == [proc.pid]
         result = _execute_scope_sweep(plan, scope_dir, grace_seconds=0.2)
         assert proc.poll() is not None
