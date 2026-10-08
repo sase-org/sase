@@ -7,6 +7,7 @@ from dataclasses import replace
 from functools import lru_cache
 
 from sase.agent.launch_types import AgentLaunchResult
+from sase.agent.scope_sweep import AGENT_SCOPE_UNIT_PREFIX
 from sase.detach_scope import detach_scope
 from sase.core.paths import sase_projects_dir
 from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
@@ -354,7 +355,7 @@ def spawn_agent_subprocess(
         scoped_launch = detach_scope(
             prepared.argv,
             description="SASE agent runner",
-            unit_prefix="sase-agent",
+            unit_prefix=AGENT_SCOPE_UNIT_PREFIX,
         )
         if scoped_launch.argv != prepared.argv:
             prepared = replace(prepared, argv=scoped_launch.argv)

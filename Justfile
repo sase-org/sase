@@ -400,6 +400,9 @@ _lint-patch-stitch-terminology: _setup
 # sase-1h7.8 consumed describe_epic_follow for the TUI lanes and toast, so its
 # --epic-symbol row is dropped; sase-1h7.9 reuses the same strings for
 # CLI/Telegram parity through the real TUI consumer.
+# sase-1i4.3 (scope-reaper phase) will consume the scope_sweep selection seams
+# (plan/execute with protect_root=None, member reads, runner detection, and
+# their dataclasses); drop the rows once it lands real consumers.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -407,6 +410,13 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1i4.3(ScopeMember)' \
+        --epic-symbol 'sase-1i4.3(ScopeSweepPlan)' \
+        --epic-symbol 'sase-1i4.3(ScopeSweepResult)' \
+        --epic-symbol 'sase-1i4.3(execute_scope_sweep)' \
+        --epic-symbol 'sase-1i4.3(is_agent_runner)' \
+        --epic-symbol 'sase-1i4.3(plan_scope_sweep)' \
+        --epic-symbol 'sase-1i4.3(read_scope_members)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

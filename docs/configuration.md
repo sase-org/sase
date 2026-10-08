@@ -46,6 +46,7 @@ sections, environment variables, and CLI flags.
   - [max_running_agents](#max_running_agents)
   - [max_agent_pipe_chain](#max_agent_pipe_chain)
   - [runner_slots](#runner_slots)
+  - [agent_scope_teardown](#agent_scope_teardown)
   - [agent hold limits](#agent-hold-limits)
   - [procs](#procs)
   - [service](#service)
@@ -4264,6 +4265,40 @@ stopped to make room, and a deferred waiter's own priority does not improve whil
 waits. See [Agent waiting for a runner slot](troubleshooting/runner-slots.md) for
 diagnosis, and [`%queue(priority=N)`](macros.md#supported-directives) for the directive
 itself.
+
+### agent_scope_teardown
+
+Lifetime of processes an agent starts. An agent runner's `sase-agent-*` scope bounds
+every process the agent starts: leftovers are swept at runner exit and between
+in-process successor turns, and long-lived work must escape via `detach_scope` into its
+own scope. Members matching a spare pattern (plus their descendants) are never killed,
+so shared user daemons survive.
+
+```yaml
+agent_scope_teardown:
+  enabled: true
+  term_grace_seconds: 3
+  reaper_min_scope_age_seconds: 120
+  spare_process_patterns:
+    - "^ssh-agent$"
+    - "^gpg-agent$"
+    - "^tmux: server$"
+    - '^ssh: .*\[mux\]$'
+```
+
+| Field                                               | Type     | Default                                                | Description                                                            |
+| --------------------------------------------------- | -------- | ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `agent_scope_teardown.enabled`                      | bool     | `true`                                                 | Sweep the runner's own scope at exit and between successor turns.      |
+| `agent_scope_teardown.term_grace_seconds`           | number   | `3`                                                    | Grace between SIGTERM and SIGKILL when sweeping leaked processes.      |
+| `agent_scope_teardown.reaper_min_scope_age_seconds` | number   | `120`                                                  | Minimum scope age before the orphaned-scope reaper may sweep it.       |
+| `agent_scope_teardown.spare_process_patterns`       | string[] | ssh-agent, gpg-agent, tmux server, ssh mux (see above) | Regex list (`re.search` over comm or cmdline) never killed by a sweep. |
+
+This is a config field, not a feature flag: users may permanently disable it or extend
+the spare list, and the sweep is on by default. An invalid spare pattern is logged and
+ignored. The sweep is Linux/cgroup-v2 only and a no-op elsewhere.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`,
+`src/sase/agent/scope_sweep.py`
 
 ### agent hold limits
 

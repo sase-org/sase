@@ -1,4 +1,12 @@
-"""Best-effort cgroup escape support for long-lived detached SASE work."""
+"""Best-effort cgroup escape support for long-lived detached SASE work.
+
+An agent runner's ``sase-agent-*`` scope bounds every process the agent
+starts: leftovers are swept at runner exit and between in-process successor
+turns, and a reaper backstop covers scopes whose runner died without
+cleaning up. Work that must outlive the runner must therefore escape through
+:func:`detach_scope` into its own scope; shared user daemons (ssh-agent,
+gpg-agent, ssh ControlMaster, tmux server) are spared by the sweep.
+"""
 
 from __future__ import annotations
 
@@ -237,6 +245,18 @@ def _detach_scope_disabled() -> bool:
     return False
 
 
+def unit_from_cgroup_path(path: str) -> str | None:
+    """Return the trailing ``*.scope``/``*.service`` component of *path*."""
+
+    return _unit_from_cgroup_path(path)
+
+
+def detach_scope_disabled() -> bool:
+    """Return whether scope escaping is disabled via environment."""
+
+    return _detach_scope_disabled()
+
+
 def _scope_unit_name(unit_prefix: str) -> str:
     safe_prefix = _UNIT_SAFE_CHARS.sub("-", unit_prefix).strip(".-") or "sase-detached"
     uniquifier = f"{os.getpid()}-{time.time_ns()}"
@@ -246,4 +266,6 @@ def _scope_unit_name(unit_prefix: str) -> str:
 __all__ = [
     "DETACH_SCOPE_DISABLE_ENV",
     "detach_scope",
+    "detach_scope_disabled",
+    "unit_from_cgroup_path",
 ]

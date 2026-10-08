@@ -137,6 +137,16 @@ the chat-install worker move into their own transient user scopes with
 `OOMPolicy=continue`, so restarting that service — or an OOM teardown of the launching
 terminal scope — does not kill them. `SASE_DETACH_SCOPE_DISABLE=1` turns this off.
 
+An agent runner's `sase-agent-*` scope bounds the lifetime of every process the agent
+starts. Work that must outlive the runner must escape through `detach_scope` into its
+own scope. Anything still in the scope that is not the runner, not one of the runner's
+live descendants, and not a spared shared daemon is a leak: it is terminated at runner
+exit and again between in-process successor turns (so one turn's leaked loop cannot spin
+through the next turn), with a periodic reaper backstop for scopes whose runner died
+without cleaning up. Shared user daemons — ssh-agent, gpg-agent, ssh ControlMaster, and
+the tmux server — are never killed. See `agent_scope_teardown` in
+`docs/configuration.md`.
+
 ## Agent, Monitor, and Gate Turns
 
 A SASE agent is either one standalone agent turn or a sequential session of turns. Turns

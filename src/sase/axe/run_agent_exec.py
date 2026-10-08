@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from collections.abc import Callable
@@ -300,7 +301,20 @@ def _run_execution_loop_bound(
             workspace_dir=workspace_dir,
         )
 
+    turn_index = 0
     while True:
+        turn_index += 1
+        if turn_index > 1:
+            # No provider is running at this point; reap what the previous
+            # turn leaked so it cannot spin through this turn.
+            try:
+                from sase.agent.scope_sweep import sweep_own_agent_scope
+
+                sweep_own_agent_scope(context="turn")
+            except Exception:  # noqa: BLE001 - the sweep must never break a turn.
+                logging.getLogger(__name__).exception(
+                    "Agent scope sweep between turns failed"
+                )
         reset_killed()
         _publish_phase_env(state.current_artifacts_dir)
         anon_workflow = create_anonymous_workflow(state.current_prompt)

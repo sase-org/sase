@@ -13,6 +13,7 @@ core execution loop to ``axe.run_agent_exec``, and completion/shutdown to
 run state they all share lives in ``axe.run_agent_runner_state``.
 """
 
+import logging
 import os
 import sys
 import time
@@ -337,6 +338,16 @@ def main() -> None:
         _record_completion(state)
 
     finally:
+        # Sweep first: workspace release in finalize_runner_shutdown and
+        # scratch cleanup both see a scope without leftovers.
+        try:
+            from sase.agent.scope_sweep import sweep_own_agent_scope
+
+            sweep_own_agent_scope(context="exit")
+        except Exception:  # noqa: BLE001 - the sweep must never break shutdown.
+            logging.getLogger(__name__).exception(
+                "Agent scope sweep before shutdown failed"
+            )
         try:
             finalize_runner_shutdown(
                 context=state.shutdown_context(),

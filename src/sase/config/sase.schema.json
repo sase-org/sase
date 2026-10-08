@@ -5369,6 +5369,35 @@
         }
       }
     },
+    "agent_scope_teardown": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the runner sweeps leaked processes from its own sase-agent scope at exit and between in-process successor turns.",
+          "default": true
+        },
+        "term_grace_seconds": {
+          "type": "number",
+          "description": "Grace between SIGTERM and SIGKILL when sweeping leaked scope processes.",
+          "minimum": 0,
+          "default": 3
+        },
+        "reaper_min_scope_age_seconds": {
+          "type": "number",
+          "description": "Minimum scope age before the orphaned-scope reaper may sweep it.",
+          "minimum": 0,
+          "default": 120
+        },
+        "spare_process_patterns": {
+          "type": "array",
+          "description": "Regex patterns (re.search) matching shared daemons the sweep never kills.",
+          "items": {"type": "string"},
+          "default": ["^ssh-agent$", "^gpg-agent$", "^tmux: server$", "^ssh: .*\\[mux\\]$"]
+        }
+      }
+    },
     "agent_hold_default_ttl": {
       "type": "string",
       "description": "TTL applied to `sase agent hold create`/`run` when --ttl is omitted. Bare seconds or a number suffixed with s/m/h.",

@@ -78,6 +78,23 @@ runner_slots:
   deference_seconds_per_step: 3
   deference_max_seconds: 60
 
+# Lifetime of processes an agent starts. An agent runner's `sase-agent-*`
+# scope bounds every process the agent starts: leftovers are swept at runner
+# exit and between in-process successor turns, and long-lived work must
+# escape via `detach_scope` into its own scope. Shared user daemons matching
+# `spare_process_patterns` (ssh-agent, gpg-agent, ssh ControlMaster, tmux
+# server) are never killed. This is a config field, not a feature flag:
+# users may permanently disable it or extend the spare list.
+agent_scope_teardown:
+  enabled: true
+  term_grace_seconds: 3
+  reaper_min_scope_age_seconds: 120
+  spare_process_patterns:
+    - "^ssh-agent$"
+    - "^gpg-agent$"
+    - "^tmux: server$"
+    - '^ssh: .*\[mux\]$'
+
 # TTL bounds for `sase agent hold create`/`run`. A hold armed without --ttl
 # uses the default; an explicit --ttl above the maximum is rejected. Both
 # values parse with the shared duration syntax (bare seconds, or a number

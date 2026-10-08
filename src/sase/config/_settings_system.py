@@ -256,6 +256,66 @@ def get_managed_tmp_agent_cargo_incremental() -> bool:
     return DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL
 
 
+DEFAULT_AGENT_SCOPE_TEARDOWN_ENABLED = True
+DEFAULT_AGENT_SCOPE_TEARDOWN_TERM_GRACE_SECONDS = 3.0
+DEFAULT_AGENT_SCOPE_TEARDOWN_REAPER_MIN_SCOPE_AGE_SECONDS = 120.0
+DEFAULT_AGENT_SCOPE_TEARDOWN_SPARE_PROCESS_PATTERNS: tuple[str, ...] = (
+    "^ssh-agent$",
+    "^gpg-agent$",
+    "^tmux: server$",
+    r"^ssh: .*\[mux\]$",
+)
+
+
+def _agent_scope_teardown_config() -> dict[str, Any]:
+    value = _merged_config().get("agent_scope_teardown", {})
+    return value if isinstance(value, dict) else {}
+
+
+def get_agent_scope_teardown_enabled() -> bool:
+    """Return whether the runner sweeps its own agent scope."""
+    value = _agent_scope_teardown_config().get(
+        "enabled",
+        DEFAULT_AGENT_SCOPE_TEARDOWN_ENABLED,
+    )
+    if type(value) is bool:
+        return value
+    return DEFAULT_AGENT_SCOPE_TEARDOWN_ENABLED
+
+
+def get_agent_scope_teardown_term_grace_seconds() -> float:
+    """Return the SIGTERM-to-SIGKILL grace for scope sweeps."""
+    value = _agent_scope_teardown_config().get(
+        "term_grace_seconds",
+        DEFAULT_AGENT_SCOPE_TEARDOWN_TERM_GRACE_SECONDS,
+    )
+    if type(value) in {int, float} and float(value) >= 0:
+        return float(value)
+    return DEFAULT_AGENT_SCOPE_TEARDOWN_TERM_GRACE_SECONDS
+
+
+def get_agent_scope_teardown_reaper_min_scope_age_seconds() -> float:
+    """Return the minimum scope age the orphaned-scope reaper may sweep."""
+    value = _agent_scope_teardown_config().get(
+        "reaper_min_scope_age_seconds",
+        DEFAULT_AGENT_SCOPE_TEARDOWN_REAPER_MIN_SCOPE_AGE_SECONDS,
+    )
+    if type(value) in {int, float} and float(value) >= 0:
+        return float(value)
+    return DEFAULT_AGENT_SCOPE_TEARDOWN_REAPER_MIN_SCOPE_AGE_SECONDS
+
+
+def get_agent_scope_teardown_spare_process_patterns() -> list[str]:
+    """Return the spare-process regex list for scope sweeps."""
+    value = _agent_scope_teardown_config().get(
+        "spare_process_patterns",
+        list(DEFAULT_AGENT_SCOPE_TEARDOWN_SPARE_PROCESS_PATTERNS),
+    )
+    if isinstance(value, list) and all(type(item) is str for item in value):
+        return list(value)
+    return list(DEFAULT_AGENT_SCOPE_TEARDOWN_SPARE_PROCESS_PATTERNS)
+
+
 def get_gate_turn_reclaim_grace_seconds() -> int:
     """Return the grace period before a missed gate-turn deadline is lost."""
     try:
@@ -281,6 +341,10 @@ def get_gate_turn_reclaim_grace_seconds() -> int:
 
 
 __all__ = [
+    "DEFAULT_AGENT_SCOPE_TEARDOWN_ENABLED",
+    "DEFAULT_AGENT_SCOPE_TEARDOWN_REAPER_MIN_SCOPE_AGE_SECONDS",
+    "DEFAULT_AGENT_SCOPE_TEARDOWN_SPARE_PROCESS_PATTERNS",
+    "DEFAULT_AGENT_SCOPE_TEARDOWN_TERM_GRACE_SECONDS",
     "DEFAULT_DISK_PRESSURE_ERROR_FREE_PERCENT",
     "DEFAULT_DISK_PRESSURE_TOP_OWNER_MIN_BYTES",
     "DEFAULT_DISK_PRESSURE_WARN_FREE_PERCENT",
@@ -298,6 +362,10 @@ __all__ = [
     "DEFAULT_MANAGED_TMP_PRESSURE_RECOVERY_AVAILABLE_BYTES",
     "DEFAULT_MANAGED_TMP_PRESSURE_TARGET_BYTES",
     "DEFAULT_MANAGED_TMP_RUN_ARTIFACT_HORIZON_SECONDS",
+    "get_agent_scope_teardown_enabled",
+    "get_agent_scope_teardown_reaper_min_scope_age_seconds",
+    "get_agent_scope_teardown_spare_process_patterns",
+    "get_agent_scope_teardown_term_grace_seconds",
     "get_disk_pressure_error_free_percent",
     "get_disk_pressure_top_owner_min_bytes",
     "get_disk_pressure_warn_free_percent",
