@@ -27,6 +27,7 @@ from ._join_helpers import (
 
 __all__ = [
     "test_join_duplicate_start_replays_without_resubmitting",
+    "test_join_monitor_proc_carries_exactly_the_join_tag",
     "test_join_records_before_submit_and_skips_a_new_reservation",
     "test_join_settle_race_tears_down_and_leaves_the_lane_clear",
     "test_join_submit_failure_releases_the_join_and_tears_down",
@@ -101,6 +102,28 @@ def _mock_claim(monkeypatch: pytest.MonkeyPatch) -> None:
             result=SimpleNamespace(success=True), starter_claim=None
         ),
     )
+
+
+def test_join_monitor_proc_carries_exactly_the_join_tag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import sase.monitor.start as engine
+    from sase.tool.handoff import join_tags, owner_tags
+
+    _lane(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme")
+    run_id = reserve_detached_run("--", "true", agent="acme")
+    captured: list[Any] = []
+    monkeypatch.setattr(
+        "sase.monitor.start_launch.submit_proc_request", _fake_submit_factory(captured)
+    )
+    _mock_claim(monkeypatch)
+
+    engine.start_monitor(_join_request(run_id, tmp_path, monkeypatch))
+
+    assert len(captured) == 1
+    assert list(captured[0].tags) == join_tags(run_id) == [f"tool-run-join:{run_id}"]
+    assert captured[0].tags != owner_tags(run_id)
 
 
 def test_join_records_before_submit_and_skips_a_new_reservation(

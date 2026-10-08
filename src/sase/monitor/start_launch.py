@@ -280,12 +280,13 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
         # Join: no wrapper resolution and no new ToolRun reservation. The
         # proc follows the existing detached run, and the Rust join is
         # recorded atomically after the member exists, before proc submit.
-        from sase.tool.handoff import worker_env_overlay
+        from sase.tool.handoff import join_tags, worker_env_overlay
         from sase.tool.join_worker import join_worker_argv
 
         tool_run_id = request.join_run_id
         tool_run_joined = True
         proc_argv = join_worker_argv(tool_run_id)
+        proc_tags = list(join_tags(tool_run_id))
         proc_env_overlay = dict(worker_env_overlay())
         update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
         update_meta_field(artifacts_dir, "monitor_tool_run_joined", True)

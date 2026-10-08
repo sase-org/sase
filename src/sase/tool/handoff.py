@@ -194,6 +194,19 @@ def owner_tags(run_id: str, *, detached: bool = False) -> list[str]:
     return tags
 
 
+TOOL_RUN_JOIN_TAG_PREFIX = "tool-run-join:"
+
+
+def join_tags(run_id: str) -> list[str]:
+    """Return the proc tags linking one ToolRun to its join monitor proc.
+
+    The prefix is distinct so that ``tool-run:<id>`` keeps meaning
+    "owner" everywhere tags are decoded.
+    """
+
+    return [f"{TOOL_RUN_JOIN_TAG_PREFIX}{run_id}"]
+
+
 def owner_request_fingerprint(run_id: str) -> str:
     """Return the stable proc request fingerprint for one hand-off."""
 
@@ -218,6 +231,8 @@ def settle_launch_failure(run_id: str, message: str) -> bool:
 
 __all__ = [
     "HandoffReservation",
+    "TOOL_RUN_JOIN_TAG_PREFIX",
+    "join_tags",
     "owner_request_fingerprint",
     "owner_tags",
     "reserve_handoff_run",

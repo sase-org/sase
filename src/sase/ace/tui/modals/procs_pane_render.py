@@ -47,6 +47,7 @@ _UPDATE_GLYPH_STYLE = f"bold {UPDATE_GEAR_HUE}"
 _TOOL_RUN_GLYPH = "⚒"
 _TOOL_RUN_GLYPH_STYLE = "bold #87D7FF"
 _TOOL_RUN_TAG_PREFIX = "tool-run:"
+_TOOL_RUN_JOIN_TAG_PREFIX = "tool-run-join:"
 _TOOL_RUN_LABEL_PREFIX = "tool:"
 _TAIL_CAP_NOTICE = f"… showing the last {DETAIL_LOG_LINES} lines …"
 
@@ -163,15 +164,24 @@ def tool_run_id_for_task(task: ObservedProc) -> str | None:
     """Return the ToolRun id decoded from the row's tags, or None.
 
     Pure: only the ``tool-run:<id>`` tag (from ``owner_tags`` in
-    ``sase.tool.handoff``) counts, never the bare ``tool-run`` tag.
+    ``sase.tool.handoff``) counts, never the bare ``tool-run`` tag. A
+    ``tool-run-join:<id>`` tag (from ``join_tags``) is the fallback, so
+    the owner tag still wins when a row carries both.
     """
 
+    fallback: str | None = None
     for tag in tuple(getattr(task, "tags", None) or ()):
-        if isinstance(tag, str) and tag.startswith(_TOOL_RUN_TAG_PREFIX):
+        if not isinstance(tag, str):
+            continue
+        if tag.startswith(_TOOL_RUN_JOIN_TAG_PREFIX):
+            run_id = tag[len(_TOOL_RUN_JOIN_TAG_PREFIX) :].strip()
+            if run_id and fallback is None:
+                fallback = run_id
+        elif tag.startswith(_TOOL_RUN_TAG_PREFIX):
             run_id = tag[len(_TOOL_RUN_TAG_PREFIX) :].strip()
             if run_id:
                 return run_id
-    return None
+    return fallback
 
 
 def _tool_run_label_for_task(task: ObservedProc) -> str | None:

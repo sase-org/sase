@@ -484,3 +484,76 @@ def test_parser_adopt_hidden_and_hand_off_present(
     assert run_help is not None
     assert "-H" in run_help
     assert "--hand-off" in run_help
+
+
+def _stub_handoff_sessions(
+    monkeypatch: pytest.MonkeyPatch, *, own_id: str, live_ids: list[str]
+) -> None:
+    import sase.sessions.registry as registry
+    from sase.sessions import SessionIdentity
+
+    monkeypatch.setattr(registry, "current_session_id", lambda: own_id)
+    monkeypatch.setattr(
+        registry,
+        "live_sessions",
+        lambda: [
+            SessionIdentity(
+                session_id=session_id,
+                kind="ace",
+                pid=os.getpid(),
+                started_at="2026-10-08T00:00:00Z",
+            )
+            for session_id in live_ids
+        ],
+    )
+
+
+def _submit_handoff_session_id(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> str | None:
+    from sase.tool.handoff_launch import submit_handoff_run
+
+    captured: dict[str, object] = {}
+
+    def _fake_submit(request: object, **kwargs: object) -> object:
+        captured["request"] = request
+        return SimpleNamespace(proc_id="proc-stub")
+
+    monkeypatch.setattr("sase.procs.submit_proc_request", _fake_submit)
+    resolved = resolve_run_argv(["--", "printf", "hi"], cwd=tmp_path)
+    submitted = submit_handoff_run(resolved, launch_root=tmp_path)
+    assert submitted.reservation.reserved, submitted.reservation.error
+    assert submitted.submit_error is None
+    request = captured["request"]
+    assert hasattr(request, "session_id")
+    return request.session_id
+
+
+def test_handoff_submit_stamps_nothing_for_an_agent_like_process(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    _stub_handoff_sessions(
+        monkeypatch, own_id="agent-proc-session", live_ids=["tui-live-session"]
+    )
+    assert _submit_handoff_session_id(monkeypatch, tmp_path) is None
+
+
+def test_handoff_submit_stamps_its_own_live_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    _stub_handoff_sessions(
+        monkeypatch,
+        own_id="own-live-session",
+        live_ids=["other-live-session", "own-live-session"],
+    )
+    assert _submit_handoff_session_id(monkeypatch, tmp_path) == "own-live-session"
+
+
+def test_handoff_submit_stamps_nothing_without_live_sessions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    _stub_handoff_sessions(monkeypatch, own_id="shell-session", live_ids=[])
+    assert _submit_handoff_session_id(monkeypatch, tmp_path) is None

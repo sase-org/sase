@@ -160,6 +160,24 @@ def latest_session() -> SessionIdentity | None:
     return sessions[0] if sessions else None
 
 
+def own_live_session_id() -> str | None:
+    """Return this process's session id only when it is itself live.
+
+    A TUI catalog launch runs in its own registered session, so its
+    tool-run procs are stamped with that session. Every other submitter —
+    an agent's inline escalation, ``sase tool run -d``, a human ``-H``
+    shell — stamps no session, even when some other TUI happens to be
+    live. Unlike :func:`resolve_session_ref`, there is no latest-session
+    fallback here.
+    """
+
+    own_id = current_session_id()
+    for identity in live_sessions():
+        if identity.session_id == own_id:
+            return own_id
+    return None
+
+
 def resolve_session_ref(ref: str | None) -> SessionIdentity | None:
     """Resolve a ``--session`` reference to a live session.
 

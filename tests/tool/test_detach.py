@@ -640,3 +640,15 @@ def test_detached_owner_tags_carry_detached_marker() -> None:
         "tool-run:abc",
         "tool-run-detached",
     ]
+
+
+def test_join_tags_carry_only_the_join_prefix() -> None:
+    from sase.tool.handoff import (
+        TOOL_RUN_JOIN_TAG_PREFIX,
+        join_tags,
+        owner_tags,
+    )
+
+    assert TOOL_RUN_JOIN_TAG_PREFIX == "tool-run-join:"
+    assert join_tags("abc") == ["tool-run-join:abc"]
+    assert join_tags("abc") != owner_tags("abc")

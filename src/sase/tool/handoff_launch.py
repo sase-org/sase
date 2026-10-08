@@ -94,13 +94,12 @@ def submit_handoff_run(
     from sase.procs import submit_proc_request
     from sase.procs.request import ProcSubmitRequest
     from sase.procs import infer_proc_attribution
-    from sase.sessions import SessionRefError, resolve_session_ref
+    from sase.sessions import own_live_session_id
 
     project, workspace_num = infer_proc_attribution(launch_root, None)
     try:
-        identity = resolve_session_ref(None)
-        session_id = identity.session_id if identity is not None else None
-    except SessionRefError:
+        session_id = own_live_session_id()
+    except Exception:  # noqa: BLE001 - session stamping is fail-open.
         session_id = None
 
     try:

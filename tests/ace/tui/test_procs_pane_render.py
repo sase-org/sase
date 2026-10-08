@@ -274,3 +274,17 @@ def test_output_body_cache_reuses_the_rendered_body(
     output_body(row, cache)
 
     assert len(calls) == 1
+
+
+def test_tool_run_id_for_task_prefers_owner_tag_over_join_tag() -> None:
+    from sase.ace.tui.modals.procs_pane_render import tool_run_id_for_task
+
+    owner = _row(tags=("tool-run", "tool-run:owner-id"))
+    join = _row(tags=("tool-run-join:join-id",))
+    both = _row(tags=("tool-run-join:join-id", "tool-run", "tool-run:owner-id"))
+    bare = _row(tags=("tool-run",))
+
+    assert tool_run_id_for_task(owner) == "owner-id"
+    assert tool_run_id_for_task(join) == "join-id"
+    assert tool_run_id_for_task(both) == "owner-id"
+    assert tool_run_id_for_task(bare) is None
