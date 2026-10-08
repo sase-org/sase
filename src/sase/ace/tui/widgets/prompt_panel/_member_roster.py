@@ -15,6 +15,13 @@ from sase.agent.status_buckets import (
 )
 from sase.core.time import format_local
 
+from ._member_in_flight import (
+    in_flight_label_style,
+    in_flight_tint,
+    is_in_flight_jump_bucket,
+    member_status_style,
+)
+
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import AgentType
 from ...models.agent_panels import PanelKey
@@ -43,15 +50,6 @@ _ROSTER_RULE = "━" * 50
 _MEMBER_KIND_STYLE = "italic #AF87FF"
 _MEMBER_MODEL_STYLE = "#5FD7FF"
 _MEMBER_DURATION_STYLE = "dim #D7D7FF"
-_MEMBER_STATUS_STYLES: dict[str, str] = {
-    "Stopped": "bold #FFAF5F",
-    "Starting": "bold #87D7FF",
-    "Running": "bold #FFD700",
-    "Queued": "bold #5F87FF",
-    "Waiting": "bold #AF87FF",
-    "Failed": "bold #FF5F5F",
-    "Done": "bold #5FD75F",
-}
 
 
 class _MemberRosterDigest(Protocol):
@@ -185,11 +183,6 @@ class MemberJumpMap:
     container_identity: MemberJumpContainerIdentity
     targets: tuple[_MemberJumpTarget, ...]
     sections: tuple[_MemberJumpSection, ...] = ()
-
-
-def member_status_style(bucket: str) -> str:
-    """Return the roster status color for a status bucket."""
-    return _MEMBER_STATUS_STYLES.get(bucket, "bold #FFFFFF")
 
 
 def append_member_roster(
@@ -425,8 +418,11 @@ def _append_numbered_entry(
             )
         else:
             line.append("  ")
+    entry_bucket = entry.effective_bucket or status_bucket_for_values(entry.status)
+    lit = is_in_flight_jump_bucket(entry_bucket, dismissed=entry.is_dismissed)
+    pill_tint = in_flight_tint(entry_bucket) if lit else None
     line.append(f" {number} ", style=f"bold black on {accent}")
-    line.append(" ")
+    line.append(" ", style=f"on {pill_tint}" if pill_tint is not None else None)
     _append_member_fields(
         line,
         label=entry.label,
@@ -446,6 +442,7 @@ def _append_numbered_entry(
         is_dismissed=entry.is_dismissed,
         owner_badge=entry.owner_badge,
         tab_chip=entry.tab_chip,
+        pill_tint=pill_tint,
     )
     append_fold_anchor(text, line, section_id=anchor_id)
 
@@ -496,16 +493,24 @@ def _append_member_fields(
     is_dismissed: bool,
     owner_badge: str | None = None,
     tab_chip: tuple[str, str] | None = None,
+    pill_tint: str | None = None,
 ) -> None:
     bucket = effective_bucket or status_bucket_for_values(status)
     glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
     if is_marked:
-        text.append("[✓] ", style="bold #00D700")
+        marked_style = (
+            f"bold #00D700 on {pill_tint}" if pill_tint is not None else "bold #00D700"
+        )
+        text.append("[✓] ", style=marked_style)
     if is_unread:
-        text.append("❌ " if bucket == "Failed" else "✅ ", style="#5FD7FF")
+        unread_style = f"#5FD7FF on {pill_tint}" if pill_tint is not None else "#5FD7FF"
+        text.append("❌ " if bucket == "Failed" else "✅ ", style=unread_style)
     if is_dismissed:
         text.append("⊘ ", style="dim #FFAF00")
-    text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
+    if pill_tint is not None:
+        text.append(label, style=in_flight_label_style(bucket))
+    else:
+        text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
     if tab_chip is not None:
         chip_name, chip_style = tab_chip
         text.append(f" [{chip_name}]", style=chip_style)
@@ -513,10 +518,12 @@ def _append_member_fields(
         text.append(" [")
         text.append(owner_badge, style=_OWNER_BADGE_STYLE)
         text.append("]")
+    if pill_tint is not None:
+        text.append(" ", style=f"on {pill_tint}")
     text.append(" · ", style="dim")
     text.append(kind, style=_MEMBER_KIND_STYLE)
     text.append(" · ", style="dim")
-    text.append(f"{glyph} {status}", style=_MEMBER_STATUS_STYLES[bucket])
+    text.append(f"{glyph} {status}", style=member_status_style(bucket))
     text.append(" · ", style="dim")
     text.append(model, style=_MEMBER_MODEL_STYLE)
     text.append(" · ", style="dim")

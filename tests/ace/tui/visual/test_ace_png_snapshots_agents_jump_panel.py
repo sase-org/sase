@@ -13,6 +13,8 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.llm_calls import cache as tools_cache_module
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentDetail, AgentJumpPanel
+from sase.ace.tui.widgets._agent_jump_legend import JumpLegendRenderable
+from sase.ace.tui.widgets.prompt_panel._member_roster import MemberJumpMap
 from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_module
 from sase.ace.tui.widgets.decks.model import DeckId
 from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel
@@ -74,6 +76,57 @@ def _big_clan_agents() -> list[Agent]:
     ]
 
 
+_IN_FLIGHT_MIX_STATUSES = {
+    1: "STARTING",
+    3: "FAILED",
+    4: "RUNNING",
+    6: "QUESTION",
+    7: "RUNNING",
+    9: "FAILED",
+    10: "RUNNING",
+    12: "WAITING",
+    13: "RUNNING",
+}
+
+
+def _in_flight_mix_clan_agents() -> list[Agent]:
+    """Fourteen clan members with five in-flight targets past the first slots."""
+    started = datetime(2026, 7, 23, 9, 0, 0)
+    project_file = "/workspace/sase/visual_project.sase"
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-mixclan-member-{index:02d}",
+            project_file=project_file,
+            status=_IN_FLIGHT_MIX_STATUSES.get(index, "DONE"),
+            start_time=started,
+            stop_time=started if index not in _IN_FLIGHT_MIX_STATUSES else None,
+            raw_suffix=f"202607231100{index:02d}",
+            agent_name=f"member{index:02d}",
+            agent_clan="visual-mixclan",
+        )
+        for index in range(14)
+    ]
+
+
+def _collapsed_shown_numbers(
+    jump_map: MemberJumpMap, width: int
+) -> tuple[list[str], str]:
+    """Return the shown numbers and last line of a collapsed legend render."""
+    lines = JumpLegendRenderable(jump_map, mode="collapsed")._lines_for_width(  # noqa: SLF001
+        width
+    )
+    texts = [line.plain for line in lines]
+    numbers = [target.number for target in jump_map.targets]
+    shown: list[str] = []
+    for line in texts:
+        for cell in line.split("  "):
+            first = cell.strip().split(" ", 1)[0].removeprefix("⊘").strip()
+            if first in numbers and first not in shown:
+                shown.append(first)
+    return shown, texts[-1]
+
+
 async def _open_agents_on_jump_roster(page: AcePage) -> AgentDetail:
     await wait_for_startup(page)
     await page.press("shift+tab")
@@ -124,11 +177,53 @@ async def test_jump_panel_collapsed_two_digit_overflow_png_snapshot(
         assert not panel.is_expanded
         assert_page_svg_contains(page, "CLAN MEMBERS")
         assert_page_svg_contains(page, "+")
+        jump_map = panel._jump_map  # noqa: SLF001
+        assert jump_map is not None
+        running_numbers = [
+            target.number
+            for target in jump_map.targets
+            if target.status_bucket == "Running"
+        ]
+        assert running_numbers == ["01", "03", "05", "07", "09", "11", "13"]
+        shown, last_line = _collapsed_shown_numbers(jump_map, 60)
+        assert shown == ["01", "03", "05", "07", "09"]
+        assert last_line.strip().endswith("+9 ▶2")
 
         ace_png_visual.assert_page_png(
             page,
             "agents_jump_panel_collapsed_two_digit_overflow_120x40",
             title="ACE agents jump panel collapsed two-digit overflow",
+        )
+
+
+async def test_jump_panel_collapsed_in_flight_mix_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 23, 11, 30, 0))
+    patch_startup_loaders(monkeypatch, agents=_in_flight_mix_clan_agents())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        detail = await _open_agents_on_jump_roster(page)
+        panel = detail.query_one("#agent-jump-panel", AgentJumpPanel)
+        assert not panel.is_expanded
+        assert_page_svg_contains(page, "CLAN MEMBERS")
+        jump_map = panel._jump_map  # noqa: SLF001
+        assert jump_map is not None
+        in_flight_numbers = [
+            target.number
+            for target in jump_map.targets
+            if target.status_bucket in ("Running", "Starting")
+        ]
+        assert in_flight_numbers == ["01", "04", "07", "10", "13"]
+        shown, last_line = _collapsed_shown_numbers(jump_map, 60)
+        assert shown == in_flight_numbers
+        assert last_line.strip().endswith("+9")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_jump_panel_collapsed_in_flight_mix_120x40",
+            title="ACE agents jump panel collapsed in-flight mix",
         )
 
 

@@ -243,12 +243,12 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
     )
     assert "▸ NEEDS ATTENTION · 1\n• failed · FAILED · Build failed" in pulse
     assert "▸ ❖ TRIBE MEMBERS · 2\n" in pulse
-    assert " 0  [✓] build · session" in pulse
+    assert " 0  [✓] build  · session" in pulse
     assert " 1  failed · agent" in pulse
     assert published[0].targets
 
     assert "Fold: 2/4\n" in roster
-    assert " 0  [✓] build · session" in roster
+    assert " 0  [✓] build  · session" in roster
     assert " 1  failed · agent" in roster
     assert "--code" not in roster
     assert "• failed · Build failed" in roster

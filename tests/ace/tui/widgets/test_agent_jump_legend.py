@@ -35,6 +35,7 @@ def _entries(
     labels: list[str],
     *,
     dismissed: frozenset[str] = frozenset(),
+    statuses: dict[str, str] | None = None,
 ) -> tuple[MemberRosterEntry, ...]:
     return tuple(
         MemberRosterEntry(
@@ -42,7 +43,7 @@ def _entries(
             presented_name=label,
             label=label,
             kind="agent",
-            status="RUNNING",
+            status=(statuses or {}).get(label, "RUNNING"),
             model="m",
             duration="1m",
             is_dismissed=label in dismissed,
@@ -58,11 +59,12 @@ def _single_section_map(
     accent: str = "#00D7AF",
     title: str = "NEIGHBORS",
     dismissed: frozenset[str] = frozenset(),
+    statuses: dict[str, str] | None = None,
 ) -> MemberJumpMap:
     return append_member_roster(
         Text(),
         container_identity=_LANE_IDENTITY,
-        entries=_entries(labels, dismissed=dismissed),
+        entries=_entries(labels, dismissed=dismissed, statuses=statuses),
         title=title,
         accent=accent,
         panel_level=FoldLevel.COLLAPSED,
@@ -133,7 +135,8 @@ def test_collapsed_overflow_arithmetic(width: int) -> None:
     token = lines[-1].split("  ")[-1].strip()
     if token.startswith("+"):
         assert len(shown) < len(numbers)
-        assert len(shown) + int(token[1:]) == len(numbers)
+        hidden = int(token[1:].split(" ")[0])
+        assert len(shown) + hidden == len(numbers)
     else:
         assert len(shown) == len(numbers)
 

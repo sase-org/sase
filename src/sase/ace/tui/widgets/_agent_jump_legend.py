@@ -9,6 +9,13 @@ from rich.text import Text
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
 
 from ._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from .prompt_panel._member_in_flight import (
+    IN_FLIGHT_RUNNING_TINT,
+    in_flight_glyph_style,
+    in_flight_label_style,
+    in_flight_pad_style,
+    is_in_flight_jump_bucket,
+)
 from .prompt_panel._member_roster import (
     MemberJumpMap,
     member_status_style,
@@ -107,18 +114,85 @@ def _build_cell(
     if dismissed:
         cell.append("⊘ ", style=_DISMISSED_PREFIX_STYLE)
     cell.append(number, style=f"bold black on {accent}")
-    cell.append(" ")
-    if dismissed:
-        cell.append(label, style=f"dim {_NAME_STYLE}")
-    else:
-        cell.append(label, style=_NAME_STYLE)
-    if bucket is not None:
+    lit = is_in_flight_jump_bucket(bucket, dismissed=dismissed)
+    if lit and bucket is not None:
+        cell.append(" ", style=in_flight_pad_style(bucket))
+        cell.append(label, style=in_flight_label_style(bucket))
         glyph = AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
         if glyph:
-            cell.append(" ")
-            cell.append(glyph, style=member_status_style(bucket))
+            cell.append(" ", style=in_flight_pad_style(bucket))
+            cell.append(glyph, style=in_flight_glyph_style(bucket))
+        cell.append(" ", style=in_flight_pad_style(bucket))
+    else:
+        cell.append(" ")
+        if dismissed:
+            cell.append(label, style=f"dim {_NAME_STYLE}")
+        else:
+            cell.append(label, style=_NAME_STYLE)
+        if bucket is not None:
+            glyph = AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
+            if glyph:
+                cell.append(" ")
+                cell.append(glyph, style=member_status_style(bucket))
     if show_revive and dismissed:
         cell.append(" revive", style=_DIM_STYLE)
+    return cell
+
+
+def _collapsed_selection(jump_map: MemberJumpMap, shown: int) -> list[int]:
+    """Return ascending display indices with in-flight targets first.
+
+    When every target fits, this is plain number order. When the legend
+    overflows, in-flight targets (lowest number first) take the slots, then
+    the lowest remaining numbers fill what is left. The result is sorted
+    ascending so the legend still reads as one ladder.
+    """
+    targets = jump_map.targets
+    count = len(targets)
+    shown = max(0, min(shown, count))
+    if shown >= count:
+        return list(range(count))
+    lit = {
+        index
+        for index, target in enumerate(targets)
+        if is_in_flight_jump_bucket(
+            target.status_bucket, dismissed=target.role == "dismissed"
+        )
+    }
+    ordered = sorted(lit) + [index for index in range(count) if index not in lit]
+    return sorted(ordered[:shown])
+
+
+def _hidden_in_flight_count(jump_map: MemberJumpMap, selected: set[int]) -> int:
+    """Return how many in-flight targets fall outside ``selected``."""
+    return sum(
+        1
+        for index, target in enumerate(jump_map.targets)
+        if index not in selected
+        and is_in_flight_jump_bucket(
+            target.status_bucket, dismissed=target.role == "dismissed"
+        )
+    )
+
+
+def _first_fallback_index(jump_map: MemberJumpMap) -> int:
+    """Return the first in-flight target index, else target 0."""
+    for index, target in enumerate(jump_map.targets):
+        if is_in_flight_jump_bucket(
+            target.status_bucket, dismissed=target.role == "dismissed"
+        ):
+            return index
+    return 0
+
+
+def _overflow_cell(hidden: int, hidden_in_flight: int) -> Text:
+    """Build the ``+N`` overflow cell, with a lit ``▶M`` pill when needed."""
+    cell = Text(f"+{hidden}", style=_DIM_STYLE)
+    if hidden_in_flight > 0:
+        cell.append(
+            f" ▶{hidden_in_flight}",
+            style=f"bold #FFD700 on {IN_FLIGHT_RUNNING_TINT}",
+        )
     return cell
 
 
@@ -276,10 +350,11 @@ class JumpLegendRenderable:
             ):
                 best = (shown, budget, columns, labels)
         if best is None:
-            target = targets[0]
+            fallback = _first_fallback_index(jump_map)
+            target = targets[fallback]
             cell = _build_cell(
                 target.number,
-                _target_accent(jump_map, 0),
+                _target_accent(jump_map, fallback),
                 _truncate_middle(target.label, max(1, width - 4)),
                 bucket=target.status_bucket,
                 dismissed=target.role == "dismissed",
@@ -293,7 +368,8 @@ class JumpLegendRenderable:
         overflow = count > 2 * columns
         cells: list[Text] = []
         shown_targets = slots - 1 if overflow else slots
-        for index in range(shown_targets):
+        selection = _collapsed_selection(jump_map, shown_targets)
+        for index in selection:
             target = targets[index]
             cells.append(
                 _build_cell(
@@ -307,7 +383,12 @@ class JumpLegendRenderable:
             )
         if overflow:
             remaining = count - shown_targets
-            cells.append(Text(f"+{remaining}", style=_DIM_STYLE))
+            cells.append(
+                _overflow_cell(
+                    remaining,
+                    _hidden_in_flight_count(jump_map, set(selection)),
+                )
+            )
         return _render_grid(cells, columns)
 
 
@@ -333,8 +414,9 @@ def _largest_collapsed_columns(
         slots = min(count, 2 * columns)
         overflow = count > 2 * columns
         shown = slots - 1 if overflow else slots
+        selection = _collapsed_selection(jump_map, shown)
         cells: list[Text] = []
-        for index in range(shown):
+        for index in selection:
             target = typed_targets[index]
             cells.append(
                 _build_cell(
@@ -347,7 +429,12 @@ def _largest_collapsed_columns(
                 )
             )
         if overflow:
-            cells.append(Text(f"+{count - shown}", style=_DIM_STYLE))
+            cells.append(
+                _overflow_cell(
+                    count - shown,
+                    _hidden_in_flight_count(jump_map, set(selection)),
+                )
+            )
         if _grid_fits(cells, columns, width):
             return columns
     return None

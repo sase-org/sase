@@ -45,7 +45,7 @@ def test_fresh_panel_marks_and_enters_first_rendered_row_not_roster_zero() -> No
     rendered = _rendered_tribe(app)
 
     assert len(_cursor_lines(rendered)) == 1
-    assert _cursor_lines(rendered)[0].startswith("❯  1  render-first · agent")
+    assert _cursor_lines(rendered)[0].startswith("❯  1  render-first  · agent")
     assert "TRIBE MEMBERS · 2 · l ❯ render-first" in rendered
     assert "  0  raw-first" in rendered
 
@@ -136,7 +136,7 @@ def test_nested_destination_marks_owning_agent_session_and_names_exact_member() 
     rendered = _rendered_tribe(app)
 
     assert len(_cursor_lines(rendered)) == 1
-    assert "ns · session" in _cursor_lines(rendered)[0]
+    assert "ns  · session" in _cursor_lines(rendered)[0]
     assert "TRIBE MEMBERS · 1 · l ❯ ns › --2" in rendered
 
     app.action_expand_or_layout()

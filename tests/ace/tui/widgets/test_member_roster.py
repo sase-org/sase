@@ -12,6 +12,10 @@ from rich.text import Text
 from sase.ace.tui.models._agent_clan_sections import ClanMemberDigest
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.widgets.prompt_panel._member_in_flight import (
+    IN_FLIGHT_RUNNING_TINT,
+    IN_FLIGHT_STARTING_TINT,
+)
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
     MEMBER_ROSTER_LIMIT,
     MemberJumpMap,
@@ -38,17 +42,26 @@ def _entry(
     *,
     digest: ClanMemberDigest | None = None,
     children: tuple[MemberRosterChild, ...] = (),
+    status: str = "RUNNING",
+    effective_bucket: str | None = None,
+    is_dismissed: bool = False,
+    is_marked: bool = False,
+    is_unread: bool = False,
 ) -> MemberRosterEntry:
     return MemberRosterEntry(
         identity=_identity(index),
         presented_name=f"research.member-{index}",
         label=f".member-{index}",
         kind="agent",
-        status="RUNNING",
+        status=status,
         model="gpt-5",
         duration="1m",
+        effective_bucket=effective_bucket,
         digest=digest,
         children=children,
+        is_dismissed=is_dismissed,
+        is_marked=is_marked,
+        is_unread=is_unread,
     )
 
 
@@ -444,3 +457,106 @@ def test_numbering_capacity_exhaustion_stops_rendering_without_raising() -> None
     assert tuple(target.number for target in jump_map.targets) == ("0", "1")
     assert ".member-2" not in text.plain
     assert "… +1 more members (not numbered)\n" in text.plain
+
+
+def _render_single(entry: MemberRosterEntry) -> Text:
+    text = Text()
+    append_member_roster(
+        text,
+        container_identity=(AgentType.RUNNING, "clan:research", "generation"),
+        entries=(entry,),
+        title="CLAN MEMBERS",
+        accent=_ACCENT,
+        panel_level=FoldLevel.COLLAPSED,
+    )
+    return text
+
+
+def _covering_styles(line: Text, needle: str) -> list[str]:
+    start = line.plain.index(needle)
+    end = start + len(needle)
+    return [
+        str(span.style)
+        for span in line.spans
+        if span.start <= start and span.end >= end and str(span.style) != "none"
+    ]
+
+
+def _assert_no_pill_tints(text: Text) -> None:
+    assert all(
+        IN_FLIGHT_RUNNING_TINT not in str(span.style)
+        and IN_FLIGHT_STARTING_TINT not in str(span.style)
+        for span in text.spans
+    )
+
+
+def test_numbered_in_flight_entry_label_carries_lit_pill() -> None:
+    text = _render_single(_entry(0))
+
+    assert ".member-0  · agent" in text.plain
+    assert _covering_styles(text, ".member-0") == [
+        f"bold #FFD700 on {IN_FLIGHT_RUNNING_TINT}"
+    ]
+
+
+def test_numbered_starting_entry_uses_starting_tint() -> None:
+    text = _render_single(_entry(0, status="STARTING"))
+
+    assert _covering_styles(text, ".member-0") == [
+        f"bold #FFD700 on {IN_FLIGHT_STARTING_TINT}"
+    ]
+
+
+def test_effective_bucket_drives_lit_state() -> None:
+    lit = _render_single(_entry(0, status="DONE", effective_bucket="Running"))
+    assert _covering_styles(lit, ".member-0") == [
+        f"bold #FFD700 on {IN_FLIGHT_RUNNING_TINT}"
+    ]
+
+    unlit = _render_single(_entry(0, status="TALE APPROVED", effective_bucket="Done"))
+    assert _covering_styles(unlit, ".member-0") == ["#FFD700"]
+    _assert_no_pill_tints(unlit)
+
+
+@pytest.mark.parametrize("status", ("DONE", "FAILED", "QUESTION", "WAITING", "QUEUED"))
+def test_non_in_flight_entry_carries_no_pill(status: str) -> None:
+    text = _render_single(_entry(0, status=status))
+
+    assert ".member-0 · agent" in text.plain
+    assert _covering_styles(text, ".member-0") == ["#FFD700"]
+    _assert_no_pill_tints(text)
+
+
+def test_dismissed_running_entry_carries_no_pill() -> None:
+    text = _render_single(_entry(0, is_dismissed=True))
+
+    assert _covering_styles(text, ".member-0") == ["#FFD700"]
+    _assert_no_pill_tints(text)
+
+
+def test_child_rows_carry_no_pill() -> None:
+    child = MemberRosterChild(
+        label="--code",
+        kind="agent",
+        status="RUNNING",
+        model="gpt-5",
+        duration="30s",
+    )
+    text = _render_single(_entry(0, children=(child,)))
+
+    assert _covering_styles(text, ".member-0") == [
+        f"bold #FFD700 on {IN_FLIGHT_RUNNING_TINT}"
+    ]
+    assert "--code · agent" in text.plain
+    assert _covering_styles(text, "--code") == ["#FFD700"]
+
+
+def test_marked_and_unread_prefixes_sit_inside_lit_pill() -> None:
+    text = _render_single(_entry(0, is_marked=True, is_unread=True))
+
+    marked = _covering_styles(text, "[✓] ")
+    assert marked
+    assert all(IN_FLIGHT_RUNNING_TINT in style for style in marked)
+    unread = _covering_styles(text, "✅ ")
+    assert unread
+    assert all(IN_FLIGHT_RUNNING_TINT in style for style in unread)

@@ -1438,6 +1438,13 @@ ancestor chain, switches tribe panels when needed, and participates in the norma
 of jumping. If the roster or the neighbor relationship changed since the panel was
 drawn, the jump is cancelled with a warning rather than landing somewhere stale.
 
+In-flight targets, whose glyph is `▶` (running) or `◐` (starting), are lit: their number
+chip runs into a softly tinted pill holding the bold name and glyph. This appears in the
+collapsed legend, the narrowed candidates, and the expanded roster alike. When the
+collapsed legend cannot show every target, it fills its slots with in-flight targets
+first (still in number order), then the lowest remaining numbers. The `+N` overflow
+count gains a lit `▶M` when `M` in-flight targets remain hidden behind `.`.
+
 ### Agent Actions
 
 | Key                 | Action                                                                                                                                                                                                                                                                                                                                         |
@@ -6002,8 +6009,10 @@ the preferred card.
   packed rows, where each visible number carries its roster label, shortened with a
   middle ellipsis only as far as it stays distinct from every other label (the packer
   shows fewer targets rather than ambiguous ones). When targets do not fit, the last
-  cell is a dim `+N` count; digits still reach every numbered target, including those
-  counted in `+N`. `.` expands the panel to the full roster sections, with their
+  cell is a dim `+N` count (with a lit `▶M` when `M` in-flight targets stay hidden);
+  digits still reach every numbered target, including those counted in `+N`. In-flight
+  targets fill the visible slots first, still in number order, and render lit in every
+  view (see above). `.` expands the panel to the full roster sections, with their
   fold-driven annotations; expanded, it grows to at most 40% of the detail column,
   scrolls, and returns to its top when you select a different row. The border title is
   the color legend (`JUMP`, then one entry per section with its number range), and the
