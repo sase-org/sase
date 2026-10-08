@@ -38,6 +38,65 @@ function __sase_candidates
     __sase_run completion candidates $argv[1] 2>/dev/null
 end
 
+# Prints the pending-plan proposal named on the command line, if any. Takes
+# the command-line tokens (without the word being completed) and returns the
+# first bare word after `plan approve|reject` (the PLAN positional), skipping
+# the values of options that take them. Prints nothing when no proposal is
+# named, and callers then keep the merged fallback.
+function __sase_plan_proposal
+    set -l armed 0
+    set -l skip 0
+    set -l seen_plan 0
+    for w in $argv
+        if test $skip -eq 1
+            set skip 0
+            continue
+        end
+        if test -z "$w"
+            continue
+        end
+        switch $w
+            case -D --decide -k --kind -m --model -P --project -p --prompt -w --wait
+                set skip 1
+            case '-*'
+            case plan
+                set seen_plan 1
+            case approve reject
+                if test $seen_plan -eq 1
+                    set armed 1
+                end
+                set seen_plan 0
+            case '*'
+                if test $armed -eq 1
+                    printf '%s\n' "$w"
+                    return 0
+                end
+                set seen_plan 0
+        end
+    end
+    return 1
+end
+
+# Completes plan-decision ids/values for `sase plan approve|reject -D`,
+# scoped to the proposal named on the command line (`-S`) with a merged
+# fallback when none is named. Fish forks a subshell for every `(...)`
+# substitution, so like `__sase_candidates` this relies on the fast path's
+# own on-disk cache; the Python provider never stores a scoped fetch under
+# the merged disk-cache key.
+function __sase_plan_decision_candidates
+    set -l words (commandline -opc)
+    set -l cur (commandline -ct)
+    if test -n "$cur"; and test (count $words) -gt 1; and test "$words[-1]" = "$cur"
+        set -e words[-1]
+    end
+    set -l selector (__sase_plan_proposal $words)
+    if test -n "$selector"
+        __sase_run completion candidates plan_decision -S "$selector" 2>/dev/null
+    else
+        __sase_run completion candidates plan_decision 2>/dev/null
+    end
+end
+
 function __sase_run_prompt_fragment
     set -g __sase_prompt_kind
     set -g __sase_prompt_marker
@@ -301,6 +360,8 @@ def _value_args(choices: tuple[str, ...] | None, kind: ValueKind | None) -> str:
         return "-rF"
     if kind is ValueKind.DIR:
         return "-ra '(__fish_complete_directories)'"
+    if kind is ValueKind.PLAN_DECISION:
+        return "-xa '(__sase_plan_decision_candidates)'"
     if kind is not None:
         return f"-xa '(__sase_candidates {kind})'"
     return "-rF"

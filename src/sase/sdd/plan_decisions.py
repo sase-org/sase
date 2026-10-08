@@ -549,16 +549,8 @@ def _build_host_facts(
             records, _keys = _resolve_memory_records(list(selectors))
         except _PlanDecisionError:
             raise
-        default = getattr(decision, "default", None)
         requested = getattr(decision, "requested", None)
         if not isinstance(requested, str) or not requested.strip():
-            facts[decision.id] = {
-                "requested_verified": False,
-                "provenance": "not_asked",
-                "resolved": records,
-            }
-            continue
-        if default is False:
             facts[decision.id] = {
                 "requested_verified": False,
                 "provenance": "not_asked",

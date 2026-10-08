@@ -425,3 +425,63 @@ def test_gate_retire_failure_other_than_a_race_still_launches_the_coder(
     assert receipt is not None
     assert receipt.route == "session"
     assert receipt.retired_gate_id == "race-gate"
+
+
+def test_direct_decide_values_stamp_into_adopted_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``-D`` values flow through ``execute_direct_approval`` into the stamp."""
+    from dataclasses import replace
+
+    from tests._conftest_environment import redirect_sase_home
+    from tests.test_plan_decide_cli import PENDING_TALE
+
+    home = tmp_path / "sase-home"
+    redirect_sase_home(monkeypatch, home)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.setattr("sase.main.plan_decide.caller_for_decide", lambda: "human")
+
+    source = tmp_path / "overlay.md"
+    source.write_text(PENDING_TALE, encoding="utf-8")
+    adopted = home / "plans" / "202609" / "overlay.md"
+    adopted.parent.mkdir(parents=True, exist_ok=True)
+    adopted.write_text(PENDING_TALE, encoding="utf-8")
+
+    from sase.sdd.plan_decisions import build_definitions
+    from sase.sdd.plan_validate import validate_plan
+
+    validation = validate_plan(PENDING_TALE, "tale")
+    assert validation.ok, [str(d) for d in validation.diagnostics]
+    definitions = build_definitions(validation, "")
+
+    from sase.main.plan_decide import resolve_decide_values
+
+    values, _rows = resolve_decide_values(
+        definitions, {"grouping": "mode"}, caller="human"
+    )
+    plan = replace(
+        _resolved_plan(tmp_path, kind="commit", name="overlay.md"),
+        decide_values=dict(values),
+        decide_definitions=tuple(definitions),
+    )
+    archived = _ApprovedPlanArchive(str(adopted), "plan:202609/overlay.md")
+    with (
+        patch(
+            "sase.llm_provider._plan_utils.adopt_plan_into_sase",
+            return_value=adopted,
+        ),
+        patch(
+            "sase._plan_archive_approval.archive_approved_plan",
+            return_value=archived,
+        ),
+        patch(
+            "sase.agent.launch_cwd.launch_agents_from_cwd",
+            side_effect=AssertionError("must not launch for commit"),
+        ),
+    ):
+        outcome = execute_direct_approval(plan)
+    assert outcome.coder is None
+    stamped = adopted.read_text(encoding="utf-8")
+    assert "answer: mode" in stamped
+    assert "decided_by: reviewer" in stamped

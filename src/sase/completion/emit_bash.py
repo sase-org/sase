@@ -57,24 +57,76 @@ __sase_run() {
 # filters by the current word $2 with a prefix $3 via compgen. Bash cannot
 # show descriptions, so only the value column survives.
 __sase_candidates() {
-  local kind=$1 cur=$2 prefix=$3
+  local kind=$1 cur=$2 prefix=$3 selector=${4-}
   local ttl=${SASE_COMPLETION_CACHE_TTL:-60}
+  # A scoped fetch is cached under kind plus selector, never under the
+  # merged key, so one proposal's decisions cannot leak into another's.
+  local key=${kind}
+  [[ -n ${selector} ]] && key+="::${selector}"
   case $kind in
 __SASE_VOLATILE_TTL_CASES__
   esac
   # `${arr[k]+x}` tests key presence rather than value, so a fetch at
   # SECONDS==0 is never mistaken for the unpopulated default.
-  if [[ -z ${__sase_candidates_stamp[${kind}]+x} ]] ||
-     (( SECONDS - __sase_candidates_stamp[${kind}] >= ttl )); then
-    __sase_candidates_cache[${kind}]=$(__sase_run completion candidates "${kind}" 2>/dev/null)
-    __sase_candidates_stamp[${kind}]=${SECONDS}
+  if [[ -z ${__sase_candidates_stamp[${key}]+x} ]] ||
+     (( SECONDS - __sase_candidates_stamp[${key}] >= ttl )); then
+    if [[ -n ${selector} ]]; then
+      __sase_candidates_cache[${key}]=$(__sase_run completion candidates "${kind}" -S "${selector}" 2>/dev/null)
+    else
+      __sase_candidates_cache[${key}]=$(__sase_run completion candidates "${kind}" 2>/dev/null)
+    fi
+    __sase_candidates_stamp[${key}]=${SECONDS}
   fi
   local -a values=()
   local line
   while IFS= read -r line; do
     [[ -n ${line} ]] && values+=("${line%%$'\\t'*}")
-  done <<< "${__sase_candidates_cache[${kind}]}"
+  done <<< "${__sase_candidates_cache[${key}]}"
   mapfile -t COMPREPLY < <(compgen -P "${prefix}" -W "${values[*]}" -- "${cur}")
+}
+
+# Prints the pending-plan proposal named on the command line, if any. Scans
+# words before the current one for `plan approve|reject` and returns the
+# first bare word after it (the PLAN positional), skipping the values of
+# options that take them. Prints nothing when no proposal is named, and
+# callers then keep the merged fallback.
+__sase_plan_proposal() {
+  local i w armed=0 skip=0 seen_plan=0
+  for (( i=1; i<cword; i++ )); do
+    w="${words[i]-}"
+    if (( skip )); then skip=0; continue; fi
+    [[ -z ${w} ]] && continue
+    case "${w}" in
+      -D|--decide|-k|--kind|-m|--model|-P|--project|-p|--prompt|-w|--wait)
+        skip=1 ;;
+      -*)
+        ;;
+      plan)
+        seen_plan=1 ;;
+      approve|reject)
+        if (( seen_plan )); then armed=1; fi
+        seen_plan=0 ;;
+      *)
+        if (( armed )); then
+          printf '%s\n' "${w}"
+          return 0
+        fi
+        seen_plan=0 ;;
+    esac
+  done
+  return 1
+}
+
+# Completes plan-decision ids/values for `sase plan approve|reject -D`,
+# scoped to the proposal named on the command line (`-S`) with a merged
+# fallback when none is named.
+__sase_plan_decision_candidates() {
+  local cur=$1 prefix=$2 selector=
+  if selector=$(__sase_plan_proposal); then
+    __sase_candidates plan_decision "${cur}" "${prefix}" "${selector}"
+  else
+    __sase_candidates plan_decision "${cur}" "${prefix}"
+  fi
 }
 
 # Detect an embedded run-prompt reference in the current word. The marker
@@ -222,6 +274,9 @@ _sase_complete_value() {
       COMPREPLY=($(compgen -P "${prefix}" -W "${spec#choices:}" -- "${value_cur}"))
       ;;
     kind:path|kind:dir|value)
+      ;;
+    kind:plan_decision)
+      __sase_plan_decision_candidates "${value_cur}" "${prefix}"
       ;;
     kind:*)
       __sase_candidates "${spec#kind:}" "${value_cur}" "${prefix}"

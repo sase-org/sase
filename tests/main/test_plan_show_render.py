@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 from rich.console import Console
 
@@ -356,3 +357,19 @@ def test_print_ambiguity_lists_every_candidate() -> None:
     assert "plan:202607/a.md" in output
     assert "plan:202608/a.md" in output
     assert "narrow with --target" in output
+
+
+def test_full_render_shows_decisions_section_for_plan_with_decisions(
+    tmp_path: Path,
+) -> None:
+    from tests.test_plan_decide_cli import PENDING_TALE
+
+    plan_path = tmp_path / "overlay.md"
+    plan_path.write_text(PENDING_TALE, encoding="utf-8")
+    record = _record(plan=_plan(path=str(plan_path)))
+
+    rendered = _render(record)
+
+    assert "DECISIONS" in rendered
+    assert "grouping" in rendered
+    assert "tui_note" in rendered

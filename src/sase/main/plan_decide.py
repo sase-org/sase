@@ -420,11 +420,17 @@ def decision_card_lines(
     Row sources read ``-D`` for submitted values and ``default`` otherwise
     (a ``clamped`` source is a default with a quote warning, never ``-D``);
     changed rows carry ``●`` and name the prior default with ``was ★``,
-    unchanged rows carry ``★``, and memory rows carry provenance chips
-    without duplication plus the ``new`` chip for missing notes.
+    unchanged rows carry ``★``, and memory rows carry exactly one
+    provenance chip plus the ``new`` chip for missing notes. The value
+    column is padded so the source column lines up (Section 1.4 mock).
+    A row the reviewer explicitly switched on never shows the stale
+    ``· off`` claim next to its ``yes ●`` value.
     The closing line is the core summary sentence.
     """
-    from sase.sdd._plan_display_decisions import format_decision_value
+    from sase.sdd._plan_display_decisions import (
+        format_decision_value,
+        provenance_chip,
+    )
     from sase.sdd.plan_decisions import summary_binding
 
     lines: list[str] = []
@@ -441,19 +447,42 @@ def decision_card_lines(
         else []
     )
     width = max((len(str(row.get("id", ""))) for row in ordered), default=0)
-    for sheet_row in ordered:
+    preview = [
+        (
+            sheet_row,
+            by_id.get(str(sheet_row.get("id", "")), {}),
+            format_decision_value(
+                by_id.get(str(sheet_row.get("id", "")), {}).get(
+                    "value",
+                    sheet_row.get("value", sheet_row.get("default")),
+                )
+            ),
+        )
+        for sheet_row in ordered
+    ]
+    value_width = max((len(display) for _, _, display in preview), default=0)
+    origin_width = max(
+        (
+            len("-D" if str(row.get("source", "default")) == "submitted" else "default")
+            for _, row, _ in preview
+        ),
+        default=0,
+    )
+    for sheet_row, row, display in preview:
         decision_id = str(sheet_row.get("id", ""))
-        row = by_id.get(decision_id, {})
         value = row.get("value", sheet_row.get("value", sheet_row.get("default")))
         changed = bool(row.get("changed", sheet_row.get("changed", False)))
         source = str(row.get("source", "default"))
         origin = "-D" if source == "submitted" else "default"
-        display = format_decision_value(value)
         mark = " ●" if changed else " ★"
-        line = f"  {decision_id.ljust(width)}   {display}{mark}   {origin}"
+        line = (
+            f"  {decision_id.ljust(width)}"
+            f"   {display.ljust(value_width)}{mark}"
+            f"   {origin.ljust(origin_width)}"
+        )
         if changed:
             default = sheet_row.get("default", row.get("default"))
-            line += f"        was ★ {format_decision_value(default)}"
+            line += f"   was ★ {format_decision_value(default)}"
         memory = sheet_row.get("memory")
         if isinstance(memory, dict):
             selectors = memory.get("selectors")
@@ -463,12 +492,7 @@ def decision_card_lines(
                 else ""
             )
             provenance = str(memory.get("provenance") or "").strip()
-            chip = {
-                "asked": "you asked",
-                "not_asked": "not asked",
-                "quote_not_found": "⚠ quote not found · off",
-                "inherited": "approved in epic",
-            }.get(provenance, provenance)
+            chip = provenance_chip(provenance)
             bits = f"🧠 {names}" if names else "🧠"
             quote_raw = memory.get("quote")
             quote = (
@@ -477,15 +501,14 @@ def decision_card_lines(
                 else ""
             )
             if provenance == "quote_not_found":
-                if chip:
+                if value is True:
+                    bits += f" · {chip.removesuffix(' · off')}"
+                elif chip:
                     bits += f" · {chip}"
             elif provenance == "asked" and quote:
                 bits += f" · you asked: {quote!r}"
-            else:
-                if chip:
-                    bits += f" · {chip}"
-                if quote:
-                    bits += f" · you asked: {quote!r}"
+            elif chip:
+                bits += f" · {chip}"
             if _memory_is_new(memory):
                 bits += " · new"
             line += f"   {bits}"

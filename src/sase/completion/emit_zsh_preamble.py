@@ -63,13 +63,23 @@ __SASE_VOLATILE_TTL_CASES__
 }
 
 __sase_candidate_lines() {
-  local kind=$1
+  local kind=$1 selector=${2-}
+  local key="sase-$kind"
+  if [[ -n $selector ]]; then
+    # A scoped fetch is cached under kind plus selector, never under the
+    # merged key, so one proposal's decisions cannot leak into another's.
+    key+="-${selector//[^A-Za-z0-9_]/_}"
+  fi
   local policy
   zstyle -s ":completion:${curcontext}:" cache-policy policy ||
     zstyle ":completion:${curcontext}:" cache-policy __sase_cache_policy
-  if ! _retrieve_cache "sase-$kind"; then
-    reply=( ${(f)"$(__sase_run completion candidates $kind 2>/dev/null)"} )
-    _store_cache "sase-$kind" reply
+  if ! _retrieve_cache "$key"; then
+    if [[ -n $selector ]]; then
+      reply=( ${(f)"$(__sase_run completion candidates $kind -S "$selector" 2>/dev/null)"} )
+    else
+      reply=( ${(f)"$(__sase_run completion candidates $kind 2>/dev/null)"} )
+    fi
+    _store_cache "$key" reply
   fi
 }
 
@@ -85,10 +95,10 @@ __sase_candidate_lines() {
 # `extendedglob`, and helpers like `_describe`, `compadd`, and `_alternative`
 # rely on that environment while still restoring the user's interactive state.
 __sase_candidates() {
-  local kind=$1
+  local kind=$1 selector=${2-}
   local -a lines entries
   local line value desc
-  __sase_candidate_lines "$kind"
+  __sase_candidate_lines "$kind" "$selector"
   lines=( $reply )
   for line in $lines; do
     value=${line%%$'\\t'*}
@@ -100,6 +110,53 @@ __sase_candidates() {
     fi
   done
   _describe -t "sase-$kind" "$kind" entries
+}
+
+# Prints the pending-plan proposal named on the command line, if any. Scans
+# the words before the current one for `plan approve|reject` and returns
+# the first bare word after it (the PLAN positional), skipping the values
+# of options that take them. Prints nothing when no proposal is named, and
+# callers then keep the merged fallback.
+__sase_plan_proposal() {
+  emulate -L zsh
+  local -i i armed=0 skip=0 seen_plan=0
+  local w
+  for (( i=2; i<CURRENT; i++ )); do
+    w=${words[i]}
+    if (( skip )); then skip=0; continue; fi
+    [[ -z $w ]] && continue
+    case $w in
+      -D|--decide|-k|--kind|-m|--model|-P|--project|-p|--prompt|-w|--wait)
+        skip=1 ;;
+      -*)
+        ;;
+      plan)
+        seen_plan=1 ;;
+      approve|reject)
+        if (( seen_plan )); then armed=1; fi
+        seen_plan=0 ;;
+      *)
+        if (( armed )); then
+          print -r -- "$w"
+          return 0
+        fi
+        seen_plan=0 ;;
+    esac
+  done
+  return 1
+}
+
+# Completes plan-decision ids/values for `sase plan approve|reject -D`,
+# scoped to the proposal named on the command line (`-S`) with a merged
+# fallback when none is named.
+__sase_plan_decision_candidates() {
+  emulate -L zsh
+  local selector
+  if selector=$(__sase_plan_proposal); then
+    __sase_candidates plan_decision "$selector"
+  else
+    __sase_candidates plan_decision
+  fi
 }
 
 __sase_run_prompt_fragment() {

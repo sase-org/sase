@@ -163,8 +163,12 @@ authoritative list; today that is `agent`, `artifact`, `artifact_ref`,
 `skill`, `snippet`, `tag`, `workspace`, and `macro`. Path and directory slots are
 deliberately not kinds — the shell completes those natively.
 
-Two flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
-(default `200`), and `-p/--project NAME` scopes project-relative kinds to one project.
+Three flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
+(default `200`), `-p/--project NAME` scopes project-relative kinds to one project, and
+`-S/--selector SELECTOR` scopes `plan_decision` candidates to the one pending proposal
+that name, path, or notification ID (prefix) selects. Without `-S`, decision ids merge
+across every visible pending proposal; the generated shell helpers pass the `PLAN`
+already on the command line as `-S` when completing `sase plan approve|reject -D`.
 
 Repo candidates come from SASE's read-only repo inventory, so they include primary,
 linked, sidecar, and external repository display names without cloning or resolving

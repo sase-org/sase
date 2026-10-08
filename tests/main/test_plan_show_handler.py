@@ -258,3 +258,59 @@ def test_compact_format_renders_one_row(
     assert exit_code == 0
     assert "A flexible plan" in out
     assert out.count("\n") == 1
+
+
+def test_full_format_shows_decisions_header_for_plan_with_decisions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.test_plan_decide_cli import PENDING_TALE
+
+    plan_path = tmp_path / "overlay.md"
+    plan_path.write_text(PENDING_TALE, encoding="utf-8")
+    _stub(monkeypatch, _record(plan_path))
+
+    exit_code = handle_plan_show_command(_args("a", color="never"))
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "DECISIONS" in out
+    assert "grouping" in out
+
+
+def test_compact_format_shows_decision_counts_for_plan_with_decisions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.test_plan_decide_cli import PENDING_TALE
+
+    plan_path = tmp_path / "overlay.md"
+    plan_path.write_text(PENDING_TALE, encoding="utf-8")
+    _stub(monkeypatch, _record(plan_path))
+
+    exit_code = handle_plan_show_command(_args("a", format="compact", color="never"))
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "◉2" in out
+    assert "🧠1" in out
+
+
+def test_json_format_attaches_decision_sheet_for_plan_with_decisions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import json as _json
+
+    from tests.test_plan_decide_cli import PENDING_TALE
+
+    plan_path = tmp_path / "overlay.md"
+    plan_path.write_text(PENDING_TALE, encoding="utf-8")
+    _stub(monkeypatch, _record(plan_path))
+
+    exit_code = handle_plan_show_command(_args("a", format="json", color="never"))
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    payload = _json.loads(out)
+    assert [row["id"] for row in payload["decisions"]["rows"]] == [
+        "grouping",
+        "tui_note",
+    ]

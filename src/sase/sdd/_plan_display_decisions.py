@@ -148,11 +148,11 @@ def _append_pending_row(text: Text, row: dict[str, Any]) -> None:
                 text.append(f" \u00b7 {chip}", style="dim")
         elif provenance == "asked" and quote:
             text.append(f" \u00b7 you asked: {quote!r}", style="dim")
-        else:
-            if chip:
-                text.append(f" \u00b7 {chip}", style="dim")
-            if quote:
-                text.append(f" \u00b7 you asked: {quote!r}", style="dim")
+        elif chip:
+            # Exactly one provenance chip: a stale quote never reappears
+            # next to a chip that already says otherwise (``not asked · you
+            # asked: '…'``).
+            text.append(f" \u00b7 {chip}", style="dim")
 
 
 def accepted_decisions_text(

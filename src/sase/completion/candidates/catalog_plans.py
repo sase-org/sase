@@ -442,7 +442,9 @@ def _scope_rows_to_selector(
 
     Matches the display name, archive path, notification id, or id prefix
     of one visible row; returns None when the selector is ambiguous or
-    matches nothing so callers keep the merged fallback.
+    matches nothing so callers keep the merged fallback. An exact match
+    always wins over prefix ambiguity: one exact hit scopes even when
+    other rows share the prefix.
     """
     from sase.plan_names import plan_display_names
 
@@ -456,7 +458,8 @@ def _scope_rows_to_selector(
             for path, row in zip(archives, visible, strict=True)
         ]
     )
-    matches: list[dict[str, Any]] = []
+    exact: list[dict[str, Any]] = []
+    prefixed: list[dict[str, Any]] = []
     lowered = want.lower()
     for row, archive in zip(visible, archives, strict=True):
         key = archive or str(row.get("id") or "")
@@ -470,16 +473,18 @@ def _scope_rows_to_selector(
         }
         candidates = {item for item in candidates if item}
         if any(item == want or item.lower() == lowered for item in candidates):
-            matches.append(row)
+            exact.append(row)
             continue
         if any(
             item.startswith(want) or item.lower().startswith(lowered)
             for item in candidates
             if item
         ):
-            matches.append(row)
-    if len(matches) == 1:
-        return matches
+            prefixed.append(row)
+    if exact:
+        return exact if len(exact) == 1 else None
+    if len(prefixed) == 1:
+        return prefixed
     return None
 
 

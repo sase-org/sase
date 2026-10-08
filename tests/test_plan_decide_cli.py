@@ -509,6 +509,75 @@ def test_card_memory_chips_do_not_duplicate_or_contradict() -> None:
     assert "you asked:" not in warned_line
 
 
+def test_host_facts_verify_requested_quote_for_default_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from sase.sdd.plan_decisions import _build_host_facts
+    from sase.sdd.plan_validate import validate_plan
+
+    validation = validate_plan(PENDING_TALE, "tale")
+    assert validation.ok
+    monkeypatch.setattr(
+        "sase.sdd.plan_human_text.human_authored_texts",
+        lambda _directory: (
+            SimpleNamespace(
+                source="prompt",
+                ref="root",
+                text=(
+                    "please update the overlay and note the convention "
+                    "in the tui memory today"
+                ),
+            ),
+        ),
+    )
+    facts = _build_host_facts(validation, str(tmp_path))
+    assert facts["tui_note"]["provenance"] == "asked"
+
+    monkeypatch.setattr(
+        "sase.sdd.plan_human_text.human_authored_texts", lambda _directory: ()
+    )
+    facts = _build_host_facts(validation, str(tmp_path))
+    assert facts["tui_note"]["provenance"] == "quote_not_found"
+
+
+def test_card_human_override_on_quote_not_found_row_drops_stale_off() -> None:
+    from sase.main.plan_decide import decision_card_lines
+    from sase.sdd.plan_decisions import sheet_binding
+
+    definitions = _definitions()
+    sheet = sheet_binding(definitions, {"grouping": "pane", "tui_note": True}, 4)
+    for row in sheet["rows"]:
+        if row["id"] == "tui_note" and isinstance(row.get("memory"), dict):
+            row["memory"]["provenance"] = "quote_not_found"
+            row["memory"]["quote"] = "and note the convention"
+    rows = [
+        {"id": "grouping", "value": "pane", "source": "default", "changed": False},
+        {"id": "tui_note", "value": True, "source": "submitted", "changed": True},
+    ]
+    lines = decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=True,
+    )
+    tui_line = next(line for line in lines if "tui_note" in line)
+    assert "yes" in tui_line and "●" in tui_line
+    assert "quote not found" in tui_line
+    assert "· off" not in tui_line
+
+
+def test_card_value_column_padding_lines_up_source_column() -> None:
+    lines = _card_lines_for_values({"grouping": "mode"})
+    grouping_line = next(line for line in lines if "grouping" in line)
+    tui_line = next(line for line in lines if "tui_note" in line)
+    assert grouping_line.index("-D") == tui_line.index("default")
+
+
 def test_card_renders_new_chip_for_missing_note() -> None:
     from sase.main.plan_decide import decision_card_lines
     from sase.sdd.plan_decisions import sheet_binding
@@ -608,8 +677,10 @@ def test_validate_json_stdout_is_single_document(
 
     plan = tmp_path / "plan.md"
     plan.write_text(PENDING_TALE, encoding="utf-8")
-    monkeypatch.setenv("SASE_AGENT_CONTEXT", "")
-    monkeypatch.delenv("SASE_AGENT_CONTEXT", raising=False)
+    # Cover the real outside-agent path: in_agent_context() reads SASE_AGENT
+    # and SASE_ARTIFACTS_DIR (SASE_AGENT_CONTEXT exists nowhere).
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
     args = argparse.Namespace(
         plan_file=str(plan), explain=False, json=True, quiet=False
     )
@@ -701,45 +772,95 @@ def test_approve_help_has_single_retry_example(
     assert "-D" in help_text
 
 
-def test_live_decision_inputs_carry_revision_and_values() -> None:
-    from sase.main.plan_approve_handler import _LiveDecisionContext
+def test_live_gate_decide_submission_sends_decision_inputs_and_revision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main import plan_approve_handler
+    from sase.main.plan_approve_handler import _approve_pending_plan
+    from sase.main.plan_pending import PendingPlan
+    from sase.notifications.models import Notification
 
-    context = _LiveDecisionContext(
-        definitions=[{"id": "grouping"}],
-        review_revision=7,
-        values={"grouping": "mode", "tui_note": False},
-        rows=[],
-        sheet={},
-        declaring_options={"approve", "commit"},
+    definitions = [dict(item) for item in _definitions()]
+    monkeypatch.setattr(
+        plan_approve_handler,
+        "_live_gate_decisions",
+        lambda _plan: (definitions, 7, {"approve"}),
+    )
+    monkeypatch.setattr("sase.main.plan_decide.caller_for_decide", lambda: "human")
+    monkeypatch.setattr(
+        plan_approve_handler, "ensure_plan_notification_available", lambda _n: None
+    )
+    context_sentinel = object()
+    monkeypatch.setattr(
+        plan_approve_handler,
+        "plan_context_from_notification",
+        lambda _n: context_sentinel,
+    )
+    monkeypatch.setattr(
+        "sase._plan_approval_protocol.resolve_plan_approval_choice",
+        lambda _files, _kind: "approve",
+    )
+    monkeypatch.setattr(
+        "sase.plan_approval_choices.plan_approval_selection_for_choice",
+        lambda _choice, **_kwargs: ("approve",),
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_render.render_gate_approval", lambda *_a, **_k: None
+    )
+    captured: dict[str, object] = {}
+    result_sentinel = object()
+
+    def _fake_execute(context: object, kind: object, **kwargs: object) -> object:
+        captured["context"] = context
+        captured["kind"] = kind
+        captured["kwargs"] = kwargs
+        return result_sentinel
+
+    monkeypatch.setattr(
+        plan_approve_handler, "execute_plan_approval_response", _fake_execute
+    )
+    notification = Notification(
+        id="abcdef12-plan",
+        timestamp=datetime.now(UTC).isoformat(),
+        sender="plan",
+        files=["/tmp/plan.md"],
+        action="PlanApproval",
+        action_data={"response_dir": "/tmp/plan_approval"},
+    )
+    plan = PendingPlan(
+        notification=notification,
+        name="myplan",
+        display_name="myplan",
+        archive_path=None,
+        bundle_plan_path=None,
+        title="T",
         tier="tale",
+        agent="planner",
+        age="1m",
     )
-    inputs = context.option_inputs_for(
-        resolved_choice="approve", selected=("approve", "reject")
+
+    result = _approve_pending_plan(
+        plan,
+        selector="myplan",
+        kind="tale",
+        coder_prompt=None,
+        coder_model=None,
+        wait=None,
+        dry_run=False,
+        project=None,
+        decide=("grouping=mode",),
     )
-    assert inputs is not None
-    assert inputs["approve"] == {
-        "decision_grouping": "mode",
-        "decision_tui_note": False,
+
+    assert result is result_sentinel
+    assert captured["context"] is context_sentinel
+    assert captured["kind"] == "tale"
+    kwargs = captured["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["option_inputs"] == {
+        "approve": {"decision_grouping": "mode", "decision_tui_note": False}
     }
-    assert "reject" not in inputs
-    assert context.review_revision == 7
-
-
-def test_direct_file_decide_submission_resolves_values() -> None:
-    from sase.main.plan_decide import resolve_direct_decisions
-    from sase.sdd.plan_validate import validate_plan
-
-    validation = validate_plan(PENDING_TALE, "tale")
-    assert validation.ok
-    resolved = resolve_direct_decisions(
-        validation, {"grouping": "mode"}, caller="human"
-    )
-    assert resolved is not None
-    values, rows, sheet, definitions = resolved
-    assert values["grouping"] == "mode"
-    assert any(row.get("id") == "grouping" for row in rows)
-    assert isinstance(sheet, dict)
-    assert any(d.get("id") == "grouping" for d in definitions)
+    assert kwargs["expected_review_revision"] == 7
+    assert kwargs["source"] == "cli"
 
 
 def test_show_compact_counts_and_json_attach(

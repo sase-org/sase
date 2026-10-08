@@ -263,6 +263,10 @@ def _value_suffix(
         return f":{name}:_files"
     if kind is ValueKind.DIR:
         return f":{name}:_files -/"
+    if kind is ValueKind.PLAN_DECISION:
+        # Plan-decision ids complete scoped to the proposal named on the
+        # command line (`-S`); the helper falls back to merged when none is.
+        return f":{name}:{{__sase_plan_decision_candidates}}"
     if kind is not None:
         # Braces make `_arguments` eval this literally; the bare-word action
         # form instead prepends its own `-J`/`-V`/... flags before any
