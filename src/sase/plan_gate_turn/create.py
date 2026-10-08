@@ -146,7 +146,11 @@ def create_plan_gate_turn(
         parent_artifacts_dir=parent_artifacts_dir,
     )
 
-    if auto_enabled:
+    # The spec's effective auto state decides both: a cross-tier argument
+    # parks as manual, so a parked gate must neither dismiss its own
+    # EpicApproval notification nor skip the review notification.
+    effective_auto = bool(spec.get("auto", {}).get("enabled", False))
+    if effective_auto:
         from sase.llm_provider._plan_utils import mark_auto_approved_plan_handled
 
         mark_auto_approved_plan_handled(
@@ -155,7 +159,7 @@ def create_plan_gate_turn(
             action=auto_action,
         )
 
-    if creation.gate.notification_id is not None:
+    if not effective_auto and creation.gate.notification_id is not None:
         from sase.main.plan_approve_handler import (
             get_tmux_prefix,
             send_desktop_notification,

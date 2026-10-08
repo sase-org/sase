@@ -169,22 +169,53 @@ def test_auto_uses_the_manual_executor_and_tier_owned_aliases(
     assert load_notifications(include_dismissed=True) == []
 
 
-def test_auto_rejects_unknown_and_cross_tier_arguments_before_publication(
+def test_auto_rejects_unknown_arguments_before_publication(
     gate_home: Path,
 ) -> None:
     plan = write_plan(gate_home, "conflict.md", VALID_TALE_PLAN)
-    for argument in ("epic", "foo"):
-        with pytest.raises(GateError) as exc_info:
-            create_gate(
-                build_plan_approval_gate_spec(
-                    plan,
-                    f"conflict-{argument}",
-                    auto_enabled=True,
-                    auto_argument=argument,
-                )
+    with pytest.raises(GateError) as exc_info:
+        create_gate(
+            build_plan_approval_gate_spec(
+                plan,
+                "conflict-foo",
+                auto_enabled=True,
+                auto_argument="foo",
             )
-        assert exc_info.value.code == "invalid_auto_argument"
+        )
+    assert exc_info.value.code == "invalid_auto_argument"
     assert load_notifications(include_dismissed=True) == []
+
+
+@pytest.mark.parametrize(
+    ("content", "argument", "expected_kind"),
+    [
+        (VALID_TALE_PLAN, "epic", "plan"),
+        (VALID_TALE_PLAN, "epic_plan", "plan"),
+        (VALID_EPIC_PLAN, "tale", "epic_plan"),
+        (VALID_EPIC_PLAN, "plan", "epic_plan"),
+    ],
+)
+def test_cross_tier_auto_parks_as_manual_gate_with_notification(
+    content: str,
+    argument: str,
+    expected_kind: str,
+    gate_home: Path,
+) -> None:
+    """A tier mismatch parks for a human instead of auto-resolving."""
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, f"parked-{expected_kind}-{argument}.md", content),
+            f"parked-{expected_kind}-{argument}",
+            auto_enabled=True,
+            auto_argument=argument,
+        )
+    )
+
+    assert gate.kind == expected_kind
+    assert gate.notification_id is not None
+    assert not gate.response_path.exists()
+    [notification] = load_notifications()
+    assert notification.id == gate.notification_id
 
 
 def test_shared_host_executor_handles_feedback_rejection_and_races(

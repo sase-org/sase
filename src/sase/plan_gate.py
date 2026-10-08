@@ -24,6 +24,9 @@ from ._plan_gate_envelope import (
     translate_plan_gate_response,
 )
 from ._plan_gate_metadata import (
+    effective_plan_auto_argument,
+    plan_auto_covers_tier,
+    recorded_auto_covers_plan,
     plan_gate_edit_operation,
     plan_gate_option_icon,
     plan_gate_option_ids,
@@ -75,6 +78,9 @@ def build_plan_approval_gate_spec(
     typed_tier = cast(PlanGateTier, tier)
     if auto_enabled:
         validate_plan_auto_argument(typed_tier, auto_argument)
+        if not plan_auto_covers_tier(typed_tier, auto_argument):
+            auto_enabled = False
+            auto_argument = None
     from sase.plan_approval_actions import require_plan_approval_validation
 
     validation = require_plan_approval_validation(plan_path, typed_tier)
@@ -410,6 +416,9 @@ __all__ = [
     "plan_gate_option_label",
     "plan_gate_option_ids",
     "plan_gate_query",
+    "effective_plan_auto_argument",
+    "plan_auto_covers_tier",
+    "recorded_auto_covers_plan",
     "validate_plan_auto_argument",
     "translate_plan_gate_response",
 ]

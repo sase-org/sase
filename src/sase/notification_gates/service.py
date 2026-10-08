@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 import time
 from collections.abc import Mapping
@@ -69,6 +70,7 @@ def create_gate(spec_value: Mapping[str, Any] | GateSpec) -> GateCreationResult:
         if isinstance(spec_value, GateSpec)
         else GateSpec.from_mapping(spec_value)
     )
+    spec = _normalize_cross_tier_plan_spec(spec)
     adapter = adapter_for_kind(spec.kind)
     validate_gate_spec(spec, adapter)
     request_id = spec.request_id or f"{adapter.kind}-{uuid4()}"
@@ -89,6 +91,30 @@ def create_gate(spec_value: Mapping[str, Any] | GateSpec) -> GateCreationResult:
         if journal:
             return _resume_gate_creation(spec, adapter, paths, journal)
         return _start_gate_creation(spec, adapter, paths)
+
+
+def _normalize_cross_tier_plan_spec(spec: GateSpec) -> GateSpec:
+    """Park a cross-tier plan gate as manual before validation.
+
+    A ``:tale``/``:plan`` argument on an epic plan (and ``:epic`` on a
+    tale plan) is valid but not covered, so the gate waits for a human.
+    Normalizing here — before ``validate_gate_spec``, fingerprinting, the
+    notification-id assignment, and ``_resolve_auto_gate`` — keeps every
+    downstream view in agreement, including hand-built
+    ``sase gate create`` specs. ``GateAdapter.resolve_auto_selection``
+    stays strict.
+    """
+    if spec.kind not in {"plan", "epic_plan"} or not spec.auto.enabled:
+        return spec
+    from sase._plan_gate_metadata import plan_auto_covers_tier
+
+    tier = "epic" if spec.kind == "epic_plan" else "tale"
+    if plan_auto_covers_tier(tier, spec.auto.argument):  # type: ignore[arg-type]
+        return spec
+    return dataclasses.replace(
+        spec,
+        auto=dataclasses.replace(spec.auto, enabled=False, argument=None),
+    )
 
 
 def _start_gate_creation(

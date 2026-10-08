@@ -17,7 +17,7 @@ from sase.plan_gate_turn.create import create_plan_gate_turn, plan_gate_turn_blo
 from sase.question_gate_turn.create import _question_gate_turn_spec
 from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
 from tests._plan_gate_fixtures import write_plan
-from tests.plan_validation_helpers import VALID_TALE_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 @pytest.fixture(autouse=True)
@@ -225,3 +225,129 @@ def test_create_plan_gate_turn_records_context_before_auto_settlement(
     final_meta = json.loads((member / "agent_meta.json").read_text(encoding="utf-8"))
     assert final_meta["plan_gate_turn_plan_path"] == str(plan)
     assert final_meta["patch_name"] == ctx.cl_name
+
+
+@pytest.mark.parametrize(
+    ("plan_content", "plan_name", "gate_kind", "auto_action", "auto_argument"),
+    [
+        (VALID_EPIC_PLAN, "epic-tale.md", "epic_plan", "tale", "tale"),
+        (VALID_EPIC_PLAN, "epic-plan.md", "epic_plan", "approve", "plan"),
+        (VALID_TALE_PLAN, "tale-epic.md", "plan", "epic", "epic"),
+    ],
+)
+def test_cross_tier_plan_gate_turn_parks_without_dismissal(
+    plan_content: str,
+    plan_name: str,
+    gate_kind: str,
+    auto_action: str,
+    auto_argument: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cross-tier gate parks: manual spec, kept notification, no dismissal."""
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    state.current_role_suffix = PLAN_CHAIN_PLAN_SUFFIX
+    state.qa_rounds = []
+    plan = write_plan(tmp_path, plan_name, plan_content)
+    member = tmp_path / "gate-member"
+    bundle = tmp_path / "bundle"
+    member.mkdir()
+    bundle.mkdir()
+    (member / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "gate_kind": "plan",
+                "gate_id": "plan-parked",
+                "agent_session": "test_agent",
+                "name": "test_agent--gate",
+            }
+        ),
+        encoding="utf-8",
+    )
+    seen_specs: list[dict[str, Any]] = []
+
+    def fake_create_gate_turn(
+        request: dict[str, Any], *, before_auto_settle: Any = None
+    ) -> GateTurnCreation:
+        seen_specs.append(dict(request))
+        gate = GateCreationResult(
+            schema_version=3,
+            notification_id="notif-parked",
+            request_id="plan-parked",
+            kind=gate_kind,
+            bundle_path=bundle,
+            request_path=bundle / "request.json",
+            response_path=bundle / "response.json",
+            preview_path=None,
+            continuation_mode="plan_approval",
+            auto_resolution={"state": "disabled"},
+            hashes={},
+        )
+        record = GateTurnRecord(
+            gate_id="plan-parked",
+            member_agent_name="test_agent--gate",
+            lane="test_agent",
+            project_name="test_proj",
+            artifacts_dir=str(member),
+            timestamp="20260827120000",
+            kind=gate_kind,
+            gate_state="pending",
+            start_status="EPIC" if gate_kind == "epic_plan" else "TALE",
+            stop_status=(
+                "EPIC APPROVED" if gate_kind == "epic_plan" else "TALE APPROVED"
+            ),
+            accent="#D787FF" if gate_kind == "epic_plan" else "#FF87AF",
+            label="Plan",
+            reason="wait for reviewer",
+            creator_agent="test_agent--plan",
+            bundle_path=str(bundle),
+            notification_id="notif-parked",
+            timeout_seconds=86400.0,
+            request_fingerprint=None,
+            workspace_policy="inherit",
+        )
+        return GateTurnCreation(
+            gate=gate,
+            record=record,
+            project_file=None,
+            claim_move=None,
+            cl_name=None,
+        )
+
+    handled: list[tuple[Any, ...]] = []
+    notified: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "sase.plan_gate_turn.create.create_gate_turn", fake_create_gate_turn
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+        lambda: auto_action,
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.get_auto_plan_approval_argument",
+        lambda: auto_argument,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider._plan_utils.mark_auto_approved_plan_handled",
+        lambda *args, **kwargs: handled.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.send_desktop_notification",
+        lambda title, message: notified.append((title, message)),
+    )
+
+    creation = create_plan_gate_turn(
+        str(plan),
+        session_id="plan-parked",
+        ctx=ctx,
+        state=state,
+        agent_runtime="1m",
+    )
+
+    assert creation.gate.notification_id == "notif-parked"
+    [spec] = seen_specs
+    assert spec["auto"] == {"enabled": False, "argument": None}
+    assert handled == []
+    assert len(notified) == 1
+    assert notified[0][1] == "Plan ready for review in sase tui"

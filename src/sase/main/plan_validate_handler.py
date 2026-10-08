@@ -63,7 +63,7 @@ def handle_plan_validate_command(args: argparse.Namespace) -> NoReturn:
             schema=schema,
             explanation=explanation,
         )
-        decision_envelope = _decision_json_envelope(validation)
+        decision_envelope = _decision_json_envelope(validation, tier=tier)
         if decision_envelope is not None:
             payload["decisions"] = decision_envelope
         print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -81,17 +81,45 @@ def handle_plan_validate_command(args: argparse.Namespace) -> NoReturn:
             tier_hint=tier_hint,
         )
 
-    _print_decision_summary(validation, to_stdout=not is_json)
+    _print_decision_summary(validation, tier=tier, to_stdout=not is_json)
     sys.exit(0 if validation.ok else 1)
 
 
-def _decision_json_envelope(validation: object) -> dict[str, object] | None:
+def _plan_auto_applies(tier: str) -> bool:
+    """Return whether the live ``%auto`` state covers plan *tier*."""
+    try:
+        from sase._plan_gate_metadata import (
+            effective_plan_auto_argument,
+            plan_auto_covers_tier,
+        )
+        from sase.main.plan_approve_handler import (
+            get_auto_plan_approval_action,
+            get_auto_plan_approval_argument,
+        )
+        from sase.plan_gate import PlanGateTier
+    except Exception:
+        return False
+    try:
+        action = get_auto_plan_approval_action()
+        if action is None:
+            return False
+        argument = get_auto_plan_approval_argument()
+        return plan_auto_covers_tier(
+            cast(PlanGateTier, tier),
+            effective_plan_auto_argument(action, argument),
+        )
+    except Exception:
+        return False
+
+
+def _decision_json_envelope(
+    validation: object, tier: str | None = None
+) -> dict[str, object] | None:
     """Build the machine-readable Decision Sheet envelope for ``--json``."""
     plan = getattr(validation, "plan", None)
     if plan is None or not getattr(plan, "decisions", ()):
         return None
     try:
-        from sase.main.plan_approve_handler import get_auto_plan_approval_action
         from sase.sdd._plan_display_decisions import pending_decisions_text
         from sase.sdd.plan_decisions import (
             artifacts_dir_from_env,
@@ -112,10 +140,20 @@ def _decision_json_envelope(validation: object) -> dict[str, object] | None:
             return None
         sheet = sheet_binding(definitions, dict(values), 0)
         sheet_text = pending_decisions_text(sheet).plain
-        try:
-            auto_approved = get_auto_plan_approval_action() is not None
-        except Exception:
-            auto_approved = False
+        if tier is None:
+            try:
+                from sase.main.plan_approve_handler import (
+                    get_auto_plan_approval_action,
+                )
+            except Exception:
+                auto_approved = False
+            else:
+                try:
+                    auto_approved = get_auto_plan_approval_action() is not None
+                except Exception:
+                    auto_approved = False
+        else:
+            auto_approved = _plan_auto_applies(tier)
         envelope: dict[str, object] = {
             "sheet": sheet,
             "sheet_text": sheet_text,
@@ -187,23 +225,28 @@ def _apply_decision_host_checks(
     )
 
 
-def _print_decision_summary(validation: object, *, to_stdout: bool = True) -> None:
+def _print_decision_summary(
+    validation: object, *, tier: str | None = None, to_stdout: bool = True
+) -> None:
     """Print the Decision Sheet, plus the auto-approved note under %auto.
 
     In ``--json`` mode ``to_stdout`` is False so stdout stays one JSON
     document: the sheet and the ``%auto`` note go to stderr while the same
-    content also lives inside the JSON envelope.
+    content also lives inside the JSON envelope. The note prints only when
+    the live ``%auto`` state covers the plan tier.
     """
-    try:
-        from sase.main.plan_approve_handler import get_auto_plan_approval_action
-    except Exception:
-        return
     plan = getattr(validation, "plan", None)
     if plan is None or not getattr(plan, "decisions", ()):
         return
     _print_decision_sheet(validation, to_stdout=to_stdout)
     try:
-        if get_auto_plan_approval_action() is not None:
+        if tier is None:
+            from sase.main.plan_approve_handler import get_auto_plan_approval_action
+
+            applies = get_auto_plan_approval_action() is not None
+        else:
+            applies = _plan_auto_applies(tier)
+        if applies:
             if to_stdout:
                 print("auto-approved: every decision takes its default")
             else:

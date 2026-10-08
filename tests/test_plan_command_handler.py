@@ -298,11 +298,9 @@ phases: []
             "epic",
             "phases-empty",
         ),
-        (VALID_TALE, "epic", "tale", "invalid-auto-argument"),
-        (VALID_EPIC, "tale", "epic", "invalid-auto-argument"),
     ],
 )
-def test_plan_command_rejects_invalid_or_auto_mismatched_plan_without_side_effects(
+def test_plan_command_rejects_invalid_plan_without_side_effects(
     content: str,
     auto_action: str | None,
     expected_tier: str,
@@ -335,13 +333,67 @@ def test_plan_command_rejects_invalid_or_auto_mismatched_plan_without_side_effec
     captured = capsys.readouterr()
     assert captured.out == ""
     assert f"error [{expected_code}]" in captured.err.lower()
-    if expected_code == "invalid-auto-argument":
-        assert f"conflicts with the authored {expected_tier} plan tier" in captured.err
-    else:
-        assert f"Expected {expected_tier} frontmatter schema" in captured.err
-        assert "Validation failed" in captured.err
+    assert f"Expected {expected_tier} frontmatter schema" in captured.err
+    assert "Validation failed" in captured.err
     assert plan_file.read_text(encoding="utf-8") == content
     assert not (artifacts_dir / ".sase_plan_pending").exists()
     assert not (artifacts_dir.parents[1] / ".ace_refresh_pulse").exists()
     format_mock.assert_not_called()
     kill_mock.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("content", "live_meta", "expected_tier", "expected_argument"),
+    [
+        (VALID_TALE, {"auto_approve_plan_action": "epic"}, "tale", "epic"),
+        (VALID_EPIC, {"auto_approve_plan_action": "tale"}, "epic", "tale"),
+        (
+            VALID_EPIC,
+            {"approve": True, "auto_approve_argument": "plan"},
+            "epic",
+            "plan",
+        ),
+    ],
+)
+def test_plan_command_parks_cross_tier_auto_for_review(
+    content: str,
+    live_meta: dict[str, object],
+    expected_tier: str,
+    expected_argument: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A tier mismatch parks for a human instead of exiting 1."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "cross-tier.md"
+    plan_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    # Auto state travels through the live agent meta, never the
+    # SASE_AGENT_AUTO_* launch-time snapshot.
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(live_meta), encoding="utf-8"
+    )
+
+    with (
+        patch("sase.main.plan_propose_handler.kill_agent_runner_group") as kill_mock,
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        kill_mock.side_effect = SystemExit(0)
+        assert _invoke_plan(plan_file) == 0
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert (
+        f"`%auto:{expected_argument}` does not cover {expected_tier} plans; "
+        "this plan waits for review" in captured.out
+    )
+    assert "auto-approved" not in captured.out
+    assert (artifacts_dir / ".sase_plan_pending").exists()
+    kill_mock.assert_called_once()

@@ -273,6 +273,12 @@ class AgentMetaWire:
     # Persisted epic-follow stages (`release` phase). Trailing for the same
     # stability; additive serde-default.
     wait_epic_follows: list[WaitEpicFollowEntryWire] = field(default_factory=list)
+    # Raw `%auto` argument retained from directive extraction (live-meta
+    # `auto_approve_argument`). Trailing for the same key-order stability;
+    # additive serde-default, so no schema bump is needed. Lets status
+    # derivation tell a parked cross-tier gate (e.g. `%auto:tale` on an
+    # epic plan) apart from a covered bare `%auto`.
+    auto_approve_argument: str | None = None
 
     @property
     def agent_session_shell(self) -> AgentSessionTurnWire | None:

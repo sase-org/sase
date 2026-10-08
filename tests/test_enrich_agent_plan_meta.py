@@ -204,6 +204,56 @@ def test_manual_plan_after_submission_becomes_plan(tmp_path: Path) -> None:
     assert len(agent.plan_times) == 1
 
 
+@pytest.mark.parametrize(
+    ("tier", "expected", "live_action", "live_argument"),
+    [
+        ("tale", "TALE", "epic", "epic"),
+        ("epic", "EPIC", "tale", "tale"),
+        ("epic", "EPIC", None, "plan"),
+    ],
+)
+def test_cross_tier_auto_after_submission_stays_pending(
+    tmp_path: Path,
+    tier: str,
+    expected: str,
+    live_action: str | None,
+    live_argument: str,
+) -> None:
+    """A parked cross-tier gate stays visible as pending review."""
+    plan_path = tmp_path / f"{tier}-cross.md"
+    plan_path.write_text(f"---\ntier: {tier}\n---\n# Plan\n", encoding="utf-8")
+    meta: dict[str, object] = {
+        "pid": 1234,
+        "plan": True,
+        "approve": True,
+        "plan_path": str(plan_path),
+        "plan_submitted_at": "2026-04-27T15:05:00Z",
+        "auto_approve_argument": live_argument,
+    }
+    if live_action is not None:
+        meta["auto_approve_plan_action"] = live_action
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    filesystem_agent = make_agent()
+    wire_agent = make_agent()
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(
+            plan=True,
+            approve=True,
+            plan_path=str(plan_path),
+            plan_submitted_at=["2026-04-27T15:05:00Z"],
+            auto_approve_plan_action=live_action,
+            auto_approve_argument=live_argument,
+        ),
+        None,
+    )
+
+    assert filesystem_agent.status == expected
+    assert wire_agent.status == expected
+
+
 @pytest.mark.parametrize(("tier", "expected"), [("tale", "TALE"), ("epic", "EPIC")])
 def test_manual_plan_after_submission_uses_authored_tier(
     tmp_path: Path,

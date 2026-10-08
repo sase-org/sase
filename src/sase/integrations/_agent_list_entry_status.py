@@ -167,9 +167,27 @@ def _plan_status(meta: AgentMetaWire) -> str | None:
                 return None
             return PLAN_COMMITTED_STATUS
         return PLAN_APPROVED_STATUS
-    if meta.plan_submitted_at and not (meta.approve or meta.auto_approve_plan_action):
+    if meta.plan_submitted_at:
+        if not (meta.approve or meta.auto_approve_plan_action):
+            return pending_plan_status_for_tier(cached_plan_tier(meta.plan_path))
+        # Auto state is set: a covered tier auto-resolves, but a parked
+        # cross-tier gate (e.g. `%auto:tale` on an epic plan) still waits
+        # for a human, so it stays visible as pending review.
+        if _plan_auto_covers_submitted_tier(meta):
+            return None
         return pending_plan_status_for_tier(cached_plan_tier(meta.plan_path))
     return None
+
+
+def _plan_auto_covers_submitted_tier(meta: AgentMetaWire) -> bool:
+    """Return whether the recorded auto state covers the submitted plan tier."""
+    from sase._plan_gate_metadata import recorded_auto_covers_plan
+
+    return recorded_auto_covers_plan(
+        meta.auto_approve_plan_action,
+        getattr(meta, "auto_approve_argument", None),
+        meta.plan_path,
+    )
 
 
 def _pending_question_status(request_path: str | None) -> str:

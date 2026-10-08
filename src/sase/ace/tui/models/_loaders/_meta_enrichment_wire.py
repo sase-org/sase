@@ -140,6 +140,14 @@ def enrich_agent_from_meta_wire(
     agent.queue_weight_error = meta.queue_weight_error
     auto_action = meta.auto_approve_plan_action or None
     meta_auto_approved = agent.approve or bool(meta.approve) or bool(auto_action)
+    if meta_auto_approved:
+        from sase._plan_gate_metadata import recorded_auto_covers_plan
+
+        meta_auto_approved = recorded_auto_covers_plan(
+            auto_action,
+            getattr(meta, "auto_approve_argument", None),
+            meta.plan_path,
+        )
     apply_meta_approve = not workflow_child or is_main_workflow_agent_step(agent)
     if apply_meta_approve and auto_action:
         agent.auto_approve_plan_action = auto_action

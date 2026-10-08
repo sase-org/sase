@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from sase.notification_gates.models import GateError
@@ -59,14 +60,74 @@ def plan_gate_option_ids(tier: PlanGateTier) -> tuple[str, ...]:
     )
 
 
-def validate_plan_auto_argument(tier: PlanGateTier, argument: str | None) -> None:
-    """Reject unknown or tier-changing plan auto aliases before handoff."""
-    allowed = (
-        {None, "", "epic", "epic_plan"}
-        if tier == "epic"
-        else {None, "", "plan", "tale"}
+_PLAN_AUTO_VALID_ARGUMENTS = frozenset({None, "", "plan", "tale", "epic", "epic_plan"})
+_TALE_COVERED_ARGUMENTS = frozenset({None, "", "plan", "tale"})
+_EPIC_COVERED_ARGUMENTS = frozenset({None, "", "epic", "epic_plan"})
+
+
+def plan_auto_covers_tier(tier: PlanGateTier, argument: str | None) -> bool:
+    """Return whether an auto argument covers a plan tier.
+
+    ``:tale``/``:plan`` cover tale plans only and ``:epic``/``:epic_plan``
+    cover epic plans only; bare ``%auto`` (``None``/``""``) covers both. Any
+    other value is invalid rather than uncovered: use
+    :func:`validate_plan_auto_argument` to reject it.
+    """
+    covered = _EPIC_COVERED_ARGUMENTS if tier == "epic" else _TALE_COVERED_ARGUMENTS
+    return argument in covered
+
+
+def effective_plan_auto_argument(
+    action: str | None, argument: str | None
+) -> str | None:
+    """Return the argument that decides tier coverage for an auto state.
+
+    The live meta stores the raw ``%auto`` argument separately from the
+    plan action. When the argument is absent but the action names a tier
+    (``tale``/``epic``), the action carries the tier, so it stands in.
+    """
+    if argument is None and action in {"tale", "epic"}:
+        return action
+    return argument
+
+
+def recorded_auto_covers_plan(
+    action: str | None, argument: str | None, plan_path: str | Path | None
+) -> bool:
+    """Return whether recorded auto state covers the plan at *plan_path*.
+
+    *action* is the stored ``auto_approve_plan_action`` and *argument* the
+    stored raw ``auto_approve_argument``. An unreadable or missing tier
+    counts as covered, so callers keep the established auto-hides-pending
+    behavior wherever no cross-tier decision is possible.
+    """
+    normalized_action = (
+        action.strip().lower() if isinstance(action, str) and action.strip() else None
     )
-    if argument not in allowed:
+    normalized_argument = (
+        argument.strip().lower()
+        if isinstance(argument, str) and argument.strip()
+        else None
+    )
+    from sase.sdd.plan_tiers import cached_plan_tier
+
+    tier = cached_plan_tier(plan_path)
+    if tier not in {"tale", "epic"}:
+        return True
+    return plan_auto_covers_tier(
+        tier,  # type: ignore[arg-type]
+        effective_plan_auto_argument(normalized_action, normalized_argument),
+    )
+
+
+def validate_plan_auto_argument(tier: PlanGateTier, argument: str | None) -> None:
+    """Reject unknown plan auto arguments before handoff.
+
+    A known argument from the other tier is valid here but simply does not
+    cover this tier: callers treat that as manual via
+    :func:`plan_auto_covers_tier` instead of exiting.
+    """
+    if argument not in _PLAN_AUTO_VALID_ARGUMENTS:
         raise GateError(
             "invalid_auto_argument",
             "auto.argument",

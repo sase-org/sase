@@ -157,6 +157,20 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             console=error_console,
         )
         sys.exit(1)
+    auto_action = get_auto_plan_approval_action()
+    auto_argument = get_auto_plan_approval_argument()
+    if auto_argument is None and auto_action in {"tale", "epic"}:
+        auto_argument = auto_action
+    from sase._plan_gate_metadata import (
+        effective_plan_auto_argument,
+        plan_auto_covers_tier,
+    )
+    from sase.plan_gate import PlanGateTier
+
+    auto_applies = auto_action is not None and plan_auto_covers_tier(
+        cast(PlanGateTier, target_tier),
+        effective_plan_auto_argument(auto_action, auto_argument),
+    )
     if validation.plan is not None and getattr(
         validation.plan, "decisions", cast(Any, ())
     ):
@@ -165,24 +179,12 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         _n = len(getattr(validation.plan, "decisions", cast(Any, ())))
         _m = _count_memory(getattr(validation.plan, "decisions", cast(Any, ())))
         print(f"Plan Decisions: {_n} (🧠 {_m})")
-        try:
-            from sase.main.plan_approve_handler import (
-                get_auto_plan_approval_action as _auto,
-            )
-
-            _auto_action = _auto()
-        except Exception:
-            _auto_action = None
-        if _auto_action is not None:
+        if auto_applies:
             print("auto-approved: every decision takes its default")
-    auto_action = get_auto_plan_approval_action()
     if auto_action is not None:
         from sase.notification_gates.models import GateError
-        from sase.plan_gate import PlanGateTier, validate_plan_auto_argument
+        from sase.plan_gate import validate_plan_auto_argument
 
-        auto_argument = get_auto_plan_approval_argument()
-        if auto_argument is None and auto_action in {"tale", "epic"}:
-            auto_argument = auto_action
         try:
             validate_plan_auto_argument(
                 cast(PlanGateTier, target_tier),
@@ -194,6 +196,12 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
                 file=sys.stderr,
             )
             sys.exit(1)
+        if not auto_applies:
+            display = auto_argument or auto_action or ""
+            print(
+                f"`%auto:{display}` does not cover {target_tier} plans; "
+                "this plan waits for review"
+            )
 
     # Plans proposed from bead work inherit managed associations from the
     # proposing agent's active bead: its phase bead, else its epic bead, else
