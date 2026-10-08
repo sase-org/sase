@@ -28,6 +28,21 @@ class _ReadView:
         self.list_statuses = statuses
         return [self.issue]
 
+    def list_issue_page(
+        self,
+        statuses: list[Status] | None = None,
+        issue_types: object | None = None,
+        tiers: object | None = None,
+        task_types: object | None = None,
+        limit: int | None = None,
+    ) -> tuple[int, list[Issue]]:
+        self.list_statuses = statuses
+        issues = [self.issue]
+        total = len(issues)
+        if limit is not None:
+            issues = issues[-limit:]
+        return total, issues
+
     def show(self, issue_id: str) -> Issue:
         if issue_id != self.issue.id:
             raise KeyError(issue_id)

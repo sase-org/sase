@@ -170,9 +170,11 @@ def test_fast_path_guards_mutations_but_not_reads(tmp_path: Path, monkeypatch) -
     monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(tmp_path / "sandbox"))
 
     assert try_handle_bead_fast_path(["search", "needle"]) == 0
-    for argv in (["+1", "beads-1", "-n", "evidence"], ["rm", "beads-1"]):
-        with pytest.raises(RuntimeError, match=re.escape(f"fast-path {argv[0]}")):
-            try_handle_bead_fast_path(argv)
+    # ``+1`` is deliberately deferred to the Python slow path (it lives in
+    # ``_ALWAYS_DEFERRED_VERBS``), so it never reaches the fast-path guard.
+    assert try_handle_bead_fast_path(["+1", "beads-1", "-n", "evidence"]) is None
+    with pytest.raises(RuntimeError, match=re.escape("fast-path rm")):
+        try_handle_bead_fast_path(["rm", "beads-1"])
 
     assert calls == [["search", "needle"]]
 
@@ -263,13 +265,23 @@ def test_fast_path_refuses_unsafe_resolved_location_before_rust(
     def fake_resolve_beads_location(*_args, **_kwargs):
         return _BeadsLocation(root=unsafe_root, beads_dirname="sdd/beads")
 
-    def fail_binding(_name: str):
-        raise AssertionError("unsafe bead write reached Rust binding")
+    from sase.core import rust as rust_module
+
+    real_require_binding = rust_module.require_rust_binding
+
+    def fail_binding(name: str):
+        if name == "bead_cli_execute":
+            raise AssertionError("unsafe bead write reached Rust binding")
+        return real_require_binding(name)
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "sase.bead.cli_common.resolve_beads_location",
         fake_resolve_beads_location,
+    )
+    monkeypatch.setattr(
+        "sase.bead.operation_context._resolve_beads_location",
+        lambda *args, **kwargs: fake_resolve_beads_location(*args, **kwargs),
     )
     monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "background")
     monkeypatch.setattr("sase.core.rust.require_rust_binding", fail_binding)
@@ -283,6 +295,9 @@ def test_fast_path_refuses_unsafe_resolved_location_before_rust(
     assert "fast-path rm" in message
     assert str(unsafe_beads_dir.resolve()) in message
     assert str(sandbox.resolve()) in message
+    # Reads stay available through the same routed store and no caller-local
+    # store is materialized as a side effect.
+    assert not (tmp_path / "sdd" / "beads").exists()
 
 
 def test_fast_path_refuses_mutation_from_plain_checkout_sidecar_record(
@@ -325,13 +340,22 @@ def test_fast_path_refuses_mutation_from_plain_checkout_sidecar_record(
     )
     monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "background")
 
-    def fail_binding(_name: str):
-        raise AssertionError("read-only bead mutation reached Rust binding")
+    from sase.core import rust as rust_module
+
+    real_require_binding = rust_module.require_rust_binding
+
+    def fail_binding(name: str):
+        if name == "bead_cli_execute":
+            raise AssertionError("read-only bead mutation reached Rust binding")
+        return real_require_binding(name)
 
     monkeypatch.setattr("sase.core.rust.require_rust_binding", fail_binding)
 
     assert try_handle_bead_fast_path(["rm", issue.id]) == 1
     assert "available for reads only" in capsys.readouterr().err
+    # The read-only store stays usable for reads and no caller-local store
+    # is materialized as a side effect.
+    assert not (checkout / "sdd" / "beads").exists()
 
 
 def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:

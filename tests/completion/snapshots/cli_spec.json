@@ -13115,7 +13115,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "5c537fc4d93450de",
+            "description_digest": "64983031f66fb34f",
             "hidden": false,
             "mutex_groups": [],
             "name": "candidates",
@@ -13167,6 +13167,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "selector",
+                "hidden": false,
+                "kind": null,
+                "metavar": "SELECTOR",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-S",
+                  "--selector"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
               }
             ],
             "path": [

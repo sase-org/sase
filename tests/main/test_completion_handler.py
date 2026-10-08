@@ -345,9 +345,15 @@ def test_candidates_handler_prints_provider_output(
 
     calls: list[dict[str, object]] = []
 
-    def fake_candidates_for(kind, prefix, *, project, limit):
+    def fake_candidates_for(kind, prefix, *, project, limit, selector=None):
         calls.append(
-            {"kind": kind, "prefix": prefix, "project": project, "limit": limit}
+            {
+                "kind": kind,
+                "prefix": prefix,
+                "project": project,
+                "limit": limit,
+                "selector": selector,
+            }
         )
         from sase.completion.candidates.protocol import Candidate
 
@@ -361,7 +367,37 @@ def test_candidates_handler_prints_provider_output(
     assert handle_completion_command(args) == 0
 
     assert capsys.readouterr().out == "sase-1\tFix the thing\n"
-    assert calls == [{"kind": "bead", "prefix": "sase-", "project": "sase", "limit": 5}]
+    assert calls == [
+        {
+            "kind": "bead",
+            "prefix": "sase-",
+            "project": "sase",
+            "limit": 5,
+            "selector": None,
+        }
+    ]
+
+    capsys.readouterr()
+    calls.clear()
+    explicit = create_parser().parse_args(
+        [
+            "completion",
+            "candidates",
+            "bead",
+            "sase-",
+            "-l",
+            "5",
+            "-p",
+            "sase",
+            "-S",
+            "sase-1",
+        ]
+    )
+
+    assert handle_completion_command(explicit) == 0
+
+    assert capsys.readouterr().out == "sase-1\tFix the thing\n"
+    assert calls[0]["selector"] == "sase-1"
 
 
 def test_candidates_handler_prints_nothing_for_no_candidates(

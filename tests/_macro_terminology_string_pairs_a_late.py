@@ -139,11 +139,11 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/gate_turn/test_followup_prompt.py", '"%xprompts_enabled:false\\n"'),
     ("tests/gate_turn/test_followup_prompt.py", '"%xprompts_enabled:true"'),
     (
-        "tests/history/test_continuation_replay_hydration.py",
+        "tests/history/test_continuation_replay_hydration_basic.py",
         '"% xprompts_enabled:false"',
     ),
     (
-        "tests/history/test_continuation_replay_hydration.py",
+        "tests/history/test_continuation_replay_hydration_basic.py",
         '"%xprompts_enabled:false\\n"',
     ),
     (
