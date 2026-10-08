@@ -2770,9 +2770,9 @@ worker launched.
 Use `for_epic=false` when you only need the agent's own result:
 
 ```text
-%wait(planner)                         # Agent completion plus its launched epics
-%wait(reviewer, for_epic=false)         # Reviewer completion only
-%wait(build, for_epic=false, bead=sase-87.2) # Agent completion plus this explicit bead
+%wait(planner)                                # Agent completion plus its launched epics
+%wait(reviewer, for_epic=false)               # Reviewer completion only
+%wait(build, for_epic=false, bead=sase-87.2)  # Agent completion plus this explicit bead
 ```
 
 The policy applies to the agent targets in each `%wait` occurrence. Separate occurrences

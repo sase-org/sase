@@ -36,17 +36,20 @@ still launch a hard-disabled CLI. See
 
 The current bundle rollout records intended instructions for diagnostics. With the
 default `instruction_shadow_render` flag on, each root provider invocation renders its
-memory-built bundle and manifest into `<artifacts>/instructions/` without changing
-provider argv, prompts, or loaded files. Existing file and directive delivery continues;
-the manifest alone does not prove that a provider loaded the bundle's contents. This
-stage is called E2 in the implementation. See
+memory-built bundle and manifest into `<artifacts>/instructions/` and exports
+`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Current providers do not read
+that variable, so argv, prompts, and the files they already load stay the same. The
+manifest alone does not prove that a provider loaded the bundle's contents. This stage
+is called E2 in the implementation. See
 [Instruction Bundles](instruction_bundles.md#shadow-manifests).
 
 ## Verifying instruction delivery
 
 `sase instructions verify` shows what each provider's SASE runs and native helpers
 actually loaded, read from the providers' own session records — never from anything SASE
-wrote. The command reports; it does not gate (exit 0 even when rows show bugs). See
+wrote. The default window is the newest 20 runs per provider from the last 7 days (`-n`,
+maximum 200, and `--since` change that). The command reports; it does not gate (exit 0
+even when rows show bugs). A bad `--since` or `--until` value exits 2. See
 [Instruction Bundles](instruction_bundles.md) for the memory-built bundles behind these
 columns.
 

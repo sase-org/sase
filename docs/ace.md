@@ -6468,10 +6468,12 @@ highlight leading YAML frontmatter as YAML and the remaining body as Markdown.
 Highlighting does not alter validation or the reviewed file contents.
 
 The optional [Plan Decisions beta](sdd.md#plan-decisions-beta) adds typed choices and
-toggles to plan frontmatter. The current modal accepts their effective defaults; it does
-not yet provide dedicated decision controls. Use `sase gate answer` with the declared
-`decision_<id>` inputs to override them. Changing decision definitions through the
-gate's plan editor is refused because the review freezes those definitions.
+toggles to plan frontmatter. The current modal accepts their effective defaults and does
+not render controls for overriding them. `decision_<id>` fields are treated as already
+collected, so they do not appear as extra inputs either. Override a default with
+`sase gate answer` and `--set decision_<id>=...`. Changing decision definitions through
+the gate's plan editor is refused. The refusal text mentions a Decisions panel; that
+panel is not part of this modal.
 
 For tale plans, the modal's primary **Approve** decision includes two independently
 selectable add-ons: **Commit plan file to the plans sidecar** and **Run coder

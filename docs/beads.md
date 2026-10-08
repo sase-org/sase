@@ -70,7 +70,7 @@ sase bead read beads-001 -r "Need the scope"            # Audited agent read wit
 sase bead ref add beads-001 research:202607/report.md   # Attach durable context
 sase bead ref list beads-001 --resolve                  # List references and resolution state
 sase bead ref rm beads-001 research:202607/report.md    # Detach a reference
-sase bead update beads-001.1 --status=in_progress       # Mark manual work in progress
+sase bead update beads-001.1 --status=in_progress       # Set status; assignee stays unchanged
 sase bead note beads-001.1 "Verified with just check"   # Append an attributed note
 sase bead open beads-001.1                              # Reopen an issue
 sase bead close beads-001.1                             # Close an issue

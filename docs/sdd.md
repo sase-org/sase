@@ -531,11 +531,17 @@ to stderr. Otherwise `-j/--json` returns `schema_version`, `ok`, the authored `t
 `path`, the complete diagnostics list, and the expected schema. Exit status is 0 for
 valid plans, 1 for validation failures, and 2 for command-usage errors.
 
-The Plan Decisions beta currently has an output limitation: validating a plan with
-decisions outside an agent prints `quote verification runs at propose` before the
-result, including in `--json` mode. An auto-approval summary may also be printed after
-the result inside an agent. Account for these lines when parsing beta output; ordinary
-plans without decisions keep the JSON-only contract.
+The Plan Decisions beta currently mixes human text into `sase plan validate` output when
+the flag is on and the plan has decisions. Outside an agent, stdout prints
+`quote verification runs at propose` before the result, including in `--json` mode.
+After the JSON object or the human render, the command also prints the Decision Sheet
+whenever the validated plan still has decisions. That includes the outside-agent path.
+When an auto plan-approval action is active (`%auto`), one more line follows the sheet:
+`auto-approved: every decision takes its default`. That line is not printed merely
+because the process is inside an agent. If agent-context host checks add diagnostics,
+the plan is cleared and the sheet is skipped. A machine parser cannot treat `--json`
+stdout as one JSON document for these plans. Ordinary plans without decisions keep the
+JSON-only contract.
 
 ### Plan Decisions (Beta)
 
@@ -589,10 +595,13 @@ Add a help overlay to the active pane.
 
 Decision IDs start with a lowercase letter, contain only lowercase letters, digits, and
 underscores, and have at most 32 characters. Choice keys use the same pattern with a
-24-character limit. Avoid YAML boolean/null words and host-control names such as
-`approve`, `commit`, and `feedback`. Questions are one line of at most 120 characters;
-choice labels and `why` are one line of at most 100 characters. There is no authored
-`kind` field: the presence of `choices` selects the kind.
+24-character limit. Validation rejects the host-reserved IDs `approve`, `commit`,
+`reject`, `feedback`, `coder_prompt`, `coder_model`, `wait`, `epic_launch_mode`, and
+`capacity`. It also rejects the YAML 1.1 words `y`, `n`, `yes`, `no`, `on`, `off`,
+`true`, `false`, and `null` as both decision IDs and choice keys. Questions are one line
+of at most 120 characters. Choice labels and `why` are one line of at most 100
+characters. There is no authored `kind` field: the presence of `choices` selects the
+kind.
 
 A `> [!decision] <id>` block marks the true branch of a toggle; `= no` marks its false
 branch. A choice block must use `= <key>`. Unknown IDs or branches fail validation.
@@ -600,9 +609,11 @@ Fenced examples are ignored. An unmentioned decision produces a warning, so refe
 each decision in the prose or a callout. Decisions do not conditionally schedule epic
 phases: `phases[].when` is reserved and rejected.
 
-The current beta supports gate inputs and durable answers. The Plan Review modal does
-not yet expose dedicated decision controls. To override a default on a pending gate, use
-the declared `decision_<id>` field with `sase gate answer`:
+The current beta supports gate inputs and durable answers. The Plan Review modal accepts
+effective defaults and does not render controls for overriding them. `decision_<id>`
+fields are treated as already collected, so they do not appear as extra inputs. To
+override a default on a pending gate, use the declared `decision_<id>` field with
+`sase gate answer`:
 
 ```bash
 # Replace REQUEST_ID with the pending tale gate's ID.
@@ -619,9 +630,10 @@ those system fields in a new proposal. Feedback carries changed values into the 
 as provisional choices; it does not approve the plan.
 
 Decision definitions are frozen when the gate is created. In-gate edits can change
-prose, but changing anything under `decisions:` is refused. Changing the decision set
-requires a new proposal. Clients that submit a review revision are also checked against
-the displayed revision; a stale revision fails before execution.
+prose, but changing anything under `decisions:` is refused. The refusal text mentions a
+Decisions panel; that panel is not part of the Plan Review modal. Changing the decision
+set requires a new proposal. Clients that submit a review revision are also checked
+against the displayed revision; a stale revision fails before execution.
 
 A memory decision is a toggle with `memory: [<selector>, ...]`. Selectors use the
 [memory-read forms](memory.md#audited-reads): a note, a web, or a `web:keyword` strand.
@@ -640,6 +652,15 @@ to proposal. An agent cannot turn a memory decision on unless its effective defa
 already true. Feedback about a memory decision remains provisional. See
 [launch authorship](prompt.md#launch-authorship) and the
 [gate protocol](notifications.md#plan-decisions).
+
+When a plan-launched agent later commits, the host finalizer checks memory notes against
+the accepted memory decisions, including decisions inherited from the agent's epic. A
+note that no accepted decision covers still lands. The finalizer records a warning,
+`memory_change_uncovered`, naming each uncovered path and the plan. Agents that were not
+launched from a plan are not checked. If the guard cannot resolve the plan, the diff, or
+the binding, it records nothing and the commit still lands. Generated root instruction
+files (`AGENTS.md` and the provider shims) and `sase/memory/README.md` count as
+uncovered only when that same declaration changes no covered memory note.
 
 ### Committed Plan Validation Cutover
 

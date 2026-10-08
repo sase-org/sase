@@ -54,7 +54,10 @@ The agent never commits its own work in this path. Its `/sase_final` declaration
 every dirty repository a Conventional Commit message, and the host then runs
 `sase stitch create` for each repository with that message, any `-x` excludes, and
 `-B keep|close` when a bead is assigned. If the required declaration is missing or
-stale, the host spends one recovery turn that asks for `/sase_final` again.
+stale, the host spends one recovery turn that asks for `/sase_final` again. A
+plan-launched agent that commits a memory note no accepted memory decision covers still
+gets that commit; the finalizer records a `memory_change_uncovered` warning and does not
+block. See [Plan Decisions](sdd.md#plan-decisions-beta).
 
 Before it dispatches declared work, the finalizer commits proven machine-owned changes
 itself. For example, if the only enforced dirty file is a tracked markdown file under
@@ -826,9 +829,11 @@ settlement and recovery behavior.
 
    If the pinned sibling needs conflict repair, the host validates the repair's fresh
    declaration for the remaining repositories before writing the primary pin. It then
-   uses the repaired sibling's pushed SHA and commits that pin with the primary work.
-   This ordering prevents the host's own pin write from invalidating the repair's
-   repository observations.
+   uses the repaired sibling's pushed SHA and commits that pin with the primary work. A
+   repair declaration that defers the primary repository skips that pin write: the
+   sibling commit still lands, the pin file is left unchanged, and the host records a
+   `revision_pin_skipped` warning. This ordering prevents the host's own pin write from
+   invalidating the repair's repository observations.
 
    The host binds every stitch it runs — new stitches, checkpoint resumes, and the
    post-repair follow-up — to the bead captured in the accepted context. It sets

@@ -59,9 +59,11 @@ identical.
 
 New agent records store `prompt_origin` (`typed`, `generated`, or `unknown`) and
 `prompt_source_surface` independently of whether the launch qualifies for prompt
-history. The submitting surface records those values; missing or invalid provenance
-stays `unknown`. A human's short launch can therefore have authorship provenance even
-when the five-word history rule skips it.
+history. The submitting surface records those values. A launch that never received a
+classifying stamp is recorded as `generated`, unless the process already carries a valid
+origin, which is kept. A blank or unrecognized `prompt_source_surface` is stored as
+`unknown`. A human's short launch can therefore have authorship provenance even when the
+five-word history rule skips it.
 
 For [memory decisions in a plan](sdd.md#plan-decisions-beta), SASE uses the original
 `submitted_prompt.md` from a human-typed root launch as evidence. It also checks

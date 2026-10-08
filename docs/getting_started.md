@@ -127,7 +127,8 @@ sase's TUI has three top-level tabs:
   status (WIP → Draft → Ready → Mailed → Submitted), commits, hooks, comments, and
   mentor activity all in one place. The [Patch guide](change_spec.md) goes deeper when
   you're curious. This first read-only run should not have created one. Normal commits
-  appear under Stitches; the `#pr` workflow creates a Patch for a pull request.
+  appear in the Artifacts **Stitch** pane (`◉`); the `#pr` workflow creates a Patch for
+  a pull request.
 - **Services** — machine services, scheduled jobs, hooks waiting to complete, mentor
   launches, and error digests. This includes every configured service proc and nests
   scheduled work below `scheduler`. sase's TUI starts the active controller unless you
@@ -187,16 +188,27 @@ sase run \
 sase agent list -a
 ```
 
-Now the agent has permission to edit `notes.md` in its isolated numbered workspace.
-SASE's default host finalizer commits completed changes after the agent submits its
-final declaration. A normal commit creates a **stitch** record; creating a pull request
-with `#pr` creates a **Patch**. Review this run's diff and commits from its Agents-tab
-detail panel or the Artifacts tab's Stitches view.
+Now the agent has permission to edit `notes.md` in its isolated numbered workspace. The
+example prompt does not include `#commit`. After the agent submits its final
+declaration, SASE's default host finalizer commits completed changes with
+`create_commit` and pushes them. A normal commit creates a **stitch** record. Creating a
+pull request with `#pr` creates a **Patch**.
 
-Workspace isolation separates concurrent edits, but the normal commit workflow also
-pushes to the project's remote. For `home`, that remote is SASE's local bare repository,
-so the change is available to later home runs. Use `#propose` when you want a saved diff
-for review instead of a commit and push. See [Commit Workflows](commit_workflows.md).
+On the Agents tab, the selected run lists its commits under `SASE CONTEXT` / `ARTIFACTS`
+/ `Commits`, grouped by repository. That list is not the diff. Open the full message and
+diff from Artifacts: the **Stitch** pane (`◉`, key `2`) is the default view, and `Enter`
+on a row opens that commit.
+
+Workspace isolation separates concurrent edits, but the normal commit also pushes to the
+project's remote. For `home`, that remote is SASE's local bare repository. A later home
+run prepares a numbered workspace and syncs it from that bare origin (`git fetch`, then
+rebase onto the default branch), so it sees the pushed commit. The primary checkout is a
+separate tree.
+
+Use `#propose` when you want a saved diff for review instead of a commit and push.
+`#propose` writes `~/.sase/diffs/<name>-<timestamp>.diff`, then resets and cleans the
+workspace (`git reset --hard` and `git clean -fd`), so the uncommitted `notes.md` is not
+left in the workspace. See [Commit Workflows](commit_workflows.md).
 
 Wait until that run finishes before continuing. Default `sase agent list` shows
 **running** agents only, so the row disappears from the default list when the run ends.

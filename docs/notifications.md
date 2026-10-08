@@ -1437,7 +1437,10 @@ A tale or epic plan may declare typed Plan Decisions in `decisions:` frontmatter
 `plan_decisions` beta defaults off. Start with the
 [authoring example and CLI review flow](sdd.md#plan-decisions-beta) for user-facing
 usage; this section describes the gate protocol. The current Plan Review modal accepts
-defaults but does not expose dedicated controls for overriding these decisions.
+defaults and does not render controls for overriding them. `decision_<id>` fields are
+treated as already collected, so they do not appear as extra inputs. The editor refusal
+mentions a Decisions panel that this modal does not render. Override a default with
+`sase gate answer` and `--set decision_<id>=...`.
 
 When the flag is on, gate build freezes them into `payload.decisions` and compiles
 `decision_<id>` raw properties onto tale `approve`, `commit`, and `feedback` (epic

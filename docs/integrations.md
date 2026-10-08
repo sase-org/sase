@@ -129,11 +129,17 @@ group. The same `wait` object carries the capacity picture behind that order
 and `hold_expires_at` (epoch seconds, when the hold has an expiry).
 
 Epic-follow waits expose `wait_for_epics_of` as the targets whose launched epics should
-be followed, and `epic_follows` as persisted per-target stages. Each stage includes
-`target`, `state` (`launching`, `following`, or `blocked`), epic IDs, derived bead
-conditions, member names, timestamps, and any blocker reason or resume command. Use
-these fields alongside `wait_for_beads` to explain why a completed agent's dependent
-still waits. The shared phrasing helpers live in `sase.core.wait_epic_follow_view`; see
+be followed, and `epic_follows` as persisted per-target stages on the same `wait`
+object. Each stage dict has `target`, `state` (`launching`, `following`, or `blocked`),
+`epic_ids`, `added_bead_ids` (bead-closure conditions added for those epics), `members`,
+`since` (one epoch-seconds value), `reason`, `detail`, `resume_command`, and
+`skipped_epic_ids`. The states that park the waiter on the follow itself are `launching`
+and `blocked`. Once the state is `following`, the waiter stays parked through the
+ordinary bead waits those epics added. `entry.wait.has_wait` stays false when only
+`wait_for_epics_of` and `epic_follows` are set, so read those fields directly. The
+sample above checks `has_wait` and will not show an epic-only follow. Use these fields
+alongside `wait_for_beads` to explain why a completed agent's dependent still waits. The
+shared phrasing helpers live in `sase.core.wait_epic_follow_view`; see
 [Agent Names, Waits, and Queue Admission](macros.md#agent-names-waits-and-queue-admission)
 for scheduling semantics.
 

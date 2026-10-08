@@ -575,8 +575,10 @@ human-request quotes; outside an agent, quote verification is deferred to propos
 reports every schema problem in one run and prints the expected tier schema plus a
 minimal valid example on failure. Use `-e/--explain` for tier-specific authoring
 guidance, `-j/--json` for the stable machine-readable envelope, or `-q/--quiet` to
-suppress the successful human summary. The beta currently prints extra explanatory lines
-for plans with decisions even in JSON mode; see the
+suppress the successful human summary. With the beta on, a plan that has decisions also
+prints human text around that envelope: the quote-verification line before the JSON when
+the process is outside an agent, the Decision Sheet after it, and, when `%auto` is
+active, `auto-approved: every decision takes its default`. See the
 [validation output limitation](sdd.md#plan-frontmatter-schema-and-validation). The
 removed `-t/--tier` option is now invalid command usage. A valid plan exits 0, a
 validation failure exits 1, and invalid command usage exits 2.

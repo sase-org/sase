@@ -6,11 +6,14 @@ can inspect the intended context and compare it with what a provider actually lo
 
 The current implementation records bundles for diagnostics. With the default
 `instruction_shadow_render` flag enabled, root provider invocations render a bundle into
-the run's artifacts without delivering it to the provider. Providers continue to load
-their existing instruction files and directives. A successful render therefore does not
-prove delivery: use `sase instructions verify` to check observed loads. This stage is
-called **E2** in the implementation and migration inventory; later delivery stages have
-not replaced the current path. Shadow-render failures never fail an invocation.
+the run's artifacts and export `SASE_INSTRUCTIONS_FILE` for that provider call, then
+restore the previous value. Current providers do not read that variable. Their argv,
+prompts, and the instruction files they already load stay the same. A successful render
+therefore does not prove delivery: use `sase instructions verify` to check observed
+loads. This stage is called **E2** in the implementation and migration inventory; later
+delivery stages have not replaced the current path. Shadow-render failures never fail an
+invocation. The env var and the shadow files are described under
+[Shadow manifests](#shadow-manifests).
 
 See also
 [Verifying instruction delivery](agent_providers.md#verifying-instruction-delivery).
@@ -28,8 +31,10 @@ sase instructions verify -a AGENT      # Compare a recorded run's intent with it
 
 Replace `AGENT` with a name from `sase agent list -a`. `render -a AGENT` instead uses
 that agent's facts to compile a fresh preview from today's memory; its digest may differ
-from the historical bundle. `verify` reports problems without a failing exit status, so
-inspect its rows rather than using exit code 0 as proof that delivery is correct.
+from the historical bundle. `verify` looks at the newest 20 runs per provider from the
+last 7 days unless you pass `-n` (maximum 200) or `--since`. Delivery problems still
+exit 0. A bad `--since` or `--until` value exits 2. Inspect the rows rather than
+treating exit code 0 as proof that delivery is correct.
 
 ## Bundle and manifest
 
