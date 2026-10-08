@@ -346,8 +346,8 @@ def test_neutral_plan_archive_failure_is_retryable_without_duplicate_option_work
     ) == 2
     assert "attempt_resumed" in [record["event"] for record in recovered_records]
     translated = translate_plan_gate_response(gate.bundle_path, recovered.response)
-    assert translated.pop("_gate_source") == "plan_response"
-    assert translated.pop("_gate_caller") == "human"
+    assert "_gate_source" not in translated
+    assert "_gate_caller" not in translated
     assert translated.pop("decided_by") == "reviewer"
     assert translated.pop("decided_via") == "tui"
     assert translated == {

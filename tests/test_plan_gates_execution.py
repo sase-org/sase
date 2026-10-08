@@ -241,9 +241,14 @@ def test_shared_host_executor_handles_feedback_rejection_and_races(
             "result": {
                 "action": "reject",
                 "feedback": "Add rollback coverage",
+                "decided_by": "reviewer",
+                "decided_via": "tui",
             },
         }
     ]
+    for entry in feedback_result.response_json["option_results"]:
+        assert "_gate_source" not in entry["result"]
+        assert "_gate_caller" not in entry["result"]
     assert feedback_result.response_json["feedback"] == "Add rollback coverage"
 
     race_gate = create_gate(

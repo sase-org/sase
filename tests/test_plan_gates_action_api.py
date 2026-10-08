@@ -54,8 +54,8 @@ def test_plan_action_api_executes_selected_approval_options(
     [commit_entry] = action_result.response_json["option_results"]
     assert commit_entry["id"] == "commit"
     commit_result = dict(commit_entry["result"])
-    assert commit_result.pop("_gate_source") == "plan_response"
-    assert commit_result.pop("_gate_caller") == "human"
+    assert "_gate_source" not in commit_result
+    assert "_gate_caller" not in commit_result
     assert commit_result.pop("decided_by") == "reviewer"
     assert commit_result.pop("decided_via") == "tui"
     assert commit_result == {
@@ -73,6 +73,8 @@ def test_plan_action_api_executes_selected_approval_options(
     )
     assert translated["commit_plan"] is True
     assert translated["run_coder"] is False
+    assert "_gate_source" not in translated
+    assert "_gate_caller" not in translated
 
 
 def test_plan_action_api_filters_protocol_overrides_for_tale_preset(
@@ -126,8 +128,8 @@ def test_plan_action_api_filters_coder_options_for_commit_preset(
     assert action_result.response_json["selected_option_ids"] == ["commit"]
     assert action_result.response_json["input"] == {}
     commit_result = dict(action_result.response_json["option_results"][0]["result"])
-    assert commit_result.pop("_gate_source") == "plan_response"
-    assert commit_result.pop("_gate_caller") == "human"
+    assert "_gate_source" not in commit_result
+    assert "_gate_caller" not in commit_result
     assert commit_result.pop("decided_by") == "reviewer"
     assert commit_result.pop("decided_via") == "tui"
     assert commit_result == {

@@ -218,16 +218,20 @@ def _setup_main_and_external(
 def _stitch_with_side_effect(
     monkeypatch: pytest.MonkeyPatch,
     side_effect: str,
+    *,
+    publish_foreign: bool = True,
 ) -> list[str]:
     """Stitch main normally; absorb external's dirt mid-dispatch.
 
     The external repo's dirt is absorbed by a concurrent writer while the
     main stitch runs: either a foreign agent commit (HEAD advances, a race
-    the guard must exempt) or a plain revert (HEAD stays put, still a
-    discard). At its own turn the external repo is already clean, so the
-    fake reports a conflict and the repair triage settles it without a
-    commit -- the dispatcher's supported path for work that vanished
-    mid-dispatch -- leaving the verdict to the post-dispatch guard.
+    the guard must exempt once published) or a plain revert (HEAD stays
+    put, still a discard). At its own turn the external repo is already
+    clean, so the fake reports a conflict and the repair triage settles it
+    without a commit -- the dispatcher's supported path for work that
+    vanished mid-dispatch -- leaving the verdict to the post-dispatch
+    guard. An unpublished foreign commit must still be refused by the
+    unpushed-HEAD guard.
     """
     seen: list[str] = []
 
@@ -251,6 +255,8 @@ def _stitch_with_side_effect(
                     "-m",
                     "commit dirty payload\n\nSASE_AGENT=other-agent",
                 )
+                if publish_foreign:
+                    run_git(other, "push", "-q", "origin", "HEAD")
             elif side_effect == "revert":
                 run_git(other, "checkout", "--", ".")
             else:  # pragma: no cover - defensive
@@ -295,6 +301,22 @@ def test_post_dispatch_foreign_race_on_external_is_exempt(
     assert (
         _run_git(other, "log", "--format=%B", "-1").find("SASE_AGENT=other-agent") != -1
     )
+
+
+def test_post_dispatch_unpushed_foreign_race_still_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, other, artifacts = _setup_main_and_external(tmp_path, monkeypatch)
+    _stitch_with_side_effect(monkeypatch, "foreign-commit", publish_foreign=False)
+
+    _live_config(monkeypatch)
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    submit_from_context(artifacts)
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        run_controller(artifacts, _live_provider())
+
+    assert "ahead of its upstream with unpushed commits" in str(exc_info.value)
 
 
 def test_post_dispatch_revert_on_external_still_fails(
