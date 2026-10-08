@@ -47,6 +47,19 @@ def plugin_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=_check_plugins_resources,
         ),
         CheckSpec(
+            id="plugins.commands",
+            group="plugins",
+            title="Plugin commands",
+            runner=_check_plugin_commands,
+        ),
+        CheckSpec(
+            id="plugins.commands-parsers",
+            group="plugins",
+            title="Plugin command parsers",
+            runner=_check_plugin_command_parsers,
+            deep=True,
+        ),
+        CheckSpec(
             id="plugins.github",
             group="plugins",
             title="GitHub plugin prerequisites",
@@ -217,6 +230,135 @@ def _check_plugins_resources() -> DiagnosticCheck:
                     "load_error": ep.load_error,
                 }
                 for ep in resource_errors[:_MAX_DETAIL_ROWS]
+            ],
+        },
+    )
+
+
+def _check_plugin_commands() -> DiagnosticCheck:
+    """Report mounted plugin commands and command-claim problems."""
+    return _plugin_commands_check(deep=False)
+
+
+def _check_plugin_command_parsers() -> DiagnosticCheck:
+    """Deep variant that also builds each mounted command's parser."""
+    return _plugin_commands_check(deep=True)
+
+
+def _plugin_commands_check(*, deep: bool) -> DiagnosticCheck:
+    """Shared ``plugins.commands`` evaluation with an optional parser probe."""
+    from sase.plugin_commands.adapter import PluginCommandLoadError, load_plugin_command
+    from sase.plugin_commands.chip import format_command_chip
+    from sase.plugin_commands.registry import discover_plugin_commands
+
+    check_id = "plugins.commands-parsers" if deep else "plugins.commands"
+    title = "Plugin command parsers" if deep else "Plugin commands"
+    command_set = discover_plugin_commands()
+
+    mounted_rows: list[str] = []
+    warn_details: list[str] = []
+    error_details: list[str] = []
+    next_steps: list[str] = []
+    mounted_data: list[dict[str, str]] = []
+
+    def _add_next_step(step: str) -> None:
+        if step not in next_steps:
+            next_steps.append(step)
+
+    for record in command_set.mounted:
+        try:
+            loaded = load_plugin_command(record)
+        except PluginCommandLoadError as exc:
+            cause = " ".join(exc.cause.split())
+            error_details.append(
+                f"{format_command_chip(record.name)} from {exc.distribution} "
+                f"{exc.version} failed to load: {cause}"
+            )
+            _add_next_step(f"sase plugin update {record.name}")
+            continue
+        if deep:
+            try:
+                loaded.build_parser(prog=f"sase {record.name}")
+            except Exception as exc:  # noqa: BLE001 - parser failures are the finding.
+                cause = " ".join(str(exc).split()) or type(exc).__name__
+                error_details.append(
+                    f"{format_command_chip(record.name)} from {record.distribution} "
+                    f"{record.version} failed to build its parser: {cause}"
+                )
+                _add_next_step(f"sase plugin update {record.name}")
+                continue
+        mounted_rows.append(
+            f"{format_command_chip(record.name)} from {record.distribution} "
+            f"{record.version}"
+        )
+        mounted_data.append(
+            {
+                "name": record.name,
+                "distribution": record.distribution,
+                "version": record.version,
+                "summary": loaded.summary,
+            }
+        )
+
+    for problem in command_set.problems:
+        owners = ", ".join(problem.distributions)
+        if problem.status == "conflict":
+            error_details.append(f"{owners}: {problem.reason}")
+            _add_next_step(f"sase plugin uninstall {problem.distributions[0]}")
+        else:
+            warn_details.append(f"{owners}: {problem.reason}")
+            for distribution in problem.distributions:
+                _add_next_step(f"sase plugin uninstall {distribution}")
+
+    status: CheckStatus
+    if error_details:
+        status = "ERROR"
+        summary = (
+            f"{len(error_details)} plugin command problem(s) need attention "
+            f"({len(mounted_rows)} mounted)"
+        )
+        details = tuple([*error_details, *warn_details][: _MAX_DETAIL_ROWS * 2])
+    elif warn_details:
+        status = "WARN"
+        summary = (
+            f"{len(warn_details)} plugin command claim(s) cannot mount "
+            f"({len(mounted_rows)} mounted)"
+        )
+        details = tuple(warn_details[: _MAX_DETAIL_ROWS * 2])
+    elif mounted_rows:
+        status = "OK"
+        summary = f"{len(mounted_rows)} plugin command(s) mounted: " + ", ".join(
+            f"{row['name']} ({row['distribution']})" for row in mounted_data
+        )
+        details = tuple(mounted_rows[:_MAX_DETAIL_ROWS])
+    else:
+        status = "OK"
+        summary = "no plugin commands installed"
+        details = ()
+
+    return DiagnosticCheck(
+        id=check_id,
+        group="plugins",
+        status=status,
+        title=title,
+        summary=summary,
+        details=details,
+        next_steps=tuple(next_steps[:_MAX_DETAIL_ROWS]),
+        data={
+            "status": status,
+            "check_deep": deep,
+            "mounted_count": len(mounted_rows),
+            "warn_count": len(warn_details),
+            "error_count": len(error_details),
+            "mounted": mounted_data,
+            "problems": [
+                {
+                    "name": problem.name,
+                    "status": problem.status,
+                    "distributions": list(problem.distributions),
+                    "reason": problem.reason,
+                }
+                for problem in command_set.problems
             ],
         },
     )

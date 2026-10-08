@@ -165,6 +165,7 @@ class FullRootHelpAction(argparse.Action):
     ) -> None:
         del namespace, values, option_string
         parser.print_help()
+        print_plugin_commands_footer(sys.stdout)
         parser.exit()
 
 
@@ -224,6 +225,7 @@ def format_compact_root_help(parser: argparse.ArgumentParser) -> str:
             "Common commands:",
             *command_rows,
             "",
+            *compact_plugin_command_group_lines(),
             "Examples:",
             *example_rows,
             "",
@@ -281,6 +283,7 @@ def format_colored_compact_root_help(parser: argparse.ArgumentParser) -> Text:
         help_text.append(command.summary)
         help_text.append("\n")
     help_text.append("\n")
+    append_colored_plugin_command_group(help_text)
     help_text.append("Examples:", style="bold cyan")
     help_text.append("\n")
     for example in _COMPACT_ROOT_EXAMPLES:
@@ -297,3 +300,185 @@ def format_colored_compact_root_help(parser: argparse.ArgumentParser) -> Text:
     help_text.append(" to show every command.", style="dim")
     help_text.append("\n")
     return help_text
+
+
+_PLUGIN_COMMANDS_FOOTER_CLOSING = (
+    "Manage plugins with sase plugin list or the Updates tab in sase's Admin Center."
+)
+
+
+@dataclass(frozen=True)
+class PluginCommandHelpRow:
+    """One mounted plugin command with its display summary and provenance."""
+
+    name: str
+    summary: str
+    distribution: str
+    version: str
+
+
+def mounted_plugin_command_rows() -> tuple[PluginCommandHelpRow, ...]:
+    """Return mounted plugin commands with summaries for root help.
+
+    Summaries prefer the adapter ``SUMMARY`` and fall back to the
+    distribution metadata without raising, so a broken plugin never breaks
+    ``sase -h``; its problem state is reported by ``sase -H`` and doctor.
+    """
+    from sase.plugin_commands.adapter import resolve_command_summary
+    from sase.plugin_commands.registry import discover_plugin_commands
+
+    return tuple(
+        PluginCommandHelpRow(
+            name=record.name,
+            summary=resolve_command_summary(record),
+            distribution=record.distribution,
+            version=record.version,
+        )
+        for record in discover_plugin_commands().mounted
+    )
+
+
+def compact_plugin_command_group_lines() -> list[str]:
+    """Return the plain-text ``Plugin commands`` group for ``sase -h``.
+
+    The group lists mounted commands only and is empty when none is
+    mounted; problem states stay in ``sase -H`` and doctor.
+    """
+    rows = mounted_plugin_command_rows()
+    if not rows:
+        return []
+    width = max(len(row.name) for row in rows)
+    lines = ["Plugin commands:"]
+    for row in rows:
+        text = (
+            f"{row.summary} · {row.distribution}"
+            if row.summary
+            else f"· {row.distribution}"
+        )
+        lines.append(f"  {row.name:<{width}}  {text}")
+    lines.append("")
+    return lines
+
+
+def append_colored_plugin_command_group(help_text: Text) -> None:
+    """Append the ``Plugin commands`` group to colored ``sase -h`` output.
+
+    The stripped text matches :func:`compact_plugin_command_group_lines`.
+    """
+    rows = mounted_plugin_command_rows()
+    if not rows:
+        return
+    width = max(len(row.name) for row in rows)
+    help_text.append("Plugin commands:", style="bold cyan")
+    help_text.append("\n")
+    for row in rows:
+        help_text.append("  ")
+        help_text.append(f"{row.name:<{width}}", style="bold green")
+        help_text.append("  ")
+        if row.summary:
+            help_text.append(row.summary)
+            help_text.append(" ")
+        help_text.append(f"· {row.distribution}", style="dim")
+        help_text.append("\n")
+    help_text.append("\n")
+
+
+def format_plugin_commands_footer() -> str:
+    """Return the plain-text ``Plugin commands`` footer for ``sase -H``.
+
+    Each mounted command shows the command chip, the summary, and the
+    distribution and version; problem rows (shadowed, conflict, invalid
+    name, load failure) show ``⚠`` with a one-line reason. The footer is
+    empty when no plugin commands exist.
+    """
+    from sase.plugin_commands.adapter import PluginCommandLoadError, load_plugin_command
+    from sase.plugin_commands.chip import format_command_chip
+    from sase.plugin_commands.registry import discover_plugin_commands
+
+    command_set = discover_plugin_commands()
+    if not command_set.mounted and not command_set.problems:
+        return ""
+    lines = ["", "Plugin commands:"]
+    for record in command_set.mounted:
+        try:
+            summary = load_plugin_command(record).summary
+        except PluginCommandLoadError as exc:
+            cause = " ".join(exc.cause.split())
+            lines.append(
+                f"  ⚠ sase {record.name}  failed to load from "
+                f"{exc.distribution} {exc.version}: {cause}; see sase doctor"
+            )
+            continue
+        provenance = f"({record.distribution} {record.version})"
+        text = f"{summary} {provenance}" if summary else provenance
+        lines.append(f"  {format_command_chip(record.name)}  {text}")
+    for problem in command_set.problems:
+        owners = ", ".join(problem.distributions)
+        lines.append(f"  ⚠ sase {problem.name}  {owners}: {problem.reason}")
+    lines.append(_PLUGIN_COMMANDS_FOOTER_CLOSING)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_colored_plugin_commands_footer() -> Text | None:
+    """Return the footer as Rich text, or ``None`` when there is no footer.
+
+    The stripped text matches :func:`format_plugin_commands_footer`.
+    """
+    from rich.text import Text as RichText
+
+    from sase.plugin_commands.adapter import PluginCommandLoadError, load_plugin_command
+    from sase.plugin_commands.chip import format_command_chip
+    from sase.plugin_commands.registry import discover_plugin_commands
+
+    command_set = discover_plugin_commands()
+    if not command_set.mounted and not command_set.problems:
+        return None
+    footer = RichText()
+    footer.append("\n")
+    footer.append("Plugin commands:", style="bold cyan")
+    footer.append("\n")
+    for record in command_set.mounted:
+        try:
+            summary = load_plugin_command(record).summary
+        except PluginCommandLoadError as exc:
+            cause = " ".join(exc.cause.split())
+            footer.append("  ")
+            footer.append("⚠ ", style="yellow")
+            footer.append(f"sase {record.name}", style="bold red")
+            footer.append(
+                f"  failed to load from "
+                f"{exc.distribution} {exc.version}: {cause}; see sase doctor"
+            )
+            footer.append("\n")
+            continue
+        provenance = f"({record.distribution} {record.version})"
+        text = f"{summary} {provenance}" if summary else provenance
+        footer.append("  ")
+        footer.append(format_command_chip(record.name), style="bold magenta")
+        footer.append(f"  {text}")
+        footer.append("\n")
+    for problem in command_set.problems:
+        owners = ", ".join(problem.distributions)
+        footer.append("  ")
+        footer.append("⚠ ", style="yellow")
+        footer.append(f"sase {problem.name}", style="bold red")
+        footer.append(f"  {owners}: {problem.reason}")
+        footer.append("\n")
+    footer.append(_PLUGIN_COMMANDS_FOOTER_CLOSING, style="dim")
+    footer.append("\n")
+    return footer
+
+
+def print_plugin_commands_footer(stream: TextIO) -> None:
+    """Print the ``sase -H`` plugin footer, or nothing when there is none."""
+    if stream_supports_color(stream):
+        footer = format_colored_plugin_commands_footer()
+        if footer is None:
+            return
+        console = Console(file=stream, force_terminal=True, highlight=False)
+        console.print(footer, end="", soft_wrap=True)
+        return
+    footer_text = format_plugin_commands_footer()
+    if footer_text:
+        stream.write(footer_text)

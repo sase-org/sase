@@ -49,10 +49,17 @@ from .parser_root_help import (
     CompactRootCommand,
     CompactRootHelpAction,
     FullRootHelpAction,
+    PluginCommandHelpRow,
+    append_colored_plugin_command_group,
     compact_global_option_rows,
+    compact_plugin_command_group_lines,
     format_colored_compact_root_help,
+    format_colored_plugin_commands_footer,
     format_compact_root_help,
+    format_plugin_commands_footer,
+    mounted_plugin_command_rows,
     print_compact_root_help,
+    print_plugin_commands_footer,
     root_subparser_action,
     stream_supports_color,
     validated_compact_root_commands,
@@ -83,6 +90,13 @@ _validated_compact_root_commands = validated_compact_root_commands
 _CompactRootCommand = CompactRootCommand
 _CompactRootHelpAction = CompactRootHelpAction
 _FullRootHelpAction = FullRootHelpAction
+_PluginCommandHelpRow = PluginCommandHelpRow
+_append_colored_plugin_command_group = append_colored_plugin_command_group
+_compact_plugin_command_group_lines = compact_plugin_command_group_lines
+_format_colored_plugin_commands_footer = format_colored_plugin_commands_footer
+_format_plugin_commands_footer = format_plugin_commands_footer
+_mounted_plugin_command_rows = mounted_plugin_command_rows
+_print_plugin_commands_footer = print_plugin_commands_footer
 
 __all__ = (
     "_BEAD_NOTE_VALUE_OPTIONS",
@@ -103,17 +117,23 @@ __all__ = (
     "_RegistrarSpec",
     "_SaseArgumentParser",
     "_VALIDATION_FORMATTER",
+    "_append_colored_plugin_command_group",
     "_cached_gettext_find",
     "_compact_global_option_rows",
+    "_compact_plugin_command_group_lines",
     "_copy_parser_defaults",
     "_default_list_subcommands",
     "_format_colored_compact_root_help",
+    "_format_colored_plugin_commands_footer",
     "_format_compact_root_help",
+    "_format_plugin_commands_footer",
     "_gettext_languages_key",
     "_is_bead_note_args",
     "_memoized_gettext_find",
+    "_mounted_plugin_command_rows",
     "_normalize_bead_note_args",
     "_print_compact_root_help",
+    "_print_plugin_commands_footer",
     "_register_command_parsers",
     "_root_command_index",
     "_root_subparser_action",
