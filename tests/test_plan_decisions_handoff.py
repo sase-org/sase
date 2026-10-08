@@ -401,7 +401,7 @@ def test_receipt_only_posts_with_decisions(
 def test_auto_receipt_hook_wires_values_and_label(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.notification_gates.adapters import _post_plan_auto_receipt_best_effort
+    from sase.notification_gates.adapter_plan import _post_plan_auto_receipt_best_effort
 
     bundle = tmp_path / "req-9"
     bundle.mkdir()

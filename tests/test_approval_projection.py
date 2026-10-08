@@ -389,7 +389,7 @@ def test_epic_launch_publishes_terminal_state_before_prepare(
     with (
         patch("sase.plan_approval_actions.run_plan_side_effects"),
         patch(
-            "sase.notification_gates.adapters._publish_shell_terminal_before_epic_launch",
+            "sase.notification_gates.adapter_plan._publish_shell_terminal_before_epic_launch",
             side_effect=lambda *_args, **_kwargs: order.append("terminal"),
         ),
         patch(
