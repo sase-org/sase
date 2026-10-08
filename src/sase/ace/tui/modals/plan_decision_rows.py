@@ -251,6 +251,63 @@ class PlanDecisionRows(VerticalScroll):
         if self.is_mounted:
             self.refresh_rows()
 
+    def rebuild(
+        self, sheet_rows: list[dict[str, Any]], definitions: list[dict[str, Any]]
+    ) -> None:
+        """Rebuild rows when the id list changed: new definitions + children."""
+        old_len = len(getattr(self, "_rows", []))
+        self._rows = list(sheet_rows)
+        self._definitions = list(definitions or [])
+        self._by_id = {
+            str(d.get("id", "")): d for d in self._definitions if str(d.get("id", ""))
+        }
+        if not self._rows:
+            self._focused_index = -1
+        elif self._focused_index < 0 or self._focused_index >= len(self._rows):
+            self._focused_index = 0
+        if not self.is_mounted:
+            return
+        new_len = len(self._rows)
+        # Remove surplus rows when the new id list is shorter.
+        if new_len < old_len:
+            for index in range(new_len, old_len):
+                for suffix in (
+                    f"#plan-decision-{index}",
+                    f"#plan-decision-detail-{index}",
+                ):
+                    try:
+                        self.query_one(suffix).remove()
+                    except Exception:
+                        pass
+        # Mount missing rows when the new id list is longer.
+        if new_len > old_len:
+            try:
+                widgets: list[Any] = []
+                for index in range(old_len, new_len):
+                    row = self._rows[index]
+                    widgets.append(
+                        Button(
+                            self._row_label(index, row),
+                            id=f"plan-decision-{index}",
+                            classes="plan-decision-row",
+                        )
+                    )
+                    widgets.append(
+                        Static(
+                            "",
+                            id=f"plan-decision-detail-{index}",
+                            classes="plan-decision-detail",
+                        )
+                    )
+                if widgets:
+                    self.mount(*widgets)
+            except Exception:
+                pass
+        try:
+            self.refresh_rows()
+        except Exception:
+            pass
+
     def set_focused_index(self, index: int) -> None:
         if not self._rows:
             self._focused_index = -1
@@ -315,7 +372,4 @@ class PlanDecisionRows(VerticalScroll):
 
 __all__ = [
     "PlanDecisionRows",
-    "_collapsed_row_text",
-    "_expanded_row_text",
-    "_is_unverified_row",
 ]

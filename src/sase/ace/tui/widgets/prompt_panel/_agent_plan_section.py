@@ -42,9 +42,6 @@ from ._agent_context_common import (
 )
 
 
-_PLAN_SHEET_CACHE: dict[str, tuple[dict | None, str | None, str | None]] = {}
-
-
 def _load_plan_sheet(
     summary: AssociatedPlanSummary,
 ) -> tuple[dict | None, str | None, str | None]:

@@ -98,9 +98,7 @@ def plan_toggle_label(
     """Plan-review AND toggle with short labels; generic gates keep full labels."""
     if option.id in ("approve", "commit"):
         short = _plan_short_toggle_text(option.id)
-        badge = _input_badge_markup(option, host_collected_properties)
-        base = f"{'☑️' if selected else '⬜'} {short}"
-        return f"{base} {badge}" if badge else base
+        return f"{'☑️' if selected else '⬜'} {short}"
     return toggle_label(option, selected, host_collected_properties)
 
 

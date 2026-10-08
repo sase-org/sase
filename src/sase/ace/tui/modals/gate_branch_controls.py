@@ -36,7 +36,29 @@ from .gate_input_panel_model import (
     GateInputRequest,
     build_gate_input_request,
     gate_declares_inputs,
+    option_declared_input_count,
+    option_input_count_label,
 )
+
+
+def _compact_toggle_tooltip(
+    option: object,
+    host_collected: object,
+) -> str:
+    """Full label plus badge for the compact toggle tooltip."""
+    try:
+        from sase.notification_gates.models import GateOption as _GateOption
+
+        assert isinstance(option, _GateOption)
+        badge = option_input_count_label(
+            option_declared_input_count(option, host_collected)  # type: ignore[arg-type]
+        )
+        return f"{option.label} {badge}" if badge else option.label
+    except Exception:
+        try:
+            return str(getattr(option, "label", ""))
+        except Exception:
+            return ""
 
 
 class GateBranchControls(VerticalScroll):
@@ -149,7 +171,9 @@ class GateBranchControls(VerticalScroll):
                         branch_index=0,
                         id=f"gate-option-0-{option_index}",
                         classes="gate-option-toggle",
-                        tooltip=option.label,
+                        tooltip=_compact_toggle_tooltip(
+                            option, self._host_collected_properties
+                        ),
                     )
         # Line 2: one row of branch submits, numbered.
         with Horizontal(classes="plan-verdict-branches", id="plan-verdict-line2"):

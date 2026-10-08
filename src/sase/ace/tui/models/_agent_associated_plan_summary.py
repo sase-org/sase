@@ -25,6 +25,22 @@ PlanReferenceResolver = Callable[[Agent, str, str], Path]
 # stats, validates, or loads.
 _ASSOCIATED_PLAN_SHEET_CACHE: dict[str, tuple[dict | None, str | None, str | None]] = {}
 
+# Plan + sibling signatures guarding the sheet cache. Keyed by plan path; the
+# value is the plan file signature and its frozen-sibling signature. On a hit
+# the sheet is reused without calling load_stamped_decisions.
+_ASSOCIATED_PLAN_SHEET_SIGNATURES: dict[
+    str, tuple[tuple[int, int] | None, tuple[int, int] | None]
+] = {}
+
+
+def _file_signature(path: Path) -> tuple[int, int] | None:
+    """Return (mtime_ns, size) for *path*, or None when absent."""
+    try:
+        stat = path.stat()
+        return (int(stat.st_mtime_ns), int(stat.st_size))
+    except Exception:
+        return None
+
 
 def associated_plan_sheet_for(path: str) -> tuple[dict | None, str | None, str | None]:
     """Return the cached accepted sheet for *path*, or a miss."""
@@ -34,19 +50,51 @@ def associated_plan_sheet_for(path: str) -> tuple[dict | None, str | None, str |
     return cached[0], cached[1], cached[2]
 
 
-def _cache_associated_plan_sheet(plan_path: Path) -> None:
+def _cache_associated_plan_sheet(plan_path: Path, tier: str | None = None) -> None:
+    try:
+        from sase.sdd.plan_decision_freeze import sibling_path_for_plan
+    except Exception:
+        sibling_path_for_plan = None  # type: ignore[assignment]
+    key = str(plan_path)
+    try:
+        plan_sig = _file_signature(plan_path)
+    except Exception:
+        plan_sig = None
+    try:
+        sibling_sig = (
+            _file_signature(sibling_path_for_plan(plan_path))
+            if sibling_path_for_plan is not None
+            else None
+        )
+    except Exception:
+        sibling_sig = None
+    try:
+        last = _ASSOCIATED_PLAN_SHEET_SIGNATURES.get(key)
+    except Exception:
+        last = None
+    if last == (plan_sig, sibling_sig) and key in _ASSOCIATED_PLAN_SHEET_CACHE:
+        return
+    # Sibling-only change with an unchanged plan still reloads: compare both,
+    # but a first enrichment with no sibling keeps the single-read contract.
+    if last is not None and last == (plan_sig, sibling_sig):
+        return
+    resolved_tier = tier if tier in ("tale", "epic") else "tale"
     try:
         from sase.sdd.plan_decision_handoff import load_stamped_decisions
     except Exception:
         return
     try:
-        stamped = load_stamped_decisions(str(plan_path))
+        stamped = load_stamped_decisions(str(plan_path), tier=resolved_tier)
     except Exception:
         return
+    try:
+        _ASSOCIATED_PLAN_SHEET_SIGNATURES[key] = (plan_sig, sibling_sig)
+    except Exception:
+        pass
     if stamped is None:
-        _ASSOCIATED_PLAN_SHEET_CACHE.pop(str(plan_path), None)
+        _ASSOCIATED_PLAN_SHEET_CACHE.pop(key, None)
         return
-    _ASSOCIATED_PLAN_SHEET_CACHE[str(plan_path)] = (
+    _ASSOCIATED_PLAN_SHEET_CACHE[key] = (
         stamped.sheet,
         stamped.decided_by,
         stamped.decided_via,
@@ -70,7 +118,9 @@ def build_associated_plan_summary(
     )
     # Off-render-path sheet load: the associated plan is already read here.
     try:
-        _cache_associated_plan_sheet(plan_path)
+        _cache_associated_plan_sheet(
+            plan_path, getattr(metadata, "authored_tier", None)
+        )
     except Exception:
         pass
     return AssociatedPlanSummary(

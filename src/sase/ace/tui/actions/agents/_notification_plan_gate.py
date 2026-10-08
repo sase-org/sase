@@ -611,54 +611,194 @@ def _handle_stale_review(
                     decision_id = str(key).removeprefix("decision_")
                     if decision_id not in kept_values:
                         kept_values[decision_id] = value
-        # Also keep draft values when the modal is still open for this request.
+        try:
+            new_definitions = list(
+                getattr(reloaded, "decision_definitions", None) or []
+            )
+        except Exception:
+            new_definitions = []
+        new_ids = {str(d.get("id", "")) for d in new_definitions if isinstance(d, dict)}
+        filtered_submit = {
+            key: value for key, value in kept_values.items() if key in new_ids
+        }
         try:
             from ...modals.plan_approval_modal import PlanApprovalModal
 
             screen = getattr(app, "screen", None)
             modal = screen if isinstance(screen, PlanApprovalModal) else None
-            if modal is not None and str(getattr(modal, "_request_id", "")) == str(
-                getattr(notification, "action_data", {}).get("request_id")
-                or getattr(notification, "id", "")
-            ):
-                modal._review_revision = reloaded.review_revision  # type: ignore[attr-defined]
-                modal._decision_definitions = list(reloaded.decision_definitions)  # type: ignore[attr-defined]
+            if modal is None:
                 try:
-                    from ...modals.plan_decision_sheet import PlanDecisionDraft
-
-                    new_ids = {
-                        str(d.get("id", ""))
-                        for d in reloaded.decision_definitions
-                        if isinstance(d, dict)
-                    }
-                    current = dict(modal._decision_draft.values())  # type: ignore[attr-defined]
-                    merged = {
-                        key: value
-                        for key, value in {**current, **kept_values}.items()
-                        if key in new_ids
-                    }
-                    modal._decision_draft = PlanDecisionDraft(  # type: ignore[attr-defined]
-                        list(reloaded.decision_definitions),
-                        values=merged or None,
-                        review_revision=int(reloaded.review_revision or 0),
-                    )
-                    modal._refresh_verdict_summary()  # type: ignore[attr-defined]
+                    stack = getattr(app, "screen_stack", None) or []
+                    for entry in reversed(list(stack)):
+                        candidate = getattr(entry, "screen", entry)
+                        if isinstance(candidate, PlanApprovalModal):
+                            modal = candidate
+                            break
                 except Exception:
-                    pass
+                    modal = None
         except Exception:
-            pass
-        # Persist kept values for the next open when the modal is gone.
+            modal = None
         try:
-            from ...modals._plan_approval_modal_state import esc_drafts
-
             request_id = str(
                 getattr(notification, "action_data", {}).get("request_id")
                 or getattr(notification, "id", "")
             )
-            if request_id and kept_values:
-                esc_drafts[request_id] = kept_values
         except Exception:
-            pass
+            request_id = ""
+        try:
+            modal_request = (
+                str(getattr(modal, "_request_id", "") or "")
+                if modal is not None
+                else ""
+            )
+        except Exception:
+            modal_request = ""
+        is_open = bool(modal is not None and request_id and modal_request == request_id)
+        if is_open and modal is not None:
+            # Open modal: do not push a second modal. Merge live draft as base
+            # with the submit overlay, filtered to the new ids.
+            merged: dict[str, Any] = {}
+            try:
+                from ...modals.plan_decision_sheet import PlanDecisionDraft
+
+                current = dict(modal._decision_draft.values())  # type: ignore[attr-defined]
+                merged = {
+                    key: value
+                    for key, value in {**current, **kept_values}.items()
+                    if key in new_ids
+                }
+                modal._decision_definitions = list(new_definitions)  # type: ignore[attr-defined]
+                modal._review_revision = getattr(  # type: ignore[attr-defined]
+                    reloaded, "review_revision", None
+                )
+                modal._decision_draft = PlanDecisionDraft(  # type: ignore[attr-defined]
+                    list(new_definitions),
+                    values=merged or None,
+                    review_revision=int(
+                        getattr(reloaded, "review_revision", None) or 0
+                    ),
+                )
+            except Exception:
+                pass
+            # Reload, not a keypress: new plan text refreshes fold + spans.
+            try:
+                new_content = getattr(reloaded, "plan_content", None)
+                if isinstance(new_content, str):
+                    modal._plan_content = new_content  # type: ignore[attr-defined]
+                    try:
+                        modal._last_fold_content = None  # type: ignore[attr-defined, assignment]
+                    except Exception:
+                        pass
+                    try:
+                        modal._ensure_callout_spans(new_content)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                    try:
+                        folded = modal._ensure_fold_cache(new_content)  # type: ignore[attr-defined]
+                    except Exception:
+                        folded = new_content
+                else:
+                    try:
+                        folded = getattr(modal, "_folded_text", "")  # type: ignore[attr-defined]
+                    except Exception:
+                        folded = ""
+            except Exception:
+                folded = ""
+            # Rebuild rows from the new sheet + definitions.
+            try:
+                from ...modals.plan_decision_rows import PlanDecisionRows
+
+                sheet_rows: list[dict[str, Any]] = []
+                try:
+                    sheet_rows = list(
+                        modal._decision_draft.sheet().get("rows", [])  # type: ignore[attr-defined]
+                    )
+                except Exception:
+                    sheet_rows = []
+                try:
+                    rows = modal.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
+                    rows.rebuild(sheet_rows, list(new_definitions))
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            try:
+                from textual.widgets import Static as _Static
+
+                try:
+                    modal.query_one("#plan-approval-content", _Static).update(  # type: ignore[attr-defined]
+                        modal._document_renderable(folded)  # type: ignore[attr-defined]
+                    )
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            try:
+                modal._refresh_verdict_summary()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                from textual.widgets import Static as _StaticFooter
+
+                try:
+                    modal.query_one("#plan-approval-footer", _StaticFooter).update(  # type: ignore[attr-defined]
+                        modal._footer_text()  # type: ignore[attr-defined]
+                    )
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            try:
+                from ...modals._plan_approval_modal_state import esc_drafts as _drafts
+
+                if request_id:
+                    # Keep screen + later Esc reopen in sync.
+                    try:
+                        _drafts[request_id] = dict(
+                            modal._decision_draft.values()  # type: ignore[attr-defined]
+                        )
+                    except Exception:
+                        _drafts[request_id] = dict(merged)
+            except Exception:
+                pass
+        else:
+            # Closed modal: stash filtered submit values and push a fresh modal.
+            try:
+                from ...modals._plan_approval_modal_state import esc_drafts
+
+                if request_id:
+                    esc_drafts[request_id] = dict(filtered_submit)
+            except Exception:
+                pass
+            try:
+                from ...modals.plan_approval_modal import PlanApprovalModal as _Modal
+
+                plan_file = getattr(reloaded, "plan_file", None) or (
+                    notification.files[0]
+                    if getattr(notification, "files", [])
+                    else "/tmp/plan.md"
+                )
+                push_kwargs: dict[str, Any] = {
+                    "plan_file": str(plan_file),
+                    "default_choice": getattr(reloaded, "default_choice", None)
+                    or "tale",
+                    "gate": getattr(reloaded, "gate", None),
+                    "plan_content": getattr(reloaded, "plan_content", None),
+                    "decision_definitions": list(new_definitions),
+                    "review_revision": getattr(reloaded, "review_revision", None),
+                    "request_id": request_id or getattr(reloaded, "request_id", ""),
+                    "settled_text": getattr(reloaded, "settled_text", None),
+                }
+                # Match _notification_modals fields the load carries; drop Nones
+                # the constructor already defaults except actions/gate.
+                actions = getattr(reloaded, "actions", None)
+                if actions is not None:
+                    push_kwargs["actions"] = actions
+                # Gate is required; skip push when the stand-in lacks it.
+                if push_kwargs.get("gate") is not None:
+                    app.push_screen(_Modal(**push_kwargs))  # type: ignore[attr-defined]
+            except Exception:
+                pass
         try:
             app.notify(  # type: ignore[attr-defined]
                 "The plan changed; your review was reloaded with your values kept.",

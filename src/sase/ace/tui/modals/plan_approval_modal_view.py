@@ -26,7 +26,6 @@ from .plan_approval_gate_data import HOST_COLLECTED_PROPERTIES
 from .plan_approval_results import PlanApprovalChoice
 from .plan_decision_document import (
     cache_callout_spans,
-    classify_callout,
     fold_plan_decisions_content,
     scroll_target_for_decision,
 )
@@ -162,6 +161,22 @@ class PlanApprovalViewMixin:
         self._last_fold_content = content  # type: ignore[attr-defined]
         return self._folded_text
 
+    def _ensure_callout_spans(self, content: str) -> None:
+        """Cache callout spans once per content, including the first paint."""
+        last = getattr(self, "_callout_spans_content", None)
+        spans = getattr(self, "_callout_spans", None) or []
+        if spans and last == content:
+            return
+        tier = "epic" if getattr(self, "_default_choice", "tale") == "epic" else "tale"
+        try:
+            self._callout_spans = cache_callout_spans(content, tier)  # type: ignore[attr-defined]
+        except Exception:
+            self._callout_spans = []  # type: ignore[attr-defined]
+        try:
+            self._callout_spans_content = content  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     def _display_content(self) -> str:
         content = (
             self._plan_content
@@ -176,17 +191,6 @@ class PlanApprovalViewMixin:
             values = self._decision_draft.values()  # type: ignore[attr-defined]
         except Exception:
             values = {}
-        # Non-test consumer of classify_callout: decide whether any span is
-        # currently chosen before building the tinted renderable.
-        try:
-            _chosen = any(
-                classify_callout(span, values) == "chosen"
-                for span in (self._callout_spans or [])
-                if isinstance(span, dict)
-            )
-        except Exception:
-            _chosen = False
-        _ = _chosen
         if getattr(self, "_callout_spans", None):
             try:
                 return tinted_document_text(
@@ -325,6 +329,17 @@ class PlanApprovalViewMixin:
                 )
                 review_scroll.border_title = Text(os.path.basename(self._plan_file))
                 with review_scroll:
+                    # First frame is already tinted: cache spans before the
+                    # first content Static is yielded.
+                    try:
+                        _raw = (
+                            self._plan_content
+                            if self._plan_content is not None
+                            else self._read_plan_file()
+                        )
+                        self._ensure_callout_spans(_raw)
+                    except Exception:
+                        pass
                     folded = self._display_content()
                     yield Static(
                         self._document_renderable(folded), id="plan-approval-content"
@@ -353,19 +368,15 @@ class PlanApprovalViewMixin:
     def render_reviewed_content(self, content: str) -> None:
         """Re-render the plan pane in place after an accepted edit action."""
         self._plan_content = content
-        tier = "epic" if self._default_choice == "epic" else "tale"
-        # Reviewed content changed: recompute the fold map + callout spans once.
-        if getattr(self, "_last_fold_content", None) != content:
-            try:
-                self._callout_spans = cache_callout_spans(content, tier)
-            except Exception:
-                self._callout_spans = []
-            try:
-                folded = self._ensure_fold_cache(content)
-            except Exception:
-                folded = content
-        else:
-            folded = getattr(self, "_folded_text", content)
+        # Reload, not a keypress: refresh spans exactly once per content.
+        try:
+            self._ensure_callout_spans(content)
+        except Exception:
+            pass
+        try:
+            folded = self._ensure_fold_cache(content)
+        except Exception:
+            folded = content
         try:
             self.query_one("#plan-approval-content", Static).update(  # type: ignore[attr-defined]
                 self._document_renderable(folded)

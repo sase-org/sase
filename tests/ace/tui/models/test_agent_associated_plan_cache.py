@@ -268,3 +268,47 @@ def test_epic_phase_cache_reuses_validation_until_signature_changes(
     assert updated.phases[2].size == "large"
     assert len(validations) == 2
     assert validations[1][1] == "launch"
+
+
+def test_sibling_mtime_change_reloads_sheet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.ace.tui.models._agent_associated_plan_summary as summary_model
+    from sase.sdd.plan_decision_freeze import sibling_path_for_plan
+    from tests.ace.tui.models._agent_associated_plan_helpers import write_plan
+    from tests.ace.tui.widgets._agent_display_helpers import make_agent
+
+    summary_model._ASSOCIATED_PLAN_SHEET_CACHE.clear()
+    summary_model._ASSOCIATED_PLAN_SHEET_SIGNATURES.clear()
+    try:
+        plan = write_plan(tmp_path / "sibling.md", "Sibling goal")
+        agent = make_agent(archived_plan_path=str(plan), plan_path=str(plan))
+        calls = {"n": 0}
+        try:
+            import sase.sdd.plan_decision_handoff as handoff
+
+            real_load = handoff.load_stamped_decisions
+        except Exception:
+            real_load = None  # type: ignore[assignment]
+
+        def _counting(path: object, tier: object = None):  # type: ignore[no-untyped-def]
+            calls["n"] += 1
+            assert tier in ("tale", "epic")
+            if real_load is None:
+                return None
+            return real_load(path, tier=tier)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(
+            "sase.sdd.plan_decision_handoff.load_stamped_decisions", _counting
+        )
+        assert resolve_agent_associated_plan(agent) is not None
+        assert calls["n"] == 1
+        assert resolve_agent_associated_plan(agent) is not None
+        assert calls["n"] == 1
+        sibling = sibling_path_for_plan(plan)
+        sibling.write_text('{"schema": 1, "definitions": []}', encoding="utf-8")
+        assert resolve_agent_associated_plan(agent) is not None
+        assert calls["n"] == 2
+    finally:
+        summary_model._ASSOCIATED_PLAN_SHEET_CACHE.clear()
+        summary_model._ASSOCIATED_PLAN_SHEET_SIGNATURES.clear()

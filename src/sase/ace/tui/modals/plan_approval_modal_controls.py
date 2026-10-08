@@ -24,7 +24,6 @@ from .plan_approval_results import (
     PlanApprovalChoice,
     PlanApprovalResult,
 )
-from .plan_decision_document import cache_callout_spans
 from .plan_decision_rows import PlanDecisionRows
 from .plan_decision_sheet import PlanDecisionDraft
 
@@ -128,22 +127,22 @@ class PlanApprovalControlsMixin:
 
     def on_mount(self) -> None:
         self._sync_submission_block()  # type: ignore[attr-defined]
-        # Cache callout spans once; never validate on keypress.
+        # Cache callout spans once; never validate on keypress. The fold
+        # guard must not gate the span cache: run the ensure even when the
+        # fold content already matches (second call is a no-op).
         content = (
             self._plan_content
             if self._plan_content is not None
             else self._read_plan_file()  # type: ignore[attr-defined]
         )
-        tier = "epic" if self._default_choice == "epic" else "tale"
-        if getattr(self, "_last_fold_content", None) != content:
-            try:
-                self._callout_spans = cache_callout_spans(content, tier)
-            except Exception:
-                self._callout_spans = []
-            try:
-                self._ensure_fold_cache(content)  # type: ignore[attr-defined]
-            except Exception:
-                pass
+        try:
+            self._ensure_callout_spans(content)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            self._ensure_fold_cache(content)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         # First display: tint the folded document from the cached spans.
         try:
             from textual.widgets import Static as _Static

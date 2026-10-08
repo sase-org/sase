@@ -97,18 +97,11 @@ def tinted_document_text(
 ) -> object:
     """Tint folded callout lines from cached spans without hiding any line.
 
-    Warms the cached frontmatter token stream for *folded* and returns a
-    ``rich.text.Text`` where the chosen branch header is green+bold and
-    unchosen branches are dimmed. Every line stays visible. Callers must
-    only pass the cached spans + draft values; this never validates,
-    parses YAML, or stats.
+    Builds highlighted text from the cached lexer and overlays the tint, so
+    syntax colours survive. Every line stays visible. Callers must only pass
+    the cached spans + draft values; this never validates, parses YAML, or
+    stats.
     """
-    from rich.text import Text as _Text
-
-    try:
-        _cached_frontmatter_tokens(folded)
-    except Exception:
-        pass
     try:
         from sase.ace.tui.modals.plan_decision_document import (
             classify_callout as _classify,
@@ -134,7 +127,6 @@ def tinted_document_text(
                 kind = "dimmed"
         else:
             kind = "dimmed"
-        # Header line of a chosen span is green bold; everything else dims.
         for raw in range(max(0, raw_start), max(0, raw_end) + 1):
             folded_index = raw
             if fold_map is not None:
@@ -142,23 +134,36 @@ def tinted_document_text(
             if not 0 <= folded_index < len(lines):
                 continue
             if kind == "chosen":
-                # Only the header gets the green bold; continuation stays plain
-                # so multi-line callouts do not flood the pane.
+                # Only the header gets the green bold; continuation keeps its
+                # token styles so multi-line callouts do not flood the pane.
                 if raw == max(0, raw_start):
                     line_styles[folded_index] = "bold green"
                 elif folded_index not in line_styles:
                     line_styles[folded_index] = ""
             else:
                 line_styles.setdefault(folded_index, "dim")
-    text = _Text()
+    try:
+        syntax = Syntax(
+            folded,
+            FRONTMATTER_MARKDOWN_LEXER,
+            theme="monokai",
+            word_wrap=True,
+        )
+        text = syntax.highlight(folded)
+    except Exception:
+        from rich.text import Text as _Text
+
+        text = _Text(folded)
+    # Overlay tint spans; token spans from highlight stay in place.
+    offset = 0
     for index, line in enumerate(lines):
         style = line_styles.get(index, "")
-        # Preserve trailing newline structure of the original folded text.
-        if index:
-            text.append("\n")
-        text.append(line, style=style or None)
-    if folded.endswith("\n"):
-        text.append("\n")
+        if style:
+            try:
+                text.stylize(style, offset, offset + len(line))
+            except Exception:
+                pass
+        offset += len(line) + 1
     return text
 
 

@@ -26,6 +26,124 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _open_plan_modal_request_id(app: Any) -> str | None:
+    """Return the open PlanApprovalModal request id, or None when none is open.
+
+    Mirrors apply_settled_text_to_open_modal: current screen, else the screen
+    stack. Runs on the UI thread and touches no disk.
+    """
+    try:
+        screen = getattr(app, "screen", None)
+    except Exception:
+        return None
+    try:
+        from ...modals.plan_approval_modal import PlanApprovalModal
+
+        modal = screen if isinstance(screen, PlanApprovalModal) else None
+        if modal is None:
+            stack = getattr(app, "screen_stack", None) or []
+            for entry in reversed(list(stack)):
+                candidate = getattr(entry, "screen", entry)
+                if isinstance(candidate, PlanApprovalModal):
+                    modal = candidate
+                    break
+    except Exception:
+        return None
+    if modal is None:
+        return None
+    try:
+        request_id = str(getattr(modal, "_request_id", "") or "")
+    except Exception:
+        return None
+    return request_id or None
+
+
+def _settled_poll_state(
+    app: Any,
+) -> dict[str, tuple[tuple[bool, int | None], str | None]]:
+    """Last response signature + settled text per request id, owned by the app."""
+    state = getattr(app, "_settled_poll_state", None)
+    if not isinstance(state, dict):
+        state = {}
+        try:
+            app._settled_poll_state = state
+        except Exception:
+            pass
+    return state  # type: ignore[return-value]
+
+
+def _prepare_settled_for_open_modal(
+    app: Any, notification: Any, request_id: str
+) -> dict[str, str]:
+    """Off-thread settled check for the single open modal's notification.
+
+    Stats only bundle.response; a missing file means not settled. Calls
+    load_and_verify_bundle only when the signature changes.
+    """
+    try:
+        from ._notification_plan_gate import (
+            prepare_settled_texts_for_notifications as _prepare,
+        )
+        from sase.notification_gates.paths import resolve_notification_bundle
+    except Exception:
+        return {}
+    try:
+        bundle = resolve_notification_bundle(notification)
+    except Exception:
+        return {}
+    if bundle is None or getattr(bundle, "legacy", False):
+        return {}
+    try:
+        response = bundle.response
+        try:
+            mtime = int(response.stat().st_mtime_ns)
+            signature: tuple[bool, int | None] = (True, mtime)
+        except FileNotFoundError:
+            signature = (False, None)
+        except OSError:
+            try:
+                exists = bool(response.is_file())
+            except Exception:
+                exists = False
+            if not exists:
+                signature = (False, None)
+            else:
+                return {}
+    except Exception:
+        return {}
+    try:
+        state = _settled_poll_state(app)
+    except Exception:
+        state = {}
+    try:
+        last = state.get(request_id)
+    except Exception:
+        last = None
+    if isinstance(last, tuple) and len(last) == 2 and last[0] == signature:
+        cached_text = last[1]
+        if cached_text:
+            return {request_id: cached_text}
+        return {}
+    if not signature[0]:
+        try:
+            state[request_id] = (signature, None)
+        except Exception:
+            pass
+        return {}
+    try:
+        settled = _prepare([notification])
+    except Exception:
+        settled = {}
+    try:
+        text = settled.get(request_id)
+        state[request_id] = (signature, text)
+    except Exception:
+        text = None
+    if text:
+        return {request_id: text}
+    return {}
+
+
 def _resolve_arrival_deliveries(
     arrivals: Sequence[Notification],
 ) -> dict[str, NotificationDelivery]:
@@ -246,15 +364,57 @@ class AgentNotificationPollingMixin:
             new_notifications,
         )
         delivered_activity_cursors.update(new_activity_cursors)
-        # Settled-elsewhere check off the UI thread; banner apply stays on it.
+        # Settled-elsewhere check: narrow to the open modal on the UI thread,
+        # stat + verify off it inside the existing handoff. No modal means no
+        # settled read at all.
         try:
-            from ._notification_plan_gate import (
-                prepare_settled_texts_for_notifications as _prepare_settled,
-            )
-
-            settled_map = await asyncio.to_thread(_prepare_settled, list(notifications))
+            open_request_id = _open_plan_modal_request_id(self)
         except Exception:
-            settled_map = {}
+            open_request_id = None
+        try:
+            state = _settled_poll_state(self)
+        except Exception:
+            state = {}
+        if open_request_id is None:
+            try:
+                state.clear()
+            except Exception:
+                pass
+            settled_map: dict[str, str] = {}
+        else:
+            try:
+                for _key in list(state.keys()):
+                    if _key != open_request_id:
+                        del state[_key]
+            except Exception:
+                pass
+            matching = None
+            for _candidate in notifications:
+                try:
+                    _rid = str(
+                        getattr(_candidate, "action_data", {}).get("request_id")
+                        or getattr(_candidate, "id", "")
+                    )
+                except Exception:
+                    continue
+                if _rid == open_request_id and getattr(_candidate, "action", "") in (
+                    "PlanApproval",
+                    "EpicApproval",
+                ):
+                    matching = _candidate
+                    break
+            if matching is None:
+                settled_map = {}
+            else:
+                try:
+                    settled_map = await asyncio.to_thread(
+                        _prepare_settled_for_open_modal,
+                        self,
+                        matching,
+                        open_request_id,
+                    )
+                except Exception:
+                    settled_map = {}
         try:
             from ._notification_plan_gate import (
                 apply_settled_text_to_open_modal as _apply_settled,
