@@ -396,12 +396,13 @@ once because its backoff schedule file lives in the routine state dir.
 
 Lower-frequency status checks:
 
-| Job                     | Description                                                  |
-| ----------------------- | ------------------------------------------------------------ |
-| `bead_task_triage`      | Reconcile the one pending gate each task bead owns           |
-| `plugins_required`      | Raise one `PluginsRequired` gate per project missing plugins |
-| `pr_submitted_checks`   | Start PR submission status checks                            |
-| `stale_running_cleanup` | Backstop dead-process claim and proc-row cleanup             |
+| Job                       | Description                                                  |
+| ------------------------- | ------------------------------------------------------------ |
+| `bead_task_triage`        | Reconcile the one pending gate each task bead owns           |
+| `plugins_required`        | Raise one `PluginsRequired` gate per project missing plugins |
+| `pr_submitted_checks`     | Start PR submission status checks                            |
+| `stale_running_cleanup`   | Backstop dead-process claim and proc-row cleanup             |
+| `orphan_agent_scope_reap` | Reap orphaned agent scopes whose runner died                 |
 
 **A live task bead has at most one pending gate**, and `bead_task_triage` is the single
 owner of that invariant. It scans enabled non-home projects for task beads and derives
@@ -503,6 +504,18 @@ becomes satisfied. Lane state holds the pending request, a generation counter, a
 fingerprint over the missing set, so a re-run does not duplicate a notification. Run
 `sase axe job run plugins_required` to raise or refresh those gates without waiting for
 the next five-minute checks tick.
+
+The `orphan_agent_scope_reap` job is the five-minute backstop for agent scopes whose
+runner died without sweeping (SIGKILL, OOM, or crash). It scans `sase-agent-*` scopes
+under the user manager and terminates leaked processes in scopes with no live runner,
+using the same spare-process selection rule as the runner-exit sweep: scopes holding a
+live runner or a `systemd-run` pre-exec window, scopes younger than
+[`agent_scope_teardown.reaper_min_scope_age_seconds`](configuration.md#agent_scope_teardown),
+and scopes whose every member is a spared shared daemon (`ssh-agent`, `gpg-agent`, tmux
+server, ssh ControlMaster) are left untouched. It keeps the default `always` trigger
+because process death leaves no filesystem event to watch. To spot leaks by hand, run
+`systemctl --user list-units 'sase-agent-*'`; to reap one pass immediately, run
+`sase axe job run orphan_agent_scope_reap`.
 
 ### usage (60-second interval)
 

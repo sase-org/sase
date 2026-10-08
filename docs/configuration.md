@@ -3426,6 +3426,21 @@ axe:
             handling of pinned claims with agent artifacts and terminalization of orphaned active proc rows. This
             five-minute placement still frees stale workspace claims and proc rows if the fast hooks lane is disabled,
             restarting, or repeatedly failing.
+        # orphan_agent_scope_reap keeps the default `always` trigger: process death
+        # leaves no filesystem event to watch, so no fs proxy exists - the same
+        # rationale as stale_running_cleanup.
+        - name: orphan_agent_scope_reap
+          script: sase_job_orphan_agent_scope_reap
+          timeout: "2m"
+          description: |-
+            Reap orphaned agent scopes whose runner died without cleaning up
+
+            Scans sase-agent scopes under the user manager every five minutes and terminates leaked processes in
+            scopes with no live runner (SIGKILL, OOM, or crash), using the same spare-process selection rule as the
+            runner-exit sweep. Scopes holding a live runner or systemd-run window, scopes younger than
+            agent_scope_teardown.reaper_min_scope_age_seconds, and scopes whose every member is a spared shared
+            daemon (ssh-agent, gpg-agent, tmux server, ssh ControlMaster) are left untouched. Disabled entirely when
+            agent_scope_teardown.enabled is false.
     comments:
       description: |-
         Start background critique-comment checks for mailed PRs every minute

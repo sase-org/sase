@@ -15,11 +15,11 @@ from sase.agent.scope_sweep import (
     AGENT_SCOPE_UNIT_PREFIX,
     RUNNER_SCRIPT_NAME,
     ScopeMember,
+    _execute_scope_sweep,
     _own_agent_scope,
-    execute_scope_sweep,
+    _read_scope_members,
     is_agent_runner,
     plan_scope_sweep,
-    read_scope_members,
     sweep_own_agent_scope,
 )
 
@@ -199,7 +199,7 @@ def test_read_scope_members_skips_zombie_and_unreadable(
     _write_proc(proc_root, 301, ["sleep", "10"], state="Z")
     _write_stat(proc_root, 302, ppid=1)  # no comm/cmdline: unreadable
     (scope_dir / "cgroup.procs").write_text("300\n301\n302\n999\n", encoding="utf-8")
-    members = read_scope_members(scope_dir, proc_root=proc_root)
+    members = _read_scope_members(scope_dir, proc_root=proc_root)
     assert [m.pid for m in members] == [300]
     assert members[0].argv == ("sleep", "10")
 
@@ -210,7 +210,7 @@ def test_execute_identity_pinning_skips_recycled_pid(tmp_path: Path) -> None:
     scope_dir.mkdir()
     _write_proc(proc_root, 400, ["busy-loop"], start_ticks=100)
     (scope_dir / "cgroup.procs").write_text("400\n", encoding="utf-8")
-    members = read_scope_members(scope_dir, proc_root=proc_root)
+    members = _read_scope_members(scope_dir, proc_root=proc_root)
     assert len(members) == 1
     plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
     assert [m.pid for m in plan.targets] == [400]
@@ -221,7 +221,7 @@ def test_execute_identity_pinning_skips_recycled_pid(tmp_path: Path) -> None:
 
     calls: list[tuple[int, int]] = []
     clock = _Clock()
-    result = execute_scope_sweep(
+    result = _execute_scope_sweep(
         plan,
         scope_dir,
         grace_seconds=0,
@@ -240,12 +240,12 @@ def test_execute_grace_escalation_term_then_kill(tmp_path: Path) -> None:
     scope_dir.mkdir()
     _write_proc(proc_root, 500, ["busy-loop"])
     (scope_dir / "cgroup.procs").write_text("500\n", encoding="utf-8")
-    members = read_scope_members(scope_dir, proc_root=proc_root)
+    members = _read_scope_members(scope_dir, proc_root=proc_root)
     plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
 
     calls: list[tuple[int, int]] = []
     clock = _Clock()
-    result = execute_scope_sweep(
+    result = _execute_scope_sweep(
         plan,
         scope_dir,
         grace_seconds=1.0,
@@ -268,7 +268,7 @@ def test_execute_late_arrival_gets_sigkill_directly(tmp_path: Path) -> None:
     scope_dir.mkdir()
     _write_proc(proc_root, 600, ["first"])
     (scope_dir / "cgroup.procs").write_text("600\n", encoding="utf-8")
-    members = read_scope_members(scope_dir, proc_root=proc_root)
+    members = _read_scope_members(scope_dir, proc_root=proc_root)
     plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
 
     calls: list[tuple[int, int]] = []
@@ -281,7 +281,7 @@ def test_execute_late_arrival_gets_sigkill_directly(tmp_path: Path) -> None:
             _write_proc(proc_root, 601, ["late"])
             (scope_dir / "cgroup.procs").write_text("600\n601\n", encoding="utf-8")
 
-    execute_scope_sweep(
+    _execute_scope_sweep(
         plan,
         scope_dir,
         grace_seconds=0,
@@ -382,11 +382,11 @@ def test_execute_real_signal_only_targets_created_pids(tmp_path: Path) -> None:
         scope_dir = tmp_path / "scope"
         scope_dir.mkdir()
         (scope_dir / "cgroup.procs").write_text(f"{proc.pid}\n", encoding="utf-8")
-        members = read_scope_members(scope_dir)
+        members = _read_scope_members(scope_dir)
         assert [m.pid for m in members] == [proc.pid]
         plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
         assert [m.pid for m in plan.targets] == [proc.pid]
-        result = execute_scope_sweep(plan, scope_dir, grace_seconds=0.2)
+        result = _execute_scope_sweep(plan, scope_dir, grace_seconds=0.2)
         assert proc.poll() is not None
         assert [m.pid for m in result.terminated] == [proc.pid]
     finally:

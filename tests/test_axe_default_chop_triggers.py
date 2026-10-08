@@ -296,6 +296,14 @@ def test_stale_running_cleanup_keeps_the_always_trigger_in_both_lanes() -> None:
     assert checks_chop.trigger == {"provider": "always"}
 
 
+def test_orphan_agent_scope_reap_keeps_the_always_trigger() -> None:
+    """Process death leaves no fs event; the scope reaper stays unguarded."""
+    chop = _default_chop("checks", "orphan_agent_scope_reap")
+    assert chop.script == "sase_job_orphan_agent_scope_reap"
+    assert chop.trigger == {"provider": "always"}
+    assert chop.timeout == 120
+
+
 def test_waits_lane_holds_only_bead_claim_checks_and_epic_launch_flush() -> None:
     """``wait_checks`` moved to ``agent_waits``; ``sidecar_auto_sync`` to ``sidecar_sync``."""
     cfg = load_axe_config()
