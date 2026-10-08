@@ -57,7 +57,7 @@ every dirty repository a Conventional Commit message, and the host then runs
 stale, the host spends one recovery turn that asks for `/sase_final` again. A
 plan-launched agent that commits a memory note no accepted memory decision covers still
 gets that commit; the finalizer records a `memory_change_uncovered` warning and does not
-block. See [Plan Decisions](sdd.md#plan-decisions-beta).
+block. See [Plan Decisions](sdd.md#plan-decisions).
 
 Before it dispatches declared work, the finalizer commits proven machine-owned changes
 itself. For example, if the only enforced dirty file is a tracked markdown file under

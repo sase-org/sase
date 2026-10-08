@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from sase.feature_flags.snapshot import override_flags
 from sase.sdd.plan_validate import plan_frontmatter_schema, validate_plan
 
 
@@ -45,40 +44,12 @@ Body mentions tui_note.
 """
 
 
-def test_flag_off_hides_decision_schema_rows() -> None:
-    with override_flags(plan_decisions=False):
-        from sase.sdd.plan_decisions import filter_schema_for_flag
-
-        names = [
-            field.name
-            for field in filter_schema_for_flag(plan_frontmatter_schema("tale"))
-        ]
-        assert "decisions" not in names
-        assert not any(name.startswith("decisions.") for name in names)
-        assert "decided_by" not in names
-        assert "decided_via" not in names
-
-
-def test_flag_on_shows_decision_schema_rows() -> None:
-    with override_flags(plan_decisions=True):
-        from sase.sdd.plan_decisions import filter_schema_for_flag
-
-        names = [
-            field.name
-            for field in filter_schema_for_flag(plan_frontmatter_schema("tale"))
-        ]
-        assert "decisions" in names
-        assert "decisions.<id>.ask" in names
-        assert "decided_by" in names
-        assert "decided_via" in names
-
-
-def test_flag_off_rejects_decisions_key() -> None:
-    with override_flags(plan_decisions=False):
-        from sase.sdd.plan_decisions import content_has_decisions_key
-
-        assert content_has_decisions_key(VALID_TALE)
-        assert content_has_decisions_key("---\ndecisions: {}\n---\nBody\n")
+def test_decision_schema_rows_are_always_present() -> None:
+    names = [field.name for field in plan_frontmatter_schema("tale")]
+    assert "decisions" in names
+    assert "decisions.<id>.ask" in names
+    assert "decided_by" in names
+    assert "decided_via" in names
 
 
 def test_decision_free_gate_spec_is_unchanged() -> None:
@@ -91,20 +62,19 @@ def test_decision_free_gate_spec_is_unchanged() -> None:
         mode="launch",
     )
     assert validation.ok and validation.plan is not None
-    with override_flags(plan_decisions=False):
-        spec = _build_plan_gate_spec(
-            __import__("pathlib").Path("/tmp/plan.md"),
-            "sess",
-            tier="tale",
-            validation=validation,
-            auto_enabled=False,
-            auto_argument=None,
-            agent_name=None,
-            agent_model=None,
-            agent_llm_provider=None,
-            agent_runtime=None,
-            agent_vcs_tag=None,
-        )
+    spec = _build_plan_gate_spec(
+        __import__("pathlib").Path("/tmp/plan.md"),
+        "sess",
+        tier="tale",
+        validation=validation,
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
     assert "decisions" not in spec["payload"]
     for option in spec["options"]:
         props = option["input_schema"].get("properties", {})
@@ -126,20 +96,19 @@ def test_gate_build_freezes_decisions_and_notes() -> None:
 
     validation = validate_plan(VALID_TALE, "tale", mode="launch")
     assert validation.ok and validation.plan is not None
-    with override_flags(plan_decisions=True):
-        spec = _build_plan_gate_spec(
-            __import__("pathlib").Path("/tmp/keymap.md"),
-            "sess",
-            tier="tale",
-            validation=validation,
-            auto_enabled=False,
-            auto_argument=None,
-            agent_name=None,
-            agent_model=None,
-            agent_llm_provider=None,
-            agent_runtime=None,
-            agent_vcs_tag=None,
-        )
+    spec = _build_plan_gate_spec(
+        __import__("pathlib").Path("/tmp/keymap.md"),
+        "sess",
+        tier="tale",
+        validation=validation,
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
     assert isinstance(spec["payload"].get("decisions"), list)
     assert spec["presentation"]["notes"][0].startswith("Tale ready for review:")
     assert spec["presentation"]["notes"][1] == "1 decision · 🧠 0"
@@ -167,20 +136,19 @@ def test_kind_validation_rejects_decision_drift() -> None:
 
     validation = validate_plan(VALID_TALE, "tale", mode="launch")
     assert validation.ok and validation.plan is not None
-    with override_flags(plan_decisions=True):
-        spec = _build_plan_gate_spec(
-            __import__("pathlib").Path("/tmp/keymap.md"),
-            "sess",
-            tier="tale",
-            validation=validation,
-            auto_enabled=False,
-            auto_argument=None,
-            agent_name=None,
-            agent_model=None,
-            agent_llm_provider=None,
-            agent_runtime=None,
-            agent_vcs_tag=None,
-        )
+    spec = _build_plan_gate_spec(
+        __import__("pathlib").Path("/tmp/keymap.md"),
+        "sess",
+        tier="tale",
+        validation=validation,
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
     from sase.notification_gates.models import GateSpec
 
     good = GateSpec.from_mapping(spec)
@@ -208,22 +176,21 @@ def test_omitted_and_explicit_defaults_share_identity() -> None:
 
     validation = validate_plan(VALID_TALE, "tale", mode="launch")
     assert validation.ok and validation.plan is not None
-    with override_flags(plan_decisions=True):
-        from sase.plan_gate import _build_plan_gate_spec
+    from sase.plan_gate import _build_plan_gate_spec
 
-        spec = _build_plan_gate_spec(
-            __import__("pathlib").Path("/tmp/keymap.md"),
-            "sess",
-            tier="tale",
-            validation=validation,
-            auto_enabled=False,
-            auto_argument=None,
-            agent_name=None,
-            agent_model=None,
-            agent_llm_provider=None,
-            agent_runtime=None,
-            agent_vcs_tag=None,
-        )
+    spec = _build_plan_gate_spec(
+        __import__("pathlib").Path("/tmp/keymap.md"),
+        "sess",
+        tier="tale",
+        validation=validation,
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
     envelope = dict(spec)
     omitted = normalize_plan_option_inputs(
         envelope, ["approve", "commit"], {}, source="host", caller="human"
@@ -253,22 +220,21 @@ def test_decision_conflict_rejects_disagreement() -> None:
 
     validation = validate_plan(VALID_TALE, "tale", mode="launch")
     assert validation.ok and validation.plan is not None
-    with override_flags(plan_decisions=True):
-        from sase.plan_gate import _build_plan_gate_spec
+    from sase.plan_gate import _build_plan_gate_spec
 
-        spec = _build_plan_gate_spec(
-            __import__("pathlib").Path("/tmp/keymap.md"),
-            "sess",
-            tier="tale",
-            validation=validation,
-            auto_enabled=False,
-            auto_argument=None,
-            agent_name=None,
-            agent_model=None,
-            agent_llm_provider=None,
-            agent_runtime=None,
-            agent_vcs_tag=None,
-        )
+    spec = _build_plan_gate_spec(
+        __import__("pathlib").Path("/tmp/keymap.md"),
+        "sess",
+        tier="tale",
+        validation=validation,
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
     with pytest.raises(GateError) as excinfo:
         normalize_plan_option_inputs(
             dict(spec),

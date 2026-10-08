@@ -103,32 +103,9 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     validation = validate_plan(original, target_tier)
-    from sase.sdd.plan_decisions import (
-        content_has_decisions_key,
-        filter_schema_for_flag,
-        is_enabled as _decisions_enabled,
-    )
-
-    _filtered_schema = filter_schema_for_flag(plan_frontmatter_schema(target_tier))
-    if not _decisions_enabled() and content_has_decisions_key(original):
-        from sase.sdd.plan_validate import PlanDiagnosticSeverity
-
-        render_validation_human(
-            validation,
-            tier=target_tier,
-            path=plan_file,
-            schema=_filtered_schema,
-            console=error_console,
-        )
-        print(
-            "Error [decisions-disabled]: plan contains decisions: but the plan_decisions flag is off",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if (
-        _decisions_enabled()
-        and validation.plan is not None
-        and getattr(validation.plan, "decisions", cast(Any, ()))
+    _filtered_schema = plan_frontmatter_schema(target_tier)
+    if validation.plan is not None and getattr(
+        validation.plan, "decisions", cast(Any, ())
     ):
         from sase.sdd.plan_decisions import (
             artifacts_dir_from_env,
@@ -170,10 +147,8 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             console=error_console,
         )
         sys.exit(1)
-    if (
-        _decisions_enabled()
-        and validation.plan is not None
-        and getattr(validation.plan, "decisions", cast(Any, ()))
+    if validation.plan is not None and getattr(
+        validation.plan, "decisions", cast(Any, ())
     ):
         from sase.sdd.plan_decisions import count_memory as _count_memory
 

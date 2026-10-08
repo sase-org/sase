@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags.snapshot import override_flags
 from sase.main.plan_decide import (
     DecideError,
     already_approved_decide_error,
@@ -85,87 +84,80 @@ def test_parse_decide_rejects_duplicate_id() -> None:
 def test_toggle_accepts_shared_bool_spellings() -> None:
     from sase.main.plan_decide import _build_decide_submitted
 
-    with override_flags(plan_decisions=True):
-        definitions = _definitions()
-        for raw, expected in (
-            ("true", True),
-            ("1", True),
-            ("yes", True),
-            ("on", True),
-            ("TRUE", True),
-            ("false", False),
-            ("0", False),
-            ("no", False),
-            ("off", False),
-        ):
-            submitted = _build_decide_submitted(
-                definitions, {"tui_note": raw}, caller="human"
-            )
-            assert submitted == {"tui_note": expected}
+    definitions = _definitions()
+    for raw, expected in (
+        ("true", True),
+        ("1", True),
+        ("yes", True),
+        ("on", True),
+        ("TRUE", True),
+        ("false", False),
+        ("0", False),
+        ("no", False),
+        ("off", False),
+    ):
+        submitted = _build_decide_submitted(
+            definitions, {"tui_note": raw}, caller="human"
+        )
+        assert submitted == {"tui_note": expected}
 
 
 def test_toggle_rejects_unknown_spelling_with_allowed_values() -> None:
     from sase.main.plan_decide import _build_decide_submitted
 
-    with override_flags(plan_decisions=True):
-        definitions = _definitions()
-        with pytest.raises(DecideError) as excinfo:
-            _build_decide_submitted(definitions, {"tui_note": "maybe"}, caller="human")
-        assert "bad value" in excinfo.value.header
-        assert any("★" in line for line in excinfo.value.detail_lines)
+    definitions = _definitions()
+    with pytest.raises(DecideError) as excinfo:
+        _build_decide_submitted(definitions, {"tui_note": "maybe"}, caller="human")
+    assert "bad value" in excinfo.value.header
+    assert any("★" in line for line in excinfo.value.detail_lines)
 
 
 def test_choice_matches_case_insensitively() -> None:
     from sase.main.plan_decide import _build_decide_submitted
 
-    with override_flags(plan_decisions=True):
-        definitions = _definitions()
-        submitted = _build_decide_submitted(
-            definitions, {"grouping": "MODE"}, caller="human"
-        )
-        assert submitted == {"grouping": "mode"}
+    definitions = _definitions()
+    submitted = _build_decide_submitted(
+        definitions, {"grouping": "MODE"}, caller="human"
+    )
+    assert submitted == {"grouping": "mode"}
 
 
 def test_choice_rejects_prefix_match_with_starred_allowed() -> None:
     from sase.main.plan_decide import _build_decide_submitted
 
-    with override_flags(plan_decisions=True):
-        definitions = _definitions()
-        with pytest.raises(DecideError) as excinfo:
-            _build_decide_submitted(definitions, {"grouping": "mod"}, caller="human")
-        assert "bad value" in excinfo.value.header
-        allowed = " ".join(excinfo.value.detail_lines)
-        assert "pane ★" in allowed
-        assert "mode" in allowed
+    definitions = _definitions()
+    with pytest.raises(DecideError) as excinfo:
+        _build_decide_submitted(definitions, {"grouping": "mod"}, caller="human")
+    assert "bad value" in excinfo.value.header
+    allowed = " ".join(excinfo.value.detail_lines)
+    assert "pane ★" in allowed
+    assert "mode" in allowed
 
 
 def test_unknown_id_suggests_close_match() -> None:
     from sase.main.plan_decide import _build_decide_submitted
 
-    with override_flags(plan_decisions=True):
-        definitions = _definitions()
-        with pytest.raises(DecideError) as excinfo:
-            _build_decide_submitted(definitions, {"groupin": "mode"}, caller="human")
-        assert "grouping" in excinfo.value.header
+    definitions = _definitions()
+    with pytest.raises(DecideError) as excinfo:
+        _build_decide_submitted(definitions, {"groupin": "mode"}, caller="human")
+    assert "grouping" in excinfo.value.header
 
 
 def test_agent_memory_switch_on_is_refused() -> None:
     from sase.main.plan_decide import _build_decide_submitted
 
-    with override_flags(plan_decisions=True):
-        definitions = _definitions()
-        with pytest.raises(DecideError, match="only be switched on by a human"):
-            _build_decide_submitted(definitions, {"tui_note": "yes"}, caller="agent")
+    definitions = _definitions()
+    with pytest.raises(DecideError, match="only be switched on by a human"):
+        _build_decide_submitted(definitions, {"tui_note": "yes"}, caller="agent")
 
 
 def test_agent_memory_switch_off_passes() -> None:
     from sase.main.plan_decide import _build_decide_submitted
 
-    with override_flags(plan_decisions=True):
-        definitions = _definitions()
-        assert _build_decide_submitted(
-            definitions, {"tui_note": "no"}, caller="agent"
-        ) == {"tui_note": False}
+    definitions = _definitions()
+    assert _build_decide_submitted(definitions, {"tui_note": "no"}, caller="agent") == {
+        "tui_note": False
+    }
 
 
 def test_already_approved_refusal_names_decide_ids() -> None:
@@ -196,21 +188,20 @@ def _card(*, dry_run: bool) -> list[str]:
     from sase.main.plan_decide import resolve_decide_values
     from sase.sdd.plan_decisions import sheet_binding
 
-    with override_flags(plan_decisions=True):
-        definitions = _definitions()
-        values, rows = resolve_decide_values(
-            definitions, {"grouping": "mode"}, caller="human"
-        )
-        sheet = sheet_binding(definitions, values, 4)
-        return decision_card_lines(
-            kind_label="tale",
-            plan_name="keymap_help_overlay",
-            review_revision=4,
-            sheet=sheet,
-            rows=rows,
-            verdict="coder + commit",
-            dry_run=dry_run,
-        )
+    definitions = _definitions()
+    values, rows = resolve_decide_values(
+        definitions, {"grouping": "mode"}, caller="human"
+    )
+    sheet = sheet_binding(definitions, values, 4)
+    return decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=dry_run,
+    )
 
 
 def test_decision_card_dry_run_shape() -> None:
@@ -246,8 +237,7 @@ def test_retry_line_uses_accepted_answers(tmp_path: Path) -> None:
         .replace("size: small", "size: small\ndecided_by: reviewer\ndecided_via: cli"),
         encoding="utf-8",
     )
-    with override_flags(plan_decisions=True):
-        line = retry_line_for_plan(plan)
+    line = retry_line_for_plan(plan)
     assert line == (
         "Retrying implementation with the accepted decisions: "
         "grouping=mode; tui_note=no."
@@ -259,8 +249,7 @@ def test_retry_line_absent_for_pending_plan(tmp_path: Path) -> None:
 
     plan = tmp_path / "plan.md"
     plan.write_text(PENDING_TALE, encoding="utf-8")
-    with override_flags(plan_decisions=True):
-        assert retry_line_for_plan(plan) is None
+    assert retry_line_for_plan(plan) is None
 
 
 def test_retry_line_absent_without_answers(tmp_path: Path) -> None:
@@ -268,8 +257,7 @@ def test_retry_line_absent_without_answers(tmp_path: Path) -> None:
 
     plan = tmp_path / "plan.md"
     plan.write_text("---\ntier: tale\ntitle: T\ngoal: G\nsize: small\n---\nBody.\n")
-    with override_flags(plan_decisions=True):
-        assert retry_line_for_plan(plan) is None
+    assert retry_line_for_plan(plan) is None
 
 
 def test_plan_decision_candidates_offer_ids_then_values(

@@ -65,7 +65,7 @@ origin, which is kept. A blank or unrecognized `prompt_source_surface` is stored
 `unknown`. A human's short launch can therefore have authorship provenance even when the
 five-word history rule skips it.
 
-For [memory decisions in a plan](sdd.md#plan-decisions-beta), SASE uses the original
+For [memory decisions in a plan](sdd.md#plan-decisions), SASE uses the original
 `submitted_prompt.md` from a human-typed root launch as evidence. It also checks
 human-authored plan feedback and free-text question answers in the planner's chain. Gate
 responses record whether the caller was a human or an agent. Automatically resolved

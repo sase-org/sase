@@ -13,7 +13,6 @@ from typing import Any
 
 from sase.notification_gates.models import GateError
 
-DECISION_FLAG_OFF_CODE = "decisions-disabled"
 OVERLAP_CODE = "decision-memory-overlap"
 UNVERIFIED_CODE = "decision-requested-unverified"
 
@@ -37,16 +36,6 @@ class _PlanDecisionError(ValueError):
         super().__init__(message)
         self.code = code
         self.message = message
-
-
-def is_enabled() -> bool:
-    """Return whether the ``plan_decisions`` beta flag is on."""
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-
-        return bool(current_flags().enabled(FeatureFlag.plan_decisions))
-    except Exception:
-        return False
 
 
 def in_agent_context() -> bool:
@@ -211,32 +200,6 @@ def prompt_block_binding(
             sheet, decided_by, decided_via, audience, inherited
         )
     )
-
-
-def filter_schema_for_flag(
-    schema: tuple[Any, ...],
-) -> tuple[Any, ...]:
-    """Hide decision rows when the flag is off. Rust still returns them."""
-    if is_enabled():
-        return schema
-    return tuple(
-        field
-        for field in schema
-        if getattr(field, "name", "") != "decisions"
-        and not str(getattr(field, "name", "")).startswith("decisions.")
-        and getattr(field, "name", "") not in ("decided_by", "decided_via")
-    )
-
-
-def content_has_decisions_key(content: str) -> bool:
-    """Return whether raw frontmatter contains a ``decisions`` key."""
-    try:
-        from sase.sdd.frontmatter import parse_frontmatter
-
-        frontmatter, _body, had = parse_frontmatter(content)
-        return bool(had) and "decisions" in frontmatter
-    except Exception:
-        return False
 
 
 def _resolve_memory_records(
@@ -600,20 +563,16 @@ def count_memory(decisions: Any) -> int:
 
 
 __all__ = [
-    "DECISION_FLAG_OFF_CODE",
     "DECISION_SCHEMA_PREFIX",
     "OVERLAP_CODE",
     "SEVEN_BINDINGS",
     "UNVERIFIED_CODE",
     "build_definitions",
     "compile_input_properties",
-    "content_has_decisions_key",
     "count_memory",
     "digest_binding",
-    "filter_schema_for_flag",
     "in_agent_context",
     "artifacts_dir_from_env",
-    "is_enabled",
     "payload_binding",
     "prompt_block_binding",
     "resolve_binding",

@@ -21,12 +21,6 @@ def stamp_durable_plan(
     decisions = result.get("decisions")
     if not isinstance(decisions, dict) or not decisions:
         return
-    try:
-        from sase.sdd.plan_decisions import is_enabled
-    except Exception:
-        return
-    if not is_enabled():
-        return
     decided_by, decided_via = _stamp_coordinates(source, caller)
     from sase._plan_approval_artifacts import durable_plan_file_for_context
     from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields

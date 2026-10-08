@@ -449,10 +449,10 @@ Run `sase plan validate PLAN_FILE` while authoring a plan. The command selects t
 schema from the plan's required top-level `tier: tale` or `tier: epic` property; the
 former `-t/--tier` option has been removed. Ordinary schema validation accepts any
 readable UTF-8 path and does not require `SASE_AGENT`, `SASE_ARTIFACTS_DIR`, or a
-registered project context. With the Plan Decisions beta enabled, memory decisions also
-use host context for selector and human-quote checks inside an agent; outside an agent,
-quote verification is deferred to proposal. Validation reports problems in one pass with
-stable diagnostic codes, field paths, and best-effort line numbers.
+registered project context. Memory decisions also use host context for selector and
+human-quote checks inside an agent; outside an agent, quote verification is deferred to
+proposal. Validation reports problems in one pass with stable diagnostic codes, field
+paths, and best-effort line numbers.
 
 Every tale and epic requires these authored fields:
 
@@ -470,11 +470,11 @@ while launch validation normalizes both to `medium` with a warning so legacy tal
 launch.
 
 SASE-managed `create_time`, `status`, `bead`, `bead_id`, and `proposed_by` fields are
-accepted but never required. With the `plan_decisions` beta enabled, a plan may also
-declare [review decisions](#plan-decisions-beta); their answers and review stamps are
-written by SASE. A proposal may carry the transient `links:` authoring inlet: a list of
-typed artifact relationships that `sase plan propose` validates, persists, and removes
-before archiving; see
+accepted but never required. A plan may also declare
+[review decisions](#plan-decisions); their answers and review stamps are written by
+SASE. A proposal may carry the transient `links:` authoring inlet: a list of typed
+artifact relationships that `sase plan propose` validates, persists, and removes before
+archiving; see
 [Authoring links in a proposed plan](artifact_links.md#authoring-links-in-a-proposed-plan).
 Historical plans with a deprecated `prompt` or `parent` property remain valid, but both
 are intentionally omitted from canonical schema and authoring output because new links
@@ -531,37 +531,36 @@ to stderr. Otherwise `-j/--json` returns `schema_version`, `ok`, the authored `t
 `path`, the complete diagnostics list, and the expected schema. Exit status is 0 for
 valid plans, 1 for validation failures, and 2 for command-usage errors.
 
-The Plan Decisions beta currently mixes human text into `sase plan validate` output when
-the flag is on and the plan has decisions. Outside an agent, stdout prints
-`quote verification runs at propose` before the result, including in `--json` mode.
-After the JSON object or the human render, the command also prints the Decision Sheet
-whenever the validated plan still has decisions. That includes the outside-agent path.
-When an auto plan-approval action is active (`%auto`), one more line follows the sheet:
+Plan Decisions mix human text into `sase plan validate` output when the plan has
+decisions. Outside an agent, stdout prints `quote verification runs at propose` before
+the result, including in `--json` mode. After the JSON object or the human render, the
+command also prints the Decision Sheet whenever the validated plan still has decisions.
+That includes the outside-agent path. When an auto plan-approval action is active
+(`%auto`), one more line follows the sheet:
 `auto-approved: every decision takes its default`. That line is not printed merely
 because the process is inside an agent. If agent-context host checks add diagnostics,
 the plan is cleared and the sheet is skipped. A machine parser cannot treat `--json`
 stdout as one JSON document for these plans. Ordinary plans without decisions keep the
 JSON-only contract.
 
-### Plan Decisions (Beta)
+### Plan Decisions
 
 Plan decisions let a reviewer choose between explicit alternatives while approving a
-tale or epic. This feature is behind `plan_decisions`, a beta flag that defaults off.
-Without it, `sase plan validate` and `sase plan propose` reject a `decisions:` key,
-including an empty map, with `decisions-disabled`.
+tale or epic. Every surface shows the decisions next to the plan with their current
+values filled in, and the primary action always approves exactly the values on display.
+Plans without decisions keep their ordinary approval flow.
 
-Enable it for one invocation and its follow-ups with the root CLI option:
-
-```bash
-sase -f plan_decisions plan validate plan.md
-sase -f plan_decisions run "+myproject #plan Add a keyboard help overlay"
-```
-
-Replace `myproject` with a registered project. To opt in across invocations, set
-`feature_flags.plan_decisions: true` in configuration or use
-`sase flag enable plan_decisions`; see [Feature flags](configuration.md#feature_flags)
-for saved preferences and restart behavior. Plans without decisions keep their ordinary
-approval flow.
+A decision's lifecycle runs from authoring to the coder. `sase plan validate` renders
+the Decision Sheet the reviewer will see. `sase plan propose` echoes
+`Plan Decisions: N (🧠 M)` before its handoff, plus an `%auto` note when the plan will
+be auto-approved. Gate build freezes the definitions into `payload.decisions` and
+compiles `decision_<id>` raw properties onto the approval options. The reviewer edits
+values in ACE's Decisions panel, Telegram's decision keyboard, or the CLI's
+`-D/--decide ID=VALUE`; submits carry the displayed review revision, and conflicting
+values across selected options fail before acceptance. On approval, SASE stamps the
+accepted answers into the durable plan (see Archive fields below); every implementer
+then receives them mechanically as a host-written Reviewer decisions block, and an
+auto-approved plan with decisions posts one quiet receipt.
 
 Declare up to five decisions as a frontmatter map. Each decision needs an `ask` and a
 `default`. Omitting `choices` makes it a boolean toggle; supplying a map of two to five
@@ -609,31 +608,35 @@ Fenced examples are ignored. An unmentioned decision produces a warning, so refe
 each decision in the prose or a callout. Decisions do not conditionally schedule epic
 phases: `phases[].when` is reserved and rejected.
 
-The current beta supports gate inputs and durable answers. The Plan Review modal accepts
-effective defaults and does not render controls for overriding them. `decision_<id>`
-fields are treated as already collected, so they do not appear as extra inputs. To
-override a default on a pending gate, use the declared `decision_<id>` field with
-`sase gate answer`:
+Decisions ride the gate inputs to durable answers. ACE renders a Decisions panel above
+the verdict, Telegram renders a decision keyboard, and the CLI takes
+`-D/--decide ID=VALUE` (repeatable) with a decision card on every approval. To override
+a default on a pending gate at the wire level, use the declared `decision_<id>` field
+with `sase gate answer`:
 
 ```bash
 # Replace REQUEST_ID with the pending tale gate's ID.
-sase -f plan_decisions gate answer -k plan -i REQUEST_ID -o approve -o commit \
+sase gate answer -k plan -i REQUEST_ID -o approve -o commit \
   --set decision_grouping=mode
 ```
 
-For an epic, use `-k epic_plan -o approve`. Omitted inputs use the effective defaults;
-ordinary `sase plan approve` does not offer per-decision overrides. Conflicting values
-across selected options fail before acceptance. On approval, SASE writes each
-`decisions.<id>.answer` plus `decided_by: reviewer|agent|auto` and, for non-auto
-approvals, `decided_via: tui|telegram|mobile|cli` into the durable plan. Do not author
-those system fields in a new proposal. Feedback carries changed values into the replan
-as provisional choices; it does not approve the plan.
+For an epic, use `-k epic_plan -o approve`. Omitted inputs use the effective defaults.
+Conflicting values across selected options fail before acceptance. Feedback carries
+changed values into the replan as provisional choices; it does not approve the plan.
+
+Archive fields: on approval, SASE writes each `decisions.<id>.answer` plus
+`decided_by: reviewer|agent|auto` and, for non-auto approvals,
+`decided_via: tui|telegram|mobile|cli` into the durable plan. Do not author those system
+fields in a new proposal. Stamping is idempotent, and re-stamping different values is an
+error; retry paths re-stamp from the recorded gate response. Committed plans are
+validated in Archived mode, which is as strict as authoring mode but also allows these
+system-written answer fields.
 
 Decision definitions are frozen when the gate is created. In-gate edits can change
-prose, but changing anything under `decisions:` is refused. The refusal text mentions a
-Decisions panel; that panel is not part of the Plan Review modal. Changing the decision
-set requires a new proposal. Clients that submit a review revision are also checked
-against the displayed revision; a stale revision fails before execution.
+prose, but changing anything under `decisions:` is refused with an invitation to change
+answers in the Decisions panel or send feedback to change the questions. Changing the
+decision set requires a new proposal. Clients that submit a review revision are also
+checked against the displayed revision; a stale revision fails before execution.
 
 A memory decision is a toggle with `memory: [<selector>, ...]`. Selectors use the
 [memory-read forms](memory.md#audited-reads): a note, a web, or a `web:keyword` strand.

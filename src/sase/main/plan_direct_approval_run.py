@@ -147,12 +147,6 @@ def _stamp_direct_decisions(local_plan: Path, values: dict[str, object]) -> None
     if not values:
         return
     try:
-        from sase.sdd.plan_decisions import is_enabled
-    except Exception:
-        return
-    if not is_enabled():
-        return
-    try:
         from sase.main.plan_decide import caller_for_decide
         from sase.plan_gate_stamp import stamp_direct_file
 

@@ -6,9 +6,9 @@ host-stamped durable plan (``answer``/``decided_by``/``decided_via`` written by
 coders, resolves an epic's accepted sheet for phase and land agents, and posts
 the quiet ``%auto`` receipt notification.
 
-Every entry point fails open to "no decisions output": a missing flag, an
-unstamped plan, or an unresolvable epic context yields ``None``/``""``/``False``
-and never breaks the caller (coder launch, ``bead read``, gate execution).
+Every entry point fails open to "no decisions output": an unstamped plan or an
+unresolvable epic context yields ``None``/``""``/``False`` and never breaks the
+caller (coder launch, ``bead read``, gate execution).
 """
 
 from __future__ import annotations
@@ -73,22 +73,19 @@ def load_stamped_decisions(
 ) -> StampedDecisions | None:
     """Load a plan file's decisions and build its Decision Sheet.
 
-    Returns ``None`` when the flag is off, the plan has no ``decisions:`` map,
-    or anything fails to resolve. Both stamped (accepted) and unstamped
-    (pending) plans load; ``decided_by`` is ``None`` for pending plans.
+    Returns ``None`` when the plan has no ``decisions:`` map or anything fails
+    to resolve. Both stamped (accepted) and unstamped (pending) plans load;
+    ``decided_by`` is ``None`` for pending plans.
     """
     try:
         from sase.sdd.plan_decisions import (
             build_definitions,
-            is_enabled,
             sheet_binding,
         )
         from sase.sdd.plan_validate import validate_plan_file
     except Exception:
         return None
     try:
-        if not is_enabled():
-            return None
         path = Path(str(plan_path)).expanduser()
         if not path.is_file():
             return None

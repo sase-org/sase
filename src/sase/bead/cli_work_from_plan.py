@@ -306,10 +306,7 @@ def _stamp_bead_work_decisions(
         return
     try:
         from sase.sdd.frontmatter import parse_frontmatter
-        from sase.sdd.plan_decisions import is_enabled
 
-        if not is_enabled():
-            return
         try:
             frontmatter, _body, had = parse_frontmatter(
                 source_path.read_text(encoding="utf-8")

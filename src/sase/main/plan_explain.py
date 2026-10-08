@@ -3,6 +3,29 @@
 from __future__ import annotations
 
 
+PLAN_DECISIONS_GUIDANCE = """A tale or epic may declare up to five Plan Decisions in a
+`decisions:` frontmatter map; the reviewer answers them while approving the plan, and
+the primary action always approves exactly the values on display. A decision with
+`choices:` is a choice; one without is a toggle. Every decision needs an `ask` (one
+line, at most 120 chars, phrased as a question where yes means do the work) and a
+`default` (a YAML boolean for toggles, one choice key for choices). Choices need 2–5
+entries with one-line consequence labels of at most 100 chars. Ids start with a
+lowercase letter, use only lowercase letters, digits, and underscores, and have at most
+32 chars (choice keys at most 24); the YAML 1.1 words (`yes`, `no`, `on`, `off`,
+`true`, `false`, `null`, and friends) and the reserved names (`approve`, `commit`,
+`reject`, `feedback`, `coder_prompt`, `coder_model`, `wait`, `epic_launch_mode`,
+`capacity`) are rejected. An optional one-line `why` (at most 100 chars) explains an
+ordinary decision's default. A toggle with `memory:` is a memory decision: a non-empty
+list of memory selectors (`note.md`, `web`, or `web:keyword`) covering every memory
+note the plan changes. A memory decision defaults to `true` only with a `requested:`
+quote (3–300 chars) of the user's complete affirmative request; otherwise it defaults
+to `false`. Memory decisions take no `choices:` and no `why:`. Never author the
+system-written `answer:`, `decided_by:`, or `decided_via:` fields. Mark the prose each
+answer selects with `> [!decision] <id>`, `> [!decision] <id> = <key>`, or
+`> [!decision] <id> = no` callouts. `phases[].when` is reserved and always an error.
+Order decisions by importance with memory decisions last. Under `%auto`, embed only
+memory decisions and make every other choice yourself."""
+
 PLAN_HEADER_BLOCK_NOTE = """SASE owns the plan's provenance header block; do not author it. SASE writes and reconciles
 the leading `PROMPT`, `PARENT`, `BEAD`, `AGENTS`, and `COMMITS` Markdown bullets itself, and `sase plan links refresh`
 keeps them current. A hand-authored bullet that deviates from the canonical form is a validation error, not a style
@@ -33,6 +56,8 @@ user's prompt requested a specific model.
 
 """
     + PLAN_HEADER_BLOCK_NOTE
+    + "\n\n"
+    + PLAN_DECISIONS_GUIDANCE
 )
 
 EPIC_PLAN_EXPLANATION = (
@@ -80,6 +105,8 @@ the tale follow-up or the epic's land agent.
 
 """
     + PLAN_HEADER_BLOCK_NOTE
+    + "\n\n"
+    + PLAN_DECISIONS_GUIDANCE
 )
 
 INVALID_PLAN_TIER_HINT = (
@@ -103,6 +130,7 @@ def plan_explanation(tier: str) -> str:
 __all__ = [
     "EPIC_PLAN_EXPLANATION",
     "INVALID_PLAN_TIER_HINT",
+    "PLAN_DECISIONS_GUIDANCE",
     "TALE_PLAN_EXPLANATION",
     "plan_explanation",
 ]

@@ -573,10 +573,8 @@ def _post_plan_auto_receipt_best_effort(
         if not isinstance(definitions, list) or not definitions:
             return
         from sase.sdd.plan_decision_handoff import post_auto_approval_receipt
-        from sase.sdd.plan_decisions import is_enabled, sheet_binding
+        from sase.sdd.plan_decisions import sheet_binding
 
-        if not is_enabled():
-            return
         values: dict[str, Any] = {}
         for option_id in selected_ids:
             effective = effective_response_input(response, option_id)

@@ -33,43 +33,11 @@ def handle_plan_validate_command(args: argparse.Namespace) -> NoReturn:
     tier = authored_tier or "tale"
     schema = plan_frontmatter_schema(tier)
     validation = validate_plan_file(path, tier)
-    from sase.sdd.plan_decisions import (
-        content_has_decisions_key,
-        filter_schema_for_flag,
-        is_enabled,
-    )
-
-    schema = filter_schema_for_flag(schema)
     try:
         raw_content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError):
         raw_content = ""
-    if not is_enabled() and content_has_decisions_key(raw_content):
-        from sase.sdd.plan_validate import (
-            PlanDiagnostic,
-            PlanDiagnosticSeverity,
-            PlanValidationResult,
-        )
-
-        validation = PlanValidationResult(
-            schema_version=validation.schema_version,
-            ok=False,
-            diagnostics=(
-                *validation.diagnostics,
-                PlanDiagnostic(
-                    severity=PlanDiagnosticSeverity.ERROR,
-                    code="decisions-disabled",
-                    field_path="decisions",
-                    message="plan contains decisions: but the plan_decisions flag is off",
-                    line=None,
-                ),
-            ),
-            plan=None,
-        )
-    else:
-        validation = _apply_decision_host_checks(
-            raw_content, validation, path_arg, tier
-        )
+    validation = _apply_decision_host_checks(raw_content, validation, path_arg, tier)
     tier_hint = (
         INVALID_PLAN_TIER_HINT
         if authored_tier is None
@@ -114,16 +82,13 @@ def handle_plan_validate_command(args: argparse.Namespace) -> NoReturn:
 def _apply_decision_host_checks(
     content: str, validation: PlanValidationResult, path_arg: str, tier: str
 ) -> PlanValidationResult:
-    """Run Plan Decision host checks for validate, honouring flag and context."""
+    """Run Plan Decision host checks for validate."""
     from sase.sdd.plan_decisions import (
         artifacts_dir_from_env,
         in_agent_context,
-        is_enabled,
         validate_host_checks,
     )
 
-    if not is_enabled():
-        return validation
     plan = validation.plan
     if plan is None or not getattr(plan, "decisions", cast("Any", ())):
         return validation
@@ -154,10 +119,7 @@ def _print_decision_summary(validation: object) -> None:
     """Print the Decision Sheet, plus the auto-approved note under %auto."""
     try:
         from sase.main.plan_approve_handler import get_auto_plan_approval_action
-        from sase.sdd.plan_decisions import is_enabled
     except Exception:
-        return
-    if not is_enabled():
         return
     plan = getattr(validation, "plan", None)
     if plan is None or not getattr(plan, "decisions", ()):

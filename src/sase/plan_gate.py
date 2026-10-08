@@ -128,19 +128,12 @@ def _build_plan_gate_spec(
         build_definitions,
         compile_input_properties,
         count_memory,
-        is_enabled,
     )
 
     has_decisions = bool(getattr(getattr(validation, "plan", None), "decisions", ()))
-    if not is_enabled() and has_decisions:
-        raise GateError(
-            "decisions-disabled",
-            str(plan_file),
-            "plan contains decisions: but the plan_decisions flag is off",
-        )
     definitions: list[dict[str, Any]] = []
     decision_properties: dict[str, dict[str, Any]] = {}
-    if is_enabled() and has_decisions:
+    if has_decisions:
         artifacts_dir = str(os.environ.get("SASE_ARTIFACTS_DIR") or "")
         try:
             definitions = build_definitions(validation, artifacts_dir)

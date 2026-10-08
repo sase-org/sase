@@ -530,11 +530,11 @@ already-approved plan relaunches its coder when that coder failed, was killed, o
 launched, and refuses when the coder is still running or has finished. Tale and epic
 approvals validate against their target schema before writing a response; a failure
 prints the diagnostics and expected schema and leaves the proposal pending for retry.
-Plans can also declare typed choices and toggles when the `plan_decisions` beta is
-enabled. Ordinary approval accepts their effective defaults; use `sase gate answer` with
-`--set decision_<id>=<value>` to override them on a pending gate. See
-[Plan Decisions](sdd.md#plan-decisions-beta) for the grammar, memory-consent rules, and
-current interface limits.
+Plans can also declare typed choices and toggles as Plan Decisions. Ordinary approval
+accepts their effective defaults; pass `-D/--decide ID=VALUE` to approve with different
+values, or use `sase gate answer` with `--set decision_<id>=<value>` to override them on
+a pending gate. See [Plan Decisions](sdd.md#plan-decisions) for the grammar,
+memory-consent rules, and current interface limits.
 
 `sase plan reject` writes the rejection response first, then uses the same durable
 cleanup path as the TUI no-feedback rejection action when the matching planner row is

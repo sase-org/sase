@@ -265,7 +265,6 @@ def resolve_direct_decisions(
     from sase.sdd.plan_decisions import (
         artifacts_dir_from_env,
         build_definitions,
-        is_enabled,
         sheet_binding,
     )
 
@@ -276,13 +275,6 @@ def resolve_direct_decisions(
             raise DecideError(
                 "✗ this plan has no decisions; "
                 f"-D {next(iter(raw_map))} matches nothing.",
-            )
-        return None
-    if not is_enabled():
-        if raw_map:
-            raise DecideError(
-                "✗ this plan has decisions but the plan_decisions flag is off; "
-                "nothing can be decided until the flag is enabled.",
             )
         return None
     try:

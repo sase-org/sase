@@ -324,12 +324,6 @@ def _stamp_decisions_best_effort(
     """Stamp accepted Plan Decisions into the durable file when present."""
     if not isinstance(response_json.get("decisions"), dict):
         return
-    try:
-        from sase.sdd.plan_decisions import is_enabled
-    except Exception:
-        return
-    if not is_enabled():
-        return
     resolved_source = source or str(
         response_json.get("_gate_source") or "plan_response"
     )
