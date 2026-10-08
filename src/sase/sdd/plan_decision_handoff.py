@@ -108,6 +108,12 @@ def load_stamped_decisions(
             for decision in plan.decisions
             if getattr(decision, "answer", None) is not None
         }
+        for definition in definitions:
+            decision_id = str(definition.get("id", ""))
+            if decision_id and decision_id not in values:
+                values[decision_id] = definition.get(
+                    "effective_default", definition.get("default")
+                )
         sheet = sheet_binding(definitions, values)
     except Exception:
         return None

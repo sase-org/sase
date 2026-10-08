@@ -39,7 +39,9 @@ def handle_plan_show_command(args: argparse.Namespace) -> int:
     if args.format == "raw":
         return _print_raw(result)
     if args.format == "json":
-        json.dump(result.to_json_dict(), sys.stdout, indent=2, default=str)
+        payload = result.to_json_dict()
+        _attach_decision_json(payload, result)
+        json.dump(payload, sys.stdout, indent=2, default=str)
         sys.stdout.write("\n")
         return 0
 
@@ -49,6 +51,26 @@ def handle_plan_show_command(args: argparse.Namespace) -> int:
     else:
         render_full(result, console=console, wrap=resolve_wrap_width(args.wrap))
     return 0
+
+
+def _attach_decision_json(payload: dict[str, object], record: PlanShowRecord) -> None:
+    """Add the Decision Sheet plus ``decided_by``/``decided_via`` when present."""
+    try:
+        from sase.sdd.plan_decision_handoff import load_stamped_decisions
+    except Exception:
+        return
+    try:
+        stamped = load_stamped_decisions(record.plan.path)
+    except Exception:
+        return
+    if stamped is None:
+        return
+    try:
+        payload["decisions"] = stamped.sheet
+        payload["decided_by"] = stamped.decided_by
+        payload["decided_via"] = stamped.decided_via
+    except Exception:
+        return
 
 
 def _print_raw(record: PlanShowRecord) -> int:

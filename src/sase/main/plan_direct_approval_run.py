@@ -60,7 +60,7 @@ def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
     # 2. Adopt scratch plans into ~/.sase/plans, then re-check the receipt.
     local_plan = _adopt_plan(plan)
     _refuse_if_receipt(local_plan, plan)
-    _stamp_direct_decisions(local_plan)
+    _stamp_direct_decisions(local_plan, plan.decide_values)
     # 3. Publish to the SDD store for tale/commit.
     plan_ref, saved_plan = _archive_plan(plan, local_plan)
     # 4. Write the receipt with coder fields still empty.
@@ -142,8 +142,10 @@ def _refuse_if_receipt(local_plan: Path, plan: DirectApprovalPlan) -> None:
     )
 
 
-def _stamp_direct_decisions(local_plan: Path) -> None:
-    """Resolve effective defaults and stamp a gateless approval file."""
+def _stamp_direct_decisions(local_plan: Path, values: dict[str, object]) -> None:
+    """Stamp the resolved decision answers into a gateless approval file."""
+    if not values:
+        return
     try:
         from sase.sdd.plan_decisions import is_enabled
     except Exception:
@@ -151,26 +153,15 @@ def _stamp_direct_decisions(local_plan: Path) -> None:
     if not is_enabled():
         return
     try:
-        from sase.sdd.plan_tiers import read_plan_tier
-        from sase.sdd.plan_validate import validate_plan_file
-
-        tier = read_plan_tier(local_plan) or "tale"
-        if tier not in ("tale", "epic"):
-            return
-        validation = validate_plan_file(local_plan, tier, mode="launch")
-        plan = validation.plan
-        if plan is None or not getattr(plan, "decisions", ()):
-            return
-        from sase.sdd.plan_decisions import resolve_plan_decisions_for_direct_approval
-
-        resolved = resolve_plan_decisions_for_direct_approval(validation, {}, "human")
-        values = resolved.get("values") if isinstance(resolved, dict) else {}
-        if not isinstance(values, dict) or not values:
-            return
+        from sase.main.plan_decide import caller_for_decide
         from sase.plan_gate_stamp import stamp_direct_file
 
+        caller = caller_for_decide()
         stamp_direct_file(
-            local_plan, dict(values), decided_by="reviewer", decided_via="cli"
+            local_plan,
+            dict(values),
+            decided_by="agent" if caller == "agent" else "reviewer",
+            decided_via="cli",
         )
     except Exception as exc:
         from sase._plan_approval_protocol import PlanApprovalActionError

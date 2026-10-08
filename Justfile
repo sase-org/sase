@@ -400,8 +400,6 @@ _lint-patch-stitch-terminology: _setup
 # sase-1h7.8 consumed describe_epic_follow for the TUI lanes and toast, so its
 # --epic-symbol row is dropped; sase-1h7.9 reuses the same strings for
 # CLI/Telegram parity through the real TUI consumer.
-# sase-1hi.5 (cli phase) will consume summary_binding in the approval decision
-# card; drop the row once it lands a real consumer.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -409,7 +407,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1hi.5(summary_binding)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

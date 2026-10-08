@@ -39,6 +39,7 @@ class ValueKind(StrEnum):
     TOOL_RUN = "tool_run"
     TASK_TYPE = "task_type"
     PENDING_PLAN = "pending_plan"
+    PLAN_DECISION = "plan_decision"
 
 
 _KIND_ATTR: Final = "_sase_completion_kind"

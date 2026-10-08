@@ -430,8 +430,89 @@ def _row_sort_key(row: dict[str, Any]) -> datetime:
     )
 
 
+def plan_decision_source_path(_project: str | None) -> Path | None:
+    """Invalidate decision candidates with the pending-plan rows."""
+    return pending_plan_source_path(_project)
+
+
+def plan_decision_candidates(_project: str | None) -> list[Candidate]:
+    """Offer ``id=`` then ``id=value`` pairs for visible pending decisions.
+
+    The shell prefix-filters these values, so both stages are served from
+    one list: a bare ``id=`` entry completes the decision name, and an
+    ``id=value`` entry completes its value. Definitions merge across every
+    visible pending plan proposal, newest first; the command-line resolver
+    still validates ``-D`` against the selected proposal only.
+    """
+    import json
+
+    rows = _load_plan_approval_rows()
+    if not rows:
+        return []
+    store = _load_pending_action_store()
+    now = time.time()
+    visible = [
+        row
+        for row in rows
+        if _row_is_available(row, store, now) and _row_is_gate_visible(row)
+    ]
+    visible.sort(key=_row_sort_key, reverse=True)
+    definitions: dict[str, dict[str, Any]] = {}
+    for row in visible:
+        action_data = row.get("action_data")
+        if not isinstance(action_data, dict):
+            continue
+        bundle = _resolve_bundle(row.get("action"), action_data)
+        if bundle is None:
+            continue
+        _root, request, _response, _legacy = bundle
+        try:
+            envelope = json.loads(request.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError):
+            continue
+        payload = envelope.get("payload") if isinstance(envelope, dict) else None
+        decisions = payload.get("decisions") if isinstance(payload, dict) else None
+        if not isinstance(decisions, list):
+            continue
+        for decision in decisions:
+            if not isinstance(decision, dict):
+                continue
+            decision_id = str(decision.get("id") or "").strip()
+            if decision_id and decision_id not in definitions:
+                definitions[decision_id] = decision
+    candidates: list[Candidate] = []
+    for decision_id, decision in definitions.items():
+        ask = str(decision.get("ask") or "").strip()
+        kind = str(decision.get("kind") or "").strip()
+        default = decision.get("default")
+        candidates.append(Candidate(f"{decision_id}=", ask or f"{kind} decision"))
+        if kind == "choice":
+            for choice in decision.get("choices", []) or []:
+                if not isinstance(choice, dict):
+                    continue
+                key = str(choice.get("key") or "").strip()
+                if not key:
+                    continue
+                label = str(choice.get("label") or "").strip()
+                star = " ★" if key == default else ""
+                candidates.append(
+                    Candidate(
+                        f"{decision_id}={key}",
+                        f"{label}{star}" if label else f"choice{star}",
+                    )
+                )
+        else:
+            yes_star = " ★" if default is True else ""
+            no_star = " ★" if default is False else ""
+            candidates.append(Candidate(f"{decision_id}=yes", f"toggle{yes_star}"))
+            candidates.append(Candidate(f"{decision_id}=no", f"toggle{no_star}"))
+    return dedupe(candidates)
+
+
 __all__ = [
     "PENDING_PLAN_TERMINAL_GATE_STATES",
     "pending_plan_candidates",
     "pending_plan_source_path",
+    "plan_decision_candidates",
+    "plan_decision_source_path",
 ]

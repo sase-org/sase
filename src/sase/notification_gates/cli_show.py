@@ -133,6 +133,10 @@ def _show(kind: str, request_id: str) -> dict[str, Any]:
         "turn": _turn_payload(bundle.envelope),
         "status": "pending" if poll is None else _STATUS_PROJECTION[poll.status],
     }
+    decisions = _payload_decisions(bundle.envelope)
+    if decisions is not None:
+        payload["decisions"] = decisions
+        payload["review_revision"] = int(bundle.envelope.get("review_revision", 1))
     if poll is None or poll.status == "failed":
         acceptance = _acceptance_payload(bundle.root, bundle.envelope)
         if acceptance is not None:
@@ -199,6 +203,17 @@ def _acceptance_payload(
             }
         ),
     }
+
+
+def _payload_decisions(envelope: Mapping[str, Any]) -> list[Any] | None:
+    """Return frozen ``payload.decisions`` for plan gates, else ``None``."""
+    payload = envelope.get("payload")
+    if not isinstance(payload, dict):
+        return None
+    decisions = payload.get("decisions")
+    if not isinstance(decisions, list) or not decisions:
+        return None
+    return [item for item in decisions if isinstance(item, dict)] or None
 
 
 def _operations(envelope: Mapping[str, Any]) -> tuple[GateOperation, ...]:
@@ -269,9 +284,14 @@ def _print_human_gate(payload: Mapping[str, Any]) -> None:
         line.append(" AND ".join(str(option_id) for option_id in branch))
         console.print(line, soft_wrap=True)
 
+    decisions = payload.get("decisions")
+    if isinstance(decisions, list) and decisions:
+        _print_decisions(console, decisions, payload.get("review_revision"))
+
     console.print(Text("Decision", style="bold"), soft_wrap=True)
+    hide_decision_schema = isinstance(decisions, list) and bool(decisions)
     for option in payload["options"]:
-        _print_option(console, option)
+        _print_option(console, option, hide_decision_schema=hide_decision_schema)
 
     actions = payload["actions"]
     if actions:
@@ -298,7 +318,38 @@ def _print_human_gate(payload: Mapping[str, Any]) -> None:
         _print_gate_turn_runtime(console, gate_turn)
 
 
-def _print_option(console: Console, option: Mapping[str, Any]) -> None:
+def _print_decisions(
+    console: Console, decisions: list[Any], review_revision: Any
+) -> None:
+    """Render the frozen plan decisions table instead of raw schema rows."""
+    try:
+        from sase.sdd._plan_display_decisions import pending_decisions_text
+        from sase.sdd.plan_decisions import sheet_binding
+    except Exception:
+        return
+    try:
+        definitions = [dict(item) for item in decisions if isinstance(item, dict)]
+        if not definitions:
+            return
+        try:
+            revision = int(review_revision)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            revision = 1
+        values = {
+            str(item.get("id", "")): item.get("effective_default", item.get("default"))
+            for item in definitions
+            if str(item.get("id", ""))
+        }
+        sheet = sheet_binding(definitions, values, revision)
+        console.print(Text("Decisions", style="bold"), soft_wrap=True)
+        console.print(pending_decisions_text(sheet), soft_wrap=True)
+    except Exception:
+        return
+
+
+def _print_option(
+    console: Console, option: Mapping[str, Any], *, hide_decision_schema: bool = False
+) -> None:
     line = Text("  ")
     if option["icon"]:
         line.append(f"{option['icon']} ")
@@ -320,10 +371,39 @@ def _print_option(console: Console, option: Mapping[str, Any]) -> None:
             console.print(_field_line(field), soft_wrap=True)
         return
     schema = option["input_schema"]
+    if hide_decision_schema:
+        remaining = _non_decision_schema(schema)
+        if remaining is None:
+            return
+        schema = remaining
     console.print(
         Text(f"      input: {_raw_schema_summary(schema)}", style="dim"),
         soft_wrap=True,
     )
+
+
+def _non_decision_schema(schema: object) -> object | None:
+    """Strip ``decision_*`` properties; ``None`` when none remain."""
+    if not isinstance(schema, Mapping) or not schema:
+        return schema
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return schema
+    kept = {
+        name: spec
+        for name, spec in properties.items()
+        if not str(name).startswith("decision_")
+    }
+    if not kept:
+        return None
+    if len(kept) == len(properties):
+        return schema
+    reduced = dict(schema)
+    reduced["properties"] = kept
+    required = schema.get("required")
+    if isinstance(required, list):
+        reduced["required"] = [name for name in required if name in kept]
+    return reduced
 
 
 def _field_line(field: Mapping[str, Any]) -> Text:

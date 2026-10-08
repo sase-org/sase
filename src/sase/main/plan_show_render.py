@@ -152,6 +152,9 @@ def render_full(record: PlanShowRecord, *, console: Console, wrap: int | None) -
     console.print(_header(record))
     if record.proposal is not None:
         _print_section(console, "PROPOSAL", _proposal_table(record.proposal))
+    decisions = _decisions_section(record)
+    if decisions is not None:
+        _print_section(console, "DECISIONS", decisions)
     _print_section(console, "PROPERTIES", _properties(record))
     if record.plan.provenance:
         _print_section(console, "PROVENANCE", _provenance(record))
@@ -385,7 +388,68 @@ def _compact_text(record: PlanShowRecord) -> Text:
     text.append(_compact_display_path(plan))
     text.append("  ")
     text.append(plan.title or Path(plan.path).stem, style=_TITLE_STYLE)
+    counts = _decision_counts(record)
+    if counts is not None:
+        total, memos = counts
+        text.append(f"  ◉{total}", style="dim")
+        if memos:
+            text.append(f" 🧠{memos}", style="dim")
     return text
+
+
+def _decisions_section(record: PlanShowRecord) -> RenderableType | None:
+    """Render the DECISIONS section from the handoff builders, if any."""
+    try:
+        from sase.sdd._plan_display_decisions import (
+            accepted_decisions_text,
+            pending_decisions_text,
+        )
+        from sase.sdd.plan_decision_handoff import load_stamped_decisions
+    except Exception:
+        return None
+    try:
+        stamped = load_stamped_decisions(record.plan.path)
+    except Exception:
+        return None
+    if stamped is None:
+        return None
+    try:
+        if stamped.decided_by is None:
+            return pending_decisions_text(stamped.sheet)
+        return accepted_decisions_text(
+            stamped.sheet, stamped.decided_by, stamped.decided_via
+        )
+    except Exception:
+        return None
+
+
+def _decision_counts(record: PlanShowRecord) -> tuple[int, int] | None:
+    """Return ``(decisions, memory decisions)`` for one shown plan, if any."""
+    try:
+        from sase.sdd.plan_decision_handoff import load_stamped_decisions
+    except Exception:
+        return None
+    try:
+        stamped = load_stamped_decisions(record.plan.path)
+    except Exception:
+        return None
+    if stamped is None:
+        return None
+    try:
+        rows = stamped.sheet.get("rows")
+        if not isinstance(rows, list):
+            return None
+        total = sum(1 for row in rows if isinstance(row, dict))
+        if not total:
+            return None
+        memos = sum(
+            1
+            for row in rows
+            if isinstance(row, dict) and isinstance(row.get("memory"), dict)
+        )
+        return total, memos
+    except Exception:
+        return None
 
 
 def _compact_kind(plan: PlanShowPlan) -> str:

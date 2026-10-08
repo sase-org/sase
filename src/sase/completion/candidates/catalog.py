@@ -68,6 +68,8 @@ from sase.completion.candidates.catalog_projects import (
 from sase.completion.candidates.catalog_plans import (
     pending_plan_candidates,
     pending_plan_source_path,
+    plan_decision_candidates,
+    plan_decision_source_path,
 )
 from sase.completion.candidates.catalog_prompts import (
     skill_candidates,
@@ -123,6 +125,7 @@ PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ValueKind.TOOL_RUN: (tool_run_candidates, tool_run_source_path),
     ValueKind.TASK_TYPE: (task_type_candidates, task_type_source_path),
     ValueKind.PENDING_PLAN: (pending_plan_candidates, pending_plan_source_path),
+    ValueKind.PLAN_DECISION: (plan_decision_candidates, plan_decision_source_path),
 }
 
 

@@ -91,7 +91,19 @@ def resolve_direct_approval(
     validation = require_plan_approval_validation(source_path, "tale")
     size = validation_size(validation)
 
+    from sase.main.plan_decide import (
+        already_approved_decide_error,
+        caller_for_decide,
+        parse_decide_assignments,
+        resolve_direct_decisions,
+    )
+
+    raw_map = parse_decide_assignments(list(request.decide or ()))
+    caller = caller_for_decide()
+
     history = classify_plan_gate_history(source_path)
+    if raw_map and getattr(history, "kind", "none") in ("direct", "handled"):
+        raise already_approved_decide_error(raw_map)
     gate = _retired_gate_from_history(history)
     planner = resolve_planner(source_path, history)
     project_refusal_or_name = resolve_project(request, source_path, history, planner)
@@ -113,6 +125,12 @@ def resolve_direct_approval(
         project_tag,
     )
     if recovered is not None:
+        if (
+            raw_map
+            and isinstance(recovered, DirectApprovalPlan)
+            and recovered.recovery is not None
+        ):
+            raise already_approved_decide_error(raw_map)
         return recovered
 
     handled_refusal = _handled_refusal(request, source_path, name, title, history)
@@ -152,6 +170,11 @@ def resolve_direct_approval(
     if isinstance(placement, DirectApprovalRefusal):
         return placement
 
+    decided = resolve_direct_decisions(validation, raw_map, caller=caller)
+    decide_values: dict[str, object] = dict(decided[0]) if decided else {}
+    decide_rows: tuple[dict[str, object], ...] = tuple(decided[1]) if decided else ()
+    decide_sheet: dict[str, object] | None = decided[2] if decided else None
+
     model_directive = resolve_model_directive(
         source_path, request.coder_model, request.coder_prompt
     )
@@ -184,6 +207,9 @@ def resolve_direct_approval(
         bead=bead,
         predicted_plan_ref=predicted_ref,
         coder_prompt_preview=prompt_preview,
+        decide_values=decide_values,
+        decide_rows=decide_rows,
+        decide_sheet=decide_sheet,
     )
 
 

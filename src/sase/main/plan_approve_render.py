@@ -33,12 +33,18 @@ def _console(*, stderr: bool) -> Console:
     )
 
 
-def render_gate_approval(plan: PendingPlan, result: PlanApprovalActionResult) -> None:
+def render_gate_approval(
+    plan: PendingPlan,
+    result: PlanApprovalActionResult,
+    *,
+    decision_lines: list[str] | None = None,
+) -> None:
     """Render a completed live-gate approval as an approval card."""
     out = _console(stderr=False)
     out.print(
         f"[green]✓ {result.message}[/green] · [bold cyan]{plan.display_name}[/bold cyan]"
     )
+    _print_decision_lines(out, decision_lines)
     if plan.title:
         out.print(f"  {plan.title}")
     if result.coder_agent:
@@ -66,9 +72,14 @@ def render_gate_approval(plan: PendingPlan, result: PlanApprovalActionResult) ->
     )
 
 
-def render_gate_approval_dry_run(plan: PendingPlan, kind: str) -> None:
+def render_gate_approval_dry_run(
+    plan: PendingPlan, kind: str, *, decision_lines: list[str] | None = None
+) -> None:
     """Render a read-only preview of a live-gate approval."""
     out = _console(stderr=False)
+    if decision_lines:
+        _print_decision_lines(out, decision_lines)
+        return
     out.print(
         f"[cyan]◇ Dry run[/cyan] · [bold cyan]{plan.display_name}[/bold cyan] "
         f"would be approved as a {kind}"
@@ -83,7 +94,9 @@ def render_gate_approval_dry_run(plan: PendingPlan, kind: str) -> None:
     )
 
 
-def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
+def render_direct_approval(
+    outcome: DirectApprovalOutcome, *, decision_lines: list[str] | None = None
+) -> None:
     """Render a direct approval, including a coder this command did not launch."""
     plan = outcome.plan
     out = _console(stderr=False)
@@ -98,6 +111,7 @@ def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
         )
     if plan.title:
         out.print(f"  {plan.title}")
+    _print_decision_lines(out, decision_lines)
     plan_line = outcome.plan_ref or str(outcome.local_plan_path)
     if outcome.saved_plan_path:
         plan_line += " · committed to sase"
@@ -159,9 +173,14 @@ def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
         out.print(f"\n  [dim]follow[/dim]  {follow}")
 
 
-def render_direct_approval_dry_run(plan: DirectApprovalPlan) -> None:
+def render_direct_approval_dry_run(
+    plan: DirectApprovalPlan, *, decision_lines: list[str] | None = None
+) -> None:
     """Render the direct-route preview without mutating anything."""
     out = _console(stderr=False)
+    if decision_lines:
+        _print_decision_lines(out, decision_lines)
+        return
     out.print(
         f"[cyan]◇ Dry run[/cyan] · [bold cyan]{plan.name}[/bold cyan] would be approved as a {plan.kind}"
     )
@@ -203,11 +222,15 @@ def render_direct_approval_refusal(refusal: DirectApprovalRefusal) -> None:
             out.print(f"  [dim]{hint}[/dim]")
 
 
-def render_coder_recovery(outcome: DirectApprovalOutcome) -> None:
+def render_coder_recovery(
+    outcome: DirectApprovalOutcome, *, retry_line: str | None = None
+) -> None:
     """Render a relaunched replacement coder as a recovery card."""
     plan = outcome.plan
     recovery = plan.recovery
     out = _console(stderr=False)
+    if retry_line:
+        out.print(retry_line)
     out.print(f"[green]↻ Coder relaunched[/green] · [bold cyan]{plan.name}[/bold cyan]")
     if plan.title:
         out.print(f"  {plan.title}")
@@ -253,9 +276,13 @@ def render_coder_recovery(outcome: DirectApprovalOutcome) -> None:
         out.print(f"\n  [dim]follow[/dim]  {follow}")
 
 
-def render_coder_recovery_dry_run(plan: DirectApprovalPlan) -> None:
+def render_coder_recovery_dry_run(
+    plan: DirectApprovalPlan, *, retry_line: str | None = None
+) -> None:
     """Render a read-only preview of a coder recovery."""
     out = _console(stderr=False)
+    if retry_line:
+        out.print(retry_line)
     out.print(
         f"[cyan]◇ Dry run[/cyan] · [bold cyan]{plan.name}[/bold cyan] "
         "would get a replacement coder"
@@ -315,6 +342,11 @@ def render_approval_error(error: Exception) -> None:
         out.print(
             "  [dim]Nothing was approved; fix the archive failure and re-run.[/dim]"
         )
+    elif code == "stale_review":
+        out.print(
+            "  [dim]The review changed since it was shown; re-run "
+            "`sase plan show` for the current revision and approve again.[/dim]"
+        )
     elif code in {
         "conflict_already_handled",
         "not_found",
@@ -324,10 +356,34 @@ def render_approval_error(error: Exception) -> None:
         out.print("  [dim]Run `sase plan list` to inspect plan state.[/dim]")
 
 
+def render_decide_error(error: Exception) -> None:
+    """Render a ``-D`` failure: the header, allowed values, then the refusal."""
+    out = _console(stderr=True)
+    header = getattr(error, "header", None) or str(error)
+    header = header if header.startswith("✗") else f"✗ {header}"
+    out.print(f"[red]{header}[/red]")
+    for line in getattr(error, "detail_lines", ()) or ():
+        out.print(f"  {line}")
+    for hint in getattr(error, "hints", ()) or ():
+        out.print(f"  [dim]{hint}[/dim]")
+    out.print("  [dim]nothing was approved[/dim]")
+
+
+def _print_decision_lines(out: Console, lines: list[str] | None) -> None:
+    """Print pre-rendered decision card lines literally (no markup)."""
+    if not lines:
+        return
+    from rich.text import Text
+
+    for line in lines:
+        out.print(Text(line), soft_wrap=True)
+
+
 __all__ = [
     "render_approval_error",
     "render_coder_recovery",
     "render_coder_recovery_dry_run",
+    "render_decide_error",
     "render_direct_approval",
     "render_direct_approval_dry_run",
     "render_direct_approval_refusal",

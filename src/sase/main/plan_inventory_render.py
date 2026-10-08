@@ -190,28 +190,57 @@ def _proposed_display_names(rows: tuple[ProposedPlan, ...]) -> dict[str, str]:
     return plan_display_names(paths)
 
 
+def _decision_count_cell(plan_path: str) -> Any:
+    """Return the narrow ``◉`` count cell for one plan path, fail-open."""
+    from rich.text import Text
+
+    try:
+        from sase.sdd.frontmatter import parse_frontmatter
+
+        content = open(plan_path, encoding="utf-8").read(65536)
+    except (OSError, UnicodeError):
+        return Text("")
+    try:
+        frontmatter, _body, had = parse_frontmatter(content)
+    except Exception:
+        return Text("")
+    if not had:
+        return Text("")
+    decisions = frontmatter.get("decisions")
+    if not isinstance(decisions, dict) or not decisions:
+        return Text("")
+    return Text(str(len(decisions)), style="dim")
+
+
 def _proposed_table(
     rows: tuple[ProposedPlan, ...], *, agent_project: _AgentProject
 ) -> Any | None:
     if not rows:
         return None
     display = _proposed_display_names(rows)
+    counts = [_decision_count_cell(row.plan_path) for row in rows]
+    show_decisions = any(cell.plain.strip() for cell in counts)
     table = _base_table()
     table.add_column("Name", overflow="fold")
     table.add_column("Age", no_wrap=True)
     table.add_column("Agent/Project")
     table.add_column("Model")
     table.add_column("Tier", no_wrap=True)
+    if show_decisions:
+        table.add_column("◉", no_wrap=True)
     table.add_column("Plan", ratio=2, overflow="fold")
-    for row in rows:
-        table.add_row(
+    for row, count in zip(rows, counts, strict=True):
+        cells: list[Any] = [
             _name_cell(display.get(row.plan_path, row.name), row.id_prefix),
             row.age,
             agent_project(row.agent, row.project),
             row.provider_model,
             _tier_text(row.tier),
-            _plan_cell(row.title, row.plan_path),
-        )
+        ]
+        if show_decisions:
+            cells.append(count)
+        cells.append(_plan_cell(row.title, row.plan_path))
+        table.add_row(*cells)
     return table
 
 
@@ -230,36 +259,47 @@ def _approved_table(
 ) -> Any | None:
     if not rows:
         return None
+    counts = [_decision_count_cell(row.plan_path) for row in rows]
+    show_decisions = any(cell.plain.strip() for cell in counts)
     table = _base_table()
     table.add_column("Approved", no_wrap=True)
     table.add_column("Action", no_wrap=True, style="green")
     table.add_column("Agent/Project")
     table.add_column("Tier", no_wrap=True)
+    if show_decisions:
+        table.add_column("◉", no_wrap=True)
     table.add_column("Plan", ratio=2, overflow="fold")
-    for row in rows:
-        table.add_row(
+    for row, count in zip(rows, counts, strict=True):
+        cells: list[Any] = [
             row.age,
             row.action,
             agent_project(row.agent, row.project),
             _tier_text(row.tier),
-            _plan_cell(row.title, row.plan_path),
-        )
+        ]
+        if show_decisions:
+            cells.append(count)
+        cells.append(_plan_cell(row.title, row.plan_path))
+        table.add_row(*cells)
     return table
 
 
 def _rejected_table(rows: tuple[RejectedPlan, ...]) -> Any | None:
     if not rows:
         return None
+    counts = [_decision_count_cell(row.plan_path) for row in rows]
+    show_decisions = any(cell.plain.strip() for cell in counts)
     table = _base_table()
     table.add_column("Archived", no_wrap=True)
     table.add_column("Tier", no_wrap=True)
+    if show_decisions:
+        table.add_column("◉", no_wrap=True)
     table.add_column("Plan", ratio=2, overflow="fold")
-    for row in rows:
-        table.add_row(
-            row.age,
-            _tier_text(row.tier),
-            _plan_cell(row.title, row.plan_path),
-        )
+    for row, count in zip(rows, counts, strict=True):
+        cells: list[Any] = [row.age, _tier_text(row.tier)]
+        if show_decisions:
+            cells.append(count)
+        cells.append(_plan_cell(row.title, row.plan_path))
+        table.add_row(*cells)
     return table
 
 

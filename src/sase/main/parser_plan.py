@@ -2,6 +2,7 @@
 
 import argparse
 
+from sase.completion.kinds import ValueKind, set_completion_kind
 from sase.main.parser_bead import nonnegative_int
 from sase.main.parser_bead_common import wrap_width
 from sase.main.plan_search_handler import plan_date_arg
@@ -64,6 +65,9 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan approve ~/.sase/plans/202609/my_plan.md\n"
             "  sase plan approve ./sase_plan_my_feature.md --dry-run\n"
             "  sase plan approve ./sase_plan_my_feature.md --project sase\n"
+            "  sase plan approve my_plan -D grouping=mode\n"
+            "  sase plan approve my_plan -D grouping=mode --dry-run\n"
+            "  sase plan approve my_plan   # retry a failed coder with its accepted answers\n"
             "  sase plan approve 0qw --prompt 'Focus tests'\n"
             "  sase plan approve abcdef12 --wait 'sase-s7.2,bead=sase-64.3'\n"
             "  sase plan approve big_epic --kind epic\n"
@@ -81,6 +85,19 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "planner agent, or notification ID/prefix"
         ),
     )
+    decide_action = approve_parser.add_argument(
+        "-D",
+        "--decide",
+        action="append",
+        default=None,
+        metavar="ID=VALUE",
+        help=(
+            "Answer one Plan Decision (repeatable as ID=VALUE; toggles take "
+            "true/1/yes/on or false/0/no/off, choices take the exact key "
+            "case-insensitively; giving the same id twice is an error)"
+        ),
+    )
+    set_completion_kind(decide_action, ValueKind.PLAN_DECISION)
     approve_parser.add_argument(
         "-n",
         "--dry-run",

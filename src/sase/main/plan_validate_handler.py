@@ -151,7 +151,7 @@ def _apply_decision_host_checks(
 
 
 def _print_decision_summary(validation: object) -> None:
-    """Print auto-approved note when decisions exist under %auto."""
+    """Print the Decision Sheet, plus the auto-approved note under %auto."""
     try:
         from sase.main.plan_approve_handler import get_auto_plan_approval_action
         from sase.sdd.plan_decisions import is_enabled
@@ -162,9 +162,37 @@ def _print_decision_summary(validation: object) -> None:
     plan = getattr(validation, "plan", None)
     if plan is None or not getattr(plan, "decisions", ()):
         return
+    _print_decision_sheet(validation)
     try:
         if get_auto_plan_approval_action() is not None:
             print("auto-approved: every decision takes its default")
+    except Exception:
+        return
+
+
+def _print_decision_sheet(validation: object) -> None:
+    """Render the Decision Sheet the reviewer will see; never fails."""
+    try:
+        from sase.output import console
+        from sase.sdd._plan_display_decisions import pending_decisions_text
+        from sase.sdd.plan_decisions import (
+            artifacts_dir_from_env,
+            build_definitions,
+            resolve_binding,
+            sheet_binding,
+        )
+    except Exception:
+        return
+    try:
+        definitions = build_definitions(validation, artifacts_dir_from_env())
+        if not definitions:
+            return
+        resolved = resolve_binding(definitions, {}, "auto")
+        values = resolved.get("values")
+        if not isinstance(values, dict):
+            return
+        sheet = sheet_binding(definitions, dict(values), 0)
+        console.print(pending_decisions_text(sheet), soft_wrap=True)
     except Exception:
         return
 

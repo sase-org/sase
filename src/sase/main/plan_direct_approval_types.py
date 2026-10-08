@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from sase.main.plan_direct_approval_recovery import CoderRecovery, PriorCoder
@@ -26,6 +26,7 @@ class DirectApprovalRequest:
     wait: object = None
     project: str | None = None
     cwd: Path | None = None
+    decide: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,9 @@ class DirectApprovalPlan:
     predicted_plan_ref: str = ""
     coder_prompt_preview: str = ""
     recovery: CoderRecovery | None = None
+    decide_values: dict[str, Any] = field(default_factory=dict)
+    decide_rows: tuple[dict[str, Any], ...] = ()
+    decide_sheet: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

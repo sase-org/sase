@@ -13191,6 +13191,7 @@
                   "patch",
                   "pending_plan",
                   "plan",
+                  "plan_decision",
                   "plugin",
                   "proc",
                   "project",
@@ -27705,7 +27706,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9fc6d467187bdeb5",
+            "description_digest": "8b009a459c295fa7",
             "hidden": false,
             "mutex_groups": [],
             "name": "approve",
@@ -27724,6 +27725,22 @@
                   "--help"
                 ],
                 "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "decide",
+                "hidden": false,
+                "kind": "plan_decision",
+                "metavar": "ID=VALUE",
+                "repeatable": true,
+                "required": false,
+                "strings": [
+                  "-D",
+                  "--decide"
+                ],
+                "takes_value": true,
                 "value_hint": null
               },
               {

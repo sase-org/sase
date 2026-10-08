@@ -36,6 +36,7 @@ def execute_neutral_plan_approval_response(
     epic_launch_mode: EpicLaunchMode,
     epic_launch_origin: EpicLaunchOrigin,
     option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
+    expected_review_revision: int | None = None,
 ) -> PlanApprovalActionResult:
     """Execute one selected option set through the shared gate executor."""
     if not notification.host_files:
@@ -123,6 +124,8 @@ def execute_neutral_plan_approval_response(
         if option_inputs and any(option_inputs.values())
         else None
     )
+    if expected_review_revision is not None:
+        execution_kwargs["expected_review_revision"] = expected_review_revision
     try:
         execution = execute_gate_selection(
             bundle_path,
