@@ -210,7 +210,7 @@ def test_direct_resolver_freezes_definitions_once(tmp_path: Path, monkeypatch) -
 
 
 def test_structured_grant_wording_independent(tmp_path: Path, monkeypatch) -> None:
-    from sase.sdd.plan_decisions import _grant_record_for_missing_selector
+    from sase.sdd._plan_decisions_shared import _grant_record_for_missing_selector
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "sase" / "memory").mkdir(parents=True)

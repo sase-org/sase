@@ -252,9 +252,9 @@ def test_future_flat_note_grant(tmp_path, monkeypatch) -> None:
     _needs_core("plan_decisions_payload")
     monkeypatch.chdir(tmp_path)
     (tmp_path / "sase" / "memory").mkdir(parents=True, exist_ok=True)
-    from sase.sdd.plan_decisions import _resolve_memory_records
+    from sase.sdd._plan_decisions_shared import resolve_memory_records
 
-    records, keys = _resolve_memory_records(["brand-new-note-xyz.md"])
+    records, keys = resolve_memory_records(["brand-new-note-xyz.md"])
     assert records and records[0]["exists"] is False
     assert records[0]["kind"] == "note"
     assert records[0]["type"] == "reference"
@@ -324,9 +324,12 @@ def test_future_grant_rejects_traversal_and_unknown_web(tmp_path, monkeypatch) -
     _needs_core("plan_decisions_payload")
     monkeypatch.chdir(tmp_path)
     (tmp_path / "sase" / "memory").mkdir(parents=True, exist_ok=True)
-    from sase.sdd.plan_decisions import _PlanDecisionError, _resolve_memory_records
+    from sase.sdd._plan_decisions_shared import (
+        PlanDecisionError,
+        resolve_memory_records,
+    )
 
-    with pytest.raises(_PlanDecisionError):
-        _resolve_memory_records(["../escape.md"])
-    with pytest.raises(_PlanDecisionError):
-        _resolve_memory_records(["no-such-web-xyz:missing-strand"])
+    with pytest.raises(PlanDecisionError):
+        resolve_memory_records(["../escape.md"])
+    with pytest.raises(PlanDecisionError):
+        resolve_memory_records(["no-such-web-xyz:missing-strand"])

@@ -514,7 +514,7 @@ def test_host_facts_verify_requested_quote_for_default_false(
 ) -> None:
     from types import SimpleNamespace
 
-    from sase.sdd.plan_decisions import _build_host_facts
+    from sase.sdd.plan_decisions_host import _build_host_facts
     from sase.sdd.plan_validate import validate_plan
 
     validation = validate_plan(PENDING_TALE, "tale")
