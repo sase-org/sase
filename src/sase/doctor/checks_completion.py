@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 _CHECK_TITLE = "Shell completion install"
 _REG_TITLE = "Shell completion registration"
+_PLUGINS_TITLE = "Plugin command completion"
 StatusProbe = Callable[[], tuple[ShellInstallStatus, ...]]
 CompsProbe = Callable[[], str | None]
 RegistrationProbe = Callable[[str], ZshRegistrationProbe]
@@ -42,6 +43,12 @@ def completion_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title=_REG_TITLE,
             runner=_check_completion_registration,
             deep=True,
+        ),
+        CheckSpec(
+            id="completion.plugins",
+            group="completion",
+            title=_PLUGINS_TITLE,
+            runner=_check_completion_plugin_omissions,
         ),
     )
 
@@ -206,6 +213,93 @@ def _check_completion_registration(
         "OK",
         f"_comps[sase] resolves to {comps}",
         data=_registration_data(registration, comps=comps, target=target),
+    )
+
+
+def _cached_plugin_omissions() -> tuple[dict[str, object], ...]:
+    """Return omitted plugin subtrees recorded in the current grammar manifests.
+
+    Reads the manifests written at generation time, so a broken plugin is
+    reported without being re-imported on every doctor run.
+    """
+    import json
+
+    from sase.completion.install_targets import SUPPORTED_SHELLS
+    from sase.completion.runtime_cache_identity import runtime_identity_key
+    from sase.completion.runtime_cache_support import shell_cache_dir
+
+    try:
+        key = runtime_identity_key()
+    except Exception:  # noqa: BLE001 - diagnostics should stay readable.
+        return ()
+    seen: set[tuple[str, str]] = set()
+    omissions: list[dict[str, object]] = []
+    for shell in SUPPORTED_SHELLS:
+        try:
+            text = (shell_cache_dir(key, shell) / "manifest.json").read_text(
+                encoding="utf-8"
+            )
+        except OSError:
+            continue
+        try:
+            data = json.loads(text)
+        except ValueError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        entries = data.get("plugin_omissions")
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            name = str(entry.get("name", ""))
+            distribution = str(entry.get("distribution", ""))
+            marker = (name, distribution)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            omissions.append(entry)
+    omissions.sort(key=lambda entry: str(entry.get("name", "")))
+    return tuple(omissions)
+
+
+def _check_completion_plugin_omissions(
+    *,
+    omissions: Sequence[Mapping[str, object]] | None = None,
+) -> DiagnosticCheck:
+    """Warn about plugin subtrees left out of the generated completion."""
+    resolved = tuple(omissions) if omissions is not None else _cached_plugin_omissions()
+    if not resolved:
+        return _check(
+            "completion.plugins",
+            _PLUGINS_TITLE,
+            "OK",
+            "every mounted plugin command is covered by shell completion",
+            data={"omissions": []},
+        )
+    names = ", ".join(f"sase {entry.get('name', '?')}" for entry in resolved)
+    details = tuple(
+        f"sase {entry.get('name', '?')} from {entry.get('distribution', '?')}: "
+        f"{entry.get('reason', 'omitted')}"
+        for entry in resolved
+    )
+    distributions = sorted(
+        {
+            str(entry.get("distribution", ""))
+            for entry in resolved
+            if str(entry.get("distribution", ""))
+        }
+    )
+    return _check(
+        "completion.plugins",
+        _PLUGINS_TITLE,
+        "WARN",
+        f"{len(resolved)} plugin command(s) missing from completion: {names}",
+        details=details,
+        next_steps=tuple(f"sase plugin update {dist}" for dist in distributions)
+        or ("Run `sase plugin list` to inspect installed command plugins.",),
+        data={"omissions": [dict(entry) for entry in resolved]},
     )
 
 

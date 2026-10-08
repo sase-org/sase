@@ -9,11 +9,16 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from typing import TYPE_CHECKING
+
 from sase.completion.install_models import ExpectedCompletion, ZcompileFn
 from sase.completion.install_targets import (
     CompletionInstallError,
     ZSH_PROBE_TIMEOUT_SECONDS,
 )
+
+if TYPE_CHECKING:
+    from sase.completion.plugin_runtime import PluginCommandOmission
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,13 +65,25 @@ def expected_scripts_for_shells(
     shells: Sequence[str],
 ) -> Mapping[str, ExpectedCompletion]:
     """Build the live spec once and emit current completion scripts for *shells*."""
-    from sase.completion.build import build_spec
+    expected, _omissions = expected_scripts_for_shells_with_omissions(shells)
+    return expected
 
-    spec = build_spec()
-    digest = spec.structural_digest()
-    return {
-        shell: ExpectedCompletion(_emit_script(shell, spec), digest) for shell in shells
-    }
+
+def expected_scripts_for_shells_with_omissions(
+    shells: Sequence[str],
+) -> tuple[Mapping[str, ExpectedCompletion], tuple[PluginCommandOmission, ...]]:
+    """Build the runtime spec once and emit scripts plus plugin omissions."""
+    from sase.completion.plugin_runtime import build_runtime_spec
+
+    runtime = build_runtime_spec()
+    digest = runtime.spec.structural_digest()
+    return (
+        {
+            shell: ExpectedCompletion(_emit_script(shell, runtime.spec), digest)
+            for shell in shells
+        },
+        runtime.omissions,
+    )
 
 
 def _emit_script(shell: str, spec: object) -> str:

@@ -65,7 +65,7 @@ def ensure_cached_grammar(
         if not force and current_manifest(grammar, shell, key, fingerprint):
             return grammar.resolve(strict=False)
         try:
-            expected = _expected_for_shell(shell, expected_fn)
+            expected, omissions = _expected_for_shell_with_omissions(shell, expected_fn)
             commit_generation(
                 directory,
                 shell,
@@ -80,6 +80,7 @@ def ensure_cached_grammar(
                 zcompile_fn,
                 replace_file=_replace_file,
                 write_manifest=_write_manifest,
+                plugin_omissions=omissions,
             )
         except CompletionCacheError:
             raise
@@ -105,13 +106,23 @@ def assess_cached_grammar(
     )
 
 
-def _expected_for_shell(
+def _expected_for_shell_with_omissions(
     shell: str, expected_fn: ExpectedFn | None
-) -> ExpectedCompletion:
-    from sase.completion.install_scripts import expected_scripts_for_shells
+) -> tuple[ExpectedCompletion, tuple[object, ...]]:
+    from sase.completion.install_scripts import (
+        expected_scripts_for_shells_with_omissions,
+    )
 
+    if expected_fn is not None:
+        try:
+            return expected_fn((shell,))[shell], ()
+        except KeyError:
+            raise CompletionCacheError(
+                f"generator did not return {shell} completion"
+            ) from None
     try:
-        return (expected_fn or expected_scripts_for_shells)((shell,))[shell]
+        expected = expected_scripts_for_shells_with_omissions((shell,))
+        return expected[0][shell], expected[1]
     except KeyError:
         raise CompletionCacheError(
             f"generator did not return {shell} completion"

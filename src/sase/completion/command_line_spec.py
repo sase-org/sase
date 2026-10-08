@@ -36,6 +36,17 @@ def _command_line_spec_key() -> str:
     return f"{runtime_identity_key()}-{source_fingerprint()}"
 
 
+def current_command_line_spec_key() -> str:
+    """Return the spec cache key for the current runtime and sources.
+
+    The key covers the plugin command set and editable provider sources, so
+    any plugin change gives new shells and new TUI sessions a fresh grammar.
+    Safe to call from a worker thread; performs only metadata reads and
+    file stats, and never imports a plugin.
+    """
+    return _command_line_spec_key()
+
+
 def _command_line_spec_path(key: str | None = None) -> Path:
     """Return the on-disk path for the Command Line spec cache."""
     return (
@@ -179,5 +190,6 @@ class CompletionSpecCacheError(RuntimeError):
 
 __all__ = [
     "CompletionSpecCacheError",
+    "current_command_line_spec_key",
     "ensure_command_line_spec",
 ]

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 CACHE_SCHEMA_VERSION = 1
-CACHE_FORMAT_REVISION = 1
+CACHE_FORMAT_REVISION = 2
 
 
 class CompletionCacheError(RuntimeError):

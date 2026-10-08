@@ -332,6 +332,32 @@ fish's `time` builtin for 30 samples of `source sase.fish`, cold
 table are medians; fish has no persistent in-shell cache, so warm still pays one `sase`
 candidate subprocess.
 
+## Plugin Commands
+
+Top-level commands mounted by plugins through the `sase_commands` entry-point group (see
+`plugins.md`) are merged into the same runtime spec the generators above consume, so
+`sase <name> <TAB>`, `sase completion spec`, and the TUI `:` command line all complete
+plugin subtrees. The checked-in structural snapshot stays builtin-only; only the live
+runtime spec carries plugin children.
+
+Freshness follows the same cache identity as everything else: the shell grammar cache
+and the TUI spec cache key on the plugin command set (names, owners, versions,
+locations, and the disable-switch state) plus the `*.py` sources of editable providers.
+A plugin install, uninstall, update, or editable source edit gives new shells and new
+TUI sessions a fresh grammar automatically. Already-open shells keep their loaded
+functions until `exec $SHELL`; exported files from `sase completion zsh > file` stay
+unmanaged snapshots.
+
+A plugin subtree that fails to load (or whose parser fails to build) is skipped and
+recorded once in the grammar manifest as an omission, so a broken plugin is not
+re-imported on every new shell. `sase doctor` reports omissions as WARN in the
+`completion.plugins` check with a `sase plugin update <name>` next step.
+
+Plugin authors opt argument slots into path completion with a public string attribute on
+the argparse action: `action.sase_completion = "path"` (or `"dir"`). Otherwise only
+argparse `choices` produce candidates — none of sase's builtin name, override, or hint
+heuristics apply inside a plugin subtree, and no `default_child` is inferred.
+
 ## Deferred
 
 Recorded here rather than shipped in this epic — cheap to add later once the spec model

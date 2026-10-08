@@ -48,6 +48,7 @@ def commit_generation(
     *,
     replace_file: Callable[[Path, Path], None],
     write_manifest: Callable[..., None],
+    plugin_omissions: tuple[object, ...] = (),
 ) -> None:
     """Stage and atomically publish a coherent grammar, bytecode, and manifest."""
     staging, backup = (
@@ -69,6 +70,7 @@ def commit_generation(
             now,
             zcompile_fn,
             write_manifest,
+            plugin_omissions,
         )
         had_backup = _backup(directory, backup, shell)
         try:
@@ -103,6 +105,7 @@ def _stage(
     now: datetime,
     zcompile_fn: ZcompileFn | None,
     write_manifest: Callable[..., None],
+    plugin_omissions: tuple[object, ...] = (),
 ) -> None:
     staging.mkdir(parents=True, exist_ok=True)
     try:
@@ -126,6 +129,7 @@ def _stage(
         loader_target=loader,
         owner=owner,
         now=now,
+        plugin_omissions=plugin_omissions,
     )
     if not _coherent(staging, shell):
         raise CompletionCacheError("staged completion generation is not coherent")
@@ -181,12 +185,14 @@ def write_manifest(
     loader_target: Path | None,
     owner: str | None,
     now: datetime,
+    plugin_omissions: tuple[object, ...] = (),
 ) -> None:
     data: dict[str, Any] = {
         "cache_format_revision": CACHE_FORMAT_REVISION,
         "content_checksum": sha256_text(payload),
         "generated_at": now.astimezone(UTC).replace(microsecond=0).isoformat(),
         "grammar_path": str(grammar.resolve(strict=False)),
+        "plugin_omissions": [_omission_to_json(item) for item in plugin_omissions],
         "runtime_identity": dict(identity),
         "runtime_key": runtime_key,
         "schema_version": CACHE_SCHEMA_VERSION,
@@ -211,6 +217,18 @@ def write_manifest(
     except OSError:
         tmp.unlink(missing_ok=True)
         raise
+
+
+def _omission_to_json(item: object) -> dict[str, Any]:
+    """Return the manifest JSON for one plugin omission record."""
+    to_json = getattr(item, "to_json", None)
+    if callable(to_json):
+        result = to_json()
+        if isinstance(result, dict):
+            return result
+    if isinstance(item, dict):
+        return dict(item)
+    return {"reason": str(item)}
 
 
 def recover_interrupted_publish(directory: Path, shell: str) -> None:

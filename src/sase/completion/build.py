@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 
 from sase import __version__
 from sase.completion.compat import (
@@ -56,7 +57,17 @@ def _build_command(
     path: tuple[str, ...],
     aliases: tuple[str, ...],
     choice_action: argparse.Action | None,
+    plugin: bool = False,
 ) -> CommandSpec:
+    """Walk *parser* into a ``CommandSpec``.
+
+    With ``plugin=True`` the walker covers a plugin-owned subtree: no
+    ``default_child`` inference, and kinds resolve only from the public
+    ``sase_completion`` attribute and argparse ``choices`` -- none of the
+    sase-specific ``NAME_TABLE``, ``PATH_OVERRIDES``, or hint heuristics
+    apply. Run policy keeps its path-driven default (unknown plugin paths
+    resolve to the default rule set).
+    """
     options: list[OptionSpec] = []
     positionals: list[PositionalSpec] = []
     subcommands: tuple[CommandSpec, ...] = ()
@@ -64,16 +75,18 @@ def _build_command(
 
     for action in parser._actions:
         if isinstance(action, argparse._SubParsersAction):
-            subcommands = _build_subcommands(action, parent_path=path)
-            if any(child.name == "list" for child in subcommands):
+            subcommands = _build_subcommands(action, parent_path=path, plugin=plugin)
+            if not plugin and any(child.name == "list" for child in subcommands):
                 default_child = "list"
             continue
         if action.option_strings:
-            option = _build_option(action, command_path=path)
+            option = _build_option(action, command_path=path, plugin=plugin)
             if option is not None:
                 options.append(option)
         else:
-            positionals.append(_build_positional(action, command_path=path))
+            positionals.append(
+                _build_positional(action, command_path=path, plugin=plugin)
+            )
 
     mutex_groups = tuple(
         tuple(member.dest for member in group._group_actions)
@@ -105,6 +118,7 @@ def _build_subcommands(
     subparsers_action: argparse._SubParsersAction,
     *,
     parent_path: tuple[str, ...],
+    plugin: bool = False,
 ) -> tuple[CommandSpec, ...]:
     """Collapse aliases and drop hidden subtrees under one subparsers action.
 
@@ -149,6 +163,7 @@ def _build_subcommands(
                 path=parent_path + (primary,),
                 aliases=aliases,
                 choice_action=visible_choice_actions[primary],
+                plugin=plugin,
             )
         )
 
@@ -157,21 +172,29 @@ def _build_subcommands(
 
 
 def _build_option(
-    action: argparse.Action, *, command_path: tuple[str, ...]
+    action: argparse.Action, *, command_path: tuple[str, ...], plugin: bool = False
 ) -> OptionSpec | None:
     hidden = action.help == argparse.SUPPRESS
     choices = _resolved_choices(action)
-    compat_choices = get_completion_compat_choices(action)
-    if choices is not None and compat_choices:
-        choices = tuple(choice for choice in choices if choice not in compat_choices)
-    strings = tuple(
-        string
-        for string in action.option_strings
-        if string not in get_completion_compat_option_strings(action)
-    )
-    if not strings:
-        return None
-    kind = None if choices is not None else resolve_value_kind(action, command_path)
+    if plugin:
+        strings = tuple(action.option_strings)
+        if not strings:
+            return None
+        kind = None if choices is not None else _plugin_value_kind(action)
+    else:
+        compat_choices = get_completion_compat_choices(action)
+        if choices is not None and compat_choices:
+            choices = tuple(
+                choice for choice in choices if choice not in compat_choices
+            )
+        strings = tuple(
+            string
+            for string in action.option_strings
+            if string not in get_completion_compat_option_strings(action)
+        )
+        if not strings:
+            return None
+        kind = None if choices is not None else resolve_value_kind(action, command_path)
     return OptionSpec(
         strings=strings,
         dest=action.dest,
@@ -184,16 +207,21 @@ def _build_option(
         required=bool(getattr(action, "required", False)),
         metavar=_option_metavar(action),
         default=_display_default(action),
-        value_hint=_value_hint_for(action, kind, command_path=command_path),
+        value_hint=_value_hint_for(
+            action, kind, command_path=command_path, plugin=plugin
+        ),
     )
 
 
 def _build_positional(
-    action: argparse.Action, *, command_path: tuple[str, ...]
+    action: argparse.Action, *, command_path: tuple[str, ...], plugin: bool = False
 ) -> PositionalSpec:
     choices = _resolved_choices(action)
     metavar = action.metavar if action.metavar is not None else action.dest
-    kind = None if choices is not None else resolve_value_kind(action, command_path)
+    if plugin:
+        kind = None if choices is not None else _plugin_value_kind(action)
+    else:
+        kind = None if choices is not None else resolve_value_kind(action, command_path)
     return PositionalSpec(
         metavar=str(metavar),
         dest=action.dest,
@@ -203,8 +231,25 @@ def _build_positional(
         kind=kind,
         is_remainder=action.nargs in _REMAINDER_NARGS,
         required=_positional_required(action),
-        value_hint=_value_hint_for(action, kind, command_path=command_path),
+        value_hint=_value_hint_for(
+            action, kind, command_path=command_path, plugin=plugin
+        ),
     )
+
+
+def _plugin_value_kind(action: argparse.Action) -> ValueKind | None:
+    """Resolve the completion kind for a plugin-owned argparse *action*.
+
+    Only the public ``sase_completion`` attribute (``"path"`` or ``"dir"``)
+    and argparse ``choices`` (handled by the caller) produce kinds. None of
+    the sase-specific name, override, or hint tables apply.
+    """
+    marker = getattr(action, "sase_completion", None)
+    if marker == "path":
+        return ValueKind.PATH
+    if marker == "dir":
+        return ValueKind.DIR
+    return None
 
 
 def _option_metavar(action: argparse.Action) -> str | None:
@@ -252,19 +297,44 @@ def _value_hint_for(
     kind: ValueKind | None,
     *,
     command_path: tuple[str, ...] = (),
+    plugin: bool = False,
 ) -> str | None:
     """Return the free-form value hint for *action*, if any.
 
     Path-like kinds already carry a kind, but the resolver also wants a
     coarse "path" hint. A kinded non-path slot carries no hint (the kind is
     the signal); an unkinded slot takes its hint from the declarative hint
-    table in ``sase.completion.kinds``.
+    table in ``sase.completion.kinds``. Plugin subtrees skip that table, so
+    an unkinded plugin slot carries no hint at all.
     """
     if kind in (ValueKind.PATH, ValueKind.DIR):
         return "path"
     if kind is not None:
         return None
+    if plugin:
+        return None
     return resolve_value_hint(action, command_path)
+
+
+def build_plugin_command(
+    parser: argparse.ArgumentParser, *, name: str, summary: str
+) -> CommandSpec:
+    """Walk a plugin-owned *parser* into a root-level ``CommandSpec``.
+
+    The command mounts at path ``(name,)`` with *summary* and no aliases.
+    Only reads the parser; never mutates it.
+    """
+    command = _build_command(
+        parser,
+        name=name,
+        path=(name,),
+        aliases=(),
+        choice_action=None,
+        plugin=True,
+    )
+    if command.summary != summary:
+        command = replace(command, summary=summary)
+    return command
 
 
 def _resolved_choices(action: argparse.Action) -> tuple[str, ...] | None:
@@ -285,4 +355,4 @@ def _action_summary(action: argparse.Action | None) -> str:
     return short_summary(help_text)
 
 
-__all__ = ["build_spec"]
+__all__ = ["build_plugin_command", "build_spec"]

@@ -212,14 +212,19 @@ def _handle_completion_loader(args: argparse.Namespace) -> int:
 
 
 def _handle_completion_spec(args: argparse.Namespace) -> int:
-    """Run ``sase completion spec``."""
-    from sase.completion.build import build_spec
-    from sase.completion.snapshot import current_structural_view
+    """Run ``sase completion spec``.
 
+    Both views come from the runtime spec (builtin tree plus mounted plugin
+    subtrees); the checked-in snapshot tool stays on the builtin-only
+    ``build_spec()``.
+    """
+    from sase.completion.plugin_runtime import build_runtime_spec
+
+    runtime = build_runtime_spec()
     if bool(getattr(args, "descriptions", False)):
-        document = build_spec().to_json()
+        document = runtime.spec.to_json()
     else:
-        document = current_structural_view()
+        document = runtime.structural_view()
     text = json.dumps(document, indent=2, sort_keys=True)
     return _write_output(getattr(args, "output", None), text)
 
@@ -248,9 +253,9 @@ def _handle_completion_zsh(args: argparse.Namespace) -> int:
 def _handle_completion_script(
     args: argparse.Namespace, emit: Callable[[CompletionSpec], str]
 ) -> int:
-    from sase.completion.build import build_spec
+    from sase.completion.plugin_runtime import build_runtime_spec
 
-    return _write_output(getattr(args, "output", None), emit(build_spec()))
+    return _write_output(getattr(args, "output", None), emit(build_runtime_spec().spec))
 
 
 def _list_json(rows: Sequence[ShellInstallStatus]) -> dict[str, object]:

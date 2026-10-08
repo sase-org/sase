@@ -25,6 +25,7 @@ def runtime_identity() -> dict[str, Any]:
         "distributions": _distribution_records(),
         "package_file": _path_record(package_file),
         "package_root": _path_record(package_root),
+        "plugin_commands": _plugin_commands_record(),
         "python_executable": _path_record(Path(sys.executable)),
         "python_version": sys.version.split()[0],
         "sase_version": sase.__version__,
@@ -55,6 +56,7 @@ def source_fingerprint() -> str:
                 for path in sorted(root.rglob("*.py"))
                 if "__pycache__" not in path.parts
             )
+    files.extend(_editable_plugin_source_records())
     return digest_json(
         {
             "cache_format_revision": CACHE_FORMAT_REVISION,
@@ -62,6 +64,96 @@ def source_fingerprint() -> str:
             "files": files,
         }
     )
+
+
+def _plugin_commands_record() -> dict[str, Any]:
+    """Return the plugin command set for cache identity.
+
+    Uses the disable-ignoring metadata scan (no plugin is ever imported)
+    and records the disable-switch state alongside, so toggling a switch
+    invalidates the grammar caches. Records are already sorted by the scan.
+    """
+    from sase.plugin_commands.scan import disabling_env_var, scan_plugin_commands
+
+    records = scan_plugin_commands(honor_disable=False)
+    return {
+        "commands": tuple(
+            {
+                "distribution": record.distribution,
+                "location": record.location,
+                "name": record.name,
+                "value": record.value,
+                "version": record.version,
+            }
+            for record in records
+        ),
+        "disabled_by": disabling_env_var(),
+    }
+
+
+def _editable_plugin_source_records() -> list[dict[str, object]]:
+    """Stat ``*.py`` files under each editable command provider's package.
+
+    Resolved from ``direct_url.json`` and the entry-point module root
+    without importing the plugin, so an editable source edit changes the
+    fingerprint. Non-editable installs are covered by their version and
+    location in :func:`runtime_identity` instead.
+    """
+    from sase.plugin_commands.scan import scan_plugin_commands
+
+    records: list[dict[str, object]] = []
+    for record in scan_plugin_commands(honor_disable=False):
+        if not record.editable:
+            continue
+        package_dir = _plugin_package_dir(record.location, record.value)
+        if package_dir is None:
+            records.append(
+                {"distribution": record.distribution, "missing": record.location}
+            )
+            continue
+        try:
+            sources = sorted(
+                path
+                for path in package_dir.rglob("*.py")
+                if "__pycache__" not in path.parts
+            )
+        except OSError:
+            records.append(
+                {"distribution": record.distribution, "missing": str(package_dir)}
+            )
+            continue
+        if not sources:
+            records.append(
+                {"distribution": record.distribution, "missing": str(package_dir)}
+            )
+            continue
+        for path in sources:
+            entry = _source_file_record(path, package_root=package_dir)
+            entry["distribution"] = record.distribution
+            records.append(entry)
+    return records
+
+
+def _plugin_package_dir(location: str, value: str) -> Path | None:
+    """Resolve an editable provider's top-level package directory.
+
+    *location* is the editable source root and *value* the entry-point
+    value; the top-level package is its first module component, under either
+    a flat or a ``src`` layout.
+    """
+    top = (
+        value.split("[", 1)[0].strip().split(":", 1)[0].strip().split(".", 1)[0].strip()
+    )
+    if not top or not location:
+        return None
+    root = Path(location)
+    for candidate in (root / top, root / "src" / top):
+        try:
+            if candidate.is_dir():
+                return candidate
+        except OSError:
+            continue
+    return None
 
 
 def _distribution_records() -> tuple[dict[str, object], ...]:

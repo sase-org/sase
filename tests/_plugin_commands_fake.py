@@ -36,6 +36,7 @@ class FakeCommandSpec:
     broken_import: bool = False
     object_target: str | None = None
     extra_source: str = ""
+    parser_source: str | None = None
 
 
 @dataclass
@@ -82,15 +83,18 @@ def _adapter_source(
     lines.append(f"CALL_LOG = {str(call_log)!r}")
     lines.append(f"COMMAND = {command!r}")
     if "build_parser" not in spec.omit:
-        lines.extend(
-            [
-                "",
-                "def build_parser(prog='sase CMD'):",
-                "    parser = argparse.ArgumentParser(prog=prog)",
-                "    parser.add_argument('--mode', choices=['fast', 'slow'], default='fast')",
-                "    return parser",
-            ]
-        )
+        if spec.parser_source is not None:
+            lines.extend(["", spec.parser_source])
+        else:
+            lines.extend(
+                [
+                    "",
+                    "def build_parser(prog='sase CMD'):",
+                    "    parser = argparse.ArgumentParser(prog=prog)",
+                    "    parser.add_argument('--mode', choices=['fast', 'slow'], default='fast')",
+                    "    return parser",
+                ]
+            )
     if "main" not in spec.omit:
         lines.extend(
             [
