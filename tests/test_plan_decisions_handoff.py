@@ -230,7 +230,7 @@ def test_reviewer_block_helper_fails_open(tmp_path: Path) -> None:
     assert _reviewer_decisions_block(plan_result, "/nope.md", tmp_path) == ""
 
 
-def test_bead_read_decisions_wire_and_lines(tale_path: Path) -> None:
+def test_bead_read_decisions_wire_and_lines(tmp_path: Path) -> None:
     from sase.bead.cli_detail_decisions import (
         decisions_wire_for_detail,
         render_decisions_content_lines,
@@ -238,13 +238,15 @@ def test_bead_read_decisions_wire_and_lines(tale_path: Path) -> None:
     from sase.bead.cli_detail_resolution import PlanLink
     from sase.bead.model import Issue, IssueType
 
+    epic_path = tmp_path / "epic.md"
+    epic_path.write_text(STAMPED_EPIC, encoding="utf-8")
     phase = Issue(
         id="sase-1hi.4", title="Handoff", issue_type=IssueType.PHASE, design=""
     )
     detail = SimpleNamespace(
         issue=phase,
         plan=PlanLink(
-            section="PLAN", source="self", path=str(tale_path), from_ref=None
+            section="PLAN", source="self", path=str(epic_path), from_ref=None
         ),
     )
     wire = decisions_wire_for_detail(detail)
@@ -253,7 +255,7 @@ def test_bead_read_decisions_wire_and_lines(tale_path: Path) -> None:
     assert wire["audience"] == "epic_phase"
     assert wire["sheet"]["changed_count"] == 1
     lines = render_decisions_content_lines(wire)
-    assert any("decided by reviewer" in line for line in lines)
+    assert any("Reviewer decisions" in line for line in lines)
     assert any("grouping = mode" in line for line in lines)
 
 
@@ -285,16 +287,18 @@ def test_bead_read_epic_lens_and_task_empty(tmp_path: Path) -> None:
     assert decisions_wire_for_detail(task_detail) is None
 
 
-def test_bead_read_json_envelope_carries_decisions(tale_path: Path) -> None:
+def test_bead_read_json_envelope_carries_decisions(tmp_path: Path) -> None:
     from sase.bead.cli_detail_json import issue_detail_wire_dict
     from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
     from sase.bead.model import Issue, IssueType
 
+    epic_path = tmp_path / "epic.md"
+    epic_path.write_text(STAMPED_EPIC, encoding="utf-8")
     issue = Issue(
         id="sase-1hi.4",
         title="Handoff",
         issue_type=IssueType.PHASE,
-        design=str(tale_path),
+        design=str(epic_path),
     )
     detail = IssueDetail(
         issue=issue,
@@ -304,7 +308,7 @@ def test_bead_read_json_envelope_carries_decisions(tale_path: Path) -> None:
         depends_on=(),
         blocks=(),
         plan=PlanLink(
-            section="PLAN", source="self", path=str(tale_path), from_ref=None
+            section="PLAN", source="self", path=str(epic_path), from_ref=None
         ),
     )
     envelope = issue_detail_wire_dict(detail)
@@ -473,3 +477,378 @@ def test_builders_pending_and_accepted(tale_path: Path) -> None:
     assert any("How should the overlay group bindings?" in line for line in pending)
     assert accepted[0] == "decided by reviewer · TUI"
     assert any("\u25c9 grouping = mode\u25cf" in line for line in accepted)
+
+
+FROZEN_MEMORY_TALE = """---
+tier: tale
+title: Frozen memory tale
+goal: Cover frozen rendering.
+size: small
+decisions:
+  tui_note:
+    ask: Record conventions in the tui memory note?
+    memory: [tui.md]
+    requested: "please also update the tui memory note"
+    default: true
+    answer: true
+decided_by: reviewer
+decided_via: tui
+---
+# Plan
+
+Body mentions tui_note.
+"""
+
+
+def _write_frozen_sibling(plan_path: Path, definitions: list[dict]) -> None:
+    import json as _json
+
+    sibling = plan_path.parent / f"{plan_path.stem}.plan-decisions.json"
+    sibling.write_text(
+        _json.dumps({"schema": 1, "definitions": definitions}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _frozen_memory_definitions() -> list[dict]:
+    return [
+        {
+            "id": "tui_note",
+            "kind": "toggle",
+            "ask": "Record conventions in the tui memory note?",
+            "default": True,
+            "effective_default": True,
+            "memory": {"selectors": ["tui.md"]},
+            "provenance": "asked",
+            "requested_verified": True,
+            "resolved": [
+                {
+                    "selector": "tui.md",
+                    "kind": "note",
+                    "scope": "project",
+                    "path": "sase/memory/tui.md",
+                    "type": "reference",
+                    "exists": True,
+                }
+            ],
+            "quote": "please also update the tui memory note",
+        }
+    ]
+
+
+def test_accepted_frozen_definitions_ignore_reader_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd._plan_display_decisions import (
+        accepted_decisions_text,
+        decision_text_lines,
+    )
+    from sase.sdd.plan_decision_handoff import load_stamped_decisions
+
+    plan_path = tmp_path / "frozen.md"
+    plan_path.write_text(FROZEN_MEMORY_TALE, encoding="utf-8")
+    _write_frozen_sibling(plan_path, _frozen_memory_definitions())
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.chdir("/tmp")
+    stamped = load_stamped_decisions(plan_path)
+    assert stamped is not None
+    rows = stamped.sheet.get("rows")
+    assert isinstance(rows, list) and len(rows) == 1
+    memory = rows[0].get("memory")
+    assert isinstance(memory, dict)
+    assert memory.get("provenance") == "asked"
+    resolved = memory.get("resolved")
+    assert isinstance(resolved, list) and resolved
+    assert resolved[0].get("path") == "sase/memory/tui.md"
+    assert rows[0].get("value") is True
+    assert rows[0].get("changed") is False
+    lines = decision_text_lines(
+        accepted_decisions_text(stamped.sheet, stamped.decided_by, stamped.decided_via)
+    )
+    from sase.sdd._plan_display_decisions import provenance_chip as _chip
+
+    assert _chip("asked") == "you asked"
+    assert any("\u2605" in line for line in lines)
+
+
+def test_accepted_synthetic_fallback_uses_authored_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd.plan_decision_handoff import load_stamped_decisions
+
+    plan_path = tmp_path / "synthetic.md"
+    plan_path.write_text(FROZEN_MEMORY_TALE, encoding="utf-8")
+    sibling = plan_path.parent / f"{plan_path.stem}.plan-decisions.json"
+    assert not sibling.exists()
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.chdir("/tmp")
+    stamped = load_stamped_decisions(plan_path)
+    assert stamped is not None
+    rows = stamped.sheet.get("rows")
+    assert isinstance(rows, list) and len(rows) == 1
+    assert rows[0].get("value") is True
+    assert rows[0].get("changed") is False
+    text = str(stamped.sheet)
+    assert "quote_not_found" not in text
+    assert "quote not found" not in text.lower()
+
+
+def test_frozen_resolved_path_survives_tmp_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd.plan_decision_handoff import load_stamped_decisions
+
+    plan_path = tmp_path / "kept.md"
+    plan_path.write_text(FROZEN_MEMORY_TALE, encoding="utf-8")
+    _write_frozen_sibling(plan_path, _frozen_memory_definitions())
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.chdir("/tmp")
+    stamped = load_stamped_decisions(plan_path)
+    assert stamped is not None
+    rows = stamped.sheet.get("rows")
+    assert isinstance(rows, list)
+    memory = rows[0].get("memory")
+    assert isinstance(memory, dict)
+    resolved = memory.get("resolved")
+    assert isinstance(resolved, list)
+    assert any(
+        isinstance(item, dict) and item.get("path") == "sase/memory/tui.md"
+        for item in resolved
+    )
+
+
+def _write_epic_plan(tmp_path: Path, name: str = "epic.md") -> tuple[Path, Path]:
+    plans_root = tmp_path / "plans"
+    (plans_root / "202610").mkdir(parents=True, exist_ok=True)
+    plan_path = plans_root / "202610" / name
+    plan_path.write_text(STAMPED_EPIC, encoding="utf-8")
+    return plans_root, plan_path
+
+
+def test_bead_read_plan_ref_resolves_through_roots(tmp_path: Path) -> None:
+    from types import SimpleNamespace as _NS
+
+    from sase.bead.cli_detail_decisions import (
+        decisions_wire_for_detail,
+        render_decisions_content_lines,
+    )
+    from sase.bead.cli_detail_resolution import PlanLink
+    from sase.bead.model import Issue, IssueType
+    from sase.sdd.plan_decisions import prompt_block_binding
+
+    plans_root, _plan_path = _write_epic_plan(tmp_path)
+    ref = "plan:202610/epic.md"
+    phase = Issue(
+        id="sase-1hi.10.2", title="Phase", issue_type=IssueType.PHASE, design=""
+    )
+    detail = _NS(
+        issue=phase,
+        plan=PlanLink(section="PLAN", source="self", path=ref, from_ref=None),
+    )
+    wire = decisions_wire_for_detail(
+        detail, plan_roots=(plans_root,), design_cwd=tmp_path
+    )
+    assert wire is not None
+    assert wire["audience"] == "epic_phase"
+    assert wire["decided_by"] == "reviewer"
+    expected = prompt_block_binding(
+        wire["sheet"], wire["decided_by"], wire["decided_via"], "epic_phase"
+    )
+    assert render_decisions_content_lines(wire) == [
+        f"  {line}" for line in expected.splitlines()
+    ]
+
+
+def test_bead_read_epic_audience_differs_from_phase(tmp_path: Path) -> None:
+    from types import SimpleNamespace as _NS
+
+    from sase.bead.cli_detail_decisions import decisions_wire_for_detail
+    from sase.bead.cli_detail_resolution import PlanLink
+    from sase.bead.model import BeadTier, Issue, IssueType
+    from sase.sdd.plan_decisions import prompt_block_binding
+
+    plans_root, _plan_path = _write_epic_plan(tmp_path)
+    ref = "plan:202610/epic.md"
+    phase = Issue(
+        id="sase-1hi.10.2", title="Phase", issue_type=IssueType.PHASE, design=""
+    )
+    epic = Issue(
+        id="sase-1hi.10",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        design="",
+    )
+    phase_wire = decisions_wire_for_detail(
+        _NS(
+            issue=phase,
+            plan=PlanLink(section="PLAN", source="self", path=ref, from_ref=None),
+        ),
+        plan_roots=(plans_root,),
+        design_cwd=tmp_path,
+    )
+    epic_wire = decisions_wire_for_detail(
+        _NS(
+            issue=epic,
+            plan=PlanLink(section="EPIC PLAN", source="self", path=ref, from_ref=None),
+        ),
+        plan_roots=(plans_root,),
+        design_cwd=tmp_path,
+    )
+    assert phase_wire is not None and epic_wire is not None
+    from sase.bead.cli_detail_decisions import render_decisions_content_lines as _lines2
+
+    assert phase_wire["audience"] == "epic_phase"
+    assert epic_wire["audience"] == "epic_land"
+    assert phase_wire["sheet"] == epic_wire["sheet"]
+    assert _lines2(phase_wire) == [
+        f"  {line}"
+        for line in prompt_block_binding(
+            phase_wire["sheet"],
+            phase_wire["decided_by"],
+            phase_wire["decided_via"],
+            "epic_phase",
+        ).splitlines()
+    ]
+    assert _lines2(epic_wire) == [
+        f"  {line}"
+        for line in prompt_block_binding(
+            epic_wire["sheet"],
+            epic_wire["decided_by"],
+            epic_wire["decided_via"],
+            "epic_land",
+        ).splitlines()
+    ]
+
+
+def test_bead_read_json_envelope_uses_roots_and_empty_roots_absent(
+    tmp_path: Path,
+) -> None:
+    from sase.bead.cli_detail_json import issue_detail_wire_dict
+    from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
+    from sase.bead.model import Issue, IssueType
+
+    plans_root, _plan_path = _write_epic_plan(tmp_path)
+    ref = "plan:202610/epic.md"
+    issue = Issue(
+        id="sase-1hi.10.2", title="Phase", issue_type=IssueType.PHASE, design=ref
+    )
+    detail = IssueDetail(
+        issue=issue,
+        ancestors=(),
+        phases=(),
+        child_epics=(),
+        depends_on=(),
+        blocks=(),
+        plan=PlanLink(section="PLAN", source="self", path=ref, from_ref=None),
+    )
+    envelope = issue_detail_wire_dict(
+        detail, plan_roots=(plans_root,), design_cwd=tmp_path
+    )
+    assert isinstance(envelope["decisions"], dict)
+    assert envelope["decisions"]["audience"] == "epic_phase"
+    empty = issue_detail_wire_dict(detail, plan_roots=(), design_cwd=tmp_path)
+    assert empty["decisions"] is None
+
+
+def test_epic_context_resolves_plan_ref_and_skips_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json as _json
+
+    from sase.bead.cli_detail_context import plan_reference_roots
+    from sase.sdd.plan_decision_handoff import epic_decision_context
+
+    monkeypatch.chdir(tmp_path)
+    roots = plan_reference_roots()
+    assert roots, "expected default plan roots for epic ref test"
+    dest = roots[0] / "202610" / "epic.md"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(STAMPED_EPIC, encoding="utf-8")
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        _json.dumps({"epic_plan_ref": "plan:202610/epic.md"}), encoding="utf-8"
+    )
+    context = epic_decision_context(artifacts)
+    assert context is not None
+    assert context.decided_by == "reviewer"
+
+    (artifacts / "agent_meta.json").write_text(
+        _json.dumps({"epic_plan_ref": "plan:202610/missing.md"}),
+        encoding="utf-8",
+    )
+    assert epic_decision_context(artifacts) is None
+    assert dest.is_file()
+
+
+def test_epic_context_phase_bead_parent_design_and_successor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json as _json
+    from types import SimpleNamespace as _NS
+
+    import sase.sdd.plan_decision_handoff as _handoff
+
+    monkeypatch.chdir(tmp_path)
+    from sase.bead.cli_detail_context import plan_reference_roots as _roots
+
+    roots = _roots()
+    assert roots
+    dest = roots[0] / "202610" / "epic.md"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(STAMPED_EPIC, encoding="utf-8")
+
+    phase_detail = _NS(
+        issue=_NS(parent_id="sase-1hi.10"),
+        plan=_NS(path="plan:202610/epic.md"),
+    )
+
+    def _fake_design(bead_id: str) -> str | None:
+        assert bead_id == "sase-1hi.10"
+        return "plan:202610/epic.md"
+
+    monkeypatch.setattr(_handoff, "_bead_design_plan", _fake_design)
+
+    import sase.bead.cli_common as _common
+    import sase.bead.cli_detail_resolution as _resolution
+
+    class _FakeView:
+        def __enter__(self) -> _FakeView:
+            return self
+
+        def __exit__(self, *exc_info: object) -> None:
+            return None
+
+    monkeypatch.setattr(_common, "get_read_view", lambda: _FakeView())
+    monkeypatch.setattr(
+        _resolution, "resolve_issue_detail", lambda view, bead_id, **kw: phase_detail
+    )
+
+    artifacts = tmp_path / "phase-artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        _json.dumps({"phase_bead_id": "sase-1hi.10.2"}), encoding="utf-8"
+    )
+    context = _handoff.epic_decision_context(artifacts)
+    assert context is not None
+    assert context.decided_by == "reviewer"
+
+    coder = tmp_path / "coder-artifacts"
+    coder.mkdir()
+    (coder / "agent_meta.json").write_text(
+        _json.dumps({"parent_timestamp": artifacts.name}), encoding="utf-8"
+    )
+    successor = _handoff.epic_decision_context(coder)
+    assert successor is not None
+    assert successor.decided_by == "reviewer"
+
+    (artifacts / "agent_meta.json").write_text(
+        _json.dumps({"phase_bead_id": "sase-missing"}), encoding="utf-8"
+    )
+
+    def _raise_detail(view: object, bead_id: str, **kw: object) -> object:
+        raise ValueError("missing bead")
+
+    monkeypatch.setattr(_resolution, "resolve_issue_detail", _raise_detail)
+    assert _handoff.epic_decision_context(artifacts) is None

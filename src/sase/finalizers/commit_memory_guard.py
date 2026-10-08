@@ -72,10 +72,15 @@ def _canonical_memory_path(repo_relative: str) -> str | None:
 def _is_generated_root_path(repo_relative: str) -> bool:
     """Return whether a repo-relative path is a generated root doc."""
     text = repo_relative.replace("\\", "/").strip()
-    name = text.rsplit("/", 1)[-1]
-    if name in _GENERATED_ROOT_BASENAMES:
+    stripped = text.strip()
+    while stripped.startswith("./"):
+        stripped = stripped[2:]
+    stripped = stripped.lstrip("/")
+    if "/" in stripped:
+        return False
+    if stripped in _GENERATED_ROOT_BASENAMES:
         return True
-    return name == "AGENTS.md.tmpl"
+    return stripped == "AGENTS.md.tmpl"
 
 
 def _classify_changed_path(repo_relative: str) -> tuple[str, str | None]:
@@ -285,7 +290,7 @@ def _plan_candidates_from_env_and_meta(
             candidates.append(value.strip())
     archive_ref = meta.get("plan_archive_ref")
     if isinstance(archive_ref, str) and archive_ref.strip():
-        resolved = _resolve_archive_ref(archive_ref.strip())
+        resolved = _resolve_archive_ref(archive_ref.strip(), _guard_plan_roots(meta))
         if resolved is not None:
             candidates.append(resolved)
     seen: set[str] = set()
@@ -297,21 +302,72 @@ def _plan_candidates_from_env_and_meta(
     return ordered
 
 
-def _resolve_archive_ref(ref: str) -> str | None:
+def _guard_plan_roots(meta: dict[str, Any]) -> tuple[Path, ...]:
+    """Return plan roots for archive-ref resolution, best effort."""
+    roots: list[Path] = []
     try:
-        from sase.sdd.plan_refs import resolve_plan_reference
+        from sase.bead.cli_detail_context import plan_reference_roots
+        from sase.sdd.plan_refs import (
+            resolve_plan_roots,
+            workspace_context_for_plan_resolution,
+        )
+
+        try:
+            roots.extend(plan_reference_roots())
+        except Exception:
+            pass
+        for key in (
+            "agent_project_file",
+            "project_file",
+            "project_dir",
+            "workspace_dir",
+            "workspace",
+        ):
+            raw = meta.get(key)
+            if not isinstance(raw, str) or not raw.strip():
+                continue
+            try:
+                candidate = Path(raw.strip()).expanduser()
+                base = candidate.parent if candidate.suffix else candidate
+                workspace_dir, workspace_num = workspace_context_for_plan_resolution(
+                    base
+                )
+                for root in resolve_plan_roots(workspace_dir, workspace_num):
+                    if root not in roots:
+                        roots.append(root)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return tuple(roots)
+
+
+def _resolve_archive_ref(ref: str, roots: tuple[Path, ...] | None = None) -> str | None:
+    try:
+        from sase.sdd.plan_refs import resolve_plan_reference_from_roots
     except Exception:
         return None
-    for workspace in (Path.cwd(), Path.cwd().resolve(strict=False)):
+    candidate_roots: list[Path] = list(roots or ())
+    if not candidate_roots:
         try:
-            resolution = resolve_plan_reference(
-                ref, workspace_dir=workspace, workspace_num=0
-            )
+            from sase.bead.cli_detail_context import plan_reference_roots
+
+            candidate_roots.extend(plan_reference_roots())
+        except Exception:
+            pass
+    for root_set in (tuple(candidate_roots), ()):
+        try:
+            if not root_set:
+                continue
+            resolution = resolve_plan_reference_from_roots(ref, roots=root_set)
         except Exception:
             continue
         resolved = getattr(resolution, "resolved_path", None)
         if resolved is not None and Path(str(resolved)).is_file():
             return str(resolved)
+    direct = Path(ref.strip().lstrip("@")).expanduser()
+    if direct.is_file():
+        return str(direct)
     return None
 
 
@@ -321,12 +377,22 @@ def _load_sheet_for_plan(plan_path: str) -> tuple[dict[str, Any] | None, str] | 
         from sase.sdd.plan_decision_handoff import load_stamped_decisions
     except Exception:
         return None
-    path = Path(plan_path).expanduser()
+    path = Path(plan_path.strip().lstrip("@")).expanduser()
     if not path.is_file():
-        text = plan_path.strip()
-        if text.startswith("@"):
-            text = text[1:]
-        path = Path(text).expanduser()
+        try:
+            from sase.bead.cli_detail_context import plan_reference_roots
+            from sase.sdd.plan_refs import resolve_plan_reference_from_roots
+
+            roots = plan_reference_roots()
+            if roots:
+                resolution = resolve_plan_reference_from_roots(
+                    plan_path.strip(), roots=roots
+                )
+                resolved = getattr(resolution, "resolved_path", None)
+                if resolved is not None and Path(str(resolved)).is_file():
+                    path = Path(str(resolved))
+        except Exception:
+            pass
         if not path.is_file():
             return None
     try:
@@ -419,8 +485,21 @@ def _collect_committed_paths(
     list_files: Any | None = None,
 ) -> list[str]:
     """Collect repo-relative committed paths from new stitch markers."""
-    lister = list_files or _git_diff_tree_files
+    grouped = _collect_committed_paths_by_repo(markers, list_files=list_files)
     collected: list[str] = []
+    for paths in grouped.values():
+        collected.extend(paths)
+    return collected
+
+
+def _collect_committed_paths_by_repo(
+    markers: list[dict[str, Any]],
+    *,
+    list_files: Any | None = None,
+) -> dict[str, list[str]]:
+    """Group repo-relative committed paths by the marker's ``cwd``."""
+    lister = list_files or _git_diff_tree_files
+    grouped: dict[str, list[str]] = {}
     for marker in markers:
         if not isinstance(marker, dict):
             continue
@@ -436,8 +515,10 @@ def _collect_committed_paths(
             continue
         if not files:
             continue
-        collected.extend(str(item) for item in files if str(item).strip())
-    return collected
+        key = cwd.strip()
+        bucket = grouped.setdefault(key, [])
+        bucket.extend(str(item) for item in files if str(item).strip())
+    return grouped
 
 
 def _build_memory_guard_diagnostics(
@@ -487,12 +568,19 @@ def memory_guard_for_new_markers(
         coverage = _resolve_memory_coverage(artifacts_dir)
         if coverage is None:
             return []
-        changed = _collect_committed_paths(new_markers)
-        if not changed:
+        grouped = _collect_committed_paths_by_repo(new_markers)
+        if not grouped:
             return []
-        return _build_memory_guard_diagnostics(
-            changed, coverage, instance_id=instance_id
-        )
+        if not _collect_committed_paths(new_markers):
+            return []
+        diagnostics: list[FinalizerDiagnosticWire] = []
+        for paths in grouped.values():
+            diagnostics.extend(
+                _build_memory_guard_diagnostics(
+                    paths, coverage, instance_id=instance_id
+                )
+            )
+        return diagnostics
     except Exception:
         return []
 

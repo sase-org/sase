@@ -47,13 +47,28 @@ def issue_detail_wire_dict(
     created_by_url: str | None = None,
     page_url: str | None = None,
     include_links: bool | None = None,
+    plan_roots: tuple[object, ...] = (),
+    design_cwd: object | None = None,
 ) -> dict[str, object]:
     """Return the stable single-bead JSON envelope."""
+    from pathlib import Path as _Path
+
     emit_links = detail.include_links if include_links is None else include_links
     issue_payload = issue_to_wire_dict(detail.issue)
     if not emit_links:
         issue_payload.pop("links", None)
-    decisions_wire = decisions_wire_for_detail(detail)
+    try:
+        _roots = tuple(_Path(str(item)) for item in plan_roots)
+    except Exception:
+        _roots = ()
+    _cwd = None
+    try:
+        _cwd = _Path(str(design_cwd)) if design_cwd is not None else None
+    except Exception:
+        _cwd = None
+    decisions_wire = decisions_wire_for_detail(
+        detail, plan_roots=_roots, design_cwd=_cwd
+    )  # type: ignore[arg-type]
     envelope: dict[str, object] = {
         "issue": issue_payload,
         "decisions": decisions_wire,

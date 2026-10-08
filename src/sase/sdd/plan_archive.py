@@ -145,7 +145,36 @@ def archive_plan_file(
     content = format_with_prettier(content)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(content, encoding="utf-8")
+    _copy_decision_sibling(source, destination, preserve_existing=preserve_existing)
     return _PlanArchiveResult(path=destination, written=True)
+
+
+def _copy_decision_sibling(
+    source: Path, destination: Path, *, preserve_existing: bool
+) -> None:
+    """Copy a frozen-decisions sibling alongside an archived plan."""
+    try:
+        from sase.sdd.plan_decision_freeze import SUFFIX, read_frozen_definitions
+    except Exception:
+        return
+    try:
+        sibling = source.parent / f"{source.stem}{SUFFIX}"
+        if not sibling.is_file():
+            return
+        payload_text = sibling.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return
+    try:
+        dest_sibling = destination.parent / f"{destination.stem}{SUFFIX}"
+        if preserve_existing and dest_sibling.is_file():
+            return
+        # Only copy well-formed freezes; never propagate a corrupt sibling.
+        if read_frozen_definitions(source) is None:
+            return
+        dest_sibling.parent.mkdir(parents=True, exist_ok=True)
+        dest_sibling.write_text(payload_text, encoding="utf-8")
+    except (OSError, UnicodeError):
+        return
 
 
 def _existing_destination_create_time(destination: Path) -> datetime | None:

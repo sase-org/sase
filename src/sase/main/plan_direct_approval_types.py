@@ -70,6 +70,7 @@ class DirectApprovalPlan:
     decide_values: dict[str, Any] = field(default_factory=dict)
     decide_rows: tuple[dict[str, Any], ...] = ()
     decide_sheet: dict[str, Any] | None = None
+    decide_definitions: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)

@@ -181,7 +181,7 @@ def archive_approved_plan(
                 commit_result = commit_sdd_store_files(
                     sdd_store,
                     f"Archive approved plan {src_plan.stem}",
-                    paths=[archived.path],
+                    paths=_archive_commit_paths(archived.path),
                     push_after_commit=resolved_push_mode,
                     artifacts_dir=artifacts_dir,
                     mutation_origin=MutationOrigin.MACHINE,
@@ -234,6 +234,19 @@ def archive_approved_plan(
                 recovery_ref=recovery_ref,
             ) from exc
         return result.value
+
+
+def _archive_commit_paths(archived_path: Path) -> list[Path]:
+    """Return the archived plan plus its frozen-decisions sibling, when present."""
+    try:
+        from sase.sdd.plan_decision_freeze import sibling_path_for_plan
+
+        sibling = sibling_path_for_plan(archived_path)
+        if sibling.is_file():
+            return [archived_path, sibling]
+    except Exception:
+        pass
+    return [archived_path]
 
 
 def _canonical_ref_for(sdd_store: object, path: Path) -> str:

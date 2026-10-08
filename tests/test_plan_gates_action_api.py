@@ -51,21 +51,23 @@ def test_plan_action_api_executes_selected_approval_options(
     )
 
     assert action_result.response_json["selected_option_ids"] == ["commit"]
-    assert action_result.response_json["option_results"] == [
-        {
-            "id": "commit",
-            "result": {
-                "action": "approve",
-                "commit_plan": True,
-                "run_coder": False,
-                "plan_archive_owner": "host",
-                "plan_archive_state": "archived",
-                "plan_archive_protocol": "host_v2",
-                "plan_archive_ref": "plan:202608/host-archived-plan.md",
-                "saved_plan_path": str(stub_host_plan_archive),
-            },
-        }
-    ]
+    [commit_entry] = action_result.response_json["option_results"]
+    assert commit_entry["id"] == "commit"
+    commit_result = dict(commit_entry["result"])
+    assert commit_result.pop("_gate_source") == "plan_response"
+    assert commit_result.pop("_gate_caller") == "human"
+    assert commit_result.pop("decided_by") == "reviewer"
+    assert commit_result.pop("decided_via") == "tui"
+    assert commit_result == {
+        "action": "approve",
+        "commit_plan": True,
+        "run_coder": False,
+        "plan_archive_owner": "host",
+        "plan_archive_state": "archived",
+        "plan_archive_protocol": "host_v2",
+        "plan_archive_ref": "plan:202608/host-archived-plan.md",
+        "saved_plan_path": str(stub_host_plan_archive),
+    }
     translated = translate_plan_gate_response(
         gate.bundle_path, action_result.response_json
     )
@@ -123,7 +125,12 @@ def test_plan_action_api_filters_coder_options_for_commit_preset(
 
     assert action_result.response_json["selected_option_ids"] == ["commit"]
     assert action_result.response_json["input"] == {}
-    assert action_result.response_json["option_results"][0]["result"] == {
+    commit_result = dict(action_result.response_json["option_results"][0]["result"])
+    assert commit_result.pop("_gate_source") == "plan_response"
+    assert commit_result.pop("_gate_caller") == "human"
+    assert commit_result.pop("decided_by") == "reviewer"
+    assert commit_result.pop("decided_via") == "tui"
+    assert commit_result == {
         "action": "approve",
         "commit_plan": True,
         "run_coder": False,

@@ -44,6 +44,9 @@ _MAX_SESSION_LINKS = 50
 _PREV_ARTIFACTS_DIR_KEY = "plan_gate_turn_prev_artifacts_dir"
 _GATE_BUNDLE_PATH_KEY = "gate_bundle_path"
 _QUESTION_RESPONSE_PATH_KEY = "question_response_path"
+_QUESTION_GATE_ARTIFACTS_DIR_KEY = "question_gate_artifacts_dir"
+_QUESTION_PREV_ARTIFACTS_DIR_KEY = "question_prev_artifacts_dir"
+_MAX_QUESTION_LINKS = 200
 
 _PARENT_TIMESTAMP_KEYS = (
     "parent_timestamp",
@@ -52,7 +55,7 @@ _PARENT_TIMESTAMP_KEYS = (
 
 
 @dataclass(frozen=True)
-class HumanText:
+class _HumanText:
     """One human-written text with its provenance pointer."""
 
     source: str
@@ -60,7 +63,7 @@ class HumanText:
     text: str
 
 
-def human_authored_texts(artifacts_dir: str) -> tuple[HumanText, ...]:
+def human_authored_texts(artifacts_dir: str) -> tuple[_HumanText, ...]:
     """Return every human-written text reachable from *artifacts_dir*.
 
     Walks the planner's own metadata and its plan-gate-turn chain
@@ -74,7 +77,7 @@ def human_authored_texts(artifacts_dir: str) -> tuple[HumanText, ...]:
         return ()
     chain = _plan_gate_turn_chain(artifacts_dir, head_meta)
     root_dir = _chain_root(artifacts_dir, head_meta, chain)
-    texts: list[HumanText] = []
+    texts: list[_HumanText] = []
     root_text = _root_prompt_text(root_dir)
     if root_text is not None:
         texts.append(root_text)
@@ -153,7 +156,7 @@ def _session_root(head_artifacts_dir: str, head_meta: Mapping[str, Any]) -> str:
     return current
 
 
-def _root_prompt_text(root_dir: str) -> HumanText | None:
+def _root_prompt_text(root_dir: str) -> _HumanText | None:
     """Return the root's launch-boundary prompt when it is human-typed."""
     meta = _read_meta(root_dir)
     if meta.get("prompt_origin") != "typed":
@@ -166,10 +169,10 @@ def _root_prompt_text(root_dir: str) -> HumanText | None:
     text = _read_text(path)
     if not text:
         return None
-    return HumanText(source=ROOT_PROMPT_SOURCE, ref=path, text=text)
+    return _HumanText(source=ROOT_PROMPT_SOURCE, ref=path, text=text)
 
 
-def _plan_feedback_texts(link_dir: str) -> list[HumanText]:
+def _plan_feedback_texts(link_dir: str) -> list[_HumanText]:
     """Return human-caller feedback bullets for one plan-turn link."""
     meta = _read_meta(link_dir)
     bundle = meta.get(_GATE_BUNDLE_PATH_KEY)
@@ -195,7 +198,7 @@ def _plan_feedback_texts(link_dir: str) -> list[HumanText]:
     if not isinstance(feedback, str) or not feedback.strip():
         return []
     return [
-        HumanText(
+        _HumanText(
             source=PLAN_FEEDBACK_SOURCE,
             ref=response_path,
             text=feedback.strip(),
@@ -203,9 +206,81 @@ def _plan_feedback_texts(link_dir: str) -> list[HumanText]:
     ]
 
 
-def _question_texts(link_dir: str) -> list[HumanText]:
+def _question_chain_members(head: str) -> tuple[str, ...]:
+    """Return question-round members oldest first, walking back from *head*."""
+    chain: list[str] = [head]
+    seen = {os.path.abspath(head)}
+    current = head
+    while len(chain) < _MAX_QUESTION_LINKS:
+        meta = _read_meta(current)
+        prev = meta.get(_QUESTION_PREV_ARTIFACTS_DIR_KEY)
+        if not isinstance(prev, str) or not prev:
+            break
+        sibling = _existing_artifacts_dir(prev)
+        if sibling is None or sibling in seen:
+            break
+        chain.append(sibling)
+        seen.add(sibling)
+        current = sibling
+    chain.reverse()
+    return tuple(chain)
+
+
+def _question_member_texts(member_dir: str) -> list[_HumanText]:
+    """Return human-caller Q&A free text for one question-round member."""
+    meta = _read_meta(member_dir)
+    bundle = meta.get(_GATE_BUNDLE_PATH_KEY)
+    if not isinstance(bundle, str) or not bundle:
+        return []
+    response_path = os.path.join(bundle, "response.json")
+    response = _read_json_object(response_path)
+    if response is None or not _is_human_response(response):
+        return []
+    try:
+        from sase.user_question_actions import QUESTION_OPTION_ID
+    except Exception:
+        return []
+    result = _submit_result(response, QUESTION_OPTION_ID)
+    if result is None:
+        return []
+    texts: list[_HumanText] = []
+    answers = result.get("answers")
+    if isinstance(answers, list):
+        for index, answer in enumerate(answers):
+            if not isinstance(answer, dict):
+                continue
+            free = answer.get("custom_feedback")
+            if isinstance(free, str) and free.strip():
+                texts.append(
+                    _HumanText(
+                        source=QUESTION_ANSWER_SOURCE,
+                        ref=f"{response_path}#answer-{index}",
+                        text=free.strip(),
+                    )
+                )
+    note = response.get("feedback")
+    if isinstance(note, str) and note.strip():
+        texts.append(
+            _HumanText(
+                source=QUESTION_NOTE_SOURCE,
+                ref=response_path,
+                text=note.strip(),
+            )
+        )
+    return texts
+
+
+def _question_texts(link_dir: str) -> list[_HumanText]:
     """Return human-caller Q&A free text for one plan-turn link."""
     meta = _read_meta(link_dir)
+    head = meta.get(_QUESTION_GATE_ARTIFACTS_DIR_KEY)
+    if isinstance(head, str) and head:
+        live = _existing_artifacts_dir(head)
+        if live is not None:
+            texts: list[_HumanText] = []
+            for member in _question_chain_members(live):
+                texts.extend(_question_member_texts(member))
+            return texts
     response_path = meta.get(_QUESTION_RESPONSE_PATH_KEY)
     if not isinstance(response_path, str) or not response_path:
         return []
@@ -219,7 +294,7 @@ def _question_texts(link_dir: str) -> list[HumanText]:
     result = _submit_result(response, QUESTION_OPTION_ID)
     if result is None:
         return []
-    texts: list[HumanText] = []
+    texts = []
     answers = result.get("answers")
     if isinstance(answers, list):
         for index, answer in enumerate(answers):
@@ -228,7 +303,7 @@ def _question_texts(link_dir: str) -> list[HumanText]:
             free = answer.get("custom_feedback")
             if isinstance(free, str) and free.strip():
                 texts.append(
-                    HumanText(
+                    _HumanText(
                         source=QUESTION_ANSWER_SOURCE,
                         ref=f"{response_path}#answer-{index}",
                         text=free.strip(),
@@ -239,7 +314,7 @@ def _question_texts(link_dir: str) -> list[HumanText]:
     note = response.get("feedback")
     if isinstance(note, str) and note.strip():
         texts.append(
-            HumanText(
+            _HumanText(
                 source=QUESTION_NOTE_SOURCE,
                 ref=response_path,
                 text=note.strip(),
@@ -315,6 +390,5 @@ def _sibling_artifacts_dir(current_dir: str, timestamp: str) -> str | None:
 
 
 __all__ = [
-    "HumanText",
     "human_authored_texts",
 ]

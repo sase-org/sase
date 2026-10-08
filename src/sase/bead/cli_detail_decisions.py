@@ -41,17 +41,24 @@ def _resolve_design_file(
     design_cwd: Path | None = None,
 ) -> Path | None:
     """Resolve a bead design-plan reference to an existing file, else ``None``."""
-    candidate = Path(plan_path).expanduser()
+    raw = str(plan_path or "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser()
     if candidate.is_file():
         return candidate
-    roots: list[Path] = []
-    if design_cwd is not None:
-        roots.append(Path(design_cwd))
-    roots.extend(plan_roots)
-    for root in roots:
-        resolved = (root / candidate).expanduser()
-        if resolved.is_file():
-            return resolved
+    try:
+        from sase.sdd.plan_ref_display import describe_design_reference
+
+        roots = tuple(Path(item) for item in plan_roots)
+        cwd = Path(design_cwd) if design_cwd is not None else Path.cwd()
+        display = describe_design_reference(raw, roots=roots, cwd=cwd)
+        if display.resolved_path is not None:
+            resolved = Path(str(display.resolved_path)).expanduser()
+            if resolved.is_file():
+                return resolved
+    except Exception:
+        pass
     return None
 
 
@@ -88,9 +95,8 @@ def decisions_wire_for_detail(
     )
     if plan_file is None:
         return None
-    tier = "epic" if audience == _EPIC_LAND_AUDIENCE else "tale"
     try:
-        stamped = load_stamped_decisions(plan_file, tier)
+        stamped = load_stamped_decisions(plan_file, "epic")
     except Exception:
         return None
     if stamped is None:
@@ -102,7 +108,6 @@ def render_decisions_content_lines(wire: dict[str, Any]) -> list[str]:
     """Render the DECISIONS body lines (without the section header)."""
     try:
         from sase.sdd._plan_display_decisions import (
-            accepted_decisions_text,
             decision_text_lines,
             pending_decisions_text,
         )
@@ -112,15 +117,44 @@ def render_decisions_content_lines(wire: dict[str, Any]) -> list[str]:
     if not isinstance(sheet, dict):
         return []
     via = wire.get("decided_via")
+    audience = wire.get("audience")
     if wire.get("decided_by") is not None:
-        text = accepted_decisions_text(
-            sheet,
-            str(wire.get("decided_by") or ""),
-            via if isinstance(via, str) else None,
-        )
+        if audience in (_EPIC_PHASE_AUDIENCE, _EPIC_LAND_AUDIENCE):
+            try:
+                from sase.sdd.plan_decisions import prompt_block_binding
+
+                text: Any = prompt_block_binding(
+                    sheet,
+                    str(wire.get("decided_by") or ""),
+                    via if isinstance(via, str) else None,
+                    str(audience),
+                )
+            except Exception:
+                return []
+        else:
+            try:
+                from sase.sdd._plan_display_decisions import accepted_decisions_text
+
+                text = accepted_decisions_text(
+                    sheet,
+                    str(wire.get("decided_by") or ""),
+                    via if isinstance(via, str) else None,
+                )
+            except Exception:
+                return []
     else:
-        text = pending_decisions_text(sheet)
-    return [f"  {line}" for line in decision_text_lines(text)]
+        try:
+            text = pending_decisions_text(sheet)
+        except Exception:
+            return []
+    try:
+        if isinstance(text, str):
+            lines = text.splitlines()
+        else:
+            lines = decision_text_lines(text)
+    except Exception:
+        return []
+    return [f"  {line}" for line in lines]
 
 
 __all__ = [

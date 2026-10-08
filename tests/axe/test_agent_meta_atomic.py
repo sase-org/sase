@@ -137,12 +137,22 @@ def test_generic_and_specialized_agent_meta_writers_use_atomic_publication(
     assert generic_meta["tribe"] == "review"
     assert "tag" not in generic_meta
     assert meta == generic_meta
-    assert specialized_meta == {
+    expected_specialized = {
         "pid": 123,
         "model": "model-a",
         "llm_provider": "provider-a",
         "vcs_provider": "Git",
         "tribe": "review",
         "process_identity": "boot-a:123",
+    }
+    stripped = {
+        key: value
+        for key, value in specialized_meta.items()
+        if key not in ("prompt_origin", "prompt_source_surface")
+    }
+    assert stripped == expected_specialized
+    assert set(specialized_meta) - set(expected_specialized) == {
+        "prompt_origin",
+        "prompt_source_surface",
     }
     assert calls == [str(generic_dir), str(specialized_dir)]

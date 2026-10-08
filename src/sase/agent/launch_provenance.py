@@ -49,7 +49,7 @@ def normalize_prompt_source_surface(value: object) -> str:
     return _UNKNOWN
 
 
-def prompt_origin_for_launch(
+def _prompt_origin_for_launch(
     origin: PromptOrigin | None,
     *,
     launch_envs: tuple[Mapping[str, str] | None, ...] = (),
@@ -89,7 +89,7 @@ def with_launch_provenance(
     already carries a valid origin, that value is kept and only a
     missing surface is filled. The input mapping is never mutated.
     """
-    resolved_origin = prompt_origin_for_launch(
+    resolved_origin = _prompt_origin_for_launch(
         origin, launch_envs=(extra_env, *launch_envs)
     )
     stamped = dict(extra_env or {})
@@ -174,7 +174,6 @@ __all__ = [
     "fill_launch_provenance_default",
     "normalize_prompt_origin",
     "normalize_prompt_source_surface",
-    "prompt_origin_for_launch",
     "read_launch_provenance",
     "stamp_segment_provenance",
     "with_launch_provenance",

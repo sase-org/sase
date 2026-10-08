@@ -68,6 +68,51 @@ def _frontmatter_tier(path: Path) -> str:
     return "tale"
 
 
+def _synthetic_accepted_definitions(plan: Any) -> list[dict[str, Any]]:
+    """Build neutral accepted definitions from authored decisions and answers.
+
+    Each definition uses the authored ``default`` as ``effective_default``
+    (no clamping), copies ``ask``, choice keys/labels, ``why``, and memory
+    selectors, leaves ``resolved`` empty, and omits ``provenance`` so no
+    chip or warning appears.
+    """
+    definitions: list[dict[str, Any]] = []
+    for decision in getattr(plan, "decisions", ()):
+        decision_id = str(getattr(decision, "id", "") or "")
+        if not decision_id:
+            continue
+        choices = [
+            {"key": str(choice.key), "label": str(choice.label)}
+            for choice in getattr(decision, "choices", ())
+        ]
+        kind = str(getattr(decision, "kind", "") or "")
+        if kind not in ("choice", "toggle"):
+            kind = "choice" if choices else "toggle"
+        default = getattr(decision, "default", None)
+        entry: dict[str, Any] = {
+            "id": decision_id,
+            "kind": kind,
+            "ask": str(getattr(decision, "ask", "") or ""),
+            "default": default,
+            "effective_default": default,
+            "resolved": [],
+        }
+        why = getattr(decision, "why", None)
+        if why is not None:
+            entry["why"] = why
+        if choices:
+            entry["choices"] = choices
+        memory = getattr(decision, "memory", None)
+        if memory is not None:
+            try:
+                selectors = [str(item) for item in memory]
+            except TypeError:
+                selectors = []
+            entry["memory"] = {"selectors": selectors}
+        definitions.append(entry)
+    return definitions
+
+
 def load_stamped_decisions(
     plan_path: str | Path, tier: str | None = None
 ) -> StampedDecisions | None:
@@ -76,6 +121,11 @@ def load_stamped_decisions(
     Returns ``None`` when the plan has no ``decisions:`` map or anything fails
     to resolve. Both stamped (accepted) and unstamped (pending) plans load;
     ``decided_by`` is ``None`` for pending plans.
+
+    Accepted plans (``decided_by`` set) never touch the reader's environment:
+    they render from the frozen sibling, else from a neutral synthesis of the
+    authored map plus stamped answers. Pending plans keep the live
+    ``build_definitions`` path.
     """
     try:
         from sase.sdd.plan_decisions import (
@@ -99,7 +149,19 @@ def load_stamped_decisions(
         plan = getattr(validation, "plan", None)
         if plan is None or not getattr(plan, "decisions", ()):
             return None
-        definitions = build_definitions(validation, "")
+        decided_by = getattr(plan, "decided_by", None)
+        if decided_by is not None:
+            from sase.sdd.plan_decision_freeze import read_frozen_definitions
+
+            try:
+                frozen = read_frozen_definitions(path)
+            except Exception:
+                frozen = None
+            definitions = frozen if frozen else _synthetic_accepted_definitions(plan)
+            if not definitions:
+                return None
+        else:
+            definitions = build_definitions(validation, "")
         values = {
             str(decision.id): decision.answer
             for decision in plan.decisions
@@ -162,57 +224,265 @@ def coder_decisions_block(
         return ""
 
 
-def _epic_plan_candidates(meta: dict[str, Any]) -> list[str]:
-    """Return epic plan file candidates from agent metadata, best first."""
-    candidates: list[str] = []
-    for key in ("epic_plan_snapshot", "epic_plan_ref"):
-        value = meta.get(key)
-        if isinstance(value, str) and value.strip():
-            candidates.append(value.strip())
-    return candidates
+def _agent_plan_roots(meta: dict[str, Any]) -> tuple[Path, ...]:
+    """Return the agent's project plan roots, best effort, never raising."""
+    roots: list[Path] = []
+    try:
+        from sase.bead.cli_detail_context import plan_reference_roots
+        from sase.sdd.plan_refs import (
+            resolve_plan_roots,
+            workspace_context_for_plan_resolution,
+        )
+
+        try:
+            roots.extend(plan_reference_roots())
+        except Exception:
+            pass
+        for key in (
+            "agent_project_file",
+            "project_file",
+            "project_dir",
+            "workspace_dir",
+            "workspace",
+        ):
+            raw = meta.get(key)
+            if not isinstance(raw, str) or not raw.strip():
+                continue
+            try:
+                candidate = Path(raw.strip()).expanduser()
+                base = candidate.parent if candidate.suffix else candidate
+                workspace_dir, workspace_num = workspace_context_for_plan_resolution(
+                    base
+                )
+                for root in resolve_plan_roots(workspace_dir, workspace_num):
+                    if root not in roots:
+                        roots.append(root)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return tuple(roots)
 
 
-def _resolve_plan_file(candidate: str) -> Path | None:
+def _resolve_plan_file(candidate: str, *, roots: tuple[Path, ...] = ()) -> Path | None:
     """Resolve an epic plan ref to an existing file, else ``None`` (closed)."""
     text = candidate.strip()
     if text.startswith("@"):
         text = text[1:]
+    if not text:
+        return None
     path = Path(text).expanduser()
     if path.is_file():
         return path
+    if roots:
+        try:
+            from sase.sdd.plan_refs import resolve_plan_reference_from_roots
+
+            resolution = resolve_plan_reference_from_roots(text, roots=roots)
+            resolved = getattr(resolution, "resolved_path", None)
+            if resolved is not None and Path(str(resolved)).is_file():
+                return Path(str(resolved))
+        except Exception:
+            pass
     return None
+
+
+def _read_agent_meta(artifacts_dir: str | Path) -> dict[str, Any] | None:
+    """Return an artifacts dir's agent metadata dict, else ``None``."""
+    import json as _json
+
+    try:
+        meta_path = Path(str(artifacts_dir)).expanduser() / "agent_meta.json"
+        meta = _json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        return None
+    return meta if isinstance(meta, dict) else None
+
+
+def _bead_design_plan(bead_id: str) -> str | None:
+    """Return a bead's design plan string via the bead-read store API."""
+    raw = str(bead_id or "").strip()
+    if not raw:
+        return None
+    try:
+        from sase.bead.cli_common import get_read_view
+        from sase.bead.cli_detail_resolution import resolve_issue_detail
+    except Exception:
+        return None
+    try:
+        with get_read_view() as view:
+            detail = resolve_issue_detail(view, raw, include_links=False)
+    except Exception:
+        return None
+    try:
+        plan = getattr(detail, "plan", None)
+        path = str(getattr(plan, "path", "") or "").strip()
+        return path or None
+    except Exception:
+        return None
+
+
+def _stamped_epic_from_design(
+    design: str | None, *, roots: tuple[Path, ...]
+) -> EpicDecisionContext | None:
+    """Resolve one design plan string to its stamped epic sheet, if accepted."""
+    if not design or not design.strip():
+        return None
+    plan_file = _resolve_plan_file(design.strip(), roots=roots)
+    if plan_file is None:
+        return None
+    try:
+        stamped = load_stamped_decisions(plan_file, "epic")
+    except Exception:
+        return None
+    if stamped is None or stamped.decided_by is None:
+        return None
+    return EpicDecisionContext(
+        sheet=stamped.sheet,
+        epic_title=stamped.title,
+        decided_by=stamped.decided_by,
+        decided_via=stamped.decided_via,
+    )
+
+
+def _epic_context_from_meta(meta: dict[str, Any]) -> EpicDecisionContext | None:
+    """Resolve an epic sheet from one agent meta, in order, else ``None``."""
+    roots = _agent_plan_roots(meta)
+    snapshot = meta.get("epic_plan_snapshot")
+    if isinstance(snapshot, str) and snapshot.strip():
+        direct = Path(snapshot.strip().lstrip("@")).expanduser()
+        if direct.is_file():
+            try:
+                stamped = load_stamped_decisions(direct, "epic")
+            except Exception:
+                stamped = None
+            if stamped is not None and stamped.decided_by is not None:
+                return EpicDecisionContext(
+                    sheet=stamped.sheet,
+                    epic_title=stamped.title,
+                    decided_by=stamped.decided_by,
+                    decided_via=stamped.decided_via,
+                )
+    ref = meta.get("epic_plan_ref")
+    if isinstance(ref, str) and ref.strip():
+        found = _stamped_epic_from_design(ref.strip(), roots=roots)
+        if found is not None:
+            return found
+    phase_bead_id = meta.get("phase_bead_id")
+    if isinstance(phase_bead_id, str) and phase_bead_id.strip():
+        try:
+            from sase.bead.cli_common import get_read_view
+            from sase.bead.cli_detail_resolution import resolve_issue_detail
+        except Exception:
+            phase_detail = None
+        else:
+            try:
+                with get_read_view() as view:
+                    phase_detail = resolve_issue_detail(
+                        view, phase_bead_id.strip(), include_links=False
+                    )
+            except Exception:
+                phase_detail = None
+        if phase_detail is not None:
+            try:
+                issue = getattr(phase_detail, "issue", None)
+                parent_id = str(getattr(issue, "parent_id", "") or "").strip()
+            except Exception:
+                parent_id = ""
+            if parent_id:
+                design = _bead_design_plan(parent_id)
+                found = _stamped_epic_from_design(design, roots=roots)
+                if found is not None:
+                    return found
+    epic_bead_id = meta.get("epic_bead_id")
+    if isinstance(epic_bead_id, str) and epic_bead_id.strip():
+        design = _bead_design_plan(epic_bead_id.strip())
+        found = _stamped_epic_from_design(design, roots=roots)
+        if found is not None:
+            return found
+    return None
+
+
+def _ancestor_metas(
+    artifacts_dir: str | Path, head_meta: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Return ancestor metas via session parent links, bounded, oldest first."""
+    try:
+        from sase.sdd.plan_human_text import _MAX_SESSION_LINKS as _bound
+    except Exception:
+        _bound = 50
+    try:
+        current = str(Path(str(artifacts_dir)).expanduser().resolve(strict=False))
+    except Exception:
+        return []
+    seen = {current}
+    metas: list[dict[str, Any]] = []
+    meta: dict[str, Any] = head_meta
+    import os as _os
+
+    for _ in range(int(_bound)):
+        parent: str | None = None
+        for key in ("parent_timestamp", "plan_chain_parent_timestamp"):
+            raw = meta.get(key)
+            if isinstance(raw, str) and raw.strip():
+                stamp = raw.strip()
+                if not stamp or "/" in stamp or "\\" in stamp or stamp in (".", ".."):
+                    continue
+                candidate = _os.path.join(_os.path.dirname(current), stamp)
+                try:
+                    sibling = _os.path.abspath(candidate)
+                except Exception:
+                    continue
+                if sibling in seen or not _os.path.isdir(sibling):
+                    continue
+                if not _os.path.isfile(_os.path.join(sibling, "agent_meta.json")):
+                    continue
+                parent = sibling
+                break
+        if parent is None:
+            break
+        seen.add(parent)
+        current = parent
+        ancestor = _read_agent_meta(parent)
+        if not ancestor:
+            break
+        metas.append(ancestor)
+        meta = ancestor
+    return metas
 
 
 def epic_decision_context(artifacts_dir: str | Path) -> EpicDecisionContext | None:
     """Resolve a phase or land agent's epic to its accepted decision sheet.
 
-    Reads ``epic_plan_snapshot`` (frozen at launch) then ``epic_plan_ref`` from
-    the agent's ``agent_meta.json``. Fails closed: anything unresolvable —
-    missing metadata, missing file, unstamped or decision-free epic plan —
-    yields ``None`` and the caller inherits nothing.
+    Resolves, in order: the launch-time snapshot file, the ``epic_plan_ref``
+    through project plan roots, the ``phase_bead_id`` parent epic design, the
+    ``epic_bead_id`` design, then the same steps on each session ancestor (so
+    a phase planner's coder successor inherits). Fails closed: an unstamped
+    epic, a missing bead, a cycle, or an unreadable meta yields ``None``.
     """
-    import json
-
-    try:
-        meta_path = Path(str(artifacts_dir)).expanduser() / "agent_meta.json"
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValueError):
+    head = _read_agent_meta(artifacts_dir)
+    if head is None:
         return None
-    if not isinstance(meta, dict):
-        return None
-    for candidate in _epic_plan_candidates(meta):
-        plan_file = _resolve_plan_file(candidate)
-        if plan_file is None:
+    seen_markers: set[tuple[str, str, str, str]] = set()
+    for meta in [head, *_ancestor_metas(artifacts_dir, head)]:
+        try:
+            marker = (
+                str(meta.get("epic_plan_snapshot") or ""),
+                str(meta.get("epic_plan_ref") or ""),
+                str(meta.get("phase_bead_id") or ""),
+                str(meta.get("epic_bead_id") or ""),
+            )
+        except Exception:
+            marker = ("", "", "", "")
+        if marker in seen_markers:
             continue
-        stamped = load_stamped_decisions(plan_file, "epic")
-        if stamped is None or stamped.decided_by is None:
-            continue
-        return EpicDecisionContext(
-            sheet=stamped.sheet,
-            epic_title=stamped.title,
-            decided_by=stamped.decided_by,
-            decided_via=stamped.decided_via,
-        )
+        seen_markers.add(marker)
+        try:
+            found = _epic_context_from_meta(meta)
+        except Exception:
+            found = None
+        if found is not None:
+            return found
     return None
 
 

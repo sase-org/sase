@@ -314,3 +314,58 @@ def test_approve_action_response_contributes_no_feedback(tmp_path: Path) -> None
     grouped = _sources(head)
     assert grouped["root_prompt"] == ["please edit tui.md"]
     assert "plan_feedback" not in grouped
+
+
+def test_three_round_question_chain_returns_first_round_quote_only(
+    tmp_path: Path,
+) -> None:
+    round1 = _write_question_bundle(
+        tmp_path,
+        "r1",
+        answers=[{"selected": ["pane"], "custom_feedback": "quote the footer order"}],
+        feedback=None,
+        caller="human",
+        source="tui",
+    )
+    round2 = _write_question_bundle(
+        tmp_path,
+        "r2",
+        answers=[{"selected": ["mode"], "custom_feedback": ""}],
+        feedback=None,
+        caller="human",
+        source="tui",
+    )
+    round3 = _write_question_bundle(
+        tmp_path,
+        "r3",
+        answers=[{"selected": ["pane"], "custom_feedback": "   "}],
+        feedback=None,
+        caller="human",
+        source="tui",
+    )
+    member1 = tmp_path / "qmember1"
+    member2 = tmp_path / "qmember2"
+    member3 = tmp_path / "qmember3"
+    _write_meta(member1, {"gate_bundle_path": str(round1)})
+    _write_meta(
+        member2,
+        {
+            "gate_bundle_path": str(round2),
+            "question_prev_artifacts_dir": str(member1),
+        },
+    )
+    _write_meta(
+        member3,
+        {
+            "gate_bundle_path": str(round3),
+            "question_prev_artifacts_dir": str(member2),
+        },
+    )
+    head = _write_planner(tmp_path, "plan", submitted_prompt=None)
+    _write_meta(
+        head,
+        {"question_gate_artifacts_dir": str(member3)},
+    )
+    texts = list(human_authored_texts(str(head)))
+    assert [item.text for item in texts] == ["quote the footer order"]
+    assert all("mode" not in item.text for item in texts)

@@ -81,6 +81,39 @@ def _stamp_is_complete_and_identical(
     return True
 
 
+def _bundle_definitions(
+    notification: PlanApprovalActionContext,
+) -> list[dict[str, Any]] | None:
+    """Return frozen ``payload.decisions`` from the gate bundle, if present."""
+    from pathlib import Path as _Path
+
+    candidates: list[str] = []
+    try:
+        data = getattr(notification, "host_action_data", {})
+        for key in ("bundle_path", "response_dir"):
+            raw = data.get(key) if isinstance(data, dict) else None
+            if isinstance(raw, str) and raw.strip():
+                candidates.append(raw.strip())
+    except Exception:
+        return None
+    for raw_bundle in candidates:
+        try:
+            from sase.notification_gates.durability import read_json_object as _read
+
+            envelope = _read(_Path(raw_bundle) / "request.json")
+        except Exception:
+            continue
+        if not isinstance(envelope, dict):
+            continue
+        payload = envelope.get("payload")
+        definitions = payload.get("decisions") if isinstance(payload, dict) else None
+        if isinstance(definitions, list) and definitions:
+            cleaned = [dict(item) for item in definitions if isinstance(item, dict)]
+            if cleaned:
+                return cleaned
+    return None
+
+
 def stamp_durable_plan(
     notification: PlanApprovalActionContext,
     result: dict[str, Any],
@@ -136,6 +169,13 @@ def stamp_durable_plan(
                 "durable plan already stamped with a different surface",
             )
         if _stamp_is_complete_and_identical(raw_decisions, updated, decisions):
+            from sase.sdd.plan_decision_freeze import (
+                write_frozen_definitions_if_missing,
+            )
+
+            write_frozen_definitions_if_missing(
+                durable, _bundle_definitions(notification)
+            )
             return
         if _durable_answers_complete(raw_decisions):
             raise PlanApprovalActionError(
@@ -153,6 +193,12 @@ def stamp_durable_plan(
         raise PlanApprovalActionError(
             "plan_archive_failed", str(durable), f"cannot stamp durable plan: {exc}"
         ) from exc
+    try:
+        from sase.sdd.plan_decision_freeze import write_frozen_definitions_if_missing
+
+        write_frozen_definitions_if_missing(durable, _bundle_definitions(notification))
+    except Exception:
+        pass
 
 
 def _stamp_coordinates(source: str, caller: str) -> tuple[str, str | None]:
@@ -188,6 +234,7 @@ def stamp_direct_file(
     *,
     decided_by: str,
     decided_via: str | None,
+    definitions: list[dict[str, Any]] | None = None,
 ) -> None:
     """Stamp resolved answers into a direct-approval plan file."""
     if not values:
@@ -227,6 +274,15 @@ def stamp_direct_file(
                 "plan already stamped with a different surface",
             )
         if _stamp_is_complete_and_identical(raw_decisions, updated, values):
+            if definitions:
+                try:
+                    from sase.sdd.plan_decision_freeze import (
+                        write_frozen_definitions_if_missing,
+                    )
+
+                    write_frozen_definitions_if_missing(plan_path, definitions)
+                except Exception:
+                    pass
             return
         if _durable_answers_complete(raw_decisions):
             raise PlanApprovalActionError(
@@ -240,6 +296,15 @@ def stamp_direct_file(
         fields["decided_via"] = decided_via
     stamped = set_frontmatter_fields(content, fields)
     plan_path.write_text(stamped, encoding="utf-8")
+    if definitions:
+        try:
+            from sase.sdd.plan_decision_freeze import (
+                write_frozen_definitions_if_missing,
+            )
+
+            write_frozen_definitions_if_missing(plan_path, definitions)
+        except Exception:
+            pass
 
 
 __all__ = ["stamp_direct_file", "stamp_durable_plan"]

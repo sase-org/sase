@@ -67,6 +67,7 @@ def record_workflow_metadata(
         "questions_submitted_at",
         "question_request_path",
         "question_response_path",
+        "question_gate_artifacts_dir",
         "question_session_id",
         "followup_agent_name",
     }

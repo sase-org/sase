@@ -303,8 +303,8 @@ def _stamp_bead_work_decisions(
 ) -> None:
     """Stamp effective defaults for a gateless epic approval, once.
 
-    Uses the fail-closed shell classifier (a human shell stamps
-    ``reviewer`` via ``cli``; an agent shell stamps ``agent`` via ``cli``).
+    Uses the fail-closed turn classifier (a human turn stamps
+    ``reviewer`` via ``cli``; an agent turn stamps ``agent`` via ``cli``).
     Resolution and stamp failures propagate instead of being swallowed.
     Dry run resolves and validates but never stamps. Already stamped plans
     reuse their accepted answers; partial or conflicting stamps raise.
@@ -354,11 +354,23 @@ def _stamp_bead_work_decisions(
     values = resolved.get("values") if isinstance(resolved, dict) else {}
     if not isinstance(values, dict) or not values:
         return
+    raw_definitions = (
+        resolved.get("definitions") if isinstance(resolved, dict) else None
+    )
+    definitions = (
+        [dict(item) for item in raw_definitions]
+        if isinstance(raw_definitions, list)
+        else None
+    )
     from sase.plan_gate_stamp import stamp_direct_file
 
     try:
         stamp_direct_file(
-            source_path, dict(values), decided_by=decided_by, decided_via="cli"
+            source_path,
+            dict(values),
+            decided_by=decided_by,
+            decided_via="cli",
+            definitions=definitions,
         )
     except Exception as exc:
         raise PlanFileWorkError(f"plan decisions failed to stamp: {exc}") from exc
@@ -403,6 +415,19 @@ def _reuse_stamped_bead_work_answers(
                     f"stamped plan answer for {decision_id!r} conflicts with "
                     "effective defaults"
                 )
+    try:
+        from sase.sdd.plan_decision_freeze import write_frozen_definitions_if_missing
+
+        raw_definitions = (
+            resolved.get("definitions") if isinstance(resolved, dict) else None
+        )
+        if isinstance(raw_definitions, list) and raw_definitions:
+            write_frozen_definitions_if_missing(
+                source_path,
+                [dict(item) for item in raw_definitions if isinstance(item, dict)],
+            )
+    except Exception:
+        pass
 
 
 def _launch_hooks() -> _PlanFileWorkLaunchHooks:

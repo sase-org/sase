@@ -971,6 +971,20 @@ Agent completion and failure events from hidden background agents still write a
 notification row, but with the silent flag set. This keeps the JSONL audit trail
 complete while keeping the inbox focused on user-facing agent work.
 
+### Plan decision `%auto` receipts
+
+When a plan or epic gate with at least one decision auto-resolves (`source`
+`auto_resolution`), sase posts one quiet receipt notification:
+
+- `action` is null, so it is not a gate and opens nothing;
+- `silent` is true and `muted` is left false;
+- tag `plan_decisions_receipt`;
+- dedup key `plan-decisions-receipt-<request id>`;
+- plans with no decisions post nothing.
+
+Visibility follows the Silent Notifications rules above: no unread bump, no toast, no
+bell, no modal, and no Telegram delivery, while remaining visible to `sase notify list`.
+
 ## Tags
 
 Senders may attach `tags` to a notification. Tags are normalized when notifications are

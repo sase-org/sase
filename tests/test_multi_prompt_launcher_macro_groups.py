@@ -188,12 +188,30 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_macro_group_counter(
         )
 
     kwargs = launch_multi.call_args.kwargs
-    assert kwargs["segment_extra_env"] == [
+    stripped_env = [
+        (
+            None
+            if entry is None
+            else {
+                key: value
+                for key, value in entry.items()
+                if key not in ("SASE_PROMPT_ORIGIN", "SASE_PROMPT_SOURCE_SURFACE")
+            }
+        )
+        for entry in kwargs["segment_extra_env"]
+    ]
+    assert stripped_env == [
         {"SLOT": "one"},
         {"SLOT": "one"},
         {"SLOT": "two"},
         {"SLOT": "two"},
     ]
+    for entry in kwargs["segment_extra_env"]:
+        assert entry is not None
+        assert set(entry) - {"SLOT"} == {
+            "SASE_PROMPT_ORIGIN",
+            "SASE_PROMPT_SOURCE_SURFACE",
+        }
     assert kwargs["segment_template_groups"] == [
         "macro:swarm:0",
         "macro:swarm:0",
@@ -255,12 +273,29 @@ def test_launch_agents_from_cwd_force_reuse_marker_applies_to_first_swarm_slot_o
         )
 
     kwargs = launch_multi.call_args.kwargs
-    assert kwargs["segment_extra_env"] == [
+    stripped_env = [
+        (
+            None
+            if entry is None
+            else {
+                key: value
+                for key, value in entry.items()
+                if key not in ("SASE_PROMPT_ORIGIN", "SASE_PROMPT_SOURCE_SURFACE")
+            }
+        )
+        for entry in kwargs["segment_extra_env"]
+    ]
+    assert stripped_env == [
         marker,
         None,
         {"SLOT": "two"},
         {"SLOT": "two"},
     ]
+    assert SASE_AGENT_FORCE_REUSE_BEAD_ENV in kwargs["segment_extra_env"][0]
+    for entry in kwargs["segment_extra_env"][1:]:
+        if entry is None:
+            continue
+        assert SASE_AGENT_FORCE_REUSE_BEAD_ENV not in entry
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

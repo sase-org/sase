@@ -204,6 +204,7 @@ def test_no_coverage_for_agents_not_launched_from_a_plan(tmp_path, monkeypatch) 
 def test_plan_launched_without_grants_resolves_to_empty_coverage(
     tmp_path, monkeypatch
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("SASE_PLAN", raising=False)
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
@@ -315,3 +316,58 @@ def test_coverage_ignores_non_memory_and_unanswered_rows() -> None:
     ]
     coverage = guard._coverage_from_sheet_rows(rows)  # type: ignore[arg-type]
     assert coverage.exact == frozenset()
+
+
+def test_frozen_grant_covers_from_tmp_cwd(
+    tmp_path, monkeypatch: __import__("pytest").MonkeyPatch
+) -> None:
+    monkeypatch.chdir("/tmp")
+    coverage = guard._coverage_from_sheets(
+        {"rows": [_note_row("tui_note", True, "sase/memory/tui.md")]},
+        None,
+        plan_label="plan demo",
+    )
+    assert guard._find_uncovered_memory_changes(["sase/memory/tui.md"], coverage) == []
+
+
+def test_nested_agents_md_is_other_while_root_is_generated() -> None:
+    assert guard._classify_changed_path("src/sase/ace/AGENTS.md")[0] == "other"
+    assert guard._classify_changed_path("AGENTS.md")[0] == "generated"
+    coverage = guard._coverage_from_sheets(
+        {"rows": [_note_row("tui_note", True, "tui.md")]}, None, plan_label="plan demo"
+    )
+    assert (
+        guard._find_uncovered_memory_changes(["src/sase/ace/AGENTS.md"], coverage) == []
+    )
+    root_only = guard._MemoryCoverage(
+        plan_label="plan demo", exact=frozenset(), prefixes=()
+    )
+    assert guard._find_uncovered_memory_changes(["AGENTS.md"], root_only) == [
+        "AGENTS.md"
+    ]
+
+
+def test_generated_covered_only_in_same_repo() -> None:
+    coverage = guard._coverage_from_sheets(
+        {"rows": [_note_row("tui_note", True, "tui.md")]}, None, plan_label="plan demo"
+    )
+    same_repo = guard._find_uncovered_memory_changes(
+        ["sase/memory/tui.md", "AGENTS.md"], coverage
+    )
+    assert same_repo == []
+    markers = [
+        {"cwd": "/repo-a", "commit_sha": "a1"},
+        {"cwd": "/repo-b", "commit_sha": "b1"},
+    ]
+
+    def _lister(cwd: str, sha: str) -> list[str]:
+        if cwd == "/repo-a":
+            return ["sase/memory/tui.md"]
+        return ["AGENTS.md"]
+
+    grouped = guard._collect_committed_paths_by_repo(markers, list_files=_lister)
+    assert grouped == {"/repo-a": ["sase/memory/tui.md"], "/repo-b": ["AGENTS.md"]}
+    uncovered: list[str] = []
+    for paths in grouped.values():
+        uncovered.extend(guard._find_uncovered_memory_changes(paths, coverage))
+    assert sorted(set(uncovered)) == ["AGENTS.md"]

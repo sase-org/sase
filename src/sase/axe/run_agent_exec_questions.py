@@ -199,6 +199,7 @@ def handle_questions_marker(
         "questions_submitted_at": datetime.now(UTC).isoformat(),
         "question_request_path": str(creation.gate.request_path),
         "question_response_path": str(creation.gate.response_path),
+        "question_gate_artifacts_dir": str(creation.record.artifacts_dir),
         "question_session_id": session_id,
         "patch_name": ctx.cl_name,
         "changespec_name": ctx.cl_name,

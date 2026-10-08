@@ -60,7 +60,11 @@ def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
     # 2. Adopt scratch plans into ~/.sase/plans, then re-check the receipt.
     local_plan = _adopt_plan(plan)
     _refuse_if_receipt(local_plan, plan)
-    _stamp_direct_decisions(local_plan, plan.decide_values)
+    _stamp_direct_decisions(
+        local_plan,
+        plan.decide_values,
+        list(getattr(plan, "decide_definitions", ()) or ()),
+    )
     # 3. Publish to the SDD store for tale/commit.
     plan_ref, saved_plan = _archive_plan(plan, local_plan)
     # 4. Write the receipt with coder fields still empty.
@@ -142,7 +146,11 @@ def _refuse_if_receipt(local_plan: Path, plan: DirectApprovalPlan) -> None:
     )
 
 
-def _stamp_direct_decisions(local_plan: Path, values: dict[str, object]) -> None:
+def _stamp_direct_decisions(
+    local_plan: Path,
+    values: dict[str, object],
+    definitions: list[dict[str, object]] | None = None,
+) -> None:
     """Stamp the resolved decision answers into a gateless approval file."""
     if not values:
         return
@@ -150,11 +158,30 @@ def _stamp_direct_decisions(local_plan: Path, values: dict[str, object]) -> None
     from sase.plan_gate_stamp import stamp_direct_file
 
     caller = caller_for_decide()
+    resolved_definitions: list[dict[str, object]] | None = (
+        [dict(item) for item in definitions] if definitions else None
+    )
+    if resolved_definitions is None:
+        try:
+            from sase.sdd.plan_decisions import (
+                artifacts_dir_from_env,
+                build_definitions,
+            )
+            from sase.sdd.plan_validate import validate_plan_file
+
+            validation = validate_plan_file(local_plan, "tale", mode="launch")
+            resolved_definitions = [
+                dict(item)
+                for item in build_definitions(validation, artifacts_dir_from_env())
+            ]
+        except Exception:
+            resolved_definitions = None
     stamp_direct_file(
         local_plan,
         dict(values),
         decided_by="agent" if caller == "agent" else "reviewer",
         decided_via="cli",
+        definitions=resolved_definitions,  # type: ignore[arg-type]
     )
 
 

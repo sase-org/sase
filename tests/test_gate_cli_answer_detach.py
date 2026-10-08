@@ -153,7 +153,7 @@ def test_ordinary_gate_detaches_when_explicitly_asked(
         "--no-detach",
         "--json",
     ]
-    assert submitted.operation_payload == {"option_ids": ["cleanup"]}
+    assert submitted.operation_payload == {"option_ids": ["cleanup"], "source": "cli"}
     assert payload["detached"] is True
     assert payload["proc_id"] == "proc-1"
     assert not gate.response_path.exists()

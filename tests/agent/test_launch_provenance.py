@@ -9,7 +9,7 @@ from sase.agent.launch_provenance import (
     PROMPT_SOURCE_SURFACE_ENV,
     fill_launch_provenance_default,
     normalize_prompt_origin,
-    prompt_origin_for_launch,
+    _prompt_origin_for_launch,
     read_launch_provenance,
     with_launch_provenance,
 )
@@ -35,8 +35,8 @@ def test_normalize_prompt_origin_fails_closed() -> None:
     assert normalize_prompt_origin("TYPED") == "unknown"
 
 
-def test_prompt_origin_for_launch_none_is_unknown() -> None:
-    assert prompt_origin_for_launch(None) == "unknown"
+def test_private_origin_for_launch_none_is_unknown() -> None:
+    assert _prompt_origin_for_launch(None) == "unknown"
 
 
 def test_agent_process_resolves_generated(
@@ -44,13 +44,13 @@ def test_agent_process_resolves_generated(
 ) -> None:
     """Inside an agent, even an explicit typed origin resolves generated."""
     monkeypatch.setenv("SASE_AGENT", "1")
-    assert prompt_origin_for_launch("typed") == "generated"
-    assert prompt_origin_for_launch(None) == "generated"
+    assert _prompt_origin_for_launch("typed") == "generated"
+    assert _prompt_origin_for_launch(None) == "generated"
 
 
-def test_prompt_origin_for_launch_keeps_valid_stamp() -> None:
+def test_private_origin_for_launch_keeps_valid_stamp() -> None:
     assert (
-        prompt_origin_for_launch(
+        _prompt_origin_for_launch(
             "generated", launch_envs=({PROMPT_ORIGIN_ENV: "typed"},)
         )
         == "typed"

@@ -561,6 +561,8 @@ def _render_json_batch(
                 ),
                 page_url=context.page_url_for(entry.issue.id),
                 include_links=include_links,
+                plan_roots=context.plan_roots,
+                design_cwd=context.design_cwd,
             )
         )
     payload: object = envelopes if batch.multi_requested else envelopes[0]
