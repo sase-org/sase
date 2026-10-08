@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.widgets._macro_arg_assist_detection import (
+from sase.ace.tui.widgets._macro_arg_assist_detection_contexts import (
     _rust_span_bounds_for_cursor,
 )
 
