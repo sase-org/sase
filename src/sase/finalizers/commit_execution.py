@@ -35,6 +35,7 @@ from sase.finalizers.commit_repair import (
     run_stitch_create,
     run_stitch_resume,
 )
+from sase.finalizers.commit_memory_guard import memory_guard_for_new_markers
 from sase.finalizers.commit_transient import (
     already_clean_fingerprint_before,
     context_for_accepted_assigned_bead,
@@ -440,6 +441,15 @@ def execute_commit_finalizer(
         invoke_result=current_result,
         attempts=attempts,
         evidence=evidence,
+    )
+    diagnostics = (
+        *diagnostics,
+        *memory_guard_for_new_markers(
+            context.artifacts_dir,
+            list(ledger_after_reconciliation),
+            list(load_commit_results(artifacts)),
+            instance_id=instance.instance_id,
+        ),
     )
     if deferred_outcomes:
         assert attempt_id is not None
