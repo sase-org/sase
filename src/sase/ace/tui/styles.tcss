@@ -1941,7 +1941,9 @@ GateBranchControls.gate-branch-controls--stacked .gate-group-submit {
 }
 
 /* Compact plan Verdict stays inside the 50-cell rail: id specificity beats
-   the unscoped stacked rules above so generic gates stay stacked. */
+   the unscoped stacked rules above so generic gates stay stacked.
+   Borderless single-row buttons: a Button keeps its top/bottom border inside
+   height 1, which clips the label to a solid bar, so drop the border here. */
 #plan-verdict .gate-option-toggle,
 #plan-verdict .gate-group-submit,
 #plan-verdict .gate-singleton {
@@ -1949,8 +1951,15 @@ GateBranchControls.gate-branch-controls--stacked .gate-group-submit {
     min-width: 0;
     height: 1;
     margin: 0;
+    border: none;
     padding: 0 0;
     text-wrap: nowrap;
+}
+
+#plan-verdict .gate-option-toggle:focus,
+#plan-verdict .gate-group-submit:focus,
+#plan-verdict .gate-singleton:focus {
+    text-style: reverse;
 }
 
 #plan-verdict .plan-verdict-toggles,
