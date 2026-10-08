@@ -5,8 +5,12 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from sase.history import prompt_store as store
+if TYPE_CHECKING:
+    # Type-only: the facade is imported at call time so either module can be
+    # imported first without a circular ImportError.
+    from sase.history import prompt_store as store
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,8 @@ def add_or_update_prompt(
     A ``generated`` origin writes nothing at all: no row, no placeholder, and
     no ``last_used`` bump of an already-typed row.
     """
+    from sase.history import prompt_store as store
+
     effective_origin = effective_prompt_origin(origin)
     if effective_origin == "generated":
         return
@@ -133,6 +139,8 @@ def record_failed_launch_prompt(
     A ``generated`` origin writes nothing at all: no row, no placeholder, and
     no Stash entry.
     """
+    from sase.history import prompt_store as store
+
     if not text.strip():
         return
 
@@ -177,6 +185,8 @@ def _multi_prompt_segment_mutations(
     origin: store.PromptOrigin | None = None,
 ) -> list[_PromptMutation]:
     """Return history mutations for long-enough multi-prompt segments."""
+    from sase.history import prompt_store as store
+
     from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
 
     if not is_multi_prompt(text):
@@ -235,6 +245,8 @@ def rewrite_prompt_text_exact(old_text: str, new_text: str) -> int:
     if old_text == new_text:
         return 0
 
+    from sase.history import prompt_store as store
+
     replacements: dict[str, str] = {old_text: new_text}
     replacements.update(_multi_prompt_segment_rewrite_pairs(old_text, new_text))
 
@@ -269,6 +281,8 @@ def _apply_prompt_mutations(
     current_timestamp: str,
 ) -> bool:
     """Apply prompt mutations to the current month shard under the writer lock."""
+    from sase.history import prompt_store as store
+
     with store.locked_prompt_history():
         try:
             store.ensure_migrated()
