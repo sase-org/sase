@@ -11,15 +11,17 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.agent._scope_sweep_core import (
+    execute_scope_sweep,
+    is_agent_runner,
+    plan_scope_sweep,
+    read_scope_members,
+)
+from sase.agent._scope_sweep_own import _own_agent_scope
+from sase.agent._scope_sweep_types import ScopeMember
 from sase.agent.scope_sweep import (
     AGENT_SCOPE_UNIT_PREFIX,
     RUNNER_SCRIPT_NAME,
-    _ScopeMember,
-    _execute_scope_sweep,
-    _is_agent_runner,
-    _own_agent_scope,
-    _plan_scope_sweep,
-    _read_scope_members,
     sweep_own_agent_scope,
 )
 
@@ -115,10 +117,8 @@ def _make_scope(
 
 def _member(
     pid: int, ppid: int = 1, comm: str = "sh", argv: tuple[str, ...] = ("sh",)
-) -> _ScopeMember:
-    return _ScopeMember(
-        pid=pid, ppid=ppid, comm=comm, argv=argv, identity=f"boot:{pid}"
-    )
+) -> ScopeMember:
+    return ScopeMember(pid=pid, ppid=ppid, comm=comm, argv=argv, identity=f"boot:{pid}")
 
 
 class _Clock:
@@ -139,7 +139,7 @@ def test_protect_root_descendants_survive() -> None:
     child = _member(101, ppid=100)
     grandchild = _member(102, ppid=101)
     leak = _member(103, ppid=1)
-    plan = _plan_scope_sweep(
+    plan = plan_scope_sweep(
         [runner, child, grandchild, leak], protect_root=runner, spare_patterns=()
     )
     assert {m.pid for m in plan.protected} == {100, 101, 102}
@@ -150,7 +150,7 @@ def test_protect_root_descendants_survive() -> None:
 def test_protect_root_pid_form() -> None:
     runner = _member(100, ppid=1)
     child = _member(101, ppid=100)
-    plan = _plan_scope_sweep([runner, child], protect_root=100, spare_patterns=())
+    plan = plan_scope_sweep([runner, child], protect_root=100, spare_patterns=())
     assert {m.pid for m in plan.protected} == {100, 101}
     assert plan.targets == ()
 
@@ -163,7 +163,7 @@ def test_spare_by_comm_and_cmdline_plus_descendants() -> None:
     mux = _member(202, ppid=1, comm="ssh", argv=("ssh:", "user@host", "[mux]"))
     mux_child = _member(203, ppid=202, argv=("sh",))
     leak = _member(204, ppid=1)
-    plan = _plan_scope_sweep(
+    plan = plan_scope_sweep(
         [agent, ssh_agent, mux, mux_child, leak],
         protect_root=agent,
         spare_patterns=(
@@ -178,12 +178,12 @@ def test_spare_by_comm_and_cmdline_plus_descendants() -> None:
 
 
 def test_is_agent_runner_first_three_argv() -> None:
-    assert _is_agent_runner(_member(1, argv=("python", "run_agent_runner.py", "--x")))
-    assert _is_agent_runner(
+    assert is_agent_runner(_member(1, argv=("python", "run_agent_runner.py", "--x")))
+    assert is_agent_runner(
         _member(1, argv=("python", "-u", "/a/b/run_agent_runner.py"))
     )
-    assert not _is_agent_runner(_member(1, argv=("python", "other.py")))
-    assert not _is_agent_runner(
+    assert not is_agent_runner(_member(1, argv=("python", "other.py")))
+    assert not is_agent_runner(
         _member(
             1,
             argv=("a", "b", "c", "run_agent_runner.py"),
@@ -201,7 +201,7 @@ def test_read_scope_members_skips_zombie_and_unreadable(
     _write_proc(proc_root, 301, ["sleep", "10"], state="Z")
     _write_stat(proc_root, 302, ppid=1)  # no comm/cmdline: unreadable
     (scope_dir / "cgroup.procs").write_text("300\n301\n302\n999\n", encoding="utf-8")
-    members = _read_scope_members(scope_dir, proc_root=proc_root)
+    members = read_scope_members(scope_dir, proc_root=proc_root)
     assert [m.pid for m in members] == [300]
     assert members[0].argv == ("sleep", "10")
 
@@ -212,9 +212,9 @@ def test_execute_identity_pinning_skips_recycled_pid(tmp_path: Path) -> None:
     scope_dir.mkdir()
     _write_proc(proc_root, 400, ["busy-loop"], start_ticks=100)
     (scope_dir / "cgroup.procs").write_text("400\n", encoding="utf-8")
-    members = _read_scope_members(scope_dir, proc_root=proc_root)
+    members = read_scope_members(scope_dir, proc_root=proc_root)
     assert len(members) == 1
-    plan = _plan_scope_sweep(members, protect_root=None, spare_patterns=())
+    plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
     assert [m.pid for m in plan.targets] == [400]
     # The target exits and its pid is recycled by a process outside the
     # scope: the scope no longer lists it, and its start time changed.
@@ -223,7 +223,7 @@ def test_execute_identity_pinning_skips_recycled_pid(tmp_path: Path) -> None:
 
     calls: list[tuple[int, int]] = []
     clock = _Clock()
-    result = _execute_scope_sweep(
+    result = execute_scope_sweep(
         plan,
         scope_dir,
         grace_seconds=0,
@@ -242,12 +242,12 @@ def test_execute_grace_escalation_term_then_kill(tmp_path: Path) -> None:
     scope_dir.mkdir()
     _write_proc(proc_root, 500, ["busy-loop"])
     (scope_dir / "cgroup.procs").write_text("500\n", encoding="utf-8")
-    members = _read_scope_members(scope_dir, proc_root=proc_root)
-    plan = _plan_scope_sweep(members, protect_root=None, spare_patterns=())
+    members = read_scope_members(scope_dir, proc_root=proc_root)
+    plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
 
     calls: list[tuple[int, int]] = []
     clock = _Clock()
-    result = _execute_scope_sweep(
+    result = execute_scope_sweep(
         plan,
         scope_dir,
         grace_seconds=1.0,
@@ -270,8 +270,8 @@ def test_execute_late_arrival_gets_sigkill_directly(tmp_path: Path) -> None:
     scope_dir.mkdir()
     _write_proc(proc_root, 600, ["first"])
     (scope_dir / "cgroup.procs").write_text("600\n", encoding="utf-8")
-    members = _read_scope_members(scope_dir, proc_root=proc_root)
-    plan = _plan_scope_sweep(members, protect_root=None, spare_patterns=())
+    members = read_scope_members(scope_dir, proc_root=proc_root)
+    plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
 
     calls: list[tuple[int, int]] = []
     clock = _Clock()
@@ -283,7 +283,7 @@ def test_execute_late_arrival_gets_sigkill_directly(tmp_path: Path) -> None:
             _write_proc(proc_root, 601, ["late"])
             (scope_dir / "cgroup.procs").write_text("600\n601\n", encoding="utf-8")
 
-    _execute_scope_sweep(
+    execute_scope_sweep(
         plan,
         scope_dir,
         grace_seconds=0,
@@ -299,7 +299,7 @@ def test_execute_late_arrival_gets_sigkill_directly(tmp_path: Path) -> None:
 
 def test_invalid_spare_regex_is_ignored() -> None:
     leak = _member(700)
-    plan = _plan_scope_sweep([leak], protect_root=None, spare_patterns=("[bad",))
+    plan = plan_scope_sweep([leak], protect_root=None, spare_patterns=("[bad",))
     assert [m.pid for m in plan.targets] == [700]
 
 
@@ -310,7 +310,7 @@ def test__own_agent_scope_gates(
     scope_dir, cgroup_root = _make_scope(tmp_path, [], proc_root=proc_root)
     monkeypatch.delenv("SASE_DETACH_SCOPE_DISABLE", raising=False)
     monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
-    monkeypatch.setattr("sase.agent.scope_sweep.sys.platform", "linux")
+    monkeypatch.setattr("sase.agent._scope_sweep_own.sys.platform", "linux")
 
     assert (
         _own_agent_scope(proc_root=proc_root, cgroup_root=cgroup_root, enabled=True)
@@ -330,12 +330,12 @@ def test__own_agent_scope_gates(
     )
     monkeypatch.delenv("SASE_DETACH_SCOPE_DISABLE", raising=False)
     # Non-Linux declines.
-    monkeypatch.setattr("sase.agent.scope_sweep.sys.platform", "darwin")
+    monkeypatch.setattr("sase.agent._scope_sweep_own.sys.platform", "darwin")
     assert (
         _own_agent_scope(proc_root=proc_root, cgroup_root=cgroup_root, enabled=True)
         is None
     )
-    monkeypatch.setattr("sase.agent.scope_sweep.sys.platform", "linux")
+    monkeypatch.setattr("sase.agent._scope_sweep_own.sys.platform", "linux")
     # Cgroup v1 declines.
     self_cgroup = proc_root / str(os.getpid()) / "cgroup"
     self_cgroup.write_text("2:cpu:/user.slice/sase-agent-1-2.scope\n", encoding="utf-8")
@@ -363,7 +363,7 @@ def test__own_agent_scope_gates(
 
 def test_sweep_never_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.agent.scope_sweep._own_agent_scope",
+        "sase.agent._scope_sweep_own._own_agent_scope",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     assert sweep_own_agent_scope(context="exit") is None
@@ -373,7 +373,7 @@ def test_sweep_skipped_outside_scope(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("SASE_DETACH_SCOPE_DISABLE", raising=False)
-    monkeypatch.setattr("sase.agent.scope_sweep.sys.platform", "win32")
+    monkeypatch.setattr("sase.agent._scope_sweep_own.sys.platform", "win32")
     assert sweep_own_agent_scope(context="turn", enabled=True) is None
 
 
@@ -384,11 +384,11 @@ def test_execute_real_signal_only_targets_created_pids(tmp_path: Path) -> None:
         scope_dir = tmp_path / "scope"
         scope_dir.mkdir()
         (scope_dir / "cgroup.procs").write_text(f"{proc.pid}\n", encoding="utf-8")
-        members = _read_scope_members(scope_dir)
+        members = read_scope_members(scope_dir)
         assert [m.pid for m in members] == [proc.pid]
-        plan = _plan_scope_sweep(members, protect_root=None, spare_patterns=())
+        plan = plan_scope_sweep(members, protect_root=None, spare_patterns=())
         assert [m.pid for m in plan.targets] == [proc.pid]
-        result = _execute_scope_sweep(plan, scope_dir, grace_seconds=0.2)
+        result = execute_scope_sweep(plan, scope_dir, grace_seconds=0.2)
         assert proc.poll() is not None
         assert [m.pid for m in result.terminated] == [proc.pid]
     finally:
@@ -702,7 +702,7 @@ def test_sweep_prints_summary_line(
     _write_proc(proc_root, 800, ["while", "loop"], ppid=1)
     monkeypatch.delenv("SASE_DETACH_SCOPE_DISABLE", raising=False)
     monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
-    monkeypatch.setattr("sase.agent.scope_sweep.sys.platform", "linux")
+    monkeypatch.setattr("sase.agent._scope_sweep_own.sys.platform", "linux")
 
     def fake_kill(pid: int, sig: int) -> None:
         # Simulate death: the next read finds no such process.

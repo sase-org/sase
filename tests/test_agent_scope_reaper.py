@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from sase.agent.scope_sweep import (
+from sase.agent._scope_sweep_reap import (
     _discover_agent_scopes,
     _parse_scope_created_ns,
     _user_manager_root,
-    reap_orphaned_agent_scopes,
 )
+from sase.agent.scope_sweep import reap_orphaned_agent_scopes
 
 _NOW_NS = 1_700_000_000_000_000_000
 _OLD_NS = _NOW_NS - 1_000_000_000_000  # 1000 s old
@@ -113,7 +113,7 @@ class _Clock:
 
 
 def _linux(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("sase.agent.scope_sweep.sys.platform", "linux")
+    monkeypatch.setattr("sase.agent._scope_sweep_reap.sys.platform", "linux")
 
 
 def test_parse_scope_created_ns() -> None:
@@ -188,7 +188,7 @@ def test_pytest_guard_allows_explicit_filter_without_root(
     proc_root = tmp_path / "proc"
     _write_self_cgroup(proc_root)
     monkeypatch.setattr(
-        "sase.agent.scope_sweep._iter_scope_dirs",
+        "sase.agent._scope_sweep_reap._iter_scope_dirs",
         lambda _root, max_depth=3: [],
     )
     assert _discover_agent_scopes(only_units={"x.scope"}, proc_root=proc_root) == []
@@ -367,7 +367,7 @@ def test_reap_refuses_unfiltered_scan_under_pytest(
 def test_reap_non_linux_returns_reason(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr("sase.agent.scope_sweep.sys.platform", "darwin")
+    monkeypatch.setattr("sase.agent._scope_sweep_reap.sys.platform", "darwin")
     result = reap_orphaned_agent_scopes(apply=False)
     assert result.reason == "not_linux"
     assert result.scanned == 0
@@ -376,7 +376,7 @@ def test_reap_non_linux_returns_reason(
 def test_reap_counts_scope_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import sase.agent.scope_sweep as sweep
+    import sase.agent._scope_sweep_reap as sweep
 
     _linux(monkeypatch)
     proc_root = tmp_path / "proc"
@@ -389,14 +389,14 @@ def test_reap_counts_scope_errors(
     bad_dir.mkdir(parents=True)
     (bad_dir / "cgroup.procs").write_text("3101\n", encoding="utf-8")
     _write_self_cgroup(proc_root)
-    real_reader = sweep._read_scope_members
+    real_reader = sweep.read_scope_members
 
     def flaky_reader(scope_dir: Path, *, proc_root: Path = Path("/proc")):
         if scope_dir.name == bad:
             raise RuntimeError("boom")
         return real_reader(scope_dir, proc_root=proc_root)
 
-    monkeypatch.setattr(sweep, "_read_scope_members", flaky_reader)
+    monkeypatch.setattr(sweep, "read_scope_members", flaky_reader)
     clock = _Clock()
     result = reap_orphaned_agent_scopes(
         apply=False,

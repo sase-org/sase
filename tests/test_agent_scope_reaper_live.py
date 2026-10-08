@@ -12,11 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from sase.agent.scope_sweep import (
-    _discover_agent_scopes,
-    _read_scope_members,
-    reap_orphaned_agent_scopes,
-)
+from sase.agent._scope_sweep_core import read_scope_members
+from sase.agent._scope_sweep_reap import _discover_agent_scopes
+from sase.agent.scope_sweep import reap_orphaned_agent_scopes
 from sase.detach_scope import (
     DETACH_SCOPE_DISABLE_ENV,
     _cgroup_has_user_manager,
@@ -93,7 +91,7 @@ def test_live_reaper_sweeps_orphaned_scope(
         assert len(preview.reaped) == 1
         assert preview.reaped[0].unit == unit
         for scope in _discover_agent_scopes(only_units={unit}):
-            loop_pids.extend(member.pid for member in _read_scope_members(scope.path))
+            loop_pids.extend(member.pid for member in read_scope_members(scope.path))
         assert loop_pids, "expected the background loop to hold the scope"
 
         result = reap_orphaned_agent_scopes(
