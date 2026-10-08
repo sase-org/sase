@@ -18,7 +18,7 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import cast
 
-from sase.bead.cli_common import get_read_view
+from sase.bead.cli_common import BeadStoreUnavailableError, get_read_view
 from sase.main.plan_inventory_collectors import collect_proposed_plans
 from sase.main.plan_inventory_paths import display_path_roots
 from sase.main.plan_pending import (
@@ -278,7 +278,7 @@ def _rung_bead(raw: str, context: _Context) -> _RungOutcome:
     try:
         with get_read_view() as view:
             issue = view.show(raw)
-    except (KeyError, ValueError):
+    except (KeyError, ValueError, BeadStoreUnavailableError):
         return None
     design = issue.design.strip()
     if not design:

@@ -45,6 +45,7 @@ from sase.bead.project import (
     BEADS_DIRNAME_ROOT,
     BeadProject,
 )
+from sase.sdd.store import SddMaterializationError
 
 _logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ _BeadsLocation = BeadsLocation
 
 __all__ = [
     "BeadPublicationError",
+    "BeadStoreUnavailableError",
     "BeadsLocation",
     "_BeadsLocation",
     "_push_committed_bead_store",
@@ -161,17 +163,74 @@ def get_project(
     return BeadProject(root, beads_dirname=beads_dirname)
 
 
-def get_read_view(*, bead_context: BeadOperationContext | None = None) -> BeadProject:
-    """Open the same single bead store used by write commands."""
+class BeadStoreUnavailableError(SddMaterializationError):
+    """No existing usable bead store is reachable for a read-only operation.
+
+    Read-only resolution never initializes, materializes, commits, or
+    otherwise creates a store. ``cwd`` is the invoking directory and
+    ``searched`` names every location resolution considered, so CLI
+    surfaces can report one actionable line instead of a traceback.
+    """
+
+    def __init__(self, cwd: Path, searched: list[str] | tuple[str, ...]) -> None:
+        self.cwd = Path(cwd)
+        self.searched = tuple(searched)
+        locations = ", ".join(self.searched) if self.searched else "no locations"
+        super().__init__(
+            f"No usable bead store found for reads from {self.cwd} "
+            f"(searched: {locations}). Reads never create a store; "
+            "run 'sase bead init' where a store should live."
+        )
+
+
+def get_read_view(
+    *,
+    cwd: Path | None = None,
+    bead_context: BeadOperationContext | None = None,
+) -> BeadProject:
+    """Open an existing usable bead store for reads.
+
+    Never calls ``init_beads()``, ``ensure_bare_git_sdd_initialized()``,
+    ``commit_sdd_files()``, or creates a new store: an already-configured
+    store (recorded sidecars) is still materialized through the same
+    read-safe refresh reads rely on today, and anything else raises
+    :class:`BeadStoreUnavailableError` naming the cwd and the locations
+    searched. Genuine writers must use :func:`get_project` instead.
+    """
     if bead_context is not None:
         from sase.bead.operation_context import read_view_for_operation_context
 
         return read_view_for_operation_context(bead_context)
 
-    location = resolve_beads_location(require_existing=True)
-    if location is not None and location.read_only:
+    location = resolve_beads_location(cwd=cwd, require_existing=True)
+    if location is not None and (
+        location.read_only or resolved_beads_location_is_usable(location)
+    ):
         return BeadProject(location.root, beads_dirname=location.beads_dirname)
-    return get_project()
+    materialized = resolve_beads_location(cwd=cwd, materialize=True)
+    if materialized is not None and resolved_beads_location_is_usable(materialized):
+        return BeadProject(materialized.root, beads_dirname=materialized.beads_dirname)
+    raise BeadStoreUnavailableError(
+        Path.cwd() if cwd is None else cwd,
+        _read_view_search_locations(cwd),
+    )
+
+
+def _read_view_search_locations(cwd: Path | None) -> list[str]:
+    """Name the locations read-only resolution searched, for error reports."""
+    root, beads_dirname = find_beads_location(cwd=cwd, materialize=False)
+    searched = [str(Path(root) / beads_dirname)]
+    try:
+        from sase.bead.workspace import resolve_primary_workspace
+
+        primary = resolve_primary_workspace()
+    except Exception:
+        primary = None
+    if primary is not None:
+        candidate = str(Path(primary).expanduser().resolve(strict=False))
+        if candidate not in searched:
+            searched.append(candidate)
+    return searched
 
 
 def _refuse_read_only_bead_store(
