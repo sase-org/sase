@@ -4426,38 +4426,37 @@ A single-agent launch that only enables or soft-enables submits the original pro
 Picking a different model on a one-agent launch rewrites that prompt. Dropping or
 re-modelling a unit in a multi-agent launch submits only the agents that remain.
 
-### Provider-drain relaunch prompt {#provider-drain-relaunch-prompt}
+### Automatic provider drain {#automatic-provider-drain}
 
 After a **manual** hard disable in Provider Routing (`p` from Launch Control, above)
-changes a provider's state, sase's TUI offers to relaunch the agents that disable just
-stranded. The `provider-routing-write` worker computes a drain preview off the event
-loop through the same `plan_provider_drain()` the CLI and the automatic usage-limit path
-use, and only pushes `ProviderDrainPromptModal` when all of these hold:
+newly hard-disables a provider, sase's TUI automatically relaunches the agents that
+disable just stranded. No prompt is shown. The drain is submitted only when all of these
+hold:
 
-- The write was a **hard** disable (a soft disable never prompts — it strands nothing).
-- The write actually changed the provider's state (re-disabling an already-disabled
-  provider does not reprompt).
+- The write was a **hard** disable (a soft disable never drains — it strands nothing).
+- The write transitioned the provider into hard-disabled (no disable → hard, soft →
+  hard, or an expired disable → hard). Re-hard-disabling or extending an already
+  hard-disabled provider never re-drains; use `sase agent drain <provider>` for that
+  case.
 - The `provider_drain` beta flag is enabled.
-- The resulting plan has at least one move or skip. A disable with no dependent agents
-  stays exactly as quiet as it is today.
 
-The panel names the provider, its remaining disable window and provenance, and how many
-agents can relaunch versus are left alone:
-
-| Key       | Action                                                                                                                 |
-| --------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `r`       | Relaunch every movable agent now, on the route `plan_provider_drain()` already resolved for each.                      |
-| `m`       | Open the model picker, then relaunch every movable agent on the chosen model (same spelling as `sase agent drain -m`). |
-| `l`       | Leave every agent alone; nothing is submitted.                                                                         |
-| `esc`/`q` | Same as `l` — escape is always the safe, no-op choice.                                                                 |
-
-Choosing `r` or `m` submits the drain through the same durable `agent.drain` operation
-and `provider-drain:<provider>` concurrency key the automatic usage-limit path uses (see
+The disable write returns immediately with the usual "disabled" toast, then a
+`Draining <PROVIDER>` start toast follows. The drain runs as the durable `agent.drain`
+proc (`sase agent drain <provider> --yes --json`) with the shared
+`provider-drain:<provider>` concurrency key the automatic usage-limit path uses (see
 [Draining a Disabled Provider](llms.md#draining-a-disabled-provider)), so it appears in
 the Procs tab and dedups against an automatic drain already in flight for that provider
-rather than running twice. A toast reports the outcome from the durable result envelope
-(`Relaunched N agent(s); M left alone`, plus a failed count when any move failed), and a
-failed submission toasts the proc id to inspect in Procs.
+rather than running twice. A completion toast summarizes the durable result envelope,
+and the Procs row holds the full JSON envelope. If the TUI exits first, the proc still
+finishes and its result stays in Procs / `sase proc show`.
+
+An empty or no-longer-disabled automatic drain records a successful no-op: when the
+drain finds nothing to relaunch (`nothing_to_drain`) or the provider is no longer
+hard-disabled by the time the proc plans (`not_disabled`, `soft_disabled`), the proc
+succeeds with exit 0 and the completion toast says nothing was drained.
+
+Draining onto a chosen model is still available as
+`sase agent drain <provider> -m <model>`.
 
 ### tmux Agent {#tmux-agent}
 

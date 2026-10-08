@@ -144,15 +144,15 @@ def submit_provider_drain(
     app: Any,
     *,
     provider: str,
-    model: str | None = None,
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
 ) -> bool:
     """Submit ``sase agent drain`` through the durable adapter."""
     argv = sase_command_argv("agent", "drain", provider, "--yes", "--json")
-    payload: dict[str, Any] = {"provider": provider, "origin": "ace_manual_disable"}
-    if model:
-        argv.extend(["--model", model])
-        payload["model"] = model
+    payload: dict[str, Any] = {
+        "provider": provider,
+        "origin": "ace_manual_disable",
+        "automatic": True,
+    }
     label = f"Drain {provider.upper()}"
     submitted = app._submit_durable_proc(
         argv,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from typing import Any
 
@@ -27,6 +27,11 @@ from sase.ops.names import (
     AGENT_DRAIN,
     AGENT_PERSIST_DIRECTIVE,
     AGENT_REVERT,
+)
+
+# Automatic drains treat these empty results as successful no-ops.
+_AUTOMATIC_DRAIN_NOOP_REASONS = frozenset(
+    {"nothing_to_drain", "not_disabled", "soft_disabled"}
 )
 
 
@@ -118,6 +123,19 @@ def _run_drain(args: argparse.Namespace) -> OperationCommandResult:
         report_fn = partial(send_usage_limit_drain_notification, trigger)
 
     result = run_agents_drain(args, report_fn=report_fn)
+    payload = result.payload
+    error = payload.get("error") if isinstance(payload, Mapping) else None
+    reason = error.get("reason") if isinstance(error, Mapping) else None
+    if (
+        request.payload.get("automatic") is True
+        and reason in _AUTOMATIC_DRAIN_NOOP_REASONS
+    ):
+        return OperationCommandResult(
+            success=True,
+            message=result.message,
+            payload=payload,
+            exit_code=0,
+        )
     return OperationCommandResult(
         success=result.success,
         message=result.message,

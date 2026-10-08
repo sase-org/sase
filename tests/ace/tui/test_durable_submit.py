@@ -156,22 +156,19 @@ def test_submit_provider_drain_uses_cli_and_provider_concurrency_key() -> None:
     assert submit_provider_drain(
         Host(),
         provider="claude",
-        model="codex/gpt-5",
     )
-    assert seen["argv"][-7:] == [
+    assert seen["argv"][-5:] == [
         "agent",
         "drain",
         "claude",
         "--yes",
         "--json",
-        "--model",
-        "codex/gpt-5",
     ]
     assert seen["operation"] == AGENT_DRAIN
     assert seen["request"] == {
         "provider": "claude",
         "origin": "ace_manual_disable",
-        "model": "codex/gpt-5",
+        "automatic": True,
     }
     assert seen["concurrency_keys"] == ("provider-drain:claude",)
     assert seen["notify_on_complete"] is False

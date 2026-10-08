@@ -577,6 +577,203 @@ def test_agent_drain_operation_without_notify_payload_skips_notification(
     assert notified == []
 
 
+def test_agent_drain_automatic_nothing_to_drain_is_successful_noop(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    request_path = tmp_path / "drain-req.json"
+    result_path = tmp_path / "drain-res.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation="agent.drain",
+            payload={"automatic": True, "provider": "claude"},
+        ),
+    )
+    expected_payload = {
+        "provider": "claude",
+        "counts": {"relaunched": 0, "failed": 0, "skipped": 0},
+        "error": {
+            "reason": "nothing_to_drain",
+            "message": "No agents can be relaunched for this disabled provider.",
+        },
+    }
+
+    def fake_run(
+        _args: argparse.Namespace, *, report_fn: Any = None
+    ) -> SimpleNamespace:
+        result = SimpleNamespace(
+            exit_code=2,
+            success=False,
+            message="No agents can be relaunched for this disabled provider.",
+            payload=expected_payload,
+        )
+        if report_fn is not None:
+            report_fn(result)
+        return result
+
+    monkeypatch.setattr("sase.agents.cli_drain.run_agents_drain", fake_run)
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "drain",
+            "claude",
+            "-j",
+            "-Q",
+            str(request_path),
+            "-R",
+            str(result_path),
+        ]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-auto-noop")
+
+    assert handle_agent_operation(args) == 0
+    loaded = read_operation_result(
+        result_path, expected_operation="agent.drain", expected_proc_id="proc-auto-noop"
+    )
+    assert loaded.success is True
+    assert loaded.payload == expected_payload
+
+
+def test_agent_drain_automatic_not_disabled_is_successful_noop(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    request_path = tmp_path / "drain-req.json"
+    result_path = tmp_path / "drain-res.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation="agent.drain",
+            payload={"automatic": True, "provider": "claude"},
+        ),
+    )
+    expected_payload = {
+        "provider": "claude",
+        "error": {"reason": "not_disabled", "message": "gone"},
+    }
+
+    def fake_run(
+        _args: argparse.Namespace, *, report_fn: Any = None
+    ) -> SimpleNamespace:
+        result = SimpleNamespace(
+            exit_code=2, success=False, message="gone", payload=expected_payload
+        )
+        if report_fn is not None:
+            report_fn(result)
+        return result
+
+    monkeypatch.setattr("sase.agents.cli_drain.run_agents_drain", fake_run)
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "drain",
+            "claude",
+            "-j",
+            "-Q",
+            str(request_path),
+            "-R",
+            str(result_path),
+        ]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-auto-not-disabled")
+
+    assert handle_agent_operation(args) == 0
+    loaded = read_operation_result(
+        result_path,
+        expected_operation="agent.drain",
+        expected_proc_id="proc-auto-not-disabled",
+    )
+    assert loaded.success is True
+    assert loaded.payload == expected_payload
+
+
+def test_agent_drain_non_automatic_nothing_to_drain_stays_failed(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    result_path = tmp_path / "drain-res.json"
+    expected_payload = {
+        "provider": "claude",
+        "error": {"reason": "nothing_to_drain", "message": "empty"},
+    }
+
+    def fake_run(
+        _args: argparse.Namespace, *, report_fn: Any = None
+    ) -> SimpleNamespace:
+        result = SimpleNamespace(
+            exit_code=2, success=False, message="empty", payload=expected_payload
+        )
+        if report_fn is not None:
+            report_fn(result)
+        return result
+
+    monkeypatch.setattr("sase.agents.cli_drain.run_agents_drain", fake_run)
+    args = create_parser().parse_args(
+        ["agent", "drain", "claude", "-j", "-R", str(result_path)]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-manual-empty")
+
+    assert handle_agent_operation(args) == 2
+    loaded = read_operation_result(
+        result_path,
+        expected_operation="agent.drain",
+        expected_proc_id="proc-manual-empty",
+    )
+    assert loaded.success is False
+
+
+def test_agent_drain_automatic_move_failed_still_fails(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    request_path = tmp_path / "drain-req.json"
+    result_path = tmp_path / "drain-res.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation="agent.drain",
+            payload={"automatic": True, "provider": "claude"},
+        ),
+    )
+    expected_payload = {
+        "provider": "claude",
+        "error": {"reason": "move_failed", "message": "1 drain move(s) failed."},
+    }
+
+    def fake_run(
+        _args: argparse.Namespace, *, report_fn: Any = None
+    ) -> SimpleNamespace:
+        result = SimpleNamespace(
+            exit_code=1,
+            success=False,
+            message="1 drain move(s) failed.",
+            payload=expected_payload,
+        )
+        if report_fn is not None:
+            report_fn(result)
+        return result
+
+    monkeypatch.setattr("sase.agents.cli_drain.run_agents_drain", fake_run)
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "drain",
+            "claude",
+            "-j",
+            "-Q",
+            str(request_path),
+            "-R",
+            str(result_path),
+        ]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-auto-failed")
+
+    assert handle_agent_operation(args) == 1
+    loaded = read_operation_result(
+        result_path,
+        expected_operation="agent.drain",
+        expected_proc_id="proc-auto-failed",
+    )
+    assert loaded.success is False
+
+
 def test_bead_apply_status_success_and_failure(
     monkeypatch: Any, tmp_path: Path
 ) -> None:

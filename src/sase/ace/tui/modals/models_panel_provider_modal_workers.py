@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 from textual.widgets import OptionList
 from textual.worker import Worker, WorkerState
 
-from sase.agent.provider_drain import ProviderDrainError, plan_provider_drain
 from sase.llm_provider import (
     clear_provider_priority,
     disable_provider,
@@ -45,7 +44,6 @@ else:
 _SNAPSHOT_GROUP = "provider-routing-snapshot"
 _WRITE_GROUP = "provider-routing-write"
 _PROVIDER_DRAIN_FLAG = "provider_drain"
-_PROVIDER_DRAIN_PREVIEW_LIMIT = 20
 
 
 def _disable_success_toast(
@@ -99,35 +97,31 @@ def _provider_drain_flag_enabled() -> bool:
         return False
 
 
-def _provider_drain_preview(
+def _provider_drain_requested(
     provider: str,
     *,
     mode: str,
     changed: bool,
+    previous_mode: str | None,
     snapshot: ProviderRoutingSnapshot,
     captured_now: float,
-) -> tuple[Any | None, str | None]:
-    """Plan a drain preview for a changed manual hard-disable write."""
+) -> bool:
+    """Return whether a manual hard disable should start an automatic drain.
+
+    Drain only on a transition into hard-disabled: a changed hard-disable
+    write whose previous mode was not already hard. Re-hard-disabling or
+    extending an existing hard disable never re-drains.
+    """
     if not changed or mode != PROVIDER_DISABLE_MODE_HARD:
-        return None, None
+        return False
+    if previous_mode == PROVIDER_DISABLE_MODE_HARD:
+        return False
     if not _provider_drain_flag_enabled():
-        return None, None
+        return False
     disable = active_disable(snapshot.provider_disables.get(provider), now=captured_now)
     if disable is None or not disable.is_hard:
-        return None, None
-    try:
-        plan = plan_provider_drain(
-            provider,
-            limit=_PROVIDER_DRAIN_PREVIEW_LIMIT,
-            now=captured_now,
-        )
-    except ProviderDrainError:
-        return None, None
-    except Exception as exc:  # noqa: BLE001 - preview must not fail the write.
-        return None, str(exc)
-    if not plan.moves and not plan.skips:
-        return None, None
-    return plan, None
+        return False
+    return True
 
 
 class ProviderRoutingWorkersMixin(_MixinBase):
@@ -164,9 +158,7 @@ class ProviderRoutingWorkersMixin(_MixinBase):
 
         def _highlighted_provider(self) -> str | None: ...
 
-        def _maybe_prompt_provider_drain(
-            self, outcome: ProviderWriteOutcome
-        ) -> None: ...
+        def _start_provider_drain(self, provider: str) -> None: ...
 
         def _refresh_option_rows(self, *, keep_provider: str | None) -> None: ...
 
@@ -260,10 +252,11 @@ class ProviderRoutingWorkersMixin(_MixinBase):
                     )
                 snapshot = self._load_snapshot()
                 changed = before != provider_routing_route_key(snapshot)
-                drain_preview, drain_preview_error = _provider_drain_preview(
+                drain_requested = _provider_drain_requested(
                     provider,
                     mode=mode,
                     changed=changed,
+                    previous_mode=previous_mode,
                     snapshot=snapshot,
                     captured_now=captured_now,
                 )
@@ -274,8 +267,7 @@ class ProviderRoutingWorkersMixin(_MixinBase):
                     snapshot=snapshot,
                     mode=mode,
                     previous_mode=previous_mode,
-                    drain_preview=drain_preview,
-                    drain_preview_error=drain_preview_error,
+                    drain_requested=drain_requested,
                 )
             except Exception as exc:  # noqa: BLE001 - surfaced in TUI toast.
                 return ProviderWriteOutcome(
@@ -539,7 +531,8 @@ class ProviderRoutingWorkersMixin(_MixinBase):
             if outcome.changed:
                 self.notify(_disable_success_toast(outcome, duration))  # type: ignore[attr-defined]
                 self._changed = True
-                self._maybe_prompt_provider_drain(outcome)
+                if outcome.drain_requested:
+                    self._start_provider_drain(outcome.provider)
             else:
                 self.notify(  # type: ignore[attr-defined]
                     f"{outcome.provider.upper()} already has that provider disable.",

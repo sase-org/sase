@@ -2755,16 +2755,17 @@ row is lost; the chat transcript under `~/.sase/chats` survives.
 The `llm_provider.usage_limit.relaunch` / `relaunch_limit` config fields (above) control
 whether and how much a usage-limit hard disable drains automatically; the
 `provider_drain` beta flag gates that automatic submission and sase's TUI Launch Control
-[provider-drain relaunch prompt](ace.md#provider-drain-relaunch-prompt) — both are off
-until the flag is enabled.
+[automatic provider drain](ace.md#automatic-provider-drain) — both are off until the
+flag is enabled.
 
 `sase agent drain <provider>` is the always-available manual escape hatch regardless of
-the flag: it previews with `--dry-run`, refuses a provider with no active hard disable,
-and confirms before discarding live progress unless `-y`/`--yes` or `-j`/`--json` is
-given. `-m/--model` is the way to move an agent the plan would otherwise report stranded
-— pointing the whole drain at a reachable model turns every moved agent into an ordinary
-reroute. `-l/--limit` caps how many agents move at once; anything dropped by the limit
-is reported, never silently skipped.
+the flag: it previews with `--dry-run`, refuses a provider with no active hard disable
+(exit 2 for `nothing_to_drain`, except an automatic request records that empty result as
+a successful no-op), and confirms before discarding live progress unless `-y`/`--yes` or
+`-j`/`--json` is given. `-m/--model` is the way to move an agent the plan would
+otherwise report stranded — pointing the whole drain at a reachable model turns every
+moved agent into an ordinary reroute. `-l/--limit` caps how many agents move at once;
+anything dropped by the limit is reported, never silently skipped.
 
 Automatic usage-limit drains send one notification for the disable window. The drain
 notes report completed relaunches, failed replacement moves, and rows left alone; the

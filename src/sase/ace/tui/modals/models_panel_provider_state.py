@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 import math
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from sase.bead.config import (
     DEFAULT_BIG_EPIC_PHASE_THRESHOLD,
@@ -33,9 +33,6 @@ from .models_panel_rows import (
     LaunchModelSettingRow,
     build_launch_model_setting_rows,
 )
-
-if TYPE_CHECKING:
-    from sase.agent.provider_drain import ProviderDrainPlan
 
 
 @dataclass(frozen=True)
@@ -78,8 +75,7 @@ class ProviderWriteOutcome:
     priority_current: TemporaryProviderPriority | None = None
     priority_reason: str | None = None
     reload_error: str | None = None
-    drain_preview: ProviderDrainPlan | None = None
-    drain_preview_error: str | None = None
+    drain_requested: bool = False
 
 
 def load_provider_routing_snapshot(

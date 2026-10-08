@@ -173,7 +173,8 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "submits a durable 'sase agent drain' proc that relaunches the "
             "agents that provider stranded and sends one enriched usage-limit "
             "notification naming what moved and what did not, and a manual "
-            "disable in Launch Control offers the same relaunch."
+            "hard disable in Launch Control submits the same drain "
+            "automatically, toasting when it starts and when it finishes."
         ),
         bead="sase-sx",
     ),
