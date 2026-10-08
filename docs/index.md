@@ -11,7 +11,7 @@ title: Structured Agentic Software Engineering
     <h1>Structured Agentic Software Engineering</h1>
 
     <p class="sase-lede">
-      SASE is a Python toolkit for coordinating coding-agent work: durable plans, tracked handoffs, reviewable
+      SASE coordinates coding-agent work through a Python CLI and TUI backed by a required Rust core: durable plans, tracked handoffs, reviewable
       changes, resumable runs, and automation that can move across model and version-control providers.
     </p>
 

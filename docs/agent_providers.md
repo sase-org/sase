@@ -34,9 +34,12 @@ still launch a hard-disabled CLI. See
 
 ## Instruction delivery
 
-E2 records but does not deliver: every root provider invocation shadow-renders its
-memory-built instruction bundle and manifest into `<artifacts>/instructions/` without
-changing any provider argv, prompt, or loaded file. See
+The current bundle rollout records intended instructions for diagnostics. With the
+default `instruction_shadow_render` flag on, each root provider invocation renders its
+memory-built bundle and manifest into `<artifacts>/instructions/` without changing
+provider argv, prompts, or loaded files. Existing file and directive delivery continues;
+the manifest alone does not prove that a provider loaded the bundle's contents. This
+stage is called E2 in the implementation. See
 [Instruction Bundles](instruction_bundles.md#shadow-manifests).
 
 ## Verifying instruction delivery

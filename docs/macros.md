@@ -94,10 +94,15 @@ order.
 <a id="retired-macro-spellings"></a>
 
 SASE's reusable prompt definitions were called **xprompts** before this release and are
-now called **macros**. Every retired spelling below keeps working behind the
+now called **macros**. The retired syntax aliases below keep working behind the
 `legacy_xprompt_syntax` sunset flag while callers migrate; help, completion, examples,
 and output show only the macro spelling. `%xprompts_enabled` regions stay accepted
 permanently as an alias of `%macros_enabled`.
+
+The sunset flag covers command, configuration, and discovery spellings. Python
+integrations must import `sase.macro`: the retired Python package and package source
+directories shown in the table were removed in either flag state. Those table entries
+record source moves rather than accepted aliases.
 
 Turning that flag off rejects a retired spelling in a new command, config key,
 frontmatter key, environment variable, or `sase path` target, and the error names the
@@ -1473,7 +1478,7 @@ referenced tabstops before the splice: `#[greet(World)]` or `#[greet:World]` exp
 `Hello World!`.
 
 After the merge, each effective snippet also gains a generated initial-capital alias —
-only the first character of the trigger and of the resolved template is uppercased. An
+only the first character of the trigger and of the resolved template is uppercased. A
 macro-derived `foo` therefore expands as both `foo` and `Foo`, already-capitalized
 triggers produce no extra entry, an explicitly authored `Foo` is never replaced, and
 both spellings can be referenced with `#[foo]` / `#[Foo]`. The aliases are runtime-only.
@@ -2756,17 +2761,39 @@ wait. An empty hood resolves immediately with a diagnostic instead of parking fo
 Multiple `hood=` values are deduplicated in authored order and combine with agent, bead,
 and time conditions.
 
-The `for_epic=` keyword controls whether a wait follows an agent into the epic it
-launched. `%wait(planner)` waits for `planner` as usual, then also waits until the epic
-that planner launched is closed; `launching` and `blocked` follow states stay parked,
-and a marker with no `for_epic=` field never follows. The value is `true` or `false` per
-`%wait` occurrence, and the colon form uses the default (`true`). To opt out, write
-`%wait(planner, for_epic=false)`. Four misuses are diagnostics: `for_epic=` without an
-agent target in the same `%wait` (`wait-for-epic-without-agent`), a value other than
-`true`/`false` (`wait-for-epic-invalid-value`), conflicting values for one target
-(`wait-for-epic-conflict`), and `for_epic=true` on a `--plan` row
-(`wait-for-epic-plan-row`). The default is `true` for user-authored agent targets;
-`--plan` rows never follow. `for_epic` is not tribe `@epic`.
+Agent waits follow launched epics by default. `%wait(planner)` and `%wait:planner` first
+wait for the target's successful completion, then require closure of the epics that
+target launched. If the target launches no epic, the ordinary agent completion condition
+is enough. An epic inherited as a worker's assignment does not count as an epic that
+worker launched.
+
+Use `for_epic=false` when you only need the agent's own result:
+
+```text
+%wait(planner)                         # Agent completion plus its launched epics
+%wait(reviewer, for_epic=false)         # Reviewer completion only
+%wait(build, for_epic=false, bead=sase-87.2) # Agent completion plus this explicit bead
+```
+
+The policy applies to the agent targets in each `%wait` occurrence. Separate occurrences
+can use different policies; an explicit value overrides the default for a repeated
+target, while contradictory explicit values are an error. A `--plan` row always releases
+at plan submission and never follows; explicit `for_epic=true` on that row is an error.
+`for_epic=` also requires an agent target in the same occurrence and accepts only `true`
+or `false`. The corresponding diagnostics are `wait-for-epic-plan-row`,
+`wait-for-epic-without-agent`, `wait-for-epic-invalid-value`, and
+`wait-for-epic-conflict`.
+
+While an epic launch is in flight the waiter stays parked. Once the epic IDs are known,
+SASE adds their closure conditions to the wait. A failed or skipped launch, a dismissed
+launch target, or a dependency cycle can leave a blocked follow; AXE reports the
+blocker, and the TUI shows it with a teal `↪` annotation. Use the
+[Wait modal](ace.md#wait-modal) to inspect or change the policy. Generated epic phase
+and land schedules explicitly use `for_epic=false` alongside phase-bead waits.
+
+Existing persisted waits without `wait_for_epics_of` retain their older completion-only
+behavior. This compatibility rule concerns saved wait state; omitting `for_epic=` in a
+new prompt uses the new default. The policy is independent of tribe `@epic`.
 
 An `@<tribe>` dependency has next-entity semantics. `%wait:@review` ignores older tribe
 members and selects the earliest successfully completed eligible entity launched after

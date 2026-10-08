@@ -447,10 +447,12 @@ implemented.
 
 Run `sase plan validate PLAN_FILE` while authoring a plan. The command selects the
 schema from the plan's required top-level `tier: tale` or `tier: epic` property; the
-former `-t/--tier` option has been removed. Validation is hermetic: the command accepts
-any readable UTF-8 path and does not require `SASE_AGENT`, `SASE_ARTIFACTS_DIR`, or a
-registered project context. It reports all problems in one pass with stable diagnostic
-codes, field paths, and best-effort line numbers.
+former `-t/--tier` option has been removed. Ordinary schema validation accepts any
+readable UTF-8 path and does not require `SASE_AGENT`, `SASE_ARTIFACTS_DIR`, or a
+registered project context. With the Plan Decisions beta enabled, memory decisions also
+use host context for selector and human-quote checks inside an agent; outside an agent,
+quote verification is deferred to proposal. Validation reports problems in one pass with
+stable diagnostic codes, field paths, and best-effort line numbers.
 
 Every tale and epic requires these authored fields:
 
@@ -467,10 +469,12 @@ an epic plan instead. Authoring validation rejects a missing or over-sized tale 
 while launch validation normalizes both to `medium` with a warning so legacy tales still
 launch.
 
-SASE-managed `create_time`, `status`, `bead`, and `bead_id` fields are accepted but
-never required. A proposal may also carry the transient `links:` authoring inlet: a list
-of typed artifact relationships that `sase plan propose` validates, persists, and
-removes before archiving; see
+SASE-managed `create_time`, `status`, `bead`, `bead_id`, and `proposed_by` fields are
+accepted but never required. With the `plan_decisions` beta enabled, a plan may also
+declare [review decisions](#plan-decisions-beta); their answers and review stamps are
+written by SASE. A proposal may carry the transient `links:` authoring inlet: a list of
+typed artifact relationships that `sase plan propose` validates, persists, and removes
+before archiving; see
 [Authoring links in a proposed plan](artifact_links.md#authoring-links-in-a-proposed-plan).
 Historical plans with a deprecated `prompt` or `parent` property remain valid, but both
 are intentionally omitted from canonical schema and authoring output because new links
@@ -479,16 +483,16 @@ pointing at the `PARENT` bullet. Epics may also carry the SASE-managed `parent_b
 field. Other unknown fields are errors. A plan must start with valid, closed YAML
 frontmatter and contain a non-empty Markdown body.
 
-Epics additionally require an ordered, non-empty `phases` list. Optional `changespec`
-and integer `bug_id` metadata may be supplied; `bug_id` requires `changespec`. The
-epic-only `parent_bead` associates an approved plan with the bead under which SASE
-creates its child epic. Each phase requires a unique slug `id`, a non-empty `title`, a
-`depends_on` list, and `size: xsmall | small | medium | large | xlarge`. Dependencies
-may only name earlier phases, cannot repeat, and cannot refer to the phase itself.
-Optional phase fields are `description` and `model`. Only set a phase model when the
-user's prompt requested one; for a phase that only exercises or observes a SASE agent
-feature and does no consequential work, use `size: xsmall` instead of a cheap model
-override.
+Epics additionally require an ordered, non-empty `phases` list. Optional `patch`
+(`changespec` is also accepted) and integer `bug_id` metadata may be supplied; `bug_id`
+requires the Patch association. The epic-only `parent_bead` associates an approved plan
+with the bead under which SASE creates its child epic. Each phase requires a unique slug
+`id`, a non-empty `title`, a `depends_on` list, and
+`size: xsmall | small | medium | large | xlarge`. Dependencies may only name earlier
+phases, cannot repeat, and cannot refer to the phase itself. Optional phase fields are
+`description` and `model`. Only set a phase model when the user's prompt requested one;
+for a phase that only exercises or observes a SASE agent feature and does no
+consequential work, use `size: xsmall` instead of a cheap model override.
 
 ```yaml
 ---
@@ -526,6 +530,116 @@ diagnostic still fails the command. JSON stays on stdout while the tier hint is 
 to stderr. Otherwise `-j/--json` returns `schema_version`, `ok`, the authored `tier`,
 `path`, the complete diagnostics list, and the expected schema. Exit status is 0 for
 valid plans, 1 for validation failures, and 2 for command-usage errors.
+
+The Plan Decisions beta currently has an output limitation: validating a plan with
+decisions outside an agent prints `quote verification runs at propose` before the
+result, including in `--json` mode. An auto-approval summary may also be printed after
+the result inside an agent. Account for these lines when parsing beta output; ordinary
+plans without decisions keep the JSON-only contract.
+
+### Plan Decisions (Beta)
+
+Plan decisions let a reviewer choose between explicit alternatives while approving a
+tale or epic. This feature is behind `plan_decisions`, a beta flag that defaults off.
+Without it, `sase plan validate` and `sase plan propose` reject a `decisions:` key,
+including an empty map, with `decisions-disabled`.
+
+Enable it for one invocation and its follow-ups with the root CLI option:
+
+```bash
+sase -f plan_decisions plan validate plan.md
+sase -f plan_decisions run "+myproject #plan Add a keyboard help overlay"
+```
+
+Replace `myproject` with a registered project. To opt in across invocations, set
+`feature_flags.plan_decisions: true` in configuration or use
+`sase flag enable plan_decisions`; see [Feature flags](configuration.md#feature_flags)
+for saved preferences and restart behavior. Plans without decisions keep their ordinary
+approval flow.
+
+Declare up to five decisions as a frontmatter map. Each decision needs an `ask` and a
+`default`. Omitting `choices` makes it a boolean toggle; supplying a map of two to five
+choices makes it a choice whose default must exactly name a choice key. An optional
+`why` explains an ordinary decision's default. This complete tale illustrates a choice:
+
+```markdown
+---
+tier: tale
+title: Keyboard help overlay
+goal: Pressing ? shows the available bindings
+size: small
+decisions:
+  grouping:
+    ask: How should the overlay group bindings?
+    choices:
+      pane: By pane, matching the footer hints
+      mode: By keyboard mode
+    default: pane
+    why: Keep the same order as the footer
+---
+
+# Plan
+
+Add a help overlay to the active pane.
+
+> [!decision] grouping = pane Group bindings by pane.
+
+> [!decision] grouping = mode Group bindings by keyboard mode.
+```
+
+Decision IDs start with a lowercase letter, contain only lowercase letters, digits, and
+underscores, and have at most 32 characters. Choice keys use the same pattern with a
+24-character limit. Avoid YAML boolean/null words and host-control names such as
+`approve`, `commit`, and `feedback`. Questions are one line of at most 120 characters;
+choice labels and `why` are one line of at most 100 characters. There is no authored
+`kind` field: the presence of `choices` selects the kind.
+
+A `> [!decision] <id>` block marks the true branch of a toggle; `= no` marks its false
+branch. A choice block must use `= <key>`. Unknown IDs or branches fail validation.
+Fenced examples are ignored. An unmentioned decision produces a warning, so reference
+each decision in the prose or a callout. Decisions do not conditionally schedule epic
+phases: `phases[].when` is reserved and rejected.
+
+The current beta supports gate inputs and durable answers. The Plan Review modal does
+not yet expose dedicated decision controls. To override a default on a pending gate, use
+the declared `decision_<id>` field with `sase gate answer`:
+
+```bash
+# Replace REQUEST_ID with the pending tale gate's ID.
+sase -f plan_decisions gate answer -k plan -i REQUEST_ID -o approve -o commit \
+  --set decision_grouping=mode
+```
+
+For an epic, use `-k epic_plan -o approve`. Omitted inputs use the effective defaults;
+ordinary `sase plan approve` does not offer per-decision overrides. Conflicting values
+across selected options fail before acceptance. On approval, SASE writes each
+`decisions.<id>.answer` plus `decided_by: reviewer|agent|auto` and, for non-auto
+approvals, `decided_via: tui|telegram|mobile|cli` into the durable plan. Do not author
+those system fields in a new proposal. Feedback carries changed values into the replan
+as provisional choices; it does not approve the plan.
+
+Decision definitions are frozen when the gate is created. In-gate edits can change
+prose, but changing anything under `decisions:` is refused. Changing the decision set
+requires a new proposal. Clients that submit a review revision are also checked against
+the displayed revision; a stale revision fails before execution.
+
+A memory decision is a toggle with `memory: [<selector>, ...]`. Selectors use the
+[memory-read forms](memory.md#audited-reads): a note, a web, or a `web:keyword` strand.
+They must resolve, and separate decisions cannot cover the same resolved memory file.
+Use `default: false` for a proposed memory change the human has not requested. A
+`default: true` memory decision needs a `requested` quote of 3–300 characters from
+human-authored text; memory decisions cannot carry `why` or `choices`.
+
+SASE verifies that quote against the original human-typed launch prompt, human plan
+feedback, or human free-text question answers in the planner's chain. Generated macro
+text, model replies, selected option labels, auto-approval, and records without
+authorship provenance do not establish that request. An unverified request makes the
+effective default false; agent-context validation and proposal reject an authored true
+default without a verified quote. Validation outside an agent defers quote verification
+to proposal. An agent cannot turn a memory decision on unless its effective default is
+already true. Feedback about a memory decision remains provisional. See
+[launch authorship](prompt.md#launch-authorship) and the
+[gate protocol](notifications.md#plan-decisions).
 
 ### Committed Plan Validation Cutover
 

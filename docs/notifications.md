@@ -1433,13 +1433,18 @@ singleton branches remain **Reject** and **Send Feedback**. Epic plans use
 
 ### Plan Decisions
 
-A tale or epic plan may declare typed Plan Decisions in `decisions:` frontmatter. When
-the `plan_decisions` flag is on, gate build freezes them into `payload.decisions` and
-compiles `decision_<id>` raw properties onto tale `approve`, `commit`, and `feedback`
-(epic `approve` and `feedback`). Toggles compile to `{"type": "boolean"}`; choices
-compile to `{"enum": [keys]}` in author order. They are never required, and
-`additionalProperties` stays `false`. Approve and commit result schemas gain a required
-`decisions` object with the same fully-resolved value types.
+A tale or epic plan may declare typed Plan Decisions in `decisions:` frontmatter. The
+`plan_decisions` beta defaults off. Start with the
+[authoring example and CLI review flow](sdd.md#plan-decisions-beta) for user-facing
+usage; this section describes the gate protocol. The current Plan Review modal accepts
+defaults but does not expose dedicated controls for overriding these decisions.
+
+When the flag is on, gate build freezes them into `payload.decisions` and compiles
+`decision_<id>` raw properties onto tale `approve`, `commit`, and `feedback` (epic
+`approve` and `feedback`). Toggles compile to `{"type": "boolean"}`; choices compile to
+`{"enum": [keys]}` in author order. They are never required, and `additionalProperties`
+stays `false`. Approve and commit result schemas gain a required `decisions` object with
+the same fully-resolved value types.
 
 Normalization runs once at the top of `execute_gate_selection`, before
 `accept_gate_decision`, and its output feeds both the receipt and execution paths.
@@ -1453,6 +1458,10 @@ before any side effect; an absent revision stays unchecked so mobile and older c
 keep working. In-gate edits may change prose but never anything under `decisions:`; the
 freeze compares the digest of a rebuild against `payload.decisions` and refuses with the
 Decisions-panel message.
+
+Approval writes the resolved answers and reviewer provenance into the durable plan.
+Feedback carries changed values to the next planner as provisional choices, including an
+explicit reminder that provisional memory choices are not authorization.
 
 The typed projections remain deliberately distinct. Their default feedback, generic-form
 rendering, and branch-action capabilities are declared by the same adapter entries that

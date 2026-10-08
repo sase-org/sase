@@ -126,8 +126,8 @@ sase's TUI has three top-level tabs:
   of it as the long-lived sibling of a pull request that holds the description, parent,
   status (WIP → Draft → Ready → Mailed → Submitted), commits, hooks, comments, and
   mentor activity all in one place. The [Patch guide](change_spec.md) goes deeper when
-  you're curious. This first read-only run should not have created one yet; editable
-  committed work is where Patches appear.
+  you're curious. This first read-only run should not have created one. Normal commits
+  appear under Stitches; the `#pr` workflow creates a Patch for a pull request.
 - **Services** — machine services, scheduled jobs, hooks waiting to complete, mentor
   launches, and error digests. This includes every configured service proc and nests
   scheduled work below `scheduler`. sase's TUI starts the active controller unless you
@@ -187,11 +187,16 @@ sase run \
 sase agent list -a
 ```
 
-Now the agent has permission to make a visible diff in its isolated numbered workspace.
-Your own repositories and the `home` primary checkout stay untouched unless you
-explicitly bring changes back. When the agent commits its work, SASE's commit workflow
-records a Patch that you can review in sase's TUI Artifacts tab, under Patches, before
-landing or submitting anything.
+Now the agent has permission to edit `notes.md` in its isolated numbered workspace.
+SASE's default host finalizer commits completed changes after the agent submits its
+final declaration. A normal commit creates a **stitch** record; creating a pull request
+with `#pr` creates a **Patch**. Review this run's diff and commits from its Agents-tab
+detail panel or the Artifacts tab's Stitches view.
+
+Workspace isolation separates concurrent edits, but the normal commit workflow also
+pushes to the project's remote. For `home`, that remote is SASE's local bare repository,
+so the change is available to later home runs. Use `#propose` when you want a saved diff
+for review instead of a commit and push. See [Commit Workflows](commit_workflows.md).
 
 Wait until that run finishes before continuing. Default `sase agent list` shows
 **running** agents only, so the row disappears from the default list when the run ends.

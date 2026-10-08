@@ -824,6 +824,12 @@ settlement and recovery behavior.
    checks, and rewriting it is idempotent. A concurrent pin change on origin during the
    primary sync uses the existing conflict-repair flow.
 
+   If the pinned sibling needs conflict repair, the host validates the repair's fresh
+   declaration for the remaining repositories before writing the primary pin. It then
+   uses the repaired sibling's pushed SHA and commits that pin with the primary work.
+   This ordering prevents the host's own pin write from invalidating the repair's
+   repository observations.
+
    The host binds every stitch it runs — new stitches, checkpoint resumes, and the
    post-repair follow-up — to the bead captured in the accepted context. It sets
    `SASE_BEAD_ID` to that bead (or removes it when the context had none) and passes the

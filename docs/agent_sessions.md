@@ -318,13 +318,15 @@ shape:
 #bd/work_phase_bead:sase-6g.1
 ---
 %id(!land, clan=sase-6g, bead=sase-6g)
-%wait:sase-6g.1
+%wait(sase-6g.1, for_epic=false)
 %wait(bead=sase-6g.1)
 #bd/land_epic:sase-6g
 ```
 
-Phase dependency waits remain explicit and pair successful agent completion with
-phase-bead closure; the clan container itself is not a land agent or other executable
+Generated phase and land waits use `for_epic=false` on their agent dependency and also
+require phase-bead closure. A user-authored `%wait:worker` normally follows any epics
+that worker launches, but this generated schedule already uses its phase beads as the
+completion condition. The clan container itself is not a land agent or other executable
 process. The `bead=` association lets each runner claim its phase or epic only after
 those waits and workspace preparation. If the epic clan already exists during a re-work,
 every phase and land segment uses the `clan=` join form. The built-in

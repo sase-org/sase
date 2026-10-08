@@ -78,9 +78,13 @@ Canonical committed prompts are stored in the hidden agents sidecar at
 `prompts/<YYYYMM>/*.md`; copied prompt-linked bytes live in that sidecar's
 content-addressed `files/objects/sha256/<hex-prefix>/<sha256>` object store. Every other
 document sidecar likewise keeps `<YYYYMM>/` directories at its root. The beads sidecar
-keeps bead state at its **repository root**—`config.json`, `metadata.json`,
-`issues.jsonl`, and `events/`—plus generated bead pages under `pages/`, so its clone
-root is itself the bead directory. Kind resolution is therefore:
+keeps bead state at its **repository root**—`config.json`, `metadata.json`, and
+`events/`—plus generated bead pages under `pages/`, so its clone root is itself the bead
+directory. In an event store, `issues.jsonl` is a local, gitignored export created on
+demand with `sase bead export`; legacy stores without events still use it as their
+tracked state. The SQLite read model is also local to each clone and rebuildable from
+events. See [bead storage](beads.md#event-log-compatibility-projections). Kind
+resolution is therefore:
 
 | Kind                  | Resolved path                                                           |
 | --------------------- | ----------------------------------------------------------------------- |

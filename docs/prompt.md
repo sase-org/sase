@@ -55,6 +55,22 @@ prompt text. Replay commands (`run`, `edit`, `select`) route through the same la
 machinery as `sase run`, so multi-prompt, multi-model, and macro behavior stay
 identical.
 
+## Launch Authorship
+
+New agent records store `prompt_origin` (`typed`, `generated`, or `unknown`) and
+`prompt_source_surface` independently of whether the launch qualifies for prompt
+history. The submitting surface records those values; missing or invalid provenance
+stays `unknown`. A human's short launch can therefore have authorship provenance even
+when the five-word history rule skips it.
+
+For [memory decisions in a plan](sdd.md#plan-decisions-beta), SASE uses the original
+`submitted_prompt.md` from a human-typed root launch as evidence. It also checks
+human-authored plan feedback and free-text question answers in the planner's chain. Gate
+responses record whether the caller was a human or an agent. Automatically resolved
+responses, generated launches, macro-expanded instructions, model output, and selected
+question-option labels do not count as a human request. Older records without provenance
+remain readable but cannot establish that authorization.
+
 ## Selectors
 
 Prompts are addressed by a **stable content ID** derived from the exact prompt text, not

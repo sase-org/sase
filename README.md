@@ -123,6 +123,8 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 **The complete documentation lives at [sase.sh](https://sase.sh/).**
 
 - [Getting Started](https://sase.sh/getting_started/) — the guided beginner path
+- [Instruction Bundles](https://sase.sh/instruction_bundles/) — inspect intended agent
+  context and verify what providers loaded
 - [sase's TUI](https://sase.sh/ace/) — the interactive control surface
 - [Prompts overlay](https://sase.sh/ace/#prompt-history-modal) — past launches, saved
   drafts, and drafts discarded from Stash
@@ -136,6 +138,8 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Scheduler and Service Host](https://sase.sh/axe/) — scheduled and background agent
   work
 - [Spec-Driven Development](https://sase.sh/sdd/) — plans, epics, and beads
+- [Plan Decisions](https://sase.sh/sdd/#plan-decisions-beta) — beta review choices,
+  defaults, and memory-consent checks
 - [Plugins](https://sase.sh/plugins/) — GitHub, Telegram, editor, and provider
   integrations
 - [CLI Reference](https://sase.sh/cli/) — command index and links to detailed guides

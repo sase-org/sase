@@ -530,6 +530,12 @@ already-approved plan relaunches its coder when that coder failed, was killed, o
 launched, and refuses when the coder is still running or has finished. Tale and epic
 approvals validate against their target schema before writing a response; a failure
 prints the diagnostics and expected schema and leaves the proposal pending for retry.
+Plans can also declare typed choices and toggles when the `plan_decisions` beta is
+enabled. Ordinary approval accepts their effective defaults; use `sase gate answer` with
+`--set decision_<id>=<value>` to override them on a pending gate. See
+[Plan Decisions](sdd.md#plan-decisions-beta) for the grammar, memory-consent rules, and
+current interface limits.
+
 `sase plan reject` writes the rejection response first, then uses the same durable
 cleanup path as the TUI no-feedback rejection action when the matching planner row is
 still discoverable. If cleanup cannot find or kill the row, the CLI reports that
@@ -563,12 +569,17 @@ exits `1`. `-w/--wrap` controls goal/phase/diagnostics prose wrapping, and `-c/-
 matches `sase bead show`.
 
 `sase plan validate PLAN_FILE` reads the required `tier: tale|epic` property and
-validates exactly one path without a project or agent context. It reports every schema
-problem in one run and prints the expected tier schema plus a minimal valid example on
-failure. Use `-e/--explain` for tier-specific authoring guidance, `-j/--json` for the
-stable machine-readable envelope, or `-q/--quiet` to suppress the successful human
-summary. The removed `-t/--tier` option is now invalid command usage. A valid plan exits
-0, a validation failure exits 1, and invalid command usage exits 2.
+validates exactly one path without requiring a project or agent context. With the Plan
+Decisions beta enabled, agent-context validation also checks memory selectors and
+human-request quotes; outside an agent, quote verification is deferred to proposal. It
+reports every schema problem in one run and prints the expected tier schema plus a
+minimal valid example on failure. Use `-e/--explain` for tier-specific authoring
+guidance, `-j/--json` for the stable machine-readable envelope, or `-q/--quiet` to
+suppress the successful human summary. The beta currently prints extra explanatory lines
+for plans with decisions even in JSON mode; see the
+[validation output limitation](sdd.md#plan-frontmatter-schema-and-validation). The
+removed `-t/--tier` option is now invalid command usage. A valid plan exits 0, a
+validation failure exits 1, and invalid command usage exits 2.
 
 ### `sase goal`
 

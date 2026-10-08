@@ -60,6 +60,12 @@ existing agent artifact index.
 
 ## Starting a monitor
 
+Host finalizer recovery and conflict-repair turns cannot hand off through
+`sase monitor start`, `sase pipe`, plan proposal, or questions. Those turns are owned by
+an already-running finalizer that must receive their result in the same invocation; a
+handoff cannot complete that contract. The CLI refuses before creating the handoff.
+Finish the repair and any verification inline, or report the blocker to the host.
+
 ```bash
 sase monitor start \
   -p verify \
@@ -581,6 +587,12 @@ legacy history. Artifact-run pruning keeps old runs that a live or recoverable
 continuation still references, and SASE registers required checkpoints and monitor
 results as portable artifacts, so replay can still hydrate them after the local files
 are gone.
+
+Automatic retries keep failed-attempt evidence under `attempts/<N>/`, but continuation
+replay excludes superseded failed attempts from the ancestor chain. A later `#fork`
+therefore follows the settled attempt and its original launch lineage without injecting
+obsolete retry errors as extra conversation turns. Prior attempts remain inspectable in
+the TUI's [attempt view](ace.md#prior-agent-attempts).
 
 Before invoking the provider, SASE measures the fully expanded continuation against its
 context and transport budget. If essential content is too large, the provider is not

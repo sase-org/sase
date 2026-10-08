@@ -1,14 +1,35 @@
 # Instruction Bundles
 
-Every root provider invocation renders the memory-built instruction bundle the agent
-_would_ receive, and records it with a `sase-core`-validated instruction manifest —
-without delivering it. This page covers the concepts (bundle, manifest, layers, section
-ids, overlays, facts, `common_digest`), the cache and store, and the Rust/Python split.
-E2 is shadow only: nothing reads manifests to make a decision, and the shadow render
-never fails an invocation.
+An instruction bundle collects the project, home, and SASE instructions for one agent
+invocation. Its manifest records which sections were included and their digests, so you
+can inspect the intended context and compare it with what a provider actually loaded.
+
+The current implementation records bundles for diagnostics. With the default
+`instruction_shadow_render` flag enabled, root provider invocations render a bundle into
+the run's artifacts without delivering it to the provider. Providers continue to load
+their existing instruction files and directives. A successful render therefore does not
+prove delivery: use `sase instructions verify` to check observed loads. This stage is
+called **E2** in the implementation and migration inventory; later delivery stages have
+not replaced the current path. Shadow-render failures never fail an invocation.
 
 See also
 [Verifying instruction delivery](agent_providers.md#verifying-instruction-delivery).
+
+## Inspecting your instructions
+
+Start with these read-only commands from your project checkout:
+
+```bash
+sase instructions list                 # Current instruction files and provider shims
+sase instructions render -s            # Intended bundle sections from current sources
+sase instructions verify -c            # Observed loads and manifest coverage
+sase instructions verify -a AGENT      # Compare a recorded run's intent with its loads
+```
+
+Replace `AGENT` with a name from `sase agent list -a`. `render -a AGENT` instead uses
+that agent's facts to compile a fresh preview from today's memory; its digest may differ
+from the historical bundle. `verify` reports problems without a failing exit status, so
+inspect its rows rather than using exit code 0 as proof that delivery is correct.
 
 ## Bundle and manifest
 

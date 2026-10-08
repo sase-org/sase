@@ -128,6 +128,15 @@ group. The same `wait` object carries the capacity picture behind that order
 `runner_capacity_blockers`) and, when a `%hold` barrier is parking the agent, `held_by`
 and `hold_expires_at` (epoch seconds, when the hold has an expiry).
 
+Epic-follow waits expose `wait_for_epics_of` as the targets whose launched epics should
+be followed, and `epic_follows` as persisted per-target stages. Each stage includes
+`target`, `state` (`launching`, `following`, or `blocked`), epic IDs, derived bead
+conditions, member names, timestamps, and any blocker reason or resume command. Use
+these fields alongside `wait_for_beads` to explain why a completed agent's dependent
+still waits. The shared phrasing helpers live in `sase.core.wait_epic_follow_view`; see
+[Agent Names, Waits, and Queue Admission](macros.md#agent-names-waits-and-queue-admission)
+for scheduling semantics.
+
 Source: `src/sase/integrations/agent_list_entries.py`,
 `src/sase/integrations/provider_badges.py`
 
