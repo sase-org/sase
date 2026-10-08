@@ -2815,12 +2815,14 @@ Once an epic bead exists, the shared launch path:
    the checkpoint safe to retry.
 
 When a phase agent auto-approves an epic-tier implementation plan, that child epic is
-created beneath the phase and the phase remains open while delegated work runs. Landing
-the child epic triggers the upward close cascade described above, which closes the phase
-and lets its bead-gated dependents proceed. Until then, parent-epic retries skip that
-delegated phase. The land agent now genuinely requires every phase bead to close; if a
-phase crashes before closure, retry or close that phase explicitly rather than expecting
-landing to sweep it up.
+created beneath the phase and the phase remains open while delegated work runs. A
+planner whose phase already holds an earlier agent's unfinished increment authors a
+child epic whose phases each fit one coding agent instead of another single-agent tale.
+Landing the child epic triggers the upward close cascade described above, which closes
+the phase and lets its bead-gated dependents proceed. Until then, parent-epic retries
+skip that delegated phase. The land agent now genuinely requires every phase bead to
+close; if a phase crashes before closure, retry or close that phase explicitly rather
+than expecting landing to sweep it up.
 
 | Flag                  | Description                                                                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |

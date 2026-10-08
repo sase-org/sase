@@ -174,6 +174,11 @@ def test_builtin_phase_prompt_keeps_single_bead_ownership() -> None:
     assert "not authorization for a phase worker" in prose
     assert "reproduces identically on the clean base tree" in prose
     assert "nothing relaunches a phase left open" in prose
+    assert "Before planning, check the phase's notes" in prose
+    assert "that remainder did not fit one agent" in prose
+    assert "author a child epic whose phases each fit one coding agent" in prose
+    assert "instead of another single-agent tale" in prose
+    assert "unless one coder can clearly finish everything left" in prose
 
 
 def test_builtin_land_prompt_plans_remaining_work_only() -> None:

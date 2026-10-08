@@ -2234,7 +2234,10 @@ macros:
       `sase bead note {{ bead_id }} 'PROPOSED FOLLOW-UP: <one-line summary — detail>'`; the epic's land agent triages
       these into task beads. A check failure that reproduces identically on the clean base tree does not keep this bead
       open: record it as a `PROPOSED FOLLOW-UP:` entry (citing any task bead that already tracks it) and close anyway;
-      nothing relaunches a phase left open.
+      nothing relaunches a phase left open. Before planning, check the phase's notes: if an earlier agent already
+      worked this phase and left it open with recorded remaining work, that remainder did not fit one agent, so author
+      a child epic whose phases each fit one coding agent and whose land agent closes this phase instead of another
+      single-agent tale unless one coder can clearly finish everything left.
   bd/work_task:
     tags: work_task_bead
     input:
