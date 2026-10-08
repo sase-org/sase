@@ -1,6 +1,7 @@
-"""Release-decision regressions: every release path shares one decision.
+"""Release decisions: every release path shares one decision.
 
-Split from ``tests.test_wait_epic_follow_release``; the original module
+Split from ``tests.test_wait_epic_follow_release``; shared builders live in
+``tests._wait_epic_follow_release_helpers`` and the original module
 re-exports these tests so its import path keeps working.
 """
 
@@ -20,7 +21,7 @@ from tests._wait_epic_follow_release_helpers import (
     make_release_marker,
     make_release_planner,
     make_release_waiter,
-    write_release_argv,
+    touch_release_launch_argv,
 )
 
 __all__ = [
@@ -158,7 +159,7 @@ def test_plan_rejected_stays_parked(tmp_path: Path) -> None:
 
 def test_monitor_path_launching_then_following(tmp_path: Path) -> None:
     planner = make_release_planner(tmp_path, "20261001090000", outcome="epic_approved")
-    write_release_argv(planner)
+    touch_release_launch_argv(planner)
     waiter = make_release_waiter(tmp_path)
     index = build_release_index(planner)
     launching = decide_release(
@@ -184,7 +185,7 @@ def test_monitor_path_launching_then_following(tmp_path: Path) -> None:
 
 def test_proc_fallback_launching_does_not_release(tmp_path: Path) -> None:
     planner = make_release_planner(tmp_path, "20261001090000", outcome="epic_approved")
-    write_release_argv(planner)
+    touch_release_launch_argv(planner)
     waiter = make_release_waiter(tmp_path)
     index = build_release_index(planner)
     decision = decide_release(
@@ -198,7 +199,7 @@ def test_proc_fallback_launching_does_not_release(tmp_path: Path) -> None:
 
 def test_stale_reservation_blocks_with_resume_command(tmp_path: Path) -> None:
     planner = make_release_planner(tmp_path, "20261001090000", outcome="epic_approved")
-    write_release_argv(planner, now=NOW - 10_000.0)
+    touch_release_launch_argv(planner, now=NOW - 10_000.0)
     waiter = make_release_waiter(tmp_path)
     index = build_release_index(planner)
     decision = decide_release(
@@ -224,7 +225,7 @@ def test_skip_mode_blocks_launch_skipped(tmp_path: Path) -> None:
 
 def test_attributed_epic_heals_missing_record(tmp_path: Path) -> None:
     planner = make_release_planner(tmp_path, "20261001090000")
-    write_release_argv(planner)
+    touch_release_launch_argv(planner)
     waiter = make_release_waiter(tmp_path)
     index = build_release_index(planner)
     with patch(

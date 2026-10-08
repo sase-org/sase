@@ -1,4 +1,9 @@
-"""Shared release-decision fixtures for wait-epic-follow release tests."""
+"""Shared builders for wait epic-follow release tests.
+
+Split from ``tests.test_wait_epic_follow_release``; every name here is
+public so the focused test modules can import it without reaching for a
+``_``-prefixed name across modules.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +22,7 @@ NOW = 1_800_000_000.0
 
 
 def build_release_index(*artifact_dirs: Path) -> WaitDependencyIndex:
+    """Build a dependency index from the given agent artifact directories."""
     index = WaitDependencyIndex.empty()
     index.add_many(
         (
@@ -38,6 +44,7 @@ def make_release_planner(
     outcome: str | None = "completed",
     extra_meta: dict[str, object] | None = None,
 ) -> Path:
+    """Create the planner agent artifact a waiter depends on."""
     return make_agent(
         tmp_path,
         "proj",
@@ -56,6 +63,7 @@ def make_release_waiter(
     *,
     extra_meta: dict[str, object] | None = None,
 ) -> Path:
+    """Create a waiter artifact directory holding a waiting marker."""
     artifact_dir = (
         tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / suffix
     )
@@ -72,6 +80,7 @@ def make_release_marker(
     armed: list[str] | None,
     **extra: Any,
 ) -> dict[str, Any]:
+    """Build a waiting marker dict with an optional armed-targets field."""
     marker: dict[str, Any] = {"waiting_for": list(waiting_for)}
     if armed is not None:
         marker["wait_for_epics_of"] = list(armed)
@@ -88,6 +97,7 @@ def decide_release(
     dismissed: Path | None = None,
     now: float = NOW,
 ) -> Any:
+    """Run the shared release decision against a live index."""
     return resolve_wait_release(
         index,
         marker,
@@ -99,7 +109,8 @@ def decide_release(
     )
 
 
-def write_release_argv(planner: Path, now: float = NOW) -> None:
+def touch_release_launch_argv(planner: Path, now: float = NOW) -> None:
+    """Record a fresh epic-launch argv file for the planner artifact."""
     (planner / "epic_launch_argv.json").write_text(
         json.dumps(
             {"argv": ["sase", "bead", "work", "202610/epic.md", "--yes-to-all"]}
@@ -107,3 +118,8 @@ def write_release_argv(planner: Path, now: float = NOW) -> None:
         encoding="utf-8",
     )
     os.utime(planner / "epic_launch_argv.json", (now, now))
+
+
+def write_waiting_marker(waiter: Path, marker: dict[str, Any]) -> None:
+    """Persist a waiting marker dict to the waiter's waiting.json."""
+    (waiter / "waiting.json").write_text(json.dumps(marker), encoding="utf-8")

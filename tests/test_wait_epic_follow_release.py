@@ -1,13 +1,24 @@
 """Release-phase regressions: every release path shares one decision.
 
-Split into focused modules; this module re-exports every test so the
-original import path keeps working.
+Split facade: the tests now live in
+``test_wait_epic_follow_release_decisions``,
+``test_wait_epic_follow_release_persistence``, and
+``test_wait_epic_follow_release_agreement`` (shared helpers in
+``_wait_epic_follow_release_helpers``). This module re-exports the public
+names so the original import path keeps working. It collects no tests
+itself.
 """
 
 from __future__ import annotations
 
 from tests._wait_epic_follow_release_helpers import NOW
-from tests.test_wait_epic_follow_release_decision import (
+from tests.test_wait_epic_follow_release_agreement import (
+    test_dismiss_launching_target_blocks_without_memoize,
+    test_release_paths_agree_on_promotion_snapshot,
+    test_release_paths_agree_on_unarmed_snapshot,
+    test_run_now_writes_unwait_ready_without_release_decision,
+)
+from tests.test_wait_epic_follow_release_decisions import (
     test_attributed_epic_heals_missing_record,
     test_closed_epic_promotes_first_then_releases,
     test_foreign_epic_id_appends_verbatim,
@@ -30,13 +41,9 @@ from tests.test_wait_epic_follow_release_decision import (
     test_unresolved_unarmed_waiter_stays_parked,
     test_waiter_own_epic_is_guarded,
 )
-from tests.test_wait_epic_follow_release_paths import (
+from tests.test_wait_epic_follow_release_persistence import (
     test_apply_patch_compare_and_set_abort_leaves_file_unchanged,
     test_apply_patch_persists_follows_beads_and_deps,
-    test_dismiss_launching_target_blocks_without_memoize,
-    test_release_paths_agree_on_promotion_snapshot,
-    test_release_paths_agree_on_unarmed_snapshot,
-    test_run_now_writes_unwait_ready_without_release_decision,
     test_set_waiting_until_missing_marker_is_noop,
     test_set_waiting_until_preserves_follows_and_derived_beads,
     test_wait_epic_follows_wire_round_trip,
