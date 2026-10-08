@@ -124,7 +124,7 @@ def test_gate_build_freezes_decisions_and_notes() -> None:
     assert "decisions" in by_id["approve"]["result_schema"]["required"]
 
 
-def test_kind_validation_rejects_decision_drift() -> None:
+def test_kind_validation_rejects_decision_drift(tmp_path) -> None:
     pytest.importorskip("sase_core_rs")
     import sase_core_rs as core
 
@@ -134,10 +134,12 @@ def test_kind_validation_rejects_decision_drift() -> None:
     from sase.notification_gates.models import GateError
     from sase.plan_gate import _build_plan_gate_spec
 
+    plan_file = tmp_path / "keymap.md"
+    plan_file.write_text(VALID_TALE, encoding="utf-8")
     validation = validate_plan(VALID_TALE, "tale", mode="launch")
     assert validation.ok and validation.plan is not None
     spec = _build_plan_gate_spec(
-        __import__("pathlib").Path("/tmp/keymap.md"),
+        __import__("pathlib").Path(str(plan_file)),
         "sess",
         tier="tale",
         validation=validation,
@@ -193,7 +195,7 @@ def test_omitted_and_explicit_defaults_share_identity() -> None:
     )
     envelope = dict(spec)
     omitted = normalize_plan_option_inputs(
-        envelope, ["approve", "commit"], {}, source="host", caller="human"
+        envelope, ["approve", "commit"], {}, source="cli", caller="human"
     )
     explicit = normalize_plan_option_inputs(
         envelope,
@@ -202,7 +204,7 @@ def test_omitted_and_explicit_defaults_share_identity() -> None:
             "approve": {"decision_grouping": "pane"},
             "commit": {"decision_grouping": "pane"},
         },
-        source="host",
+        source="cli",
         caller="human",
     )
     assert omitted is not None and explicit is not None
@@ -243,7 +245,7 @@ def test_decision_conflict_rejects_disagreement() -> None:
                 "approve": {"decision_grouping": "pane"},
                 "commit": {"decision_grouping": "mode"},
             },
-            source="host",
+            source="cli",
             caller="human",
         )
     assert excinfo.value.code == "decision_conflict"
@@ -314,17 +316,65 @@ def test_auto_clamps_unverified_memory_default() -> None:
     assert clamped.get("values", {}).get("tui_note") is False
 
 
-def test_edit_freeze_refusal_text() -> None:
-    expected = (
-        "Decisions are fixed for this review. Change answers in the Decisions panel, "
-        "or send feedback to change the questions."
-    )
-    import pathlib
+def test_edit_freeze_blocks_question_edits_allows_prose(tmp_path) -> None:
+    pytest.importorskip("sase_core_rs")
+    from sase.notification_gates.adapters import GateAdapter
+    from sase.plan_gate import _build_plan_gate_spec
 
-    source = pathlib.Path("src/sase/notification_gates/adapters.py").read_text(
-        encoding="utf-8"
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text(VALID_TALE, encoding="utf-8")
+    validation = validate_plan(VALID_TALE, "tale", mode="launch")
+    assert validation.ok and validation.plan is not None
+    spec = _build_plan_gate_spec(
+        plan_file,
+        "sess-freeze",
+        tier="tale",
+        validation=validation,
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
     )
-    assert expected in source
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    import json
+
+    (bundle / "request.json").write_text(json.dumps(spec), encoding="utf-8")
+    bundle_plan = bundle / "plan.md"
+    bundle_plan.write_text(VALID_TALE, encoding="utf-8")
+    adapter = GateAdapter(
+        kind="plan",
+        display_title="Plan",
+        action="PlanApproval",
+        pending_action_kind="plan",
+        sender="sase",
+        request_filename="request.json",
+        response_filename="response.json",
+        legacy_directory_key="response_dir",
+        auto_policy="plan",
+    )
+    # Prose-only edit succeeds.
+    prose = VALID_TALE.replace("# Plan", "# Plan\n\nExtra prose line.")
+    bundle_plan.write_text(prose, encoding="utf-8")
+    adapter.validate_edited_resource(path=bundle_plan)
+    # Question edit fails with the freeze message.
+    from sase.notification_gates.models import GateError
+
+    changed = VALID_TALE.replace(
+        "By pane, matching the footer hints", "By pane, changed"
+    )
+    bundle_plan.write_text(changed, encoding="utf-8")
+    with pytest.raises(GateError) as excinfo:
+        adapter.validate_edited_resource(path=bundle_plan)
+    assert "Decisions are fixed for this review" in str(excinfo.value)
+    # System-answer edit fails as well.
+    answered = VALID_TALE.replace("default: pane", "default: pane\n    answer: pane")
+    bundle_plan.write_text(answered, encoding="utf-8")
+    with pytest.raises(GateError):
+        adapter.validate_edited_resource(path=bundle_plan)
 
 
 def test_feedback_prompt_only_changed_values() -> None:

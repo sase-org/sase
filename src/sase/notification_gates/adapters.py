@@ -233,6 +233,12 @@ class GateAdapter:
             translate_plan_gate_response,
         )
 
+        try:
+            from sase.plan_gate_decisions import recover_plan_stamp_from_response
+
+            recover_plan_stamp_from_response(bundle_path)
+        except Exception:
+            pass
         envelope = read_json_object(bundle_path / "request.json")
         selected_ids, result = _plan_response_selection_and_result(
             self.kind,

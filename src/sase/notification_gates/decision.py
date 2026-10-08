@@ -103,6 +103,35 @@ class _GateDecisionAcceptance:
     already_accepted: bool
 
 
+def _acceptance_meta_path(bundle_path: Path, acceptance_id: str) -> Path:
+    return bundle_path / f".acceptance_{acceptance_id}.json"
+
+
+def write_acceptance_meta(
+    bundle_path: Path, acceptance_id: str, *, source: str, caller: str
+) -> None:
+    """Persist original coordinates tied to a receipt acceptance id."""
+    try:
+        atomic_write_json(
+            _acceptance_meta_path(bundle_path, acceptance_id),
+            {"acceptance_id": acceptance_id, "source": source, "caller": caller},
+            exclusive=False,
+        )
+    except Exception:
+        pass
+
+
+def read_acceptance_meta(
+    bundle_path: Path, acceptance_id: str
+) -> dict[str, Any] | None:
+    """Return stored source/caller for an acceptance id, if present."""
+    try:
+        data = read_json_object(_acceptance_meta_path(bundle_path, acceptance_id))
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def accept_gate_decision(
     bundle_path: Path,
     selected_option_ids: Sequence[str],
@@ -111,6 +140,7 @@ def accept_gate_decision(
     feedback: str | None = None,
     source: str = "host",
     option_inputs: Mapping[str, object] | None = None,
+    caller: str | None = None,
 ) -> _GateDecisionAcceptance | None:
     """Durably accept one gate decision and dismiss its notification, fast.
 
@@ -201,6 +231,18 @@ def accept_gate_decision(
 
         receipt = outcome["receipt"]
         already_accepted = outcome["status"] == "replayed"
+        if isinstance(receipt, dict):
+            try:
+                meta_id = receipt.get("acceptance_id")
+                if isinstance(meta_id, str) and meta_id and not already_accepted:
+                    resolved_caller = caller or "agent"
+                    if resolved_caller not in ("human", "agent"):
+                        resolved_caller = "agent"
+                    write_acceptance_meta(
+                        bundle_path, meta_id, source=source, caller=resolved_caller
+                    )
+            except Exception:
+                pass
         if not already_accepted:
             if response_path.exists():
                 return None
@@ -444,6 +486,8 @@ __all__ = [
     "DECISION_RECEIPT_FILENAME",
     "accept_gate_decision",
     "claim_gate_decision_execution_receipt",
+    "read_acceptance_meta",
     "read_current_receipt",
     "receipt_acceptance_id",
+    "write_acceptance_meta",
 ]

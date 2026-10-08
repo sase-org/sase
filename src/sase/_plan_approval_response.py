@@ -37,6 +37,7 @@ def execute_neutral_plan_approval_response(
     epic_launch_origin: EpicLaunchOrigin,
     option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
     expected_review_revision: int | None = None,
+    source: str = "plan_response",
 ) -> PlanApprovalActionResult:
     """Execute one selected option set through the shared gate executor."""
     if not notification.host_files:
@@ -132,7 +133,7 @@ def execute_neutral_plan_approval_response(
             selected_option_ids,
             None if per_option_inputs is not None else input_data,
             feedback=feedback,
-            source="plan_response",
+            source=source,
             epic_launch_origin=epic_launch_origin,
             option_inputs=per_option_inputs,
             **execution_kwargs,
@@ -157,7 +158,7 @@ def execute_neutral_plan_approval_response(
         with_follow_up_stage_tracking(
             bundle_path,
             acceptance_id=acceptance_id,
-            source="plan_response",
+            source=source,
             run=lambda: settle_gate_turn(
                 gate_turn,
                 gate_state="answered",

@@ -103,8 +103,18 @@ def _apply_decision_host_checks(
             artifacts_dir,
             strict_quotes=True,
         )
-    except Exception:
-        return validation
+    except Exception as exc:
+        from sase.sdd.plan_validate import PlanDiagnostic, PlanDiagnosticSeverity
+
+        extra = [
+            PlanDiagnostic(
+                severity=PlanDiagnosticSeverity.ERROR,
+                code="decision-host-check-failed",
+                field_path="decisions",
+                message=f"plan decision host checks failed: {exc}",
+                line=None,
+            )
+        ]
     if not extra:
         return validation
     return PlanValidationResult(

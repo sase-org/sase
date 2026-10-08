@@ -77,6 +77,7 @@ def _reject_plan_from_cli(*, selector: str | None) -> _PlanRejectResult:
     action_result = execute_plan_approval_response(
         plan_context_from_notification(notification),
         "reject",
+        source="cli",
     )
     render_reject_success(
         plan,

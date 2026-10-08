@@ -301,42 +301,108 @@ def work_from_plan_file(
 def _stamp_bead_work_decisions(
     source_path: Path, validation: object, *, dry_run: bool
 ) -> None:
-    """Stamp effective defaults for a gateless epic approval, once."""
-    if dry_run:
-        return
-    try:
-        from sase.sdd.frontmatter import parse_frontmatter
+    """Stamp effective defaults for a gateless epic approval, once.
 
-        try:
-            frontmatter, _body, had = parse_frontmatter(
-                source_path.read_text(encoding="utf-8")
-            )
-        except (OSError, UnicodeError):
-            return
-        if had and (frontmatter.get("decided_by") is not None):
-            return
-        raw_decisions = frontmatter.get("decisions") if had else None
-        if isinstance(raw_decisions, dict) and any(
-            isinstance(value, dict) and "answer" in value
-            for value in raw_decisions.values()
-        ):
-            return
-        plan = getattr(validation, "plan", None)
-        if plan is None or not getattr(plan, "decisions", ()):
-            return
+    Uses the fail-closed shell classifier (a human shell stamps
+    ``reviewer`` via ``cli``; an agent shell stamps ``agent`` via ``cli``).
+    Resolution and stamp failures propagate instead of being swallowed.
+    Dry run resolves and validates but never stamps. Already stamped plans
+    reuse their accepted answers; partial or conflicting stamps raise.
+    """
+    from sase.bead.cli_work_from_plan_types import PlanFileWorkError
+    from sase.sdd.frontmatter import parse_frontmatter
+
+    try:
+        frontmatter, _body, had = parse_frontmatter(
+            source_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError) as exc:
+        raise PlanFileWorkError(f"cannot read plan for stamping: {exc}") from exc
+    if not had:
+        return
+    plan = getattr(validation, "plan", None)
+    if plan is None or not getattr(plan, "decisions", ()):
+        return
+    from sase.main.plan_decide import caller_for_decide
+
+    caller = caller_for_decide()
+    decided_by = "reviewer" if caller == "human" else "agent"
+    if dry_run:
         from sase.sdd.plan_decisions import resolve_plan_decisions_for_direct_approval
 
-        resolved = resolve_plan_decisions_for_direct_approval(validation, {}, "agent")
-        values = resolved.get("values") if isinstance(resolved, dict) else {}
-        if not isinstance(values, dict) or not values:
-            return
-        from sase.plan_gate_stamp import stamp_direct_file
-
-        stamp_direct_file(
-            source_path, dict(values), decided_by="agent", decided_via=None
-        )
-    except Exception:
+        try:
+            resolve_plan_decisions_for_direct_approval(validation, {}, caller)
+        except Exception as exc:
+            raise PlanFileWorkError(f"plan decisions failed to resolve: {exc}") from exc
         return
+    if had and (frontmatter.get("decided_by") is not None):
+        _reuse_stamped_bead_work_answers(source_path, frontmatter, validation)
+        return
+    raw_decisions = frontmatter.get("decisions") if had else None
+    if isinstance(raw_decisions, dict) and any(
+        isinstance(value, dict) and "answer" in value
+        for value in raw_decisions.values()
+    ):
+        _reuse_stamped_bead_work_answers(source_path, frontmatter, validation)
+        return
+    from sase.sdd.plan_decisions import resolve_plan_decisions_for_direct_approval
+
+    try:
+        resolved = resolve_plan_decisions_for_direct_approval(validation, {}, caller)
+    except Exception as exc:
+        raise PlanFileWorkError(f"plan decisions failed to resolve: {exc}") from exc
+    values = resolved.get("values") if isinstance(resolved, dict) else {}
+    if not isinstance(values, dict) or not values:
+        return
+    from sase.plan_gate_stamp import stamp_direct_file
+
+    try:
+        stamp_direct_file(
+            source_path, dict(values), decided_by=decided_by, decided_via="cli"
+        )
+    except Exception as exc:
+        raise PlanFileWorkError(f"plan decisions failed to stamp: {exc}") from exc
+
+
+def _reuse_stamped_bead_work_answers(
+    source_path: Path, frontmatter: dict[str, object], validation: object
+) -> None:
+    """Validate an already-stamped plan reuses its accepted answers."""
+    from sase.bead.cli_work_from_plan_types import PlanFileWorkError
+
+    from sase.main.plan_decide import caller_for_decide
+
+    raw = frontmatter.get("decisions")
+    if not isinstance(raw, dict):
+        return
+    stamped: dict[str, object] = {}
+    for decision_id, entry in raw.items():
+        if isinstance(entry, dict) and "answer" in entry:
+            stamped[str(decision_id)] = entry["answer"]
+    if not stamped:
+        return
+    caller = caller_for_decide()
+    from sase.sdd.plan_decisions import resolve_plan_decisions_for_direct_approval
+
+    try:
+        resolved = resolve_plan_decisions_for_direct_approval(
+            validation, dict(stamped), caller
+        )
+    except Exception as exc:
+        raise PlanFileWorkError(
+            f"stamped plan answers failed validation: {exc}"
+        ) from exc
+    errors = resolved.get("errors") if isinstance(resolved, dict) else []
+    if errors:
+        raise PlanFileWorkError(f"stamped plan answers failed validation: {errors}")
+    values = resolved.get("values") if isinstance(resolved, dict) else {}
+    if isinstance(values, dict):
+        for decision_id, value in stamped.items():
+            if values.get(decision_id) != value:
+                raise PlanFileWorkError(
+                    f"stamped plan answer for {decision_id!r} conflicts with "
+                    "effective defaults"
+                )
 
 
 def _launch_hooks() -> _PlanFileWorkLaunchHooks:

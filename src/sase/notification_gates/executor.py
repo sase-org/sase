@@ -210,6 +210,7 @@ def execute_gate_selection(
         feedback=feedback,
         source=source,
         option_inputs=option_inputs,
+        caller=_caller,
     )
     acceptance_id = (
         None
@@ -228,6 +229,12 @@ def execute_gate_selection(
         if response_path.exists():
             existing_response = read_json_object(response_path)
             receipt = read_current_receipt(bundle_path)
+            try:
+                from sase.plan_gate_decisions import recover_plan_stamp_from_response
+
+                recover_plan_stamp_from_response(bundle_path)
+            except Exception:
+                pass
             if retry == "resume" and (
                 current_post_response_failure(
                     bundle_path, receipt, stage="side_effects"
@@ -374,6 +381,25 @@ def execute_gate_selection(
                 result=recorded,
             )
 
+        response_source = source
+        response_caller = gate_response_caller()
+        try:
+            from sase.notification_gates.decision import read_acceptance_meta
+
+            if acceptance_id is not None:
+                original_meta = read_acceptance_meta(bundle_path, acceptance_id)
+                if isinstance(original_meta, dict):
+                    stored_source = original_meta.get("source")
+                    stored_caller = original_meta.get("caller")
+                    if isinstance(stored_source, str) and stored_source:
+                        response_source = stored_source
+                    if isinstance(stored_caller, str) and stored_caller in (
+                        "human",
+                        "agent",
+                    ):
+                        response_caller = stored_caller
+        except Exception:
+            pass
         response: dict[str, Any] = {
             "schema_version": GATE_RESPONSE_SCHEMA_VERSION,
             "request_id": envelope["request_id"],
@@ -383,8 +409,8 @@ def execute_gate_selection(
             "option_inputs": redact_option_inputs(selected, resolved_inputs),
             "option_results": option_results,
             "feedback": normalized_feedback,
-            "source": source,
-            "caller": gate_response_caller(),
+            "source": response_source,
+            "caller": response_caller,
             "responded_at_unix": time.time(),
         }
         append_journal_event(

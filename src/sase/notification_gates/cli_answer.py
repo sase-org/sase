@@ -149,12 +149,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     )
     source = _request_source(request.payload) or "cli"
     selected_ids = [option.id for option in selected]
-    expected_review_revision = request.payload.get("review_revision")
-    if expected_review_revision is not None:
-        try:
-            expected_review_revision = int(expected_review_revision)
-        except (TypeError, ValueError):
-            expected_review_revision = None
+    expected_review_revision = _request_review_revision(request.payload)
 
     # A shell-backed gate is defined by the envelope's ``shell`` block (the
     # source of truth per the gate-turn design), never by whether the
@@ -171,6 +166,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
             option_inputs=option_inputs,
             feedback=feedback,
             source=source,
+            expected_review_revision=expected_review_revision,
         )
     if _effective_detach(args, turn_backed=turn_backed):
         _reject_detached_tty_options(selected)
@@ -181,6 +177,8 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
             feedback=feedback,
             retry=retry,
             option_inputs=option_inputs,
+            source=source,
+            review_revision=expected_review_revision,
         )
 
     gate_turn = (
@@ -219,6 +217,42 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     return _answered_payload(bundle, execution.response, execution.already_completed)
 
 
+def _request_review_revision(payload: Mapping[str, Any]) -> int | None:
+    """Validate the operation-request ``review_revision`` using wire rules.
+
+    A missing revision stays missing for older-client compatibility. A
+    present revision must be an integer: booleans, non-integral numbers,
+    and malformed strings raise instead of silently disabling the check.
+    """
+    if "review_revision" not in payload:
+        return None
+    raw = payload.get("review_revision")
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        raise GateCliError("review_revision must be an integer, got a boolean")
+    if isinstance(raw, int):
+        return int(raw)
+    if isinstance(raw, float):
+        if not raw.is_integer():
+            raise GateCliError(f"review_revision must be an integer, got {raw!r}")
+        return int(raw)
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            raise GateCliError("review_revision must be an integer, got empty text")
+        body = text[1:] if text[:1] in ("+", "-") else text
+        if not body.isdigit():
+            raise GateCliError(f"review_revision must be an integer, got {raw!r}")
+        try:
+            return int(text)
+        except ValueError as exc:
+            raise GateCliError(
+                f"review_revision must be an integer, got {raw!r}"
+            ) from exc
+    raise GateCliError(f"review_revision must be an integer, got {type(raw).__name__}")
+
+
 def _resume_answered_shell(
     bundle: ResolvedGateCliBundle,
     *,
@@ -227,6 +261,7 @@ def _resume_answered_shell(
     option_inputs: Mapping[str, object] | None,
     feedback: str | None,
     source: str,
+    expected_review_revision: int | None = None,
 ) -> dict[str, Any]:
     """Resume an unfinished coder handoff using the persisted answer."""
     existing = read_json_object(bundle.response_path)
@@ -261,6 +296,9 @@ def _resume_answered_shell(
         # skipping any launch response.json already recorded, before
         # settling the shell so the handoff resumes against a launch that
         # actually happened.
+        from sase.plan_gate_decisions import recover_plan_stamp_from_response
+
+        recover_plan_stamp_from_response(bundle.root)
         execution = execute_gate_selection(
             bundle.root,
             selected_ids,
@@ -269,6 +307,7 @@ def _resume_answered_shell(
             source=source,
             retry="resume",
             option_inputs=option_inputs,
+            expected_review_revision=expected_review_revision,
         )
         existing = execution.response
         receipt = read_current_receipt(bundle.root)
@@ -337,6 +376,8 @@ def _submit_detached_answer(
     feedback: str | None,
     retry: Literal["resume", "restart"] | None,
     option_inputs: Mapping[str, object] | None,
+    source: str | None = None,
+    review_revision: int | None = None,
 ) -> dict[str, Any]:
     """Submit a supervised background proc that owns this gate's execution.
 
@@ -355,6 +396,10 @@ def _submit_detached_answer(
         payload["feedback"] = feedback
     if retry is not None:
         payload["retry"] = retry
+    if source is not None:
+        payload["source"] = source
+    if review_revision is not None:
+        payload["review_revision"] = review_revision
 
     proc = submit_proc_request(
         ProcSubmitRequest(

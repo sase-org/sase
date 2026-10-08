@@ -121,8 +121,18 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
                 artifacts_dir,
                 strict_quotes=True,
             )
-        except Exception:
-            extra = []
+        except Exception as exc:
+            from sase.sdd.plan_validate import PlanDiagnostic, PlanDiagnosticSeverity
+
+            extra = [
+                PlanDiagnostic(
+                    severity=PlanDiagnosticSeverity.ERROR,
+                    code="decision-host-check-failed",
+                    field_path="decisions",
+                    message=f"plan decision host checks failed: {exc}",
+                    line=None,
+                )
+            ]
         if extra:
             failed = PlanValidationResult(
                 schema_version=validation.schema_version,

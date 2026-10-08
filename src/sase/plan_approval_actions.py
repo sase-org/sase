@@ -112,6 +112,7 @@ def execute_plan_approval_response(
     epic_launch_origin: EpicLaunchOrigin = "api",
     option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
     expected_review_revision: int | None = None,
+    source: str = "plan_response",
 ) -> PlanApprovalActionResult:
     """Resolve a neutral plan gate, with legacy in-flight fallback."""
     wait_spec = _parse_plan_approval_wait(wait)
@@ -138,6 +139,7 @@ def execute_plan_approval_response(
             epic_launch_origin=epic_launch_origin,
             option_inputs=option_inputs,
             expected_review_revision=expected_review_revision,
+            source=source,
         )
     return _execute_legacy_plan_approval_response(
         notification,

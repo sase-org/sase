@@ -146,24 +146,16 @@ def _stamp_direct_decisions(local_plan: Path, values: dict[str, object]) -> None
     """Stamp the resolved decision answers into a gateless approval file."""
     if not values:
         return
-    try:
-        from sase.main.plan_decide import caller_for_decide
-        from sase.plan_gate_stamp import stamp_direct_file
+    from sase.main.plan_decide import caller_for_decide
+    from sase.plan_gate_stamp import stamp_direct_file
 
-        caller = caller_for_decide()
-        stamp_direct_file(
-            local_plan,
-            dict(values),
-            decided_by="agent" if caller == "agent" else "reviewer",
-            decided_via="cli",
-        )
-    except Exception as exc:
-        from sase._plan_approval_protocol import PlanApprovalActionError
-        from sase.notification_gates.models import GateError
-
-        if isinstance(exc, (PlanApprovalActionError, GateError)):
-            raise
-        return
+    caller = caller_for_decide()
+    stamp_direct_file(
+        local_plan,
+        dict(values),
+        decided_by="agent" if caller == "agent" else "reviewer",
+        decided_via="cli",
+    )
 
 
 def _archive_plan(plan: DirectApprovalPlan, local_plan: Path) -> tuple[str, str | None]:

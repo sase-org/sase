@@ -210,6 +210,7 @@ def submit_neutral_plan_response(
                 "epic_launch_mode": "launch",
                 "epic_launch_origin": "ace",
                 "option_inputs": result.option_inputs or None,
+                "source": "tui",
             }
             if result.review_revision is not None:
                 kwargs["expected_review_revision"] = result.review_revision

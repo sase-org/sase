@@ -10,6 +10,77 @@ from sase.notification_gates.models import GateError
 from sase.plan_approval_actions import PlanApprovalActionError
 
 
+def _ordered_stamped_decisions(
+    raw_decisions: dict[str, Any],
+    values: dict[str, Any],
+    path_str: str,
+    *,
+    context: str,
+) -> dict[str, Any]:
+    """Build the stamped map in authored order, validating completeness."""
+    authored_ids = [key for key, val in raw_decisions.items() if isinstance(val, dict)]
+    for decision_id in values:
+        if not isinstance(decision_id, str) or decision_id not in raw_decisions:
+            raise PlanApprovalActionError(
+                "plan_archive_failed",
+                path_str,
+                f"decision {decision_id!r} is not in the authored {context}",
+            )
+        if not isinstance(raw_decisions.get(decision_id), dict):
+            raise PlanApprovalActionError(
+                "plan_archive_failed",
+                path_str,
+                f"decision {decision_id!r} is not in the authored {context}",
+            )
+    missing = [key for key in authored_ids if key not in values]
+    if missing:
+        raise PlanApprovalActionError(
+            "plan_archive_failed",
+            path_str,
+            f"{context} is missing answers for: {', '.join(missing)}",
+        )
+    updated: dict[str, Any] = {}
+    for decision_id, authored in raw_decisions.items():
+        if not isinstance(authored, dict):
+            continue
+        value = values[decision_id]
+        existing_answer = authored.get("answer")
+        if existing_answer is not None and existing_answer != value:
+            raise PlanApprovalActionError(
+                "plan_archive_failed",
+                path_str,
+                f"decision {decision_id!r} already stamped with a different answer",
+            )
+        entry = dict(authored)
+        entry["answer"] = value
+        updated[decision_id] = entry
+    return updated
+
+
+def _durable_answers_complete(raw_decisions: dict[str, Any]) -> bool:
+    """Whether every authored decision already carries an answer."""
+    for authored in raw_decisions.values():
+        if isinstance(authored, dict) and authored.get("answer") is None:
+            return False
+    return True
+
+
+def _stamp_is_complete_and_identical(
+    raw_decisions: dict[str, Any],
+    updated: dict[str, Any],
+    values: dict[str, Any],
+) -> bool:
+    """Whether the durable file is already fully and identically stamped."""
+    if not _durable_answers_complete(raw_decisions):
+        return False
+    for decision_id, value in values.items():
+        if not isinstance(decision_id, str):
+            continue
+        if updated.get(decision_id, {}).get("answer") != value:
+            return False
+    return True
+
+
 def stamp_durable_plan(
     notification: PlanApprovalActionContext,
     result: dict[str, Any],
@@ -48,26 +119,9 @@ def stamp_durable_plan(
         )
     existing_by = frontmatter.get("decided_by")
     existing_via = frontmatter.get("decided_via")
-    updated: dict[str, Any] = {}
-    for decision_id, value in decisions.items():
-        if not isinstance(decision_id, str):
-            continue
-        authored = raw_decisions.get(decision_id)
-        if not isinstance(authored, dict):
-            continue
-        existing_answer = authored.get("answer")
-        if existing_answer is not None and existing_answer != value:
-            raise PlanApprovalActionError(
-                "plan_archive_failed",
-                str(durable),
-                f"decision {decision_id!r} already stamped with a different answer",
-            )
-        entry = dict(authored)
-        entry["answer"] = value
-        updated[decision_id] = entry
-    for decision_id, authored in raw_decisions.items():
-        if decision_id not in updated and isinstance(authored, dict):
-            updated[decision_id] = dict(authored)
+    updated = _ordered_stamped_decisions(
+        raw_decisions, decisions, str(durable), context="durable plan"
+    )
     if existing_by is not None or existing_via is not None:
         if existing_by != decided_by:
             raise PlanApprovalActionError(
@@ -81,14 +135,14 @@ def stamp_durable_plan(
                 str(durable),
                 "durable plan already stamped with a different surface",
             )
-        if all(
-            updated.get(decision_id, {}).get("answer") == value
-            for decision_id, value in decisions.items()
-        ):
+        if _stamp_is_complete_and_identical(raw_decisions, updated, decisions):
             return
-        raise PlanApprovalActionError(
-            "plan_archive_failed", str(durable), "durable plan answers differ"
-        )
+        if _durable_answers_complete(raw_decisions):
+            raise PlanApprovalActionError(
+                "plan_archive_failed", str(durable), "durable plan answers differ"
+            )
+        # Compatible coordinates but missing answers: fall through and finish
+        # the stamp below.
     fields: dict[str, Any] = {"decisions": updated, "decided_by": decided_by}
     if decided_via is not None:
         fields["decided_via"] = decided_via
@@ -154,24 +208,33 @@ def stamp_direct_file(
     raw_decisions = frontmatter.get("decisions")
     if not isinstance(raw_decisions, dict):
         return
-    updated: dict[str, Any] = {}
-    for decision_id, value in values.items():
-        authored = raw_decisions.get(decision_id)
-        if not isinstance(authored, dict):
-            continue
-        existing = authored.get("answer")
-        if existing is not None and existing != value:
+    updated = _ordered_stamped_decisions(
+        raw_decisions, values, str(plan_path), context="plan"
+    )
+    existing_by = frontmatter.get("decided_by")
+    existing_via = frontmatter.get("decided_via")
+    if existing_by is not None or existing_via is not None:
+        if existing_by != decided_by:
             raise PlanApprovalActionError(
                 "plan_archive_failed",
                 str(plan_path),
-                f"decision {decision_id!r} already stamped differently",
+                "plan already stamped with a different decider",
             )
-        entry = dict(authored)
-        entry["answer"] = value
-        updated[decision_id] = entry
-    for decision_id, authored in raw_decisions.items():
-        if decision_id not in updated and isinstance(authored, dict):
-            updated[decision_id] = dict(authored)
+        if (existing_via or None) != decided_via:
+            raise PlanApprovalActionError(
+                "plan_archive_failed",
+                str(plan_path),
+                "plan already stamped with a different surface",
+            )
+        if _stamp_is_complete_and_identical(raw_decisions, updated, values):
+            return
+        if _durable_answers_complete(raw_decisions):
+            raise PlanApprovalActionError(
+                "plan_archive_failed",
+                str(plan_path),
+                "plan already stamped with different answers",
+            )
+        # Compatible coordinates but missing answers: fall through and finish.
     fields: dict[str, Any] = {"decisions": updated, "decided_by": decided_by}
     if decided_via is not None:
         fields["decided_via"] = decided_via

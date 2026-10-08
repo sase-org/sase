@@ -8,6 +8,38 @@ from typing import Any
 from sase.notification_gates.models import GateError
 
 
+_SUPPORTED_PLAN_SOURCES = frozenset(
+    {"tui", "cli", "telegram", "mobile", "auto_resolution", "plan_response"}
+)
+
+
+def _validate_plan_source_caller(source: str, caller: str) -> str:
+    """Validate stamp coordinates at the normalization boundary.
+
+    Supported surfaces are ``tui``, ``cli``, ``telegram``, and ``mobile``;
+    ``auto_resolution`` maps to ``decided_by: auto`` with no ``decided_via``.
+    A classified human maps to ``reviewer``; an agent maps to ``agent``.
+    An unknown source or invalid caller fails before acceptance. Decision-free
+    gates retain their existing contracts (validated by the early return above).
+    The legacy ``plan_response`` alias retains its established TUI meaning.
+    """
+    if source not in _SUPPORTED_PLAN_SOURCES:
+        raise GateError(
+            "unknown_source",
+            "source",
+            f"unsupported plan gate source: {source!r}",
+        )
+    if source == "auto_resolution":
+        return "auto"
+    if caller not in ("human", "agent"):
+        raise GateError(
+            "invalid_caller",
+            "caller",
+            f"invalid plan gate caller: {caller!r}",
+        )
+    return caller
+
+
 def normalize_plan_option_inputs(
     envelope: Mapping[str, Any],
     selected_option_ids: Sequence[str],
@@ -23,6 +55,7 @@ def normalize_plan_option_inputs(
         return option_inputs
     if not isinstance(definitions, list):
         return option_inputs
+    validated_caller = _validate_plan_source_caller(source, caller)
     try:
         from sase.sdd.plan_decisions import resolve_binding
     except Exception as exc:
@@ -73,9 +106,7 @@ def normalize_plan_option_inputs(
             else:
                 collected[decision_id] = value
                 owners[decision_id] = option_id
-    effective_caller = "auto" if source == "auto_resolution" else caller
-    if effective_caller not in ("human", "agent", "auto"):
-        effective_caller = "agent"
+    effective_caller = validated_caller
     try:
         result = resolve_binding(list(definitions), dict(collected), effective_caller)
     except GateError:
@@ -186,7 +217,140 @@ def _feedback_decision_rows(
     return rows
 
 
+def _accepted_values_from_response(
+    response: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Extract the accepted answer vector from a published gate response.
+
+    Reads ``decision_*`` inputs across selected options (and the command
+    results' ``decisions`` object when present) without re-running the
+    resolver, quote verification, or caller discovery. Changed submitted
+    overrides cannot replace an accepted vector: conflicting values raise.
+    """
+    values: dict[str, Any] = {}
+    option_inputs = response.get("option_inputs")
+    if isinstance(option_inputs, dict):
+        for inputs in option_inputs.values():
+            if not isinstance(inputs, dict):
+                continue
+            for key, value in inputs.items():
+                if not str(key).startswith("decision_"):
+                    continue
+                decision_id = str(key).removeprefix("decision_")
+                if decision_id in values and values[decision_id] != value:
+                    raise GateError(
+                        "decision_conflict",
+                        f"decisions.{decision_id}",
+                        f"decisions {decision_id!r} disagree across stored options",
+                    )
+                values.setdefault(decision_id, value)
+    option_results = response.get("option_results")
+    if isinstance(option_results, list):
+        for entry in option_results:
+            if not isinstance(entry, Mapping):
+                continue
+            result = entry.get("result")
+            if not isinstance(result, Mapping):
+                continue
+            stored = result.get("decisions")
+            if not isinstance(stored, dict):
+                continue
+            for decision_id, value in stored.items():
+                if not isinstance(decision_id, str):
+                    continue
+                if decision_id in values and values[decision_id] != value:
+                    raise GateError(
+                        "decision_conflict",
+                        f"decisions.{decision_id}",
+                        f"decisions {decision_id!r} disagree with stored results",
+                    )
+                values.setdefault(decision_id, value)
+    return values
+
+
+def recover_plan_stamp_from_response(bundle_path: object) -> bool:
+    """Re-stamp the durable plan from a published response without re-resolving.
+
+    Extracts the accepted answers and original attribution from
+    ``response.json`` (and its translated fields), stamps the durable plan
+    when it lacks answers, and reuses the same operation wherever a completed
+    response bypasses ordinary terminal preparation. Never re-runs the
+    resolver, quote verification, or caller discovery, and never re-asks the
+    reviewer. Identical recovery is a no-op; conflicting stamps raise.
+    Returns ``True`` when a stamp was written or was already complete.
+    """
+    from pathlib import Path as _Path
+
+    from sase.notification_gates.durability import read_json_object as _read
+
+    bundle = _Path(str(bundle_path))
+    try:
+        response = _read(bundle / "response.json")
+    except Exception:
+        return False
+    if not isinstance(response, dict):
+        return False
+    try:
+        envelope = _read(bundle / "request.json")
+    except Exception:
+        return False
+    if not isinstance(envelope, Mapping):
+        return False
+    payload = envelope.get("payload")
+    definitions = payload.get("decisions") if isinstance(payload, dict) else None
+    if not isinstance(definitions, list) or not definitions:
+        return False
+    try:
+        values = _accepted_values_from_response(response)
+    except GateError:
+        raise
+    except Exception:
+        return False
+    if not values:
+        return False
+    source = response.get("source")
+    caller = response.get("caller")
+    if not isinstance(source, str) or not source:
+        source = str(response.get("_gate_source") or "plan_response")
+    if not isinstance(caller, str) or not caller:
+        caller = str(response.get("_gate_caller") or "human")
+    if source == "auto_resolution":
+        decided_by = "auto"
+    elif source in ("tui", "plan_response", "cli", "telegram", "mobile"):
+        decided_by = "reviewer" if caller == "human" else "agent"
+    else:
+        return False
+    try:
+        from sase.plan_gate import plan_context_from_envelope
+        from sase.plan_gate_stamp import stamp_durable_plan
+    except Exception:
+        return False
+    try:
+        context = plan_context_from_envelope(bundle, envelope)
+    except Exception:
+        return False
+    try:
+        stamp_durable_plan(
+            context,
+            {"decisions": dict(values)},
+            source=source,
+            caller=caller
+            if caller in ("human", "agent")
+            else ("human" if decided_by == "reviewer" else "agent"),
+        )
+    except Exception as exc:
+        from sase.plan_approval_actions import PlanApprovalActionError
+
+        if isinstance(exc, (PlanApprovalActionError, GateError)):
+            # Identical recovery is a no-op only when the stamp helper
+            # returns quietly; any conflict propagates.
+            raise
+        raise
+    return True
+
+
 __all__ = [
     "feedback_rows_for_artifacts",
     "normalize_plan_option_inputs",
+    "recover_plan_stamp_from_response",
 ]

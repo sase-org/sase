@@ -161,6 +161,26 @@ def translate_plan_gate_response(
         capacity = _capacity_from_approve_result(approve_result)
         if capacity is not None:
             translated["capacity"] = capacity
+    gate_source = response.get("source")
+    gate_caller = response.get("caller")
+    if isinstance(gate_source, str) and gate_source:
+        translated["_gate_source"] = gate_source
+    if isinstance(gate_caller, str) and gate_caller:
+        translated["_gate_caller"] = gate_caller
+    # Persist the mapped attribution alongside the accepted vector so
+    # terminal-preparation retries in a different process retain the first
+    # acceptance's coordinates instead of adopting the retry worker.
+    try:
+        if isinstance(gate_source, str) and isinstance(gate_caller, str):
+            if gate_source == "auto_resolution":
+                translated["decided_by"] = "auto"
+            elif gate_source in ("tui", "plan_response", "cli", "telegram", "mobile"):
+                via = "tui" if gate_source in ("tui", "plan_response") else gate_source
+                by = "reviewer" if gate_caller == "human" else "agent"
+                translated["decided_by"] = by
+                translated["decided_via"] = via
+    except Exception:
+        pass
     return translated
 
 

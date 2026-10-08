@@ -202,10 +202,103 @@ def prompt_block_binding(
     )
 
 
+def _grant_note_path(selector: str) -> str | None:
+    """Return the future canonical project path for a grantable flat note."""
+    import re
+
+    raw = selector.strip()
+    if not raw.endswith(".md"):
+        return None
+    if "/" in raw or "\\" in raw:
+        return None
+    if any(part in {"", ".", ".."} for part in raw.split("/")):
+        return None
+    stem = raw[:-3]
+    if not stem or stem.lower() == "readme":
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", stem):
+        return None
+    return f"sase/memory/{stem}.md"
+
+
+def _grant_strand_record(
+    selector: str,
+) -> tuple[dict[str, Any], str] | None:
+    """Return a future strand grant record and its identity key, if grantable."""
+    import re
+
+    from sase.memory.selector_models import classify_selector, StrandSelector
+    from sase.memory.web.read_context import discover_scoped_memory_webs
+
+    try:
+        classified = classify_selector(selector)
+    except Exception:
+        return None
+    if not isinstance(classified, StrandSelector):
+        return None
+    web_slug = classified.web_slug.strip()
+    keyword = classified.keyword.strip()
+    if not web_slug or not keyword:
+        return None
+    if "/" in keyword or "\\" in keyword or ":" in keyword:
+        return None
+    if any(part in {"", ".", ".."} for part in keyword.split("/")):
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", keyword):
+        return None
+    if "/" in web_slug or "\\" in web_slug or ":" in web_slug:
+        return None
+    try:
+        project_root = Path.cwd()
+        home_root = Path.home()
+        scoped = discover_scoped_memory_webs(project_root, home_root)
+    except Exception:
+        return None
+    match = next((item for item in scoped if item.slug == web_slug), None)
+    if match is None:
+        return None
+    scope = "project"
+    try:
+        origins = getattr(match, "origins", {})
+        if origins:
+            first = next(iter(origins.values()))
+            candidate = str(getattr(first, "scope", "project"))
+            if candidate in ("project", "home"):
+                scope = candidate
+        else:
+            web_root = getattr(getattr(match, "web", None), "root", None)
+            if web_root is not None:
+                try:
+                    if Path(str(web_root)).resolve(strict=False) == Path.home().resolve(
+                        strict=False
+                    ):
+                        scope = "home"
+                except Exception:
+                    pass
+    except Exception:
+        scope = "project"
+    future_path = f"sase/memory/{web_slug}/{keyword}.md"
+    record = {
+        "selector": selector,
+        "kind": "strand",
+        "scope": scope,
+        "path": future_path,
+        "type": "strand",
+        "exists": False,
+    }
+    return record, f"strand:{scope}:{future_path}"
+
+
 def _resolve_memory_records(
     selectors: list[str],
 ) -> tuple[list[dict[str, Any]], set[str]]:
     """Resolve one decision's selectors to memory records and note keys.
+
+    A valid missing flat note or a valid missing strand of an existing web
+    resolves to a future grant record with ``exists: False``. Malformed
+    selectors, unknown webs/scopes, ambiguous aliases, traversal, broken or
+    escaping symlinks, layout collisions, and unreadable targets stay
+    ``decision-memory-unresolvable``. Never creates files or invents webs.
 
     Raises :class:`_PlanDecisionError` when a selector cannot be resolved.
     """
@@ -218,7 +311,15 @@ def _resolve_memory_records(
         try:
             batch = resolve_memory_selector_batch([selector])
         except MemorySelectorError as exc:
-            raise _PlanDecisionError("decision-memory-unresolvable", str(exc)) from exc
+            grant = _grant_record_for_missing_selector(selector, str(exc))
+            if grant is None:
+                raise _PlanDecisionError(
+                    "decision-memory-unresolvable", str(exc)
+                ) from exc
+            grant_records, grant_keys = grant
+            records.extend(grant_records)
+            note_keys.update(grant_keys)
+            continue
         except Exception as exc:
             raise _PlanDecisionError("decision-memory-unresolvable", str(exc)) from exc
         for note in batch.notes:
@@ -275,6 +376,79 @@ def _resolve_memory_records(
             f"memory selector did not resolve: {selectors!r}",
         )
     return records, note_keys
+
+
+def _grant_record_for_missing_selector(
+    selector: str, error_text: str
+) -> tuple[list[dict[str, Any]], set[str]] | None:
+    """Return future grant records for a valid missing target, if grantable.
+
+    Returns ``None`` when the failure must stay ``decision-memory-unresolvable``
+    (malformed selectors, unknown webs/scopes, ambiguous aliases, traversal,
+    broken/escaping symlinks, layout collisions, unreadable targets). Never
+    creates files or invents webs, scopes, aliases, or types.
+    """
+    lowered = error_text.lower()
+    non_grant_markers = (
+        "ambiguous",
+        "traversal",
+        "escaping",
+        "escape",
+        "symlink",
+        "collision",
+        "unreadable",
+        "malformed",
+        "unknown scope",
+        "unknown web",
+        "no descriptor",
+        "not a flat",
+        "nested",
+        "invalid",
+    )
+    # Only missing-target failures are grantable; any malformed, traversal,
+    # ambiguity, symlink, collision, or unreadable signal stays an error and
+    # must never become a new-note grant.
+    if any(marker in lowered for marker in non_grant_markers):
+        return None
+    from sase.memory.selector_models import classify_selector, NoteSelector
+
+    try:
+        classified = classify_selector(selector)
+    except Exception:
+        return None
+    if isinstance(classified, NoteSelector):
+        future = _grant_note_path(selector)
+        if future is None:
+            return None
+        # A broken symlink or existing file at the future location is not a
+        # clean missing target: keep the original error.
+        try:
+            from pathlib import Path
+
+            from sase.memory.paths import memory_write_root
+
+            write_root = memory_write_root(Path.cwd())
+            candidate = write_root / Path(future).name
+            if candidate.is_symlink() and not candidate.exists():
+                return None
+            if candidate.exists() and not candidate.is_file():
+                return None
+        except Exception:
+            pass
+        record = {
+            "selector": selector,
+            "kind": "note",
+            "scope": "project",
+            "path": future,
+            "type": "reference",
+            "exists": False,
+        }
+        return [record], {f"note:project:{future}"}
+    grant = _grant_strand_record(selector)
+    if grant is None:
+        return None
+    record, key = grant
+    return [record], {key}
 
 
 def _build_host_facts(
@@ -532,22 +706,37 @@ def validate_host_checks(
     return extra
 
 
+def resolve_direct_with_definitions(
+    definitions: list[dict[str, Any]],
+    overrides: dict[str, Any],
+    caller: str,
+) -> dict[str, Any]:
+    """Resolve typed overrides against prebuilt frozen definitions."""
+    submitted = dict(overrides or {})
+    try:
+        return resolve_binding(definitions, submitted, caller)
+    except Exception as exc:
+        raise GateError("decision-resolve-failed", "decisions", str(exc)) from exc
+
+
 def resolve_plan_decisions_for_direct_approval(
     validation: Any,
     overrides: dict[str, Any],
     caller: str,
     artifacts_dir: str = "",
 ) -> dict[str, Any]:
-    """Resolve effective defaults for a no-live-gate approval route."""
+    """Resolve effective defaults for a no-live-gate approval route.
+
+    The single direct-resolution implementation for gateless
+    ``sase plan approve <file>``, its ``-D`` overrides, and gateless
+    ``sase bead work``.
+    """
     plan = getattr(validation, "plan", None)
     if plan is None or not getattr(plan, "decisions", ()):
         return {"values": {}, "rows": [], "errors": []}
-    definitions = build_definitions(validation, artifacts_dir)
-    submitted = dict(overrides or {})
-    try:
-        return resolve_binding(definitions, submitted, caller)
-    except Exception as exc:
-        raise GateError("decision-resolve-failed", "decisions", str(exc)) from exc
+    directory = artifacts_dir or artifacts_dir_from_env()
+    definitions = build_definitions(validation, directory)
+    return resolve_direct_with_definitions(definitions, dict(overrides or {}), caller)
 
 
 def count_memory(decisions: Any) -> int:
@@ -568,6 +757,7 @@ __all__ = [
     "SEVEN_BINDINGS",
     "UNVERIFIED_CODE",
     "build_definitions",
+    "resolve_direct_with_definitions",
     "compile_input_properties",
     "count_memory",
     "digest_binding",

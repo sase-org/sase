@@ -174,11 +174,19 @@ def _validate_plan_gate_turn(spec: GateSpec, tier: PlanGateTier) -> None:
 
 
 def _validate_plan_decisions(spec: GateSpec, tier: PlanGateTier) -> None:
-    """Pin compiled Plan Decision properties and result schemas."""
+    """Pin compiled Plan Decision properties and result schemas.
+
+    Rebuilds frozen definitions from the adapter-owned plan resource and the
+    supplied frozen host facts (never gathering fresh environment facts),
+    then round-trips through core. Any malformed definition, inconsistent
+    default or kind, duplicate id, invalid provenance, unreadable resource,
+    or binding exception is ``invalid_plan_decisions``.
+    """
     from sase.plan_gate import (
         PLAN_APPROVE_OPTION_ID,
         PLAN_COMMIT_OPTION_ID,
         PLAN_FEEDBACK_OPTION_ID,
+        PLAN_REJECT_OPTION_ID,
     )
 
     payload_decisions = spec.payload.get("decisions")
@@ -208,24 +216,65 @@ def _validate_plan_decisions(spec: GateSpec, tier: PlanGateTier) -> None:
             "payload.decisions must be a frozen definition vector",
         )
     try:
-        from sase.sdd.plan_decisions import compile_input_properties, digest_binding
+        from sase.sdd.plan_decisions import (
+            compile_input_properties,
+            digest_binding,
+            payload_binding,
+            resolve_binding,
+            sheet_binding,
+            validated_to_wire_dict,
+        )
     except Exception as exc:
         raise GateError(
             "invalid_plan_decisions", "payload.decisions", str(exc)
         ) from exc
     try:
-        first = digest_binding(list(payload_decisions))
-        second = digest_binding(list(payload_decisions))
+        frozen = [item for item in payload_decisions if isinstance(item, dict)]
+        if len(frozen) != len(payload_decisions):
+            raise GateError(
+                "invalid_plan_decisions",
+                "payload.decisions",
+                "payload.decisions must be a frozen definition vector",
+            )
+        seen: set[str] = set()
+        for item in frozen:
+            decision_id = item.get("id")
+            if not isinstance(decision_id, str) or not decision_id:
+                raise ValueError(f"decision has invalid id: {decision_id!r}")
+            if decision_id in seen:
+                raise ValueError(f"duplicate decision id: {decision_id!r}")
+            seen.add(decision_id)
+            provenance = item.get("provenance")
+            if provenance is not None and provenance not in (
+                "asked",
+                "not_asked",
+                "quote_not_found",
+                "inherited",
+            ):
+                raise ValueError(f"invalid provenance for {decision_id!r}")
+        frozen_digest = digest_binding(list(frozen))
+        rebuilt = _rebuild_definitions_from_resource(spec, tier, list(frozen))
+        if digest_binding(rebuilt) != frozen_digest:
+            raise GateError(
+                "invalid_plan_decisions",
+                "payload.decisions",
+                "payload.decisions does not match the adapter-owned plan resource",
+            )
+        resolved = resolve_binding(list(frozen), {}, "auto")
+        values = resolved.get("values")
+        if not isinstance(values, dict):
+            raise ValueError("resolver returned no values")
+        if resolved.get("errors"):
+            raise ValueError(f"effective defaults failed: {resolved.get('errors')}")
+        sheet = sheet_binding(list(frozen), dict(values), 0)
+        if not isinstance(sheet, dict) or not isinstance(sheet.get("rows"), list):
+            raise ValueError("sheet builder returned no rows")
+    except GateError:
+        raise
     except Exception as exc:
         raise GateError(
             "invalid_plan_decisions", "payload.decisions", str(exc)
         ) from exc
-    if first != second:
-        raise GateError(
-            "invalid_plan_decisions",
-            "payload.decisions",
-            "payload.decisions does not round-trip through core",
-        )
     expected_inputs = compile_input_properties(list(payload_decisions))
     expected_ids = sorted(
         key.removeprefix("decision_") for key in expected_inputs.keys()
@@ -259,6 +308,31 @@ def _validate_plan_decisions(spec: GateSpec, tier: PlanGateTier) -> None:
                 "invalid_plan_decisions",
                 f"options.{option_id}.input_schema",
                 "decision properties are never required",
+            )
+    reject_opt = by_id.get(PLAN_REJECT_OPTION_ID)
+    if reject_opt is not None:
+        reject_props = dict(reject_opt.input_schema.get("properties") or {})
+        if any(name.startswith("decision_") for name in reject_props):
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{PLAN_REJECT_OPTION_ID}.input_schema",
+                "reject declares no decision properties",
+            )
+        reject_result = dict(reject_opt.result_schema.get("properties") or {})
+        if "decisions" in reject_result:
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{PLAN_REJECT_OPTION_ID}.result_schema",
+                "reject declares no decision result",
+            )
+    feedback_opt = by_id.get(PLAN_FEEDBACK_OPTION_ID)
+    if feedback_opt is not None:
+        feedback_result = dict(feedback_opt.result_schema.get("properties") or {})
+        if "decisions" in feedback_result:
+            raise GateError(
+                "invalid_plan_decisions",
+                f"options.{PLAN_FEEDBACK_OPTION_ID}.result_schema",
+                "feedback carries provisional values but no acceptance result",
             )
     for option_id in (PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID):
         result_opt = by_id.get(option_id)
@@ -298,3 +372,49 @@ def _validate_plan_decisions(spec: GateSpec, tier: PlanGateTier) -> None:
                 f"options.{option_id}.result_schema",
                 "result decisions must require every decision id",
             )
+
+
+def _rebuild_definitions_from_resource(
+    spec: GateSpec, tier: PlanGateTier, frozen: list[dict[str, object]]
+) -> list[dict[str, object]]:
+    """Rebuild definitions from the adapter-owned plan resource.
+
+    Uses the validated authored questions and the frozen host facts from
+    ``payload.decisions``. Never gathers fresh environment-dependent facts.
+    """
+    from sase.plan_gate import PLAN_RESOURCE_PATH
+
+    resources = {resource.path: resource for resource in spec.resources}
+    plan_resource = resources.get(PLAN_RESOURCE_PATH)
+    if plan_resource is None:
+        raise ValueError("adapter-owned plan resource is missing")
+    content = read_gate_resource(
+        plan_resource, code="invalid_plan_decisions", description="plan resource"
+    )
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("adapter-owned plan resource is unreadable")
+    from sase.sdd.plan_validate import validate_plan
+
+    validation = validate_plan(content, tier)
+    if not validation.ok or validation.plan is None:
+        raise ValueError("adapter-owned plan resource failed validation")
+    from sase.sdd.plan_decisions import payload_binding, validated_to_wire_dict
+
+    frozen_by_id = {
+        str(item.get("id")): item for item in frozen if isinstance(item, dict)
+    }
+    wired = validated_to_wire_dict(validation.plan)
+    host_facts: dict[str, dict[str, object]] = {}
+    for decision in getattr(validation.plan, "decisions", ()):
+        decision_id = getattr(decision, "id", "")
+        frozen_fact = frozen_by_id.get(str(decision_id), {})
+        resolved_raw = frozen_fact.get("resolved", [])
+        host_facts[str(decision_id)] = {
+            "requested_verified": bool(frozen_fact.get("requested_verified", False)),
+            "provenance": str(frozen_fact.get("provenance", "not_asked")),
+            "resolved": list(resolved_raw)
+            if isinstance(resolved_raw, (list, tuple))
+            else [],
+        }
+    rebuilt = payload_binding(wired, host_facts)
+    return list(rebuilt)

@@ -377,6 +377,7 @@ def _approve_pending_plan(
             epic_launch_origin="cli",
             option_inputs=option_inputs,
             expected_review_revision=decision_context.review_revision,
+            source="cli",
         )
     except PlanApprovalActionError as exc:
         if getattr(exc, "code", "") == "stale_review":

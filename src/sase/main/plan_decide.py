@@ -64,15 +64,21 @@ def parse_decide_assignments(raw_items: list[str] | tuple[str, ...]) -> dict[str
 
 
 def caller_for_decide() -> str:
-    """Return the resolver caller for this shell: ``agent`` or ``human``."""
+    """Return the resolver caller for this shell: ``agent`` or ``human``.
+
+    Delegates to the same fail-closed classifier as
+    ``notification_gates.executor.gate_response_caller``: any unknown actor
+    or classifier exception becomes ``agent``, never ``human``.
+    """
     try:
-        from sase.sdd.plan_decisions import in_agent_context
+        from sase.notification_gates.executor import gate_response_caller
     except Exception:
-        return "human"
+        return "agent"
     try:
-        return "agent" if in_agent_context() else "human"
+        caller = gate_response_caller()
     except Exception:
-        return "human"
+        return "agent"
+    return caller if caller in ("human", "agent") else "agent"
 
 
 def _agent_display_name() -> str:
@@ -259,12 +265,17 @@ def resolve_direct_decisions(
 ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]] | None:
     """Resolve ``-D`` answers for a gateless approval file.
 
-    Returns ``(values, rows, sheet)`` when the plan declares decisions and
-    ``None`` when it declares none (raising when ``-D`` was passed anyway).
+    Thin parser/card adapter over the single shared direct resolver:
+    duplicate ids, boolean spellings, case-insensitive choice keys, and
+    allowed-value hints stay here; host facts are built once and typed
+    overrides go to the shared resolver. Returns ``(values, rows, sheet)``
+    when the plan declares decisions and ``None`` when it declares none
+    (raising when ``-D`` was passed anyway).
     """
     from sase.sdd.plan_decisions import (
         artifacts_dir_from_env,
         build_definitions,
+        resolve_direct_with_definitions,
         sheet_binding,
     )
 
@@ -283,14 +294,45 @@ def resolve_direct_decisions(
         raise DecideError(
             f"✗ plan decisions failed to resolve: {exc}",
         ) from exc
-    values, rows = resolve_decide_values(definitions, raw_map, caller=caller)
     try:
-        sheet = sheet_binding(definitions, values, 0)
+        submitted = _build_decide_submitted(definitions, raw_map, caller=caller)
+    except DecideError:
+        raise
     except Exception as exc:
         raise DecideError(
             f"✗ plan decisions failed to resolve: {exc}",
         ) from exc
-    return values, rows, sheet
+    try:
+        resolved = resolve_direct_with_definitions(definitions, submitted, caller)
+    except Exception as exc:
+        raise DecideError(
+            f"✗ plan decisions failed to resolve: {exc}",
+        ) from exc
+    errors = resolved.get("errors") or []
+    if errors:
+        first = errors[0] if isinstance(errors[0], dict) else {}
+        code = str(first.get("code") or "decision-resolve-failed")
+        message = str(first.get("message") or "plan decisions failed to resolve")
+        if code == "memory_decision_requires_human":
+            raise DecideError(
+                "✗ memory decisions can only be switched on by a human; "
+                f"this shell runs inside agent {_agent_display_name()}.",
+            )
+        raise DecideError(f"✗ {message}")
+    values = resolved.get("values")
+    rows = resolved.get("rows")
+    if not isinstance(values, dict):
+        raise DecideError("✗ plan decisions failed to resolve: no values")
+    if not isinstance(rows, list):
+        rows = []
+    typed_rows = [row for row in rows if isinstance(row, dict)]
+    try:
+        sheet = sheet_binding(definitions, dict(values), 0)
+    except Exception as exc:
+        raise DecideError(
+            f"✗ plan decisions failed to resolve: {exc}",
+        ) from exc
+    return dict(values), typed_rows, sheet
 
 
 def direct_card_lines(plan: Any, *, dry_run: bool) -> list[str] | None:
