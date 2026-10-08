@@ -59,7 +59,7 @@ jobs:
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
-          install-recipe: install-visual
+          install-recipe: install-venv-visual
       - name: Record per-test coverage contexts
         run: just test-contexts
       # `always()` so a red suite still publishes: contexts are unioned into
@@ -88,7 +88,7 @@ jobs:
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
-          install-recipe: install-visual
+          install-recipe: install-venv-visual
       - name: Run default-lane contention harness
         run: SASE_CONTENTION_REPEAT=1 just test-contention
       - name: Upload contention failure records

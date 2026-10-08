@@ -28,13 +28,13 @@ def _write_project_tools(root: Path, tools: dict[object, object]) -> Path:
 def test_sase_project_catalog_has_five_named_tools() -> None:
     catalog = load_project_tool_catalog()
     names = [entry.name for entry in catalog.entries]
-    assert names == ["check", "check-full", "install", "test", "test-visual"]
+    assert names == ["check", "check-full", "install-venv", "test", "test-visual"]
     by_name = {entry.name: entry for entry in catalog.entries}
     assert by_name["check"].definition["argv"] == ["just", "check"]
     assert by_name["check"].definition["stages"] == "run_silent"
     assert by_name["check"].definition["args"] == "deny"
     assert by_name["check-full"].definition["argv"] == ["just", "check-full"]
-    assert by_name["install"].definition["stages"] == "none"
+    assert by_name["install-venv"].definition["stages"] == "none"
     assert by_name["test"].definition["args"] == "allow"
     assert by_name["test-visual"].definition["argv"] == ["just", "test-visual"]
     assert all(entry.digest for entry in catalog.entries)
@@ -210,7 +210,7 @@ def test_check_declares_normalized_receipt_policy() -> None:
     policy = by_name["check"].definition["receipt"]
     assert policy["accept"] == ["no_new_failures", "pass"]
     assert policy["ttl"] == "2h"
-    for tool in ("check-full", "install", "test", "test-visual"):
+    for tool in ("check-full", "install-venv", "test", "test-visual"):
         assert "receipt" not in by_name[tool].definition
 
 
@@ -275,7 +275,7 @@ def test_check_full_declares_long_duration_class() -> None:
     catalog = load_project_tool_catalog()
     by_name = {entry.name: entry for entry in catalog.entries}
     assert by_name["check-full"].definition["duration_class"] == "long"
-    for tool in ("check", "install", "test", "test-visual"):
+    for tool in ("check", "install-venv", "test", "test-visual"):
         assert "duration_class" not in by_name[tool].definition
 
 

@@ -18,7 +18,7 @@ This gate exists because sase 0.11.0 shipped calling the unreleased
 ``aggregate_clan_runtime`` binding while its dependency range accepted
 sase-core-rs 0.6.0, which does not expose it: every published install
 crashed with ``AttributeError`` the first time the TUI rendered a clan
-row. Local dev never notices this class of skew because ``just install``
+row. Local dev never notices this class of skew because ``just install-venv``
 builds the Rust core from the sibling checkout.
 """
 

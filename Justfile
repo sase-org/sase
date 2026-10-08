@@ -48,7 +48,7 @@ sase_github_dir := env_var_or_default("SASE_GITHUB_DIR", env_var_or_default("SAS
 # Dev installs build sase_core_rs from the local checkout or install the
 # SASE_CORE_WHEEL supplied by CI, so the published sase-core-rs version window
 # in pyproject.toml must not constrain (or downgrade) that build during
-# dependency resolution. In either case editable install recipes pass a uv
+# dependency resolution. In either case editable install-venv recipes pass a uv
 # overrides file that lifts the window.
 core_overrides_file := venv_dir / "sase-core-rs-overrides.txt"
 
@@ -120,7 +120,7 @@ _setup: _venv
         if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
             printf "[setup] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
         else \
-            printf "[setup] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            printf "[setup] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install-venv'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
             exit "$validation_status"; \
         fi; \
     fi; \
@@ -172,26 +172,52 @@ _header NAME:
     @printf "│                RUNNING: just %-25s│\n" "{{ NAME }}"
     @printf "└───────────────────────────────────────────────────────┘\n"
 
-# Install in editable mode with dev dependencies. If a local sase-core
-# checkout is present and a Rust toolchain is on PATH, build and install
-# `sase_core_rs` from source first so the pyproject dependency on
-# `sase-core-rs` is satisfied before editable resolution. Released `sase`
-# wheels resolve the same dependency from the published `sase-core-rs`
-# distribution instead.
-install: _venv
+# ── Installing sase ───────────────────────────────────────────────────────────
+#   just install       your `sase` command ← the latest PyPI release
+#   just install-dev   your `sase` command ← this checkout + its paired sase-core
+#   just install-venv  this checkout's .venv ← tests, lint, benchmarks (never your `sase`)
+
+# Set up this checkout's .venv. If a local sase-core checkout is present and
+# a Rust toolchain is on PATH, build and install `sase_core_rs` from source
+# first so the pyproject dependency on `sase-core-rs` is satisfied before
+# editable resolution. Released `sase` wheels resolve the same dependency
+# from the published `sase-core-rs` distribution instead.
+_install-venv EXTRAS: _venv
     @if [ -n "${SASE_CORE_WHEEL:-}" ]; then \
         if [ ! -f "$SASE_CORE_WHEEL" ]; then \
             printf "error: SASE_CORE_WHEEL does not name a wheel file: %s\n" "$SASE_CORE_WHEEL" >&2; \
             exit 2; \
         fi; \
-        printf "[install] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
+        printf "[install-venv] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
         uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
-    elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
-        printf "[install] Installing local sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
+    elif [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
+        printf "[install-venv] sase-core checkout at {{ sase_core_dir }} has no Cargo.toml; treating as absent and using the published sase-core-rs wheel.\n"; \
+    elif [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
+        printf "[install-venv] Installing local sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
-    uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev]"
+    uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[{{ EXTRAS }}]"
     @just --set venv_dir "{{ venv_dir }}" _setup-required-plugins
+
+[group('install')]
+[doc("Set up this checkout's .venv for tests, lint, and benchmarks")]
+install-venv: (_install-venv "dev")
+
+[group('install')]
+[doc("Set up this checkout's .venv plus visual-snapshot test dependencies")]
+install-venv-visual: (_install-venv "dev,visual")
+
+[group('install')]
+[doc("Set up this checkout's .venv plus real-terminal smoke-test dependencies")]
+install-venv-terminal-smoke: (_install-venv "dev,terminal-smoke")
+
+[group('install')]
+[doc('Install the latest sase release from PyPI as your `sase` command')]
+[positional-arguments]
+install *args:
+    @printf "✗ \`just install\` is moving: it will install sase from PyPI as your \`sase\` command.\n" >&2; \
+    printf "  setting up this checkout's .venv?   just install-venv\n" >&2; \
+    exit 2
 
 # Install this project's plugins.required into the active venv, verified.
 # Reads plugins.required from sase/sase.yml (not a hard-coded name list) and
@@ -200,21 +226,6 @@ install: _venv
 # already-satisfied fast path would otherwise let slide. See its docstring.
 _setup-required-plugins:
     {{ venv_bin }}/python tools/setup_required_plugins
-
-# Install in editable mode with dev and visual-test dependencies.
-install-visual: _venv
-    @if [ -n "${SASE_CORE_WHEEL:-}" ]; then \
-        if [ ! -f "$SASE_CORE_WHEEL" ]; then \
-            printf "error: SASE_CORE_WHEEL does not name a wheel file: %s\n" "$SASE_CORE_WHEEL" >&2; \
-            exit 2; \
-        fi; \
-        printf "[install-visual] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
-        uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
-    elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
-        printf "[install-visual] Installing local sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
-        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
-    fi
-    uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,visual]"
 
 # Bootstrap visual-test dependencies without making them part of the default
 # development install.
@@ -253,21 +264,6 @@ _setup-demos:
     else \
         uv pip install --python {{ demo_venv_bin }}/python sase-github; \
     fi
-
-# Install in editable mode with dev and real-terminal smoke-test dependencies.
-install-terminal-smoke: _venv
-    @if [ -n "${SASE_CORE_WHEEL:-}" ]; then \
-        if [ ! -f "$SASE_CORE_WHEEL" ]; then \
-            printf "error: SASE_CORE_WHEEL does not name a wheel file: %s\n" "$SASE_CORE_WHEEL" >&2; \
-            exit 2; \
-        fi; \
-        printf "[install-terminal-smoke] Installing prebuilt sase_core_rs wheel from %s.\n" "$SASE_CORE_WHEEL"; \
-        uv pip install --python {{ venv_bin }}/python "$SASE_CORE_WHEEL"; \
-    elif [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
-        printf "[install-terminal-smoke] Installing local sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
-        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
-    fi
-    uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"
 
 # Bootstrap real-terminal smoke-test dependencies without making them part of
 # the default development install.
@@ -1010,7 +1006,7 @@ rust-install VENV=venv_dir_abs: _venv
         if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
             printf "[rust-install] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
         else \
-            printf "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            printf "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun `just install-venv` (this checkout's .venv) or `sase update` (your installed `sase`).\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
             exit 1; \
         fi; \
     elif [ "$status" -ne 0 ]; then \
@@ -1101,7 +1097,7 @@ rust-dev-install VENV=venv_dir_abs: _venv
         if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
             printf "[rust-dev-install] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
         else \
-            printf "[rust-dev-install] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            printf "[rust-dev-install] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun `just install-venv` (this checkout's .venv) or `sase update` (your installed `sase`).\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
             exit 1; \
         fi; \
     elif [ "$status" -ne 0 ]; then \

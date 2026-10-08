@@ -615,14 +615,14 @@ succeeds inside the same venv that runs `sase`.
 
 ### Source / development workflow
 
-`just install` automatically builds and installs `sase_core_rs` from a sibling
+`just install-venv` automatically builds and installs `sase_core_rs` from a sibling
 `../sase-core` checkout when one exists and a Rust toolchain (`cargo`) is on `PATH`.
 This satisfies the `sase-core-rs` runtime dependency from local source so the editable
 `sase` install does not have to round-trip through PyPI:
 
 ```bash
 git clone https://github.com/sase-org/sase-core.git ../sase-core
-just install     # builds sase_core_rs from ../sase-core, then installs sase in editable mode
+just install-venv     # builds sase_core_rs from ../sase-core, then installs sase in editable mode
 ```
 
 Throughout this page, `../sase-core` stands for the configured core checkout. The
@@ -756,9 +756,9 @@ copied from the selected profile directory, for example
 uv-tool venv with the same atomic temp-file install used by `just rust-lsp-install`,
 which builds the LSP the same way (dev-update profile, isolated `uv-tool-lsp` target).
 The separate `rust-install*` targets remain available for direct maintenance and
-`just install`; they build the extension with the release profile (or install a cached
-release wheel) and then chain `rust-lsp-install`. CI builds its release wheel and LSP
-binary directly with `maturin build --release` and `cargo build --release`.
+`just install-venv`; they build the extension with the release profile (or install a
+cached release wheel) and then chain `rust-lsp-install`. CI builds its release wheel and
+LSP binary directly with `maturin build --release` and `cargo build --release`.
 
 Launched agents receive `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and
 `CARGO_BUILD_BUILD_DIR` under SASE's managed temp root for each run. Agent code and ad
@@ -802,8 +802,8 @@ narrow cleanup fallbacks do not make the extension optional, and `sase core heal
 still exits non-zero when the extension is missing or stale.
 
 If a contributor's local checkout does not have a working `sase_core_rs`, the fix is to
-run `just install` (or `just rust-install` against a sibling `../sase-core/`) — not to
-disable Rust.
+run `just install-venv` (or `just rust-install` against a sibling `../sase-core/`) — not
+to disable Rust.
 
 ## Backend Health Check
 

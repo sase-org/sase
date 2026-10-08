@@ -15,7 +15,7 @@ from tests.ace.tui.visual.png_diff import bundled_fonts_dir
 _MANIFEST_PATH = Path(__file__).with_name("renderer_env.json")
 _FONTS_DIR = bundled_fonts_dir()
 _REMEDIATION = (
-    "Run `just install-visual`; if this is an intentional renderer upgrade, "
+    "Run `just install-venv-visual`; if this is an intentional renderer upgrade, "
     "update the visual pins and renderer_env.json, then follow the snapshot "
     "regeneration workflow."
 )

@@ -75,7 +75,7 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
         **os.environ,
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
         "CORE_ARTIFACT_DIR": str(artifact_dir),
-        "INSTALL_RECIPE": "install",
+        "INSTALL_RECIPE": "install-venv",
         "GITHUB_ENV": str(github_env),
     }
 
@@ -88,7 +88,7 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
         check=True,
     )
 
-    assert f"just install SASE_CORE_WHEEL={wheel}" in result.stdout
+    assert f"just install-venv SASE_CORE_WHEEL={wheel}" in result.stdout
     assert "lsp --version" in result.stdout
     installed_lsp = tmp_path / ".venv" / "bin" / "sase-macro-lsp"
     assert installed_lsp.is_file()
@@ -125,7 +125,7 @@ def test_setup_sase_install_script_installs_macro_lsp_under_its_own_name(
         **os.environ,
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
         "CORE_ARTIFACT_DIR": str(artifact_dir),
-        "INSTALL_RECIPE": "install",
+        "INSTALL_RECIPE": "install-venv",
         "GITHUB_ENV": str(github_env),
     }
 
@@ -181,7 +181,7 @@ def test_setup_sase_install_script_rejects_missing_or_duplicate_lsp_artifacts(
     env = {
         **os.environ,
         "CORE_ARTIFACT_DIR": str(artifact_dir),
-        "INSTALL_RECIPE": "install",
+        "INSTALL_RECIPE": "install-venv",
         "GITHUB_ENV": str(github_env),
     }
 
@@ -230,7 +230,7 @@ def test_setup_sase_install_script_rejects_missing_or_duplicate_provenance(
     env = {
         **os.environ,
         "CORE_ARTIFACT_DIR": str(artifact_dir),
-        "INSTALL_RECIPE": "install",
+        "INSTALL_RECIPE": "install-venv",
         "GITHUB_ENV": str(github_env),
     }
 

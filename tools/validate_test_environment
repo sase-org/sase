@@ -178,7 +178,7 @@ def _fingerprint_inputs(
     inputs["environment-metadata"] = metadata_digest.hexdigest()
 
     # Content-hashed, not `stat()`-ed: a rebuild that reproduces identical
-    # bytes must not read as a change (a verified no-op `just install` does
+    # bytes must not read as a change (a verified no-op `just install-venv` does
     # not touch the extension's content).
     extension_digest = hashlib.sha256()
     for path in _extension_files(venv_dir):

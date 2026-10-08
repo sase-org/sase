@@ -26,7 +26,7 @@ from _smoke_tool_runs_lib import (
 )
 
 
-FIVE_TOOLS = ["check", "check-full", "install", "test", "test-visual"]
+FIVE_TOOLS = ["check", "check-full", "install-venv", "test", "test-visual"]
 LOST_REASON = "runner exited without settling"
 
 

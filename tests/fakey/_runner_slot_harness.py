@@ -78,7 +78,9 @@ class _RunnerSlotFakeyHarness:
         self.write_cap(cap)
 
         fakey_binary = Path(sys.executable).with_name("fakey")
-        assert fakey_binary.is_file(), "just install must register the fakey binary"
+        assert fakey_binary.is_file(), (
+            "just install-venv must register the fakey binary"
+        )
         monkeypatch.setenv("SASE_HOME", str(self.home))
         monkeypatch.setenv("SASE_FAKEY_PATH", str(fakey_binary))
         monkeypatch.setenv("FAKEY_STATE_DIR", str(self.state_dir))

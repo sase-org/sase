@@ -99,7 +99,7 @@ snapshot-load, query-index build, and what a default `limit:100` blank-query vie
 actually costs today, over a live-scale synthetic corpus:
 
 ```bash
-just install
+just install-venv
 .venv/bin/python -m pytest -s -m slow tests/perf/bench_artifacts_first_paint.py
 ```
 
@@ -194,7 +194,7 @@ Capture cold-process timings from a checkout with the same `HOME` and artifact t
 user normally runs:
 
 ```bash
-just install
+just install-venv
 .venv/bin/python - <<'PY'
 import time
 

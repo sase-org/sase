@@ -384,7 +384,7 @@ def test_rust_lsp_install_isolates_cargo_build_dir_with_target() -> None:
 
 
 def test_rust_install_also_refreshes_the_macro_lsp_binary() -> None:
-    """`just install` must never leave a stale `sase-macro-lsp` behind.
+    """`just install-venv` must never leave a stale `sase-macro-lsp` behind.
 
     The extension and the LSP server both compile the same directive contract,
     and the ACE/LSP parity tests compare them, so rebuilding only the extension

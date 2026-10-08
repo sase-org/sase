@@ -141,10 +141,10 @@ def _configure_reroute_environment(
     _write_alias_overlay(fake_home / ".config" / "sase")
     venv_bin = Path(sys.executable).parent
     sase_binary = venv_bin / "sase"
-    assert sase_binary.is_file(), "just install must register the sase binary"
+    assert sase_binary.is_file(), "just install-venv must register the sase binary"
     monkeypatch.setenv("PATH", f"{venv_bin}{os.pathsep}{os.environ.get('PATH', '')}")
     fakey_binary = Path(sys.executable).with_name("fakey")
-    assert fakey_binary.is_file(), "just install must register the fakey binary"
+    assert fakey_binary.is_file(), "just install-venv must register the fakey binary"
     monkeypatch.setenv(provider_path_env_var("codex"), str(fakey_binary))
     monkeypatch.setenv("SASE_LLM_EXEC_PROVIDER", "fakey")
 

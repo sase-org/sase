@@ -148,7 +148,9 @@ class FakeyRetryHarness:
         for name in _CONTROL_ENV:
             monkeypatch.delenv(name, raising=False)
         fakey_binary = Path(sys.executable).with_name("fakey")
-        assert fakey_binary.is_file(), "just install must register the fakey binary"
+        assert fakey_binary.is_file(), (
+            "just install-venv must register the fakey binary"
+        )
         monkeypatch.setenv("SASE_HOME", str(self.home))
         monkeypatch.setenv("SASE_TMPDIR", str(tmp_path / "tmp"))
         monkeypatch.setenv("SASE_FAKEY_PATH", str(fakey_binary))

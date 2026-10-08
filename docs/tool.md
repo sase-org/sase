@@ -62,7 +62,7 @@ support; it never gates a run. Ad-hoc runs have no class and are always `short`.
 
 Mixed installed cores fail closed: a core older than the duration-class wire rejects
 `duration_class` as an unknown catalog field, so the pin bump and the first declaration
-land together and `just install` heals a stale wheel (same rollout as `receipt:`).
+land together and `just install-venv` heals a stale wheel (same rollout as `receipt:`).
 
 ## Project identity
 
@@ -227,22 +227,22 @@ verdict is an explicit limitation of the receipt, not proof of coverage; the nex
 ## Receipt catalog policy and mixed-core rollout (E4 core-pin-catalog)
 
 Only `check` declares an opt-in `receipt:` policy (`accept: [pass, no_new_failures]`,
-`ttl: 2h`); `check-full`, `install`, and ad-hoc runs stay receipt-less. The policy is
-normalized by the Rust core but excluded from the definition digest, so editing it never
-moves historical duration or corpus identity, while adding toolchain probes or
+`ttl: 2h`); `check-full`, `install-venv`, and ad-hoc runs stay receipt-less. The policy
+is normalized by the Rust core but excluded from the definition digest, so editing it
+never moves historical duration or corpus identity, while adding toolchain probes or
 fingerprint inputs still moves the digest once, as intended. The beta `tool_receipts`
 flag was removed at E4 landing: the policy is now always exposed on the loaded
 definition and the flag-off branch is deleted.
 
 Mixed installed cores fail closed with a clear diagnostic, never with a stale identity.
 The pinned source revision (`sase-core-revision.txt`) is the receipt-capable core, and
-dev installs build the extension from that checkout, so `just install` heals a stale
-wheel. A published `sase-core-rs` older than the receipt wire rejects the `receipt:` key
-as an unknown catalog field (`sase tool run` exits 2 naming the entry), and Python code
-calling the receipt bindings fails the "Check pinned core bindings" lint step instead of
-crashing with `AttributeError` at runtime. Apollo and unconfigured-mac machines stay on
-the pass-only path until their ledgers grow enough for an independent KNOWN precision
-gate; no receipt is shared across machines.
+dev installs build the extension from that checkout, so `just install-venv` heals a
+stale wheel. A published `sase-core-rs` older than the receipt wire rejects the
+`receipt:` key as an unknown catalog field (`sase tool run` exits 2 naming the entry),
+and Python code calling the receipt bindings fails the "Check pinned core bindings" lint
+step instead of crashing with `AttributeError` at runtime. Apollo and unconfigured-mac
+machines stay on the pass-only path until their ledgers grow enough for an independent
+KNOWN precision gate; no receipt is shared across machines.
 
 ## Verdict receipts: mint, query, and no-skip (E4 receipt-execution-cli)
 
@@ -596,8 +596,8 @@ A `--keep` directory holds one `world-*` subdirectory per case group. Inspect on
 
 `check` and `check-full` are guarded: run as a SASE agent, `just check` refuses unless
 it runs inside `sase tool run check` for that project root, or with an explicit bypass.
-`test` and `install` are never guarded. The guard is a guardrail against habit, not a
-security boundary.
+`test` and `install-venv` are never guarded. The guard is a guardrail against habit, not
+a security boundary.
 
 ```bash
 sase tool run check                                # the wrapped form agents use
@@ -631,7 +631,7 @@ runs (`SASE_TOOL_NAME=ad-hoc`, empty root) never match a guarded recipe's name.
 
 An agent may run a guarded recipe only from inside `sase tool run <that tool>` for
 _that_ project root, or with an explicit bypass. The match is strict:
-`sase tool run -- sh -c 'just install && just check'` does not satisfy the `check`
+`sase tool run -- sh -c 'just install-venv && just check'` does not satisfy the `check`
 guard, because the named identity is what run history, fingerprints, and receipts key
 on.
 

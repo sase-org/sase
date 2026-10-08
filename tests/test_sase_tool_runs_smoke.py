@@ -57,7 +57,7 @@ def _load_tool() -> ModuleType:
 def _sase() -> str:
     workspace = ROOT / ".venv" / "bin" / "sase"
     found = str(workspace) if workspace.exists() else shutil.which("sase")
-    assert found, "no sase executable: run `just install` first"
+    assert found, "no sase executable: run `just install-venv` first"
     return found
 
 

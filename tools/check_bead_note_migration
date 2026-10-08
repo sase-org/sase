@@ -116,7 +116,7 @@ def _current_issues(beads_dir: Path) -> list[dict[str, Any]]:
         import sase_core_rs  # type: ignore[import-not-found]
     except ImportError as exc:
         raise SystemExit(
-            "cannot import sase_core_rs; run `just install` first"
+            "cannot import sase_core_rs; run `just install-venv` first"
         ) from exc
     payload = sase_core_rs.bead_read_store(str(beads_dir))
     if not isinstance(payload, list):

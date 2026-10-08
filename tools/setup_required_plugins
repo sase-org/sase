@@ -3,7 +3,7 @@
 
 Invoked as ``{{ venv_bin }}/python tools/setup_required_plugins`` from the
 Justfile's ``_setup-required-plugins`` recipe, which every ``just`` recipe
-re-enters via ``_setup``/``install``. The loop is driven by ``plugins.required``
+re-enters via ``_setup``/``install-venv``. The loop is driven by ``plugins.required``
 in ``sase/sase.yml`` (through :func:`sase.plugins.required.
 required_plugin_requirement_strings`) instead of a hard-coded name list, so it
 cannot drift from the declaration ``sase doctor -C plugins.required`` enforces.
@@ -223,7 +223,7 @@ def failure_message(plan: RequirementPlan, attempts: list[InstallOutcome]) -> st
     if plan.is_linked:
         lines.append(
             f'Run `sase repo open {plan.name} -r "install plugins.required"` to '
-            "materialize a linked checkout, then rerun `just install`."
+            "materialize a linked checkout, then rerun `just install-venv`."
         )
     else:
         lines.append(

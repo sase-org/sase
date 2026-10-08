@@ -99,13 +99,13 @@ the startup read to the full archive.
 ### Measured acceptance (sase-zu.8.5)
 
 Bead `sase-zu.8.5` remeasured the repaired tree on 2026-09-13 15:00-15:30 EDT: main tree
-`d698f92e05`, `sase-core-revision.txt` `23f19f0` built by `just install` from the linked
-checkout (`sase-core-rs` 0.34.24 dev build, index schema 30, scan wire 9). The sase-zu.7
-full-history rows above measured a cached index read, not production's revalidating
-path, and are superseded by these numbers. The harness now routes every path, the source
-scan reference included, through the tab's `compute_apply_loaded_agents` dismissal step,
-reports read/repair/decode counters, a periodic Tier 1 revalidate, and a settled
-unchanged-query session:
+`d698f92e05`, `sase-core-revision.txt` `23f19f0` built by `just install-venv` from the
+linked checkout (`sase-core-rs` 0.34.24 dev build, index schema 30, scan wire 9). The
+sase-zu.7 full-history rows above measured a cached index read, not production's
+revalidating path, and are superseded by these numbers. The harness now routes every
+path, the source scan reference included, through the tab's
+`compute_apply_loaded_agents` dismissal step, reports read/repair/decode counters, a
+periodic Tier 1 revalidate, and a settled unchanged-query session:
 
 ```bash
 .venv/bin/python tests/perf/bench_agent_load_tiering.py \

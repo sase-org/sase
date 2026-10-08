@@ -6,9 +6,9 @@ inputs:
     description: Python version to install.
     required: true
   install-recipe:
-    description: Just recipe used to install SASE dependencies.
+    description: Just recipe used to set up this checkout's .venv.
     required: false
-    default: install
+    default: install-venv
 
 runs:
   using: composite
@@ -59,7 +59,7 @@ runs:
           exit 1
         fi
         case "$INSTALL_RECIPE" in
-          install|install-visual) ;;
+          install-venv|install-venv-visual) ;;
           *)
             echo "error: unsupported install recipe: $INSTALL_RECIPE" >&2
             exit 2

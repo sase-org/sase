@@ -189,7 +189,7 @@ jobs:
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
-          install-recipe: install-visual
+          install-recipe: install-venv-visual
       - name: Check TUI screenshots
         run: just fix-tui-screenshots --check
       - name: Locate visual report
@@ -276,7 +276,7 @@ jobs:
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
-          install-recipe: install-visual
+          install-recipe: install-venv-visual
       - name: Run ACE shared-page isolation lane
         run: just test-ace-page-group-isolated
 

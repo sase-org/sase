@@ -32,7 +32,7 @@ Install the local checkout first so the Python CLI and sibling Rust binaries are
 available:
 
 ```bash
-just install
+just install-venv
 cargo build -p sase_gateway --manifest-path ../sase-core/Cargo.toml
 ```
 

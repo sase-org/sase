@@ -101,7 +101,7 @@ real consumer (or the bead closes).
 
 ## Verify
 
-Ephemeral `sase_<N>` workspaces may have drifted deps, so run `just install` first.
+Ephemeral `sase_<N>` workspaces may have drifted deps, so run `just install-venv` first.
 Re-run the exact failing path (`just _lint-symvision`, plus the
 `SYMVISION_EXTERNAL_REPO_PATHS=...` form for URI pragmas), then `just check` as the repo
 requires after any code change.

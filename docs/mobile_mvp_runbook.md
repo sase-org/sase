@@ -94,7 +94,7 @@ Install the SASE checkout and build the Rust gateway:
 
 ```bash
 cd /path/to/sase_100
-just install
+just install-venv
 cargo build -p sase_gateway --manifest-path ../sase-core/Cargo.toml
 ```
 

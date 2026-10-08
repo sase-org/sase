@@ -16,7 +16,7 @@ benchmark JSON shapes.
 
 Usage::
 
-    just install
+    just install-venv
     .venv/bin/python tests/perf/phase7/run_phase7b.py
 
 Or pass ``--smoke`` to run quick configurations suitable for smoke-test

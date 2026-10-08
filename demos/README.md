@@ -9,7 +9,7 @@ the scripts, VHS tapes, and generated media under `demos/out/`.
 - `ttyd`
 - `ffmpeg`
 - `git`
-- the repo virtualenv installed with `just install`
+- the repo virtualenv installed with `just install-venv`
 
 Most tapes prepend `.venv/bin` to `PATH` during tape setup so the rendered clips use the
 checked-out SASE code. The live GitHub fan-out tape uses an isolated `.venv-demos`

@@ -228,7 +228,7 @@ line to the monitor log.
 
 Rows are checked top to bottom and the first match wins. A simple command is one shell
 word-split with no operators, redirects, globs, expansions, or leading `NAME=value`
-assignment: `just check` upgrades by name, while `just install && just check`,
+assignment: `just check` upgrades by name, while `just install-venv && just check`,
 `just check 2>&1 | tail -20`, or `FOO=1 just check` wraps ad-hoc with the command
 verbatim, so the run is at least as faithful as the raw command. Extra arguments match
 only where that tool's `args: allow` policy permits them. Every unwrapped-by-policy case

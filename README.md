@@ -160,9 +160,7 @@ for the full contributor guide.
 ```bash
 git clone https://github.com/sase-org/sase
 cd sase
-uv venv .venv
-source .venv/bin/activate
-just install
+just install-venv
 sase core health
 ```
 

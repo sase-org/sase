@@ -256,7 +256,7 @@ def test_core_overrides_are_enabled_for_prebuilt_wheel(
 
 @pytest.mark.parametrize(
     "recipe",
-    ["install", "install-visual", "install-terminal-smoke", "_setup"],
+    ["install-venv", "install-venv-visual", "install-venv-terminal-smoke", "_setup"],
 )
 def test_prebuilt_wheel_install_path_is_present(recipe: str) -> None:
     result = subprocess.run(
@@ -271,3 +271,38 @@ def test_prebuilt_wheel_install_path_is_present(recipe: str) -> None:
     output = result.stdout + result.stderr
     assert 'if [ -n "${SASE_CORE_WHEEL:-}" ]; then' in output
     assert 'uv pip install --python .venv/bin/python "$SASE_CORE_WHEEL"' in output
+
+
+def test_install_group_lists_venv_recipes_with_docs() -> None:
+    result = subprocess.run(
+        ["just", "--justfile", str(ROOT / "Justfile"), "--list"],
+        cwd=ROOT,
+        env=_clean_sase_core_env({}),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert "[install]" in output
+    assert "install-venv " in output
+    assert "install-venv-visual" in output
+    assert "install-venv-terminal-smoke" in output
+    assert "Install the latest sase release from PyPI" in output
+    assert "checkout's .venv" in output
+
+
+def test_bare_install_is_a_loud_placeholder() -> None:
+    result = subprocess.run(
+        ["just", "--justfile", str(ROOT / "Justfile"), "install"],
+        cwd=ROOT,
+        env=_clean_sase_core_env({}),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 2
+    assert "`just install` is moving" in output
+    assert "just install-venv" in output

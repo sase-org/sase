@@ -9,7 +9,7 @@ description: |-
 # Linting And Testing
 
 ```bash
-just install       # Install in editable mode with dev deps
+just install-venv  # Set up this checkout's .venv for tests, lint, and benchmarks
 just fmt           # Auto-format Python + Markdown
 just lint          # Every whole-repo lint gate (ruff, mypy, symvision, toobig, ...)
 just check         # Agent default: whole-repo lint gates except `toobig`
@@ -62,7 +62,7 @@ in-flight check to move it to a monitor — let it finish.
 [[decisions/check-full-is-explicit]] is the rule.
 
 This repo's known-long commands often exceed 10 minutes on the shared host:
-`just install`, `just rust-install`, `just test-scoped`, full `just test-visual` or
+`just install-venv`, `just rust-install`, `just test-scoped`, full `just test-visual` or
 `just fix-tui-screenshots` runs, and `just check-full`. `sase tool run check` itself
 exceeded 10 minutes in about 19% of Muse runs, so route defensively when the turn is a
 final gate.
@@ -106,8 +106,8 @@ inline first (or at minimum `just fmt`); it takes seconds and prevents common av
 formatting and keep-sorted monitor failures.
 
 **IMPORTANT**: SASE agents run from ephemeral `sase_<N>` workspace clones that each own
-an isolated virtualenv, so you MAY need to run `just install` before `just check` — this
-workspace may have sat unused while pinned dependencies changed.
+an isolated virtualenv, so you MAY need to run `just install-venv` before `just check` —
+this workspace may have sat unused while pinned dependencies changed.
 
 ## Gate-Specific Help
 

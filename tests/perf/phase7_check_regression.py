@@ -27,7 +27,7 @@ contention without retrying the same-process ``must_beat_python`` checks.
 
 Local usage::
 
-    just install
+    just install-venv
     just phase7-perf-check          # exits 0 if floor holds
 """
 

@@ -5,9 +5,7 @@ For project background and how the system fits together, see <https://sase.sh/>.
 ## Setup
 
 ```bash
-uv venv .venv
-source .venv/bin/activate
-just install
+just install-venv
 ```
 
 ## Development Workflow
@@ -31,7 +29,7 @@ shell the raw recipes refuse unless `SASE_TOOL_BYPASS='<reason>'` is set (see
 ## Adding Dependencies
 
 Add runtime dependencies to `[project.dependencies]` in `pyproject.toml`. Add dev-only
-dependencies to `[project.optional-dependencies.dev]`. Then re-run `just install`.
+dependencies to `[project.optional-dependencies.dev]`. Then re-run `just install-venv`.
 
 ## Changelog
 

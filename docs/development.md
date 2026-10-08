@@ -12,15 +12,14 @@ Requirements:
 - [`just`](https://github.com/casey/just)
 
 ```bash
-uv venv .venv
-source .venv/bin/activate
-just install
+just install-venv
 sase --help
 ```
 
-`just install` installs the package in editable mode with development dependencies. When
-a sibling `../sase-core` checkout is present and `cargo` is available, it also builds
-and installs the local `sase_core_rs` extension before resolving Python dependencies.
+`just install-venv` installs the package in editable mode with development dependencies.
+When a sibling `../sase-core` checkout is present and `cargo` is available, it also
+builds and installs the local `sase_core_rs` extension before resolving Python
+dependencies.
 
 The verification recipes cache their setup-validation verdicts inside the active virtual
 environment. The cache is fingerprinted from `pyproject.toml`, `uv.lock`, the validator
@@ -32,7 +31,7 @@ diagnosing setup problems.
 ## Verification Commands
 
 ```bash
-just install       # Install with dev deps
+just install-venv  # Install with dev deps
 just fmt           # Auto-format code and Markdown
 just fix           # fmt plus keep-sorted fixes
 just lint          # Run ruff, mypy, repository audits, symvision, toobig, and keep-sorted
@@ -1097,8 +1096,8 @@ resvg, a syntax grammar, Pillow, or another package in that stack as one reviewe
 change:
 
 1. Update the exact pins in the `visual` optional-dependency group in `pyproject.toml`.
-2. Run `uv lock`, then `just install-visual` so the working environment matches the new
-   pins.
+2. Run `uv lock`, then `just install-venv-visual` so the working environment matches the
+   new pins.
 3. Refresh the matching package versions in `tests/ace/tui/visual/renderer_env.json`. If
    bundled fonts changed, update their SHA-256 hashes too; the Python and platform
    fields are diagnostic only.
@@ -1181,7 +1180,7 @@ of adding another guard allowlist entry.
 Ported `sase.core` operations are served by the required Rust extension `sase_core_rs`,
 distributed as the `sase-core-rs` package and built from the sibling `../sase-core` repo
 during source development. Normal installs pull a prebuilt wheel; local source installs
-can build the extension with `just install` or `just rust-install`.
+can build the extension with `just install-venv` or `just rust-install`.
 
 There is no pure-Python fallback for ported operations. Use the health check after
 install changes:

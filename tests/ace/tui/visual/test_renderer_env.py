@@ -51,7 +51,7 @@ def test_renderer_version_mismatch_has_one_actionable_error(tmp_path: Path) -> N
     message = str(exc_info.value)
     assert "renderer environment mismatch; snapshots were not run" in message
     assert "package textual: expected 8.0.1, found 8.2.8" in message
-    assert "Run `just install-visual`" in message
+    assert "Run `just install-venv-visual`" in message
     assert "snapshot regeneration workflow" in message
 
 

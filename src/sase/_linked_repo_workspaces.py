@@ -214,7 +214,7 @@ def refresh_clean_linked_checkout(checkout_dir: str) -> str | None:
 
     Existing auto-clone workspaces and ``sase repo open`` reuse a valid clone
     without updating HEAD, so a clean ``master``/``main`` can sit behind
-    ``origin`` while ``just install`` rebuilds from that stale source. This
+    ``origin`` while ``just install-venv`` rebuilds from that stale source. This
     only fast-forwards; dirty, detached, diverged, or fetch/merge failures
     leave the tree unchanged.
     """

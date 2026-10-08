@@ -9,7 +9,7 @@ Run the known disappearing/reappearing rows fixture from a prepared checkout:
 sase repro replay tests/ace/tui/repro/fixtures/agents_tab_disappear_reappear_v1.json --assert-stable --json
 ```
 
-If the checkout's `sase` command is not on `PATH`, run `just install` first and use
+If the checkout's `sase` command is not on `PATH`, run `just install-venv` first and use
 `.venv/bin/sase` from the repo root. The current expected result is:
 
 ```json
