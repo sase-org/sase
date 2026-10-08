@@ -8,6 +8,10 @@ from pathlib import Path
 from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_common import status_icon
 from sase.bead.cli_dep_render import ANSI_BOLD_BLUE
+from sase.bead.cli_detail_decisions import (
+    decisions_wire_for_detail,
+    render_decisions_content_lines,
+)
 from sase.bead.cli_detail_resolution import IssueDetail
 from sase.bead.cli_detail_sections import (
     description_and_task_type_lines,
@@ -343,6 +347,14 @@ def render_issue_detail(
                 cwd=design_cwd,
             )
         )
+
+    decisions_wire = decisions_wire_for_detail(
+        detail, plan_roots=plan_roots, design_cwd=design_cwd
+    )
+    if decisions_wire is not None:
+        decisions_lines = render_decisions_content_lines(decisions_wire)
+        if decisions_lines:
+            lines.extend(["", palette.section("DECISIONS"), *decisions_lines])
 
     if issue.refs:
         from sase.artifact_ref_lists import (

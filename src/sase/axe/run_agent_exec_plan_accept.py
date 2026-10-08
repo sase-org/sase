@@ -61,6 +61,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
 )
+from sase.sdd.plan_decision_handoff import EpicDecisionContext
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -92,6 +93,51 @@ def _wait_name_tuple(value: object) -> tuple[str, ...]:
             return ()
         names.append(item)
     return tuple(names)
+
+
+def _audience_for_inherited(inherited: EpicDecisionContext | None) -> str:
+    """Return the coder-block audience for an optional epic inheritance."""
+    return "epic_phase" if inherited is not None else "tale_coder"
+
+
+def _reviewer_decisions_block(
+    plan_result: Any, followup_plan_file: object, artifacts_dir: object
+) -> str:
+    """Render the host-written Reviewer decisions block for a coder prompt.
+
+    Reads the stamped durable plan; phase coders additionally inherit their
+    epic's accepted sheet. Fails open to ``""`` so a decision failure can
+    never block a coder launch.
+    """
+    try:
+        from sase.sdd.plan_decision_handoff import (
+            coder_decisions_block,
+            epic_decision_context,
+        )
+    except Exception:
+        return ""
+    try:
+        inherited = epic_decision_context(str(artifacts_dir or ""))
+    except Exception:
+        inherited = None
+    audience = _audience_for_inherited(inherited)
+    candidates: list[str] = []
+    saved = getattr(plan_result, "saved_plan_path", None)
+    if isinstance(saved, str) and saved.strip():
+        candidates.append(saved.strip())
+    for candidate in (followup_plan_file, getattr(plan_result, "plan_file", None)):
+        if candidate is not None and str(candidate).strip():
+            candidates.append(str(candidate))
+    for candidate in candidates:
+        try:
+            block = coder_decisions_block(
+                candidate, audience=audience, inherited=inherited
+            )
+        except Exception:
+            continue
+        if block.strip():
+            return f"\n\n{block}"
+    return ""
 
 
 def _validate_current_archive_protocol(
@@ -545,11 +591,14 @@ def prepare_accepted_plan_successor(
 
     # The coder starts with a fresh context window; the approved plan file is
     # the hand-off artifact. It does not inherit the planner's chat.
+    decisions_block = _reviewer_decisions_block(
+        plan_result, followup_plan_file, state.current_artifacts_dir
+    )
     successor_prompt = (
         f"{model_prefix}{vcs_prefix}"
         f"@{coder_plan_ref}\n\n"
         "The above plan has been reviewed and approved. "
-        f"Implement it now.{coder_extra}\n{embedded_refs}"
+        f"Implement it now.{decisions_block}{coder_extra}\n{embedded_refs}"
     )
     wait_agents = _wait_name_tuple(getattr(plan_result, "wait_agents", ()))
     wait_beads = _wait_name_tuple(getattr(plan_result, "wait_beads", ()))

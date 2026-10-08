@@ -149,6 +149,17 @@ def test_builtin_phase_and_land_prompts_capture_follow_ups() -> None:
     assert "sase bead create -T task" not in land_body
 
 
+def test_builtin_phase_and_land_prompts_honor_epic_decisions() -> None:
+    phase_prose = _single_spaced(_builtin_prompt_body("bd/work_phase_bead"))
+    land_body = _builtin_prompt_body("bd/land_epic")
+
+    assert (
+        "Honor the epic's DECISIONS shown by `sase bead read`; they are final, "
+        "and only memory notes they authorize may be edited." in phase_prose
+    )
+    assert "confirm the work honored the epic's DECISIONS" in land_body
+
+
 def test_builtin_phase_prompt_keeps_single_bead_ownership() -> None:
     body = _builtin_prompt_body("bd/work_phase_bead")
     prose = _single_spaced(body)

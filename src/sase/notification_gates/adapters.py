@@ -248,6 +248,13 @@ class GateAdapter:
             plan_action,
             source=str(response.get("source") or "plan_response"),
         )
+        _post_plan_auto_receipt_best_effort(
+            self.kind,
+            bundle_path,
+            envelope,
+            response,
+            selected_ids,
+        )
         if plan_action == "epic" and result.get("epic_launch_owner") == "host":
             _publish_shell_terminal_before_epic_launch(
                 bundle_path,
@@ -543,6 +550,58 @@ def _capacity_from_launch_result(result: Mapping[str, Any]) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value
+
+
+def _post_plan_auto_receipt_best_effort(
+    kind: str,
+    bundle_path: Path,
+    envelope: Mapping[str, Any],
+    response: Mapping[str, Any],
+    selected_ids: Sequence[str],
+) -> None:
+    """Post the quiet ``%auto`` receipt when a decision plan auto-resolves.
+
+    Best effort: anything missing (non-auto source, no frozen definitions,
+    disabled flag) silently posts nothing. Plans without decisions stay
+    silent, as they are today.
+    """
+    try:
+        if str(response.get("source") or "") != "auto_resolution":
+            return
+        payload = envelope.get("payload")
+        definitions = payload.get("decisions") if isinstance(payload, dict) else None
+        if not isinstance(definitions, list) or not definitions:
+            return
+        from sase.sdd.plan_decision_handoff import post_auto_approval_receipt
+        from sase.sdd.plan_decisions import is_enabled, sheet_binding
+
+        if not is_enabled():
+            return
+        values: dict[str, Any] = {}
+        for option_id in selected_ids:
+            effective = effective_response_input(response, option_id)
+            if not isinstance(effective, dict):
+                continue
+            for key, value in effective.items():
+                if str(key).startswith("decision_"):
+                    values[str(key).removeprefix("decision_")] = value
+        sheet = sheet_binding(list(definitions), values)
+        original = (
+            payload.get("original_plan_file") if isinstance(payload, dict) else ""
+        )
+        name = (
+            Path(str(original)).name
+            if str(original or "").strip()
+            else bundle_path.name
+        )
+        tier = "epic" if kind == "epic_plan" else "tale"
+        post_auto_approval_receipt(
+            request_id=bundle_path.name,
+            plan_label=f"{tier} \u00b7 {name}",
+            sheet=sheet,
+        )
+    except Exception:
+        return
 
 
 _ADAPTERS = (

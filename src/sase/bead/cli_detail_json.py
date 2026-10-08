@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import sase
+from sase.bead.cli_detail_decisions import decisions_wire_for_detail
 from sase.bead.cli_detail_links import BeadLinkView
 from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
 from sase.bead.close_history_codec import close_history_to_dicts
@@ -52,8 +53,10 @@ def issue_detail_wire_dict(
     issue_payload = issue_to_wire_dict(detail.issue)
     if not emit_links:
         issue_payload.pop("links", None)
+    decisions_wire = decisions_wire_for_detail(detail)
     envelope: dict[str, object] = {
         "issue": issue_payload,
+        "decisions": decisions_wire,
         "ancestors": [
             ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.ancestors
         ],

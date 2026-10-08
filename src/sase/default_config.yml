@@ -2097,7 +2097,7 @@ macros:
       epic work.
 
       1. Verify. Run `sase bead read {{ bead_id }} -r "Need the epic scope, children, and linked plan file"`, review the epic bead's own notes, then
-         run `sase bead read <child-id> -r "Need the child scope and notes"` on every child and review every child note. Confirm each note was addressed, and read the
+         run `sase bead read <child-id> -r "Need the child scope and notes"` on every child and review every child note. Confirm each note was addressed, and confirm the work honored the epic's DECISIONS, and read the
          actual source code and the epic's commits (bead IDs appear in commit messages) to confirm the work previous
          agents reported complete really is. While reviewing child beads, collect every `PROPOSED FOLLOW-UP:` note entry.
 
@@ -2186,7 +2186,8 @@ macros:
       name: it was set to status=in_progress before you started reading this, either by the `sase bead work` launch
       checkpoint or by the runtime promoting an ad-hoc wait-time claim. Do not set the status by hand. Read its
       description and design file with `sase bead read {{ bead_id }} -r "Need the phase scope and design file"`, do the work, and close only this bead with
-      `sase bead close {{ bead_id }} --note "<what you verified>"`. Before closing, run
+      `sase bead close {{ bead_id }} --note "<what you verified>"`. Honor the epic's DECISIONS shown by
+      `sase bead read`; they are final, and only memory notes they authorize may be edited. Before closing, run
       `sase bead epic-symbols {{ bead_id }}`. If this phase still has `--epic-symbol` entries, resolve each symbol or
       re-key the Justfile line to a still-open bead (the parent epic or a later phase). `sase bead close` refuses while
       leftovers remain; they go stale the instant this phase closes and turn unrelated agents' `just check` red. Closing

@@ -179,6 +179,40 @@ def _quote_match_binding(quote: str, texts: list[dict[str, str]]) -> dict[str, A
     return dict(result) if isinstance(result, dict) else {"verified": False}
 
 
+def sheet_binding(
+    definitions: list[dict[str, Any]],
+    values: dict[str, Any],
+    review_revision: int = 0,
+) -> dict[str, Any]:
+    """Build the Decision Sheet wire from frozen definitions and answers."""
+    result = _binding("plan_decision_sheet")(definitions, values, int(review_revision))
+    if not isinstance(result, dict):
+        raise _PlanDecisionError(
+            "decision-sheet-failed", "sheet builder returned no result"
+        )
+    return dict(result)
+
+
+def summary_binding(sheet: dict[str, Any], verdict: str, form: str) -> str:
+    """Render the shared summary sentence for a Decision Sheet."""
+    return str(_binding("plan_decision_summary")(sheet, verdict, form))
+
+
+def prompt_block_binding(
+    sheet: dict[str, Any],
+    decided_by: str,
+    decided_via: str | None,
+    audience: str,
+    inherited: dict[str, Any] | None = None,
+) -> str:
+    """Render the host-written implementer block for an accepted sheet."""
+    return str(
+        _binding("plan_decisions_prompt_block")(
+            sheet, decided_by, decided_via, audience, inherited
+        )
+    )
+
+
 def filter_schema_for_flag(
     schema: tuple[Any, ...],
 ) -> tuple[Any, ...]:
@@ -581,8 +615,11 @@ __all__ = [
     "artifacts_dir_from_env",
     "is_enabled",
     "payload_binding",
+    "prompt_block_binding",
     "resolve_binding",
     "resolve_plan_decisions_for_direct_approval",
+    "sheet_binding",
+    "summary_binding",
     "validate_host_checks",
     "validated_to_wire_dict",
 ]
