@@ -633,6 +633,187 @@
         15
       ],
       "macro": "deploy"
+    },
+    {
+      "id": "quoted-comma-positional",
+      "source": "#ship:\"a,b\",",
+      "cursor_byte": 12,
+      "cursor_note": "cursor after the comma following a quoted comma; the quoted value stays one positional",
+      "inputs": [
+        {
+          "name": "note",
+          "type": "line",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        },
+        {
+          "name": "env",
+          "type": "enum",
+          "required": true,
+          "position": 1,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "staging",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "prod",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "env",
+      "expected_candidates": [
+        "staging",
+        "prod"
+      ],
+      "expected_insertions": [
+        "staging",
+        "prod"
+      ],
+      "replacement_byte_span": [
+        12,
+        12
+      ],
+      "selected_values": [
+        "a,b"
+      ],
+      "macro": "ship"
+    },
+    {
+      "id": "quoted-paren-repeatable",
+      "source": "#tag(\"x)y\",)",
+      "cursor_byte": 11,
+      "cursor_note": "cursor after the comma following a quoted paren; the repeatable enum tail stays active",
+      "inputs": [
+        {
+          "name": "label",
+          "type": "word",
+          "required": false,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        },
+        {
+          "name": "tag",
+          "type": "enum",
+          "required": false,
+          "position": 1,
+          "repeatable": true,
+          "choices": [
+            {
+              "value": "a",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "b",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "tag",
+      "expected_candidates": [
+        "a",
+        "b"
+      ],
+      "expected_insertions": [
+        "a",
+        "b"
+      ],
+      "replacement_byte_span": [
+        11,
+        11
+      ],
+      "macro": "tag"
+    },
+    {
+      "id": "named-after-quoted-paren",
+      "source": "#deploy(\"a)b\",env=)",
+      "cursor_byte": 18,
+      "cursor_note": "cursor in the named value after a quoted paren; the name still resolves",
+      "inputs": [
+        {
+          "name": "note",
+          "type": "line",
+          "required": true,
+          "position": 0,
+          "repeatable": false,
+          "choices": [],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        },
+        {
+          "name": "env",
+          "type": "enum",
+          "required": true,
+          "position": 1,
+          "repeatable": false,
+          "choices": [
+            {
+              "value": "staging",
+              "label": null,
+              "description": null
+            },
+            {
+              "value": "prod",
+              "label": null,
+              "description": null
+            }
+          ],
+          "named_type": null,
+          "value_role": null,
+          "description": null,
+          "default_display": null
+        }
+      ],
+      "expected_kind": "macro_argument_value",
+      "expected_active_input": "env",
+      "expected_candidates": [
+        "staging",
+        "prod"
+      ],
+      "expected_insertions": [
+        "staging",
+        "prod"
+      ],
+      "replacement_byte_span": [
+        18,
+        18
+      ],
+      "applied_edits": {
+        "staging": "#deploy(\"a)b\",env=staging)",
+        "prod": "#deploy(\"a)b\",env=prod)"
+      },
+      "macro": "deploy"
     }
   ]
 }

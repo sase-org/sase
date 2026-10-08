@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from sase.ace.tui.widgets._macro_arg_assist_detection import (
     _rust_span_bounds_for_cursor,
 )
@@ -20,7 +18,7 @@ def _span(start: int, end: int, role: str, call_name: str = "m") -> dict:
     }
 
 
-def test_adjacent_call_values_do_not_leak(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_adjacent_call_values_do_not_leak() -> None:
     text = "#m(tags=a, tags=) #m(tags=b)"
     # First call: "(" at 2, "a" at 8-9, ")" at 16-17.
     # Second call: "(" at 20, "b" at 26-27.
@@ -39,19 +37,15 @@ def test_adjacent_call_values_do_not_leak(monkeypatch: pytest.MonkeyPatch) -> No
         _span(26, 27, "arg_value"),
         _span(27, 28, "arg_delimiter"),
     ]
-    monkeypatch.setattr(
-        "sase.core.rust.require_rust_binding",
-        lambda name: lambda _text: spans,
-    )
     cursor = text.index("tags=)", 10) + len("tags=")
-    bounds = _rust_span_bounds_for_cursor(text, 0, 17, cursor, "m")
+    bounds = _rust_span_bounds_for_cursor(text, 0, 17, cursor, "m", spans=spans)
     assert bounds is not None
     _start, _end, selected = bounds
     assert selected == frozenset({"a"})
     assert "b" not in selected
 
 
-def test_long_call_keeps_all_selected(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_long_call_keeps_all_selected() -> None:
     first = "a" * 70
     second = "b" * 70
     text = f"#m(tags={first}, tags={second}, tags=)"
@@ -68,11 +62,7 @@ def test_long_call_keeps_all_selected(monkeypatch: pytest.MonkeyPatch) -> None:
         _span(second_start, second_end, "arg_value"),
         _span(close_at, close_at + 1, "arg_delimiter"),
     ]
-    monkeypatch.setattr(
-        "sase.core.rust.require_rust_binding",
-        lambda name: lambda _text: spans,
-    )
-    bounds = _rust_span_bounds_for_cursor(text, 0, len(text), cursor, "m")
+    bounds = _rust_span_bounds_for_cursor(text, 0, len(text), cursor, "m", spans=spans)
     assert bounds is not None
     _start, _end, selected = bounds
     assert selected == frozenset({first, second})

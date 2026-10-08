@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from sase.macro._parsing import (
@@ -25,6 +26,8 @@ _VALUE_ROLES = frozenset(
     {"arg_value", "arg_value_string", "arg_value_number", "arg_value_bool"}
 )
 
+_STRUCTURAL_OPENERS = frozenset({":", "(", "::"})
+
 
 def _py_to_byte(text: str, py_offset: int) -> int:
     """Convert a Python str offset to a UTF-8 byte offset."""
@@ -45,78 +48,280 @@ def _decode_span_value(raw: str) -> str:
     return text
 
 
+@dataclass(frozen=True, slots=True)
+class _StructuralCall:
+    """Quote-aware clause layout for one macro call at the cursor.
+
+    All offsets are Python ``str`` offsets. Commas, closes, values, keys and
+    assigns come from sase-core argument spans, so quoted ``,``/``)``/``=``
+    never split clauses. ``call_end_py`` is the closing ``)`` when the call
+    is closed, else the furthest position the open call reaches.
+    """
+
+    opening_end_py: int
+    close_py: int | None
+    commas_py: tuple[int, ...]
+    values_py: tuple[tuple[int, int], ...]
+    keys_py: tuple[tuple[int, int, str], ...]
+    assigns_py: tuple[tuple[int, int], ...]
+    call_end_py: int
+
+
+def _load_argument_spans(text: str) -> Sequence[Mapping[str, object]] | None:
+    """Load structural argument spans through the shared core binding.
+
+    The import stays at the use site so TUI startup never pays for it.
+    Returns ``None`` when the binding is unavailable or the parse fails.
+    """
+    try:
+        from sase.macro.highlight import macro_argument_spans_for_text
+    except Exception:
+        return None
+    try:
+        return macro_argument_spans_for_text(text)
+    except Exception:
+        return None
+
+
+def _span_offset(span: Mapping[str, object], key: str) -> int | None:
+    """Read a byte offset out of a raw argument span, if it is a real int."""
+    value = span.get(key)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
+
+
+def _structural_call_for(
+    text: str,
+    spans: Sequence[Mapping[str, object]] | None,
+    base_end_py: int,
+    cursor_py: int,
+    call_name: str,
+) -> _StructuralCall | None:
+    """Group core spans into quote-aware clauses for one call.
+
+    Starts at the opening delimiter at this reference's base end and takes
+    spans until the call's closing ``)`` or the next opening delimiter.
+    Returns ``None`` when the spans cannot express this call, so callers
+    show no menu instead of guessing from raw string splits.
+    """
+    if not spans:
+        return None
+    encoded = text.encode("utf-8")
+    base_end_byte = _py_to_byte(text, base_end_py)
+    cursor_byte = _py_to_byte(text, cursor_py)
+    ordered = sorted(
+        spans,
+        key=lambda span: (
+            _span_offset(span, "start") or 0,
+            _span_offset(span, "end") or 0,
+        ),
+    )
+    opening_index: int | None = None
+    opening_end_byte = 0
+    for index, span in enumerate(ordered):
+        if span.get("call_name") != call_name:
+            continue
+        if str(span.get("role", "")) != "arg_delimiter":
+            continue
+        span_start = _span_offset(span, "start")
+        span_end = _span_offset(span, "end")
+        if span_start is None or span_end is None:
+            continue
+        if span_start != base_end_byte:
+            continue
+        try:
+            delim = encoded[span_start:span_end].decode("utf-8")
+        except Exception:
+            continue
+        if delim in _STRUCTURAL_OPENERS:
+            opening_index = index
+            opening_end_byte = span_end
+            break
+    if opening_index is None:
+        return None
+    commas: list[int] = []
+    values: list[tuple[int, int]] = []
+    keys: list[tuple[int, int, str]] = []
+    assigns: list[tuple[int, int]] = []
+    close_byte: int | None = None
+    span_ends = [opening_end_byte]
+    for span in ordered[opening_index + 1 :]:
+        start = _span_offset(span, "start")
+        end = _span_offset(span, "end")
+        if start is None or end is None:
+            continue
+        role = str(span.get("role", ""))
+        if role == "arg_delimiter":
+            try:
+                delim = encoded[start:end].decode("utf-8")
+            except Exception:
+                continue
+            if delim == ")":
+                close_byte = start
+                break
+            if delim in ("(", ":", "::"):
+                break
+            if delim == ",":
+                commas.append(start)
+            span_ends.append(end)
+            continue
+        if role in _VALUE_ROLES:
+            values.append((start, end))
+        elif role == "arg_key":
+            try:
+                name = encoded[start:end].decode("utf-8").strip()
+            except Exception:
+                continue
+            keys.append((start, end, name))
+        elif role == "arg_assign":
+            assigns.append((start, end))
+        span_ends.append(end)
+    opening_end_py = _byte_to_py(text, opening_end_byte)
+    if close_byte is not None:
+        call_end_byte = close_byte
+    else:
+        call_end_byte = max([cursor_byte, *span_ends])
+    return _StructuralCall(
+        opening_end_py=opening_end_py,
+        close_py=_byte_to_py(text, close_byte) if close_byte is not None else None,
+        commas_py=tuple(_byte_to_py(text, comma) for comma in commas),
+        values_py=tuple(
+            (_byte_to_py(text, start), _byte_to_py(text, end)) for start, end in values
+        ),
+        keys_py=tuple(
+            (_byte_to_py(text, start), _byte_to_py(text, end), name)
+            for start, end, name in keys
+        ),
+        assigns_py=tuple(
+            (_byte_to_py(text, start), _byte_to_py(text, end)) for start, end in assigns
+        ),
+        call_end_py=_byte_to_py(text, call_end_byte),
+    )
+
+
+def _structural_clauses(call: _StructuralCall) -> list[tuple[int, int]]:
+    """Split the call body at structural commas into absolute ranges.
+
+    Each range covers clause content only: the separating comma (one ASCII
+    character at each recorded position) and, for closed calls, the closing
+    ``)`` stay outside every clause.
+    """
+    bounds = [
+        call.opening_end_py,
+        *(comma + 1 for comma in call.commas_py),
+        call.call_end_py,
+    ]
+    clauses = []
+    for index in range(len(bounds) - 1):
+        end = bounds[index + 1]
+        if index < len(bounds) - 2:
+            end -= 1
+        clauses.append((bounds[index], end))
+    return clauses
+
+
+def _structural_active_index(call: _StructuralCall, cursor_py: int) -> int:
+    """Return the clause holding the cursor (clauses are contiguous)."""
+    for index, (_start, end) in enumerate(_structural_clauses(call)):
+        if cursor_py <= end:
+            return index
+    return len(_structural_clauses(call)) - 1
+
+
+def _structural_is_closed(call: _StructuralCall, cursor_py: int) -> bool:
+    """Return whether a real ``)`` closes the call before the cursor."""
+    return call.close_py is not None and cursor_py > call.close_py
+
+
+def _structural_clause_has_assign(call: _StructuralCall, start: int, end: int) -> bool:
+    """Return whether the range holds a top-level ``=`` (never a quoted one)."""
+    return any(
+        assign_start < end and assign_end > start
+        for assign_start, assign_end in call.assigns_py
+    )
+
+
+def _structural_clause_key(call: _StructuralCall, start: int, end: int) -> str | None:
+    """Return the argument key named in the range, if any."""
+    for key_start, key_end, name in call.keys_py:
+        if key_start < end and key_end > start and name:
+            return name
+    return None
+
+
+def _structural_selected_values(
+    text: str, call: _StructuralCall, active_index: int
+) -> frozenset[str]:
+    """Decode every positional value outside the active clause."""
+    values: set[str] = set()
+    for index, (start, end) in enumerate(_structural_clauses(call)):
+        if index == active_index:
+            continue
+        if _structural_clause_has_assign(call, start, end):
+            continue
+        value = _decode_span_value(text[start:end])
+        if value:
+            values.add(value)
+    return frozenset(values)
+
+
+def _structural_used_names(call: _StructuralCall, active_index: int) -> frozenset[str]:
+    """Collect argument keys named in clauses before the active one."""
+    clauses = _structural_clauses(call)
+    names: set[str] = set()
+    for index in range(active_index):
+        start, end = clauses[index]
+        for key_start, key_end, name in call.keys_py:
+            if key_start < end and key_end > start and name:
+                names.add(name)
+    return frozenset(names)
+
+
 def _rust_span_bounds_for_cursor(
     text: str,
     ref_start_py: int,
     ref_end_py: int,
     cursor_py: int,
     call_name: str,
+    spans: Sequence[Mapping[str, object]] | None = None,
 ) -> tuple[int, int, frozenset[str]] | None:
     """Resolve whole-value span and selected values via Rust parser spans.
 
-    Groups spans by call: starts at the opening delimiter at this reference's
-    base end and takes spans until the call's closing ``)`` or the next
-    opening ``(``/``:`` delimiter. Returns Python
-    ``(value_start, value_end, selected)`` or ``None`` when the cursor is not
-    on a value position. Byte spans are converted to Python offsets only here.
+    Returns Python ``(value_start, value_end, selected)`` or ``None`` when
+    the spans cannot express this call. Byte spans are converted to Python
+    offsets only here. Pass ``spans`` to reuse one parse across a detection.
     """
-    from sase.core.rust import require_rust_binding
-
-    spans = require_rust_binding("macro_argument_spans")(text)
-    cursor_byte = _py_to_byte(text, cursor_py)
+    if spans is None:
+        spans = _load_argument_spans(text)
     base_end_py = _reference_base_end(text, ref_start_py, cursor_py)
     if base_end_py is None:
         return None
-    base_end_byte = _py_to_byte(text, base_end_py)
-    ordered = sorted(spans, key=lambda span: (int(span["start"]), int(span["end"])))
-    opening_index: int | None = None
-    for index, span in enumerate(ordered):
-        if span.get("call_name") != call_name:
-            continue
-        if str(span.get("role", "")) != "arg_delimiter":
-            continue
-        if int(span["start"]) == base_end_byte:
-            opening_index = index
-            break
-    if opening_index is None:
+    call = _structural_call_for(text, spans, base_end_py, cursor_py, call_name)
+    if call is None:
         return None
-    encoded = text.encode("utf-8")
-    in_call: list[dict] = []
-    for span in ordered[opening_index + 1 :]:
-        start = int(span["start"])
-        end = int(span["end"])
-        role = str(span.get("role", ""))
-        if role == "arg_delimiter":
-            delim = encoded[start:end].decode("utf-8")
-            if delim == ")":
-                break
-            if delim in ("(", ":", "::"):
-                break
-        in_call.append(span)
-    values: list[tuple[int, int, str]] = []
-    for span in in_call:
-        if str(span.get("role", "")) not in _VALUE_ROLES:
-            continue
-        start = int(span["start"])
-        end = int(span["end"])
-        raw = encoded[start:end].decode("utf-8")
-        values.append((start, end, raw))
-    for start, end, _raw in values:
-        if start <= cursor_byte <= end:
-            py_start = _byte_to_py(text, start)
-            py_end = _byte_to_py(text, end)
-            selected = frozenset(
-                _decode_span_value(raw)
-                for s, e, raw in values
-                if not (s == start and e == end) and _decode_span_value(raw)
-            )
-            return py_start, py_end, selected
+    matched: tuple[int, int] | None = None
+    for start, end in call.values_py:
+        if start <= cursor_py <= end:
+            matched = (start, end)
+            break
+    decoded = [
+        (start, end, _decode_span_value(text[start:end]))
+        for start, end in call.values_py
+    ]
+    if matched is not None:
+        selected = frozenset(
+            value
+            for start, end, value in decoded
+            if not (start == matched[0] and end == matched[1]) and value
+        )
+        return matched[0], matched[1], selected
     # Empty value gap: cursor sits where no value span exists (e.g. ``env=``).
     # Treat it as an empty replacement at the cursor and select every other
     # decoded value in the call for repeatable exclusion.
-    selected_all = frozenset(
-        _decode_span_value(raw) for _s, _e, raw in values if _decode_span_value(raw)
-    )
+    selected_all = frozenset(value for _start, _end, value in decoded if value)
     return cursor_py, cursor_py, selected_all
 
 
@@ -124,9 +329,6 @@ _REFERENCE_BASE_RE = re.compile(
     r"(?P<marker>#!|#)"
     r"(?P<name>[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
     r"(?P<hitl>!!|\?\?)?"
-)
-_NAMED_ARG_CURSOR_RE = re.compile(
-    r"(?:^|,)\s*(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*[^,]*$"
 )
 
 
@@ -144,6 +346,7 @@ def detect_macro_arg_hint_at_cursor(
     if not text or cursor_offset < 0 or cursor_offset > len(text):
         return None
 
+    spans = _load_argument_spans(text)
     entry_by_name = _entry_by_name(entries)
     for ref in iter_macro_references(text):
         if ref.start >= cursor_offset:
@@ -166,7 +369,10 @@ def detect_macro_arg_hint_at_cursor(
             continue
 
         suffix = text[base_end:cursor_offset]
-        active_index = _active_input_index_for_suffix(suffix, entry)
+        call = _structural_call_for(text, spans, base_end, cursor_offset, entry.name)
+        active_index = _active_input_index_for_suffix(
+            suffix, entry, text, cursor_offset, call
+        )
         if active_index is None:
             continue
 
@@ -219,6 +425,7 @@ def detect_macro_arg_completion_at_cursor(
     if not text or cursor_offset < 0 or cursor_offset > len(text):
         return None
     literal_ranges = literal_zone_ranges(text)
+    spans = _load_argument_spans(text)
 
     entry_by_name = _entry_by_name(entries)
     for ref in iter_macro_references(text):
@@ -252,6 +459,7 @@ def detect_macro_arg_completion_at_cursor(
             continue
 
         suffix = text[base_end:cursor_offset]
+        call = _structural_call_for(text, spans, base_end, cursor_offset, entry.name)
         if suffix.startswith(":"):
             ctx = _colon_completion_context(
                 entry,
@@ -260,6 +468,7 @@ def detect_macro_arg_completion_at_cursor(
                 cursor_offset,
                 ref.end,
                 suffix,
+                call,
             )
         elif suffix.startswith("("):
             ctx = _paren_completion_context(
@@ -269,6 +478,7 @@ def detect_macro_arg_completion_at_cursor(
                 cursor_offset,
                 ref.end,
                 suffix,
+                call,
             )
         else:
             continue
@@ -276,7 +486,7 @@ def detect_macro_arg_completion_at_cursor(
         # text (e.g. ``#gh:sase`` in ``#gh:sase #fork:``) yields ``None`` here;
         # keep scanning so a real later reference at the cursor still resolves.
         if ctx is not None:
-            return _with_rust_span_bounds(text, ref, cursor_offset, ctx)
+            return _with_rust_span_bounds(text, ref, cursor_offset, ctx, spans)
     return None
 
 
@@ -285,6 +495,7 @@ def _with_rust_span_bounds(
     ref: MacroReference,
     cursor_offset: int,
     ctx: MacroArgCompletionContext,
+    spans: Sequence[Mapping[str, object]] | None = None,
 ) -> MacroArgCompletionContext:
     """Override value bounds with Rust parser spans for choice menus."""
     if ctx.completion_kind == "macro_arg_model":
@@ -296,7 +507,7 @@ def _with_rust_span_bounds(
     if not (ctx.active_input.choices or ctx.active_input.type in ("bool", "enum")):
         return ctx
     bounds = _rust_span_bounds_for_cursor(
-        text, ref.start, ref.end, cursor_offset, ctx.entry.name
+        text, ref.start, ref.end, cursor_offset, ctx.entry.name, spans=spans
     )
     if bounds is None:
         return ctx
@@ -386,15 +597,18 @@ def _cursor_is_inside_reference_args(
 def _active_input_index_for_suffix(
     suffix: str,
     entry: MacroAssistEntry,
+    text: str,
+    cursor_py: int,
+    call: _StructuralCall | None,
 ) -> int | None:
     if suffix == ":":
         return 0
     if suffix.startswith(":"):
-        return _colon_active_input_index(suffix, entry)
+        return _colon_active_input_index(suffix, entry, cursor_py, call)
     if suffix == "(":
         return 0
     if suffix.startswith("("):
-        return _paren_active_input_index(suffix, entry)
+        return _paren_active_input_index(suffix, entry, text, cursor_py, call)
     return None
 
 
@@ -418,6 +632,19 @@ def _completion_kind_for_input(
     return "macro_arg_type_hint"
 
 
+def _empty_structural_call(cursor_py: int) -> _StructuralCall:
+    """Describe an empty argument list with no spans (``#name:``/``#name(``)."""
+    return _StructuralCall(
+        opening_end_py=cursor_py,
+        close_py=None,
+        commas_py=(),
+        values_py=(),
+        keys_py=(),
+        assigns_py=(),
+        call_end_py=cursor_py,
+    )
+
+
 def _colon_completion_context(
     entry: MacroAssistEntry,
     text: str,
@@ -425,23 +652,34 @@ def _colon_completion_context(
     cursor_offset: int,
     reference_end: int,
     suffix: str,
+    call: _StructuralCall | None,
 ) -> MacroArgCompletionContext | None:
-    active_index = _colon_active_input_index(suffix, entry)
+    if call is None:
+        # An empty argument list parses to no spans; anything else without
+        # spans cannot be completed structurally.
+        if suffix != ":":
+            return None
+        call = _empty_structural_call(cursor_offset)
+    active_index = _colon_active_input_index(suffix, entry, cursor_offset, call)
     if active_index is None:
         return None
 
-    body_start = base_end + 1
-    body_end = max(cursor_offset, reference_end)
-    body = text[body_start:body_end]
-    cursor_in_body = cursor_offset - body_start
-    clause_start = body.rfind(",", 0, cursor_in_body) + 1
-    next_comma = body.find(",", cursor_in_body)
-    if cursor_in_body == clause_start:
-        clause_end = cursor_in_body
+    clauses = _structural_clauses(call)
+    active = _structural_active_index(call, cursor_offset)
+    value_start, clause_end = clauses[active]
+    if cursor_offset == value_start:
+        # The cursor sits at the start of a clause with text after it
+        # (``#fork:c`` with the cursor after ``:``): the active value is
+        # empty. This mirrors the core completion builder.
+        value_end = cursor_offset
     else:
-        clause_end = len(body) if next_comma == -1 else next_comma
-    value_start = body_start + clause_start
-    value_end = body_start + clause_end
+        # A colon value ends at whitespace; text after a gap (``#fork: bar``)
+        # belongs to no value. This mirrors the core completion builder.
+        value_end = clause_end
+        for index in range(cursor_offset, min(clause_end, len(text))):
+            if text[index].isspace():
+                value_end = index
+                break
     token = text[value_start:cursor_offset]
     active_input = entry.inputs[active_index]
     return MacroArgCompletionContext(
@@ -451,7 +689,7 @@ def _colon_completion_context(
         value_end=value_end,
         token=token,
         active_input=active_input,
-        selected_values=_selected_positional_values(body, clause_start),
+        selected_values=_structural_selected_values(text, call, active),
         replacement=text[value_start:value_end],
     )
 
@@ -463,30 +701,34 @@ def _paren_completion_context(
     cursor_offset: int,
     reference_end: int,
     suffix: str,
+    call: _StructuralCall | None,
 ) -> MacroArgCompletionContext | None:
-    prefix_body = suffix[1:]
-    if ")" in prefix_body:
+    if call is None:
+        # An empty argument list parses to no spans; anything else without
+        # spans cannot be completed structurally.
+        if suffix != "(":
+            return None
+        call = _empty_structural_call(cursor_offset)
+    if _structural_is_closed(call, cursor_offset):
         return None
 
-    body_start = base_end + 1
-    body_end = _paren_body_end(text, body_start, cursor_offset, reference_end)
-    body = text[body_start:body_end]
-    cursor_in_body = cursor_offset - body_start
-    clause_start = body.rfind(",", 0, cursor_in_body) + 1
-    next_comma = body.find(",", cursor_in_body)
-    clause_end = len(body) if next_comma == -1 else next_comma
-    clause = body[clause_start:clause_end]
+    clauses = _structural_clauses(call)
+    active = _structural_active_index(call, cursor_offset)
+    clause_start, clause_end = clauses[active]
+    clause = text[clause_start:clause_end]
     stripped_clause = clause.lstrip()
     leading_ws = len(clause) - len(stripped_clause)
-    value_start = base_end + 1 + clause_start + leading_ws
-    value_end = base_end + 1 + clause_end
+    value_start = clause_start + leading_ws
+    value_end = clause_end
     value_end = _trimmed_value_end(text, value_start, value_end)
     token = text[value_start:cursor_offset]
 
-    if "=" not in stripped_clause:
+    if not _structural_clause_has_assign(call, clause_start, clause_end):
         if any(ch.isspace() for ch in token):
             return None
-        active_index = _paren_active_input_index(suffix, entry)
+        active_index = _paren_active_input_index(
+            suffix, entry, text, cursor_offset, call
+        )
         if active_index is not None:
             active_input = entry.inputs[active_index]
             completion_kind = _completion_kind_for_input(active_input)
@@ -498,8 +740,8 @@ def _paren_completion_context(
                     value_end=value_end,
                     token=token,
                     active_input=active_input,
-                    used_arg_names=_used_named_arg_names(body[:clause_start]),
-                    selected_values=_selected_positional_values(body, clause_start),
+                    used_arg_names=_structural_used_names(call, active),
+                    selected_values=_structural_selected_values(text, call, active),
                     replacement=text[value_start:value_end],
                 )
         if len(entry.inputs) == 1:
@@ -513,8 +755,8 @@ def _paren_completion_context(
                     value_end=value_end,
                     token=token,
                     active_input=single_input,
-                    used_arg_names=_used_named_arg_names(body[:clause_start]),
-                    selected_values=_selected_positional_values(body, clause_start),
+                    used_arg_names=_structural_used_names(call, active),
+                    selected_values=_structural_selected_values(text, call, active),
                     replacement=text[value_start:value_end],
                 )
         return MacroArgCompletionContext(
@@ -523,7 +765,7 @@ def _paren_completion_context(
             value_start=value_start,
             value_end=value_end,
             token=token,
-            used_arg_names=_used_named_arg_names(body[:clause_start]),
+            used_arg_names=_structural_used_names(call, active),
         )
 
     name_part, value_part = stripped_clause.split("=", 1)
@@ -542,21 +784,9 @@ def _paren_completion_context(
         value_end=value_end,
         token=token,
         active_input=named_input,
-        used_arg_names=_used_named_arg_names(body[:clause_start]),
+        used_arg_names=_structural_used_names(call, active),
         replacement=text[token_start:value_end],
     )
-
-
-def _paren_body_end(
-    text: str,
-    body_start: int,
-    cursor_offset: int,
-    reference_end: int,
-) -> int:
-    if reference_end > body_start and text[reference_end - 1 : reference_end] == ")":
-        return reference_end - 1
-    close = text.find(")", cursor_offset)
-    return cursor_offset if close == -1 else close
 
 
 def _trimmed_value_end(text: str, start: int, end: int) -> int:
@@ -565,71 +795,64 @@ def _trimmed_value_end(text: str, start: int, end: int) -> int:
     return end
 
 
-def _selected_positional_values(
-    body: str,
-    active_clause_start: int,
-) -> frozenset[str]:
-    values: set[str] = set()
-    clause_start = 0
-    for clause in body.split(","):
-        if clause_start != active_clause_start and "=" not in clause:
-            value = clause.strip()
-            if value:
-                values.add(value)
-        clause_start += len(clause) + 1
-    return frozenset(values)
-
-
-def _used_named_arg_names(body_prefix: str) -> frozenset[str]:
-    names: set[str] = set()
-    for clause in body_prefix.split(","):
-        if "=" not in clause:
-            continue
-        name = clause.split("=", 1)[0].strip()
-        if name:
-            names.add(name)
-    return frozenset(names)
-
-
 def _colon_active_input_index(
     suffix: str,
     entry: MacroAssistEntry,
+    cursor_py: int,
+    call: _StructuralCall | None,
 ) -> int | None:
     value = suffix[1:]
     if any(ch.isspace() for ch in value):
         return None
     if "+" in value or "(" in value or ")" in value:
         return None
-    return min(value.count(","), len(entry.inputs) - 1)
+    if call is None:
+        return None
+    # Structural commas respect quotes and text blocks; a quoted comma is
+    # one value, not a separator.
+    count = sum(1 for comma in call.commas_py if comma < cursor_py)
+    return min(count, len(entry.inputs) - 1)
 
 
 def _paren_active_input_index(
     suffix: str,
     entry: MacroAssistEntry,
+    text: str,
+    cursor_py: int,
+    call: _StructuralCall | None,
 ) -> int | None:
     body = suffix[1:]
-    if ")" in body:
-        return None
     if not body:
         return 0
-
-    match = _NAMED_ARG_CURSOR_RE.search(body)
-    if match is None:
-        clauses = body.split(",")
-        if "=" in clauses[-1] or any(ch.isspace() for ch in clauses[-1].strip()):
-            return None
-        positional_index = sum(1 for clause in clauses[:-1] if "=" not in clause)
-        if positional_index < len(entry.inputs):
-            candidate = entry.inputs[positional_index]
-            return positional_index if candidate.repeatable else None
-        if entry.inputs and entry.inputs[-1].repeatable:
-            return len(entry.inputs) - 1
+    if call is None:
+        return None
+    if _structural_is_closed(call, cursor_py):
         return None
 
-    name = match.group("name")
-    for index, inp in enumerate(entry.inputs):
-        if inp.name == name:
-            return index
+    clauses = _structural_clauses(call)
+    active = _structural_active_index(call, cursor_py)
+    clause_start, clause_end = clauses[active]
+    if _structural_clause_has_assign(call, clause_start, clause_end):
+        name = _structural_clause_key(call, clause_start, clause_end)
+        if name is None:
+            return None
+        for index, inp in enumerate(entry.inputs):
+            if inp.name == name:
+                return index
+        return None
+
+    if any(ch.isspace() for ch in text[clause_start:clause_end].strip()):
+        return None
+    positional_index = sum(
+        1
+        for index in range(active)
+        if not _structural_clause_has_assign(call, *clauses[index])
+    )
+    if positional_index < len(entry.inputs):
+        candidate = entry.inputs[positional_index]
+        return positional_index if candidate.repeatable else None
+    if entry.inputs and entry.inputs[-1].repeatable:
+        return len(entry.inputs) - 1
     return None
 
 

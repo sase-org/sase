@@ -164,6 +164,28 @@ def _get_macro_argument_spans_binding() -> Callable[..., object] | None:
     return cast(Callable[..., object], _macro_argument_spans_binding)
 
 
+def macro_argument_spans_for_text(
+    text: str,
+) -> Sequence[Mapping[str, object]] | None:
+    """Return raw structural ``macro_argument_spans`` for *text*.
+
+    Shared lazy entry point for surfaces (like the TUI assist detector)
+    that must stay on the core parser without adding an eager import.
+    Returns ``None`` when the binding is unavailable or the parse fails;
+    span offsets are UTF-8 bytes.
+    """
+    binding = _get_macro_argument_spans_binding()
+    if binding is None:
+        return None
+    try:
+        spans = binding(text)
+    except Exception:
+        return None
+    if not isinstance(spans, Sequence):
+        return None
+    return spans
+
+
 def highlight_spans(
     text: str,
     *,

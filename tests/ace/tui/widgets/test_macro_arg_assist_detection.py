@@ -9,6 +9,7 @@ from sase.ace.tui.widgets.macro_arg_assist import (
     detect_macro_arg_completion_at_cursor,
     detect_macro_arg_hint_at_cursor,
 )
+from sase.macro.models import InputChoice
 
 
 def _input_hint(name: str, type_: str = "word", position: int = 0) -> MacroInputHint:
@@ -309,3 +310,87 @@ def test_detect_typed_argument_hint_ignores_double_colon_eol_free_text() -> None
     entries = (_entry("ask", _input_hint("prompt")),)
     text = "#ask::\nbody"
     assert detect_macro_arg_hint_at_cursor(text, len(text), entries) is None
+
+
+def _quoted_value_entry() -> MacroAssistEntry:
+    """Macro ``m`` with line, enum and bool inputs (sase-1h1 repro)."""
+    return MacroAssistEntry(
+        name="m",
+        insertion="#m",
+        reference_prefix="#",
+        kind="macro",
+        input_signature=None,
+        inputs=(
+            MacroInputHint(
+                name="note",
+                type="line",
+                required=True,
+                default_display=None,
+                position=0,
+            ),
+            MacroInputHint(
+                name="env",
+                type="enum",
+                required=True,
+                default_display=None,
+                position=1,
+                choices=(
+                    InputChoice(value="staging"),
+                    InputChoice(value="prod"),
+                ),
+            ),
+            MacroInputHint(
+                name="flag",
+                type="bool",
+                required=True,
+                default_display=None,
+                position=2,
+            ),
+        ),
+        content_preview=None,
+    )
+
+
+def test_quoted_comma_stays_one_positional_value() -> None:
+    """A quoted comma does not advance the active input (sase-1h1)."""
+    entries = [_quoted_value_entry()]
+
+    plain = detect_macro_arg_completion_at_cursor("#m:x,", len("#m:x,"), entries)
+    assert plain is not None
+    assert plain.completion_kind == "macro_arg_value"
+    assert plain.active_input is not None
+    assert plain.active_input.name == "env"
+
+    quoted = detect_macro_arg_completion_at_cursor(
+        '#m:"a,b",', len('#m:"a,b",'), entries
+    )
+    assert quoted is not None
+    assert quoted.completion_kind == "macro_arg_value"
+    assert quoted.active_input is not None
+    assert quoted.active_input.name == "env"
+    assert quoted.selected_values == frozenset({"a,b"})
+
+
+def test_quoted_paren_does_not_close_the_call() -> None:
+    """A quoted paren does not end detection (sase-1h1)."""
+    entries = [_quoted_value_entry()]
+
+    # Unquoted baseline opens a name menu for the second positional.
+    baseline = detect_macro_arg_completion_at_cursor("#m(a,s", len("#m(a,s"), entries)
+    assert baseline is not None
+    assert baseline.completion_kind == "macro_arg_name"
+
+    quoted = detect_macro_arg_completion_at_cursor(
+        '#m("a)b",s', len('#m("a)b",s'), entries
+    )
+    assert quoted is not None
+    assert quoted.completion_kind == baseline.completion_kind
+    assert quoted.token == "s"
+
+    named = detect_macro_arg_completion_at_cursor(
+        '#m("a)b",env=', len('#m("a)b",env='), entries
+    )
+    assert named is not None
+    assert named.completion_kind == "macro_arg_value"
+    assert named.active_input is not None
+    assert named.active_input.name == "env"
