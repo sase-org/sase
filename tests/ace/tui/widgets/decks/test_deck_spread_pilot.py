@@ -16,6 +16,7 @@ from tests.ace.tui.widgets._agent_display_helpers import (
     make_agent,
     make_artifact_agent,
 )
+from tests.ace.tui.widgets.decks._deck_settle import wait_for_anchor_scroll
 
 _ROOT = Path(__file__).resolve().parents[5]
 
@@ -85,9 +86,10 @@ async def test_main_ctrl_j_scrolls_separator_anchor_to_top(
         await wait_for(pilot, lambda: panel_is_main_spread(detail))
         panel = detail.deck_area.panel(0)
         shown = detail.cycle_focused_deck_card(1)
-        await wait_for(
+        await wait_for_anchor_scroll(
             pilot,
-            lambda: _main_scroll_on_separator_anchor(panel, "reply"),
+            lambda: _main_scroll_y(panel),
+            lambda: panel.main_view.spread_anchor_row("reply"),
         )
         view = panel.main_view
         anchor = view.spread_anchor_row("reply")
@@ -109,18 +111,12 @@ def panel_is_main_spread(detail: AgentDetail) -> bool:
     return panel._render_mode[DeckId.MAIN] is RenderMode.SPREAD
 
 
-def _main_scroll_on_separator_anchor(panel: Any, card_id: str) -> bool:
-    anchor = panel.main_view.spread_anchor_row(card_id)
-    if anchor is None:
-        return False
-    try:
-        scroll = panel.query_one(
-            "#agent-deck-panel-0-main-scroll",
-            VerticalScroll,
-        )
-    except Exception:
-        return False
-    return int(scroll.scroll_y) == anchor
+def _main_scroll_y(panel: Any) -> int:
+    scroll = panel.query_one(
+        "#agent-deck-panel-0-main-scroll",
+        VerticalScroll,
+    )
+    return int(scroll.scroll_y)
 
 
 async def test_files_ctrl_j_scrolls_page_anchor_to_top(tmp_path: Path) -> None:
@@ -173,7 +169,11 @@ async def test_files_ctrl_j_scrolls_page_anchor_to_top(tmp_path: Path) -> None:
         panel.cycle_card(1)
         callback, args, kwargs = pending_restores[0]
         callback(*args, **kwargs)
-        await wait_for(pilot, lambda: _files_scroll_on_separator_anchor(panel, 1))
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: _files_scroll_y(panel),
+            lambda: panel._files_anchor_row(1),
+        )
         anchor = panel._files_anchor_row(1)
         assert anchor is not None and anchor > 0
         assert panel._files_body_start(1) == anchor + 1
@@ -184,18 +184,12 @@ async def test_files_ctrl_j_scrolls_page_anchor_to_top(tmp_path: Path) -> None:
         assert int(scroll.scroll_y) == anchor
 
 
-def _files_scroll_on_separator_anchor(panel: Any, index: int) -> bool:
-    anchor = panel._files_anchor_row(index)
-    if anchor is None:
-        return False
-    try:
-        scroll = panel.query_one(
-            "#agent-deck-panel-0-files-scroll",
-            VerticalScroll,
-        )
-    except Exception:
-        return False
-    return int(scroll.scroll_y) == anchor
+def _files_scroll_y(panel: Any) -> int:
+    scroll = panel.query_one(
+        "#agent-deck-panel-0-files-scroll",
+        VerticalScroll,
+    )
+    return int(scroll.scroll_y)
 
 
 async def test_main_partial_never_changes_mode() -> None:

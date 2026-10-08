@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.decks.card_block import BlockMeta, CardBlock
 from sase.ace.tui.widgets.decks.card_part import CardPart, context_card, reply_card
 from sase.ace.tui.widgets.decks.main_document import MainDeckDocument
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
+from tests.ace.tui.widgets.decks._deck_settle import wait_for_anchor_scroll
 
 _ROOT = Path(__file__).resolve().parents[5]
 
@@ -119,10 +120,11 @@ async def test_block_spread_lands_on_newest_clamp() -> None:
         assert view.active_block_id("reply") == "b2"
         card = panel._main_document.card("reply")
         assert card is not None
-        await wait_for(pilot, lambda: view.spread_landing_target(card) is not None)
-        target = view.spread_landing_target(card)
-        assert target is not None
-        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == target)
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
 
 
 async def test_block_spread_bracket_top_aligns() -> None:
@@ -142,15 +144,18 @@ async def test_block_spread_bracket_top_aligns() -> None:
         await wait_for(pilot, lambda: view.block_header_row("b2") is not None)
         card = panel._main_document.card("reply")
         assert card is not None
-        await wait_for(pilot, lambda: view.spread_landing_target(card) is not None)
-        target = view.spread_landing_target(card)
-        assert target is not None
-        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == target)
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
         assert panel.cycle_block(-1) is True
         assert view.active_block_id("reply") == "b1"
-        header = view.block_header_row("b1")
-        assert header is not None
-        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == header)
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.block_header_row("b1"),
+        )
 
 
 async def test_deck_spread_sticky_reply_landing() -> None:
@@ -169,10 +174,11 @@ async def test_deck_spread_sticky_reply_landing() -> None:
         view = panel.main_view
         card = panel._main_document.card("reply")
         assert card is not None
-        await wait_for(pilot, lambda: view.spread_landing_target(card) is not None)
-        target = view.spread_landing_target(card)
-        assert target is not None
-        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == target)
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
         assert view.active_block_id("reply") == "b2"
 
 
@@ -193,10 +199,11 @@ async def test_deck_spread_bracket_from_above_first_header() -> None:
         await wait_for(pilot, lambda: view.block_header_row("b0") is not None)
         card = panel._main_document.card("reply")
         assert card is not None
-        await wait_for(pilot, lambda: view.spread_landing_target(card) is not None)
-        landing = view.spread_landing_target(card)
-        assert landing is not None
-        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == landing)
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
         # Park above the first block header (tall deck-spread, scroll 0 is
         # not the real bottom): ] reaches oldest, [ newest.
         _scroll(panel).scroll_to(y=0, animate=False)
@@ -228,10 +235,11 @@ async def test_scroll_derived_cursor_and_streaming_stays() -> None:
         await wait_for(pilot, lambda: view.block_header_row("b0") is not None)
         card = panel._main_document.card("reply")
         assert card is not None
-        await wait_for(pilot, lambda: view.spread_landing_target(card) is not None)
-        landing = view.spread_landing_target(card)
-        assert landing is not None
-        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == landing)
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
         header0 = view.block_header_row("b0")
         assert header0 is not None
         _scroll(panel).scroll_to(y=header0, animate=False)
@@ -268,10 +276,11 @@ async def test_block_spread_to_paged_keeps_reader_block() -> None:
         await wait_for(pilot, lambda: view.block_header_row("b2") is not None)
         card = panel._main_document.card("reply")
         assert card is not None
-        await wait_for(pilot, lambda: view.spread_landing_target(card) is not None)
-        landing = view.spread_landing_target(card)
-        assert landing is not None
-        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == landing)
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
         assert panel.cycle_block(-1) is True
         assert panel.main_view.active_block_id("reply") == "b1"
         # Flip to always-paged blocks: the reader's block survives.
