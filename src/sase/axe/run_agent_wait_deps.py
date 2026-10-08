@@ -29,7 +29,7 @@ from sase.core.wait_dependency_resolution._types import WaitDependencyStatus
 
 
 @dataclass(frozen=True)
-class DependencyResolution:
+class _DependencyResolution:
     """Runner-side dependency resolution outcome plus telemetry.
 
     ``resolved`` keeps the old boolean contract: the instance is truthy
@@ -49,7 +49,7 @@ class DependencyResolution:
 
 
 @dataclass(frozen=True)
-class ReadyResult:
+class _ReadyResult:
     """Runner-side ``ready.json`` read outcome plus telemetry.
 
     Truthy exactly when the marker releases the wait. ``released_by`` and
@@ -254,7 +254,7 @@ def initial_dependencies_resolved(
     wait_epic_follows: Iterable[object] = (),
     project_name: str | None,
     artifacts_dir: str,
-) -> DependencyResolution:
+) -> _DependencyResolution:
     """Resolve a dependency set directly, without consulting ``ready.json``.
 
     Routes through the shared epic-follow release decision, then stamps
@@ -273,8 +273,8 @@ def initial_dependencies_resolved(
         artifacts_dir=artifacts_dir,
     )
     if not decision.releasable:
-        return DependencyResolution(False)
-    return DependencyResolution(
+        return _DependencyResolution(False)
+    return _DependencyResolution(
         True,
         _release_satisfied_at(
             wait_names,
@@ -298,7 +298,7 @@ def _ready_float(value: object) -> float | None:
     return None
 
 
-def read_ready_result(ready_path: str) -> ReadyResult:
+def read_ready_result(ready_path: str) -> _ReadyResult:
     """Return whether a ready marker resolves the wait.
 
     A torn or otherwise unreadable marker is treated as not ready; the
@@ -311,12 +311,12 @@ def read_ready_result(ready_path: str) -> ReadyResult:
         with open(ready_path, encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
-        return ReadyResult(False)
+        return _ReadyResult(False)
     if not isinstance(data, dict):
-        return ReadyResult(False)
+        return _ReadyResult(False)
     if not data.get("cancelled"):
         released_by = data.get("released_by")
-        return ReadyResult(
+        return _ReadyResult(
             True,
             released_by if isinstance(released_by, str) else None,
             bool(data.get("unwait", False)),
@@ -326,7 +326,7 @@ def read_ready_result(ready_path: str) -> ReadyResult:
         os.unlink(ready_path)
     except OSError:
         pass
-    return ReadyResult(False)
+    return _ReadyResult(False)
 
 
 def waiting_marker_dependencies_resolved(
@@ -334,11 +334,11 @@ def waiting_marker_dependencies_resolved(
     *,
     project_name: str | None,
     artifacts_dir: str,
-) -> DependencyResolution:
+) -> _DependencyResolution:
     """Re-resolve the dependencies currently recorded in ``waiting.json``."""
     waiting_data = read_json_dict(waiting_path)
     if waiting_data is None:
-        return DependencyResolution(False)
+        return _DependencyResolution(False)
 
     wait_names = waiting_data.get("waiting_for", [])
     wait_identity_deps = waiting_data.get("wait_for_artifacts", [])
@@ -347,7 +347,7 @@ def waiting_marker_dependencies_resolved(
     wait_hoods = waiting_data.get("wait_for_hoods", [])
     resolved_deps = waiting_data.get("resolved_deps", [])
     if not isinstance(wait_names, list):
-        return DependencyResolution(False)
+        return _DependencyResolution(False)
     if not isinstance(wait_identity_deps, list):
         wait_identity_deps = []
     if not isinstance(wait_fork_sources, list):
@@ -365,7 +365,7 @@ def waiting_marker_dependencies_resolved(
         or wait_beads
         or wait_hoods
     ):
-        return DependencyResolution(False)
+        return _DependencyResolution(False)
 
     decision = _resolve_marker_release(
         waiting_data,
@@ -374,11 +374,11 @@ def waiting_marker_dependencies_resolved(
     )
     if decision.patch is not None:
         if not apply_wait_epic_follow_patch(artifacts_dir, decision.patch):
-            return DependencyResolution(False)
-        return DependencyResolution(False)
+            return _DependencyResolution(False)
+        return _DependencyResolution(False)
     if not decision.releasable:
-        return DependencyResolution(False)
-    return DependencyResolution(
+        return _DependencyResolution(False)
+    return _DependencyResolution(
         True,
         _release_satisfied_at(
             wait_names,

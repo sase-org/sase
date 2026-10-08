@@ -22,7 +22,7 @@ WaiterLiveness = Literal["alive", "dead", "unknown"]
 
 
 @dataclass
-class WaitMarkerScan:
+class _WaitMarkerScan:
     """One shared walk over every project's ``ace-run`` artifact dirs."""
 
     projects: int = 0
@@ -34,7 +34,7 @@ class WaitMarkerScan:
     walked_dirs: set[Path] = field(default_factory=set)
 
 
-def scan_waiting_markers(projects_dir: Path) -> WaitMarkerScan:
+def scan_waiting_markers(projects_dir: Path) -> _WaitMarkerScan:
     """Walk ``ace-run`` dirs and collect waiting markers without meta reads.
 
     Returns the project/artifact/waiting counts, the pending markers
@@ -44,7 +44,7 @@ def scan_waiting_markers(projects_dir: Path) -> WaitMarkerScan:
     classify it with :func:`waiting_runner_liveness`.
     """
 
-    scan = WaitMarkerScan()
+    scan = _WaitMarkerScan()
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
             continue
@@ -120,7 +120,6 @@ def waiting_runner_liveness(
 
 
 __all__ = [
-    "WaitMarkerScan",
     "WaiterLiveness",
     "scan_waiting_markers",
     "waiting_runner_liveness",

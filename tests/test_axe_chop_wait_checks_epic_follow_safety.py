@@ -258,8 +258,11 @@ def test_land_failure_entry_clears_when_waiter_releases(
     _point_bead_waits_at(monkeypatch, {"sase-7k"})
     run_wait_checks(tmp_path, monkeypatch)
 
+    # The pinned epic bead makes this a bead wait, so the release-telemetry
+    # payload carries released_by but no dependencies_satisfied_at.
     assert json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8")) == {
-        "resolved_deps": ["planner"]
+        "resolved_deps": ["planner"],
+        "released_by": "wait_checks",
     }
     cleared = _by_dedup(f":{waiter_dir}:sase-7k")
     assert cleared is not None

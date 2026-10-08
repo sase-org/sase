@@ -740,11 +740,12 @@ of creating a new one.
 
 - **Terminally blocked waits.** The `wait_checks` job notifies once per parked waiter
   whose named `%wait` dependency already ended with an outcome that can never satisfy
-  the wait, such as a failed or killed agent. The notes name the waiter, the blocking
-  dependency, its artifact directory, and its outcome, and suggest killing and
-  relaunching the waiter or deliberately clearing the wait. The row attaches both
-  artifact directories and carries the `wait`, `blocked`, and `terminal-dependency`
-  tags; later checks append `Still blocked on …` evidence.
+  the wait, such as a failed or killed agent. Waiters whose runner is provably dead are
+  skipped and never notified. The notes name the waiter, the blocking dependency, its
+  artifact directory, and its outcome, and suggest killing and relaunching the waiter or
+  deliberately clearing the wait. The row attaches both artifact directories and carries
+  the `wait`, `blocked`, and `terminal-dependency` tags; later checks append
+  `Still blocked on …` evidence.
 - **Hold armed and released.** Arming a `sase agent hold` admission hold posts one
   `agent_hold` row per armer with the `agent-hold` and `armed` tags, its expiry, and any
   frozen `pending` capture counts. The [`%hold`](macros.md#hold-directive) directive

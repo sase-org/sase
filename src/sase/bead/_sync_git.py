@@ -611,16 +611,6 @@ def _has_head_commit(repo_root: Path) -> bool:
     return result.returncode == 0
 
 
-def _list_bead_state_changes_silent(beads_dir: Path, repo_root: Path) -> list[str]:
-    """Best-effort variant of :func:`_list_bead_state_changes` that swallows
-    subprocess failure, preserving ``git_sync``'s fire-and-forget contract.
-    """
-    try:
-        return _list_bead_state_changes(beads_dir, repo_root)
-    except BeadWorkLaunchCommitError:
-        return []
-
-
 def _bead_state_change_sets_silent(
     beads_dir: Path, repo_root: Path
 ) -> tuple[list[str], list[str]]:

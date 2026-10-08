@@ -1,17 +1,16 @@
 """Shared agent-artifact index access for incremental chop scans.
 
-Both wait_checks and bead_claim_checks prefer the persistent artifact index
-when it exists and answers the query. Missing, unreadable, or unexpected
-index state fails open to the caller's filesystem path.
+bead_claim_checks prefers the persistent artifact index when it exists and
+answers the query. Missing, unreadable, or unexpected index state fails open
+to the caller's filesystem path. wait_checks resolves from filesystem rows
+instead (see :mod:`sase.scripts._chop_wait_checks_run`).
 """
 
 from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -75,25 +74,3 @@ def query_ace_run_index_records(
     return [
         record for record in snapshot.records if record.workflow_dir_name == "ace-run"
     ]
-
-
-def _agent_meta_mapping(record: AgentArtifactRecordWire) -> dict[str, Any] | None:
-    """Project one index record's agent meta into a wait-index mapping."""
-
-    if record.agent_meta is None:
-        return None
-    return asdict(record.agent_meta)
-
-
-def wait_rows_from_index_records(
-    records: list[AgentArtifactRecordWire],
-) -> list[tuple[Path, dict[str, Any], str]]:
-    """Convert ace-run index records into ``WaitDependencyIndex.add_many`` rows."""
-
-    rows: list[tuple[Path, dict[str, Any], str]] = []
-    for record in records:
-        meta = _agent_meta_mapping(record)
-        if meta is None:
-            continue
-        rows.append((Path(record.artifact_dir), meta, record.project_name))
-    return rows
