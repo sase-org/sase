@@ -11,6 +11,10 @@ from sase.axe.run_agent_exec_plan_artifacts import (
     store_followup_prompt_artifact,
     write_plan_path_artifact,
 )
+from sase.axe.agent_meta import (
+    live_plan_successor_meta,
+    plan_successor_auto_relationships,
+)
 from sase.axe.run_agent_helpers import (
     assemble_feedback_replan_prompt,
     create_followup_artifacts,
@@ -235,11 +239,17 @@ def _continue_after_plan_result(
             state.qa_rounds,
             _rows,
         )
+        # Seed the replanner from the planner's live auto state, as the
+        # accepted-plan coder is seeded: a toggle made while the planner ran
+        # reaches the successor.
+        feedback_seeded_meta = live_plan_successor_meta(
+            state.current_artifacts_dir, ctx.agent_meta
+        )
         continue_as_successor(
             ctx,
             state,
             SuccessorRequest(
-                base_meta=ctx.agent_meta,
+                base_meta=feedback_seeded_meta,
                 prompt=feedback_prompt,
                 suffix_template=f"{PLAN_CHAIN_PLAN_SUFFIX}-@",
                 extra_reserved_suffixes=_state_reserved_suffixes(state),
@@ -249,6 +259,7 @@ def _continue_after_plan_result(
                     "patch_name": ctx.cl_name,
                     "changespec_name": ctx.cl_name,
                     "source_plan_agent_name": planner_agent,
+                    **plan_successor_auto_relationships(feedback_seeded_meta),
                 },
                 prompt_artifact_label="Full feedback prompt",
                 fallback_token=str(state.feedback_round - 1),

@@ -2794,13 +2794,14 @@ Once an epic bead exists, the shared launch path:
    scalars with their own shipped defaults; neither chains through the other or through
    any other alias. Builtin size aliases can be configured under
    `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic
-   segment carries bare `%auto`, so submitted implementation and landing plans are
-   auto-approved. An agent may author a tale or an epic as needed; the plan's authored
-   `tier` selects the corresponding automatic follow-up path. The land agent prefers a
-   tale for remaining work that one agent can finish. Because nothing resumes the
-   landing after a tale's coder finishes, the land agent triages follow-ups first and
-   writes the epic's closeout into the tale as its final step, while a child epic
-   instead hands the resumed landing to its own land agent through `parent_bead`.
+   segment carries `%auto:tale`, so submitted tale implementation and landing plans are
+   approved and archived automatically, while a nested epic plan waits for human
+   approval. An agent may author a tale or an epic as needed; the plan's authored `tier`
+   selects the corresponding follow-up path. The land agent prefers a tale for remaining
+   work that one agent can finish. Because nothing resumes the landing after a tale's
+   coder finishes, the land agent triages follow-ups first and writes the epic's
+   closeout into the tale as its final step, while a child epic instead hands the
+   resumed landing to its own land agent through `parent_bead`.
 7. Before spawning any runner, batch-preassigns every scheduled phase bead to its
    rendered worker and the epic bead to `<epic_id>.land`, setting all of them to
    `in_progress`. It commits readiness, assignments, and the complete graph as one
@@ -2857,10 +2858,10 @@ agent launches). Durable stage and summary events also append to
 
 The work macros are resolved by `MacroTag` (tag-based lookup), so a project-local or
 user-defined `work_phase_bead`, `work_task_bead`, or `land_epic` macro overrides the
-built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so
-spawned agents can auto-approve submitted tale or epic plans and follow the path
-selected by the authored `tier`, without a human-in-the-loop checkpoint between
-dependency waves.
+built-in. For epic-tier work, every phase and land segment carries `%auto:tale`, so
+spawned agents auto-approve submitted tale plans and follow the path selected by the
+authored `tier`, while a nested epic plan parks for human review, without a
+human-in-the-loop checkpoint between dependency waves.
 
 When the epic plan bead is attached to Patch metadata (`--patch`, legacy `--changespec`,
 or `--bug-id`), `sase bead work` preserves the current project's VCS context in the

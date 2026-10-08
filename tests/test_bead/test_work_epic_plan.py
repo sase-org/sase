@@ -128,26 +128,26 @@ class TestDiamond:
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:@small\n"
-            "%auto\n"
+            "%auto:tale\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%id(!p2, clan=e1, bead=p2)\n"
             "%model:@small\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%id(!p3, clan=e1, bead=p3)\n"
             "%model:@small\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#bd/work_phase_bead:p3\n"
             "---\n"
             "%id(!p4, clan=e1, bead=p4)\n"
             "%model:@small\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p2,e1.p3, for_epic=false)\n"
             "%w(bead=p2)\n"
             "%w(bead=p3)\n"
@@ -155,7 +155,7 @@ class TestDiamond:
             "---\n"
             "%id(!land, clan=e1, bead=e1)\n"
             "%model:@large\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p1,e1.p2,e1.p3,e1.p4, for_epic=false)\n"
             "%w(bead=p1)\n"
             "%w(bead=p2)\n"
@@ -172,12 +172,12 @@ class TestDiamond:
         assert all("%clan" not in segment for segment in segments[1:])
         assert all("%family" not in segment for segment in segments)
         assert all("%group:" not in segment for segment in segments)
-        assert all("%auto" in segment.splitlines() for segment in segments)
-        assert all("%auto:tale" not in segment for segment in segments)
+        assert all("%auto:tale" in segment.splitlines() for segment in segments)
+        assert all("%auto" not in segment.splitlines() for segment in segments)
         for segment in segments:
             _, directives = extract_prompt_directives(segment)
             assert directives.auto_enabled is True
-            assert directives.auto_argument is None
+            assert directives.auto_argument == "tale"
 
 
 class TestMixedDAG:

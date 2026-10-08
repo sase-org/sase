@@ -12,7 +12,7 @@ from sase.bead.work_plan import _build_epic_work_plan
 from sase.macro.workflow_models import Workflow
 
 from .work_test_helpers import (
-    assert_bare_auto_directives,
+    assert_tale_auto_directives,
     depends,
     epic,
     phase,
@@ -41,19 +41,19 @@ class TestPatchRendering:
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:@small\n"
-            "%auto\n"
+            "%auto:tale\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
             "%id(!land, clan=e1, bead=e1)\n"
             "%model:@large\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
-        assert_bare_auto_directives(rendered)
+        assert_tale_auto_directives(rendered)
 
     def test_dependency_chain_wraps_only_first_phase_with_pr(
         self, conn: sqlite3.Connection
@@ -79,13 +79,13 @@ class TestPatchRendering:
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:@small\n"
-            "%auto\n"
+            "%auto:tale\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
             "%id(!p2, clan=e1, bead=p2)\n"
             "%model:@small\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#custom/work:p2\n"
@@ -93,7 +93,7 @@ class TestPatchRendering:
             "#gh:feature_epic\n"
             "%id(!p3, clan=e1, bead=p3)\n"
             "%model:@small\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p2, for_epic=false)\n"
             "%w(bead=p2)\n"
             "#custom/work:p3\n"
@@ -101,7 +101,7 @@ class TestPatchRendering:
             "#gh:feature_epic\n"
             "%id(!land, clan=e1, bead=e1)\n"
             "%model:@large\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p1,e1.p2,e1.p3, for_epic=false)\n"
             "%w(bead=p1)\n"
             "%w(bead=p2)\n"
@@ -109,7 +109,7 @@ class TestPatchRendering:
             "#custom/land:e1"
         )
         assert rendered == expected
-        assert_bare_auto_directives(rendered)
+        assert_tale_auto_directives(rendered)
 
     def test_independent_phases_only_first_gets_pr(
         self, conn: sqlite3.Connection

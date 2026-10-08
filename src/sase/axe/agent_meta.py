@@ -70,6 +70,45 @@ def overlay_live_auto_keys(
     return agent_meta
 
 
+def live_plan_successor_meta(
+    artifacts_dir: str | os.PathLike[str],
+    base_meta: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return *base_meta* seeded with the predecessor's live auto state.
+
+    Plan-chain successors (the in-process coder after plan approval and the
+    feedback replanner) start from the predecessor's live
+    ``agent_meta.json``, not the launch snapshot, so an ``A`` toggle made
+    while the planner ran reaches the successor. Absent live keys remove
+    stale snapshot keys via :func:`overlay_live_auto_keys`. A legacy
+    ``auto_approve_plan_action`` of ``"plan"`` is dropped: valid actions
+    are ``approve``/``tale``/``epic``, never ``"plan"``.
+    """
+    seeded = dict(base_meta)
+    overlay_live_auto_keys(artifacts_dir, seeded)
+    if seeded.get("auto_approve_plan_action") == "plan":
+        del seeded["auto_approve_plan_action"]
+    return seeded
+
+
+def plan_successor_auto_relationships(
+    seeded_meta: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the live auto keys a plan-chain successor persists.
+
+    :func:`create_followup_artifacts` copies only allow-listed keys from
+    *base_meta*, so the ``auto_approve_*`` keys ride the successor
+    ``relationships`` instead, which it persists verbatim. Only these two
+    plan-chain call paths use this; gate-turn, monitor, pipe, and retry
+    successors keep their current behavior.
+    """
+    return {
+        key: seeded_meta[key]
+        for key in ("auto_approve_argument", "auto_approve_plan_action")
+        if seeded_meta.get(key)
+    }
+
+
 def write_agent_meta_atomic(
     artifacts_dir: str | os.PathLike[str],
     agent_meta: Mapping[str, Any],
@@ -121,7 +160,9 @@ def write_agent_meta_atomic(
 
 __all__ = [
     "AUTO_STATE_KEYS",
+    "live_plan_successor_meta",
     "overlay_live_auto_keys",
+    "plan_successor_auto_relationships",
     "read_live_agent_meta",
     "write_agent_meta_atomic",
 ]

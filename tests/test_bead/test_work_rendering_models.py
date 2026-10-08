@@ -18,7 +18,7 @@ from sase.llm_provider.registry import resolve_model_provider
 from tests._model_alias_defaults_fixture import frozen_selector_member
 from sase.macro.workflow_models import Workflow
 
-from .work_test_helpers import assert_bare_auto_directives, epic, phase, seed
+from .work_test_helpers import assert_tale_auto_directives, epic, phase, seed
 
 
 class TestModelDirective:
@@ -250,12 +250,12 @@ class TestModelDirective:
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
-        assert_bare_auto_directives(rendered)
+        assert_tale_auto_directives(rendered)
         assert phase_segment == (
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:claude/opus\n"
-            "%auto\n"
+            "%auto:tale\n"
             "#bd/work_phase_bead:p1"
         )
         # The epic has no explicit land model, so the land agent defaults to
@@ -322,13 +322,13 @@ class TestModelDirective:
 
         segments = rendered.split("\n---\n")
         phase_segment, land_segment = segments
-        assert_bare_auto_directives(rendered)
+        assert_tale_auto_directives(rendered)
         assert "%model:@small" in phase_segment
         # An explicit per-epic land model still wins over the scalar lander setting.
         assert land_segment == (
             "%id(!land, clan=e1, bead=e1)\n"
             "%model:claude/opus\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#bd/land_epic:e1"
@@ -361,15 +361,15 @@ class TestModelDirective:
         pre_model_baseline = (
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
-            "%auto\n"
+            "%auto:tale\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%id(!p2, clan=e1, bead=p2)\n"
-            "%auto\n"
+            "%auto:tale\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%id(!land, clan=e1, bead=e1)\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w(e1.p1,e1.p2, for_epic=false)\n"
             "%w(bead=p1)\n"
             "%w(bead=p2)\n"
@@ -381,7 +381,7 @@ class TestModelDirective:
             "%model:@large\n", ""
         )
         assert stripped == pre_model_baseline
-        assert_bare_auto_directives(rendered)
+        assert_tale_auto_directives(rendered)
         # The selector-backed phase size preserves its pool member's effort.
         small = resolve_model_alias_with_effort("@small")
         assert (small.target, small.effort) == frozen_selector_member(

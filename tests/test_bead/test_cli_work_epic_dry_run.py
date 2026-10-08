@@ -165,26 +165,26 @@ def test_work_dry_run_renders_model_directives(
     membership = epic_clan_declaration(epic_id)
     assert (
         f"%id(!{p1_id}, bead={p1_id})\n{membership}\n"
-        "%model:codex/gpt-5.6-sol\n%auto\n" in out
+        "%model:codex/gpt-5.6-sol\n%auto:tale\n" in out
     )
     # Phase without size metadata defaults to the small size alias.
     p2_suffix = p2_id.removeprefix(f"{epic_id}.")
     assert (
         f"%id(!{p2_suffix}, clan={epic_id}, bead={p2_id})\n"
-        "%model:@small\n%auto\n" in out
+        "%model:@small\n%auto:tale\n" in out
     )
     # The epic's explicit land model still wins over the scalar lander default.
     assert (
         f"%id(!land, clan={epic_id}, bead={epic_id})\n"
-        "%model:claude/opus\n%auto\n" in out
+        "%model:claude/opus\n%auto:tale\n" in out
     )
     assert out.count(epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
     assert "%group:" not in out
     # Three %model directives: explicit phase, phase-worker phase, and land.
     assert out.count("%model:") == 3
-    assert out.count("\n%auto\n") == 3
-    assert "%auto:tale" not in out
+    assert out.count("\n%auto:tale\n") == 3
+    assert "\n%auto\n" not in out
 
 
 def test_work_dry_run_relaunches_from_stored_phase_sizes(

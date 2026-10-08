@@ -184,7 +184,7 @@ def render_multi_prompt(
                 size=assignment.size,
             )
             lines.append(f"%model:{model_value}")
-            lines.append("%auto")
+            lines.append("%auto:tale")
             lines.extend(
                 _queue_capacity_lines(
                     _capacity_for_agent(
@@ -223,7 +223,7 @@ def render_multi_prompt(
             total_phase_count=plan.total_phase_count,
         )
         land_lines.append(f"%model:{land_model}")
-        land_lines.append("%auto")
+        land_lines.append("%auto:tale")
         land_lines.extend(
             _queue_capacity_lines(
                 _capacity_for_agent(

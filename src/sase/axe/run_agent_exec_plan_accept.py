@@ -23,7 +23,11 @@ from sase.axe.run_agent_exec_plan_accept_models import (
 )
 
 # Re-exported so successor model-meta writers honor accept-module test doubles.
-from sase.axe.agent_meta import write_agent_meta_atomic
+from sase.axe.agent_meta import (
+    live_plan_successor_meta,
+    plan_successor_auto_relationships,
+    write_agent_meta_atomic,
+)
 from sase.axe.run_agent_successor import (
     SuccessorRequest,
     continue_as_successor,
@@ -561,7 +565,11 @@ def prepare_accepted_plan_successor(
             followup_plan_file=followup_plan_file,
         )
     model_prefix = followup_model.model_prefix
-    followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)
+    # Seed the coder from the planner's live auto state: an ``A`` toggle made
+    # while the planner ran reaches the coder. Under ``inherit_mode`` a
+    # ``%auto:tale`` planner's coder keeps ``:tale``.
+    seeded_meta = live_plan_successor_meta(state.current_artifacts_dir, ctx.agent_meta)
+    followup_base_meta = _plan_followup_base_meta(seeded_meta)
 
     # Point SASE_PLAN at the committed in-repo plan file only when the approval
     # committed that file. No-commit approvals must hand off the archived plan
@@ -630,6 +638,9 @@ def prepare_accepted_plan_successor(
                 "patch_name": ctx.cl_name,
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": source_plan_agent_name,
+                # Persist the live ``auto_approve_*`` keys verbatim: the
+                # follow-up allowlist copies only ``approve`` from base_meta.
+                **plan_successor_auto_relationships(seeded_meta),
             },
             prompt_artifact_label="Full coder prompt",
             model=followup_model,
