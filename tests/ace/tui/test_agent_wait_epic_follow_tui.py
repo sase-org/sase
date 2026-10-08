@@ -13,11 +13,11 @@ from sase.ace.tui.agent_completion import (
 )
 from sase.ace.tui.actions.agents._epic_follow_toasts import (
     announce_epic_follow_transitions,
-    epic_follow_toast_messages,
+    _epic_follow_toast_messages,
 )
 from sase.ace.tui.models.agent_epic_follow_progress import (
     _EPIC_FOLLOW_PROGRESS_CACHE,
-    EpicFollowProgress,
+    _EpicFollowProgress,
     cached_epic_follow_progress_snapshot,
     warm_epic_follow_progress,
 )
@@ -160,7 +160,7 @@ def test_lane_following_narrates_epic_progress_and_since() -> None:
     line = _agents_line(
         agent,
         wait_bead_statuses=(("sase-7k", "in_progress"),),
-        epic_follow_progress={"sase-7k": EpicFollowProgress(2, 5)},
+        epic_follow_progress={"sase-7k": _EpicFollowProgress(2, 5)},
     )
 
     assert "planner ✓" in line
@@ -251,7 +251,7 @@ def test_lane_closed_resolution_replaces_status_word() -> None:
         agent,
         wait_bead_statuses=(("sase-7k", "closed"),),
         epic_follow_progress={
-            "sase-7k": EpicFollowProgress(1, 3, resolution="canceled")
+            "sase-7k": _EpicFollowProgress(1, 3, resolution="canceled")
         },
     )
 
@@ -275,17 +275,17 @@ def test_toast_coalesces_waiters_per_epic() -> None:
     }
     names = {1: "a", 2: "b", 3: "c"}
 
-    assert epic_follow_toast_messages(previous, current, names) == [
+    assert _epic_follow_toast_messages(previous, current, names) == [
         "3 agents now wait on epic sase-7k (launched by planner)"
     ]
 
 
 def test_toast_names_single_waiter_and_skips_repeats() -> None:
     edge = frozenset({("sase-7k", "planner")})
-    assert epic_follow_toast_messages({1: frozenset()}, {1: edge}, {1: "reviewer"}) == [
-        "reviewer now waits on epic sase-7k (launched by planner)"
-    ]
-    assert epic_follow_toast_messages({1: edge}, {1: edge}, {1: "reviewer"}) == []
+    assert _epic_follow_toast_messages(
+        {1: frozenset()}, {1: edge}, {1: "reviewer"}
+    ) == ["reviewer now waits on epic sase-7k (launched by planner)"]
+    assert _epic_follow_toast_messages({1: edge}, {1: edge}, {1: "reviewer"}) == []
 
 
 def test_toast_never_fires_on_startup_load() -> None:
@@ -312,16 +312,16 @@ def test_follow_progress_warms_and_caches() -> None:
 
     def _fake_read(
         project_key: str, epic_ids: object
-    ) -> dict[str, EpicFollowProgress | None]:
+    ) -> dict[str, _EpicFollowProgress | None]:
         assert project_key == "tmp"
-        return {"sase-7k": EpicFollowProgress(closed=2, total=5)}
+        return {"sase-7k": _EpicFollowProgress(closed=2, total=5)}
 
-    original = progress_module.read_epic_follow_progress
-    progress_module.read_epic_follow_progress = _fake_read  # type: ignore[assignment]
+    original = progress_module._read_epic_follow_progress
+    progress_module._read_epic_follow_progress = _fake_read  # type: ignore[assignment]
     try:
         changed = warm_epic_follow_progress([agent])
     finally:
-        progress_module.read_epic_follow_progress = original
+        progress_module._read_epic_follow_progress = original
         _EPIC_FOLLOW_PROGRESS_CACHE.clear()
 
     assert changed == {agent.identity}  # type: ignore[attr-defined]

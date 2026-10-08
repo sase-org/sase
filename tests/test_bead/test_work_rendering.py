@@ -159,7 +159,7 @@ class TestRenderEdgeCases:
         assert "#bd/work_phase_bead:sase-42.3.1" in phase_segment
         assert "%id(!land, clan=sase-42.3, bead=sase-42.3)" in land_segment
         assert "%clan" not in land_segment
-        assert "%w:sase-42.3.1" in land_segment
+        assert "%w(sase-42.3.1, for_epic=false)" in land_segment
         assert "#bd/land_epic:sase-42.3" in land_segment
 
     def test_existing_epic_clan_uses_join_form_for_every_segment(self) -> None:
@@ -479,14 +479,14 @@ class TestExtraWaits:
         assert "%w:dep" not in dependent
         assert "%w(bead=sase-64.3)" not in dependent
         assert dependent.splitlines()[-3:] == [
-            "%w:sase-42.1",
+            "%w(sase-42.1, for_epic=false)",
             "%w(bead=sase-42.1)",
             "#bd/work_phase_bead:sase-42.2",
         ]
         assert "%w:dep" not in land
         assert "%w(bead=sase-64.3)" not in land
         assert land.splitlines()[-4:] == [
-            "%w:sase-42.1,sase-42.2",
+            "%w(sase-42.1,sase-42.2, for_epic=false)",
             "%w(bead=sase-42.1)",
             "%w(bead=sase-42.2)",
             "#bd/land_epic:sase-42",

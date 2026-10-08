@@ -251,7 +251,7 @@ _FOLLOW_PLAN_ROW_REASON = (
 )
 
 
-def is_follow_plan_row(name: object) -> bool:
+def _is_follow_plan_row(name: object) -> bool:
     """Return whether *name* is a ``--plan`` row that can never follow."""
     if not isinstance(name, str) or not name.strip():
         return False
@@ -287,7 +287,7 @@ def follow_epics_mode(
 def follow_toggle_disabled_reason(waiting_for: Iterable[str] | None) -> str | None:
     """Return why the Follow epics toggle is disabled, if it is."""
     targets = [t for t in (waiting_for or ()) if isinstance(t, str) and t.strip()]
-    if targets and all(is_follow_plan_row(target) for target in targets):
+    if targets and all(_is_follow_plan_row(target) for target in targets):
         return _FOLLOW_PLAN_ROW_REASON
     return None
 
@@ -335,6 +335,5 @@ __all__ = [
     "follow_epics_mode",
     "follow_toggle_disabled_reason",
     "follow_toggle_label",
-    "is_follow_plan_row",
     "resolve_epic_follow_agents",
 ]

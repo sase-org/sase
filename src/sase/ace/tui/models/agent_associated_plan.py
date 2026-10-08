@@ -20,7 +20,6 @@ from sase.agent.bead_display import (
 from sase.bead.flag_fields import flag_fields, is_flag_bead
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead_type_presentation import BeadTypeValue
-from sase.core.created_epics import launched_epic_bead_id
 from sase.phase_size_presentation import normalize_phase_size
 from sase.sdd.plan_validate import validate_plan
 
@@ -543,6 +542,8 @@ def _agent_bead_id(agent: Agent) -> str | None:
     # authoritative `created_epics` record over the legacy back-fill, so a
     # phase worker that delegated still resolves its child epic here while
     # its inherited `epic_bead_id` keeps naming the epic it belongs to.
+    from sase.core.created_epics import launched_epic_bead_id
+
     return (
         agent.phase_bead_id
         or launched_epic_bead_id(agent)

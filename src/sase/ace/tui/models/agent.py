@@ -13,7 +13,7 @@ from sase.core.agent_identity_facade import (
 )
 from sase.core.wait_epic_follow_view import epic_follow_views
 from sase.core.paths import shorten_path
-from sase.core.time import local_now
+from sase.core.time import local_now, parse_local, to_local
 from sase.gate_turn.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
@@ -367,10 +367,8 @@ class Agent(AgentState):
                 continue
             moment: datetime | None = None
             if isinstance(view.since, (int, float)) and view.since > 0:
-                try:
-                    moment = datetime.fromtimestamp(float(view.since))
-                except (OSError, OverflowError, ValueError):
-                    moment = None
+                parsed = parse_local(float(view.since))
+                moment = to_local(parsed) if parsed is not None else None
             for epic_id in view.epic_ids:
                 milestones.append((moment, "↪EPIC", f"{epic_id} ← {view.target}"))
         return milestones

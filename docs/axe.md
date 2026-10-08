@@ -321,9 +321,10 @@ entry per waiter and target, and likewise one entry per `blocked` follow (naming
 reason with its resume command, jumping to the waiter) and one per followed epic whose
 land agent failed terminally (naming the waiter, the epic, and the land agent). Repeat
 ticks corroborate the single entry with +1 instead of duplicating it, and the entry is
-dismissed once its state resolves. Nothing about a follow ever releases on a timeout: an
-overdue or blocked waiter stays parked until an epic appears, the follow is cleared, or
-the wait is relaunched.
+dismissed once its state resolves or the waiter's runner is classified `dead` (a dead
+runner never releases, so its follow entries are stale). Nothing about a follow ever
+releases on a timeout: an overdue or blocked waiter stays parked until an epic appears,
+the follow is cleared, or the wait is relaunched.
 
 Two guards keep a follow from deadlocking the epic machinery. The deadlock guard drops
 any launched epic that already contains the waiter: the waiter's own bead equals the

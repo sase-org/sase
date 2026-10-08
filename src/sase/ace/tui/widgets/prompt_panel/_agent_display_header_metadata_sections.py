@@ -15,9 +15,6 @@ from sase.agent.status_buckets import (
 from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 from ...models.agent import Agent
-from ...models.agent_epic_follow_progress import (
-    cached_epic_follow_progress_snapshot,
-)
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
 )
@@ -95,6 +92,10 @@ def append_wait_field(
             text.append(f"{queued_for} in queue", style=QUEUED_STATUS_COLOR)
         text.append("\n")
         runners_only = True
+
+    from ...models.agent_epic_follow_progress import (
+        cached_epic_follow_progress_snapshot,
+    )
 
     lanes = build_wait_lanes(
         agent,

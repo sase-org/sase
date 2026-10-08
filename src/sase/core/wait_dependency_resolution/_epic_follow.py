@@ -17,7 +17,7 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class EpicFollowMemberFacts:
+class _EpicFollowMemberFacts:
     name: str = ""
     artifact_dir: str = ""
     recorded_epic_ids: tuple[str, ...] = ()
@@ -33,22 +33,13 @@ class EpicFollowMemberFacts:
 
 
 @dataclass(frozen=True)
-class EpicFollowTargetFacts:
+class _EpicFollowTargetFacts:
     target: str = ""
     agent_resolved: bool = False
     previous_state: str | None = None
     previous_since: float | None = None
     cycle_epic_ids: tuple[str, ...] = ()
-    members: tuple[EpicFollowMemberFacts, ...] = ()
-
-
-@dataclass(frozen=True)
-class EpicFollowInput:
-    waiter_own_bead_ids: tuple[str, ...] = ()
-    now: float = 0.0
-    launching_grace_seconds: float = 600.0
-    launch_settle_seconds: float = 120.0
-    targets: tuple[EpicFollowTargetFacts, ...] = ()
+    members: tuple[_EpicFollowMemberFacts, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -244,12 +235,12 @@ def collect_epic_follow_facts(
 
     waiter_names = waiter_wait_names(waiter_meta or {})
 
-    wire_targets: list[EpicFollowTargetFacts] = []
+    wire_targets: list[_EpicFollowTargetFacts] = []
     for target in targets:
         if _is_pinned_following(previous_follows, target):
             continue
         agent_resolved = _target_is_resolved(index, target, resolved_items, waiter_dir)
-        members: tuple[EpicFollowMemberFacts, ...] = ()
+        members: tuple[_EpicFollowMemberFacts, ...] = ()
         if agent_resolved:
             members = _member_facts_for_target(
                 index,
@@ -287,7 +278,7 @@ def collect_epic_follow_facts(
         except Exception:
             cycle_epic_ids = ()
         wire_targets.append(
-            EpicFollowTargetFacts(
+            _EpicFollowTargetFacts(
                 target=target,
                 agent_resolved=agent_resolved,
                 previous_state=previous_state,
@@ -399,7 +390,7 @@ def _member_facts_for_target(
     now: float,
     active_keys: set[str],
     attributed_cache: dict[tuple[str, str, str], tuple[str, ...]],
-) -> tuple[EpicFollowMemberFacts, ...]:
+) -> tuple[_EpicFollowMemberFacts, ...]:
     from sase.core.wait_dependency_resolution._artifact_state import same_artifact_dir
 
     member_dirs = _member_dirs_for_target(index, target, resolved_items, waiter_dir)
@@ -408,7 +399,7 @@ def _member_facts_for_target(
     ):
         member_dirs = [*member_dirs, dismissed_str]
     by_dir = getattr(index, "artifacts_by_dir", {}) or {}
-    facts: list[EpicFollowMemberFacts] = []
+    facts: list[_EpicFollowMemberFacts] = []
     for member_dir in member_dirs:
         candidate = by_dir.get(member_dir)
         if candidate is None:
@@ -440,7 +431,7 @@ def _member_facts_for_dir(
     now: float,
     active_keys: set[str],
     attributed_cache: dict[tuple[str, str, str], tuple[str, ...]],
-) -> EpicFollowMemberFacts:
+) -> _EpicFollowMemberFacts:
     from sase.core.wait_dependency_resolution._artifact_state import same_artifact_dir
 
     if candidate is not None:
@@ -485,7 +476,7 @@ def _member_facts_for_dir(
     resume_command: str | None = None
     if reserved or dismissed:
         resume_command = _resume_command(member_path, argv)
-    return EpicFollowMemberFacts(
+    return _EpicFollowMemberFacts(
         name=name,
         artifact_dir=member_dir,
         recorded_epic_ids=tuple(recorded),
@@ -576,8 +567,5 @@ def _decision_from_wire(raw: object, now: float) -> EpicFollowDecision:
 
 __all__ = [
     "EpicFollowDecision",
-    "EpicFollowInput",
-    "EpicFollowMemberFacts",
-    "EpicFollowTargetFacts",
     "collect_epic_follow_facts",
 ]

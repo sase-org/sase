@@ -105,7 +105,7 @@ def test_agent_only_wait_rendering_is_tagged() -> None:
         waiting_for=["coder"],
     )
 
-    assert _waiting_line(agent) == "Wait: [agents] coder"
+    assert _waiting_line(agent) == "Wait: [agents] coder · agent only"
 
 
 def test_wait_lanes_keep_agent_glyphs_and_status_bearing_bead_tokens() -> None:

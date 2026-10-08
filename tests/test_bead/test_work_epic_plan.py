@@ -134,21 +134,21 @@ class TestDiamond:
             "%id(!p2, clan=e1, bead=p2)\n"
             "%model:@small\n"
             "%auto\n"
-            "%w:e1.p1\n"
+            "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%id(!p3, clan=e1, bead=p3)\n"
             "%model:@small\n"
             "%auto\n"
-            "%w:e1.p1\n"
+            "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#bd/work_phase_bead:p3\n"
             "---\n"
             "%id(!p4, clan=e1, bead=p4)\n"
             "%model:@small\n"
             "%auto\n"
-            "%w:e1.p2,e1.p3\n"
+            "%w(e1.p2,e1.p3, for_epic=false)\n"
             "%w(bead=p2)\n"
             "%w(bead=p3)\n"
             "#bd/work_phase_bead:p4\n"
@@ -156,7 +156,7 @@ class TestDiamond:
             "%id(!land, clan=e1, bead=e1)\n"
             "%model:@large\n"
             "%auto\n"
-            "%w:e1.p1,e1.p2,e1.p3,e1.p4\n"
+            "%w(e1.p1,e1.p2,e1.p3,e1.p4, for_epic=false)\n"
             "%w(bead=p1)\n"
             "%w(bead=p2)\n"
             "%w(bead=p3)\n"
@@ -290,7 +290,7 @@ class TestClosedBlockers:
         )
 
         assert "#bd/work_phase_bead:p1" not in rendered
-        assert "%w:e1.p1" not in rendered
+        assert "%w(e1.p1" not in rendered
         phase_segment, land_segment = rendered.split("\n---\n")
         assert "%w(bead=p1)" in phase_segment
         assert "%w(bead=p1)" in land_segment
@@ -322,7 +322,7 @@ class TestClosedBlockers:
         assert "#bd/work_phase_bead:p1" not in rendered
         assert "#bd/work_phase_bead:p2" in rendered
         assert "#bd/work_phase_bead:p3" in rendered
-        assert "%w:e1.p2" in rendered
+        assert "%w(e1.p2" in rendered
         assert "#bd/land_epic:e1" in rendered
 
     def test_all_closed_phases_return_and_render_land_only_plan(
@@ -357,7 +357,7 @@ class TestClosedBlockers:
         )
         assert "%model:@large" in rendered
         assert "#bd/work_phase_bead" not in rendered
-        assert "%w:" not in rendered
+        assert "for_epic=false" not in rendered
         assert "%w(bead=p1)" in rendered
         assert "%w(bead=p2)" in rendered
         assert rendered.splitlines()[-1] == "#bd/land_epic:e1"
@@ -436,9 +436,9 @@ class TestDelegatedPhases:
         )
         phase_segment, land_segment = rendered.split("\n---\n")
         assert "#bd/work_phase_bead:p1" not in rendered
-        assert "%w:e1.p1" not in rendered
+        assert "%w(e1.p1" not in rendered
         assert "%w(bead=p1)" in phase_segment
-        assert "%w:e1.p2" in land_segment
+        assert "%w(e1.p2" in land_segment
         assert land_segment.splitlines()[-3:-1] == [
             "%w(bead=p1)",
             "%w(bead=p2)",
@@ -471,7 +471,7 @@ class TestDelegatedPhases:
         assert plan.waves[0][0].blocker_bead_ids == ("p1", "p2")
         assert plan.land_waits_on == ("e1.p3",)
         land_segment = rendered.split("\n---\n")[-1]
-        assert "%w:e1.p3" in land_segment
+        assert "%w(e1.p3" in land_segment
         assert [
             line for line in land_segment.splitlines() if line.startswith("%w(bead=")
         ] == ["%w(bead=p1)", "%w(bead=p2)", "%w(bead=p3)"]

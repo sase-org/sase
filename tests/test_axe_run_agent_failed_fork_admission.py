@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
-from sase.axe.run_agent_wait_deps import initial_dependencies_resolved
+from sase.axe.run_agent_wait_deps import resolve_initial_wait_release
 from sase.core.dismissed_agent_completion import FAILURE_OUTCOME
 from sase.linked_repos import LinkedRepoResolution
 from sase.macro.directives import has_deferred_start_directive
@@ -76,13 +76,13 @@ class TestFailedForkParentAdmission:
 
         with patch.object(Path, "home", return_value=tmp_path):
             info = _extract_for_fork_parent(tmp_path, "parent-agent", prompt="Do work")
-            resolved = initial_dependencies_resolved(
+            resolved = resolve_initial_wait_release(
                 info.wait_names,
                 info.wait_identity_deps,
                 wait_fork_sources=info.wait_fork_sources,
                 project_name="proj",
                 artifacts_dir=str(tmp_path / "child-artifacts"),
-            )
+            ).releasable
 
         assert info.wait_names == ["parent-agent"]
         assert info.wait_fork_sources == [

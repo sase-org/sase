@@ -38,7 +38,7 @@ def _waiter_name(agent: Any) -> str:
     return "an agent"
 
 
-def epic_follow_toast_messages(
+def _epic_follow_toast_messages(
     previous: Mapping[Any, frozenset[tuple[str, str]]],
     current: Mapping[Any, frozenset[tuple[str, str]]],
     names: Mapping[Any, str],
@@ -101,7 +101,7 @@ def announce_epic_follow_transitions(
         agent.identity: _waiter_follow_edges(agent) for agent in current_list
     }
     names = {agent.identity: _waiter_name(agent) for agent in current_list}
-    messages = epic_follow_toast_messages(previous_edges, current_edges, names)
+    messages = _epic_follow_toast_messages(previous_edges, current_edges, names)
     if callable(notify):
         for message in messages:
             notify(message)  # type: ignore[operator]
@@ -110,5 +110,4 @@ def announce_epic_follow_transitions(
 
 __all__ = [
     "announce_epic_follow_transitions",
-    "epic_follow_toast_messages",
 ]

@@ -120,8 +120,7 @@ def resolve_initial_wait_release(
 
     Builds the synthetic marker from the launch arguments and decides one
     release pass with the same ``build_index`` closure as the fresh index.
-    Callers that need the promotion patch read it off the decision; the
-    ``initial_dependencies_resolved`` wrapper reads ``.releasable``.
+    Callers read ``.releasable`` and, when present, the promotion patch.
     """
     marker: dict[str, Any] = {
         "waiting_for": list(wait_names),
@@ -240,53 +239,6 @@ def _release_satisfied_at(
         )
     except Exception:  # noqa: BLE001 - telemetry must never un-release.
         return None
-
-
-def initial_dependencies_resolved(
-    wait_names: Iterable[object],
-    wait_identity_deps: Iterable[object],
-    *,
-    wait_fork_sources: Iterable[object] = (),
-    wait_beads: Iterable[object] = (),
-    wait_hoods: Iterable[object] = (),
-    resolved_deps: Iterable[object] = (),
-    wait_for_epics_of: Iterable[object] = (),
-    wait_epic_follows: Iterable[object] = (),
-    project_name: str | None,
-    artifacts_dir: str,
-) -> _DependencyResolution:
-    """Resolve a dependency set directly, without consulting ``ready.json``.
-
-    Routes through the shared epic-follow release decision, then stamps
-    ``satisfied_at`` telemetry for the released members.
-    """
-    decision = resolve_initial_wait_release(
-        wait_names,
-        wait_identity_deps,
-        wait_fork_sources=wait_fork_sources,
-        wait_beads=wait_beads,
-        wait_hoods=wait_hoods,
-        resolved_deps=resolved_deps,
-        wait_for_epics_of=wait_for_epics_of,
-        wait_epic_follows=wait_epic_follows,
-        project_name=project_name,
-        artifacts_dir=artifacts_dir,
-    )
-    if not decision.releasable:
-        return _DependencyResolution(False)
-    return _DependencyResolution(
-        True,
-        _release_satisfied_at(
-            wait_names,
-            wait_identity_deps,
-            wait_fork_sources=wait_fork_sources,
-            wait_beads=wait_beads,
-            wait_hoods=wait_hoods,
-            resolved_deps=resolved_deps,
-            project_name=project_name,
-            artifacts_dir=artifacts_dir,
-        ),
-    )
 
 
 def _ready_float(value: object) -> float | None:

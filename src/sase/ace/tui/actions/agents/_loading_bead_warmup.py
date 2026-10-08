@@ -30,10 +30,6 @@ from ...models.agent_bead import (
     should_resolve_bead_display,
     warm_confirmed_bead_displays,
 )
-from ...models.agent_epic_follow_progress import (
-    should_resolve_epic_follow_progress,
-    warm_epic_follow_progress,
-)
 from ...models.agent_wait_beads import (
     cached_wait_bead_status_snapshot,
     should_resolve_wait_bead_statuses,
@@ -107,6 +103,8 @@ def _warm_agent_bead_caches(
         if candidates.wait_bead_status_agents
         else set()
     )
+    from ...models.agent_epic_follow_progress import warm_epic_follow_progress
+
     follow_progress_identities = (
         warm_epic_follow_progress(candidates.follow_progress_agents)
         if candidates.follow_progress_agents
@@ -216,6 +214,10 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         Followed-epic phase counts warm only for WAITING rows with FOLLOWING
         targets, through the existing epic-children binding.
         """
+        from ...models.agent_epic_follow_progress import (
+            should_resolve_epic_follow_progress,
+        )
+
         bead_display_agents: list[Agent] = []
         wait_bead_status_agents: list[Agent] = []
         follow_progress_agents: list[Agent] = []

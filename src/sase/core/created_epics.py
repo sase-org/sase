@@ -35,7 +35,7 @@ _MAX_CREATED_EPICS = 64
 
 
 @dataclass(frozen=True)
-class CreatedEpic:
+class _CreatedEpic:
     """One epic-tier plan bead materialized on a run's behalf."""
 
     bead_id: str
@@ -51,18 +51,18 @@ def _nonempty_str(value: object) -> str | None:
     return None
 
 
-def coerce_created_epics(value: object) -> list[CreatedEpic]:
+def _coerce_created_epics(value: object) -> list[_CreatedEpic]:
     """Coerce a raw ``created_epics`` value leniently; never raises."""
     if not isinstance(value, list):
         return []
-    entries: list[CreatedEpic] = []
+    entries: list[_CreatedEpic] = []
     for item in value:
         if isinstance(item, str):
             bead_id = _nonempty_str(item)
             if bead_id is not None:
-                entries.append(CreatedEpic(bead_id=bead_id))
+                entries.append(_CreatedEpic(bead_id=bead_id))
             continue
-        if isinstance(item, CreatedEpic):
+        if isinstance(item, _CreatedEpic):
             if _nonempty_str(item.bead_id) is not None:
                 entries.append(item)
             continue
@@ -78,7 +78,7 @@ def coerce_created_epics(value: object) -> list[CreatedEpic]:
             else HOST_LAUNCH_VIA
         )
         entries.append(
-            CreatedEpic(
+            _CreatedEpic(
                 bead_id=bead_id,
                 project=_nonempty_str(item.get("project")),
                 plan_ref=_nonempty_str(item.get("plan_ref")),
@@ -108,7 +108,7 @@ def created_epic_ids_from_meta(source: object) -> list[str]:
     """
     ids = [
         entry.bead_id
-        for entry in coerce_created_epics(_field(source, CREATED_EPICS_FIELD))
+        for entry in _coerce_created_epics(_field(source, CREATED_EPICS_FIELD))
     ]
     if ids:
         return ids
@@ -156,7 +156,7 @@ def record_created_epic(
     project: str | None = None,
     plan_ref: str | None = None,
     via: str = HOST_LAUNCH_VIA,
-) -> CreatedEpic | None:
+) -> _CreatedEpic | None:
     """Append one ``created_epics`` entry to the creating run's marker.
 
     Deduplicates by ``bead_id`` so repeat launches and resumes are
@@ -168,7 +168,7 @@ def record_created_epic(
     clean_bead_id = _nonempty_str(bead_id)
     if clean_bead_id is None:
         return None
-    entry = CreatedEpic(
+    entry = _CreatedEpic(
         bead_id=clean_bead_id,
         project=_nonempty_str(project),
         plan_ref=_nonempty_str(plan_ref),
@@ -177,7 +177,7 @@ def record_created_epic(
     )
 
     def _append(meta: dict[str, Any]) -> bool:
-        entries = coerce_created_epics(meta.get(CREATED_EPICS_FIELD))
+        entries = _coerce_created_epics(meta.get(CREATED_EPICS_FIELD))
         if any(existing.bead_id == entry.bead_id for existing in entries):
             return True
         entries.append(entry)
@@ -283,9 +283,7 @@ __all__ = [
     "AGENT_COMMAND_VIA",
     "CREATED_EPICS_FIELD",
     "HOST_LAUNCH_VIA",
-    "CreatedEpic",
     "attributed_epic_ids",
-    "coerce_created_epics",
     "created_epic_ids_from_meta",
     "launched_epic_bead_id",
     "record_created_epic",

@@ -15,6 +15,7 @@ from sase.agent.status_buckets import QUEUED_STATUS_COLOR
 from sase.bead_status_presentation import BEAD_STATUS_VALUES
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.core.runner_slots import DEFAULT_QUEUE_WEIGHT
+from sase.core.time import parse_local
 from sase.core.wait_dependency_resolution import TribeWaitBinding
 from sase.core.wait_epic_follow_view import (
     EpicFollowView,
@@ -131,12 +132,8 @@ def _follow_since_text(since: float) -> str | None:
     """Return the `since HH:MM` suffix for a follow stage, if it has a time."""
     if not isinstance(since, (int, float)) or since <= 0:
         return None
-    try:
-        from datetime import datetime
-
-        return datetime.fromtimestamp(float(since)).strftime("%H:%M")
-    except (OSError, OverflowError, ValueError):
-        return None
+    moment = parse_local(float(since))
+    return moment.strftime("%H:%M") if moment is not None else None
 
 
 def _append_follow_annotation(

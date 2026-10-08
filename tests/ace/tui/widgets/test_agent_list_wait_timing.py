@@ -66,7 +66,7 @@ class TestRelativeWaitDurationRendering:
         wait_line = next(
             line for line in header.plain.splitlines() if line.startswith("Wait: ")
         )
-        assert wait_line == "Wait: [agents] dep"
+        assert wait_line == "Wait: [agents] dep · agent only"
         assert "      [time]   5m" in header.plain
 
     def test_agent_row_omits_duration_countdown_while_agent_deps_pending(
@@ -170,7 +170,7 @@ class TestRelativeWaitDurationRendering:
             for line in child_header.plain.splitlines()
             if line.startswith("Wait: ")
         )
-        assert root_wait == child_wait == "Wait: [agents] dep"
+        assert root_wait == child_wait == "Wait: [agents] dep · agent only"
         assert "      [time]   5m" in root_header.plain
         assert "      [time]   5m" in child_header.plain
 
@@ -210,4 +210,4 @@ class TestRelativeWaitDurationRendering:
         assert agent.is_agent_session_member_child
         assert "Patch: test_cl" in header.plain
         assert "Step: " not in header.plain
-        assert "Wait: [agents] parent\n      [time]   2m" in header.plain
+        assert "Wait: [agents] parent · agent only\n      [time]   2m" in header.plain

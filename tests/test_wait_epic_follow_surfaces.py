@@ -16,7 +16,7 @@ from sase.core.wait_epic_follow_view import (
     follow_epics_mode,
     follow_toggle_disabled_reason,
     follow_toggle_label,
-    is_follow_plan_row,
+    _is_follow_plan_row,
     resolve_epic_follow_agents,
 )
 
@@ -37,9 +37,9 @@ def test_resolve_epic_follow_agents_modes() -> None:
 
 
 def test_plan_rows_never_follow_and_disable_toggle() -> None:
-    assert is_follow_plan_row("planner--plan")
-    assert is_follow_plan_row("planner.plan")
-    assert not is_follow_plan_row("planner")
+    assert _is_follow_plan_row("planner--plan")
+    assert _is_follow_plan_row("planner.plan")
+    assert not _is_follow_plan_row("planner")
     reason = follow_toggle_disabled_reason(["planner--plan"])
     assert reason is not None and "never follow" in reason
     assert follow_toggle_disabled_reason(["planner"]) is None

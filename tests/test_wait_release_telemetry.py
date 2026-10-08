@@ -23,7 +23,6 @@ from sase.axe.run_agent_wait import wait_for_dependencies
 from sase.axe.run_agent_wait_deps import (
     _DependencyResolution,
     _ReadyResult,
-    initial_dependencies_resolved,
     read_ready_result,
 )
 from sase.axe.run_agent_wait_markers import record_wait_completed_at
@@ -145,51 +144,6 @@ def test_read_ready_result_manual_marker_and_legacy_marker(
     assert legacy_result.released_by is None
     assert legacy_result.unwait is False
     assert legacy_result.dependencies_satisfied_at is None
-
-
-# --- initial_dependencies_resolved satisfied_at ---
-
-
-def test_initial_resolution_reports_satisfied_at(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
-    waiter_dir = make_waiting_agent(tmp_path, "foo")
-    dep_dir = make_agent(tmp_path, "proj", "20260506010101", "foo", done=True)
-    finished_at = 1_777_000_000.0
-    (dep_dir / "done.json").write_text(
-        json.dumps({"outcome": "completed", "finished_at": finished_at}),
-        encoding="utf-8",
-    )
-
-    result = initial_dependencies_resolved(
-        ["foo"], [], project_name="proj", artifacts_dir=str(waiter_dir)
-    )
-    assert result
-    assert result.satisfied_at == finished_at
-
-
-def test_initial_resolution_omits_satisfied_at_for_bead_waits(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "sase.axe.run_agent_wait_deps.build_wait_dependency_index",
-        lambda _project: WaitDependencyIndex.empty(),
-    )
-    monkeypatch.setattr(
-        "sase.axe.run_agent_wait_deps.closed_bead_ids_for_waits",
-        lambda *args, **kwargs: SimpleNamespace(closed_ids=frozenset({"b-1"})),
-    )
-
-    result = initial_dependencies_resolved(
-        [],
-        [],
-        wait_beads=["b-1"],
-        project_name="proj",
-        artifacts_dir=str(tmp_path),
-    )
-    assert result
-    assert result.satisfied_at is None
 
 
 # --- record_wait_completed_at ---

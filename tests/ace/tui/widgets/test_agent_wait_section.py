@@ -64,7 +64,7 @@ def test_agents_and_beads_share_one_aligned_value_column() -> None:
     lines = ResponsiveWaitSection(lanes).logical_text.plain.splitlines()
 
     assert lines == [
-        "Wait: [agents] agent-one",
+        "Wait: [agents] agent-one · agent only",
         "      [beads]  bead-one",
     ]
     assert lines[0].index("agent-one") == lines[1].index("bead-one")

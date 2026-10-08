@@ -410,3 +410,42 @@ def test_chop_parks_cycle_blocked_waiter(
     stored = json.loads((waiter_dir / "waiting.json").read_text(encoding="utf-8"))
     assert stored["wait_epic_follows"][0]["state"] == "blocked"
     assert stored["wait_epic_follows"][0]["reason"] == "cycle"
+
+
+def test_land_failure_entry_clears_when_waiter_runner_dies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _use_tmp_home(tmp_path, monkeypatch)
+    planner = _make_planner(tmp_path, created_epics=[{"bead_id": "sase-7k"}])
+    make_agent(
+        tmp_path,
+        "proj",
+        "20261001100000",
+        "sase-7k.land",
+        agent_session="sase-7k",
+        done=True,
+        outcome="failed",
+    )
+    waiter_dir = make_waiting_agent(tmp_path, "planner", wait_for_epics_of=["planner"])
+    meta_path = waiter_dir / "agent_meta.json"
+    meta_path.write_text(json.dumps({"name": "waiter"}), encoding="utf-8")
+    _index(
+        planner,
+        tmp_path / ".sase/projects/proj/artifacts/ace-run/20261001100000",
+        waiter_dir,
+    )
+    _point_bead_waits_at(monkeypatch, set())
+    run_wait_checks(tmp_path, monkeypatch)
+    assert len(_notifications()) == 1
+
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["wait_epic_follows"][0]["state"] == "following"
+    meta["stopped_at"] = "2026-10-01T11:00:00+00:00"
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+    cleared = _by_dedup(f":{waiter_dir}:sase-7k")
+    assert cleared is not None
+    assert cleared.dismissed is True
+    assert _notifications() == []

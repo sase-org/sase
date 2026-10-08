@@ -15,10 +15,10 @@ from sase.core.agent_scan_wire import agent_scan_wire_to_json_dict
 from sase.core.created_epics import (
     AGENT_COMMAND_VIA,
     HOST_LAUNCH_VIA,
-    CreatedEpic,
+    _CreatedEpic,
     _attributed_from_issues,
     attributed_epic_ids,
-    coerce_created_epics,
+    _coerce_created_epics,
     created_epic_ids_from_meta,
     launched_epic_bead_id,
     record_created_epic,
@@ -166,8 +166,8 @@ def test_reader_priority_and_legacy_rules() -> None:
     assert created_epic_ids_from_meta(plan_ref_worker) == []
 
     assert created_epic_ids_from_meta({}) == []
-    assert coerce_created_epics([{"nope": 1}, "sase-2", 42]) == [
-        CreatedEpic(bead_id="sase-2")
+    assert _coerce_created_epics([{"nope": 1}, "sase-2", 42]) == [
+        _CreatedEpic(bead_id="sase-2")
     ]
 
 

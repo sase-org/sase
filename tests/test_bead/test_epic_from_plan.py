@@ -542,8 +542,8 @@ def test_valid_plan_runs_real_bead_work_wave_path(
         assert f"bead={phase.id}" in query
     assert f"#bd/land_epic:{result.epic.id}" in query
     assert f"bead={result.epic.id}" in query
-    assert f"%w:{result.phases[0].id}" in query
-    assert f"%w:{result.phases[0].id},{result.phases[1].id}" in query
+    assert f"%w({result.phases[0].id}, for_epic=false)" in query
+    assert f"%w({result.phases[0].id},{result.phases[1].id}, for_epic=false)" in query
 
 
 def test_failed_forward_plan_commit_removes_graph_without_launch(

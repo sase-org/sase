@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.axe.run_agent_wait_deps import initial_dependencies_resolved
+from sase.axe.run_agent_wait_deps import resolve_initial_wait_release
 from sase.procs import Proc, append_proc
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent
@@ -81,19 +81,19 @@ def test_fork_source_wait_releases_failed_agent_dependency(
         outcome="failed",
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["foo"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
-    assert initial_dependencies_resolved(
+    ).releasable
+    assert resolve_initial_wait_release(
         ["foo"],
         [],
         wait_fork_sources=[_artifact_fork_source(parent_dir)],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
 
 def test_fork_source_wait_binds_exact_agent_not_newer_namesake(
@@ -112,19 +112,19 @@ def test_fork_source_wait_binds_exact_agent_not_newer_namesake(
         outcome="completed",
     )
 
-    assert initial_dependencies_resolved(
+    assert resolve_initial_wait_release(
         ["foo"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
-    assert not initial_dependencies_resolved(
+    ).releasable
+    assert not resolve_initial_wait_release(
         ["foo"],
         [],
         wait_fork_sources=[_artifact_fork_source(parent_dir)],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
 
 @pytest.mark.parametrize(
@@ -166,13 +166,13 @@ def test_fork_source_wait_releases_failed_agent_session_generation(
         outcome="failed",
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["planfam"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
-    assert initial_dependencies_resolved(
+    ).releasable
+    assert resolve_initial_wait_release(
         ["planfam"],
         [],
         wait_fork_sources=[
@@ -180,7 +180,7 @@ def test_fork_source_wait_releases_failed_agent_session_generation(
         ],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
 
 def test_fork_source_wait_releases_terminal_clan_generation(
@@ -207,19 +207,19 @@ def test_fork_source_wait_releases_terminal_clan_generation(
             },
         )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["research"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
-    assert initial_dependencies_resolved(
+    ).releasable
+    assert resolve_initial_wait_release(
         ["research"],
         [],
         wait_fork_sources=[_clan_fork_source("research", generation)],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
 
 def test_fork_source_wait_keeps_waiting_for_live_clan_member(
@@ -252,13 +252,13 @@ def test_fork_source_wait_keeps_waiting_for_live_clan_member(
         },
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["research"],
         [],
         wait_fork_sources=[_clan_fork_source("research", generation)],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
 
 @pytest.mark.parametrize(
@@ -278,13 +278,13 @@ def test_fork_source_wait_resolves_proc_only_when_terminal(
 
     assert (
         bool(
-            initial_dependencies_resolved(
+            resolve_initial_wait_release(
                 ["build-docs"],
                 [],
                 wait_fork_sources=[_proc_fork_source("build-docs", "proc0123456789ab")],
                 project_name="proj",
                 artifacts_dir=str(waiter_dir),
-            )
+            ).releasable
         )
         is resolved
     )

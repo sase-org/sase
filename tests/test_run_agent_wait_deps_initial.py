@@ -17,7 +17,7 @@ from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.core.wait_dependency_resolution import WaitDependencyIndex
 from sase.axe.run_agent_wait_deps import (
-    initial_dependencies_resolved,
+    resolve_initial_wait_release,
     mark_bead_wait_sync_hint,
 )
 from tests._agent_names_fixtures import make_agent
@@ -29,10 +29,10 @@ from tests._monitor_wait_dependency_helpers import (
 from tests.test_bead.resolution_test_helpers import bead_store_snapshot
 
 __all__ = [
-    "test_initial_dependencies_resolved_matches_terminal_outcome_semantics",
-    "test_initial_dependencies_resolved_routes_full_bead_wait_to_owner_project",
-    "test_initial_dependencies_resolved_uses_cross_project_stored_job_identity",
-    "test_initial_dependencies_resolved_withholds_armed_launching_planner",
+    "test_initial_wait_release_matches_terminal_outcome_semantics",
+    "test_initial_wait_release_routes_full_bead_wait_to_owner_project",
+    "test_initial_wait_release_uses_cross_project_stored_job_identity",
+    "test_initial_wait_release_withholds_armed_launching_planner",
     "test_mark_bead_wait_sync_hint_contains_hint_failures",
     "test_mark_bead_wait_sync_hint_honors_off_mode",
     "test_mark_bead_wait_sync_hint_marks_the_beads_role",
@@ -108,7 +108,7 @@ def test_mark_bead_wait_sync_hint_contains_hint_failures(
         ("plan_rejected", False),
     ],
 )
-def test_initial_dependencies_resolved_matches_terminal_outcome_semantics(
+def test_initial_wait_release_matches_terminal_outcome_semantics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     outcome: str,
@@ -127,12 +127,12 @@ def test_initial_dependencies_resolved_matches_terminal_outcome_semantics(
 
     assert (
         bool(
-            initial_dependencies_resolved(
+            resolve_initial_wait_release(
                 ["foo"],
                 [],
                 project_name="proj",
                 artifacts_dir=str(waiter_dir),
-            )
+            ).releasable
         )
         is should_resolve
     )
@@ -168,12 +168,12 @@ def test_runner_confirmation_rejects_stale_agent_session_then_accepts_complete_a
         lambda _project: next(indexes),
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["monitor-lane"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
     (next_monitor_dir / "done.json").write_text(
         json.dumps({"outcome": "monitored", "monitor_state": "completed"}),
@@ -186,15 +186,15 @@ def test_runner_confirmation_rejects_stale_agent_session_then_accepts_complete_a
         lambda _project: next(complete_indexes),
     )
 
-    assert initial_dependencies_resolved(
+    assert resolve_initial_wait_release(
         ["monitor-lane"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
 
-def test_initial_dependencies_resolved_uses_cross_project_stored_job_identity(
+def test_initial_wait_release_uses_cross_project_stored_job_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -240,15 +240,15 @@ def test_initial_dependencies_resolved_uses_cross_project_stored_job_identity(
         encoding="utf-8",
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["@job"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
 
-def test_initial_dependencies_resolved_routes_full_bead_wait_to_owner_project(
+def test_initial_wait_release_routes_full_bead_wait_to_owner_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -287,20 +287,20 @@ def test_initial_dependencies_resolved_routes_full_bead_wait_to_owner_project(
         lambda project: hints.append(project),
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         [],
         [],
         wait_beads=[open_bead.id],
         project_name="proj",
         artifacts_dir=str(tmp_path),
-    )
-    assert initial_dependencies_resolved(
+    ).releasable
+    assert resolve_initial_wait_release(
         [],
         [],
         wait_beads=[closed_bead.id],
         project_name="proj",
         artifacts_dir=str(tmp_path),
-    )
+    ).releasable
     assert "owner" in hints
 
 
@@ -333,12 +333,12 @@ def test_runner_fallback_confirmation_failure_warns_and_stays_parked(
         _boom,
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["foo"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
     out = capsys.readouterr().out
     assert "Wait dependency check failed (confirmation)" in out
     assert "staying parked" in out
@@ -367,18 +367,18 @@ def test_runner_fallback_index_failure_warns_and_stays_parked(
         "sase.axe.run_agent_wait_deps.build_wait_dependency_index", _boom
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["foo"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
     out = capsys.readouterr().out
     assert "Wait dependency check failed (index)" in out
     assert "staying parked" in out
 
 
-def test_initial_dependencies_resolved_withholds_armed_launching_planner(
+def test_initial_wait_release_withholds_armed_launching_planner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -400,10 +400,10 @@ def test_initial_dependencies_resolved_withholds_armed_launching_planner(
         encoding="utf-8",
     )
 
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["planner"],
         [],
         wait_for_epics_of=["planner"],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable

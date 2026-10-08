@@ -20,7 +20,7 @@ import yaml
 from sase.ace.agent_tribes import resolve_agent_tribe_assignment
 from sase.axe.cli import handle_axe_chop_list, handle_axe_chop_run
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
-from sase.axe.run_agent_wait_deps import initial_dependencies_resolved
+from sase.axe.run_agent_wait_deps import resolve_initial_wait_release
 from sase.config.core import ConfigLayer
 from sase.core.agent_types import AgentType
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
@@ -106,12 +106,12 @@ def test_id_tribe_job_alias_agrees_across_wait_fast_path_wait_check_and_fork(
         encoding="utf-8",
     )
 
-    assert initial_dependencies_resolved(
+    assert resolve_initial_wait_release(
         ["@job"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
     cross_project_index = _cross_project_index(projects_dir)
     assert "job" not in cross_project_index.stored_tribe_names()
@@ -163,12 +163,12 @@ def test_clan_only_job_alias_agrees_across_wait_fast_path_and_fork(
     )
     monkeypatch.setenv("SASE_HOME", str(sase_home))
 
-    assert initial_dependencies_resolved(
+    assert resolve_initial_wait_release(
         ["@job"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(waiter_dir))
     fork_source = resolve_tribe_fork_source("@job")
@@ -233,12 +233,12 @@ def test_metadata_only_cross_project_job_evidence_blocks_local_chop_alias(
     )
 
     assert not (sase_home / "agent_tribes.json").exists()
-    assert not initial_dependencies_resolved(
+    assert not resolve_initial_wait_release(
         ["@job"],
         [],
         project_name="proj",
         artifacts_dir=str(waiter_dir),
-    )
+    ).releasable
 
     cross_project_index = _cross_project_index(projects_dir)
     assert "job" in cross_project_index.stored_tribe_names()

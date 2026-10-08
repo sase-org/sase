@@ -28,7 +28,7 @@ _CACHE_MAX_ENTRIES: Final = 256
 
 
 @dataclass(frozen=True, slots=True)
-class EpicFollowProgress:
+class _EpicFollowProgress:
     """Memory-only phase progress for one followed epic."""
 
     closed: int
@@ -51,11 +51,11 @@ class _EpicFollowProgressCache:
         self._max_entries = max_entries
         self._entries: OrderedDict[
             EpicProgressCacheKey,
-            tuple[float, EpicFollowProgress | None],
+            tuple[float, _EpicFollowProgress | None],
         ] = OrderedDict()
         self._lock = RLock()
 
-    def get(self, key: EpicProgressCacheKey) -> EpicFollowProgress | None | object:
+    def get(self, key: EpicProgressCacheKey) -> _EpicFollowProgress | None | object:
         """Return the cached progress, ``None`` for a known miss, or a miss."""
         from sase.ace.tui.models.agent_wait_beads import (
             WAIT_BEAD_STATUS_CACHE_MISS,
@@ -80,7 +80,7 @@ class _EpicFollowProgressCache:
             self._entries.move_to_end(key)
             return expires_at <= now
 
-    def set(self, key: EpicProgressCacheKey, value: EpicFollowProgress | None) -> None:
+    def set(self, key: EpicProgressCacheKey, value: _EpicFollowProgress | None) -> None:
         """Store *value* (`None` marks a known-unresolvable epic)."""
         ttl_seconds = self._miss_ttl_seconds if value is None else self._ttl_seconds
         expires_at = monotonic() + ttl_seconds
@@ -98,7 +98,7 @@ class _EpicFollowProgressCache:
 _EPIC_FOLLOW_PROGRESS_CACHE = _EpicFollowProgressCache(max_entries=_CACHE_MAX_ENTRIES)
 
 
-def followed_epic_ids(agent: Any) -> tuple[str, ...]:
+def _followed_epic_ids(agent: Any) -> tuple[str, ...]:
     """Return the deduplicated epic IDs of FOLLOWING targets this row waits on.
 
     Only targets still listed in the row's own `waiting_for` contribute,
@@ -132,7 +132,7 @@ def _follow_progress_project_key(agent: Any, wait_agent: Any) -> str | None:
 
 def cached_epic_follow_progress_snapshot(
     agent: Any,
-) -> dict[str, EpicFollowProgress | None]:
+) -> dict[str, _EpicFollowProgress | None]:
     """Return memory-only phase progress for the followed epics of *agent*.
 
     Missing or expired entries map to `None`: the lane renders no count
@@ -145,10 +145,10 @@ def cached_epic_follow_progress_snapshot(
 
     wait_agent = wait_display_agent(agent)  # type: ignore[arg-type]
     project_key = _follow_progress_project_key(agent, wait_agent)
-    snapshot: dict[str, EpicFollowProgress | None] = {}
+    snapshot: dict[str, _EpicFollowProgress | None] = {}
     if project_key is None:
-        return dict.fromkeys(followed_epic_ids(agent))
-    for epic_id in followed_epic_ids(agent):
+        return dict.fromkeys(_followed_epic_ids(agent))
+    for epic_id in _followed_epic_ids(agent):
         value = _EPIC_FOLLOW_PROGRESS_CACHE.get((project_key, epic_id))
         if value is WAIT_BEAD_STATUS_CACHE_MISS:
             snapshot[epic_id] = None
@@ -167,14 +167,14 @@ def should_resolve_epic_follow_progress(agent: Any) -> bool:
         return False
     return any(
         _EPIC_FOLLOW_PROGRESS_CACHE.should_resolve((project_key, epic_id))
-        for epic_id in followed_epic_ids(agent)
+        for epic_id in _followed_epic_ids(agent)
     )
 
 
-def read_epic_follow_progress(
+def _read_epic_follow_progress(
     project_key: str,
     epic_ids: Iterable[str],
-) -> dict[str, EpicFollowProgress | None]:
+) -> dict[str, _EpicFollowProgress | None]:
     """Read closed/total phase progress for *epic_ids* from the bead store.
 
     Must only be called off the Textual event loop. Epics that cannot be
@@ -192,7 +192,7 @@ def read_epic_follow_progress(
         if beads_dir is None:
             return dict.fromkeys(wanted)
         with open_bead_project_for_beads_dir(beads_dir) as bead_project:
-            resolved: dict[str, EpicFollowProgress | None] = {}
+            resolved: dict[str, _EpicFollowProgress | None] = {}
             for epic_id in wanted:
                 try:
                     children = bead_project.get_epic_children(epic_id)
@@ -200,7 +200,7 @@ def read_epic_follow_progress(
                     resolved[epic_id] = None
                     continue
                 closed = sum(1 for child in children if child.status is Status.CLOSED)
-                resolved[epic_id] = EpicFollowProgress(
+                resolved[epic_id] = _EpicFollowProgress(
                     closed=closed,
                     total=len(children),
                 )
@@ -219,7 +219,7 @@ def read_epic_follow_progress(
                     continue
                 resolution = resolutions.get(epic_id)
                 if resolution:
-                    resolved[epic_id] = EpicFollowProgress(
+                    resolved[epic_id] = _EpicFollowProgress(
                         closed=progress.closed,
                         total=progress.total,
                         resolution=resolution,
@@ -260,7 +260,7 @@ def warm_epic_follow_progress(
         project_key = _follow_progress_project_key(agent, wait_agent)
         if project_key is None:
             continue
-        for epic_id in followed_epic_ids(agent):
+        for epic_id in _followed_epic_ids(agent):
             key = (project_key, epic_id)
             if not _EPIC_FOLLOW_PROGRESS_CACHE.should_resolve(key):
                 continue
@@ -270,7 +270,7 @@ def warm_epic_follow_progress(
             )
     for project_key, epics_by_id in project_epics.items():
         epic_ids = list(epics_by_id)
-        resolved = read_epic_follow_progress(project_key, epic_ids)
+        resolved = _read_epic_follow_progress(project_key, epic_ids)
         for epic_id in epic_ids:
             _EPIC_FOLLOW_PROGRESS_CACHE.set(
                 (project_key, epic_id), resolved.get(epic_id)
@@ -297,11 +297,8 @@ def warm_epic_follow_progress(
 
 
 __all__ = [
-    "EpicFollowProgress",
     "EpicProgressCacheKey",
     "cached_epic_follow_progress_snapshot",
-    "followed_epic_ids",
-    "read_epic_follow_progress",
     "should_resolve_epic_follow_progress",
     "warm_epic_follow_progress",
 ]

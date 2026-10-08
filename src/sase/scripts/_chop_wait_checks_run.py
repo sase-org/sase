@@ -137,6 +137,13 @@ def _run(
             # Dead waiters get no resolution, no terminal-blocker
             # notifications, and no logs beyond the backlog counter.
             dead_waiting += 1
+            # A dead runner never releases, so any epic-follow blocker rows
+            # it owns are stale. The follow stage is mirrored in the meta
+            # just read, so the end-of-tick reconcile costs no extra read.
+            dead_meta = meta_cache[meta_path]
+            if isinstance(dead_meta, dict) and dead_meta.get("wait_epic_follows"):
+                epic_follow_seen = True
+                epic_follow_reconciled_dirs.add(str(waiter_dir))
             continue
         if liveness == "unknown":
             unknown_liveness += 1
