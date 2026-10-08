@@ -14,13 +14,13 @@ def test_for_epic_true_arms_target() -> None:
     assert directives.wait_for_epics_of == ["planner"]
 
 
-def test_for_epic_false_and_default_never_arm() -> None:
+def test_for_epic_false_never_arms_but_default_does() -> None:
     _, directives = extract_prompt_directives("%wait(planner, for_epic=false)")
     assert directives.wait_for_epics_of == []
     _, directives = extract_prompt_directives("%wait(planner)")
-    assert directives.wait_for_epics_of == []
+    assert directives.wait_for_epics_of == ["planner"]
     _, directives = extract_prompt_directives("%wait:planner")
-    assert directives.wait_for_epics_of == []
+    assert directives.wait_for_epics_of == ["planner"]
 
 
 def test_for_epic_without_agent_is_error() -> None:
@@ -49,6 +49,10 @@ def test_for_epic_per_occurrence_scope() -> None:
     _, directives = extract_prompt_directives(
         "%wait(planner, for_epic=true) %wait(reviewer)"
     )
+    assert directives.wait_for_epics_of == ["planner", "reviewer"]
+    _, directives = extract_prompt_directives(
+        "%wait(planner, for_epic=true) %wait(reviewer, for_epic=false)"
+    )
     assert directives.wait_for_epics_of == ["planner"]
 
 
@@ -57,6 +61,15 @@ def test_for_epic_explicit_overrides_default_across_occurrences() -> None:
         "%wait(planner) %wait(planner, for_epic=true)"
     )
     assert directives.wait_for_epics_of == ["planner"]
+    # An explicit value overrides another occurrence's default either way.
+    _, directives = extract_prompt_directives(
+        "%wait(planner) %wait(planner, for_epic=false)"
+    )
+    assert directives.wait_for_epics_of == []
+    _, directives = extract_prompt_directives(
+        "%wait(planner, for_epic=false) %wait(planner)"
+    )
+    assert directives.wait_for_epics_of == []
 
 
 def test_for_epic_case_insensitive_and_agent_keyword() -> None:
@@ -76,10 +89,33 @@ def test_for_epic_round_trip_through_format() -> None:
         agents=("planner", "reviewer"), epic_follow_agents=("planner",)
     )
     prompt = set_prompt_wait("do work", spec)
-    assert "%wait(reviewer)" in prompt
-    assert "%wait(planner, for_epic=true)" in prompt
+    # The positive list stays in the main occurrence; the opted-out agent
+    # splits out with an explicit for_epic=false.
+    assert "%wait(planner)" in prompt
+    assert "%wait(reviewer, for_epic=false)" in prompt
+    assert "for_epic=true" not in prompt
     _, directives = extract_prompt_directives(prompt)
     assert directives.wait_for_epics_of == ["planner"]
+
+
+def test_for_epic_explicit_off_round_trip_through_format() -> None:
+    from sase.macro.directive_edit import PromptWaitDirective, set_prompt_wait
+
+    spec = PromptWaitDirective(agents=("planner", "reviewer"), epic_follow_agents=())
+    prompt = set_prompt_wait("do work", spec)
+    assert "%wait(planner, reviewer, for_epic=false)" in prompt
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait_for_epics_of == []
+
+
+def test_for_epic_default_none_round_trip_through_format() -> None:
+    from sase.macro.directive_edit import PromptWaitDirective, set_prompt_wait
+
+    spec = PromptWaitDirective(agents=("planner", "reviewer"), epic_follow_agents=None)
+    prompt = set_prompt_wait("do work", spec)
+    assert "for_epic" not in prompt
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.wait_for_epics_of == ["planner", "reviewer"]
 
 
 def test_for_epic_markers_carry_field() -> None:

@@ -456,7 +456,8 @@ def _effective_wait_for_epics_of(
     """Compute the effective positive armed-target list.
 
     An explicit value overrides the default; ``--plan`` targets are never
-    armed. With the current default (false) this is the explicit-true list.
+    armed. With the current default (true) every user-authored agent target
+    is armed unless explicitly opted out.
     """
     from ._directive_types import WAIT_FOR_EPIC_DEFAULT
 

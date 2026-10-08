@@ -2769,24 +2769,25 @@ Once an epic bead exists, the shared launch path:
    macro; a final land agent named `<epic_id>.land` references the
    [`land_epic`](macros.md#available-tags) macro. Every segment joins clan `<epic_id>`
    and assigns that whole clan to tribe `@epic` with the single
-   `%clan(<epic_id>, tribe=epic)` directive. Each phase dependency becomes both a `%w`
-   wait on the blocker phase-agent name and a `%w(bead=<blocker-phase-id>)` closure
-   wait. The land agent likewise waits on every launched phase agent and on every
-   authored phase bead, including already-closed or currently delegated phases.
-   Requiring both conditions prevents a phase that delegated to a child epic from
-   releasing dependents merely because its original agent finished; the child epic must
-   land and close the parent phase first. A failed or killed phase keeps dependents and
-   the land agent parked until its agent name is retried successfully and its bead
-   closes. `xsmall`, `small`, and `medium` phases implement directly with
-   `%model:@xsmall`, `%model:@small`, and `%model:@medium`, respectively. Only `large`
-   and `xlarge` phases append `#plan` after their work reference and use `%model:@large`
-   and `%model:@xlarge`. Each size alias resolves directly to its configured target —
-   there is no intermediate hop through a second alias. A stored phase `model` always
-   wins over the size-derived alias without changing whether the phase receives `#plan`,
-   and a missing legacy size behaves as `small`. The land agent emits `%model:<value>`
-   when the epic plan bead has a stored `model`. Without one, it emits the configured
-   `llm_provider.epic_lander_model` (shipped default `@large`) below
-   `bead.big_epic_phase_threshold` and the configured
+   `%clan(<epic_id>, tribe=epic)` directive. Each phase dependency becomes both a
+   `%w(<blocker-agent>, for_epic=false)` wait on the blocker phase-agent name and a
+   `%w(bead=<blocker-phase-id>)` closure wait. The explicit `for_epic=false` keeps
+   intra-epic sequencing agent-only under the flipped follow default. The land agent
+   likewise waits on every launched phase agent and on every authored phase bead,
+   including already-closed or currently delegated phases. Requiring both conditions
+   prevents a phase that delegated to a child epic from releasing dependents merely
+   because its original agent finished; the child epic must land and close the parent
+   phase first. A failed or killed phase keeps dependents and the land agent parked
+   until its agent name is retried successfully and its bead closes. `xsmall`, `small`,
+   and `medium` phases implement directly with `%model:@xsmall`, `%model:@small`, and
+   `%model:@medium`, respectively. Only `large` and `xlarge` phases append `#plan` after
+   their work reference and use `%model:@large` and `%model:@xlarge`. Each size alias
+   resolves directly to its configured target — there is no intermediate hop through a
+   second alias. A stored phase `model` always wins over the size-derived alias without
+   changing whether the phase receives `#plan`, and a missing legacy size behaves as
+   `small`. The land agent emits `%model:<value>` when the epic plan bead has a stored
+   `model`. Without one, it emits the configured `llm_provider.epic_lander_model`
+   (shipped default `@large`) below `bead.big_epic_phase_threshold` and the configured
    `llm_provider.big_epic_lander_model` (shipped default `@xlarge`) at or above the
    threshold (default `5`), using the total authored phase count even when resumed work
    has already-closed phases. These two fields are independent, directly-configured

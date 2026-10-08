@@ -195,7 +195,9 @@ def render_multi_prompt(
                 )
             )
             if assignment.waits_on:
-                lines.append(f"%w:{','.join(assignment.waits_on)}")
+                # Intra-epic sequencing waits never follow launched epics:
+                # the paired phase-bead wait is the release that matters.
+                lines.append(f"%w({','.join(assignment.waits_on)}, for_epic=false)")
             lines.extend(
                 f"%w(bead={bead_id})" for bead_id in assignment.blocker_bead_ids
             )
@@ -232,7 +234,7 @@ def render_multi_prompt(
             )
         )
         if plan.land_waits_on:
-            land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
+            land_lines.append(f"%w({','.join(plan.land_waits_on)}, for_epic=false)")
         land_lines.extend(f"%w(bead={bead_id})" for bead_id in plan.phase_bead_ids)
         if not plan.land_waits_on:
             land_lines.extend(_extra_wait_lines(extra_waits))
@@ -265,7 +267,10 @@ def _queue_capacity_lines(capacity: int | None) -> list[str]:
 
 
 def _extra_wait_lines(extra_waits: PromptWaitDirective | None) -> list[str]:
-    """Render approval/CLI extra waits after a segment's intra-epic waits."""
+    """Render approval/CLI extra waits after a segment's intra-epic waits.
+
+    These are user-authored, so they keep the follow default (no keyword).
+    """
     if not extra_waits:
         return []
     lines: list[str] = []

@@ -94,7 +94,9 @@ def test_prompt_wait_spec_splits_follow_and_drops_derived() -> None:
     assert spec.epic_follow_agents == ("planner",)
     assert spec.beads == ("sase-1.1",)
     rendered = set_prompt_wait_and_queue("do work", spec)
-    assert "for_epic=true" in rendered
+    assert "%wait(planner)" in rendered
+    assert "%wait(coder, for_epic=false)" in rendered
+    assert "for_epic=true" not in rendered
     assert "sase-9.1" not in rendered
     assert "sase-1.1" in rendered
 

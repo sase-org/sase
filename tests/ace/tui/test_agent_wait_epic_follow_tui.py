@@ -218,11 +218,11 @@ def test_lane_armed_running_target_shows_dim_hand_off() -> None:
     assert "agent only" not in line
 
 
-def test_lane_opt_out_stays_quiet_while_default_is_off() -> None:
+def test_lane_opt_out_reads_agent_only_while_default_is_on() -> None:
     agent = _waiting_agent(wait_for_epics_of=[])
     line = _agents_line(agent)
 
-    assert "agent only" not in line
+    assert "agent only" in line
 
 
 def test_lane_followed_epics_leave_the_beads_lane() -> None:

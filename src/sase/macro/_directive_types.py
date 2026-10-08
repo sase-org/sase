@@ -57,9 +57,10 @@ _KNOWN_DIRECTIVES = frozenset(
 # Directives that allow multiple occurrences (values are collected into a list)
 _MULTI_VALUE_DIRECTIVES = frozenset({"final", "wait"})
 
-# Default for `%wait(..., for_epic=)`. The `flip` phase changes this to True;
-# until then the keyword is accepted but inert unless explicitly true.
-WAIT_FOR_EPIC_DEFAULT = False
+# Default for `%wait(..., for_epic=)`. User-authored agent targets follow
+# the epics they launch unless explicitly opted out with `for_epic=false`;
+# `--plan` rows never follow.
+WAIT_FOR_EPIC_DEFAULT = True
 
 # Compatibility argument suggestions for the %auto/%a directive. The parser
 # retains arbitrary raw arguments; the adapter that opens a gate owns validation.

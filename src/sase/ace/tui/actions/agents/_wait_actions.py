@@ -259,7 +259,14 @@ class AgentWaitActionsMixin:
                 priority=effective_priority,
                 beads=tuple(wait_beads),
                 hoods=tuple(wait_hoods),
-                epic_follow_agents=tuple(follow_names) or None,
+                epic_follow_agents=(
+                    # Preserve an explicit modal choice, including off (no
+                    # follow): under the flipped default only an explicit
+                    # for_epic=false keeps the wait agent-only.
+                    tuple(follow_names)
+                    if result.epic_follow_agents is not None
+                    else (tuple(follow_names) or None)
+                ),
             )
             prior_waiting_for = list(agent.waiting_for)
             prior_waiting_for_beads = list(agent.waiting_for_beads)

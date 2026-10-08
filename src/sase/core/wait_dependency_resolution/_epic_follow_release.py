@@ -3,8 +3,9 @@
 Routes the runner initial check, the parked-runner fallback, the AXE
 ``wait_checks`` chop, and kill/dismiss through one decision function so an
 armed ``%wait(for_epic=)`` target is never released past an epic it launched.
-``for_epic`` stays opt-in; a marker with no ``wait_for_epics_of`` field
-releases exactly as it does today.
+User-authored agent targets are armed by default at parse time; a marker
+with no ``wait_for_epics_of`` field (predating the feature, or explicitly
+opted out) releases exactly as it does today.
 """
 
 from __future__ import annotations

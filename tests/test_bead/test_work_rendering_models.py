@@ -329,7 +329,7 @@ class TestModelDirective:
             "%id(!land, clan=e1, bead=e1)\n"
             "%model:claude/opus\n"
             "%auto\n"
-            "%w:e1.p1\n"
+            "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#bd/land_epic:e1"
         )
@@ -370,7 +370,7 @@ class TestModelDirective:
             "---\n"
             "%id(!land, clan=e1, bead=e1)\n"
             "%auto\n"
-            "%w:e1.p1,e1.p2\n"
+            "%w(e1.p1,e1.p2, for_epic=false)\n"
             "%w(bead=p1)\n"
             "%w(bead=p2)\n"
             "#bd/land_epic:e1"

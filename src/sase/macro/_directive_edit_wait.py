@@ -145,27 +145,31 @@ def _format_wait_directive(
 
     follow = set(wait_spec.epic_follow_agents or ())
     if wait_spec.epic_follow_agents is None:
+        # Every agent uses the default: one plain occurrence, no keyword.
         main_agents = list(wait_spec.agents)
+        off_agents: list[str] = []
         follow_agents: list[str] = []
     elif WAIT_FOR_EPIC_DEFAULT:
-        main_agents = [a for a in wait_spec.agents if a not in follow]
-        follow_agents = [a for a in wait_spec.agents if a in follow]
+        # The positive list stays in the main occurrence and explicit-false
+        # agents split out instead.
+        main_agents = [a for a in wait_spec.agents if a in follow]
+        off_agents = [a for a in wait_spec.agents if a not in follow]
+        follow_agents = []
     else:
         main_agents = [a for a in wait_spec.agents if a not in follow]
+        off_agents = []
         follow_agents = [a for a in wait_spec.agents if a in follow]
     parts = [format_directive_arg(agent) for agent in main_agents]
     if wait_spec.time_token:
         parts.append(f"time={wait_spec.time_token}")
     directives = [f"%wait({', '.join(parts)})"] if parts else []
+    if off_agents:
+        off_parts = [format_directive_arg(agent) for agent in off_agents]
+        off_parts.append("for_epic=false")
+        directives.append(f"%wait({', '.join(off_parts)})")
     if follow_agents:
-        value = "true" if not WAIT_FOR_EPIC_DEFAULT else "true"
-        if WAIT_FOR_EPIC_DEFAULT:
-            # When the default flips, the positive list stays in the main
-            # occurrence and explicit-false agents split out instead; until
-            # then the positive list always renders with for_epic=true.
-            pass
         follow_parts = [format_directive_arg(agent) for agent in follow_agents]
-        follow_parts.append(f"for_epic={value}")
+        follow_parts.append("for_epic=true")
         directives.append(f"%wait({', '.join(follow_parts)})")
     directives.extend(
         f"%wait(bead={format_directive_arg(bead)})" for bead in wait_spec.beads
