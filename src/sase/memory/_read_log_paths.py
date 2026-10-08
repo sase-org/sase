@@ -28,19 +28,32 @@ def validate_memory_read_path(
     home_root: Path | None = None,
 ) -> ValidatedMemoryPath:
     """Validate and canonicalize a path relative to an allowed memory root."""
+
+    def _path_error(message: str, reason: str) -> MemoryReadPathError:
+        exc = MemoryReadPathError(message)
+        try:
+            exc.reason = reason  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return exc
+
     raw_path = Path(memory_relative_path)
     if raw_path.is_absolute():
-        raise MemoryReadPathError("memory read path must be relative to sase/memory/")
+        raise _path_error(
+            "memory read path must be relative to sase/memory/", "invalid_syntax"
+        )
 
     parts = _normalize_memory_read_parts(raw_path)
     if not parts or parts == (".",):
-        raise MemoryReadPathError("memory read path is required")
+        raise _path_error("memory read path is required", "invalid_syntax")
     if any(part in {"", ".", ".."} for part in parts):
-        raise MemoryReadPathError("memory read path must not contain traversal")
+        raise _path_error("memory read path must not contain traversal", "traversal")
     if Path(*parts).suffix != ".md":
-        raise MemoryReadPathError("memory read path must point to a .md file")
+        raise _path_error("memory read path must point to a .md file", "invalid_syntax")
     if not _is_flat_note_path(parts):
-        raise MemoryReadPathError("memory read path must be a flat .md note name")
+        raise _path_error(
+            "memory read path must be a flat .md note name", "invalid_syntax"
+        )
 
     for content_root, memory_root in _memory_read_roots(project_root, home_root):
         path = _validate_memory_read_candidate(
@@ -52,7 +65,7 @@ def validate_memory_read_path(
         if path is not None:
             return path
 
-    raise MemoryReadPathError(f"memory file does not exist: {raw_path.as_posix()}")
+    raise _path_error(f"memory file does not exist: {raw_path.as_posix()}", "missing")
 
 
 def _normalize_memory_read_parts(raw_path: Path) -> tuple[str, ...]:
@@ -90,7 +103,12 @@ def _memory_read_roots(
                 label=f"memory for {content_root}",
             )
         except LayoutCollisionError as exc:
-            raise MemoryReadPathError(str(exc)) from exc
+            collision = MemoryReadPathError(str(exc))
+            try:
+                collision.reason = "collision"  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            raise collision from exc
         if selected is not None:
             roots.append((content_root, selected))
     return tuple(roots)
@@ -103,6 +121,14 @@ def _validate_memory_read_candidate(
     parts: tuple[str, ...],
     raw_path: Path,
 ) -> ValidatedMemoryPath | None:
+    def _candidate_error(message: str, reason: str) -> MemoryReadPathError:
+        exc = MemoryReadPathError(message)
+        try:
+            exc.reason = reason  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return exc
+
     allowed_root = memory_root.resolve(strict=False)
     candidate = memory_root.joinpath(*parts)
 
@@ -110,20 +136,24 @@ def _validate_memory_read_candidate(
         resolved = candidate.resolve(strict=True)
     except FileNotFoundError as exc:
         if _has_broken_symlink_component(candidate, memory_root):
-            raise MemoryReadPathError(
-                f"memory file cannot be resolved: {raw_path.as_posix()}"
+            raise _candidate_error(
+                f"memory file cannot be resolved: {raw_path.as_posix()}",
+                "symlink",
             ) from exc
         return None
     except OSError as exc:
-        raise MemoryReadPathError(
-            f"memory file cannot be resolved: {raw_path.as_posix()}"
+        raise _candidate_error(
+            f"memory file cannot be resolved: {raw_path.as_posix()}", "unreadable"
         ) from exc
 
     if not candidate.is_file():
-        raise MemoryReadPathError(f"memory path is not a file: {raw_path.as_posix()}")
+        raise _candidate_error(
+            f"memory path is not a file: {raw_path.as_posix()}", "not_file"
+        )
     if not _is_relative_to(resolved, allowed_root):
-        raise MemoryReadPathError(
-            "memory file resolves outside the allowed sase/memory/ directory"
+        raise _candidate_error(
+            "memory file resolves outside the allowed sase/memory/ directory",
+            "escape",
         )
 
     note = _read_validated_memory_note(
@@ -133,17 +163,20 @@ def _validate_memory_read_candidate(
     )
     if note.is_web_descriptor:
         slug = Path(note.relative_path).stem
-        raise MemoryReadPathError(
+        raise _candidate_error(
             f"{note.relative_path} is an always-loaded memory web descriptor; "
-            f"read its strands with `sase memory read {slug}:<keyword>`"
+            f"read its strands with `sase memory read {slug}:<keyword>`",
+            "note_kind",
         )
     if note.type == "core":
-        raise MemoryReadPathError(
-            f"{note.relative_path} is always-loaded context and cannot be read with this command"
+        raise _candidate_error(
+            f"{note.relative_path} is always-loaded context and cannot be read with this command",
+            "note_kind",
         )
     if note.type != "reference":
-        raise MemoryReadPathError(
-            f"memory file is not a reference memory note: {note.relative_path}"
+        raise _candidate_error(
+            f"memory file is not a reference memory note: {note.relative_path}",
+            "note_kind",
         )
 
     canonical_path = Path(*parts).as_posix()
@@ -167,9 +200,23 @@ def _read_validated_memory_note(
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
-        raise MemoryReadPathError(
+        missing = MemoryReadPathError(
             f"memory file does not exist: {raw_path.as_posix()}"
-        ) from exc
+        )
+        try:
+            missing.reason = "missing"  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        raise missing from exc
+    except OSError as exc:
+        unreadable = MemoryReadPathError(
+            f"memory file cannot be read: {raw_path.as_posix()}"
+        )
+        try:
+            unreadable.reason = "unreadable"  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        raise unreadable from exc
     relative = path.relative_to(memory_root)
     note = parse_memory_note_text(
         text,

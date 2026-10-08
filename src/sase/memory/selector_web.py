@@ -70,10 +70,19 @@ def resolve_web_sections(
     by_slug = {scoped.slug: scoped for scoped in scoped_webs}
     order: list[str] = []
     requested_slugs: dict[str, set[str]] = {}
+
+    def _web_error(message: str, reason: str) -> MemorySelectorError:
+        exc = MemorySelectorError(message)
+        try:
+            exc.reason = reason  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return exc
+
     for item in web_items:
         scoped = by_slug.get(item.web_slug)
         if scoped is None:
-            raise MemorySelectorError(f"unknown memory web: {item.web_slug}")
+            raise _web_error(f"unknown memory web: {item.web_slug}", "unknown_web")
         if item.web_slug not in requested_slugs:
             requested_slugs[item.web_slug] = set()
             order.append(item.web_slug)
@@ -87,7 +96,10 @@ def resolve_web_sections(
                 replace(scoped.web, strands=scoped.strands), item.keyword
             )
         except MemoryWebLookupError as exc:
-            raise MemorySelectorError(str(exc)) from exc
+            reason = getattr(exc, "reason", None)
+            if not isinstance(reason, str) or not reason:
+                reason = "missing"
+            raise _web_error(str(exc), reason) from exc
         requested_slugs[item.web_slug].add(strand.slug)
 
     sections: list[MemoryWebReadSection] = []

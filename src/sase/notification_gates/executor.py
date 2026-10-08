@@ -148,55 +148,101 @@ def execute_gate_selection(
     response_path = bundle_path / RESPONSE_FILENAME
     cancellation_path = bundle_path / CANCELLATION_FILENAME
     envelope, adapter = load_and_verify_bundle(bundle_path)
-    if expected_review_revision is not None:
+    from sase.notification_gates.command_runner import record_execution_error
+
+    def _pre_acceptance_option_id(
+        _selected: object = None, _options: object = None
+    ) -> str:
         try:
-            current_revision = int(envelope.get("review_revision", 1))
-        except (TypeError, ValueError):
-            current_revision = 1
-        if int(expected_review_revision) != current_revision:
-            raise GateError(
-                "stale_review",
-                "review_revision",
-                "plan changed since this review was shown; refresh and resubmit",
-            )
-    options = options_from_envelope(envelope)
-    selected = resolve_selection(envelope, options, selected_option_ids)
-    _caller = gate_response_caller()
-    _payload = (
-        envelope.get("payload") if isinstance(envelope.get("payload"), dict) else {}
-    )
-    if isinstance(_payload, dict) and _payload.get("decisions"):
-        if input_data is not None and option_inputs is None:
-            option_inputs = {option.id: input_data for option in selected}
-            input_data = None
+            if isinstance(_selected, (list, tuple)) and _selected:
+                first = _selected[0]
+                option_id = getattr(first, "id", None)
+                if isinstance(option_id, str) and option_id:
+                    return option_id
+        except Exception:
+            pass
         try:
-            normalized = adapter.normalize_option_inputs(
-                envelope,
-                [option.id for option in selected],
-                option_inputs,
+            if isinstance(_options, (list, tuple)) and _options:
+                first = _options[0]
+                option_id = getattr(first, "id", None)
+                if isinstance(option_id, str) and option_id:
+                    return option_id
+        except Exception:
+            pass
+        return "gate"
+
+    _pre_options: tuple[GateOption, ...] = ()
+    _pre_selected: tuple[GateOption, ...] = ()
+    try:
+        if expected_review_revision is not None:
+            try:
+                current_revision = int(envelope.get("review_revision", 1))
+            except (TypeError, ValueError):
+                current_revision = 1
+            if int(expected_review_revision) != current_revision:
+                raise GateError(
+                    "stale_review",
+                    "review_revision",
+                    f"plan changed since this review was shown "
+                    f"(submitted revision {expected_review_revision}, "
+                    f"current revision {current_revision}); "
+                    "refresh and resubmit",
+                )
+        _pre_options = options_from_envelope(envelope)
+        _pre_selected = resolve_selection(envelope, _pre_options, selected_option_ids)
+        options = _pre_options
+        selected = _pre_selected
+        _caller = gate_response_caller()
+        _payload = (
+            envelope.get("payload") if isinstance(envelope.get("payload"), dict) else {}
+        )
+        if isinstance(_payload, dict) and _payload.get("decisions"):
+            if input_data is not None and option_inputs is None:
+                option_inputs = {option.id: input_data for option in selected}
+                input_data = None
+            try:
+                normalized = adapter.normalize_option_inputs(
+                    envelope,
+                    [option.id for option in selected],
+                    option_inputs,
+                    source=source,
+                    caller=_caller,
+                )
+            except GateError:
+                raise
+            except Exception as exc:
+                raise GateError(
+                    "decision-resolve-failed", "decisions", str(exc)
+                ) from exc
+            option_inputs = normalized
+        reject_unavailable_option_transport(
+            bundle_path,
+            envelope,
+            adapter.kind,
+            selected,
+            source,
+            option_inputs,
+            sudo_headless_authorization,
+            has_tty=has_controlling_tty,
+        )
+        preflight_sudo_approval_inputs(envelope, adapter.kind, selected, option_inputs)
+        if not response_path.exists():
+            # A published response means terminal preparation already ran, so a
+            # resumed side-effects retry has no archive left to authenticate.
+            adapter.preflight_decision(selected_option_ids=[o.id for o in selected])
+    except Exception as exc:
+        code = exc.code if isinstance(exc, GateError) else "adapter_rejected"
+        try:
+            record_execution_error(
+                bundle_path,
+                option_id=_pre_acceptance_option_id(_pre_selected, _pre_options),
+                code=str(code),
+                message=str(exc),
                 source=source,
-                caller=_caller,
             )
-        except GateError:
-            raise
-        except Exception as exc:
-            raise GateError("decision-resolve-failed", "decisions", str(exc)) from exc
-        option_inputs = normalized
-    reject_unavailable_option_transport(
-        bundle_path,
-        envelope,
-        adapter.kind,
-        selected,
-        source,
-        option_inputs,
-        sudo_headless_authorization,
-        has_tty=has_controlling_tty,
-    )
-    preflight_sudo_approval_inputs(envelope, adapter.kind, selected, option_inputs)
-    if not response_path.exists():
-        # A published response means terminal preparation already ran, so a
-        # resumed side-effects retry has no archive left to authenticate.
-        adapter.preflight_decision(selected_option_ids=[o.id for o in selected])
+        except Exception:
+            pass
+        raise
 
     # Durably accept the decision and dismiss its notification under a
     # short, separate lock before any option command, archive, or launch
@@ -233,8 +279,38 @@ def execute_gate_selection(
                 from sase.plan_gate_decisions import recover_plan_stamp_from_response
 
                 recover_plan_stamp_from_response(bundle_path)
-            except Exception:
-                pass
+            except Exception as exc:
+                from sase.notification_gates.command_runner import (
+                    record_execution_error as _record_restamp_error,
+                )
+
+                log.exception(
+                    "retry re-stamp failed for bundle %s: %s",
+                    bundle_path,
+                    exc,
+                )
+                try:
+                    _option = (
+                        selected[0].id
+                        if isinstance(selected, (list, tuple))
+                        and selected
+                        and isinstance(getattr(selected[0], "id", None), str)
+                        else "gate"
+                    )
+                    _code = getattr(exc, "code", None)
+                    _record_restamp_error(
+                        bundle_path,
+                        option_id=_option,
+                        code=str(_code)
+                        if isinstance(_code, str) and _code
+                        else "restamp-failed",
+                        message=str(exc),
+                        source=source,
+                        stage="restamp",
+                    )
+                except Exception:
+                    pass
+                raise
             if retry == "resume" and (
                 current_post_response_failure(
                     bundle_path, receipt, stage="side_effects"

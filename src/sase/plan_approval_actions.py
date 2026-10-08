@@ -324,8 +324,6 @@ def _stamp_decisions_best_effort(
     caller: str | None,
 ) -> None:
     """Stamp accepted Plan Decisions into the durable file when present."""
-    if not isinstance(response_json.get("decisions"), dict):
-        return
     resolved_source = source or str(
         response_json.get("_gate_source") or "plan_response"
     )
@@ -334,6 +332,8 @@ def _stamp_decisions_best_effort(
     )
     response_json.pop("_gate_source", None)
     response_json.pop("_gate_caller", None)
+    if not isinstance(response_json.get("decisions"), dict):
+        return
     from sase.plan_gate_stamp import stamp_durable_plan
 
     try:

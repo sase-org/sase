@@ -174,20 +174,9 @@ def resolve_direct_approval(
     decide_values: dict[str, object] = dict(decided[0]) if decided else {}
     decide_rows: tuple[dict[str, object], ...] = tuple(decided[1]) if decided else ()
     decide_sheet: dict[str, object] | None = decided[2] if decided else None
-    decide_definitions: tuple[dict[str, object], ...] = ()
-    if decided:
-        try:
-            from sase.sdd.plan_decisions import (
-                artifacts_dir_from_env,
-                build_definitions,
-            )
-
-            decide_definitions = tuple(
-                dict(item)
-                for item in build_definitions(validation, artifacts_dir_from_env())
-            )
-        except Exception:
-            decide_definitions = ()
+    decide_definitions: tuple[dict[str, object], ...] = (
+        tuple(dict(item) for item in decided[3]) if decided and len(decided) > 3 else ()
+    )
 
     model_directive = resolve_model_directive(
         source_path, request.coder_model, request.coder_prompt

@@ -273,20 +273,24 @@ def resolve_direct_decisions(
     raw_map: dict[str, str],
     *,
     caller: str,
-) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]] | None:
+) -> (
+    tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]
+    | None
+):
     """Resolve ``-D`` answers for a gateless approval file.
 
     Thin parser/card adapter over the single shared direct resolver:
     duplicate ids, boolean spellings, case-insensitive choice keys, and
     allowed-value hints stay here; host facts are built once and typed
-    overrides go to the shared resolver. Returns ``(values, rows, sheet)``
-    when the plan declares decisions and ``None`` when it declares none
-    (raising when ``-D`` was passed anyway).
+    overrides go to the shared resolver. Returns
+    ``(values, rows, sheet, definitions)`` when the plan declares decisions
+    and ``None`` when it declares none (raising when ``-D`` was passed
+    anyway).
     """
     from sase.sdd.plan_decisions import (
         artifacts_dir_from_env,
         build_definitions,
-        resolve_direct_with_definitions,
+        resolve_plan_decisions_for_direct_approval,
         sheet_binding,
     )
 
@@ -314,7 +318,9 @@ def resolve_direct_decisions(
             f"✗ plan decisions failed to resolve: {exc}",
         ) from exc
     try:
-        resolved = resolve_direct_with_definitions(definitions, submitted, caller)
+        resolved = resolve_plan_decisions_for_direct_approval(
+            validation, submitted, caller, definitions=list(definitions)
+        )
     except Exception as exc:
         raise DecideError(
             f"✗ plan decisions failed to resolve: {exc}",
@@ -332,18 +338,24 @@ def resolve_direct_decisions(
         raise DecideError(f"✗ {message}")
     values = resolved.get("values")
     rows = resolved.get("rows")
+    frozen = resolved.get("definitions")
     if not isinstance(values, dict):
         raise DecideError("✗ plan decisions failed to resolve: no values")
     if not isinstance(rows, list):
         rows = []
     typed_rows = [row for row in rows if isinstance(row, dict)]
+    frozen_definitions = (
+        [dict(item) for item in frozen]
+        if isinstance(frozen, list) and frozen
+        else [dict(item) for item in definitions]
+    )
     try:
-        sheet = sheet_binding(definitions, dict(values), 0)
+        sheet = sheet_binding(frozen_definitions, dict(values), 0)
     except Exception as exc:
         raise DecideError(
             f"✗ plan decisions failed to resolve: {exc}",
         ) from exc
-    return dict(values), typed_rows, sheet
+    return dict(values), typed_rows, sheet, frozen_definitions
 
 
 def direct_card_lines(plan: Any, *, dry_run: bool) -> list[str] | None:

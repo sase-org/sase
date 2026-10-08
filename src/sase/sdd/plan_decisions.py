@@ -315,7 +315,7 @@ def _resolve_memory_records(
         try:
             batch = resolve_memory_selector_batch([selector])
         except MemorySelectorError as exc:
-            grant = _grant_record_for_missing_selector(selector, str(exc))
+            grant = _grant_record_for_missing_selector(selector, exc)
             if grant is None:
                 raise _PlanDecisionError(
                     "decision-memory-unresolvable", str(exc)
@@ -382,37 +382,81 @@ def _resolve_memory_records(
     return records, note_keys
 
 
+def _strand_selector_is_prefix_ambiguous(selector: str) -> bool:
+    """Return whether a strand selector is a prefix of existing strands.
+
+    Structural ambiguity check without reading diagnostic wording: a
+    missing strand grants, but a prefix matching two or more existing
+    strands stays unresolvable.
+    """
+    try:
+        from sase.memory.selector_models import classify_selector, StrandSelector
+        from sase.memory.web.read_context import discover_scoped_memory_webs
+        from sase.memory.web.lookup import normalize_memory_web_reference
+        from pathlib import Path as _AmbPath
+
+        classified = classify_selector(selector)
+        if not isinstance(classified, StrandSelector):
+            return False
+        scoped = discover_scoped_memory_webs(_AmbPath.cwd(), _AmbPath.home())
+        match = next(
+            (item for item in scoped if item.slug == classified.web_slug), None
+        )
+        if match is None:
+            return False
+        needle = normalize_memory_web_reference(classified.keyword)
+        if not needle:
+            return True
+        hits = 0
+        for strand in match.strands:
+            for value in (strand.slug, strand.keyword, *strand.aliases):
+                key = normalize_memory_web_reference(str(value))
+                if key and key.startswith(needle):
+                    hits += 1
+                    break
+            if hits > 1:
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def _selector_failure_reason(exc: object) -> str | None:
+    """Return the structured host failure reason for a selector error.
+
+    Reads only the explicit ``reason``/``code`` carried from the host
+    selector/path failure at its origin, never diagnostic wording, so
+    changing wording cannot change grantability.
+    """
+    seen: set[int] = set()
+    current: object = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        reason = getattr(current, "reason", None)
+        if isinstance(reason, str) and reason:
+            return reason
+        code = getattr(current, "code", None)
+        if isinstance(code, str) and code:
+            return code
+        current = getattr(current, "__cause__", None)
+    return None
+
+
 def _grant_record_for_missing_selector(
-    selector: str, error_text: str
+    selector: str, error: object
 ) -> tuple[list[dict[str, Any]], set[str]] | None:
     """Return future grant records for a valid missing target, if grantable.
 
-    Returns ``None`` when the failure must stay ``decision-memory-unresolvable``
-    (malformed selectors, unknown webs/scopes, ambiguous aliases, traversal,
-    broken/escaping symlinks, layout collisions, unreadable targets). Never
-    creates files or invents webs, scopes, aliases, or types.
+    The decision is structural, never based on diagnostic wording: only
+    actual absence of a well-formed flat note or a strand in an existing
+    resolved web grants. Invalid syntax, unknown web/scope, ambiguous
+    lookup, traversal, symlink failure/escape, layout collision,
+    unreadable/non-file targets, and existing non-readable note kinds
+    stay ``decision-memory-unresolvable``. Never creates files or invents
+    webs, scopes, aliases, or types.
     """
-    lowered = error_text.lower()
-    non_grant_markers = (
-        "ambiguous",
-        "traversal",
-        "escaping",
-        "escape",
-        "symlink",
-        "collision",
-        "unreadable",
-        "malformed",
-        "unknown scope",
-        "unknown web",
-        "no descriptor",
-        "not a flat",
-        "nested",
-        "invalid",
-    )
-    # Only missing-target failures are grantable; any malformed, traversal,
-    # ambiguity, symlink, collision, or unreadable signal stays an error and
-    # must never become a new-note grant.
-    if any(marker in lowered for marker in non_grant_markers):
+    reason = _selector_failure_reason(error)
+    if reason is not None and reason != "missing":
         return None
     from sase.memory.selector_models import classify_selector, NoteSelector
 
@@ -424,8 +468,8 @@ def _grant_record_for_missing_selector(
         future = _grant_note_path(selector)
         if future is None:
             return None
-        # A broken symlink or existing file at the future location is not a
-        # clean missing target: keep the original error.
+        # Only actual absence grants: any existing file, symlink, or
+        # non-file at the future location keeps the original error.
         try:
             from pathlib import Path
 
@@ -433,9 +477,9 @@ def _grant_record_for_missing_selector(
 
             write_root = memory_write_root(Path.cwd())
             candidate = write_root / Path(future).name
-            if candidate.is_symlink() and not candidate.exists():
+            if candidate.is_symlink():
                 return None
-            if candidate.exists() and not candidate.is_file():
+            if candidate.exists():
                 return None
         except Exception:
             pass
@@ -452,6 +496,23 @@ def _grant_record_for_missing_selector(
     if grant is None:
         return None
     record, key = grant
+    try:
+        from pathlib import Path as _StrandPath
+
+        from sase.memory.paths import memory_write_root as _strand_root
+
+        _write_root = _strand_root(_StrandPath.cwd())
+        _candidate = _write_root / _StrandPath(str(record.get("path") or "")).name
+        # Strand grants are for missing strands only; an existing file or
+        # symlink at the future strand path is not a clean missing target.
+        # Prefix-ambiguous selectors name an existing strand prefix, so they
+        # must not grant even when the exact keyword file is absent.
+        if _candidate.is_symlink() or _candidate.exists():
+            return None
+        if reason is None and _strand_selector_is_prefix_ambiguous(selector):
+            return None
+    except Exception:
+        pass
     return [record], {key}
 
 
@@ -728,23 +789,27 @@ def resolve_plan_decisions_for_direct_approval(
     overrides: dict[str, Any],
     caller: str,
     artifacts_dir: str = "",
+    definitions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Resolve effective defaults for a no-live-gate approval route.
 
     The single direct-resolution implementation for gateless
     ``sase plan approve <file>``, its ``-D`` overrides, and gateless
-    ``sase bead work``.
+    ``sase bead work``. Callers with an already-built definition vector
+    may pass it as ``definitions`` to avoid rebuilding host facts; the
+    same vector is carried in the result.
     """
     plan = getattr(validation, "plan", None)
     if plan is None or not getattr(plan, "decisions", ()):
         return {"values": {}, "rows": [], "errors": []}
-    directory = artifacts_dir or artifacts_dir_from_env()
-    definitions = build_definitions(validation, directory)
+    if definitions is None:
+        directory = artifacts_dir or artifacts_dir_from_env()
+        definitions = build_definitions(validation, directory)
     resolved = resolve_direct_with_definitions(
-        definitions, dict(overrides or {}), caller
+        list(definitions), dict(overrides or {}), caller
     )
     if isinstance(resolved, dict) and "definitions" not in resolved:
-        resolved = {**resolved, "definitions": definitions}
+        resolved = {**resolved, "definitions": list(definitions)}
     return resolved
 
 

@@ -90,10 +90,14 @@ def direct_unread_notification_page(
         snapshot = notification_snapshot_from_direct(
             read_notification_snapshot(include_dismissed=include_dismissed)
         )
+    from sase.sdd.plan_decision_handoff import is_quiet_decision_receipt
+
     unread = [
         n
         for n in snapshot.notifications
-        if not n.read and not n.silent and (include_dismissed or not n.dismissed)
+        if not n.read
+        and (not n.silent or is_quiet_decision_receipt(n))
+        and (include_dismissed or not n.dismissed)
     ]
     if limit is None:
         bounded = False

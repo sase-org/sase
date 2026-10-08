@@ -25,6 +25,31 @@ from sase.sdd._plan_display_decisions import (
 
 RECEIPT_TAG = "plan_decisions_receipt"
 
+
+def is_quiet_decision_receipt(notification: Any) -> bool:
+    """Return whether a notification is a quiet auto-approval receipt.
+
+    True only for a silent, non-muted notification tagged
+    ``plan_decisions_receipt`` whose action is null.
+    """
+    try:
+        if isinstance(notification, dict):
+            silent = bool(notification.get("silent"))
+            muted = bool(notification.get("muted"))
+            tags = notification.get("tags") or []
+            action = notification.get("action")
+        else:
+            silent = bool(getattr(notification, "silent", False))
+            muted = bool(getattr(notification, "muted", False))
+            tags = getattr(notification, "tags", []) or []
+            action = getattr(notification, "action", None)
+        if not silent or muted or action is not None:
+            return False
+        return RECEIPT_TAG in list(tags)
+    except Exception:
+        return False
+
+
 _TALE_CODER_AUDIENCE = "tale_coder"
 _EPIC_PHASE_AUDIENCE = "epic_phase"
 _EPIC_LAND_AUDIENCE = "epic_land"
@@ -544,10 +569,13 @@ def post_auto_approval_receipt(
     """Post the quiet ``%auto`` receipt notification for an auto-approval.
 
     The receipt is informational, never a gate: ``action=None`` so no pending
-    action (and no toast) is registered, and ``silent=True`` keeps it as a
-    plain inbox row with no unread bump. The stable tag lets surfaces filter
-    it, and the per-request dedup key makes re-settlement idempotent. Telegram
-    can forward it quietly because it carries no action and no gate state.
+    action (and no toast) is registered, and ``silent=True`` (with
+    ``muted=False``) keeps it out of unread counts, toasts, and the arrival
+    bell while remaining visible in the ACE inbox direct page via
+    :func:`is_quiet_decision_receipt`. The stable tag lets surfaces filter
+    it, and the per-request dedup key makes re-settlement idempotent.
+    Telegram delivers it quietly because it carries no action and no gate
+    state.
     """
     rows = sheet.get("rows")
     if not isinstance(rows, list) or not rows:
@@ -584,6 +612,7 @@ __all__ = [
     "StampedDecisions",
     "coder_decisions_block",
     "epic_decision_context",
+    "is_quiet_decision_receipt",
     "load_stamped_decisions",
     "post_auto_approval_receipt",
 ]

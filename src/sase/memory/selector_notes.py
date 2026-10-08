@@ -48,6 +48,22 @@ def requested_note_keys(
     return frozenset(keys)
 
 
+def _propagate_note_error(
+    item: NoteSelector, exc: MemoryReadPathError
+) -> MemorySelectorError:
+    """Wrap a path failure while preserving its structured reason."""
+    wrapped = MemorySelectorError(_note_selector_error(item, exc))
+    for source in (exc, getattr(exc, "__cause__", None)):
+        reason = getattr(source, "reason", None) if source is not None else None
+        if isinstance(reason, str) and reason:
+            try:
+                wrapped.reason = reason  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            break
+    return wrapped
+
+
 def note_selector_keys(
     item: NoteSelector, *, project_root: Path, home_root: Path
 ) -> frozenset[str]:
@@ -57,7 +73,7 @@ def note_selector_keys(
             item.path, project_root=project_root, home_root=home_root
         )
     except MemoryReadPathError as exc:
-        raise MemorySelectorError(_note_selector_error(item, exc)) from exc
+        raise _propagate_note_error(item, exc) from exc
     return validated_note_keys(validated_path.canonical_path, validated_path.note)
 
 
@@ -70,7 +86,7 @@ def note_selector_canonical_path(
             item.path, project_root=project_root, home_root=home_root
         )
     except MemoryReadPathError as exc:
-        raise MemorySelectorError(_note_selector_error(item, exc)) from exc
+        raise _propagate_note_error(item, exc) from exc
     return validated_path.canonical_path
 
 
@@ -112,7 +128,7 @@ def resolve_note_selector(
             item.path, project_root=project_root, home_root=home_root
         )
     except MemoryReadPathError as exc:
-        raise MemorySelectorError(_note_selector_error(item, exc)) from exc
+        raise _propagate_note_error(item, exc) from exc
 
     content = read_memory_content(validated_path)
     children = discover_memory_notes(content.path.content_root)

@@ -153,6 +153,10 @@ def _coverage_from_sheet_rows(rows: list[dict[str, Any]]) -> _MemoryCoverage:
             kind = str(record.get("kind") or "").strip().lower()
             if kind == "note":
                 exact.update(_note_record_paths(record))
+            elif kind == "strand":
+                strand_path = _canonical_memory_path(str(record.get("path") or ""))
+                if strand_path is not None:
+                    exact.add(strand_path)
             elif kind == "web":
                 slug = _slug_from_record_path(str(record.get("path") or ""))
                 if not slug:
@@ -479,19 +483,6 @@ def _git_diff_tree_files(repo_path: str, commit_sha: str) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def _collect_committed_paths(
-    markers: list[dict[str, Any]],
-    *,
-    list_files: Any | None = None,
-) -> list[str]:
-    """Collect repo-relative committed paths from new stitch markers."""
-    grouped = _collect_committed_paths_by_repo(markers, list_files=list_files)
-    collected: list[str] = []
-    for paths in grouped.values():
-        collected.extend(paths)
-    return collected
-
-
 def _collect_committed_paths_by_repo(
     markers: list[dict[str, Any]],
     *,
@@ -570,8 +561,6 @@ def memory_guard_for_new_markers(
             return []
         grouped = _collect_committed_paths_by_repo(new_markers)
         if not grouped:
-            return []
-        if not _collect_committed_paths(new_markers):
             return []
         diagnostics: list[FinalizerDiagnosticWire] = []
         for paths in grouped.values():

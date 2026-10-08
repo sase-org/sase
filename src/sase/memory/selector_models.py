@@ -139,17 +139,27 @@ class ResolvedStrandLink:
     target: MemoryLinkTarget
 
 
+def _selector_error(message: str, reason: str) -> MemorySelectorError:
+    """Build a selector error carrying an explicit structured reason."""
+    exc = MemorySelectorError(message)
+    try:
+        exc.reason = reason  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    return exc
+
+
 def classify_selector(raw: str) -> NoteSelector | WebSelector | StrandSelector:
     """Classify one user-supplied flat-note, web, or strand selector."""
     stripped = raw.strip()
     if not stripped:
-        raise MemorySelectorError("memory selector must not be empty")
+        raise _selector_error("memory selector must not be empty", "invalid_syntax")
     if ":" in stripped:
         web_part, _, keyword_part = stripped.partition(":")
         web_part = web_part.strip()
         keyword_part = keyword_part.strip()
         if not web_part or not keyword_part:
-            raise MemorySelectorError(f"invalid memory selector: {raw!r}")
+            raise _selector_error(f"invalid memory selector: {raw!r}", "invalid_syntax")
         return StrandSelector(raw=raw, web_slug=web_part, keyword=keyword_part)
     if stripped.endswith(".md"):
         return NoteSelector(raw=raw, path=stripped)

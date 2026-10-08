@@ -17,6 +17,13 @@ from .models import MemoryStrand, MemoryWeb
 class MemoryWebLookupError(ValueError):
     """Raised when a strand selector is unknown or ambiguous."""
 
+    def __init__(self, message: str, *, reason: str = "missing") -> None:
+        super().__init__(message)
+        try:
+            self.reason = reason
+        except Exception:
+            pass
+
 
 def normalize_memory_web_reference(value: str) -> str:
     """Normalize a strand selector the same way glossary references do."""
@@ -69,7 +76,9 @@ def resolve_memory_strand(web: MemoryWeb, reference: str) -> MemoryStrand:
 
     needle = normalize_memory_web_reference(reference)
     if not needle:
-        raise MemoryWebLookupError(f"unknown memory strand: {reference}")
+        raise MemoryWebLookupError(
+            f"unknown memory strand: {reference}", reason="invalid_syntax"
+        )
 
     by_keyword = {
         normalize_memory_web_reference(strand.keyword): strand for strand in web.strands
@@ -106,9 +115,12 @@ def resolve_memory_strand(web: MemoryWeb, reference: str) -> MemoryStrand:
     if len(matches) > 1:
         choices = ", ".join(strand.keyword for strand in matches[:5])
         raise MemoryWebLookupError(
-            f"ambiguous memory strand {reference!r} in {web.slug}: {choices}"
+            f"ambiguous memory strand {reference!r} in {web.slug}: {choices}",
+            reason="ambiguous",
         )
-    raise MemoryWebLookupError(f"unknown memory strand {web.slug}:{reference}")
+    raise MemoryWebLookupError(
+        f"unknown memory strand {web.slug}:{reference}", reason="missing"
+    )
 
 
 __all__ = [

@@ -51,12 +51,22 @@ def resolve_memory_selector_batch(
 ) -> ResolvedMemorySelectorBatch:
     """Resolve every selector before emitting output or writing an audit event."""
     if not selectors:
-        raise MemorySelectorError("at least one memory selector is required")
+        _empty = MemorySelectorError("at least one memory selector is required")
+        try:
+            _empty.reason = "invalid_syntax"  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        raise _empty
     resolved_home_root = home_root if home_root is not None else Path.home()
     try:
         cli_project = resolve_memory_cli_project(project_ref)
     except MemoryCliProjectError as exc:
-        raise MemorySelectorError(str(exc)) from exc
+        _project_exc = MemorySelectorError(str(exc))
+        try:
+            _project_exc.reason = "unknown_scope"  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        raise _project_exc from exc
     if cli_project is not None:
         resolved_project_root, project_name = (
             cli_project.project_root,

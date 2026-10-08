@@ -151,9 +151,16 @@ def _stamp_direct_decisions(
     values: dict[str, object],
     definitions: list[dict[str, object]] | None = None,
 ) -> None:
-    """Stamp the resolved decision answers into a gateless approval file."""
+    """Stamp the resolved decision answers into a gateless approval file.
+
+    The normal resolved approval path supplies frozen definitions from the
+    exact resolution; the live rebuild below is legacy compatibility for
+    older callers that predate frozen definitions.
+    """
     if not values:
         return
+    import logging as _logging
+
     from sase.main.plan_decide import caller_for_decide
     from sase.plan_gate_stamp import stamp_direct_file
 
@@ -162,6 +169,10 @@ def _stamp_direct_decisions(
         [dict(item) for item in definitions] if definitions else None
     )
     if resolved_definitions is None:
+        _logging.getLogger(__name__).debug(
+            "direct stamp without frozen definitions; rebuilding live: %s",
+            local_plan,
+        )
         try:
             from sase.sdd.plan_decisions import (
                 artifacts_dir_from_env,

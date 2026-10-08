@@ -298,6 +298,20 @@ def work_from_plan_file(
         )
 
 
+def _has_acceptance_stamp(frontmatter: dict[str, object], had: bool) -> bool:
+    """Return whether frontmatter already carries an acceptance stamp."""
+    if not had:
+        return False
+    if frontmatter.get("decided_by") is not None:
+        return True
+    raw = frontmatter.get("decisions")
+    if isinstance(raw, dict) and any(
+        isinstance(value, dict) and "answer" in value for value in raw.values()
+    ):
+        return True
+    return False
+
+
 def _stamp_bead_work_decisions(
     source_path: Path, validation: object, *, dry_run: bool
 ) -> None:
@@ -307,7 +321,8 @@ def _stamp_bead_work_decisions(
     ``reviewer`` via ``cli``; an agent turn stamps ``agent`` via ``cli``).
     Resolution and stamp failures propagate instead of being swallowed.
     Dry run resolves and validates but never stamps. Already stamped plans
-    reuse their accepted answers; partial or conflicting stamps raise.
+    reuse their accepted answers without live resolution; partial or
+    conflicting stamps raise.
     """
     from sase.bead.cli_work_from_plan_types import PlanFileWorkError
     from sase.sdd.frontmatter import parse_frontmatter
@@ -323,34 +338,24 @@ def _stamp_bead_work_decisions(
     plan = getattr(validation, "plan", None)
     if plan is None or not getattr(plan, "decisions", ()):
         return
+    if _has_acceptance_stamp(frontmatter, had):
+        _reuse_stamped_bead_work_answers(source_path, frontmatter, validation)
+        return
     from sase.main.plan_decide import caller_for_decide
 
     caller = caller_for_decide()
     decided_by = "reviewer" if caller == "human" else "agent"
-    if dry_run:
-        from sase.sdd.plan_decisions import resolve_plan_decisions_for_direct_approval
-
-        try:
-            resolve_plan_decisions_for_direct_approval(validation, {}, caller)
-        except Exception as exc:
-            raise PlanFileWorkError(f"plan decisions failed to resolve: {exc}") from exc
-        return
-    if had and (frontmatter.get("decided_by") is not None):
-        _reuse_stamped_bead_work_answers(source_path, frontmatter, validation)
-        return
-    raw_decisions = frontmatter.get("decisions") if had else None
-    if isinstance(raw_decisions, dict) and any(
-        isinstance(value, dict) and "answer" in value
-        for value in raw_decisions.values()
-    ):
-        _reuse_stamped_bead_work_answers(source_path, frontmatter, validation)
-        return
     from sase.sdd.plan_decisions import resolve_plan_decisions_for_direct_approval
 
     try:
         resolved = resolve_plan_decisions_for_direct_approval(validation, {}, caller)
     except Exception as exc:
         raise PlanFileWorkError(f"plan decisions failed to resolve: {exc}") from exc
+    errors = resolved.get("errors") if isinstance(resolved, dict) else []
+    if errors:
+        raise PlanFileWorkError(f"plan decisions failed to resolve: {errors}")
+    if dry_run:
+        return
     values = resolved.get("values") if isinstance(resolved, dict) else {}
     if not isinstance(values, dict) or not values:
         return
@@ -379,55 +384,93 @@ def _stamp_bead_work_decisions(
 def _reuse_stamped_bead_work_answers(
     source_path: Path, frontmatter: dict[str, object], validation: object
 ) -> None:
-    """Validate an already-stamped plan reuses its accepted answers."""
-    from sase.bead.cli_work_from_plan_types import PlanFileWorkError
+    """Reuse an already-stamped plan's accepted answers without resolution.
 
-    from sase.main.plan_decide import caller_for_decide
+    Validates stamp completeness and attribution through the Rust archived
+    validation path, then reads the accepted vector through
+    ``load_stamped_decisions``. Never calls ``build_definitions``, the
+    decision resolver, quote verification, or caller classification, and
+    never fills missing answers from defaults or the reader's environment.
+    """
+    from sase.bead.cli_work_from_plan_types import PlanFileWorkError
 
     raw = frontmatter.get("decisions")
     if not isinstance(raw, dict):
-        return
-    stamped: dict[str, object] = {}
-    for decision_id, entry in raw.items():
-        if isinstance(entry, dict) and "answer" in entry:
-            stamped[str(decision_id)] = entry["answer"]
-    if not stamped:
-        return
-    caller = caller_for_decide()
-    from sase.sdd.plan_decisions import resolve_plan_decisions_for_direct_approval
-
-    try:
-        resolved = resolve_plan_decisions_for_direct_approval(
-            validation, dict(stamped), caller
+        raise PlanFileWorkError("stamped plan has no decisions map")
+    plan = getattr(validation, "plan", None)
+    authored_ids = (
+        [str(decision.id) for decision in getattr(plan, "decisions", ())]
+        if plan is not None
+        else [str(key) for key in raw]
+    )
+    answered = {
+        str(decision_id)
+        for decision_id, entry in raw.items()
+        if isinstance(entry, dict) and "answer" in entry
+    }
+    missing = [key for key in authored_ids if key not in answered]
+    if missing:
+        raise PlanFileWorkError(
+            f"stamped plan is missing accepted answers for: {', '.join(missing)}"
         )
+    decided_by = frontmatter.get("decided_by")
+    decided_via = frontmatter.get("decided_via")
+    if not isinstance(decided_by, str) or decided_by not in (
+        "reviewer",
+        "agent",
+        "auto",
+    ):
+        raise PlanFileWorkError(
+            f"stamped plan has invalid acceptance attribution: {decided_by!r}"
+        )
+    if decided_via is not None and (
+        not isinstance(decided_via, str)
+        or decided_via not in ("cli", "tui", "telegram", "mobile", "auto_resolution")
+    ):
+        raise PlanFileWorkError(
+            f"stamped plan has invalid acceptance surface: {decided_via!r}"
+        )
+    try:
+        from sase.sdd.plan_validate import validate_plan_file
+
+        archived = validate_plan_file(source_path, "epic", mode="archived")
+    except Exception as exc:
+        raise PlanFileWorkError(
+            f"stamped plan failed archived validation: {exc}"
+        ) from exc
+    if not getattr(archived, "ok", False):
+        details = getattr(archived, "diagnostics", [])
+        raise PlanFileWorkError(f"stamped plan failed archived validation: {details}")
+    try:
+        from sase.sdd.plan_decision_handoff import load_stamped_decisions
     except Exception as exc:
         raise PlanFileWorkError(
             f"stamped plan answers failed validation: {exc}"
         ) from exc
-    errors = resolved.get("errors") if isinstance(resolved, dict) else []
-    if errors:
-        raise PlanFileWorkError(f"stamped plan answers failed validation: {errors}")
-    values = resolved.get("values") if isinstance(resolved, dict) else {}
-    if isinstance(values, dict):
-        for decision_id, value in stamped.items():
-            if values.get(decision_id) != value:
-                raise PlanFileWorkError(
-                    f"stamped plan answer for {decision_id!r} conflicts with "
-                    "effective defaults"
-                )
     try:
-        from sase.sdd.plan_decision_freeze import write_frozen_definitions_if_missing
-
-        raw_definitions = (
-            resolved.get("definitions") if isinstance(resolved, dict) else None
+        stamped = load_stamped_decisions(source_path, "epic")
+    except Exception as exc:
+        raise PlanFileWorkError(
+            f"stamped plan answers failed validation: {exc}"
+        ) from exc
+    if stamped is None or getattr(stamped, "decided_by", None) is None:
+        raise PlanFileWorkError("stamped plan has no accepted answers")
+    values = dict(getattr(stamped, "values", {}) or {})
+    uncovered = [key for key in authored_ids if key not in values]
+    if uncovered:
+        raise PlanFileWorkError(
+            f"stamped plan is missing accepted answers for: {', '.join(uncovered)}"
         )
-        if isinstance(raw_definitions, list) and raw_definitions:
-            write_frozen_definitions_if_missing(
-                source_path,
-                [dict(item) for item in raw_definitions if isinstance(item, dict)],
+    for decision_id in authored_ids:
+        front_answer = raw.get(decision_id)
+        front_value = (
+            front_answer.get("answer") if isinstance(front_answer, dict) else None
+        )
+        if values.get(decision_id) != front_value:
+            raise PlanFileWorkError(
+                f"stamped plan answer for {decision_id!r} conflicts with "
+                "accepted answers"
             )
-    except Exception:
-        pass
 
 
 def _launch_hooks() -> _PlanFileWorkLaunchHooks:

@@ -107,7 +107,7 @@ def _acceptance_meta_path(bundle_path: Path, acceptance_id: str) -> Path:
     return bundle_path / f".acceptance_{acceptance_id}.json"
 
 
-def write_acceptance_meta(
+def _write_acceptance_meta(
     bundle_path: Path, acceptance_id: str, *, source: str, caller: str
 ) -> None:
     """Persist original coordinates tied to a receipt acceptance id."""
@@ -238,7 +238,7 @@ def accept_gate_decision(
                     resolved_caller = caller or "agent"
                     if resolved_caller not in ("human", "agent"):
                         resolved_caller = "agent"
-                    write_acceptance_meta(
+                    _write_acceptance_meta(
                         bundle_path, meta_id, source=source, caller=resolved_caller
                     )
             except Exception:
@@ -489,5 +489,4 @@ __all__ = [
     "read_acceptance_meta",
     "read_current_receipt",
     "receipt_acceptance_id",
-    "write_acceptance_meta",
 ]

@@ -263,10 +263,10 @@ def test_collect_committed_paths_uses_marker_shas() -> None:
         {"cwd": "/repo", "commit_sha": ""},
         {"cwd": "", "commit_sha": "abc123"},
     ]
-    collected = guard._collect_committed_paths(
+    collected = guard._collect_committed_paths_by_repo(
         markers, list_files=lambda repo, sha: ["sase/memory/tui.md"]
     )
-    assert collected == ["sase/memory/tui.md"]
+    assert collected == {"/repo": ["sase/memory/tui.md"]}
 
 
 def test_guard_for_new_markers_fails_open(monkeypatch) -> None:

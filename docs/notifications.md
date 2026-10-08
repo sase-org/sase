@@ -982,8 +982,9 @@ When a plan or epic gate with at least one decision auto-resolves (`source`
 - dedup key `plan-decisions-receipt-<request id>`;
 - plans with no decisions post nothing.
 
-Visibility follows the Silent Notifications rules above: no unread bump, no toast, no
-bell, no modal, and no Telegram delivery, while remaining visible to `sase notify list`.
+Visibility is an intentional exception to the Silent Notifications rules: visible in the
+ACE inbox direct page and delivered quietly by Telegram, with no unread bump, toast, or
+bell, while remaining visible to `sase notify list`.
 
 ## Tags
 

@@ -735,10 +735,11 @@ def test_direct_file_decide_submission_resolves_values() -> None:
         validation, {"grouping": "mode"}, caller="human"
     )
     assert resolved is not None
-    values, rows, sheet = resolved
+    values, rows, sheet, definitions = resolved
     assert values["grouping"] == "mode"
     assert any(row.get("id") == "grouping" for row in rows)
     assert isinstance(sheet, dict)
+    assert any(d.get("id") == "grouping" for d in definitions)
 
 
 def test_show_compact_counts_and_json_attach(
