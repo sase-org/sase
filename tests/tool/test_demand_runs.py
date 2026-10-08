@@ -265,6 +265,39 @@ def test_foreground_run_records_context_usage_and_grant(
     assert grants[0]["lane"] == "fast"
 
 
+def test_instant_child_records_nonzero_tree_peak_from_rusage_floor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A child that exits before any tree sample still records a real peak.
+
+    The only tree scan either reads the exited-but-unreaped zombie as RSS 0
+    or misses the vanished tree entirely; the recorded peak then floors at
+    the reaped child's own ``ru_maxrss``, which is nonzero for a real child.
+    """
+
+    _clean_env(monkeypatch, tmp_path)
+    _agent_env(monkeypatch)
+    assert (
+        execute_tool_run(
+            ToolRunCliRequest(
+                quiet=True,
+                verbose=False,
+                tail_lines=50,
+                words=("--", "true"),
+            )
+        )
+        == 0
+    )
+    capsys.readouterr()
+    shown = tool_run_show(_latest_run_id())
+    usage = (shown["run"].get("demand") or {}).get("usage")
+    assert isinstance(usage, dict)
+    assert usage["max_process_rss_kib"] > 0
+    assert usage["peak_tree_rss_kib"] > 0
+
+
 def test_demand_recording_failure_keeps_the_run_green(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

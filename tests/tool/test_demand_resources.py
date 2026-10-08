@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from sase.tool.demand import (
+    TREE_RSS_UNAVAILABLE,
     build_resource_usage,
     format_ceiling_seconds,
     format_cpu_cores,
@@ -129,6 +130,60 @@ def test_build_resource_usage_normalizes_darwin_bytes(
     monkeypatch.setattr(sys, "platform", "darwin")
     usage = build_resource_usage(_Rusage(0.0, 0.0, 2048 * 1024))
     assert usage["max_process_rss_kib"] == 2048
+
+
+def test_build_resource_usage_floors_zero_tree_peak_at_process_rss() -> None:
+    """A zombie-state tree sample reads RSS 0; the peak floors at ru_maxrss."""
+
+    usage = build_resource_usage(
+        _Rusage(1.5, 0.25, 2048),
+        peak_tree_rss_kib=0,
+        tree_rss_samples=1,
+    )
+    assert usage["peak_tree_rss_kib"] == 2048
+    assert usage["tree_rss_samples"] == 1
+
+
+def test_build_resource_usage_floors_missing_tree_peak_at_process_rss() -> None:
+    """A child gone before every sample leaves no peak; ru_maxrss fills it."""
+
+    usage = build_resource_usage(_Rusage(1.5, 0.25, 2048))
+    assert usage["peak_tree_rss_kib"] == 2048
+    assert usage["tree_rss_samples"] == 0
+
+
+def test_build_resource_usage_keeps_smaller_nonzero_tree_peak() -> None:
+    """Only a missing or zero peak falls back; a measured peak stands."""
+
+    usage = build_resource_usage(
+        _Rusage(1.5, 0.25, 2048),
+        peak_tree_rss_kib=512,
+        tree_rss_samples=2,
+    )
+    assert usage["peak_tree_rss_kib"] == 512
+
+
+def test_build_resource_usage_no_floor_when_tree_unavailable() -> None:
+    """Without a process tree to sample, no process-RSS value poses as one."""
+
+    usage = build_resource_usage(
+        _Rusage(1.5, 0.25, 2048), availability=[TREE_RSS_UNAVAILABLE]
+    )
+    assert "peak_tree_rss_kib" not in usage
+    assert usage["availability"] == [TREE_RSS_UNAVAILABLE]
+
+
+def test_build_resource_usage_floor_uses_darwin_normalized_rss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "platform", "darwin")
+    usage = build_resource_usage(
+        _Rusage(0.0, 0.0, 2048 * 1024),
+        peak_tree_rss_kib=0,
+        tree_rss_samples=1,
+    )
+    assert usage["max_process_rss_kib"] == 2048
+    assert usage["peak_tree_rss_kib"] == 2048
 
 
 def test_format_kib() -> None:

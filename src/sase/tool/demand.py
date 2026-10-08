@@ -377,11 +377,16 @@ def build_resource_usage(
     ``ru_maxrss`` is KiB on Linux and bytes on macOS; it is normalized to
     KiB. A ``None`` rusage (the ``Popen`` fallback path) records no CPU or
     max-RSS facts and carries the ``rusage unavailable`` reason instead of
-    zeros. Never raises.
+    zeros. When no nonzero tree sample exists — the child exited before the
+    sampler's first tick, so the scan read its unreaped zombie as RSS 0 or
+    missed the vanished tree entirely — the peak floors at the reaped
+    child's own max RSS, a measured value rather than a guess. The floor
+    never applies where there was no tree to sample. Never raises.
     """
 
     reasons = [str(item) for item in availability if str(item)]
     usage: dict[str, Any] = {}
+    max_rss_kib: int | None = None
     if rusage is not None:
         try:
             user_ms = int(round(float(rusage.ru_utime) * 1000))
@@ -392,13 +397,23 @@ def build_resource_usage(
         else:
             if sys.platform == "darwin":
                 max_rss = max_rss // 1024
+            max_rss_kib = max(0, max_rss)
             usage["cpu_user_ms"] = max(0, user_ms)
             usage["cpu_system_ms"] = max(0, system_ms)
-            usage["max_process_rss_kib"] = max(0, max_rss)
+            usage["max_process_rss_kib"] = max_rss_kib
     if rusage is None and RUSAGE_UNAVAILABLE not in reasons:
         reasons.append(RUSAGE_UNAVAILABLE)
+    peak: int | None = None
     if peak_tree_rss_kib is not None:
-        usage["peak_tree_rss_kib"] = max(0, int(peak_tree_rss_kib))
+        peak = max(0, int(peak_tree_rss_kib))
+    if (
+        (peak is None or peak <= 0)
+        and max_rss_kib
+        and TREE_RSS_UNAVAILABLE not in reasons
+    ):
+        peak = max_rss_kib
+    if peak is not None:
+        usage["peak_tree_rss_kib"] = peak
     usage["tree_rss_samples"] = max(0, int(tree_rss_samples))
     usage["availability"] = reasons
     return usage

@@ -180,6 +180,16 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     except OSError:
         child_pgid = proc.pid
     signals.bind_pgid(child_pgid)
+    sampler: LoadSampler | None = None
+    if recorded:
+        # First tree sample immediately after spawn: a fast child can exit
+        # before any later tick, and the scan of its unreaped zombie reads
+        # RSS 0. Sampling here narrows that window; the usage floor in
+        # ``build_resource_usage`` covers whatever still slips through.
+        sampler = LoadSampler(run_id=run_id, started=started, child_pid=child_pid)
+        sampler.maybe_sample(force=True)
+        if sampler.write_failures:
+            inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="sample")
     if recorded:
         _observe_spawned_child(
             run_id,
@@ -204,7 +214,6 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     )
     log_failed = False
     ingestor: StageIngestor | None = None
-    sampler: LoadSampler | None = None
     if recorded and ctx.events_path is not None:
         ingestor = StageIngestor(
             path=ctx.events_path,
@@ -212,11 +221,6 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             compact=ctx.compact,
             event_max_bytes=int(policy.get("event_max_bytes") or 0),
         )
-    if recorded:
-        sampler = LoadSampler(run_id=run_id, started=started, child_pid=child_pid)
-        sampler.maybe_sample(force=True)
-        if sampler.write_failures:
-            inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="sample")
 
     def on_stdout(chunk: bytes) -> None:
         nonlocal log_failed
