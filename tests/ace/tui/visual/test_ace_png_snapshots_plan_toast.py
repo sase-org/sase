@@ -95,3 +95,43 @@ async def test_tale_plan_toast_png_snapshot(
             "plan_toast_tale_120x40",
             title="ACE tale plan approval toast",
         )
+
+
+async def test_tale_plan_toast_decisions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tale toast with decisions shows the decision and memory counts."""
+    patch_startup_loaders(monkeypatch)
+    notification = _make(
+        action="PlanApproval",
+        action_data={
+            "agent_name": "y4",
+            "original_plan_file": "/plans/bead_wait_store_diagnostics.md",
+            "plan_tier": "tale",
+        },
+        notes=[
+            "Tale ready for review: bead_wait_store_diagnostics.md",
+            "2 decisions · 🧠 1",
+        ],
+    )
+    message, severity = _format_notification_toast(notification)
+    assert "2 decisions" in message
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        notifications=True,
+        startup_policy="real",
+    ) as page:
+        page.app.notify(message, severity=severity)
+        await page.wait_for(lambda _s: _toast_is_mounted(page))
+        page.app.screen.set_focus(None)
+        await wait_for_visual_idle(page)
+        await stabilize_toast_frame(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "plan_toast_tale_decisions_120x40",
+            title="ACE tale plan approval toast with decisions",
+        )

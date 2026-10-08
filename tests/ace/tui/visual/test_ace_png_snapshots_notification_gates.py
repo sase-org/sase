@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.notification_modal import NotificationModal
+from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.summary import (
     GateSummary,
     GateSummaryBranch,
@@ -14,6 +17,10 @@ from sase.notification_gates.summary import (
 from sase.notifications import Notification
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+)
+from tests.ace.tui.visual._ace_plan_decisions_png_fixtures import (
+    TALE_MEMORY_PLAN,
+    decision_gate_bundle,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -138,11 +145,105 @@ def _answered_summary() -> GateSummary:
     )
 
 
-def _modal_with_cached_summary(summary: GateSummary) -> NotificationModal:
-    notification = _notification()
+def _modal_with_cached_summary(
+    summary: GateSummary,
+    notification: Notification | None = None,
+) -> NotificationModal:
+    notification = notification if notification is not None else _notification()
     modal = NotificationModal([notification])
     modal._gate_summary_cache[notification.id] = ((), summary)
     return modal
+
+
+def _plan_decisions_notification() -> Notification:
+    return Notification(
+        id="visual-plan-decisions",
+        timestamp="2026-08-01T00:57:22-04:00",
+        sender="plan",
+        icon="📋",
+        notes=[
+            "Tale ready for review: visual-plan-decisions.md",
+            "2 decisions · 🧠 1",
+        ],
+        tags=["plan"],
+        action="PlanApproval",
+        action_data={
+            "request_id": "visual-plan-decisions",
+            "original_plan_file": "visual-plan-decisions.md",
+            "plan_tier": "tale",
+        },
+        files=["plan.md"],
+    )
+
+
+def _plan_gate_summary(
+    gate: GateBranchData,
+    definitions: list[dict],
+    *,
+    answered: bool,
+) -> GateSummary:
+    """Project a real tale plan gate plus frozen decisions into a summary."""
+    by_id = {option.id: option for option in gate.options}
+    group_labels = {
+        frozenset(group.options): (group.label or group.options[0], group.icon)
+        for group in gate.groups
+    }
+    selected = ("approve", "commit") if answered else ()
+    branches = []
+    for branch in gate.branches:
+        first = by_id[branch[0]]
+        if len(branch) == 1:
+            label, icon = first.label, first.icon
+        else:
+            label, icon = group_labels[frozenset(branch)]
+        branches.append(
+            GateSummaryBranch(
+                option_ids=branch,
+                label=label,
+                icon=icon,
+                is_primary=branch == gate.primary_branch,
+                options=tuple(
+                    GateSummaryOption(
+                        id=option.id,
+                        label=option.label,
+                        icon=option.icon,
+                        argv=tuple(option.command.argv),
+                        feedback=option.feedback,
+                        default_selected=option.default_selected,
+                        selected=option.id in selected,
+                        input_fields=tuple(option.inputs),
+                    )
+                    for option in (by_id[option_id] for option_id in branch)
+                ),
+            )
+        )
+    values = (
+        {"grouping": "mode", "tui_note": False}
+        if answered
+        else {
+            str(item.get("id")): item.get("effective_default", item.get("default"))
+            for item in definitions
+            if str(item.get("id", ""))
+        }
+    )
+    return GateSummary(
+        kind="plan",
+        display_title="Plan Approval",
+        title="Keymap help overlay",
+        request_id="visual-plan-decisions",
+        status="answered" if answered else "pending",
+        deadline_at=(None if answered else "2026-08-01T01:09:22-04:00"),
+        query=gate.query,
+        branches=tuple(branches),
+        selected_option_ids=selected,
+        feedback=("Grouping by mode reads better. Ship it." if answered else None),
+        attachments=("plan.md",),
+        error_count=0,
+        bundle_path=None,
+        unavailable_reason=None,
+        plan_decision_definitions=tuple(definitions),
+        plan_decision_values=values,
+    )
 
 
 def _patch_modal_determinism(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -215,4 +316,82 @@ async def test_answered_custom_gate_card_png_snapshot(
             page,
             "notification_gate_answered_120x40",
             title="ACE answered custom gate detail card",
+        )
+
+
+async def test_pending_plan_gate_decisions_card_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Pending tale plan gate card with a Decisions block from real data."""
+    _patch_modal_determinism(monkeypatch)
+    _plan, gate, definitions = decision_gate_bundle(
+        tmp_path,
+        monkeypatch,
+        name="inbox-plan-decisions.md",
+        content=TALE_MEMORY_PLAN,
+    )
+
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(
+            _modal_with_cached_summary(
+                _plan_gate_summary(gate, definitions, answered=False),
+                _plan_decisions_notification(),
+            )
+        )
+        await page.expect_modal("NotificationModal")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Awaiting your decision")
+        assert_page_svg_contains(page, "Decisions")
+        assert_page_svg_contains(page, "grouping")
+        ace_png_visual.assert_page_png(
+            page,
+            "notification_gate_plan_decisions_pending_120x40",
+            title="ACE pending plan gate detail card with decisions",
+        )
+
+
+async def test_answered_plan_gate_decisions_card_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Answered tale plan gate card with a changed decision value."""
+    _patch_modal_determinism(monkeypatch)
+    _plan, gate, definitions = decision_gate_bundle(
+        tmp_path,
+        monkeypatch,
+        name="inbox-plan-decisions-answered.md",
+        content=TALE_MEMORY_PLAN,
+    )
+
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(
+            _modal_with_cached_summary(
+                _plan_gate_summary(gate, definitions, answered=True),
+                _plan_decisions_notification(),
+            )
+        )
+        await page.expect_modal("NotificationModal")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Answered")
+        assert_page_svg_contains(page, "Decisions")
+        assert_page_svg_contains(page, "grouping: mode")
+        ace_png_visual.assert_page_png(
+            page,
+            "notification_gate_plan_decisions_answered_120x40",
+            title="ACE answered plan gate detail card with decisions",
         )
