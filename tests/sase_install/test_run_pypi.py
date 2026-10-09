@@ -235,7 +235,7 @@ def test_pypi_run_success_end_to_end(tmp_path: Path, monkeypatch: Any) -> None:
         "✓ sase 0.17.1 from PyPI is installed (sase-core-rs 0.35.4 · 0 plugins)" in out
     )
     assert "update later: sase update" in out
-    assert "just install-dev" not in out  # engine-dev has not landed yet
+    assert "develop on this checkout: just install-dev" in out  # engine-dev landed
     assert "✓ Take the code-swap lock — code-swap writer lock" in err
     assert "✓ Install from PyPI" in err
     assert "✓ Verify the new install" in err
@@ -689,5 +689,5 @@ def test_progress_plain_quiet_and_live() -> None:
     assert install_ui.format_duration(62.0) == "1:02"
     assert install_ui.render_pypi_success(_pypi_plan()) == (
         "✓ sase from PyPI is installed (sase-core-rs · 0 plugins)\n"
-        "  update later: sase update"
+        "  update later: sase update · develop on this checkout: just install-dev"
     )

@@ -11,8 +11,8 @@ only uv; it never imports ``sase`` because it must work when the installed
 The engine-core phase built the read-only half: guards, the environment
 snapshot, desired-state planning, the plan panel and JSON renderers, and the
 confirmation policy, with ``-n`` working for both modes. The engine-pypi phase
-wired PyPI mode end to end (lock, swap, verify, restart); dev mode still
-previews until the engine-dev phase lands.
+wired PyPI mode end to end (lock, swap, verify, restart); the engine-dev phase
+wired dev mode end to end (prepare, lock, swap, re-apply, verify, restart).
 """
 
 from __future__ import annotations
@@ -39,12 +39,6 @@ EXIT_OK = 0
 EXIT_FAILED = 1
 EXIT_REFUSED = 2
 EXIT_INTERRUPTED = 130
-
-_DEV_NOT_IMPLEMENTED_MESSAGE = (
-    "dev execution is not wired yet: the dev pipeline (prepare, swap, "
-    "re-apply, verify) lands with the engine-dev phase. "
-    "This preview changed nothing."
-)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -380,7 +374,7 @@ def _run(
             _write_sync_report(stdout, sync_results, width=width, color=color)
             return EXIT_OK
         if plan.noop:
-            stdout.write(install_ui.render_noop_line(plan) + "\n")
+            stdout.write(_noop_line(plan) + "\n")
             for warning in (*probe_warnings, *plan.warnings):
                 stdout.write(f"\u26a0 {warning}\n")
             _write_sync_report(stdout, sync_results, width=width, color=color)
@@ -409,7 +403,7 @@ def _run(
             stdout.write(install_ui.render_summary_line(plan, dry_run=False) + "\n")
             stderr.write(install_env.non_tty_text(prog) + "\n")
         elif plan.noop:
-            stdout.write(install_ui.render_noop_line(plan) + "\n")
+            stdout.write(_noop_line(plan) + "\n")
             stderr.write(install_env.non_tty_text(prog) + "\n")
         else:
             stdout.write(
@@ -417,16 +411,6 @@ def _run(
             )
             stderr.write(install_env.non_tty_text(prog) + "\n")
         return EXIT_REFUSED
-
-    # Dev mode still previews: its repeat-run no-op answers here until the
-    # engine-dev phase wires the dev pipeline. PyPI mode always flows into
-    # the pipeline so the no-op verdict includes the quick health probe.
-    if mode == "dev" and plan.noop and not options.force:
-        if as_json:
-            stdout.write(install_ui.render_json(plan, dry_run=False, outcome="noop"))
-        else:
-            stdout.write(install_ui.render_noop_line(plan) + "\n")
-        return EXIT_OK
 
     if plan.consequential and not args.yes:
         if not as_json and not quiet and not plan.noop:
@@ -439,33 +423,58 @@ def _run(
             stderr.write("cancelled \u2014 nothing changed\n")
             return EXIT_FAILED
 
-    if mode == "dev":
-        stderr.write(_DEV_NOT_IMPLEMENTED_MESSAGE + "\n")
-        return EXIT_FAILED
-
-    outcome = install_run.run_pypi_pipeline(
-        plan=plan,
-        state=state,
-        options=install_run.PipelineOptions(
-            env=env,
-            sase_home=str(install_env.sase_home(env)),
-            tool_dir=str(tool_path),
-            bin_dir=str(bin_path),
-            verbose=verbose,
-            quiet=quiet,
-            as_json=as_json,
-            force=bool(args.force),
-            lock_timeout=(
-                lock_timeout
-                if lock_timeout is not None
-                else install_run.LOCK_TIMEOUT_SECONDS
-            ),
+    pipeline_options = install_run.PipelineOptions(
+        env=env,
+        sase_home=str(install_env.sase_home(env)),
+        tool_dir=str(tool_path),
+        bin_dir=str(bin_path),
+        verbose=verbose,
+        quiet=quiet,
+        as_json=as_json,
+        force=bool(args.force),
+        lock_timeout=(
+            lock_timeout
+            if lock_timeout is not None
+            else install_run.LOCK_TIMEOUT_SECONDS
         ),
-        stdout=stdout,
-        stderr=stderr,
-        run=command_runner or install_run.default_runner,  # type: ignore[arg-type]
+        sync=bool(getattr(args, "sync", False)),
     )
+    # Both modes flow into their pipeline so the repeat-run no-op verdict
+    # includes the live probes (health, and for dev the core stamp, the
+    # installed core source, and the LSP binary).
+    if mode == "dev":
+        outcome = install_run.run_dev_pipeline(
+            plan=plan,
+            state=state,
+            options=pipeline_options,
+            stdout=stdout,
+            stderr=stderr,
+            run=command_runner or install_run.default_runner,  # type: ignore[arg-type]
+        )
+    else:
+        outcome = install_run.run_pypi_pipeline(
+            plan=plan,
+            state=state,
+            options=pipeline_options,
+            stdout=stdout,
+            stderr=stderr,
+            run=command_runner or install_run.default_runner,  # type: ignore[arg-type]
+        )
     return EXIT_OK if outcome.exit_code == 0 else EXIT_FAILED
+
+
+def _noop_line(plan: install_plan.InstallPlan) -> str:
+    """Render the dry-run no-op line, with SHAs for dev runs when possible."""
+    if plan.mode != "dev":
+        return install_ui.render_noop_line(plan)
+    checkout_short, core_short, _, _ = install_run.dev_summary_shas(
+        checkout_root=plan.checkout_root, core_dir=plan.core_dir
+    )
+    if checkout_short == "unknown" or core_short == "unknown":
+        return install_ui.render_noop_line(plan)
+    return install_ui.render_noop_line(
+        plan, checkout_short=checkout_short, core_short=core_short
+    )
 
 
 def _durable_refusal(

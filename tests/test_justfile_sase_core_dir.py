@@ -289,6 +289,7 @@ def test_install_group_lists_venv_recipes_with_docs() -> None:
     assert "install-venv-visual" in output
     assert "install-venv-terminal-smoke" in output
     assert "Install the latest sase release from PyPI" in output
+    assert "Install this checkout + its paired sase-core" in output
     assert "checkout's .venv" in output
 
 
@@ -306,6 +307,38 @@ def test_install_recipe_refuses_inside_agents() -> None:
     assert result.returncode == 2
     assert "won't run inside a SASE agent" in output
     assert "just install-venv" in output
+
+
+def test_install_dev_recipe_refuses_inside_agents() -> None:
+    result = subprocess.run(
+        ["just", "--justfile", str(ROOT / "Justfile"), "install-dev", "-n"],
+        cwd=ROOT,
+        env=_clean_sase_core_env({"SASE_AGENT": "1"}),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 2
+    assert "won't run inside a SASE agent" in output
+    assert "just install-venv" in output
+
+
+def test_install_dev_recipe_help_lists_dev_options() -> None:
+    result = subprocess.run(
+        ["just", "--justfile", str(ROOT / "Justfile"), "install-dev", "--help"],
+        cwd=ROOT,
+        env=_clean_sase_core_env({}),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0
+    assert "Install this checkout plus its paired sase-core" in output
+    assert "--sync" in output
 
 
 def test_install_recipe_help_lists_pypi_options() -> None:

@@ -230,6 +230,21 @@ install *args:
     fi; \
     uv run --no-project --quiet --python '>=3.12' -- python -I -S "{{ justfile_directory() }}/tools/sase_install" pypi "$@"
 
+# The global dev installer runs through uv with the same verified flag set
+# as `just install` above. It installs this checkout (editable) plus its
+# pin-paired sase-core (editable) as your `sase` command, in exactly the
+# shape `sase update` maintains. Refuses inside SASE agents and ephemeral
+# workspaces; needs `uv`, `git`, and `cargo`.
+[group('install')]
+[doc('Install this checkout + its paired sase-core as your `sase` command')]
+[positional-arguments]
+install-dev *args:
+    @if ! command -v uv >/dev/null 2>&1; then \
+        printf "✗ just install-dev needs uv: install it from https://docs.astral.sh/uv/getting-started/installation/\n" >&2; \
+        exit 2; \
+    fi; \
+    uv run --no-project --quiet --python '>=3.12' -- python -I -S "{{ justfile_directory() }}/tools/sase_install" dev "$@"
+
 # Install this project's plugins.required into the active venv, verified.
 # Reads plugins.required from sase/sase.yml (not a hard-coded name list) and
 # resolves each entry from a linked/sibling checkout or PyPI, then imports

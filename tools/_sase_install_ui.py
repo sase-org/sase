@@ -281,9 +281,25 @@ def render_plan_panel(
     return "\n".join(lines)
 
 
-def render_noop_line(plan: install_plan.InstallPlan) -> str:
-    """Render the repeat-run no-op summary line."""
+def render_noop_line(
+    plan: install_plan.InstallPlan,
+    *,
+    checkout_short: str | None = None,
+    core_short: str | None = None,
+) -> str:
+    """Render the repeat-run no-op summary line.
+
+    Dev runs name the checkout and core SHAs when the caller resolved them;
+    without SHAs the generic line is used (for example dry-run previews
+    where git may be unavailable).
+    """
     if plan.mode == "dev":
+        if checkout_short is not None and core_short is not None:
+            return (
+                f"\u2713 sase already runs this checkout ({checkout_short}) "
+                f"with sase-core {core_short} "
+                "\u2014 nothing to do (--force reinstalls)"
+            )
         return (
             "\u2713 sase already runs this checkout "
             "\u2014 nothing to do (--force reinstalls)"
@@ -488,6 +504,22 @@ def plan_document(
                 "lines": list(plan.overrides_lines),
             }
         )
+    if plan.mode == "dev":
+        commands.append(
+            {
+                "purpose": "re-apply",
+                # Mirrors the pipeline's re-apply argv (dev-update Cargo
+                # profile); the literal is duplicated here because this
+                # module must not import the run module.
+                "argv": [
+                    "just",
+                    "-f",
+                    f"{plan.checkout_root}/Justfile",
+                    "rust-dev-install-uv-tool",
+                ],
+                "env": {"SASE_RUST_DEV_PROFILE": "dev-update"},
+            }
+        )
     return {
         "schema_version": SCHEMA_VERSION,
         "command": plan.command,
@@ -607,7 +639,32 @@ def render_pypi_success(plan: install_plan.InstallPlan) -> str:
     core = f"sase-core-rs {core_version}" if core_version else "sase-core-rs"
     return (
         f"✓ {host} from PyPI is installed ({core} · {len(plugins)} {noun})\n"
-        "  update later: sase update"
+        "  update later: sase update · develop on this checkout: just install-dev"
+    )
+
+
+def render_dev_success(
+    plan: install_plan.InstallPlan,
+    *,
+    checkout_short: str,
+    core_short: str,
+    pin_short: str,
+    commits_past_pin: int | None,
+) -> str:
+    """Render the two-line dev success summary (stdout).
+
+    *commits_past_pin* is the core HEAD's distance past the pin (``None``
+    when git could not answer); a positive distance renders as ``+ N``.
+    """
+    del plan
+    pin = f"pin {pin_short}"
+    if commits_past_pin:
+        pin += f" + {commits_past_pin}"
+    return (
+        f"✓ sase now runs this checkout ({checkout_short}) "
+        f"with sase-core {core_short} ({pin})\n"
+        "  Python edits are live · after Rust edits: just install-dev "
+        "· back to the release: just install"
     )
 
 
@@ -764,6 +821,7 @@ __all__ = [
     "pipeline_steps",
     "plan_document",
     "read_confirmation",
+    "render_dev_success",
     "render_failure_block",
     "render_json",
     "render_noop_line",
