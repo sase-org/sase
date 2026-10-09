@@ -1135,10 +1135,13 @@ entry point should construct the marker directly.
 The project can then select the document provider with
 `repos.sidecar.custom.design.ref.use: my_sase_plugin@design` and instantiate the hook
 with a `file_hooks` entry containing `use: my_sase_plugin@research-highlights` plus its
-required `command`. Provider and kind names must not collide with another installed
-provider or a reserved built-in kind. Use `sase doctor -C config.repos`,
-`sase doctor -C config.file_hooks`, and `sase file-hook list` to verify the effective
-configuration.
+required `command`. Every hook command receives the producing project's display name in
+`SASE_FILE_HOOK_PROJECT` (unset when the project is missing or `unknown`), so a
+`research-highlights` command can route on it, for example with
+`-P "$SASE_FILE_HOOK_PROJECT"` (quoted, so names with spaces stay one argument).
+Provider and kind names must not collide with another installed provider or a reserved
+built-in kind. Use `sase doctor -C config.repos`, `sase doctor -C config.file_hooks`,
+and `sase file-hook list` to verify the effective configuration.
 
 ### Example: Job Script Package
 

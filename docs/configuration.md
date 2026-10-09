@@ -3741,14 +3741,14 @@ file_hooks:
 
 Hook fields:
 
-| Field         | Type     | Required | Default           | Description                                                                                           |
-| ------------- | -------- | -------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
-| `use`         | string   | no       | -                 | Installed `sase_file_hooks` provider, qualified `<plugin>@<id>`, whose template supplies base fields. |
-| `name`        | string   | yes\*    | provider ID       | Unique lowercase slug shown in notifications and `sase file-hook list`.                               |
-| `description` | string   | no       | provider          | Human-readable purpose for the hook.                                                                  |
-| `command`     | string   | yes\*    | provider          | Shell command; the matched absolute file path is appended as its final arg.                           |
-| `filters`     | object   | no       | `{}` / provider   | Event-selection criteria. Omitted or empty means unrestricted.                                        |
-| `timeout`     | duration | no       | `120s` / provider | Per-run integer duration with an `ms`, `s`, `m`, or `h` suffix.                                       |
+| Field         | Type     | Required | Default           | Description                                                                                                                            |
+| ------------- | -------- | -------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `use`         | string   | no       | -                 | Installed `sase_file_hooks` provider, qualified `<plugin>@<id>`, whose template supplies base fields.                                  |
+| `name`        | string   | yes\*    | provider ID       | Unique lowercase slug shown in notifications and `sase file-hook list`.                                                                |
+| `description` | string   | no       | provider          | Human-readable purpose for the hook.                                                                                                   |
+| `command`     | string   | yes\*    | provider          | Shell command; the matched absolute file path is appended as its final arg. It also receives `SASE_FILE_HOOK_PROJECT` (see Execution). |
+| `filters`     | object   | no       | `{}` / provider   | Event-selection criteria. Omitted or empty means unrestricted.                                                                         |
+| `timeout`     | duration | no       | `120s` / provider | Per-run integer duration with an `ms`, `s`, `m`, or `h` suffix.                                                                        |
 
 Without `use`, `name` and `command` are required. With `use`, SASE deep-merges the local
 entry over the installed provider's template, defaults `name` to the provider ID, and
@@ -3808,7 +3808,13 @@ Matching semantics:
 - **Execution.** Runs are post-write and non-gating. Hook configuration, matching,
   persistence, spawn, or command failures never fail or block an artifact copy or a
   commit. Each matched command runs with the absolute path appended as a shell-quoted
-  final argument and reports success or failure through a SASE notification.
+  final argument and reports success or failure through a SASE notification. Every hook
+  command also receives the producing project's display name (as `sase project list`
+  shows it) in `SASE_FILE_HOOK_PROJECT`. The variable is unset when the project is
+  missing or `unknown`, and any inherited value is removed first, so quote it as
+  `"$SASE_FILE_HOOK_PROJECT"` (for example
+  `command: bob ref create --include-id -P "$SASE_FILE_HOOK_PROJECT"`); a value
+  containing spaces or shell punctuation then still arrives as one argument.
 - **Artifact store paths.** Artifact events match against the original
   repository-relative path, but the detached command receives the durable stored copy.
   That copy is content-addressed and may use a digest-suffixed basename such as

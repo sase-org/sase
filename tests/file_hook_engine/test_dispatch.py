@@ -181,6 +181,133 @@ def test_runner_reports_success_failure_and_timeout_and_is_idempotent(
     assert is_error(timeout)
 
 
+def test_runner_exports_event_project_to_hook_command(tmp_path: Path) -> None:
+    repo = init_repo(tmp_path)
+    target = repo / "report.md"
+    target.write_text("# report\n", encoding="utf-8")
+    python = shlex.quote(sys.executable)
+    code = shlex.quote(
+        "import os; print(os.environ.get('SASE_FILE_HOOK_PROJECT', '<unset>'))"
+    )
+    batch_path = emit_file_hook_events(
+        [event(repo, project="sase")],
+        hooks=[hook("show-project", f"{python} -c {code}")],
+        popen=lambda *args, **kwargs: MagicMock(),
+    )
+    assert batch_path is not None
+
+    assert execute_batch(batch_path) == 0
+
+    payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    log_text = Path(payload["runs"][0]["log_path"]).read_text(encoding="utf-8")
+    assert "project: sase" in log_text.splitlines()
+    assert log_text.rstrip().endswith("sase")
+
+
+def test_runner_quoted_project_with_spaces_arrives_as_one_argument(
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path)
+    target = repo / "report.md"
+    target.write_text("# report\n", encoding="utf-8")
+    project = "my proj; echo pwned"
+    python = shlex.quote(sys.executable)
+    code = shlex.quote("import sys; print(sys.argv[1])")
+    batch_path = emit_file_hook_events(
+        [event(repo, project=project)],
+        hooks=[hook("quote-project", f'{python} -c {code} "$SASE_FILE_HOOK_PROJECT"')],
+        popen=lambda *args, **kwargs: MagicMock(),
+    )
+    assert batch_path is not None
+
+    assert execute_batch(batch_path) == 0
+
+    payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    assert payload["runs"][0]["exit_code"] == 0
+    log_text = Path(payload["runs"][0]["log_path"]).read_text(encoding="utf-8")
+    assert log_text.rstrip().endswith(project)
+
+
+def test_runner_unknown_project_leaves_variable_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path)
+    target = repo / "report.md"
+    target.write_text("# report\n", encoding="utf-8")
+    monkeypatch.setenv("SASE_FILE_HOOK_PROJECT", "inherited")
+    python = shlex.quote(sys.executable)
+    code = shlex.quote(
+        "import os; print(os.environ.get('SASE_FILE_HOOK_PROJECT', '<unset>'))"
+    )
+    batch_path = emit_file_hook_events(
+        [event(repo, project="unknown")],
+        hooks=[hook("show-project", f"{python} -c {code}")],
+        popen=lambda *args, **kwargs: MagicMock(),
+    )
+    assert batch_path is not None
+
+    assert execute_batch(batch_path) == 0
+
+    payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    log_text = Path(payload["runs"][0]["log_path"]).read_text(encoding="utf-8")
+    assert "project: -" in log_text.splitlines()
+    assert log_text.rstrip().endswith("<unset>")
+
+
+def test_runner_event_project_replaces_inherited_value(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path)
+    target = repo / "report.md"
+    target.write_text("# report\n", encoding="utf-8")
+    monkeypatch.setenv("SASE_FILE_HOOK_PROJECT", "inherited")
+    python = shlex.quote(sys.executable)
+    code = shlex.quote(
+        "import os; print(os.environ.get('SASE_FILE_HOOK_PROJECT', '<unset>'))"
+    )
+    batch_path = emit_file_hook_events(
+        [event(repo, project="sase")],
+        hooks=[hook("show-project", f"{python} -c {code}")],
+        popen=lambda *args, **kwargs: MagicMock(),
+    )
+    assert batch_path is not None
+
+    assert execute_batch(batch_path) == 0
+
+    payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    log_text = Path(payload["runs"][0]["log_path"]).read_text(encoding="utf-8")
+    assert log_text.rstrip().endswith("sase")
+
+
+def test_runner_batch_without_project_still_runs(tmp_path: Path) -> None:
+    repo = init_repo(tmp_path)
+    target = repo / "report.md"
+    target.write_text("# report\n", encoding="utf-8")
+    python = shlex.quote(sys.executable)
+    code = shlex.quote(
+        "import os; print(os.environ.get('SASE_FILE_HOOK_PROJECT', '<unset>'))"
+    )
+    batch_path = emit_file_hook_events(
+        [event(repo)],
+        hooks=[hook("show-project", f"{python} -c {code}")],
+        popen=lambda *args, **kwargs: MagicMock(),
+    )
+    assert batch_path is not None
+    payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    del payload["runs"][0]["project"]
+    batch_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert execute_batch(batch_path) == 0
+
+    payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    assert payload["runs"][0]["exit_code"] == 0
+    log_text = Path(payload["runs"][0]["log_path"]).read_text(encoding="utf-8")
+    assert "project: -" in log_text.splitlines()
+    assert log_text.rstrip().endswith("<unset>")
+
+
 def test_pruning_removes_only_expired_audit_files(tmp_path: Path) -> None:
     root = Path(os.environ["SASE_HOME"]).expanduser() / "file_hooks"
     old = root / "runs" / "old.log"

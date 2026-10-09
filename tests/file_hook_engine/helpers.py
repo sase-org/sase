@@ -69,11 +69,12 @@ def event(
     *,
     agent_name: str | None = None,
     cause: str = "user",
+    project: str = "sase",
 ) -> CapturedFileEvent:
     return CapturedFileEvent(
         abs_path=str(repo / path),
         repo_root=str(repo),
-        project="sase",
+        project=project,
         repo_kind="sidecar:research",
         sidecar_role="research",
         rel_path=path,

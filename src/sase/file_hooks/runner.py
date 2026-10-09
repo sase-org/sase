@@ -95,12 +95,14 @@ def _write_run_log(
     cwd: str,
     output: str,
     outcome: str,
+    project: str | None = None,
 ) -> None:
     path.write_text(
         "\n".join(
             [
                 f"command: {command_line}",
                 f"cwd: {cwd}",
+                f"project: {project if project is not None else '-'}",
                 f"outcome: {outcome}",
                 "",
                 output,
@@ -108,6 +110,17 @@ def _write_run_log(
         ),
         encoding="utf-8",
     )
+
+
+def _exported_hook_project(run: dict[str, Any]) -> str | None:
+    """Return the project name to export, or None when it must stay unset."""
+    # ``.get`` so a batch written by an older sase still runs.
+    raw = run.get("project")
+    if not isinstance(raw, str):
+        return None
+    if not raw.strip() or raw.strip() == "unknown":
+        return None
+    return raw
 
 
 def _notify_run(
@@ -132,7 +145,8 @@ def _notify_run(
         f"command: {command_line}",
         f"file: {run['rel_path']}",
         f"operation: {run['op']}",
-        f"project: {run['project']}",
+        # ``.get`` so a batch written by an older sase still runs.
+        f"project: {run.get('project') or '-'}",
         f"repository: {run['repo_kind']}",
         # ``.get`` so a batch written before agent attribution existed still
         # executes and notifies.
@@ -163,12 +177,17 @@ def _execute_run(batch_id: str, run: dict[str, Any]) -> dict[str, Any]:
     exit_code: int | None = None
     failure: str | None = None
     output = ""
+    hook_project = _exported_hook_project(run)
+    child_env = os.environ.copy()
+    child_env.pop("SASE_FILE_HOOK_PROJECT", None)
+    if hook_project is not None:
+        child_env["SASE_FILE_HOOK_PROJECT"] = hook_project
     try:
         completed = subprocess.run(
             command_line,
             shell=True,
             cwd=str(run["repo_root"]),
-            env=os.environ.copy(),
+            env=child_env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -195,6 +214,7 @@ def _execute_run(batch_id: str, run: dict[str, Any]) -> dict[str, Any]:
         cwd=str(run["repo_root"]),
         output=output,
         outcome=failure or "success",
+        project=hook_project,
     )
     _notify_run(
         run,
