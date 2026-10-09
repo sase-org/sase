@@ -1430,7 +1430,8 @@ bead-perf-smoke *args: _setup
 
 # Run the scale-aware bead benchmark over synthetic corpora (sase-1h8.1).
 # Slow: generates 1/2/4/8x corpora under /tmp and records binding, CLI,
-# mutation, and TUI timings. Record-only: no thresholds are enforced.
+# mutation, and TUI timings. Record-only by default; append --check-gate
+# for the strict all-criteria A1 enforcement (sase-1h8.14).
 bead-perf-scale *args: _setup
     @printf "\n---------- Scaled-corpus bead benchmark (sase-1h8.1) ----------\n"
     mkdir -p sdd/plans/202610/perf_artifacts
@@ -1461,6 +1462,29 @@ bead-perf-scale-record *args: _setup
         --runs 2 \
         --only show_detail_open,show_detail_closed,ready,blocked,list_default,list_closed_20,stats,search \
         --output sdd/plans/202605/perf_artifacts/bead_perf_scale4.json \
+        {{ args }}
+
+# A1 history-independence gate over generated corpora (sase-1h8.14). Runs
+# 1x+4x with the gate op set. Blocking: the ready p95 ratio (the one
+# history-independent read today). Advisory-but-recorded: the four ratio
+# criteria that still miss plus all three absolute ceilings, because
+# shared-runner wall clocks are contention-sensitive (see
+# docs/perf_runbook.md "Bead history-independence gate"). Tolerance 0.5 is
+# the runner-noise calibration; the strict all-criteria <10% check lives in
+# `just bead-perf-scale --check-gate` locally. --gate-allow names known
+# misses (each cites its sase-1h8.14 follow-up); they are measured and
+# reported, never skipped. Drop ids off this list as follow-ups land.
+bead-perf-scale-gate *args: _setup
+    @printf "\n---------- Bead history-independence gate (sase-1h8.14) ----------\n"
+    mkdir -p sdd/plans/202605/perf_artifacts
+    {{ venv_bin }}/python tests/perf/bench_bead_scale.py \
+        --scale 1 --scale 4 \
+        --runs 3 \
+        --only show_detail_open,ready,list_active_page,note_append,update,tui_cached \
+        --check-gate \
+        --gate-tolerance 0.5 \
+        --gate-allow ratio:list,ratio:detail,ratio:note,ratio:update,abs:point-read,abs:active-list,abs:tui-nochange \
+        --output sdd/plans/202605/perf_artifacts/bead_perf_gate4.json \
         {{ args }}
 
 # Run the Python status state machine benchmark. Times the pure

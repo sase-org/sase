@@ -1,0 +1,317 @@
+{
+  "core_revision": "5c4033f6d2284eaf717795c5cfc892e12827d510",
+  "corpora": [
+    {
+      "ops": {
+        "cli_note": {
+          "count": 3.0,
+          "max_ms": 1988.037710005301,
+          "median_ms": 1500.0545820003026,
+          "min_ms": 1497.6505209997413,
+          "p95_ms": 1988.037710005301
+        },
+        "list_active_page": {
+          "count": 3.0,
+          "max_ms": 124.57132900453871,
+          "median_ms": 123.16718800138915,
+          "min_ms": 91.78915999655146,
+          "p95_ms": 124.57132900453871
+        },
+        "list_default": {
+          "count": 3.0,
+          "max_ms": 711.4218830029131,
+          "median_ms": 544.0925969960517,
+          "min_ms": 440.62848600151483,
+          "p95_ms": 711.4218830029131
+        },
+        "note_append": {
+          "count": 3.0,
+          "max_ms": 328.420511999866,
+          "median_ms": 249.16871899768012,
+          "min_ms": 219.4029380043503,
+          "p95_ms": 328.420511999866
+        },
+        "ready": {
+          "count": 3.0,
+          "max_ms": 121.19981300202198,
+          "median_ms": 117.00987299991539,
+          "min_ms": 109.07915199641138,
+          "p95_ms": 121.19981300202198
+        },
+        "show_detail_open": {
+          "count": 3.0,
+          "max_ms": 117.0676139954594,
+          "median_ms": 98.09344699897338,
+          "min_ms": 52.14642099599587,
+          "p95_ms": 117.0676139954594
+        },
+        "tui_cached": {
+          "count": 3.0,
+          "max_ms": 16.194735995668452,
+          "median_ms": 15.12876099877758,
+          "min_ms": 14.231490000383928,
+          "p95_ms": 16.194735995668452
+        },
+        "update": {
+          "count": 3.0,
+          "max_ms": 285.2304500047467,
+          "median_ms": 232.83615499531152,
+          "min_ms": 210.27121299994178,
+          "p95_ms": 285.2304500047467
+        }
+      },
+      "scale": 1.0,
+      "shape": {
+        "beads": 6899,
+        "closed": 6338,
+        "closed_fraction": 0.9186838672271344,
+        "events": 44744,
+        "events_per_bead": 6.4855776199449195,
+        "phases": 4902,
+        "plans": 900,
+        "prefix": "bench",
+        "stream_bytes": 21357821,
+        "streams": 2000,
+        "tasks": 1097
+      },
+      "store": null
+    },
+    {
+      "ops": {
+        "cli_note": {
+          "count": 3.0,
+          "max_ms": 1678.7272169967764,
+          "median_ms": 1381.7293059983058,
+          "min_ms": 1371.0636239993619,
+          "p95_ms": 1678.7272169967764
+        },
+        "list_active_page": {
+          "count": 3.0,
+          "max_ms": 209.80860500276322,
+          "median_ms": 104.17350299394457,
+          "min_ms": 95.37839100084966,
+          "p95_ms": 209.80860500276322
+        },
+        "list_default": {
+          "count": 3.0,
+          "max_ms": 1030.6602380005643,
+          "median_ms": 1001.0016589949373,
+          "min_ms": 866.5082640000037,
+          "p95_ms": 1030.6602380005643
+        },
+        "note_append": {
+          "count": 3.0,
+          "max_ms": 153.7315599998692,
+          "median_ms": 150.7409319965518,
+          "min_ms": 144.46278600371443,
+          "p95_ms": 153.7315599998692
+        },
+        "ready": {
+          "count": 3.0,
+          "max_ms": 44.65656199317891,
+          "median_ms": 43.63413000100991,
+          "min_ms": 38.39796299871523,
+          "p95_ms": 44.65656199317891
+        },
+        "show_detail_open": {
+          "count": 3.0,
+          "max_ms": 64.09060099394992,
+          "median_ms": 47.33525399933569,
+          "min_ms": 38.07561799476389,
+          "p95_ms": 64.09060099394992
+        },
+        "tui_cached": {
+          "count": 3.0,
+          "max_ms": 34.104115002264734,
+          "median_ms": 32.08364899910521,
+          "min_ms": 31.311847000324633,
+          "p95_ms": 34.104115002264734
+        },
+        "update": {
+          "count": 3.0,
+          "max_ms": 155.250639996666,
+          "median_ms": 142.5671169999987,
+          "min_ms": 135.435251002491,
+          "p95_ms": 155.250639996666
+        }
+      },
+      "scale": 2.0,
+      "shape": {
+        "beads": 13864,
+        "closed": 12705,
+        "closed_fraction": 0.9164021927293711,
+        "events": 90304,
+        "events_per_bead": 6.513560300057703,
+        "phases": 9869,
+        "plans": 1800,
+        "prefix": "bench",
+        "stream_bytes": 43254551,
+        "streams": 4000,
+        "tasks": 2195
+      },
+      "store": null
+    },
+    {
+      "ops": {
+        "cli_note": {
+          "count": 3.0,
+          "max_ms": 2196.4415260008536,
+          "median_ms": 1826.161028999195,
+          "min_ms": 1616.4517869983683,
+          "p95_ms": 2196.4415260008536
+        },
+        "list_active_page": {
+          "count": 3.0,
+          "max_ms": 300.86518600001,
+          "median_ms": 292.80269499577116,
+          "min_ms": 214.3319890019484,
+          "p95_ms": 300.86518600001
+        },
+        "list_default": {
+          "count": 3.0,
+          "max_ms": 2496.4408470041235,
+          "median_ms": 2456.376564994571,
+          "min_ms": 2257.2852759985835,
+          "p95_ms": 2496.4408470041235
+        },
+        "note_append": {
+          "count": 3.0,
+          "max_ms": 852.3035190009978,
+          "median_ms": 420.31695599871455,
+          "min_ms": 413.4860359990853,
+          "p95_ms": 852.3035190009978
+        },
+        "ready": {
+          "count": 3.0,
+          "max_ms": 141.22166900051525,
+          "median_ms": 89.6716679999372,
+          "min_ms": 81.88563400472049,
+          "p95_ms": 141.22166900051525
+        },
+        "show_detail_open": {
+          "count": 3.0,
+          "max_ms": 751.2592009952641,
+          "median_ms": 645.8529550000094,
+          "min_ms": 534.4603499979712,
+          "p95_ms": 751.2592009952641
+        },
+        "tui_cached": {
+          "count": 3.0,
+          "max_ms": 70.6290359958075,
+          "median_ms": 69.51732100424124,
+          "min_ms": 69.44801899953745,
+          "p95_ms": 70.6290359958075
+        },
+        "update": {
+          "count": 3.0,
+          "max_ms": 845.2761539956555,
+          "median_ms": 798.5896070022136,
+          "min_ms": 244.41728399688145,
+          "p95_ms": 845.2761539956555
+        }
+      },
+      "scale": 4.0,
+      "shape": {
+        "beads": 27807,
+        "closed": 25750,
+        "closed_fraction": 0.92602582083648,
+        "events": 181158,
+        "events_per_bead": 6.514834394217283,
+        "phases": 19818,
+        "plans": 3600,
+        "prefix": "bench",
+        "stream_bytes": 87021629,
+        "streams": 8000,
+        "tasks": 4389
+      },
+      "store": null
+    }
+  ],
+  "gate": {
+    "allowed_misses": [],
+    "rows": [
+      {
+        "ceiling": 1.1,
+        "criterion": "ratio:ready",
+        "hi_p95_ms": 141.2,
+        "hi_scale": 4.0,
+        "lo_p95_ms": 121.2,
+        "lo_scale": 1.0,
+        "op": "ready",
+        "ratio": 1.165,
+        "status": "fail"
+      },
+      {
+        "ceiling": 1.1,
+        "criterion": "ratio:list",
+        "hi_p95_ms": 300.9,
+        "hi_scale": 4.0,
+        "lo_p95_ms": 124.6,
+        "lo_scale": 1.0,
+        "op": "list_active_page",
+        "ratio": 2.415,
+        "status": "fail"
+      },
+      {
+        "ceiling": 1.1,
+        "criterion": "ratio:detail",
+        "hi_p95_ms": 751.3,
+        "hi_scale": 4.0,
+        "lo_p95_ms": 117.1,
+        "lo_scale": 1.0,
+        "op": "show_detail_open",
+        "ratio": 6.417,
+        "status": "fail"
+      },
+      {
+        "ceiling": 1.1,
+        "criterion": "ratio:note",
+        "hi_p95_ms": 852.3,
+        "hi_scale": 4.0,
+        "lo_p95_ms": 328.4,
+        "lo_scale": 1.0,
+        "op": "note_append",
+        "ratio": 2.595,
+        "status": "fail"
+      },
+      {
+        "ceiling": 1.1,
+        "criterion": "ratio:update",
+        "hi_p95_ms": 845.3,
+        "hi_scale": 4.0,
+        "lo_p95_ms": 285.2,
+        "lo_scale": 1.0,
+        "op": "update",
+        "ratio": 2.963,
+        "status": "fail"
+      },
+      {
+        "ceiling_ms": 20.0,
+        "criterion": "abs:point-read",
+        "op": "show_detail_open",
+        "status": "fail",
+        "worst_median_ms": 645.9,
+        "worst_scale": 4.0
+      },
+      {
+        "ceiling_ms": 50.0,
+        "criterion": "abs:active-list",
+        "op": "list_active_page",
+        "status": "fail",
+        "worst_median_ms": 292.8,
+        "worst_scale": 4.0
+      },
+      {
+        "ceiling_ms": 100.0,
+        "criterion": "abs:tui-nochange",
+        "op": "tui_cached",
+        "status": "pass",
+        "worst_median_ms": 69.5,
+        "worst_scale": 4.0
+      }
+    ],
+    "tolerance": 0.1
+  },
+  "runs": 3,
+  "tool": "bench_bead_scale"
+}

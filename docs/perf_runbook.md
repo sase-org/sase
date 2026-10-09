@@ -1612,3 +1612,75 @@ expected probe file stays empty.
 the variable, so `SASE_TUI_TRACE=0 sase tui --tmux …` (or the `SASE_TUI_PERF=0`
 equivalent) opts out. `SASE_TUI_HEAP` stays explicit because snapshots add overhead. Use
 `just view-hints-perf-check` for the automated hint-mode regression floor.
+
+## Bead history-independence gate (epic sase-1h8, phase sase-1h8.14)
+
+The A1 criterion says hot-path bead latency must not move with closed history: on 1x to
+8x scaled corpora, p95 of `ready`, default `list`, detail read, and a local mutation
+moves less than 10%, with warm point read <= 20 ms, active list <= 50 ms, and TUI board
+no-change refresh < 100 ms. The gate lives in
+`tests/perf/bench_bead_scale.py --check-gate` (unit-tested by
+`tests/perf/test_bead_scale_gate.py`). `list` is the paged active-status query that
+default `sase bead list` runs (`list_issue_page`), not the unbounded `list_issues` dump;
+the TUI op is the cached-snapshot (`previous=`) path.
+
+```bash
+# Strict local check: all criteria at <10%, 1x/2x/4x/8x.
+just bead-perf-scale -- --check-gate
+# CI gate: 1x+4x, runner-noise tolerance, known misses reported not skipped.
+just bead-perf-scale-gate
+```
+
+CI (`just bead-perf-scale-gate`, tolerance 0.5) blocks only on the `ready` p95 ratio.
+The four ratio criteria that still miss, plus all three absolute ceilings, run as
+recorded known-misses (`--gate-allow`): shared-runner wall clocks are
+contention-sensitive, and the misses below are real scaling gaps with follow-ups, not
+noise. Drop ids off the `--gate-allow` list as follow-ups land; the strict local run
+keeps enforcing everything.
+
+### Before/after (medians, ms)
+
+Before is the `bench`-phase baseline (bead sase-1h8.1 notes); after is the
+`sdd/plans/202610/perf_artifacts/bead_perf_gate.json` sweep (runs=5, core pin
+`5c4033f6`, host load ~27, so small-op medians are inflated — clean-window probes in
+parentheses).
+
+| op                                    | 1x before   | 1x after       | 8x before | 8x after |
+| ------------------------------------- | ----------- | -------------- | --------- | -------- |
+| detail read                           | 495         | 37.8 (6.9)     | ~4,800    | 60.3     |
+| ready                                 | 408         | 34.9 (4.1)     | 4,100     | 38.5     |
+| default list (paged)                  | 775†        | 65.8 (25.8)    | 8,200†    | 318.1    |
+| note append                           | 511         | 132.7 (19.4)   | —         | 257.0    |
+| update                                | 549         | 134.6 (19.1)   | —         | 258.7    |
+| TUI no-change refresh                 | 33          | 15.6 (9.8)     | —         | 133.2    |
+| remote-backed CLI note                | 4,446       | ~1,500 (1,075) | —         | —        |
+| audited `sase bead read` (live store) | 5,000–8,000 | 3,045          | —         | —        |
+
+† Before measured the unbounded `list_issues`; after measures the paged default-list
+query. Unbounded list still costs ~456 ms at 1x (Python hydration of ~6,900 rows).
+
+### Verdict and known misses
+
+`ratio:ready` passes (1.03 at 1x to 8x): ready no longer replays closed history. The
+rest miss and stay open with measured breakdowns (follow-ups on bead sase-1h8.14):
+
+- `ratio:list` (5.1x) and `abs:active-list` (318 ms at 8x): the paged query touches only
+  active rows, but hydration cost is per row and the active set itself grows 8x with the
+  corpus. Needs bounded serving for unbounded active lists.
+- `ratio:detail` (marginal formally, 3.7x in clean probes) and `abs:point-read` (25 ms
+  at 4x vs 20 ms): the `bead_show_issue_detail` binding itself scales (~6 ms at 1x to
+  ~23.5 ms at 4x) while plain `bead_show` is flat (0.6 to 0.8 ms), so the relations
+  expansion scans corpus-sized state. Facade hydration adds ~nothing.
+- `ratio:note` (1.8x) and `ratio:update` (2.1x; binding-level 2.8x/2.9x in the epic
+  notes): per-mutation cost still grows with stream count. An `strace` count during one
+  facade append (1,383 stat calls total including interpreter startup, under 2,000
+  streams) shows no full per-mutation stat sweep on that path, so the sweep theory needs
+  revisiting — the follow-up owns the breakdown into admission, publication, and binding
+  overhead.
+- `abs:tui-nochange` (133 ms at 8x, doubling per scale doubling): the no-change path
+  cost is linear in active rows. Needs row virtualization.
+
+Contention caveat: this shared host regularly sits at load 20+. One formal sweep was
+discarded outright (1x `ready` p95 88 ms vs 4 ms minutes later on the same store).
+Ratios are measured within a single run so both scales share the window, every report
+records `/proc/loadavg`, and borderline verdicts should be re-run before acting on them.

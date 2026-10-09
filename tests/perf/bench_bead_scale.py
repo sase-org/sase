@@ -2,8 +2,9 @@
 
 Measures binding reads, CLI commands, mutations, and the TUI Beads board
 loader on history-shaped stores, and emits JSON with per-op stats, the
-corpus shape, and the core revision. Record-only: this harness never
-enforces thresholds (the ``perf-gate`` phase turns enforcement on).
+corpus shape, and the core revision. Pass ``--check-gate`` to enforce the
+A1 history-independence criteria (sase-1h8.14 ``perf-gate``) instead of
+only recording.
 
 Run directly:
 
@@ -141,6 +142,19 @@ def _bench_bindings(
     measure("ready", lambda: bead_read_facade.ready(beads_dir))
     measure("blocked", lambda: bead_read_facade.blocked(beads_dir))
     measure("list_default", lambda: bead_read_facade.list_issues(beads_dir))
+    measure(
+        "list_active_page",
+        lambda: bead_read_facade.list_issue_page(
+            beads_dir,
+            statuses=[
+                Status.OPEN,
+                Status.CLAIMED,
+                Status.READY,
+                Status.SNOOZED,
+                Status.IN_PROGRESS,
+            ],
+        ),
+    )
     measure(
         "list_closed_20",
         lambda: bead_read_facade.list_issues(beads_dir, statuses=[Status.CLOSED])[:20],
@@ -384,6 +398,161 @@ def _parse_csv(values: list[str]) -> list[str]:
     return items
 
 
+# A1 history-independence gate (sase-1h8.14 perf-gate). Ratio criteria
+# compare the largest corpus against the smallest one measured in the same
+# run, so both sides see the same host load. Absolute criteria use the
+# median (the first repetition cold-builds the read model; the median of
+# three is a warm read). ``list`` here is the paged active-status query
+# that default ``sase bead list`` runs (list_issue_page), not the unbounded
+# list_issues dump; the TUI no-change refresh is the cached snapshot path.
+GATE_RATIO_OPS = (
+    ("ratio:ready", "ready"),
+    ("ratio:list", "list_active_page"),
+    ("ratio:detail", "show_detail_open"),
+    ("ratio:note", "note_append"),
+    ("ratio:update", "update"),
+)
+GATE_ABSOLUTE_OPS = (
+    # (criterion id, op, stat, ceiling_ms)
+    ("abs:point-read", "show_detail_open", "median_ms", 20.0),
+    ("abs:active-list", "list_active_page", "median_ms", 50.0),
+    ("abs:tui-nochange", "tui_cached", "median_ms", 100.0),
+)
+
+
+def _stat(
+    corpora: list[dict[str, Any]], scale: Any, op: str, field: str
+) -> float | None:
+    for corpus in corpora:
+        if corpus.get("scale") == scale and op in corpus["ops"]:
+            return float(corpus["ops"][op].get(field, 0.0))
+    return None
+
+
+def evaluate_gate(
+    corpora: list[dict[str, Any]],
+    *,
+    tolerance: float,
+    allowed_misses: set[str],
+) -> tuple[list[dict[str, Any]], int]:
+    """Check A1 criteria; return (rows, exit_code).
+
+    Every criterion is always evaluated and reported. Criteria named in
+    ``allowed_misses`` are recorded as known misses (with their measured
+    breakdown) without failing the run; anything else that misses fails.
+    Known misses must cite the bead follow-up that owns the fix, so the
+    threshold is never loosened silently.
+    """
+    scales = sorted(
+        {c["scale"] for c in corpora if c.get("scale") is not None},
+        key=float,
+    )
+    rows: list[dict[str, Any]] = []
+    if len(scales) < 2:
+        rows.append(
+            {
+                "criterion": "gate:needs-two-scales",
+                "status": "error",
+                "detail": "ratio criteria need at least two --scale corpora",
+            }
+        )
+        return rows, 2
+    lo, hi = scales[0], scales[-1]
+    for criterion, op in GATE_RATIO_OPS:
+        lo_v = _stat(corpora, lo, op, "p95_ms")
+        hi_v = _stat(corpora, hi, op, "p95_ms")
+        if lo_v is None or hi_v is None:
+            rows.append(
+                {
+                    "criterion": criterion,
+                    "status": "error",
+                    "detail": f"op {op!r} was not measured at both scales",
+                }
+            )
+            continue
+        ratio = (hi_v / lo_v) if lo_v > 0 else float("inf")
+        ceiling = 1.0 + tolerance
+        ok = ratio <= ceiling
+        rows.append(
+            {
+                "criterion": criterion,
+                "status": "pass" if ok else "fail",
+                "op": op,
+                "lo_scale": lo,
+                "hi_scale": hi,
+                "lo_p95_ms": round(lo_v, 1),
+                "hi_p95_ms": round(hi_v, 1),
+                "ratio": round(ratio, 3),
+                "ceiling": round(ceiling, 3),
+            }
+        )
+    check_scales = scales
+    for criterion, op, field, ceiling_ms in GATE_ABSOLUTE_OPS:
+        worst_scale: Any = None
+        worst_val = 0.0
+        missing = False
+        for scale in check_scales:
+            val = _stat(corpora, scale, op, field)
+            if val is None:
+                missing = True
+                break
+            if val > worst_val:
+                worst_val = val
+                worst_scale = scale
+        if missing:
+            rows.append(
+                {
+                    "criterion": criterion,
+                    "status": "error",
+                    "detail": f"op {op!r} was not measured at every scale",
+                }
+            )
+            continue
+        ok = worst_val <= ceiling_ms
+        rows.append(
+            {
+                "criterion": criterion,
+                "status": "pass" if ok else "fail",
+                "op": op,
+                "worst_scale": worst_scale,
+                "worst_median_ms": round(worst_val, 1),
+                "ceiling_ms": ceiling_ms,
+            }
+        )
+    exit_code = 0
+    for row in rows:
+        if row["status"] == "error":
+            exit_code = 2
+        elif row["status"] == "fail" and row["criterion"] not in allowed_misses:
+            exit_code = 1
+    for row in rows:
+        if row["status"] == "fail" and row["criterion"] in allowed_misses:
+            row["status"] = "known-miss"
+    return rows, exit_code
+
+
+def _print_gate(rows: list[dict[str, Any]]) -> None:
+    print("---------- A1 history-independence gate ----------")
+    for row in rows:
+        criterion = row["criterion"]
+        status = row["status"].upper()
+        if "ratio" in row:
+            print(
+                f"{criterion:18s} {status:10s} {row['op']}: "
+                f"p95 {row['lo_p95_ms']}ms @ {row['lo_scale']}x -> "
+                f"{row['hi_p95_ms']}ms @ {row['hi_scale']}x "
+                f"(ratio {row['ratio']}, ceiling {row['ceiling']})"
+            )
+        elif "worst_median_ms" in row:
+            print(
+                f"{criterion:18s} {status:10s} {row['op']}: "
+                f"worst median {row['worst_median_ms']}ms "
+                f"@ {row['worst_scale']}x (ceiling {row['ceiling_ms']}ms)"
+            )
+        else:
+            print(f"{criterion:18s} {status:10s} {row.get('detail', '')}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -391,7 +560,7 @@ def main(argv: list[str] | None = None) -> int:
             "scaled corpora. One --scale value generates one synthetic "
             "corpus; --store measures an existing store instead. Emits JSON "
             "with per-op p50/p95/max, the corpus shape, and the core "
-            "revision. Record-only: no thresholds are enforced."
+            "revision. Without --check-gate no thresholds are enforced."
         )
     )
     parser.add_argument(
@@ -447,12 +616,46 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Point the corpus at a local bare git remote for cli_note.",
     )
+    parser.add_argument(
+        "-g",
+        "--check-gate",
+        action="store_true",
+        help=(
+            "Enforce the A1 history-independence gate on the measured "
+            "corpora and exit non-zero on a miss."
+        ),
+    )
+    parser.add_argument(
+        "--gate-tolerance",
+        type=float,
+        default=0.10,
+        help=(
+            "Allowed fractional p95 move from the smallest to the "
+            "largest corpus (default: 0.10, the strict A1 bound; CI "
+            "passes a looser runner-noise calibration)."
+        ),
+    )
+    parser.add_argument(
+        "--gate-allow",
+        action="append",
+        default=[],
+        help=(
+            "Comma-separated criterion ids treated as known misses: "
+            "still measured and reported, but not fatal. Each id must "
+            "cite the bead follow-up that owns the fix."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not args.scale and not args.store:
         parser.error("pass at least one of --scale or --store")
     only = set(_parse_csv(args.only)) or None
     revision = _core_revision()
+    try:
+        with open("/proc/loadavg", encoding="utf-8") as fh:
+            host_load = fh.read().strip()
+    except OSError:
+        host_load = "unknown"
     corpora: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="sase_bead_scale_") as td:
         for scale in args.scale:
@@ -480,19 +683,33 @@ def main(argv: list[str] | None = None) -> int:
             corpora.append(
                 {"scale": None, "store": str(store), "shape": shape, "ops": ops}
             )
-    payload = {
+    payload: dict[str, Any] = {
         "tool": "bench_bead_scale",
         "core_revision": revision,
         "runs": args.runs,
+        "host_loadavg": host_load,
         "corpora": corpora,
     }
+    exit_code = 0
+    if args.check_gate:
+        gate_rows, exit_code = evaluate_gate(
+            corpora,
+            tolerance=args.gate_tolerance,
+            allowed_misses=set(_parse_csv(args.gate_allow)),
+        )
+        payload["gate"] = {
+            "tolerance": args.gate_tolerance,
+            "allowed_misses": sorted(set(_parse_csv(args.gate_allow))),
+            "rows": gate_rows,
+        }
+        _print_gate(gate_rows)
     text = json.dumps(payload, indent=2, sort_keys=True)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text + "\n", encoding="utf-8")
     else:
         print(text)
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
