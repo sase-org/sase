@@ -121,4 +121,4 @@ def read_run_manifests(artifacts_dir: str | Path) -> list[_RunManifest]:
     return records
 
 
-__all__ = ["_RunManifest", "read_run_manifests"]
+__all__ = ["read_run_manifests"]

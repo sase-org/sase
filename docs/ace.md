@@ -7211,13 +7211,16 @@ Admin Center Machines tab's `s` action when current reachability matters. Move w
 `0`.
 
 Choosing a remote inserts or replaces the pane's single `%dispatch:<alias>` selector.
-Choosing `here` removes it. The prompt context line appears only while the pane has a
+Choosing `here` removes it. The prompt context line appears while the pane has a
 `%dispatch` selector: a valid one shows the cached Target and Source, and for a remote
 also states that source proof is checked on submit; an invalid one shows `Target error`
-with the reason. It stays hidden for ordinary local launches. On submission, the prompt
-bar closes immediately and source proof runs off the UI thread as the first pending
-launch stage. A failed proof restores the prompt with `source blocked: <reason>` in its
-context line (or saves it to the stash if another prompt or modal now owns the screen).
+with the reason. It stays hidden for ordinary local launches, unless the pane carries an
+invalid `%auto` spelling: that shows an `Auto error` segment with the same message the
+launch path raises, and Enter does not submit until the spelling is fixed. On
+submission, the prompt bar closes immediately and source proof runs off the UI thread as
+the first pending launch stage. A failed proof restores the prompt with
+`source blocked: <reason>` in its context line (or saves it to the stash if another
+prompt or modal now owns the screen).
 
 After source preflight passes, sase's TUI inserts a provisional `QUEUED` remote row
 before the background launch settles. A structured accepted owner response keeps it

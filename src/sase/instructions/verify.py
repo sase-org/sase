@@ -553,7 +553,6 @@ def build_report(
 
 
 __all__ = [
-    "_aggregate_rows",
     "build_report",
     "collect_observations",
 ]

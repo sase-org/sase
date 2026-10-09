@@ -678,12 +678,8 @@ def render_memory_root_units(
 
 __all__ = [
     "ContractInputs",
-    "_CoreMemoryUnit",
     "GENERATED_CONTRACT_RELATIVE_PATH",
-    "_MemoryIntroTexts",
     "MemoryRootUnits",
-    "_ReferenceMemoryUnit",
-    "_WebMemoryUnit",
     "collect_memory_root_units",
     "render_memory_root_units",
 ]

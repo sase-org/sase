@@ -15,7 +15,11 @@ from sase.ace.tui.modals.dispatch_target_modal import (
     DispatchTargetPickerModal,
     LOCAL_DISPATCH_TARGET_ID,
 )
-from sase.macro._directive_scan import scan_dispatch_directive, set_dispatch_directive
+from sase.macro._directive_scan import (
+    scan_auto_directive,
+    scan_dispatch_directive,
+    set_dispatch_directive,
+)
 from sase.macro._exceptions import DirectiveError
 
 if TYPE_CHECKING:
@@ -311,6 +315,15 @@ class PromptInputBarDispatchMixin(_MixinBase):
             self.notify(f"Dispatch not submitted: {exc}", severity="error")
             self._refocus_prepared_origin(prepared)
             return True
+        try:
+            auto_scan = scan_auto_directive(value)
+        except Exception:  # noqa: BLE001 - launch validation owns the error.
+            auto_scan = None
+        if auto_scan is not None and auto_scan.error is not None:
+            self._set_dispatch_preflight_override(value, auto_scan.error, "error")
+            self.notify(f"Auto not submitted: {auto_scan.error}", severity="error")
+            self._refocus_prepared_origin(prepared)
+            return True
         return False
 
     def _set_dispatch_preflight_override(
@@ -375,9 +388,22 @@ class PromptInputBarDispatchMixin(_MixinBase):
             if tab_segment is not None:
                 text.append("  ")
                 text.append_text(tab_segment)
+            auto_segment = self._auto_context_segment(prompt)
+            if auto_segment is not None:
+                text.append("  ")
+                text.append_text(auto_segment)
             return text, "error", True
 
         if scan is None:
+            auto_segment = self._auto_context_segment(prompt)
+            if auto_segment is not None:
+                auto_only = Text()
+                auto_only.append_text(auto_segment)
+                tab_segment, _ = self._tab_context_segment(prompt)
+                if tab_segment is not None:
+                    auto_only.append("  ")
+                    auto_only.append_text(tab_segment)
+                return auto_only, "error", True
             tab_segment, tab_severity = self._tab_context_segment(prompt)
             if tab_segment is None:
                 return Text(), "ok", False
@@ -422,6 +448,11 @@ class PromptInputBarDispatchMixin(_MixinBase):
             text.append_text(tab_segment)
             if tab_severity == "error":
                 severity = "error"
+        auto_segment = self._auto_context_segment(prompt)
+        if auto_segment is not None:
+            text.append("  ")
+            text.append_text(auto_segment)
+            severity = "error"
         override = self._dispatch_preflight_override
         if override is not None and (not override[2] or override[2] == prompt):
             text.append("  ")
@@ -506,6 +537,27 @@ class PromptInputBarDispatchMixin(_MixinBase):
             segment.append(f"  gD launch on {machine_alias}", style="dim")
             return segment, "ok"
         return None, "ok"
+
+    def _auto_context_segment(self, prompt: str) -> Text | None:
+        """Return the ``%auto`` grammar-error segment, if any.
+
+        An invalid ``%auto``/``%a`` spelling shows the exact message the
+        launch path raises. A valid or Manual spelling shows nothing.
+        The read is prompt text only — no I/O — so it is safe on every
+        text change. Launch validation stays authoritative.
+        """
+        try:
+            scan = scan_auto_directive(prompt)
+        except Exception:  # noqa: BLE001 - launch validation owns the error.
+            return None
+        if scan is None or scan.error is None:
+            return None
+        segment = Text()
+        segment.append("Auto ", style="bold #87D7FF")
+        segment.append("error", style="bold #FF5F5F")
+        segment.append("  ")
+        segment.append(scan.error, style="#FFAF5F")
+        return segment
 
     def _named_tab_segment(self, name: str, *, inherited: bool) -> Text:
         """Return the ``tab: <name>`` chip segment for a named tab."""

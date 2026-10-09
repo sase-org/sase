@@ -182,3 +182,94 @@ async def test_dispatch_context_text_reports_hidden_without_directive(
 
         _, _, visible = bar._dispatch_context_text("#gh:sase")
         assert visible is False
+
+
+async def test_invalid_auto_spelling_shows_error_without_dispatch(
+    no_catalog_worker: None,
+) -> None:
+    app = DispatchPickerFocusApp("%auto(plan=ask)\n#gh:sase")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        _seed_remote_targets(bar)
+        bar._refresh_dispatch_context_line()
+        await pilot.pause()
+
+        panel = app.query_one("#prompt-dispatch-context", Static)
+        assert not panel.has_class("hidden")
+        assert panel.has_class("error")
+        assert bar._dispatch_context_visible is True
+        rendered = renderable_to_text(panel.render())
+        assert rendered is not None
+        assert "Auto error" in rendered
+        assert "parenthesized arguments are not supported yet" in rendered
+
+
+async def test_invalid_auto_spelling_shows_launch_message_with_dispatch(
+    no_catalog_worker: None,
+) -> None:
+    prompt = "%dispatch:apollo\n%auto:foo\n#gh:sase"
+
+    app = DispatchPickerFocusApp(prompt)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        _seed_remote_targets(bar)
+        bar._refresh_dispatch_context_line()
+        await pilot.pause()
+
+        panel = app.query_one("#prompt-dispatch-context", Static)
+        assert not panel.has_class("hidden")
+        assert panel.has_class("error")
+        rendered = renderable_to_text(panel.render())
+        assert rendered is not None
+        assert "Target" in rendered
+        assert "apollo" in rendered
+        assert "Auto error" in rendered
+        # The panel wraps the long line; the unit parity test asserts the
+        # full message text matches the launch path exactly.
+        assert "Invalid %auto spelling '%auto:foo'" in rendered
+        assert "unknown auto mode 'foo'" in rendered
+
+
+@pytest.mark.parametrize("prompt", ["%auto:tale\n#gh:sase", "%auto:off\n#gh:sase"])
+async def test_valid_and_manual_auto_spellings_show_nothing(
+    no_catalog_worker: None,
+    prompt: str,
+) -> None:
+    app = DispatchPickerFocusApp(prompt)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        _seed_remote_targets(bar)
+        bar._refresh_dispatch_context_line()
+        await pilot.pause()
+
+        panel = app.query_one("#prompt-dispatch-context", Static)
+        assert panel.has_class("hidden")
+        assert bar._dispatch_context_visible is False
+
+
+async def test_invalid_auto_spelling_blocks_submit(
+    no_catalog_worker: None,
+) -> None:
+    from types import SimpleNamespace
+
+    prompt = "%auto(plan=ask)\n#gh:sase"
+    app = DispatchPickerFocusApp(prompt)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        _seed_remote_targets(bar)
+
+        prepared = SimpleNamespace(value=prompt, panes=())
+        assert bar._maybe_preflight_dispatch_submission(prepared) is True
+
+        override = bar._dispatch_preflight_override
+        assert override is not None
+        assert override[1] == "error"
+        assert "parenthesized arguments are not supported yet" in override[0]
+        assert app.query_one(PromptTextArea).has_focus
+
+        valid = SimpleNamespace(value="%auto:tale\n#gh:sase", panes=())
+        assert bar._maybe_preflight_dispatch_submission(valid) is False

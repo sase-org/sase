@@ -105,7 +105,7 @@ INSTRUCTION_MANIFEST_PURPOSES = (
 )
 
 
-class InstructionManifestError(ValueError):
+class _InstructionManifestError(ValueError):
     """Raised when an instruction manifest fails Rust normalization."""
 
 
@@ -119,12 +119,12 @@ def normalize_instruction_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize an instruction manifest dict via Rust.
 
     Fills ``bundle.common_digest`` when null and rejects a wrong value
-    or any invariant failure with :class:`InstructionManifestError`.
+    or any invariant failure with :class:`_InstructionManifestError`.
     """
     binding = require_rust_binding("normalize_instruction_manifest")
     try:
         return dict(binding(manifest))
-    except InstructionManifestError:
+    except _InstructionManifestError:
         raise
     except ValueError as exc:
-        raise InstructionManifestError(str(exc)) from exc
+        raise _InstructionManifestError(str(exc)) from exc

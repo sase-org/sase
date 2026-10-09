@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.core.instruction_manifest import InstructionManifestError
+from sase.core.instruction_manifest import _InstructionManifestError
 from sase.instructions.compile import (
     COMPILER_NAME,
     COMPILER_VERSION,
@@ -254,7 +254,7 @@ def test_facts_reject_unknown_keys_values_and_combos(tmp_path: Path) -> None:
                 "vcs": None,
             }
         )
-    with pytest.raises(InstructionManifestError):
+    with pytest.raises(_InstructionManifestError):
         from sase.core.instruction_manifest import normalize_instruction_manifest
 
         parent = tmp_path / "instr-rust-combo"

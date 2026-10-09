@@ -258,8 +258,6 @@ def render_parity_table(report: _ParityReport, *, console: Any | None = None) ->
 
 __all__ = [
     "CONTRACT_MARKER",
-    "_ParityIssue",
-    "_ParityReport",
     "legacy_parity",
     "render_parity_table",
 ]

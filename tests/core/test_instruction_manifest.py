@@ -11,7 +11,7 @@ import pytest
 from sase.core import instruction_manifest as im
 from sase.core.instruction_manifest import (
     INSTRUCTION_MANIFEST_WIRE_SCHEMA_VERSION,
-    InstructionManifestError,
+    _InstructionManifestError,
     normalize_instruction_manifest,
     wire_schema_version,
 )
@@ -121,14 +121,14 @@ def test_closed_vocab_tuples_cover_wire_values() -> None:
 def test_rejects_unknown_actor() -> None:
     manifest = _load_fixture()
     manifest["facts"]["actor"] = "codx"
-    with pytest.raises(InstructionManifestError):
+    with pytest.raises(_InstructionManifestError):
         normalize_instruction_manifest(manifest)
 
 
 def test_rejects_provider_specific_on_non_provider_id() -> None:
     manifest = _load_fixture()
     manifest["sections"][1]["provider_specific"] = True
-    with pytest.raises(InstructionManifestError, match="provider_specific"):
+    with pytest.raises(_InstructionManifestError, match="provider_specific"):
         normalize_instruction_manifest(manifest)
 
 
@@ -145,7 +145,7 @@ def test_common_digest_filled_when_null() -> None:
 def test_common_digest_rejected_when_wrong() -> None:
     manifest = _load_fixture()
     manifest["bundle"]["common_digest"] = "0" * 64
-    with pytest.raises(InstructionManifestError, match="common_digest"):
+    with pytest.raises(_InstructionManifestError, match="common_digest"):
         normalize_instruction_manifest(manifest)
 
 

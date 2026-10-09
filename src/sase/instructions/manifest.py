@@ -11,10 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sase.core.instruction_manifest import (
-    InstructionManifestError,
-    normalize_instruction_manifest,
-)
+from sase.core.instruction_manifest import normalize_instruction_manifest
 from sase.instructions.compile import (
     COMPILER_NAME,
     COMPILER_VERSION,
@@ -33,6 +30,10 @@ _REQUIRED_DELIVERY_FIELDS = (
     "model",
     "rendered_at",
 )
+
+
+class _InstructionManifestError(ValueError):
+    """Raised when manifest inputs fail Python-side validation."""
 
 
 def preview_delivery(
@@ -69,7 +70,7 @@ def build_manifest(
 
     Fills ``bundle.common_digest`` (via Rust normalize), ``delivery.render_ms``
     and ``delivery.cache`` from the compiled bundle, then returns the
-    normalized dict. Raises :class:`InstructionManifestError` for missing
+    normalized dict. Raises :class:`_InstructionManifestError` for missing
     delivery fields and the adapter error for wire violations.
     """
     from sase import __version__ as sase_version
@@ -77,7 +78,7 @@ def build_manifest(
     parsed = facts if isinstance(facts, InstructionFacts) else parse_facts(facts)
     missing = [name for name in _REQUIRED_DELIVERY_FIELDS if name not in delivery]
     if missing:
-        raise InstructionManifestError(
+        raise _InstructionManifestError(
             f"delivery is missing required field(s): {', '.join(missing)}"
         )
     delivery_wire: dict[str, Any] = {
