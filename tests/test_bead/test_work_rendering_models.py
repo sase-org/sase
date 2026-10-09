@@ -255,7 +255,7 @@ class TestModelDirective:
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:claude/opus\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#bd/work_phase_bead:p1"
         )
         # The epic has no explicit land model, so the land agent defaults to
@@ -328,7 +328,7 @@ class TestModelDirective:
         assert land_segment == (
             "%id(!land, clan=e1, bead=e1)\n"
             "%model:claude/opus\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w(e1.p1, for_epic=false)\n"
             "%w(bead=p1)\n"
             "#bd/land_epic:e1"
@@ -361,15 +361,15 @@ class TestModelDirective:
         pre_model_baseline = (
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%id(!p2, clan=e1, bead=p2)\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%id(!land, clan=e1, bead=e1)\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w(e1.p1,e1.p2, for_epic=false)\n"
             "%w(bead=p1)\n"
             "%w(bead=p2)\n"

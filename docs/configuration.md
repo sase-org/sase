@@ -43,6 +43,7 @@ sections, environment variables, and CLI flags.
   - [use_chezmoi](#use_chezmoi)
   - [commit_hooks](#commit_hooks)
   - [gate](#gate)
+  - [autonomy](#autonomy)
   - [max_running_agents](#max_running_agents)
   - [max_agent_pipe_chain](#max_agent_pipe_chain)
   - [runner_slots](#runner_slots)
@@ -4154,6 +4155,43 @@ key is accepted as this same setting. Setting both keys is an error; use only
 `gate.turn`.
 
 Source: `src/sase/default_config.yml`, `src/sase/gate_turn/reclaim.py`
+
+### autonomy
+
+Autonomy profile each generated epic worker launches with. Values are built-in profile
+names from `sase autonomy list`: `standard` (tale plans approve + archive, epic plans
+approve + launch, questions take the first option), `tale` (epic plans wait for you),
+`epic` (tale plans wait for you), or `manual` (everything waits). E3 will widen role
+values to config profile names.
+
+```yaml
+autonomy:
+  roles:
+    epic_phase: standard
+    epic_land: standard
+```
+
+To restore "nested epics wait for me", set both roles to `tale` in your user-level
+`~/.config/sase/sase.yml` (chezmoi-managed for this user) or in the project-level
+`sase/sase.yml`:
+
+```yaml
+autonomy:
+  roles:
+    epic_phase: tale
+    epic_land: tale
+```
+
+The setting is read when the epic's worker prompts are rendered, so already launched
+workers keep the profile in their prompt. `sase autonomy list` shows the effective role
+assignments.
+
+| Field                       | Type   | Default    | Description                                                                               |
+| --------------------------- | ------ | ---------- | ----------------------------------------------------------------------------------------- |
+| `autonomy.roles.epic_phase` | string | `standard` | Autonomy profile for epic phase agents launched by `sase bead work` / epic plan approval. |
+| `autonomy.roles.epic_land`  | string | `standard` | Autonomy profile for epic land agents.                                                    |
+
+Source: `src/sase/default_config.yml`, `src/sase/autonomy/roles.py`
 
 ### max_running_agents
 

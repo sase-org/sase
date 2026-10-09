@@ -41,6 +41,8 @@ class ContractRow:
     tale: str
     epic: str
     question: str
+    worker_role: str = ""
+    worker_profile: str = ""
 
 
 # Launch-context spelling rows. These hold on master today.
@@ -148,12 +150,47 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         ASK,
         FIRST,
     ),
+    # Deliberate post-E1 amendment (epic-worker roles): epic phase and land
+    # workers run the `autonomy.roles` profile, default `standard`, so they
+    # auto-launch nested epics. The old `tale_epic_worker` row is replaced.
     ContractRow(
-        "tale_epic_worker",
+        "epic_phase_worker",
+        "%auto\nDo the work",
+        "epic_worker",
+        APPROVE_ARCHIVE,
+        APPROVE_LAUNCH,
+        FIRST,
+        "epic_phase",
+        "",
+    ),
+    ContractRow(
+        "epic_land_worker",
+        "%auto\nDo the work",
+        "epic_worker",
+        APPROVE_ARCHIVE,
+        APPROVE_LAUNCH,
+        FIRST,
+        "epic_land",
+        "",
+    ),
+    ContractRow(
+        "epic_worker_role_tale",
         "%auto:tale\nDo the work",
         "epic_worker",
         APPROVE_ARCHIVE,
         ASK,
         FIRST,
+        "epic_phase",
+        "tale",
+    ),
+    ContractRow(
+        "epic_worker_role_manual",
+        "%auto:manual\nDo the work",
+        "epic_worker",
+        ASK,
+        ASK,
+        ASK,
+        "epic_land",
+        "manual",
     ),
 )

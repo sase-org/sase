@@ -10,6 +10,7 @@ import re
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+from sase.autonomy.roles import EPIC_LAND_ROLE, EPIC_PHASE_ROLE, role_auto_directive
 from sase.bead.config import get_big_epic_phase_threshold
 from sase.bead.model import PhaseSize
 from sase.bead.work_plan import EpicWorkPlan
@@ -153,6 +154,12 @@ def render_multi_prompt(
     segment renders ``%queue(capacity=...)`` from its agent-name entry.
     Otherwise *capacity* is used uniformly. ``None`` (the default) emits no
     ``%queue`` line.
+
+    Every phase segment carries the ``%auto`` line for the
+    ``autonomy.roles.epic_phase`` profile and the land segment carries the
+    line for ``autonomy.roles.epic_land`` (default ``standard``). Each role
+    is resolved once per render, after ``%model:`` and before
+    ``%queue``/``%w``.
     """
     if vcs_context is not None and patch_context is not None:
         raise ValueError("provide either vcs_context or patch_context, not both")
@@ -161,6 +168,9 @@ def render_multi_prompt(
         _validate_vcs_context(launch_context)
     if patch_context is not None:
         _validate_patch_context(patch_context)
+
+    phase_directive = role_auto_directive(EPIC_PHASE_ROLE)
+    land_directive = role_auto_directive(EPIC_LAND_ROLE)
 
     segments: list[str] = []
     is_first_phase = True
@@ -184,7 +194,7 @@ def render_multi_prompt(
                 size=assignment.size,
             )
             lines.append(f"%model:{model_value}")
-            lines.append("%auto:tale")
+            lines.append(phase_directive)
             lines.extend(
                 _queue_capacity_lines(
                     _capacity_for_agent(
@@ -223,7 +233,7 @@ def render_multi_prompt(
             total_phase_count=plan.total_phase_count,
         )
         land_lines.append(f"%model:{land_model}")
-        land_lines.append("%auto:tale")
+        land_lines.append(land_directive)
         land_lines.extend(
             _queue_capacity_lines(
                 _capacity_for_agent(

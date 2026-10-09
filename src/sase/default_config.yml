@@ -2090,6 +2090,19 @@ gate:
     # pending turn as lost instead of trying to cancel it normally.
     reclaim_grace_seconds: 3600
 
+autonomy:
+  # Autonomy profile each generated worker role launches with. Values are
+  # built-in profile names from `sase autonomy list`: standard (tale plans
+  # approve + archive, epic plans approve + launch, questions take the first
+  # option), tale (epic plans wait for you), epic (tale plans wait for you),
+  # or manual (everything waits). Set a role to tale to make nested epics
+  # wait for human approval.
+  roles:
+    # Epic phase agents launched by `sase bead work` / epic plan approval.
+    epic_phase: standard
+    # Epic land agents (they may author a tale or a "Finish..." child epic).
+    epic_land: standard
+
 external_mirror:
   # One shared filter surface governs which tracker issues become beads and
   # which remote pull requests become Patches. Each *_globs list accepts
@@ -2195,8 +2208,9 @@ macros:
       never use `--force` merely to make the close succeed, and never use `--force` to advance a successful nested
       landing. For the child-epic path: Do not include this epic's close, symvision pass, or plan-file status update
       as a child phase; the child epic's `parent_bead` link is the handoff that lets its land agent resume this
-      interrupted landing after the child lands. Such a child epic plan waits for human approval before its clan
-      launches.
+      interrupted landing after the child lands. Whether such a child epic plan launches automatically or waits
+      for human approval depends on your autonomy profile; the SASE autonomy block in your
+      prompt says which.
 
       After the current epic closes, inspect the linked `parent_bead` from `sase bead read {{ bead_id }} -r "Need the parent link"`. If there is
       no parent bead, finish normally. If the parent is a phase bead, verify this child plan completed the work required
@@ -2254,8 +2268,9 @@ macros:
       nothing relaunches a phase left open. Before planning, check the phase's notes: if an earlier agent already
       worked this phase and left it open with recorded remaining work, that remainder did not fit one agent, so author
       a child epic whose phases each fit one coding agent and whose land agent closes this phase instead of another
-      single-agent tale unless one coder can clearly finish everything left. Such a child epic plan waits for human
-      approval before its clan launches.
+      single-agent tale unless one coder can clearly finish everything left. Whether such a child epic plan launches automatically or waits
+      for human approval depends on your autonomy profile; the SASE autonomy block in your
+      prompt says which.
   bd/work_task:
     tags: work_task_bead
     input:

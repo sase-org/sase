@@ -37,9 +37,19 @@ def test_autonomy_list_json_and_pretty(capsys: Any) -> None:
     )
     assert standard["kind"] == "default"
     assert "coverage" in payload
+    assert [item["role"] for item in payload["roles"]] == [
+        "epic_phase",
+        "epic_land",
+    ]
+    assert all(
+        set(item.keys()) == {"role", "profile", "source"} for item in payload["roles"]
+    )
 
     out = _run(handle_autonomy_list, SimpleNamespace(json=False), capsys)
     assert "standard (default)" in out
+    assert "Roles" in out
+    assert "epic_phase" in out
+    assert "epic_land" in out
     assert "Covers host checkpoints only" in out
 
 

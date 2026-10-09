@@ -137,12 +137,24 @@ def test_explain_prompt_error_matches_launch(prompt: str) -> None:
 
 
 def _context_meta(
-    row_id: str, prompt: str, tmp_path: Path
+    row: Any, tmp_path: Path, monkeypatch: Any
 ) -> tuple[dict[str, Any], Path]:
     """Build the successor meta named by a ``STATE_ROWS`` context."""
+    row_id = row.id if hasattr(row, "id") else str(row)
+    prompt = row.prompt if hasattr(row, "prompt") else ""
     workdir = tmp_path / "work"
     workdir.mkdir(exist_ok=True)
-    if row_id == "tale_epic_worker":
+    if getattr(row, "context", "") == "epic_worker":
+        worker_role = getattr(row, "worker_role", "") or "epic_phase"
+        worker_profile = getattr(row, "worker_profile", "") or ""
+        if worker_profile:
+            monkeypatch.setattr(
+                "sase.config.load_merged_config",
+                lambda: {"autonomy": {"roles": {worker_role: worker_profile}}},
+                raising=False,
+            )
+        prompt = f"{harness.adapt_epic_worker_prompt(worker_role)}\nDo the work"
+    elif row_id == "tale_epic_worker":
         prompt = f"{harness.adapt_epic_worker_prompt()}\nDo the work"
     _, live_meta, predecessor = harness.launch_meta(prompt, workdir)
     if row_id in ("bare_a_off", "tale_a_off_on", "bare_a_off_successor"):
@@ -181,7 +193,7 @@ def test_explain_agent_path_equals_gate_policy(
     tale_plan = harness.write_plan_file(workdir, "tale.md", VALID_TALE_PLAN)
     epic_plan = harness.write_plan_file(workdir, "epic.md", VALID_EPIC_PLAN)
 
-    live_meta, artifacts_dir = _context_meta(row.id, row.prompt, tmp_path)
+    live_meta, artifacts_dir = _context_meta(row, tmp_path, monkeypatch)
     record = read_record(live_meta)
     assert record is not None
     policies = _policies_for_live_meta(

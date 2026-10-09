@@ -2793,15 +2793,18 @@ Once an epic bead exists, the shared launch path:
    has already-closed phases. These two fields are independent, directly-configured
    scalars with their own shipped defaults; neither chains through the other or through
    any other alias. Builtin size aliases can be configured under
-   `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic
-   segment carries `%auto:tale`, so submitted tale implementation and landing plans are
-   approved and archived automatically, while a nested epic plan waits for human
-   approval. An agent may author a tale or an epic as needed; the plan's authored `tier`
-   selects the corresponding follow-up path. The land agent prefers a tale for remaining
-   work that one agent can finish. Because nothing resumes the landing after a tale's
-   coder finishes, the land agent triages follow-ups first and writes the epic's
-   closeout into the tale as its final step, while a child epic instead hands the
-   resumed landing to its own land agent through `parent_bead`.
+   `llm_provider.model_aliases.builtin`. Every phase and land segment carries the
+   `%auto` line for its `autonomy.roles` profile (see
+   [configuration.md#autonomy](configuration.md#autonomy)). The default is `standard`:
+   submitted tale plans are approved and archived, and submitted epic plans are approved
+   and launched as child epics beneath the phase or land bead. Setting the role to
+   `tale` makes nested epic plans park for human review. An agent may author a tale or
+   an epic as needed; the plan's authored `tier` selects the corresponding follow-up
+   path. The land agent prefers a tale for remaining work that one agent can finish.
+   Because nothing resumes the landing after a tale's coder finishes, the land agent
+   triages follow-ups first and writes the epic's closeout into the tale as its final
+   step, while a child epic instead hands the resumed landing to its own land agent
+   through `parent_bead`.
 7. Before spawning any runner, batch-preassigns every scheduled phase bead to its
    rendered worker and the epic bead to `<epic_id>.land`, setting all of them to
    `in_progress`. It commits readiness, assignments, and the complete graph as one
@@ -2815,16 +2818,20 @@ Once an epic bead exists, the shared launch path:
    before relaunch. The schedule is status-blind and uses agent liveness, which makes
    the checkpoint safe to retry.
 
-When a phase agent authors an epic-tier implementation plan, that plan parks for human
-review under `%auto:tale`; once approved, the child epic is created beneath the phase
-and the phase remains open while delegated work runs. A planner whose phase already
-holds an earlier agent's unfinished increment authors a child epic whose phases each fit
-one coding agent instead of another single-agent tale. Landing the child epic triggers
-the upward close cascade described above, which closes the phase and lets its bead-gated
-dependents proceed. Until then, parent-epic retries skip that delegated phase. The land
-agent now genuinely requires every phase bead to close; if a phase crashes before
-closure, retry or close that phase explicitly rather than expecting landing to sweep it
-up.
+When a phase agent authors an epic-tier implementation plan, every phase and land
+segment carries the `%auto` line for its `autonomy.roles` profile (see
+[configuration.md#autonomy](configuration.md#autonomy)). The default is `standard`:
+submitted tale plans are approved and archived, and submitted epic plans are approved
+and launched as child epics beneath the phase or land bead. Setting the role to `tale`
+makes nested epic plans park for human review. Once approved, the child epic is created
+beneath the phase and the phase remains open while delegated work runs. A planner whose
+phase already holds an earlier agent's unfinished increment authors a child epic whose
+phases each fit one coding agent instead of another single-agent tale. Landing the child
+epic triggers the upward close cascade described above, which closes the phase and lets
+its bead-gated dependents proceed. Until then, parent-epic retries skip that delegated
+phase. The land agent now genuinely requires every phase bead to close; if a phase
+crashes before closure, retry or close that phase explicitly rather than expecting
+landing to sweep it up.
 
 | Flag                  | Description                                                                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2859,10 +2866,13 @@ agent launches). Durable stage and summary events also append to
 
 The work macros are resolved by `MacroTag` (tag-based lookup), so a project-local or
 user-defined `work_phase_bead`, `work_task_bead`, or `land_epic` macro overrides the
-built-in. For epic-tier work, every phase and land segment carries `%auto:tale`, so
-spawned agents auto-approve submitted tale plans and follow the path selected by the
-authored `tier`, while a nested epic plan parks for human review, without a
-human-in-the-loop checkpoint between dependency waves.
+built-in. For epic-tier work, every phase and land segment carries the `%auto` line for
+its `autonomy.roles` profile (see
+[configuration.md#autonomy](configuration.md#autonomy)). The default is `standard`:
+submitted tale plans are approved and archived, and submitted epic plans are approved
+and launched as child epics beneath the phase or land bead. Setting the role to `tale`
+makes nested epic plans park for human review, without a human-in-the-loop checkpoint
+between dependency waves.
 
 When the epic plan bead is attached to Patch metadata (`--patch`, legacy `--changespec`,
 or `--bug-id`), `sase bead work` preserves the current project's VCS context in the

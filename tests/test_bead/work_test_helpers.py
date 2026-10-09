@@ -68,8 +68,17 @@ def wave_bead_ids(plan: EpicWorkPlan, wave_index: int) -> list[str]:
 def assert_tale_auto_directives(rendered: str) -> None:
     segments = rendered.split("\n---\n")
     for segment in segments:
-        assert "%auto:tale" in segment.splitlines()
-        assert "%auto" not in segment.splitlines()
+        assert "%auto" in segment.splitlines()
+        assert "%auto:tale" not in segment.splitlines()
         _, directives = extract_prompt_directives(segment)
         assert directives.auto_enabled is True
-        assert directives.auto_argument == "tale"
+        assert directives.auto_argument is None
+
+
+def assert_role_auto_directives(
+    rendered: str, *, phase_directive: str = "%auto", land_directive: str = "%auto"
+) -> None:
+    segments = rendered.split("\n---\n")
+    for segment in segments[:-1]:
+        assert phase_directive in segment.splitlines()
+    assert land_directive in segments[-1].splitlines()

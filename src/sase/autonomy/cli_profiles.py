@@ -11,12 +11,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 from rich.text import Text
 
 from sase.autonomy.record import COVERAGE_LINE, profiles_catalog
+
+if TYPE_CHECKING:
+    from sase.autonomy.roles import RoleAssignment
 
 
 def handle_autonomy_list(args: argparse.Namespace) -> int:
@@ -27,13 +30,25 @@ def handle_autonomy_list(args: argparse.Namespace) -> int:
     except Exception as exc:
         print(f"sase autonomy list: {exc}", file=sys.stderr)
         sys.exit(1)
+    try:
+        from sase.autonomy.roles import role_assignments
+
+        roles = role_assignments()
+    except Exception:
+        roles = []
     if as_json:
-        print(json.dumps({"profiles": catalog, "coverage": COVERAGE_LINE}))
+        print(
+            json.dumps({"profiles": catalog, "roles": roles, "coverage": COVERAGE_LINE})
+        )
         return 0
     console = Console()
     console.print(Text("Autonomy profiles", style="bold"), soft_wrap=True)
     for profile in catalog:
         console.print(_profile_line(profile), soft_wrap=True)
+    if roles:
+        console.print(Text("Roles", style="bold"), soft_wrap=True)
+        for assignment in roles:
+            console.print(_role_line(assignment), soft_wrap=True)
     console.print(Text(COVERAGE_LINE, style="dim"), soft_wrap=True)
     return 0
 
@@ -74,6 +89,43 @@ def _profile_line(profile: dict[str, Any]) -> Text:
     if oneliner:
         line.append(f" · {oneliner}", style="dim")
     return line
+
+
+def _role_line(assignment: RoleAssignment) -> Text:
+    role = str(assignment.get("role", "?"))
+    profile = str(assignment.get("profile", "?"))
+    source = str(assignment.get("source", "default"))
+    line = Text("  ")
+    line.append(role, style="bold")
+    line.append(" → ", style="dim")
+    line.append(profile, style="bold")
+    line.append(f" ({source})", style="dim")
+    if source == "invalid":
+        raw = _raw_role_value(role)
+        if raw is not None:
+            line.append(f" · ignored {raw!r}", style="dim")
+        line.append(f" · set autonomy.roles.{role}", style="dim")
+    else:
+        line.append(f" · set autonomy.roles.{role}", style="dim")
+    return line
+
+
+def _raw_role_value(role: str) -> Any:
+    try:
+        from sase.config import load_merged_config
+
+        merged = load_merged_config()
+    except Exception:
+        return None
+    if not isinstance(merged, dict):
+        return None
+    autonomy = merged.get("autonomy")
+    if not isinstance(autonomy, dict):
+        return None
+    roles = autonomy.get("roles")
+    if not isinstance(roles, dict):
+        return None
+    return roles.get(role)
 
 
 def _profile_detail(profile: dict[str, Any]) -> Text:

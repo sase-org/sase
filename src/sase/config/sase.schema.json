@@ -5189,6 +5189,32 @@
         }
       }
     },
+    "autonomy": {
+      "type": "object",
+      "description": "Autonomy profile each generated worker role launches with.",
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "type": "object",
+          "description": "Worker role to autonomy profile mapping.",
+          "additionalProperties": false,
+          "properties": {
+            "epic_phase": {
+              "type": "string",
+              "enum": ["manual", "standard", "tale", "epic"],
+              "default": "standard",
+              "description": "Autonomy profile for epic phase agents launched by `sase bead work` / epic plan approval. E3 will widen values to config profile names."
+            },
+            "epic_land": {
+              "type": "string",
+              "enum": ["manual", "standard", "tale", "epic"],
+              "default": "standard",
+              "description": "Autonomy profile for epic land agents. E3 will widen values to config profile names."
+            }
+          }
+        }
+      }
+    },
     "external_mirror": {
       "type": "object",
       "description": "Configuration for the external tracker mirror (issues into beads, pull requests into Patches).",

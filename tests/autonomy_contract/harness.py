@@ -368,17 +368,46 @@ def adapt_monitor_followup_prefix(live_meta: dict[str, Any]) -> str:
     return selection_to_prompt_prefix(record.get("selection"))
 
 
-def adapt_epic_worker_prompt() -> str:
-    """Return the ``%auto`` prefix epic workers launch with.
+def adapt_epic_worker_prompt(role: str = "epic_phase") -> str:
+    """Return the ``%auto`` line the epic worker *role* launches with.
 
-    Epic phase and land segments are rendered by the real
-    :func:`render_multi_prompt` in ``sase.bead.work_prompt``; assert it
-    emits the tale prefix so a renderer change fails here, then return the
-    emitted token for the launch-equivalent gate run.
+    Renders a minimal real epic multi-prompt through
+    :func:`render_multi_prompt` and returns the phase segment's ``%auto``
+    line (or the land segment's when *role* is ``epic_land``), so the rows
+    exercise the real renderer plus config. Callers patch
+    ``autonomy.roles`` before calling for role-override rows.
     """
-    import inspect
+    from sase.bead.work_plan import EpicWorkPlan, _PhaseAssignment
+    from sase.bead.work_prompt import render_multi_prompt
+    from sase.macro.workflow_models import Workflow
 
-    from sase.bead import work_prompt
-
-    assert '"%auto:tale"' in inspect.getsource(work_prompt.render_multi_prompt)
-    return "%auto:tale"
+    plan = EpicWorkPlan(
+        epic_id="contract-epic",
+        launch_tag_id="contract-epic",
+        total_phase_count=1,
+        phase_bead_ids=("p1",),
+        waves=(
+            (
+                _PhaseAssignment(
+                    bead_id="p1",
+                    agent_name="contract-epic.1",
+                    waits_on=(),
+                    blocker_bead_ids=(),
+                    wave=0,
+                ),
+            ),
+        ),
+        land_agent_name="contract-epic.land",
+        land_waits_on=(),
+    )
+    rendered = render_multi_prompt(
+        plan,
+        work_phase_macro=Workflow(name="bd/work_phase_bead"),
+        land_epic_macro=Workflow(name="bd/land_epic"),
+    )
+    segments = rendered.split("\n---\n")
+    target = segments[-1] if role == "epic_land" else segments[0]
+    for line in target.splitlines():
+        if line.startswith("%auto"):
+            return line
+    raise AssertionError(f"no %auto line in {role} segment: {target!r}")
