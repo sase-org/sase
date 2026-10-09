@@ -185,60 +185,64 @@ costs, and the condition that would reopen it.
 9. **Explicit Handoff Fails Closed** (`explicit-handoff-fails-closed`) - Explicit sase
    tool run -H fails closed when its ToolRun reservation cannot commit; foreground and
    monitor-start recording stay fail-open.
-10. **Goal Ledger** (`goal-ledger`) - A goal is its own Rust-owned domain, not a bead
+10. **Global Install Is Human-Only** (`global-install-is-human-only`) - just install and
+    just install-dev refuse inside SASE agents and monitors unless
+    SASE_GLOBAL_INSTALL_BYPASS holds a reason; agents propose global reinstalls through
+    /sase_gate.
+11. **Goal Ledger** (`goal-ledger`) - A goal is its own Rust-owned domain, not a bead
     type. State is immutable events plus live markers through the hidden clone, with
     O(unsettled) hot reads and shown-never-promised freshness.
-11. **Goals Host Binds** (`goals-host-binds`) - The host binds every LLM turn to exactly
+12. **Goals Host Binds** (`goals-host-binds`) - The host binds every LLM turn to exactly
     one goal before spawn; agents only name or adopt their own draft and claim or keep
     open; only a human settles.
-12. **Guarded Recipes Refuse Raw Agent Runs** (`guarded-recipes`) - A SASE agent runs a
+13. **Guarded Recipes Refuse Raw Agent Runs** (`guarded-recipes`) - A SASE agent runs a
     guarded recipe only inside sase tool run for that project root, or with an explicit
     bypass; the guard refuses anything else.
-13. **Hold Admission Uses Pull Evaluation With Fail-Open TTL** (`hold-pull-fail-open`) -
+14. **Hold Admission Uses Pull Evaluation With Fail-Open TTL** (`hold-pull-fail-open`) -
     Holds are one durable record per armer evaluated by each candidate at admission
     (pull), with optional TTL (default 2h, cap 12h), fail-open store reads, and release
     scoped to the armer session or shell end.
-14. **Legacy V1 Agent Transport Is Read-Only History, Not An Import Source**
+15. **Legacy V1 Agent Transport Is Read-Only History, Not An Import Source**
     (`v1-import-retired`) - _[superseded by `agents-sync-publish-only`]_ The legacy v1
     agents-sync import leg is sunset behind v1_import_retired; v1 payloads stay readable
     as v2-adoption matcher evidence but are never materialized as new imported
     artifacts.
-15. **Machine Artifact-Link Writes Stay Off the Primary**
+16. **Machine Artifact-Link Writes Stay Off the Primary**
     (`machine-link-writes-off-primary`) - Machine artifact-link mutations never target
     the sidecar clones nested under a project's primary checkout; the machine write lane
     is the hidden host-owned clone, and the primary converges only through pull-based
     auto-sync.
-16. **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
+17. **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
     how its links are detected and rendered, and authors links inline as `[[target]]` /
     `![[target]]`.
-17. **Memory Webs** (`memory-webs`) - _[partly superseded by
+18. **Memory Webs** (`memory-webs`) - _[partly superseded by
     `webs-render-in-their-own-section`, `memory-links-are-authored`]_ A keyed memory
     collection is a flat descriptor note plus a sibling strand directory, addressed
     web:keyword.
-18. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
+19. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
     memory web's placement in generated agent instructions follows from its kind, not
     from a `type:` declaration on its descriptor.
-19. **Native Helpers Return; Only Roots Declare** (`helpers-return-roots-declare`) -
+20. **Native Helpers Return; Only Roots Declare** (`helpers-return-roots-declare`) -
     Only the host-launched root agent submits final declarations and runs turn-ending
     operations; native helpers and forks return their results to their parent.
-20. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
+21. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
     not build memory retrieval or linking machinery ahead of a corpus that demonstrably
     needs it.
-21. **Plugins May Mount Top-Level Commands** (`plugin-commands`) - Plugins may mount
+22. **Plugins May Mount Top-Level Commands** (`plugin-commands`) - Plugins may mount
     top-level `sase <name>` commands through `sase_commands`; listen's standalone-only
     stance is superseded.
-22. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`) - Verdict
+23. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`) - Verdict
     receipts are proof for host completion, never execution skip or reuse; reuse waits
     for measured content-equivalent repeat opportunity plus a hermeticity proof.
-23. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
+24. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
     size aliases run a model at xhigh on its first appearance from @xlarge down and one
     rung lower on each reappearance; every alias should span more than one provider.
-24. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+25. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
     in sase-core with no Python fallback and no env-var backend switch.
-25. **Triage Annotates; It Never Changes an Exit Code**
+26. **Triage Annotates; It Never Changes an Exit Code**
     (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
     witness; triage classifies failure evidence without changing command outcomes.
-26. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
+27. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
     `check-full-is-explicit`]_ just check is the agent default and just check-full gates
     landing, because host capacity is the constraint, not test speed.
 

@@ -625,6 +625,10 @@ git clone https://github.com/sase-org/sase-core.git ../sase-core
 just install-venv     # builds sase_core_rs from ../sase-core, then installs sase in editable mode
 ```
 
+This is the checkout-`.venv` path: it never touches your global `sase` command. For the
+three install commands and when to use each, see
+[Your `sase` versus this checkout's `.venv`](development.md#your-sase-versus-this-checkouts-venv).
+
 Throughout this page, `../sase-core` stands for the configured core checkout. The
 Justfile uses `SASE_CORE_DIR` when it is set, then a workspace's linked
 `sase/repos/linked/sase-core` checkout (or the `SASE_LINKED_REPO_SASE_CORE_DIR` family

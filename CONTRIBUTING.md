@@ -8,6 +8,12 @@ For project background and how the system fits together, see <https://sase.sh/>.
 just install-venv
 ```
 
+`just install-venv` sets up this checkout's `.venv` for tests and lint — it never
+touches your global `sase` command. If you are unsure which install command you want,
+read
+[Your `sase` versus this checkout's `.venv`](https://sase.sh/development/#your-sase-versus-this-checkouts-venv)
+first.
+
 ## Development Workflow
 
 See <https://sase.sh/development/> for the full development workflow.

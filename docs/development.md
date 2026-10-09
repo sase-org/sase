@@ -28,6 +28,41 @@ so dependency or environment changes revalidate automatically. Set
 `SASE_TEST_SETUP_FORCE_REVALIDATE=1` on any `just` invocation to bypass the cache while
 diagnosing setup problems.
 
+## Your `sase` versus this checkout's `.venv`
+
+Two different environments matter when you hack on SASE, and mixing them up is the most
+common setup mistake:
+
+- **Your `sase` command** lives in the `uv tool` environment. It is what runs when you
+  type `sase` anywhere, and it is what every agent and the scheduler import.
+- **This checkout's `.venv`** (created by `just install-venv`) is where tests, lint, and
+  benchmarks run. It never affects your `sase` command.
+
+```text
+just install       your `sase` command ← the latest PyPI release
+just install-dev   your `sase` command ← this checkout + its paired sase-core
+just install-venv  this checkout's .venv ← tests, lint, benchmarks (never your `sase`)
+```
+
+As a contributor you almost always want `just install-venv`: edit the checkout, run
+`just check`, and the `.venv` picks up your change. Reach for `just install-dev` only
+when you want your global `sase` command itself to run this checkout (dogfooding
+unreleased code). It installs the checkout editable plus its paired sase-core —
+`$SASE_CORE_DIR`, else `<sase checkout>/../sase-core`, the same checkout `sase update`
+rebuilds from — so it needs `git` and `cargo` on top of `uv`. Day-to-day updates after
+that belong to `sase update`, which maintains the install in exactly the shape
+`install-dev` creates. See
+[Installing from a checkout](../INSTALL.md#installing-from-a-checkout) for the full
+comparison.
+
+`just install` and `just install-dev` are human-only: inside a SASE agent or monitor
+they refuse with exit 2, because they would replace the `sase` binary every running
+agent depends on. The refusal points at `just install-venv` for workspace repairs. If
+the human genuinely asked for a global reinstall, the agent proposes it through
+`/sase_gate`, and the approved run carries a reason in
+`SASE_GLOBAL_INSTALL_BYPASS='<reason>'` (the installer prints a one-line note naming
+that reason). Agents never set the bypass on their own authority.
+
 ## Verification Commands
 
 ```bash

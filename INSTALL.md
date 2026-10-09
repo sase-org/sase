@@ -52,6 +52,44 @@ wheels, and the required Rust core (`sase-core-rs`) is a hard dependency that is
 automatically. There is no pure-Python fallback for ported core operations, which is why
 `sase core health` is the canonical install check.
 
+## Installing from a checkout
+
+If you have a `sase` checkout (typically to contribute or to run unreleased code), three
+commands cover the three destinations. `uv tool install sase` above stays the primary
+path for everyone who does not have a checkout.
+
+```text
+just install       your `sase` command ← the latest PyPI release
+just install-dev   your `sase` command ← this checkout + its paired sase-core
+just install-venv  this checkout's .venv ← tests, lint, benchmarks (never your `sase`)
+```
+
+|                     | `just install`                               | `just install-dev`                                    | `just install-venv`                    |
+| ------------------- | -------------------------------------------- | ----------------------------------------------------- | -------------------------------------- |
+| Touches             | the `uv tool` env (`sase`)                   | the `uv tool` env (`sase`)                            | this checkout's `./.venv` only         |
+| `sase` comes from   | latest PyPI release (`--version X` pins one) | this checkout, editable, as on disk                   | this checkout, editable, with dev deps |
+| `sase-core-rs` from | the release's wheel dependency               | `$SASE_CORE_DIR` or `../sase-core`, editable          | `SASE_CORE_WHEEL` or the local build   |
+| Plugins             | receipt set, moved to PyPI where published   | receipt set, editable where a durable checkout exists | `plugins.required`, unchanged          |
+
+Prerequisites: `uv` for all three; `just install-dev` additionally needs `git` and
+`cargo`, because it pairs this checkout with its sase-core checkout and builds the Rust
+extension from source. `SASE_CORE_DIR` pins which sase-core checkout `install-dev` pairs
+with; unset, it uses `<sase checkout>/../sase-core` — the same checkout `sase update`
+rebuilds from, so the two agree by construction.
+
+Relation to `sase update`: `just install` and `just install-dev` bootstrap and repair
+your `sase` command (fresh machine, switching between release and checkout, recovering a
+broken tool env). Day-to-day updates once installed belong to `sase update` (see
+[Keeping SASE up to date](#keeping-sase-up-to-date)), which maintains the install in
+exactly the shape `install-dev` creates. Preview any global install first with `-n`
+(`just install-dev -n`); repeat runs are no-ops when the install is already current.
+
+`just install` and `just install-dev` are human-only: they refuse inside a SASE agent or
+monitor (exit 2), because they replace the global `sase` every agent and the scheduler
+run. Contributors working in a checkout almost always want `just install-venv` instead —
+see
+[Your `sase` versus this checkout's `.venv`](docs/development.md#your-sase-versus-this-checkouts-venv).
+
 ## Installing plugins
 
 Plugins (for example `sase-github` for GitHub PR workflows, or `sase-telegram` for

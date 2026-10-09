@@ -164,6 +164,11 @@ just install-venv
 sase core health
 ```
 
+`just install-venv` sets up this checkout's `.venv` for tests and lint — it never
+touches your global `sase` command. See
+[Your `sase` versus this checkout's `.venv`](https://sase.sh/development/#your-sase-versus-this-checkouts-venv)
+before reaching for `just install` or `just install-dev`.
+
 Run `just check-full` before submitting changes. That exhaustive local lane updates TUI
 screenshot goldens; CI checks them with `just fix-tui-screenshots --check`. SASE agents
 use `just check` unless explicitly instructed to run `just check-full`, and run either
