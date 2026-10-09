@@ -281,8 +281,22 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # passed plus the already documented sase-1ex publication-binding failure in
 # `test_check_sase_core_rs_bindings_tool.py`, classified separately). The next
 # candidate should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 73
-_MEASURED_SERIAL_COST = "61.59 serial seconds across 73 entries"
+#
+# Re-curated to 75 on 2026-10-09 when `test_justfile_lint.py` (752 lines)
+# split by domain to keep every file under 500 lines:
+# `test_justfile_lint_lint.py` (lint stages, fix, and validation),
+# `test_justfile_lint_setup.py` (setup, refresh, and Rust installs), and
+# `test_justfile_lint_check.py` (check gates and remaining recipe guards)
+# moved out, leaving the original path as a non-collected facade that
+# re-exports every test. Shared helpers moved to
+# `tests/_justfile_lint_helpers.py` under public names, and
+# `test_justfile_visual_screenshots.py` now imports from there. The two added
+# paths redistribute the same Justfile wiring tests rather than expanding
+# contract membership. The whole 75-entry set measured 105.29 s under the
+# command above on this host (single run; 824 passed); the next candidate
+# should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 75
+_MEASURED_SERIAL_COST = "105.29 serial seconds across 75 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

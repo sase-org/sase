@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
-from tests.test_justfile_lint import (
+from tests._justfile_lint_helpers import (
     ROOT,
-    _clean_sase_core_env,
-    _copy_justfile,
-    _dry_run,
+    clean_sase_core_env,
+    copy_justfile,
+    dry_run,
 )
 
 
@@ -46,7 +46,7 @@ def _run_visual_recipe(
     cwd: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     calls = root / "calls.log"
-    env = _clean_sase_core_env() | {
+    env = clean_sase_core_env() | {
         "JUST_SPY_FILE": str(calls),
         "JUST_SPY_EXIT": spy_exit,
     }
@@ -84,7 +84,7 @@ def _last_spy_block(root: Path) -> list[str]:
 
 
 def test_test_visual_contention_keeps_the_governed_visual_runner() -> None:
-    output = _dry_run("test-visual-contention")
+    output = dry_run("test-visual-contention")
 
     assert "tools/run_pytest visual" in output
     assert "tools/fix_tui_screenshots" not in output
@@ -103,7 +103,7 @@ def test_visual_fixture_modules_do_not_honor_the_retired_update_flag() -> None:
 def test_fix_tui_screenshots_forwards_check_flag_and_selectors(
     tmp_path: Path,
 ) -> None:
-    _copy_justfile(tmp_path)
+    copy_justfile(tmp_path)
     _install_visual_spy_python(tmp_path)
 
     result = _run_visual_recipe(
@@ -130,7 +130,7 @@ def test_fix_tui_screenshots_forwards_check_flag_and_selectors(
 
 
 def test_test_visual_alias_routes_to_check_mode(tmp_path: Path) -> None:
-    _copy_justfile(tmp_path)
+    copy_justfile(tmp_path)
     _install_visual_spy_python(tmp_path)
 
     result = _run_visual_recipe(
@@ -150,7 +150,7 @@ def test_test_visual_alias_routes_to_check_mode(tmp_path: Path) -> None:
 def test_update_visual_snapshots_alias_routes_to_update_mode(
     tmp_path: Path,
 ) -> None:
-    _copy_justfile(tmp_path)
+    copy_justfile(tmp_path)
     _install_visual_spy_python(tmp_path)
 
     result = _run_visual_recipe(tmp_path, "update-visual-snapshots")
@@ -164,7 +164,7 @@ def test_update_visual_snapshots_alias_routes_to_update_mode(
 def test_fix_tui_screenshots_preserves_invocation_directory(
     tmp_path: Path,
 ) -> None:
-    _copy_justfile(tmp_path)
+    copy_justfile(tmp_path)
     _install_visual_spy_python(tmp_path)
     subdir = tmp_path / "subdir"
     subdir.mkdir()
@@ -182,7 +182,7 @@ def test_fix_tui_screenshots_preserves_invocation_directory(
 
 
 def test_fix_tui_screenshots_propagates_tool_exit_code(tmp_path: Path) -> None:
-    _copy_justfile(tmp_path)
+    copy_justfile(tmp_path)
     _install_visual_spy_python(tmp_path)
 
     result = _run_visual_recipe(tmp_path, "fix-tui-screenshots", spy_exit="3")

@@ -19,7 +19,9 @@ tests/test_github_actions_ci_master_gate.py
 tests/test_github_actions_ci_workflow.py
 tests/test_github_actions_publish.py
 tests/test_github_actions_setup_sase.py
-tests/test_justfile_lint.py
+tests/test_justfile_lint_check.py
+tests/test_justfile_lint_lint.py
+tests/test_justfile_lint_setup.py
 tests/test_justfile_sase_core_dir.py
 tests/test_macro_terminology.py
 tests/test_patch_stitch_terminology_audit.py

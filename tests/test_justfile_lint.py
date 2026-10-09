@@ -1,752 +1,137 @@
-from __future__ import annotations
+"""Justfile lint wiring contract.
 
-import os
-import shutil
-import subprocess
-from pathlib import Path
+Split into focused modules; this module re-exports every test so the
+original import path keeps working.
+"""
+
+from __future__ import annotations
 
 import pytest
 
+from tests._justfile_lint_helpers import ROOT
+from tests.test_justfile_lint_check import (
+    test_check_and_check_full_recipes_exist,
+    test_check_and_check_full_share_an_identical_gate_list,
+    test_check_ends_in_the_scoped_test_lane,
+    test_check_full_does_not_print_a_scoped_summary,
+    test_check_full_ends_in_the_full_test_lane,
+    test_check_full_runs_the_flake_baseline_gate_after_the_full_lane,
+    test_check_lint_and_fix_do_not_run_screenshot_maintenance,
+    test_check_mirrors_feature_flags_stage,
+    test_check_prints_the_scoped_summary_after_run_silent_returns,
+    test_ci_telemetry_runs_scheduled_measurement_lanes_off_full_ci,
+    test_feature_flags_lint_recipe_uses_bead_handshake,
+    test_legacy_pyvision_wiring_is_absent,
+    test_lint_includes_feature_flags_stage,
+    test_mypy_lint_recipe_runs_extensionless_tool_helper,
+    test_refresh_contexts_baseline_recipe_runs_the_fetch_tool,
+    test_retired_test_wait_lint_recipe_runs_the_tool,
+    test_selection_backtest_is_not_a_check_gate,
+    test_selection_backtest_recipe_runs_the_backtest_tool,
+    test_selection_health_recipe_runs_the_reporting_tool,
+    test_test_contexts_recipe_caches_the_recorded_baseline,
+    test_test_scoped_runs_the_scoped_runner_mode,
+    test_test_scoped_skips_the_visual_dependency_install,
+    test_test_skips_the_visual_dependency_install,
+    test_validate_runs_static_feature_flag_checks,
+)
+from tests.test_justfile_lint_lint import (
+    test_check_and_check_full_skip_toobig_stage,
+    test_check_mirrors_lint_symvision_stage,
+    test_check_mirrors_retired_test_wait_stage,
+    test_check_retains_sase_validation_stage,
+    test_ci_lint_job_derives_sdd_sidecars_from_config,
+    test_ci_lint_job_retains_sase_validation_stage,
+    test_fix_uses_formatter_venv_without_application_setup,
+    test_formatter_recipes_honor_custom_format_venv_dir,
+    test_lint_does_not_run_sase_validation,
+    test_lint_includes_retired_test_wait_stage,
+    test_lint_includes_symvision_stage,
+    test_lint_includes_toobig_stage,
+    test_private_symvision_stage_uses_published_cli,
+    test_public_symvision_target_uses_private_lint_stage,
+    test_public_toobig_target_uses_private_lint_stage,
+)
+from tests.test_justfile_lint_setup import (
+    test_refresh_sase_core_checkout_fetches_when_stale_core_is_not_allowed,
+    test_refresh_sase_core_checkout_skips_fetch_when_stale_core_is_allowed,
+    test_rust_dev_install_disables_cargo_incremental_cache,
+    test_rust_dev_install_isolates_cargo_build_dir_with_target,
+    test_rust_dev_install_writes_the_core_source_stamp,
+    test_rust_install_also_refreshes_the_macro_lsp_binary,
+    test_rust_install_consults_sase_core_wheel_cache,
+    test_rust_install_is_fatal_on_a_behind_status,
+    test_rust_install_notes_other_nonzero_status_as_normal,
+    test_rust_install_recipes_skip_refresh_helper_when_stale_core_is_allowed,
+    test_rust_lsp_install_consults_sase_core_artifact_cache,
+    test_rust_lsp_install_isolates_cargo_build_dir_with_target,
+    test_rust_recipes_are_grouped_and_documented,
+    test_rust_uv_tool_recipes_fail_when_prerequisites_are_missing,
+    test_setup_is_fatal_on_the_core_version_behind_bit,
+    test_setup_notes_the_core_version_ahead_bit_as_normal,
+    test_setup_propagates_the_post_rebuild_bindings_check_exit_status,
+)
+
 pytestmark = pytest.mark.contract
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _clean_sase_core_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env.pop("SASE_CORE_DIR", None)
-    env.pop("SASE_CORE_WHEEL", None)
-    env.pop("SASE_CORE_WHEEL_CACHE_DIR", None)
-    env.pop("SASE_ALLOW_STALE_CORE", None)
-    env.pop("SASE_LINKED_REPO_SASE_CORE_DIR", None)
-    env.pop("SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR", None)
-    env.pop("SASE_SIBLING_REPO_SASE_CORE_DIR", None)
-    env.pop("SASE_SIBLING_REPO_SASE_CORE_PRIMARY_DIR", None)
-    env.pop("SASE_SIBLING_REPO_CORE_DIR", None)
-    env.pop("SASE_SIBLING_REPO_CORE_PRIMARY_DIR", None)
-    return env
-
-
-def _dry_run(*args: str) -> str:
-    result = subprocess.run(
-        ["just", "--justfile", str(ROOT / "Justfile"), "--dry-run", *args],
-        cwd=ROOT,
-        env=_clean_sase_core_env(),
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout + result.stderr
-
-
-def _copy_justfile(root: Path) -> None:
-    shutil.copyfile(ROOT / "Justfile", root / "Justfile")
-
-
-def _install_spy_python(root: Path) -> None:
-    python = root / ".venv/bin/python"
-    python.parent.mkdir(parents=True)
-    python.write_text(
-        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$JUST_SPY_FILE"\nexit 0\n',
-        encoding="utf-8",
-    )
-    python.chmod(0o755)
-
-
-def _install_executable(path: Path, body: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("#!/bin/sh\n" + body, encoding="utf-8")
-    path.chmod(0o755)
-
-
-def test_lint_includes_toobig_stage() -> None:
-    """CI enforces the `toobig` gate through `just lint` after `check` skips it."""
-    output = _dry_run("lint")
-
-    assert "Checking Python file line counts" in output
-    assert "just _lint-toobig" in output
-
-
-def test_lint_includes_symvision_stage() -> None:
-    output = _dry_run("lint")
-
-    assert "Checking for unused Python definitions" in output
-    assert "just _lint-symvision" in output
-
-
-def test_lint_includes_retired_test_wait_stage() -> None:
-    output = _dry_run("lint")
-
-    assert "Checking retired test wait helpers" in output
-    assert "just _lint-test-waits" in output
-
-
-def test_check_and_check_full_skip_toobig_stage() -> None:
-    for recipe in ("check", "check-full"):
-        output = _dry_run(recipe)
-
-        assert "_lint-toobig" not in output
-        assert "lint (toobig)" not in output
-
-
-def test_check_mirrors_lint_symvision_stage() -> None:
-    output = _dry_run("check")
-
-    assert 'tools/run_silent "lint (symvision)"   just _lint-symvision' in output
-
-
-def test_check_mirrors_retired_test_wait_stage() -> None:
-    output = _dry_run("check")
-
-    assert 'tools/run_silent "lint (test waits)"  just _lint-test-waits' in output
-
-
-def test_lint_does_not_run_sase_validation() -> None:
-    output = _dry_run("lint")
-
-    assert "Running SASE validation" not in output
-    assert "just validate" not in output
-
-
-def test_fix_uses_formatter_venv_without_application_setup(tmp_path: Path) -> None:
-    _copy_justfile(tmp_path)
-    calls = tmp_path / "calls.log"
-    (tmp_path / "src").mkdir()
-    (tmp_path / "tests").mkdir()
-    (tmp_path / "tools").mkdir()
-    (tmp_path / "sample.yml").write_text("key: value\n", encoding="utf-8")
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "add", "sample.yml"], cwd=tmp_path, check=True, capture_output=True
-    )
-    subprocess.run(
-        ["uv", "venv", ".venv-format"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    site_packages = subprocess.run(
-        [
-            str(tmp_path / ".venv-format/bin/python"),
-            "-c",
-            "import site; print(site.getsitepackages()[0])",
-        ],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    (Path(site_packages) / "yaml.py").write_text("", encoding="utf-8")
-    (tmp_path / "tools/render_model_docs").write_text(
-        "from pathlib import Path\n"
-        "import os\n"
-        "with Path(os.environ['JUST_SPY_FILE']).open('a', encoding='utf-8') as f:\n"
-        "    f.write('format-python tools/render_model_docs\\n')\n",
-        encoding="utf-8",
-    )
-
-    _install_executable(
-        tmp_path / ".venv/bin/python",
-        'echo forbidden-app-python >> "$JUST_SPY_FILE"\nexit 91\n',
-    )
-    _install_executable(
-        tmp_path / ".venv-format/bin/ruff",
-        'echo ruff "$@" >> "$JUST_SPY_FILE"\nexit 0\n',
-    )
-    _install_executable(
-        tmp_path / ".venv-format/bin/keep-sorted",
-        'echo keep-sorted "$@" >> "$JUST_SPY_FILE"\nexit 0\n',
-    )
-    _install_executable(
-        tmp_path / "node_modules/.bin/prettier",
-        'echo prettier "$@" >> "$JUST_SPY_FILE"\nexit 0\n',
-    )
-
-    subprocess.run(
-        ["just", "--justfile", str(tmp_path / "Justfile"), "fix"],
-        cwd=tmp_path,
-        env=_clean_sase_core_env() | {"JUST_SPY_FILE": str(calls)},
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    recorded = calls.read_text(encoding="utf-8")
-    assert "ruff format src/ tests/" in recorded
-    assert "ruff check --fix src/ tests/" in recorded
-    assert "format-python tools/render_model_docs" in recorded
-    assert "prettier --write **/*.md" in recorded
-    assert "keep-sorted sample.yml" in recorded
-    assert "forbidden-app-python" not in recorded
-
-
-def test_formatter_recipes_honor_custom_format_venv_dir() -> None:
-    output = _dry_run("--set", "format_venv_dir", "custom-format", "fmt-py")
-
-    assert "custom-format/bin/ruff format src/ tests/" in output
-    assert ".venv/bin/ruff format" not in output
-
-
-def test_check_retains_sase_validation_stage() -> None:
-    output = _dry_run("check")
-
-    assert 'tools/run_silent "SASE validation"     just validate' in output
-
-
-def test_ci_lint_job_retains_sase_validation_stage() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
-
-    assert "      - name: SASE validation\n        run: just validate\n" in workflow
-
-
-def test_ci_lint_job_derives_sdd_sidecars_from_config() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
-
-    assert "run: ./.venv/bin/python tools/ci_bootstrap_sidecars\n" in workflow
-    # The sidecar environment comes from sase/sase.yml. Hand-mirroring the
-    # sidecar list and the store record here drifted every time the config
-    # changed, which is what broke `sase validate` on every master run.
-    assert "repository: sase-org/sase--plans" not in workflow
-    assert "repository: sase-org/sase--beads" not in workflow
-    assert "repository: sase-org/sase--research" not in workflow
-    assert '"storage": "sidecar_repos"' not in workflow
-    assert "mkdir -p .sase" not in workflow
-    assert "sase-org/sase--sdd" not in workflow
-
-
-def test_public_toobig_target_uses_private_lint_stage() -> None:
-    output = _dry_run("toobig", "900", "800", "700")
-
-    assert "just _lint-toobig 900 800 700" in output
-
-
-def test_public_symvision_target_uses_private_lint_stage() -> None:
-    output = _dry_run("symvision", "--help")
-
-    assert "just _lint-symvision --help" in output
-
-
-def test_private_symvision_stage_uses_published_cli() -> None:
-    output = _dry_run("_lint-symvision", "--help")
-
-    assert "BD_COMMAND=tools/sase_bead" in output
-    assert ".venv/bin/symvision src/sase" in output
-    assert "--help" in output
-    assert "python tools/pyvision" not in output
-
-
-def test_setup_is_fatal_on_the_core_version_behind_bit() -> None:
-    output = _dry_run("_setup")
-
-    assert "if [ $((validation_status & 16)) -ne 0 ]" in output
-    assert (
-        "[setup] ERROR: the sase-core checkout is behind the sase-core-rs floor"
-        in output
-    )
-    assert "sase repo open sase-core" in output
-    assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]' in output
-
-
-def test_setup_notes_the_core_version_ahead_bit_as_normal() -> None:
-    output = _dry_run("_setup")
-
-    assert "if [ $((validation_status & 1)) -ne 0 ]" in output
-    assert (
-        "[setup] Note: the sase-core checkout is ahead of the published "
-        "sase-core-rs window in pyproject.toml" in output
-    )
-    assert "no action is needed here" in output
-
-
-def test_setup_propagates_the_post_rebuild_bindings_check_exit_status() -> None:
-    """Without this, `_setup` silently swallows a still-stale rebuilt extension.
-
-    `just` runs recipes under `sh -cu` (no `-e`), so a failing command that
-    isn't checked doesn't fail the recipe on its own.
-    """
-    output = _dry_run("_setup")
-
-    assert "tools/validate_sase_core_rs --sase-core-dir" in output
-    assert "|| exit $?" in output
-
-
-def test_refresh_sase_core_checkout_skips_fetch_when_stale_core_is_allowed(
-    tmp_path: Path,
-) -> None:
-    _copy_justfile(tmp_path)
-    marker = tmp_path / "python-called"
-    _install_spy_python(tmp_path)
-
-    subprocess.run(
-        [
-            "just",
-            "--justfile",
-            str(tmp_path / "Justfile"),
-            "--set",
-            "venv_dir",
-            ".venv",
-            "--set",
-            "sase_core_dir",
-            str(tmp_path / "sase-core"),
-            "_refresh-sase-core-checkout",
-        ],
-        cwd=tmp_path,
-        env=_clean_sase_core_env()
-        | {
-            "JUST_SPY_FILE": str(marker),
-            "SASE_ALLOW_STALE_CORE": "1",
-        },
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert not marker.exists()
-
-
-def test_refresh_sase_core_checkout_fetches_when_stale_core_is_not_allowed(
-    tmp_path: Path,
-) -> None:
-    _copy_justfile(tmp_path)
-    marker = tmp_path / "python-called"
-    _install_spy_python(tmp_path)
-
-    subprocess.run(
-        [
-            "just",
-            "--justfile",
-            str(tmp_path / "Justfile"),
-            "--set",
-            "venv_dir",
-            ".venv",
-            "--set",
-            "sase_core_dir",
-            str(tmp_path / "sase-core"),
-            "_refresh-sase-core-checkout",
-        ],
-        cwd=tmp_path,
-        env=_clean_sase_core_env() | {"JUST_SPY_FILE": str(marker)},
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert "tools/refresh_linked_checkout" in marker.read_text(encoding="utf-8")
-
-
-@pytest.mark.parametrize("recipe", ["rust-install", "rust-dev-install"])
-def test_rust_install_recipes_skip_refresh_helper_when_stale_core_is_allowed(
-    recipe: str,
-) -> None:
-    output = _dry_run(recipe, "/tmp/fake-venv")
-
-    assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" != "1" ]; then' in output
-    assert "_refresh-sase-core-checkout" in output
-    assert "maturin" in output
-
-
-def test_rust_dev_install_disables_cargo_incremental_cache() -> None:
-    output = _dry_run("rust-dev-install", "/tmp/fake-venv")
-
-    assert output.count("CARGO_INCREMENTAL=0") >= 2
-    assert (
-        output.count(
-            'rm -rf "$py_target_dir/build/$profile/incremental" '
-            '"$py_target_dir/$profile/incremental"'
-        )
-        == 1
-    )
-    assert (
-        output.count(
-            'rm -rf "$lsp_target_dir/build/$profile/incremental" '
-            '"$lsp_target_dir/$profile/incremental"'
-        )
-        == 1
-    )
-    assert output.count('"$py_target_dir/$profile/incremental"') == 1
-    assert output.count('"$py_target_dir/build/$profile/incremental"') == 1
-    assert output.count('"$lsp_target_dir/$profile/incremental"') == 1
-    assert output.count('"$lsp_target_dir/build/$profile/incremental"') == 1
-
-
-def test_rust_dev_install_isolates_cargo_build_dir_with_target() -> None:
-    output = _dry_run("rust-dev-install", "/tmp/fake-venv")
-
-    assert 'CARGO_BUILD_BUILD_DIR="$py_target_dir/build"' in output
-    assert 'CARGO_BUILD_BUILD_DIR="$lsp_target_dir/build"' in output
-
-
-def test_rust_lsp_install_isolates_cargo_build_dir_with_target() -> None:
-    output = _dry_run("rust-lsp-install", "/tmp/fake-venv")
-
-    assert 'CARGO_BUILD_BUILD_DIR="$lsp_target_dir/build"' in output
-
-
-def test_rust_install_also_refreshes_the_macro_lsp_binary() -> None:
-    """`just install-venv` must never leave a stale `sase-macro-lsp` behind.
-
-    The extension and the LSP server both compile the same directive contract,
-    and the ACE/LSP parity tests compare them, so rebuilding only the extension
-    fails those tests with a confusing completion diff.
-    """
-    output = _dry_run("rust-install", "/tmp/fake-venv")
-
-    assert 'rust-lsp-install "/tmp/fake-venv"' in output
-
-
-def test_rust_install_consults_sase_core_wheel_cache() -> None:
-    output = _dry_run("rust-install", "/tmp/fake-venv")
-
-    assert 'cache_tool="' in output
-    assert 'sase_core_wheel_cache"; cached_wheel=' in output
-    assert '"$cache_tool" lookup' in output
-    assert "--reinstall-package sase-core-rs" in output
-    assert '"$cache_tool" store' in output
-    assert 'maturin" develop --release' in output
-
-
-def test_rust_lsp_install_consults_sase_core_artifact_cache() -> None:
-    output = _dry_run("rust-lsp-install", "/tmp/fake-venv")
-
-    assert 'cache_tool="' in output
-    assert '"$cache_tool" lookup --kind lsp --profile "$profile"' in output
-    assert '"$cache_tool" store --kind lsp --profile "$profile"' in output
-    assert '--cargo-target-dir "$lsp_target_dir"' in output
-    assert "[rust-lsp-install] Installing cached LSP binary from " in output
-    assert 'lsp_bin="$(basename "$src")"' in output
-    assert '"$lsp_pkg"' in output
-    assert '"$lsp_target_dir/$profile/sase-macro-lsp"' in output
-
-
-def test_rust_install_is_fatal_on_a_behind_status() -> None:
-    output = _dry_run("rust-install", "/tmp/fake-venv")
-
-    assert 'if [ "$status" -eq 3 ]' in output
-    assert (
-        "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs floor"
-        in output
-    )
-    assert "sase repo open sase-core" in output
-    assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]' in output
-
-
-def test_rust_install_notes_other_nonzero_status_as_normal() -> None:
-    output = _dry_run("rust-install", "/tmp/fake-venv")
-
-    assert 'elif [ "$status" -ne 0 ]' in output
-    assert (
-        "[rust-install] Note: the sase-core checkout is ahead of the published "
-        "sase-core-rs window in pyproject.toml" in output
-    )
-    assert "no action is needed here" in output
-
-
-def test_rust_dev_install_writes_the_core_source_stamp() -> None:
-    """`rust-dev-install` leaves the same freshness stamp as `rust-install`.
-
-    The identity is captured after the checkout refresh and before the
-    build, and the stamp lands only after both the extension and the LSP
-    install succeed, so an edit made mid-build still reads as stale.
-    """
-    output = _dry_run("rust-dev-install", "/tmp/fake-venv")
-
-    assert "tools/_sase_core_source_identity.py" in output
-    assert ".sase-core-rs-source.json.pending" in output
-    assert 'mv -f "$pending"' in output
-    assert output.index("_sase_core_source_identity.py") < output.index(
-        "develop --profile"
-    )
-    assert output.index("[rust-dev-install] installed") < output.index(
-        'mv -f "$pending"'
-    )
-
-
-@pytest.mark.parametrize(
-    "recipe",
-    ["rust-install-uv-tool", "rust-dev-install-uv-tool", "rust-lsp-install-uv-tool"],
-)
-def test_rust_uv_tool_recipes_fail_when_prerequisites_are_missing(
-    recipe: str,
-) -> None:
-    """The uv-tool wrappers must fail, not silently succeed, without uv.
-
-    A missing `uv` or tool venv previously exited 0, so callers (`sase
-    update`, the mode switch, and later the installer) could believe the
-    rebuild happened.
-    """
-    output = _dry_run(recipe)
-
-    assert output.count("exit 1") == 2
-    assert "exit 0" not in output
-
-
-def test_rust_recipes_are_grouped_and_documented() -> None:
-    result = subprocess.run(
-        ["just", "--justfile", str(ROOT / "Justfile"), "--list"],
-        cwd=ROOT,
-        env=_clean_sase_core_env(),
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    output = result.stdout + result.stderr
-    assert "[rust]" in output
-    documented = {
-        "rust-install ": "Build and install sase_core_rs into a venv",
-        "rust-install-uv-tool": "Install sase_core_rs into the uv-tool venv",
-        "rust-dev-install ": "Build dev-profile Rust artifacts",
-        "rust-dev-install-uv-tool": "Install dev-profile Rust artifacts",
-        "rust-lsp-install ": "Build and install the sase-macro-lsp server",
-        "rust-lsp-install-uv-tool": "Install sase-macro-lsp into the uv-tool venv",
-        "rust-test": "Run cargo test across the sase-core workspace",
-        "rust-fmt ": "Format Rust sources in sase-core",
-        "rust-fmt-check": "Check Rust formatting in sase-core",
-        "rust-clippy": "Run clippy with warnings-as-errors",
-        "rust-bench": "Run the Rust direct-parser benchmark",
-        "rust-check": "Run Rust fmt-check, clippy, and tests",
-    }
-    for recipe, doc in documented.items():
-        assert recipe in output
-        assert doc in output
-
-
-_CHECK_GATE_LINES = (
-    'tools/run_silent "fmt (python)"       just fmt-py-check',
-    'tools/run_silent "fmt (markdown)"     just fmt-md-check',
-    'tools/run_silent "lint (keep-sorted)" just lint-keep-sorted',
-    'tools/run_silent "lint (ruff)"        just _lint-ruff',
-    'tools/run_silent "lint (mypy)"        just _lint-mypy',
-    'tools/run_silent "lint (feature flags)" just _lint-flags',
-    'tools/run_silent "lint (pyscripts)"   just _lint-pyscripts',
-    'tools/run_silent "lint (test waits)"  just _lint-test-waits',
-    'tools/run_silent "lint (changelog)"   just _lint-changelog',
-    'tools/run_silent "lint (symvision)"   just _lint-symvision',
-    'tools/run_silent "SASE validation"     just validate',
-    'tools/run_silent "committed plans"      just validate-committed-plans',
-)
-
-
-def test_check_and_check_full_recipes_exist() -> None:
-    justfile = (ROOT / "Justfile").read_text()
-
-    assert '\ncheck: (_require-tool-run "check") _setup\n' in justfile
-    assert '\ncheck-full: (_require-tool-run "check-full") _setup\n' in justfile
-
-
-def test_check_ends_in_the_scoped_test_lane() -> None:
-    output = _dry_run("check")
-
-    assert 'tools/run_silent "test (scoped)"      just test-scoped' in output
-    assert 'tools/run_silent "test"               just test' not in output
-    assert output.rstrip().endswith("tools/run_silent --finish")
-
-
-def test_check_full_ends_in_the_full_test_lane() -> None:
-    output = _dry_run("check-full")
-
-    assert 'tools/run_silent "test cost"          just test-cost' in output
-    assert "just test-scoped" not in output
-    assert "just fix-tui-screenshots" in output
-    assert output.rstrip().endswith("tools/run_silent --finish")
-
-
-def test_check_prints_the_scoped_summary_after_run_silent_returns() -> None:
-    """The scoped summary step must sit outside `run_silent`'s captured region.
-
-    `run_silent` discards a wrapped command's captured output on success, so
-    forwarding the scoped lane's summary from *inside* that call would still
-    get swallowed. It has to be a separate `check` line that runs only after
-    `run_silent "test (scoped)"` has already returned.
-    """
-    output = _dry_run("check")
-
-    scoped_line = 'tools/run_silent "test (scoped)"      just test-scoped'
-    summary_line = "tools/print_scoped_summary"
-    assert scoped_line in output
-    assert summary_line in output
-    assert output.index(scoped_line) < output.index(summary_line)
-
-
-def test_check_full_does_not_print_a_scoped_summary() -> None:
-    """`check-full` runs the full lane, not the scoped one; nothing to forward."""
-    output = _dry_run("check-full")
-
-    assert "tools/print_scoped_summary" not in output
-
-
-def test_check_full_runs_the_flake_baseline_gate_after_the_full_lane() -> None:
-    output = _dry_run("check-full")
-
-    test_line = 'tools/run_silent "test cost"          just test-cost'
-    gate_line = (
-        'tools/run_silent "flake baseline"     just selection-health '
-        "--fail-on-new-flake"
-    )
-    screenshot_line = "just fix-tui-screenshots"
-    assert test_line in output
-    assert gate_line in output
-    assert screenshot_line in output
-    assert output.index(test_line) < output.index(gate_line)
-    assert output.index(gate_line) < output.index(screenshot_line)
-    screenshot_lines = [
-        line for line in output.splitlines() if "fix-tui-screenshots" in line
-    ]
-    assert screenshot_lines
-    assert all("run_silent" not in line for line in screenshot_lines)
-
-
-def test_check_lint_and_fix_do_not_run_screenshot_maintenance() -> None:
-    for recipe in ("check", "lint", "fix"):
-        output = _dry_run(recipe)
-        assert "fix-tui-screenshots" not in output
-        assert "tools/fix_tui_screenshots" not in output
-
-
-def test_check_and_check_full_share_an_identical_gate_list() -> None:
-    """`check` and `check-full` must never drift on their non-test gates.
-
-    The failure mode this guards against is someone adding a lint or validation
-    gate to one recipe and forgetting the other.
-    """
-    check_output = _dry_run("check")
-    check_full_output = _dry_run("check-full")
-
-    for gate_line in _CHECK_GATE_LINES:
-        assert gate_line in check_output
-        assert gate_line in check_full_output
-
-
-def test_test_scoped_runs_the_scoped_runner_mode() -> None:
-    output = _dry_run("test-scoped")
-
-    assert "tools/run_pytest scoped" in output
-
-
-def test_test_skips_the_visual_dependency_install() -> None:
-    output = _dry_run("test")
-
-    assert "tools/run_pytest fast" in output
-    assert '-e ".[dev,visual]"' not in output
-    assert '-e ".[dev]"' in output
-
-
-def test_test_scoped_skips_the_visual_dependency_install() -> None:
-    """The scoped lane skips the pinned visual stack because it drops the visual tree.
-
-    `_setup-visual` runs the `[dev,visual]` install; `_setup` does not. If the
-    selector ever stops excluding `tests/ace/tui/visual/**`, this recipe has to
-    go back to `_setup-visual` and this assertion is the tripwire.
-    """
-    output = _dry_run("test-scoped")
-
-    assert '-e ".[dev,visual]"' not in output
-    assert '-e ".[dev]"' in output
-
-
-def test_selection_health_recipe_runs_the_reporting_tool() -> None:
-    output = _dry_run("selection-health")
-
-    assert "tools/selection_health" in output
-
-
-def test_retired_test_wait_lint_recipe_runs_the_tool() -> None:
-    output = _dry_run("_lint-test-waits")
-
-    assert "tools/check_test_wait_helpers" in output
-
-
-def test_lint_includes_feature_flags_stage() -> None:
-    output = _dry_run("lint")
-
-    assert "Checking feature flag registry integrity" in output
-    assert "just _lint-flags" in output
-
-
-def test_check_mirrors_feature_flags_stage() -> None:
-    output = _dry_run("check")
-
-    assert 'tools/run_silent "lint (feature flags)" just _lint-flags' in output
-
-
-def test_feature_flags_lint_recipe_uses_bead_handshake() -> None:
-    output = _dry_run("_lint-flags")
-
-    assert "BD_COMMAND=tools/sase_bead" in output
-    assert "SASE_SYMVISION_BEAD_STATUS_ONLY=1" in output
-    assert "tools/check_feature_flags" in output
-
-
-def test_validate_runs_static_feature_flag_checks() -> None:
-    output = _dry_run("validate")
-
-    assert "tools/check_feature_flags --static" in output
-
-
-def test_mypy_lint_recipe_runs_extensionless_tool_helper() -> None:
-    output = _dry_run("_lint-mypy")
-
-    assert "tools/typecheck_extensionless_tools --mypy .venv/bin/mypy" in output
-
-
-def test_selection_backtest_recipe_runs_the_backtest_tool() -> None:
-    output = _dry_run("selection-backtest")
-
-    assert "tools/selection_backtest" in output
-
-
-def test_selection_backtest_is_not_a_check_gate() -> None:
-    """The backtest measures; it must never become something `check` waits on.
-
-    It checks out historical commits and, under `--execute`, runs their tests.
-    Neither belongs on the path an agent takes before replying.
-    """
-    for recipe in ("check", "check-full"):
-        assert "selection_backtest" not in _dry_run(recipe)
-
-
-def test_refresh_contexts_baseline_recipe_runs_the_fetch_tool() -> None:
-    output = _dry_run("refresh-contexts-baseline")
-
-    assert "tools/fetch_coverage_contexts" in output
-
-
-def test_test_contexts_recipe_caches_the_recorded_baseline() -> None:
-    """A local `cov-contexts` run is a baseline producer, not just a report.
-
-    Without this line the only supply route for ground truth is the CI
-    artifact, and a host that never fetched runs the scoped lane on the static
-    closure alone.
-    """
-    output = _dry_run("test-contexts")
-
-    assert "tools/run_pytest cov-contexts" in output
-    assert "tools/install_coverage_contexts --if-enabled" in output
-
-
-def test_legacy_pyvision_wiring_is_absent() -> None:
-    justfile = (ROOT / "Justfile").read_text()
-
-    assert "_lint-pyvision" not in justfile
-    assert not list((ROOT / "tools").glob("pyvision-*"))
-
-
-def test_ci_telemetry_runs_scheduled_measurement_lanes_off_full_ci() -> None:
-    ci_workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
-    full_workflow = (ROOT / ".github" / "workflows" / "full.yml").read_text()
-    telemetry_workflow = (ROOT / ".github" / "workflows" / "telemetry.yml").read_text()
-
-    assert "  schedule:\n" not in ci_workflow
-    assert "  push:\n" not in ci_workflow
-    assert "contention-test:\n" not in ci_workflow
-    assert "coverage-contexts:\n" not in ci_workflow
-    assert "  schedule:\n" in full_workflow
-    assert "17 */2 * * *" in full_workflow
-    assert "uses: ./.github/workflows/ci.yml" in full_workflow
-    assert "  schedule:\n" in telemetry_workflow
-    assert "47 */6 * * *" in telemetry_workflow
-    assert "contention-test:\n" in telemetry_workflow
-    assert "coverage-contexts:\n" in telemetry_workflow
-    assert "test-cost:\n" in telemetry_workflow
-    assert "SASE_CONTENTION_REPEAT=1 just test-contention" in telemetry_workflow
+__test__ = False
+
+__all__ = [
+    "ROOT",
+    "test_check_and_check_full_recipes_exist",
+    "test_check_and_check_full_share_an_identical_gate_list",
+    "test_check_and_check_full_skip_toobig_stage",
+    "test_check_ends_in_the_scoped_test_lane",
+    "test_check_full_does_not_print_a_scoped_summary",
+    "test_check_full_ends_in_the_full_test_lane",
+    "test_check_full_runs_the_flake_baseline_gate_after_the_full_lane",
+    "test_check_lint_and_fix_do_not_run_screenshot_maintenance",
+    "test_check_mirrors_feature_flags_stage",
+    "test_check_mirrors_lint_symvision_stage",
+    "test_check_mirrors_retired_test_wait_stage",
+    "test_check_prints_the_scoped_summary_after_run_silent_returns",
+    "test_check_retains_sase_validation_stage",
+    "test_ci_lint_job_derives_sdd_sidecars_from_config",
+    "test_ci_lint_job_retains_sase_validation_stage",
+    "test_ci_telemetry_runs_scheduled_measurement_lanes_off_full_ci",
+    "test_feature_flags_lint_recipe_uses_bead_handshake",
+    "test_fix_uses_formatter_venv_without_application_setup",
+    "test_formatter_recipes_honor_custom_format_venv_dir",
+    "test_legacy_pyvision_wiring_is_absent",
+    "test_lint_does_not_run_sase_validation",
+    "test_lint_includes_feature_flags_stage",
+    "test_lint_includes_retired_test_wait_stage",
+    "test_lint_includes_symvision_stage",
+    "test_lint_includes_toobig_stage",
+    "test_mypy_lint_recipe_runs_extensionless_tool_helper",
+    "test_private_symvision_stage_uses_published_cli",
+    "test_public_symvision_target_uses_private_lint_stage",
+    "test_public_toobig_target_uses_private_lint_stage",
+    "test_refresh_contexts_baseline_recipe_runs_the_fetch_tool",
+    "test_refresh_sase_core_checkout_fetches_when_stale_core_is_not_allowed",
+    "test_refresh_sase_core_checkout_skips_fetch_when_stale_core_is_allowed",
+    "test_retired_test_wait_lint_recipe_runs_the_tool",
+    "test_rust_dev_install_disables_cargo_incremental_cache",
+    "test_rust_dev_install_isolates_cargo_build_dir_with_target",
+    "test_rust_dev_install_writes_the_core_source_stamp",
+    "test_rust_install_also_refreshes_the_macro_lsp_binary",
+    "test_rust_install_consults_sase_core_wheel_cache",
+    "test_rust_install_is_fatal_on_a_behind_status",
+    "test_rust_install_notes_other_nonzero_status_as_normal",
+    "test_rust_install_recipes_skip_refresh_helper_when_stale_core_is_allowed",
+    "test_rust_lsp_install_consults_sase_core_artifact_cache",
+    "test_rust_lsp_install_isolates_cargo_build_dir_with_target",
+    "test_rust_recipes_are_grouped_and_documented",
+    "test_rust_uv_tool_recipes_fail_when_prerequisites_are_missing",
+    "test_selection_backtest_is_not_a_check_gate",
+    "test_selection_backtest_recipe_runs_the_backtest_tool",
+    "test_selection_health_recipe_runs_the_reporting_tool",
+    "test_setup_is_fatal_on_the_core_version_behind_bit",
+    "test_setup_notes_the_core_version_ahead_bit_as_normal",
+    "test_setup_propagates_the_post_rebuild_bindings_check_exit_status",
+    "test_test_contexts_recipe_caches_the_recorded_baseline",
+    "test_test_scoped_runs_the_scoped_runner_mode",
+    "test_test_scoped_skips_the_visual_dependency_install",
+    "test_test_skips_the_visual_dependency_install",
+    "test_validate_runs_static_feature_flag_checks",
+]
