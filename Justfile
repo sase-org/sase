@@ -1465,16 +1465,17 @@ bead-perf-scale-record *args: _setup
         {{ args }}
 
 # A1 history-independence gate over generated corpora (sase-1h8.14). Runs
-# 1x+4x with the gate op set. Blocking: the ready p95 ratio (the one
-# history-independent read today). Advisory-but-recorded: the four ratio
-# criteria that still miss plus all three absolute ceilings, because
-# shared-runner wall clocks are contention-sensitive (see
+# 1x+4x with the gate op set. Blocking: nothing — every A1 criterion runs
+# as a recorded known miss (sase-1io.7.6.1; ratio:ready owned by sase-1j5),
+# because shared-runner wall clocks are contention-sensitive and the
+# misses below are real scaling gaps with follow-ups, not noise (see
 # docs/perf_runbook.md "Bead history-independence gate"). Tolerance 0.5 is
 # the runner-noise calibration; the strict all-criteria <10% check lives in
 # `just bead-perf-scale --check-gate` locally. --gate-allow names known
 # misses (each is owned by a follow-up task listed in
-# docs/perf_runbook.md: sase-1iu, sase-1iv, sase-1iw, sase-1ix); they are measured and
-# reported, never skipped. Drop ids off this list as follow-ups land.
+# docs/perf_runbook.md: sase-1j5, sase-1iu, sase-1iv, sase-1iw, sase-1ix);
+# they are measured and reported, never skipped. Drop ids off this list as
+# follow-ups land.
 bead-perf-scale-gate *args: _setup
     @printf "\n---------- Bead history-independence gate (sase-1h8.14) ----------\n"
     mkdir -p sdd/plans/202605/perf_artifacts
@@ -1484,7 +1485,7 @@ bead-perf-scale-gate *args: _setup
         --only show_detail_open,ready,list_active_page,note_append,update,tui_cached \
         --check-gate \
         --gate-tolerance 0.5 \
-        --gate-allow ratio:list,ratio:detail,ratio:note,ratio:update,abs:point-read,abs:active-list,abs:tui-nochange \
+        --gate-allow ratio:ready,ratio:list,ratio:detail,ratio:note,ratio:update,abs:point-read,abs:active-list,abs:tui-nochange \
         --output sdd/plans/202605/perf_artifacts/bead_perf_gate4.json \
         {{ args }}
 

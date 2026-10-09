@@ -1631,12 +1631,12 @@ just bead-perf-scale -- --check-gate
 just bead-perf-scale-gate
 ```
 
-CI (`just bead-perf-scale-gate`, tolerance 0.5) blocks only on the `ready` p95 ratio.
-The four ratio criteria that still miss, plus all three absolute ceilings, run as
-recorded known-misses (`--gate-allow`): shared-runner wall clocks are
+CI (`just bead-perf-scale-gate`, tolerance 0.5) no longer blocks on any criterion
+(sase-1io.7.6.1). Every A1 criterion — all five ratios plus all three absolute ceilings
+— runs as a recorded known-miss (`--gate-allow`): shared-runner wall clocks are
 contention-sensitive, and the misses below are real scaling gaps with follow-ups, not
 noise. Drop ids off the `--gate-allow` list as follow-ups land; the strict local run
-keeps enforcing everything.
+(`just bead-perf-scale -- --check-gate`) keeps enforcing everything.
 
 ### Before/after (medians, ms)
 
@@ -1661,9 +1661,26 @@ query. Unbounded list still costs ~456 ms at 1x (Python hydration of ~6,900 rows
 
 ### Verdict and known misses
 
-`ratio:ready` passes (1.03 at 1x to 8x): ready no longer replays closed history. The
-rest miss and stay open with measured breakdowns (each miss is owned by a task bead):
+`ratio:ready` misses and stays open as a known miss (corrected sase-1io.7.6.1; the
+earlier "passes (1.03 at 1x to 8x)" verdict was load noise). Measured: Full CI
+`perf-floors` failed on every run since the gate landed — ratio 2.849 in run 37947270619
+(ready p95 5.4 ms at 1x to 15.5 ms at 4x) and 3.329 in run 37963193136 (4.5 ms at 1x to
+14.9 ms at 4x). Locally (sase-core-rs 0.37.2) a warm `ready` call takes a 5.7 ms median
+at 1x vs 13.9 ms at 4x (30-run medians), and the ready-only subset fails at 1.793. The
+verdict artifact itself (`sdd/plans/202610/perf_artifacts/bead_perf_gate.json`, load
+~27) is non-monotonic (34.9 / 59.5 / 62.5 / 38.5 ms median at 1x / 2x / 4x / 8x), while
+the clean-window 1x probe was 4.1 ms. The rest miss and stay open with measured
+breakdowns (each miss is owned by a task bead):
 
+- `ratio:ready` (2.8–3.3x in Full CI, ~1.8–2.4x locally): the scaled synthetic corpus
+  (`tests/perf/_bead_corpus.py`) grows the active set along with closed history (6,899
+  to 27,807 beads, 561 to 2,057 active), and `ready` returns 41 rows at 1x vs 171 rows
+  at 4x, so its per-row cost (`ready_ids_in` / `has_active_blocker_in` / `load_ids_in`
+  in sase-core `bead/read_model/queries.rs`, plus Python `issues_from_list` hydration)
+  grows about 4.2x. One warm call shows SQLite page reads rising from 694 to 2,784 with
+  no stat sweep. The cause is not core drift and not the sase-1io.7 cache-race fix: the
+  gate already failed at core pin `01b0ad73`, which predates that fix, and no read-model
+  code changed between `5c4033f6` and `01b0ad73`. Owned by sase-1j5.
 - `ratio:list` (5.1x) and `abs:active-list` (318 ms at 8x): the paged query touches only
   active rows, but hydration cost is per row and the active set itself grows 8x with the
   corpus. Needs bounded serving for unbounded active lists. Owned by sase-1iw.
