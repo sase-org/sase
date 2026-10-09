@@ -442,6 +442,76 @@ def test_rust_install_notes_other_nonzero_status_as_normal() -> None:
     assert "no action is needed here" in output
 
 
+def test_rust_dev_install_writes_the_core_source_stamp() -> None:
+    """`rust-dev-install` leaves the same freshness stamp as `rust-install`.
+
+    The identity is captured after the checkout refresh and before the
+    build, and the stamp lands only after both the extension and the LSP
+    install succeed, so an edit made mid-build still reads as stale.
+    """
+    output = _dry_run("rust-dev-install", "/tmp/fake-venv")
+
+    assert "tools/_sase_core_source_identity.py" in output
+    assert ".sase-core-rs-source.json.pending" in output
+    assert 'mv -f "$pending"' in output
+    assert output.index("_sase_core_source_identity.py") < output.index(
+        "develop --profile"
+    )
+    assert output.index("[rust-dev-install] installed") < output.index(
+        'mv -f "$pending"'
+    )
+
+
+@pytest.mark.parametrize(
+    "recipe",
+    ["rust-install-uv-tool", "rust-dev-install-uv-tool", "rust-lsp-install-uv-tool"],
+)
+def test_rust_uv_tool_recipes_fail_when_prerequisites_are_missing(
+    recipe: str,
+) -> None:
+    """The uv-tool wrappers must fail, not silently succeed, without uv.
+
+    A missing `uv` or tool venv previously exited 0, so callers (`sase
+    update`, the mode switch, and later the installer) could believe the
+    rebuild happened.
+    """
+    output = _dry_run(recipe)
+
+    assert output.count("exit 1") == 2
+    assert "exit 0" not in output
+
+
+def test_rust_recipes_are_grouped_and_documented() -> None:
+    result = subprocess.run(
+        ["just", "--justfile", str(ROOT / "Justfile"), "--list"],
+        cwd=ROOT,
+        env=_clean_sase_core_env(),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert "[rust]" in output
+    documented = {
+        "rust-install ": "Build and install sase_core_rs into a venv",
+        "rust-install-uv-tool": "Install sase_core_rs into the uv-tool venv",
+        "rust-dev-install ": "Build dev-profile Rust artifacts",
+        "rust-dev-install-uv-tool": "Install dev-profile Rust artifacts",
+        "rust-lsp-install ": "Build and install the sase-macro-lsp server",
+        "rust-lsp-install-uv-tool": "Install sase-macro-lsp into the uv-tool venv",
+        "rust-test": "Run cargo test across the sase-core workspace",
+        "rust-fmt ": "Format Rust sources in sase-core",
+        "rust-fmt-check": "Check Rust formatting in sase-core",
+        "rust-clippy": "Run clippy with warnings-as-errors",
+        "rust-bench": "Run the Rust direct-parser benchmark",
+        "rust-check": "Run Rust fmt-check, clippy, and tests",
+    }
+    for recipe, doc in documented.items():
+        assert recipe in output
+        assert doc in output
+
+
 _CHECK_GATE_LINES = (
     'tools/run_silent "fmt (python)"       just fmt-py-check',
     'tools/run_silent "fmt (markdown)"     just fmt-md-check',

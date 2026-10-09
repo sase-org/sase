@@ -975,11 +975,14 @@ _refresh-sase-core-checkout:
 # Rust-only helper targets are no-ops when the configured sase-core
 # checkout is absent.
 
-# Build and install the optional `sase_core_rs` PyO3 extension into a venv
-# (defaults to the repo `.venv`). Requires `cargo` and installs `maturin`
-# into the target venv on demand. Pass an explicit venv path to install
-# into any other venv (e.g. `just rust-install /path/to/venv`); see also
-# `rust-install-uv-tool` for the uv-tool case.
+# `rust-install` builds the optional `sase_core_rs` PyO3 extension into a
+# venv (defaults to the repo `.venv`). It requires `cargo` and installs
+# `maturin` into the target venv on demand. Pass an explicit venv path to
+# install into any other venv (e.g. `just rust-install /path/to/venv`);
+# see also `rust-install-uv-tool` for the uv-tool case.
+
+[group('rust')]
+[doc("Build and install sase_core_rs into a venv (defaults to the repo .venv)")]
 rust-install VENV=venv_dir_abs: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-install] %s not found; skipping (Rust backend is optional).\n" "{{ sase_core_dir }}"; \
@@ -1053,24 +1056,32 @@ rust-install VENV=venv_dir_abs: _venv
     # compare their directive contracts.
     @just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-lsp-install "{{ VENV }}"
 
-# Build and install `sase_core_rs` into the uv-tool venv for `sase`
-# (typically ~/.local/share/uv/tools/sase). Use this when you installed
-# sase via `uv tool install` and want `sase ...` to work outside this
-# repo's `.venv` against a local sase-core checkout.
+# `rust-install-uv-tool` targets the uv-tool venv for `sase` (typically
+# ~/.local/share/uv/tools/sase). Use this when you installed sase via
+# `uv tool install` and want `sase ...` to work outside this repo's
+# `.venv` against a local sase-core checkout.
+
+[group('rust')]
+[doc("Install sase_core_rs into the uv-tool venv for sase")]
 rust-install-uv-tool:
     @if ! command -v uv > /dev/null 2>&1; then \
         printf "[rust-install-uv-tool] uv not on PATH; install uv to use this target.\n"; \
-        exit 0; \
+        exit 1; \
     fi
     @TOOL_VENV="$(uv tool dir)/sase"; \
      if [ ! -x "$TOOL_VENV/bin/python" ]; then \
          printf "[rust-install-uv-tool] no uv-tool venv for sase at %s; run 'uv tool install sase' first.\n" "$TOOL_VENV"; \
-         exit 0; \
+         exit 1; \
      fi; \
      just rust-install "$TOOL_VENV"
 
-# Build the local `sase_core_rs` extension and `sase-macro-lsp` with the
-# dev-update Cargo profile and target-isolated caches, then install both into a venv.
+# `rust-dev-install` builds the local `sase_core_rs` extension and
+# `sase-macro-lsp` with the dev-update Cargo profile and target-isolated
+# caches, then installs both into a venv. It also writes the core source
+# stamp, like `rust-install`.
+
+[group('rust')]
+[doc("Build dev-profile Rust artifacts (extension + LSP) into a venv")]
 rust-dev-install VENV=venv_dir_abs: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-dev-install] %s not found; skipping (Rust backend is optional).\n" "{{ sase_core_dir }}"; \
@@ -1099,6 +1110,12 @@ rust-dev-install VENV=venv_dir_abs: _venv
     elif [ "$status" -ne 0 ]; then \
         printf "[rust-dev-install] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
     fi
+    # Capture the source identity after the checkout refresh above and before
+    # the build below. It is staged to a pending file and moved into place
+    # only after both the extension and the LSP install succeed (final step
+    # below), so an edit made during the build still reads as stale.
+    @rm -f "{{ VENV }}/.sase-core-rs-source.json.pending"; \
+    "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/_sase_core_source_identity.py" --sase-core-dir "{{ sase_core_dir }}" > "{{ VENV }}/.sase-core-rs-source.json.pending"
     @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
     # Harden cargo crate downloads against transient crates.io flakiness.
     # CI has hit `curl ... [16] Error in the HTTP2 framing layer` while
@@ -1144,25 +1161,39 @@ rust-dev-install VENV=venv_dir_abs: _venv
     cp "$src" "$tmp"; \
     chmod +x "$tmp"; \
     mv -f "$tmp" "$dest"; \
-    printf "[rust-dev-install] installed %s\n" "$dest"
+    printf "[rust-dev-install] installed %s\n" "$dest"; \
+    pending="{{ VENV }}/.sase-core-rs-source.json.pending"; \
+    if [ -s "$pending" ]; then \
+        mv -f "$pending" "{{ VENV }}/.sase-core-rs-source.json"; \
+    else \
+        rm -f "$pending"; \
+    fi
 
-# Build and install the target-isolated Rust dev artifacts into the uv-tool
-# venv for `sase` (typically ~/.local/share/uv/tools/sase).
+# `rust-dev-install-uv-tool` installs the target-isolated Rust dev
+# artifacts into the uv-tool venv for `sase` (typically
+# ~/.local/share/uv/tools/sase).
+
+[group('rust')]
+[doc("Install dev-profile Rust artifacts into the uv-tool venv for sase")]
 rust-dev-install-uv-tool:
     @if ! command -v uv > /dev/null 2>&1; then \
         printf "[rust-dev-install-uv-tool] uv not on PATH; install uv to use this target.\n"; \
-        exit 0; \
+        exit 1; \
     fi
     @TOOL_VENV="$(uv tool dir)/sase"; \
      if [ ! -x "$TOOL_VENV/bin/python" ]; then \
          printf "[rust-dev-install-uv-tool] no uv-tool venv for sase at %s; run 'uv tool install sase' first.\n" "$TOOL_VENV"; \
-         exit 0; \
+         exit 1; \
      fi; \
      just rust-dev-install "$TOOL_VENV"
 
-# Build and install the macro LSP server into a venv (defaults to the
-# repo `.venv`). The binary is copied into the target venv's bin directory
-# so `sase lsp` can prefer the update-managed server over stale PATH copies.
+# `rust-lsp-install` builds the macro LSP server into a venv (defaults
+# to the repo `.venv`). The binary is copied into the target venv's bin
+# directory so `sase lsp` can prefer the update-managed server over stale
+# PATH copies.
+
+[group('rust')]
+[doc("Build and install the sase-macro-lsp server into a venv")]
 rust-lsp-install VENV=venv_dir_abs: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-lsp-install] %s not found; skipping (macro LSP is optional).\n" "{{ sase_core_dir }}"; \
@@ -1208,21 +1239,27 @@ rust-lsp-install VENV=venv_dir_abs: _venv
     mv -f "$tmp" "$dest"; \
     printf "[rust-lsp-install] installed %s\n" "$dest"
 
-# Build and install `sase-macro-lsp` into the uv-tool venv for `sase`
+# `rust-lsp-install-uv-tool` targets the uv-tool venv for `sase`
 # (typically ~/.local/share/uv/tools/sase).
+
+[group('rust')]
+[doc("Install sase-macro-lsp into the uv-tool venv for sase")]
 rust-lsp-install-uv-tool:
     @if ! command -v uv > /dev/null 2>&1; then \
         printf "[rust-lsp-install-uv-tool] uv not on PATH; install uv to use this target.\n"; \
-        exit 0; \
+        exit 1; \
     fi
     @TOOL_VENV="$(uv tool dir)/sase"; \
      if [ ! -x "$TOOL_VENV/bin/python" ]; then \
          printf "[rust-lsp-install-uv-tool] no uv-tool venv for sase at %s; run 'uv tool install sase' first.\n" "$TOOL_VENV"; \
-         exit 0; \
+         exit 1; \
      fi; \
      just rust-lsp-install "$TOOL_VENV"
 
-# Run `cargo test --workspace` in ../sase-core.
+# `rust-test` runs `cargo test --workspace` in ../sase-core.
+
+[group('rust')]
+[doc("Run cargo test across the sase-core workspace")]
 rust-test: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-test] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
@@ -1235,7 +1272,10 @@ rust-test: _venv
         PYO3_PYTHON={{ venv_bin_abs }}/python \
         cargo test --workspace
 
-# Auto-format Rust sources in ../sase-core.
+# `rust-fmt` auto-formats Rust sources in ../sase-core.
+
+[group('rust')]
+[doc("Format Rust sources in sase-core")]
 rust-fmt:
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-fmt] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
@@ -1243,7 +1283,10 @@ rust-fmt:
     fi
     cd {{ sase_core_dir }} && cargo fmt --all
 
-# Verify Rust sources are formatted (CI mode).
+# `rust-fmt-check` verifies Rust sources are formatted (CI mode).
+
+[group('rust')]
+[doc("Check Rust formatting in sase-core")]
 rust-fmt-check:
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-fmt-check] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
@@ -1251,7 +1294,10 @@ rust-fmt-check:
     fi
     cd {{ sase_core_dir }} && cargo fmt --all -- --check
 
-# Run clippy with warnings-as-errors in ../sase-core.
+# `rust-clippy` runs clippy with warnings-as-errors in ../sase-core.
+
+[group('rust')]
+[doc("Run clippy with warnings-as-errors in sase-core")]
 rust-clippy: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-clippy] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
@@ -1262,7 +1308,10 @@ rust-clippy: _venv
         PYO3_PYTHON={{ venv_bin_abs }}/python \
         cargo clippy --workspace --all-targets -- -D warnings
 
-# Run the Rust direct-parser benchmark (no Python in the loop).
+# `rust-bench` runs the Rust direct-parser benchmark (no Python in the loop).
+
+[group('rust')]
+[doc("Run the Rust direct-parser benchmark")]
 rust-bench *args:
     @if [ ! -d "{{ sase_core_dir }}" ]; then \
         printf "[rust-bench] %s not found; skipping.\n" "{{ sase_core_dir }}"; \
@@ -1270,7 +1319,11 @@ rust-bench *args:
     fi
     cd {{ sase_core_dir }} && cargo run --release --example bench_parse -- {{ args }}
 
-# Combined Rust check (fmt-check + clippy + tests). No-op when linked repo absent.
+# `rust-check` is the combined Rust check (fmt-check + clippy + tests).
+# No-op when the linked repo is absent.
+
+[group('rust')]
+[doc("Run Rust fmt-check, clippy, and tests")]
 rust-check: rust-fmt-check rust-clippy rust-test
 
 # Run the Python parse_project_bytes benchmark against the Rust facade

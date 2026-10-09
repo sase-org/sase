@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -14,7 +15,7 @@ CommandKind = Literal[
     "git_fetch",
     "git_merge_ff",
     "uv_tool_install",
-    "rust_install_uv_tool",
+    "rust_dev_install",
 ]
 OutcomeStatus = Literal["switched", "stayed-managed", "failed"]
 
@@ -36,7 +37,13 @@ class SwitchPackagePlan:
 
 @dataclass(frozen=True)
 class ModeSwitchCommand:
-    """A command that will run during a confirmed mode switch."""
+    """A command that will run during a confirmed mode switch.
+
+    ``env`` is an overlay applied by the executor over the parent
+    environment. ``timeout_seconds`` overrides the runner's default
+    deadline for steps whose work is minutes-scale (a Rust rebuild)
+    rather than seconds-scale.
+    """
 
     kind: CommandKind
     label: str
@@ -44,6 +51,8 @@ class ModeSwitchCommand:
     cwd: str | None = None
     available: bool = True
     reason: str | None = None
+    env: Mapping[str, str] | None = None
+    timeout_seconds: float | None = None
 
 
 @dataclass(frozen=True)

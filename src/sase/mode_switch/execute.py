@@ -136,9 +136,17 @@ def _run_command(
     )
     sink = output_sink_for(progress, step_id)
     if sink is None:
-        result = run_command_fn(command.command, cwd=cwd)
+        result = run_command_fn(
+            command.command, cwd=cwd, env=command.env, timeout=command.timeout_seconds
+        )
     else:
-        result = run_command_fn(command.command, cwd=cwd, on_output=sink)
+        result = run_command_fn(
+            command.command,
+            cwd=cwd,
+            env=command.env,
+            timeout=command.timeout_seconds,
+            on_output=sink,
+        )
     if result.returncode == 0:
         return
     if command.kind == "git_clone" and created_path is not None:

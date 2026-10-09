@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import time
@@ -11,6 +12,7 @@ from pathlib import Path
 from packaging.version import InvalidVersion, Version
 
 from sase.core.paths import sase_home
+from sase.dev_update.command import DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS
 from sase.main.update_routing import dev_route, update_mode
 from sase.mode_switch.models import (
     DetectedMode,
@@ -124,6 +126,19 @@ def _detect_mode(receipt: ToolReceipt, *, inventory_fn: InventoryFn) -> Detected
     has_dev = route is not None and bool(route.records)
     has_managed = _has_managed(receipt)
     return update_mode(has_dev=has_dev, has_managed=has_managed)  # type: ignore[return-value]
+
+
+_RUST_DEV_PROFILE_ENV = "SASE_RUST_DEV_PROFILE"
+_DEFAULT_RUST_DEV_PROFILE = "dev-update"
+
+
+def _rust_dev_install_env() -> dict[str, str]:
+    profile = _rust_dev_profile()
+    return {_RUST_DEV_PROFILE_ENV: profile}
+
+
+def _rust_dev_profile() -> str:
+    return os.environ.get(_RUST_DEV_PROFILE_ENV) or _DEFAULT_RUST_DEV_PROFILE
 
 
 def _plan_to_dev(
@@ -254,10 +269,12 @@ def _plan_to_dev(
     if cargo_available and core_spec is not None:
         commands.append(
             ModeSwitchCommand(
-                kind="rust_install_uv_tool",
-                label="Rebuild sase-core-rs into the uv-tool venv",
-                command=("just", "rust-install-uv-tool"),
+                kind="rust_dev_install",
+                label="Rebuild Rust dev artifacts into the uv-tool venv",
+                command=("just", "rust-dev-install-uv-tool"),
                 cwd=str(primary_path),
+                env=_rust_dev_install_env(),
+                timeout_seconds=DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS,
             )
         )
 

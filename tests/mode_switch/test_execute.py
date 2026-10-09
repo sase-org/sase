@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -58,8 +59,13 @@ def test_execute_mode_switch_runs_merge_before_uv_install(tmp_path: Path) -> Non
     calls: list[tuple[str, tuple[str, ...], Path | None]] = []
 
     def run_command(
-        argv: tuple[str, ...], *, cwd: Path | None = None
+        argv: tuple[str, ...],
+        *,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
     ) -> DevCommandResult:
+        del env, timeout
         calls.append(("cmd", tuple(argv), cwd))
         return DevCommandResult(returncode=0)
 
@@ -86,6 +92,58 @@ def test_execute_mode_switch_runs_merge_before_uv_install(tmp_path: Path) -> Non
     ]
 
 
+def test_execute_mode_switch_forwards_rust_env_and_timeout(
+    tmp_path: Path,
+) -> None:
+    plan = _switch_plan(tmp_path)
+    rust_command = ModeSwitchCommand(
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=("just", "rust-dev-install-uv-tool"),
+        cwd=str(tmp_path / "dev"),
+        env={"SASE_RUST_DEV_PROFILE": "dev-update"},
+        timeout_seconds=3600.0,
+    )
+    plan = SwitchPlan(
+        current_mode=plan.current_mode,
+        target_mode=plan.target_mode,
+        dev_root=plan.dev_root,
+        packages=plan.packages,
+        commands=(*plan.commands, rust_command),
+        warnings=plan.warnings,
+        restore_command=plan.restore_command,
+        backup_path=plan.backup_path,
+    )
+    seen: dict[str, object] = {}
+
+    def run_command(
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> DevCommandResult:
+        del cwd
+        if tuple(argv)[:2] == ("just", "rust-dev-install-uv-tool"):
+            seen["env"] = env
+            seen["timeout"] = timeout
+        return DevCommandResult(returncode=0)
+
+    def run_uv(argv: list[str]) -> UvChangeSet:
+        return UvChangeSet()
+
+    execute_mode_switch(
+        plan,
+        run_uv_fn=run_uv,
+        run_command_fn=run_command,
+    )
+
+    assert seen == {
+        "env": {"SASE_RUST_DEV_PROFILE": "dev-update"},
+        "timeout": 3600.0,
+    }
+
+
 def test_execute_mode_switch_failed_merge_includes_restore_hint(
     tmp_path: Path,
 ) -> None:
@@ -93,9 +151,13 @@ def test_execute_mode_switch_failed_merge_includes_restore_hint(
     calls: list[tuple[str, ...]] = []
 
     def run_command(
-        argv: tuple[str, ...], *, cwd: Path | None = None
+        argv: tuple[str, ...],
+        *,
+        cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
     ) -> DevCommandResult:
-        del cwd
+        del cwd, env, timeout
         calls.append(tuple(argv))
         if argv[:3] == ("git", "merge", "--ff-only"):
             return DevCommandResult(returncode=1, stderr="not a fast-forward")

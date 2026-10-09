@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -103,8 +103,11 @@ def test_execute_mode_switch_streams_each_command_into_its_row(
         argv: Sequence[str],
         *,
         cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
         on_output: OutputSink | None = None,
     ) -> DevCommandResult:
+        del env, timeout
         assert on_output is not None
         on_output("stderr", f"ran {' '.join(argv[1:3])}")
         return DevCommandResult(returncode=0)
@@ -150,9 +153,11 @@ def test_execute_mode_switch_failure_marks_row_failed(tmp_path: Path) -> None:
         argv: Sequence[str],
         *,
         cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
         on_output: OutputSink | None = None,
     ) -> DevCommandResult:
-        del cwd, on_output
+        del cwd, env, timeout, on_output
         if tuple(argv)[:3] == ("git", "merge", "--ff-only"):
             return DevCommandResult(returncode=1, stderr="not a fast-forward")
         return DevCommandResult(returncode=0)
@@ -204,9 +209,11 @@ def test_execute_mode_switch_skips_unavailable_commands(tmp_path: Path) -> None:
         argv: Sequence[str],
         *,
         cwd: Path | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
         on_output: OutputSink | None = None,
     ) -> DevCommandResult:
-        del cwd, on_output
+        del cwd, env, timeout, on_output
         calls.append(tuple(argv))
         return DevCommandResult(returncode=0)
 

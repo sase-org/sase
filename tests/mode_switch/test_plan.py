@@ -230,6 +230,49 @@ def test_plan_to_dev_builds_editable_reinstall_command(tmp_path: Path) -> None:
     assert "git_merge_ff" not in [command.kind for command in plan.commands]
 
 
+def test_plan_to_dev_rebuilds_core_with_dev_install_recipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_RUST_DEV_PROFILE", raising=False)
+    plan = plan_mode_switch(
+        _install(tmp_path, _PYPI_RECEIPT),
+        target_mode="dev",
+        config={"update": {"dev_root": str(tmp_path / "dev")}},
+        inventory_fn=_inventory,
+        which_fn=lambda name: f"/usr/bin/{name}",
+    )
+
+    rust_commands = [
+        command for command in plan.commands if command.kind == "rust_dev_install"
+    ]
+    assert len(rust_commands) == 1
+    rust_command = rust_commands[0]
+    assert rust_command.command == ("just", "rust-dev-install-uv-tool")
+    assert rust_command.cwd == str(tmp_path / "dev" / "sase-org" / "sase")
+    assert rust_command.env == {"SASE_RUST_DEV_PROFILE": "dev-update"}
+    # A cold target-isolated cache makes this step a full cargo build, which
+    # routinely outruns the generic dev-update command timeout.
+    assert rust_command.timeout_seconds == 3600.0
+
+
+def test_plan_to_dev_rust_step_honors_configured_dev_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_RUST_DEV_PROFILE", "hand-tuned")
+    plan = plan_mode_switch(
+        _install(tmp_path, _PYPI_RECEIPT),
+        target_mode="dev",
+        config={"update": {"dev_root": str(tmp_path / "dev")}},
+        inventory_fn=_inventory,
+        which_fn=lambda name: f"/usr/bin/{name}",
+    )
+
+    rust_command = next(
+        command for command in plan.commands if command.kind == "rust_dev_install"
+    )
+    assert rust_command.env == {"SASE_RUST_DEV_PROFILE": "hand-tuned"}
+
+
 def test_plan_to_dev_fast_forwards_clean_existing_checkout(
     tmp_path: Path,
 ) -> None:
