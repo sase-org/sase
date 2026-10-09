@@ -193,19 +193,32 @@ def test_direct_resolver_freezes_definitions_once(tmp_path: Path, monkeypatch) -
     assert validation.ok
     calls = {"build": 0}
     import sase.sdd.plan_decisions as decisions_mod
+    import sase.sdd.plan_decisions_host as host_mod
 
-    real_build = decisions_mod.build_definitions
+    real_build = host_mod.build_definitions
 
     def _counting(validation_arg, directory=""):
         calls["build"] += 1
         return real_build(validation_arg, directory)
 
+    # Patch where the resolver actually looks the name up: the host module
+    # global read by resolve_plan_decisions_for_direct_approval, plus the
+    # facade attribute read by resolve_direct_decisions. Either lookup must
+    # build exactly once per call, never rebuild inside the host.
+    monkeypatch.setattr(host_mod, "build_definitions", _counting)
     monkeypatch.setattr(decisions_mod, "build_definitions", _counting)
     resolved = resolve_direct_decisions(validation, {"zeta": "a"}, caller="human")
     assert resolved is not None
     values, rows, sheet, definitions = resolved
     assert values["zeta"] == "a"
     assert any(d.get("id") == "zeta" for d in definitions)
+    assert calls["build"] == 1
+
+    calls["build"] = 0
+    hosted = host_mod.resolve_plan_decisions_for_direct_approval(
+        validation, {"zeta": "a"}, "human"
+    )
+    assert hosted["values"]["zeta"] == "a"
     assert calls["build"] == 1
 
 

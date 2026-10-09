@@ -38,44 +38,13 @@ def apply_plan_side_effects(
 
         recover_plan_stamp_from_response(bundle_path)
     except Exception as exc:
-        from sase.notification_gates.command_runner import record_execution_error
-
+        # The durable record for this failure belongs to the side-effects
+        # outcome recorder (``record_failure_outcome``), which writes one
+        # ``errors/*.json`` plus its journal event. Recording here too wrote
+        # a second file for the same failure, so only log and re-raise.
         _adapter_log.exception(
             "plan re-stamp failed for bundle %s: %s", bundle_path, exc
         )
-        try:
-            _code = getattr(exc, "code", None)
-            _source = (
-                str(response.get("source"))
-                if isinstance(response, dict) and response.get("source")
-                else "plan_response"
-            )
-            _selected: object = None
-            try:
-                _selected, _ = _plan_response_selection_and_result(
-                    kind, bundle_path, response
-                )
-            except Exception:
-                _selected = None
-            _option_id = (
-                _selected[0]
-                if isinstance(_selected, (list, tuple))
-                and _selected
-                and isinstance(_selected[0], str)
-                else "gate"
-            )
-            record_execution_error(
-                bundle_path,
-                option_id=str(_option_id),
-                code=str(_code)
-                if isinstance(_code, str) and _code
-                else "restamp-failed",
-                message=str(exc),
-                source=str(_source),
-                stage="restamp",
-            )
-        except Exception:
-            pass
         raise
     envelope = read_json_object(bundle_path / "request.json")
     selected_ids, result = _plan_response_selection_and_result(
