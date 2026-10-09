@@ -5398,6 +5398,47 @@
         }
       }
     },
+    "agent_auto_restart": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Master kill switch for automatic update-skew restarts. False disables every automatic path; pending failures are re-surfaced loudly.",
+          "default": true
+        },
+        "quiescence_seconds": {
+          "type": "number",
+          "description": "Seconds the managed code tree must stay quiet before the healer relaunches anything.",
+          "minimum": 0,
+          "default": 30
+        },
+        "max_defer_seconds": {
+          "type": "number",
+          "description": "Maximum age of a deferred ledger record before it is declined instead of re-attempted.",
+          "minimum": 0,
+          "default": 1800
+        },
+        "pending_resurface_seconds": {
+          "type": "number",
+          "description": "Age after which a pending failure with no ledger record is re-surfaced loudly.",
+          "minimum": 0,
+          "default": 600
+        },
+        "storm_max_per_episode": {
+          "type": "integer",
+          "description": "Maximum automatic launches per update episode before the storm breaker pauses the feature.",
+          "minimum": 0,
+          "default": 12
+        },
+        "storm_max_per_30m": {
+          "type": "integer",
+          "description": "Maximum automatic launches per rolling 30 minutes before the storm breaker pauses the feature.",
+          "minimum": 0,
+          "default": 20
+        }
+      }
+    },
     "agent_hold_default_ttl": {
       "type": "string",
       "description": "TTL applied to `sase agent hold create`/`run` when --ttl is omitted. Bare seconds or a number suffixed with s/m/h.",
@@ -5966,6 +6007,11 @@
           "description": "The Config catalog exposes the Flags pane for persistent feature-flag control.",
           "default": true,
           "deprecated": true
+        },
+        "agent_auto_restart": {
+          "type": "boolean",
+          "description": "Automatic one-time relaunch of agents broken by a live sase update",
+          "default": false
         },
         "agent_sudo_requests": {
           "type": "boolean",

@@ -118,6 +118,16 @@ def _write_bootstrap_agent_meta(
     scratch_key = os.environ.get(SASE_LAUNCH_SCRATCH_KEY_ENV)
     if scratch_key:
         agent_meta["launch_scratch_key"] = scratch_key
+    # Update-skew auto-restart provenance. The healer launches the
+    # replacement with SASE_AUTO_RESTART_PROVENANCE in its segment env; the
+    # replacement records it here so the identity header can render the
+    # "Auto-restarted after sase update …" block. An explicit operator value
+    # already on the row wins over the env (never clobber a live row).
+    from sase.agent.auto_restart.provenance import read_auto_restart_provenance
+
+    provenance = read_auto_restart_provenance()
+    if provenance is not None and "auto_restart" not in agent_meta:
+        agent_meta["auto_restart"] = provenance
     write_agent_meta(artifacts_dir, agent_meta)
 
 

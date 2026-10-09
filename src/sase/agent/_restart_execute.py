@@ -25,14 +25,22 @@ def execute_agent_restart(
     plan: AgentRestartPlan,
     *,
     progress: ProgressFn | None = None,
+    extra_evidence: dict[str, object] | None = None,
 ) -> AgentRestartOutcome:
-    """Stop the old agent, wipe its name, and relaunch the rewritten prompt."""
+    """Stop the old agent, wipe its name, and relaunch the rewritten prompt.
+
+    ``extra_evidence`` maps recovery-bundle filenames to content and is
+    written before the wipe, so an auto-restart's verdict, witnesses, and
+    error report survive it.
+    """
     from sase.agent.force_reuse_launch import apply_force_reuse_launch
     from sase.agent.launch_cwd import launch_agents_from_cwd
     from sase.agent.running import dismiss_named_agent, kill_named_agent
 
     emit = progress or (lambda _step, _status, _detail: None)
-    recovery_dir, recovery_command, recovery_prompt = prepare_recovery(plan, emit)
+    recovery_dir, recovery_command, recovery_prompt = prepare_recovery(
+        plan, emit, extra_evidence=extra_evidence
+    )
 
     if not plan.agent.is_done:
         stop = kill_named_agent(plan.name, exact_name=True)

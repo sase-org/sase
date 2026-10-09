@@ -220,27 +220,12 @@ def _build_handoff(
 def _rewrite_prompt_from_live_record(prompt: str, artifacts_dir: str) -> str:
     """Rewrite *prompt*'s ``%auto`` token from the live autonomy record.
 
-    A retry after ``A`` off must not resurrect auto: the failed agent's
-    ``original_prompt`` still carries its launch-time ``%auto``, while the
-    live record is manual. The live selection wins, preserving ``:plan``
-    exactly; without a live record the prompt passes through unchanged.
+    Shared implementation lives in :mod:`sase.agent._restart_live_autonomy`
+    so ``plan_agent_restart(follow_live_autonomy=True)`` reuses it.
     """
-    try:
-        from sase.autonomy.record import live_record, selection_to_prompt_prefix
-        from sase.macro._directive_edit_core import set_prompt_directive
-    except Exception:
-        return prompt
-    try:
-        record = live_record(artifacts_dir)
-    except Exception:
-        return prompt
-    if record is None:
-        return prompt
-    prefix = selection_to_prompt_prefix(record.get("selection")).strip()
-    try:
-        return set_prompt_directive(prompt, {"auto"}, prefix or None)
-    except Exception:
-        return prompt
+    from sase.agent._restart_live_autonomy import rewrite_prompt_from_live_record
+
+    return rewrite_prompt_from_live_record(prompt, artifacts_dir)
 
 
 def _build_resume_prompt(handoff: RetryHandoff) -> str:

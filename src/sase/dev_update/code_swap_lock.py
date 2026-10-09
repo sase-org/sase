@@ -76,7 +76,7 @@ def code_swap_reader_lock(
         yield _CodeSwapLockResult(acquired=True)
         return
 
-    lock_path = _lock_path()
+    lock_path = code_swap_lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     adopted = _adopt_handoff_lock_fd(raw_handoff_fd, lock_path)
     legacy_fd: int | None = None
@@ -154,7 +154,7 @@ def code_swap_writer_lock() -> Iterator[_CodeSwapLockResult]:
         yield _CodeSwapLockResult(acquired=True)
         return
 
-    lock_path = _lock_path()
+    lock_path = code_swap_lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = _open_lock_file(lock_path)
     try:
@@ -233,7 +233,7 @@ def guarded_exec_argv(command: Sequence[str]) -> list[str]:
     return [
         sys.executable,
         str(_GUARDED_EXEC_BOOTSTRAP.resolve()),
-        str(_lock_path()),
+        str(code_swap_lock_path()),
         _GUARDED_EXEC_SEPARATOR,
         *parts,
     ]
@@ -255,7 +255,7 @@ def logical_argv_from_guarded_exec(argv: Sequence[str]) -> list[str]:
     return parts
 
 
-def _lock_path() -> Path:
+def code_swap_lock_path() -> Path:
     return sase_subdir("locks") / CODE_SWAP_LOCK_FILENAME
 
 
@@ -421,7 +421,7 @@ def _write_fd_json(fd: int, value: dict[str, Any]) -> None:
 
 def _read_writer_holder() -> dict[str, Any] | None:
     try:
-        raw = _lock_path().read_text(encoding="utf-8").strip()
+        raw = code_swap_lock_path().read_text(encoding="utf-8").strip()
         value = json.loads(raw)
     except (OSError, ValueError, TypeError):
         return None

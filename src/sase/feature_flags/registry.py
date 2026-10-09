@@ -44,6 +44,7 @@ class FeatureFlag(StrEnum):
     instruction_shadow_render = "instruction_shadow_render"
     typed_launch_units = "typed_launch_units"
     autonomy_record_only = "autonomy_record_only"
+    agent_auto_restart = "agent_auto_restart"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -277,6 +278,14 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "SASE_AGENT_AUTO_APPROVE."
         ),
         bead="sase-1j0",
+    ),
+    FeatureFlag.agent_auto_restart: FeatureFlagDefinition(
+        key=FeatureFlag.agent_auto_restart,
+        kind="beta",
+        description=(
+            "Automatic one-time relaunch of agents broken by a live sase update"
+        ),
+        bead="sase-1jb",
     ),
 }
 

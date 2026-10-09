@@ -15,6 +15,7 @@ PATCH_REBASE = "patch.rebase"
 PATCH_SYNC = "patch.sync"
 PATCH_REWIND = "patch.rewind"
 
+AGENT_AUTO_RESTART = "agent.auto-restart"
 AGENT_CLI_UPDATE = "agent-cli.update"
 AGENT_DRAIN = "agent.drain"
 AGENT_PERSIST_DIRECTIVE = "agent.persist-directive"
@@ -51,6 +52,7 @@ SUDO_FINALIZE = "sudo.finalize"
 
 
 __all__ = [
+    "AGENT_AUTO_RESTART",
     "AGENT_CLEANUP",
     "AGENT_CLI_UPDATE",
     "AGENT_DRAIN",

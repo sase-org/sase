@@ -25,6 +25,9 @@ Already-audited inputs that need no behavior change:
   fallback.
 - ``SASE_AGENT_PLANNED_NAME``: restored by
   ``refresh_runner_code_after_wait()``.
+- ``SASE_AUTO_RESTART_PROVENANCE``: inherited through the environment across
+  the re-exec (never popped in bootstrap) and preserved as the
+  ``auto_restart`` metadata key.
 - ``SASE_AGENT_GENERATED_NAME``: lost, but harmless. The refreshed claim
   targets a name already owned by the same artifacts dir, and
   ``claim_registered_name()`` accepts same-owner claims regardless of

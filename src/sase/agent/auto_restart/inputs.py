@@ -138,7 +138,7 @@ def _managed_root_wires(
     )
 
 
-def _pending_question(artifacts_dir: Path | None, meta: Mapping[str, Any]) -> bool:
+def pending_question(artifacts_dir: Path | None, meta: Mapping[str, Any]) -> bool:
     """Return whether a pending question marker survives for this row."""
     if artifacts_dir is not None:
         try:
@@ -153,7 +153,7 @@ def _pending_question(artifacts_dir: Path | None, meta: Mapping[str, Any]) -> bo
     return bool(meta.get("question_session_id"))
 
 
-def _pending_handoff(artifacts_dir: Path | None) -> bool:
+def pending_handoff(artifacts_dir: Path | None) -> bool:
     """Return whether a plan/question/monitor/gate/pipe handoff is pending."""
     if artifacts_dir is None:
         return False
@@ -213,8 +213,8 @@ def assemble_done_row_input(
         outcome=str(outcome) if outcome is not None else None,
         kill_source=None,
         lifecycle_phase=lifecycle,
-        has_pending_question=_pending_question(artifacts_dir, meta),
-        has_pending_handoff=_pending_handoff(artifacts_dir),
+        has_pending_question=pending_question(artifacts_dir, meta),
+        has_pending_handoff=pending_handoff(artifacts_dir),
         is_remote=_is_remote(done, meta),
         error_text=error_text,
         traceback_text=traceback_text,

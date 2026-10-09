@@ -89,6 +89,22 @@ agent_scope_teardown:
   enabled: true
   term_grace_seconds: 3
   reaper_min_scope_age_seconds: 120
+
+# Automatic one-time relaunch of agents broken by a live sase update. This is
+# a permanent user choice (config field, not a feature flag): `enabled: false`
+# is the kill switch. The healer acts only after `quiescence_seconds` of code
+# quiet; a pass that cannot act defers for at most `max_defer_seconds`. A
+# `pending` failure with no ledger record older than
+# `pending_resurface_seconds` is re-surfaced loudly. The storm breaker pauses
+# the feature when launches would exceed `storm_max_per_episode` in one
+# update episode or `storm_max_per_30m` in any rolling 30 minutes.
+agent_auto_restart:
+  enabled: true
+  quiescence_seconds: 30
+  max_defer_seconds: 1800
+  pending_resurface_seconds: 600
+  storm_max_per_episode: 12
+  storm_max_per_30m: 20
   spare_process_patterns:
     - "^ssh-agent$"
     - "^gpg-agent$"

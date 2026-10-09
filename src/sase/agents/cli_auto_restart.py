@@ -1,11 +1,12 @@
-"""``sase agent auto-restart scan`` — read-only classifier replay.
+"""``sase agent auto-restart`` — healer CLI for update-skew restarts.
 
-The witness-scan phase ships ``scan`` only: it enumerates failed
-``done.json`` rows and dismissed bundles, assembles each failure's
-facts/context/W1-W3 witnesses, classifies through ``sase_core_rs``,
-and prints one row per failure. It never writes the restart ledger,
-claims lineages, or relaunches anything. The healer phase adds the
-mutating commands (``list``, ``resume``, ``run``, ``show``).
+``scan`` enumerates failed ``done.json`` rows and dismissed bundles,
+assembles each failure's facts/context/W1-W3 witnesses, classifies through
+``sase_core_rs``, and prints one row per failure. It never writes the
+restart ledger, claims lineages, or relaunches anything. ``run`` is the
+healer: it claims the at-most-once ledger and relaunches once per
+lineage. ``list`` and ``show`` read the ledger; ``resume`` re-arms the
+storm breaker.
 """
 
 from __future__ import annotations
@@ -77,13 +78,21 @@ class _ScannedRow:
 
 
 def handle_agents_auto_restart(args: argparse.Namespace) -> int:
-    """Dispatch ``sase agent auto-restart {scan}``."""
+    """Dispatch ``sase agent auto-restart {list,resume,run,scan,show}``."""
     sub = getattr(args, "auto_restart_subcommand", None)
     if sub == "scan":
         return _handle_scan(args)
+    if sub == "list":
+        return _handle_list(args)
+    if sub == "resume":
+        return _handle_resume(args)
+    if sub == "run":
+        return _handle_run(args)
+    if sub == "show":
+        return _handle_show(args)
 
     print(
-        "Usage: sase agent auto-restart {scan}",
+        "Usage: sase agent auto-restart {list,resume,run,scan,show}",
         file=sys.stderr,
     )
     return 2
@@ -165,6 +174,278 @@ def _handle_scan(args: argparse.Namespace) -> int:
         return 0
     _print_scan_table(rows, since_seconds, limit)
     return 0
+
+
+_LEDGER_STATE_STYLE = {
+    "claimed": "cyan",
+    "deferred": "yellow",
+    "declined": "dim",
+    "launching": "yellow",
+    "launched": "green",
+    "settled_ok": "green",
+    "settled_failed": "red",
+}
+
+_IN_FLIGHT_STATES = frozenset({"claimed", "deferred", "launching"})
+
+
+def _handle_list(args: argparse.Namespace) -> int:
+    from sase.agent.auto_restart.ledger import iter_ledger_records
+
+    err = Console(stderr=True)
+    try:
+        records = iter_ledger_records()
+    except Exception as exc:  # noqa: BLE001 - surfaced to the CLI, not swallowed.
+        err.print(
+            f"sase agent auto-restart list: cannot read ledger: {exc}", style="red"
+        )
+        return 1
+    if not getattr(args, "all", False):
+        records = [r for r in records if r.record.state in _IN_FLIGHT_STATES]
+    if getattr(args, "json", False):
+        from sase.core.agent_auto_restart_wire import ledger_record_to_dict
+
+        json.dump(
+            {
+                "schema_version": 1,
+                "count": len(records),
+                "records": [
+                    {**ledger_record_to_dict(r.record), "extra": r.extra}
+                    for r in records
+                ],
+            },
+            sys.stdout,
+            indent=2,
+        )
+        sys.stdout.write("\n")
+        return 0
+    console = Console()
+    if not records:
+        console.print("No auto-restart ledger records.", style="dim")
+        return 0
+    by_episode: dict[str, list] = {}
+    for stored in records:
+        by_episode.setdefault(stored.record.episode_id or "no episode", []).append(
+            stored
+        )
+    for episode, group in by_episode.items():
+        table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+        table.add_column("Agent")
+        table.add_column("Lineage")
+        table.add_column("State")
+        table.add_column("Verdict")
+        for stored in group:
+            record = stored.record
+            verdict = stored.extra.get("python_verdict") or {}
+            table.add_row(
+                _truncate(record.agent_name or "-", 28),
+                _truncate(record.lineage_root, 24),
+                Text(record.state, style=_LEDGER_STATE_STYLE.get(record.state, "")),
+                _truncate(
+                    verdict.get("signature") or verdict.get("reason") or "-",
+                    44,
+                ),
+            )
+        console.print(
+            Panel(table, title=f"↻ {episode} ({len(group)})", border_style="yellow")
+        )
+    return 0
+
+
+def _handle_resume(args: argparse.Namespace) -> int:
+    from sase.agent.auto_restart.storm import clear_pause, is_paused
+
+    _ = args
+    console = Console()
+    paused, state = is_paused()
+    clear_pause()
+    if paused:
+        console.print(
+            "Auto-restart re-armed"
+            + (f" (was paused: {state.get('paused_reason') or 'storm breaker'})")
+            + ".",
+            style="green",
+        )
+    else:
+        console.print("Auto-restart was not paused; nothing to re-arm.", style="dim")
+    return 0
+
+
+def _handle_run(args: argparse.Namespace) -> int:
+    from sase.agent.auto_restart.gate import auto_restart_automatic_enabled
+    from sase.agent.auto_restart.healer import heal_one, resolve_targets
+
+    err = Console(stderr=True)
+    if not auto_restart_automatic_enabled():
+        err.print(
+            "sase agent auto-restart run: automatic restarts are disabled "
+            "(beta flag off or agent_auto_restart.enabled is false); "
+            "nothing was claimed or relaunched",
+            style="yellow",
+            soft_wrap=True,
+        )
+        return 3
+    try:
+        targets = resolve_targets(
+            name=getattr(args, "name", None),
+            artifacts_dir=getattr(args, "artifacts_dir", None),
+            pending=bool(getattr(args, "pending", False)),
+        )
+    except LookupError as exc:
+        err.print(f"sase agent auto-restart run: {exc}", style="red")
+        return 1
+    except ValueError as exc:
+        err.print(f"sase agent auto-restart run: {exc}", style="red")
+        return 2
+    if not targets:
+        Console().print("No pending failures to heal.", style="dim")
+        return 0
+    dry_run = bool(getattr(args, "dry_run", False))
+    from sase.agent.auto_restart.healer import HealerOutcome
+
+    outcomes: list[HealerOutcome] = []
+    for target in targets:
+        try:
+            outcomes.append(heal_one(target, dry_run=dry_run))
+        except Exception as exc:  # noqa: BLE001 - one bad row must not hide the rest.
+            outcomes.append(
+                HealerOutcome(
+                    action="error",
+                    reason="healer_error",
+                    reason_text=str(exc)[:300],
+                    ledger_key=None,
+                )
+            )
+    if getattr(args, "json", False):
+        json.dump(
+            {
+                "schema_version": 1,
+                "dry_run": dry_run,
+                "count": len(outcomes),
+                "outcomes": [
+                    {
+                        "action": o.action,
+                        "reason": o.reason,
+                        "reason_text": o.reason_text,
+                        "ledger_key": o.ledger_key,
+                        "launched_artifacts_dir": o.launched_artifacts_dir,
+                        "evidence_dir": o.evidence_dir,
+                    }
+                    for o in outcomes
+                ],
+            },
+            sys.stdout,
+            indent=2,
+        )
+        sys.stdout.write("\n")
+        return 0
+    console = Console()
+    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+    table.add_column("Agent")
+    table.add_column("Action")
+    table.add_column("Reason")
+    failed = False
+    for target, outcome in zip(targets, outcomes, strict=True):
+        style = (
+            "green"
+            if outcome.action == "relaunched"
+            else "yellow"
+            if outcome.action in ("deferred", "dry_run")
+            else "red"
+            if outcome.action == "error"
+            else "dim"
+        )
+        if outcome.action == "error":
+            failed = True
+        table.add_row(
+            _truncate(target.agent_name, 28),
+            Text(outcome.action, style=style),
+            _truncate(outcome.reason_text, 60),
+        )
+    console.print(
+        Panel(
+            table,
+            title=f"Healer ({len(outcomes)} target{'s' if len(outcomes) != 1 else ''}"
+            + ("; dry run" if dry_run else "")
+            + ")",
+            border_style="yellow",
+        )
+    )
+    return 1 if failed else 0
+
+
+def _handle_show(args: argparse.Namespace) -> int:
+    from sase.agent.auto_restart.ledger import iter_ledger_records
+    from sase.core.agent_auto_restart_wire import ledger_record_to_dict
+
+    err = Console(stderr=True)
+    wanted = str(getattr(args, "target", "") or "")
+    matches = [
+        r
+        for r in iter_ledger_records()
+        if wanted
+        in (
+            r.record.key,
+            r.record.lineage_root,
+            r.record.agent_name or "",
+            r.record.episode_id or "",
+        )
+    ]
+    if not matches:
+        err.print(
+            f"sase agent auto-restart show: no ledger record matches {wanted!r}",
+            style="red",
+        )
+        return 1
+    stored = matches[0]
+    if getattr(args, "json", False):
+        json.dump(
+            {**ledger_record_to_dict(stored.record), "extra": stored.extra},
+            sys.stdout,
+            indent=2,
+        )
+        sys.stdout.write("\n")
+        return 0
+    _print_record_card(stored)
+    return 0
+
+
+def _print_record_card(stored: Any) -> None:
+    console = Console()
+    record = stored.record
+    verdict = stored.extra.get("python_verdict") or {}
+    witnesses = stored.extra.get("python_witnesses") or {}
+    lines = [
+        f"[bold]{record.agent_name or record.key}[/bold]  "
+        f"[{_LEDGER_STATE_STYLE.get(record.state, '')}]{record.state}[/]",
+        f"Lineage: {record.lineage_root}",
+        f"Episode: {record.episode_id or '-'}",
+        f"Failed row: {record.failed_artifacts_dir or '-'}",
+        f"Verdict: {verdict.get('tier', '-')}/{verdict.get('family', '-') or '-'} — "
+        f"{verdict.get('signature') or verdict.get('reason') or '-'} "
+        f"({verdict.get('mode', '-')})",
+    ]
+    fired = set(verdict.get("witnesses_fired") or [])
+    checklist: list[str] = []
+    for witness in ("W1", "W2", "W3", "W4"):
+        mark = "✓" if witness in fired else "✗"
+        detail = ""
+        if witness == "W3" and isinstance(witnesses.get("file_proof"), dict):
+            detail = f" {witnesses['file_proof'].get('culprit_commit', '')}"
+        checklist.append(f"{mark} {witness}{detail}")
+    lines.append("Witnesses: " + "  ".join(checklist))
+    timeline = "; ".join(f"{entry.state}@{entry.at or '?'}" for entry in record.history)
+    lines.append(f"Timeline: {timeline or '-'}")
+    if stored.extra.get("python_last_note"):
+        lines.append(f"Last note: {stored.extra['python_last_note']}")
+    lines.append(f"Evidence: {record.evidence_dir or '-'}")
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title=f"↻ {record.key}",
+            border_style="yellow",
+        )
+    )
 
 
 def _classify_candidate(

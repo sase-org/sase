@@ -91,6 +91,11 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     batch_predecessor_context = existing_meta.get("batch_predecessor_context")
     if isinstance(batch_predecessor_context, dict):
         preserved["batch_predecessor_context"] = dict(batch_predecessor_context)
+    # Update-skew auto-restart provenance survives a refresh re-exec so the
+    # replacement keeps its "Auto-restarted after sase update …" block.
+    auto_restart = existing_meta.get("auto_restart")
+    if isinstance(auto_restart, dict):
+        preserved["auto_restart"] = dict(auto_restart)
     workspace_num = existing_meta.get("workspace_num")
     if isinstance(workspace_num, int):
         preserved["workspace_num"] = workspace_num

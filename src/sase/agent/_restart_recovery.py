@@ -21,27 +21,57 @@ from sase.core.time import get_timezone
 def prepare_recovery(
     plan: AgentRestartPlan,
     emit: ProgressFn,
+    *,
+    extra_evidence: dict[str, object] | None = None,
 ) -> tuple[str | None, str | None, str | None]:
-    """Return the ``(dir, command, inline prompt)`` recovery hand-back."""
-    dest = _persist_recovery_bundle(plan)
+    """Return the ``(dir, command, inline prompt)`` recovery hand-back.
+
+    ``extra_evidence`` maps bundle filenames to text (or JSON-serializable
+    values, stored as ``<name>.json``) and is written before the wipe, so an
+    auto-restart's verdict, witnesses, and error report survive it.
+    """
+    dest = _persist_recovery_bundle(plan, extra_evidence=extra_evidence)
     if dest is None:
         emit("recovery", "warn", "could not persist a recovery bundle")
         return None, None, plan.rewritten_prompt
     return str(dest), None, None
 
 
-def _persist_recovery_bundle(plan: AgentRestartPlan) -> Path | None:
+def _persist_recovery_bundle(
+    plan: AgentRestartPlan,
+    *,
+    extra_evidence: dict[str, object] | None = None,
+) -> Path | None:
     from sase.core.paths import sase_subdir
 
     try:
         dest = _new_recovery_dir(plan, sase_subdir("restarts"))
         dest.mkdir(parents=True, exist_ok=True)
         _write_recovery_files(plan, dest)
+        _write_extra_evidence(dest, extra_evidence)
     except Exception:
         return None
     if not (dest / "rewritten.md").is_file():
         return None
     return dest
+
+
+def _write_extra_evidence(dest: Path, extra_evidence: dict[str, object] | None) -> None:
+    """Write healer evidence files into the bundle before the wipe."""
+    if not extra_evidence:
+        return
+    for name, value in extra_evidence.items():
+        safe = Path(name).name
+        if not safe or safe in ("rewritten.md", "execution.md", "restart.json"):
+            continue
+        target = dest / safe
+        try:
+            if isinstance(value, str):
+                target.write_text(value, encoding="utf-8")
+            else:
+                target.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+        except (OSError, TypeError, ValueError):
+            continue
 
 
 def _new_recovery_dir(plan: AgentRestartPlan, root: Path) -> Path:

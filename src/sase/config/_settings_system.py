@@ -267,9 +267,88 @@ DEFAULT_AGENT_SCOPE_TEARDOWN_SPARE_PROCESS_PATTERNS: tuple[str, ...] = (
 )
 
 
+DEFAULT_AGENT_AUTO_RESTART_ENABLED = True
+DEFAULT_AGENT_AUTO_RESTART_QUIESCENCE_SECONDS = 30.0
+DEFAULT_AGENT_AUTO_RESTART_MAX_DEFER_SECONDS = 1800.0
+DEFAULT_AGENT_AUTO_RESTART_PENDING_RESURFACE_SECONDS = 600.0
+DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_EPISODE = 12
+DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_30M = 20
+
+
 def _agent_scope_teardown_config() -> dict[str, Any]:
     value = _merged_config().get("agent_scope_teardown", {})
     return value if isinstance(value, dict) else {}
+
+
+def _agent_auto_restart_config() -> dict[str, Any]:
+    value = _merged_config().get("agent_auto_restart", {})
+    return value if isinstance(value, dict) else {}
+
+
+def get_agent_auto_restart_enabled() -> bool:
+    """Return the master kill switch for automatic update-skew restarts."""
+    value = _agent_auto_restart_config().get(
+        "enabled",
+        DEFAULT_AGENT_AUTO_RESTART_ENABLED,
+    )
+    if type(value) is bool:
+        return value
+    return DEFAULT_AGENT_AUTO_RESTART_ENABLED
+
+
+def get_agent_auto_restart_quiescence_seconds() -> float:
+    """Return the required seconds of code quiet before a relaunch."""
+    value = _agent_auto_restart_config().get(
+        "quiescence_seconds",
+        DEFAULT_AGENT_AUTO_RESTART_QUIESCENCE_SECONDS,
+    )
+    if type(value) in {int, float} and float(value) >= 0:
+        return float(value)
+    return DEFAULT_AGENT_AUTO_RESTART_QUIESCENCE_SECONDS
+
+
+def get_agent_auto_restart_max_defer_seconds() -> float:
+    """Return the maximum age of a deferred record before it is declined."""
+    value = _agent_auto_restart_config().get(
+        "max_defer_seconds",
+        DEFAULT_AGENT_AUTO_RESTART_MAX_DEFER_SECONDS,
+    )
+    if type(value) in {int, float} and float(value) >= 0:
+        return float(value)
+    return DEFAULT_AGENT_AUTO_RESTART_MAX_DEFER_SECONDS
+
+
+def get_agent_auto_restart_pending_resurface_seconds() -> float:
+    """Return the age after which a pending failure is re-surfaced loudly."""
+    value = _agent_auto_restart_config().get(
+        "pending_resurface_seconds",
+        DEFAULT_AGENT_AUTO_RESTART_PENDING_RESURFACE_SECONDS,
+    )
+    if type(value) in {int, float} and float(value) >= 0:
+        return float(value)
+    return DEFAULT_AGENT_AUTO_RESTART_PENDING_RESURFACE_SECONDS
+
+
+def get_agent_auto_restart_storm_max_per_episode() -> int:
+    """Return the per-episode launch cap before the storm breaker trips."""
+    value = _agent_auto_restart_config().get(
+        "storm_max_per_episode",
+        DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_EPISODE,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_EPISODE
+
+
+def get_agent_auto_restart_storm_max_per_30m() -> int:
+    """Return the rolling-30-minute launch cap before the storm breaker trips."""
+    value = _agent_auto_restart_config().get(
+        "storm_max_per_30m",
+        DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_30M,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_30M
 
 
 def get_agent_scope_teardown_enabled() -> bool:
@@ -341,6 +420,12 @@ def get_gate_turn_reclaim_grace_seconds() -> int:
 
 
 __all__ = [
+    "DEFAULT_AGENT_AUTO_RESTART_ENABLED",
+    "DEFAULT_AGENT_AUTO_RESTART_MAX_DEFER_SECONDS",
+    "DEFAULT_AGENT_AUTO_RESTART_PENDING_RESURFACE_SECONDS",
+    "DEFAULT_AGENT_AUTO_RESTART_QUIESCENCE_SECONDS",
+    "DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_30M",
+    "DEFAULT_AGENT_AUTO_RESTART_STORM_MAX_PER_EPISODE",
     "DEFAULT_AGENT_SCOPE_TEARDOWN_ENABLED",
     "DEFAULT_AGENT_SCOPE_TEARDOWN_REAPER_MIN_SCOPE_AGE_SECONDS",
     "DEFAULT_AGENT_SCOPE_TEARDOWN_SPARE_PROCESS_PATTERNS",
@@ -362,6 +447,12 @@ __all__ = [
     "DEFAULT_MANAGED_TMP_PRESSURE_RECOVERY_AVAILABLE_BYTES",
     "DEFAULT_MANAGED_TMP_PRESSURE_TARGET_BYTES",
     "DEFAULT_MANAGED_TMP_RUN_ARTIFACT_HORIZON_SECONDS",
+    "get_agent_auto_restart_enabled",
+    "get_agent_auto_restart_max_defer_seconds",
+    "get_agent_auto_restart_pending_resurface_seconds",
+    "get_agent_auto_restart_quiescence_seconds",
+    "get_agent_auto_restart_storm_max_per_30m",
+    "get_agent_auto_restart_storm_max_per_episode",
     "get_agent_scope_teardown_enabled",
     "get_agent_scope_teardown_reaper_min_scope_age_seconds",
     "get_agent_scope_teardown_spare_process_patterns",

@@ -32,8 +32,14 @@ def plan_agent_restart(
     *,
     model_override: str | None = None,
     refuse_disabled_provider: bool = True,
+    follow_live_autonomy: bool = False,
 ) -> AgentRestartPlan:
-    """Read the named agent and build a restart plan, or raise."""
+    """Read the named agent and build a restart plan, or raise.
+
+    With ``follow_live_autonomy`` the live autonomy record is applied to the
+    rewritten prompt (the healer path); ``sase agent restart`` keeps today's
+    behavior and passes ``False``.
+    """
     from sase.agent.force_reuse_launch import plan_force_reuse_launch
     from sase.agent.names import (
         find_named_agent,
@@ -74,6 +80,12 @@ def plan_agent_restart(
     presented_name = present_agent_name(meta_name)
     _refuse_container_name(meta_name, presented_name, lookup_registered_name)
     rewritten = _rewrite_prompt_identity(raw_prompt, meta_name, meta)
+    if follow_live_autonomy:
+        from sase.agent._restart_live_autonomy import (
+            rewrite_prompt_from_live_record,
+        )
+
+        rewritten = rewrite_prompt_from_live_record(rewritten, str(artifacts_dir))
     if model_override:
         from sase.macro.directive_edit import set_prompt_model
 
