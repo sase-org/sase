@@ -14,8 +14,8 @@ import pytest
 from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.time import get_timezone
+from sase.main.plan_approve_cli import _approve_plan_from_cli
 from sase.main.plan_approve_handler import (
-    _approve_plan_from_cli,
     get_tmux_prefix,
     handle_plan_approve_command,
 )
@@ -351,7 +351,7 @@ def test_plan_approve_cli_prints_monitor_follow_hint(
 
     with (
         patch(
-            "sase.main.plan_approve_handler._approve_plan_from_cli",
+            "sase.main.plan_approve_cli._approve_plan_from_cli",
             return_value=result,
         ),
         pytest.raises(SystemExit) as exc_info,
@@ -470,9 +470,7 @@ def test_plan_approve_bad_wait_spec_exits_2_before_resolving_plan(
     )
 
     with (
-        patch(
-            "sase.main.plan_approve_handler.resolve_pending_plan_selector"
-        ) as resolve,
+        patch("sase.main.plan_approve_cli.resolve_pending_plan_selector") as resolve,
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_plan_approve_command(args)

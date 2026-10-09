@@ -296,24 +296,24 @@ def test_approve_help_has_single_retry_example(
 def test_live_gate_decide_submission_sends_decision_inputs_and_revision(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.main import plan_approve_handler
-    from sase.main.plan_approve_handler import _approve_pending_plan
+    from sase.main import plan_approve_pending
+    from sase.main.plan_approve_pending import approve_pending_plan
     from sase.main.plan_pending import PendingPlan
     from sase.notifications.models import Notification
 
     definitions = [dict(item) for item in make_definitions()]
     monkeypatch.setattr(
-        plan_approve_handler,
+        plan_approve_pending,
         "_live_gate_decisions",
         lambda _plan: (definitions, 7, {"approve"}),
     )
     monkeypatch.setattr("sase.main.plan_decide.caller_for_decide", lambda: "human")
     monkeypatch.setattr(
-        plan_approve_handler, "ensure_plan_notification_available", lambda _n: None
+        plan_approve_pending, "ensure_plan_notification_available", lambda _n: None
     )
     context_sentinel = object()
     monkeypatch.setattr(
-        plan_approve_handler,
+        plan_approve_pending,
         "plan_context_from_notification",
         lambda _n: context_sentinel,
     )
@@ -338,7 +338,7 @@ def test_live_gate_decide_submission_sends_decision_inputs_and_revision(
         return result_sentinel
 
     monkeypatch.setattr(
-        plan_approve_handler, "execute_plan_approval_response", _fake_execute
+        plan_approve_pending, "execute_plan_approval_response", _fake_execute
     )
     notification = Notification(
         id="abcdef12-plan",
@@ -360,7 +360,7 @@ def test_live_gate_decide_submission_sends_decision_inputs_and_revision(
         age="1m",
     )
 
-    result = _approve_pending_plan(
+    result = approve_pending_plan(
         plan,
         selector="myplan",
         kind="tale",
