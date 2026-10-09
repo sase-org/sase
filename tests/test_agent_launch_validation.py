@@ -551,7 +551,7 @@ def test_tui_agent_rename_refreshes_artifact_index(tmp_path: Path) -> None:
     with (
         patch("sase.agent.names.claim_agent_name"),
         patch(
-            "sase.ace.tui.actions.agents._directive_persistence."
+            "sase.ace.tui.actions.agents._directive_persistence_update."
             "update_agent_artifact_index_for_marker_mutation"
         ) as update_index,
     ):

@@ -36,7 +36,7 @@ def test_apply_wait_preserves_bead_conditions(tmp_path: Path) -> None:
     app = FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_update."
         "update_agent_artifact_index_for_marker_mutation"
     ):
         app._apply_wait(
@@ -77,7 +77,7 @@ def test_apply_wait_bead_only_edit_writes_wait_for_beads_to_meta_and_waiting(
     app = FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_update."
         "update_agent_artifact_index_for_marker_mutation"
     ):
         app._apply_wait(
@@ -118,7 +118,7 @@ def test_apply_wait_clearing_beads_keeps_agent_dep_removes_key_from_both(
     app = FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_update."
         "update_agent_artifact_index_for_marker_mutation"
     ):
         app._apply_wait(

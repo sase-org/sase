@@ -20,6 +20,7 @@ _TRACKED_MARKER_LITERALS = (
 )
 _MUTATION_CALL_NAMES = {
     "_write_json_file",
+    "write_json_file",
     "copy",
     "copy2",
     "copyfile",

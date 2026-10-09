@@ -35,16 +35,21 @@ from tests._agent_artifact_marker_audit_helpers import (
 
 _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
     (
-        "src/sase/ace/tui/actions/agents/_directive_persistence.py:_patch_agent_meta"
+        "src/sase/ace/tui/actions/agents/_directive_persistence_update.py:"
+        "_patch_agent_meta"
     ): Review(
-        mutation_calls=("_write_json_file",),
+        mutation_calls=("write_json_file",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     (
-        "src/sase/ace/tui/actions/agents/_directive_persistence.py:"
+        "src/sase/ace/tui/actions/agents/_directive_persistence_update.py:"
         "_write_waiting_marker"
     ): Review(
-        mutation_calls=("_write_json_file",),
+        mutation_calls=("write_json_file",),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
+    "src/sase/ace/tui/actions/agents/_directive_persistence_autonomy.py:persist_autonomy_toggle": Review(
+        mutation_calls=("write_json_file",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/ace/tui/actions/agents/_killing_utils.py:delete_agent_artifacts": Review(

@@ -32,7 +32,7 @@ def test_apply_wait_overwrites_wait_conditions(tmp_path: Path) -> None:
     app = FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_update."
         "update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
         app._apply_wait(
@@ -65,7 +65,7 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
     app = FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_update."
         "update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
         app._apply_wait(
@@ -98,7 +98,7 @@ def test_apply_wait_run_now_projects_notification_but_keeps_agent_identity(
     )
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_update."
         "update_agent_artifact_index_for_marker_mutation"
     ):
         app._apply_wait(

@@ -301,7 +301,7 @@ def test_toggle_persist_refreshes_artifact_index(tmp_path: Any) -> None:
     app = FakeApproveApp(agent)
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_autonomy."
         "update_agent_artifact_index_for_marker_mutation"
     ) as update_index:
         app.action_toggle_auto_approve()

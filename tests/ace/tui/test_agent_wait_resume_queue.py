@@ -58,7 +58,7 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
     app = FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_update."
         "update_agent_artifact_index_for_marker_mutation"
     ):
         app._apply_wait(
@@ -172,7 +172,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.agents._directive_persistence."
+            "sase.ace.tui.actions.agents._directive_persistence_update."
             "update_agent_artifact_index_for_marker_mutation"
         ),
         patch.object(run_agent_wait_slots, "_scan_runner_slot_records", scan_records),
@@ -265,7 +265,7 @@ def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
     app = FakeWaitResumeApp()
 
     with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
+        "sase.ace.tui.actions.agents._directive_persistence_update."
         "update_agent_artifact_index_for_marker_mutation"
     ):
         app._apply_wait(
