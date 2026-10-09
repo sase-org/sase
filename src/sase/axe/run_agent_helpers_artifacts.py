@@ -27,6 +27,70 @@ from sase.plan_chain import (
 )
 
 
+def _inherit_autonomy_record(
+    followup_meta: dict[str, Any],
+    base_meta: dict[str, Any],
+    relationships: dict[str, Any] | None,
+) -> None:
+    """Seed *followup_meta* with the predecessor's live autonomy record.
+
+    Host-composed successors inherit structurally through core
+    ``autonomy_inherit``: profile, selection, policy, and ``last`` carry
+    over with ``source: inherited``. The predecessor is *base_meta* (callers
+    seed it from live disk, e.g. :func:`live_plan_successor_meta` or the
+    interrupted-phase live read); when it carries no record, a relationship
+    ``autonomy`` dict is accepted as the predecessor so the legacy
+    plan-chain path keeps working. An explicit ``%auto`` in an
+    agent-authored successor prompt narrows under agent semantics; the
+    generated prompts this helper serves carry none, so no explicit
+    selection is passed. Failures fail closed to a manual record so a
+    successor never inherits a half-written state.
+    """
+    from sase.autonomy.record import (
+        apply_record_meta_patch,
+        autonomy_inherit_record,
+        read_record,
+        resolve_selection,
+    )
+
+    predecessor: dict[str, Any] | None = read_record(base_meta)
+    if predecessor is None and isinstance(relationships, dict):
+        candidate = relationships.get("autonomy")
+        if isinstance(candidate, dict) and candidate:
+            predecessor = dict(candidate)
+    if predecessor is None:
+        # No %auto state to inherit: persist a manual record so every
+        # successor reads through one code path.
+        try:
+            manual = resolve_selection(None, source="inherited")
+        except Exception:
+            return
+        try:
+            apply_record_meta_patch(followup_meta, manual)
+        except Exception:
+            followup_meta["autonomy"] = manual
+        return
+    predecessor_name = base_meta.get("name")
+    if not isinstance(predecessor_name, str):
+        predecessor_name = ""
+    try:
+        outcome = autonomy_inherit_record(
+            predecessor,
+            predecessor_name=predecessor_name,
+            explicit_selection=None,
+            actor_kind="host",
+        )
+    except Exception:
+        return
+    record = outcome.get("record")
+    if not isinstance(record, dict) or not record:
+        return
+    try:
+        apply_record_meta_patch(followup_meta, record)
+    except Exception:
+        followup_meta["autonomy"] = record
+
+
 def append_meta_list_field(artifacts_dir: str, key: str, value: Any) -> None:
     """Read agent_meta.json, append *value* to the list at *key*, and write back."""
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
@@ -172,7 +236,6 @@ def create_followup_artifacts(
         # directly from agent_meta.json instead of re-deriving the path.
         "workspace_dir",
         "name",
-        "approve",
         "patch_name",
         "changespec_name",
         "cl_name",
@@ -233,8 +296,20 @@ def create_followup_artifacts(
     followup_meta["run_started_at"] = datetime.now(UTC).isoformat()
     if relationships:
         for key, value in relationships.items():
+            # Autonomy rides structural inheritance below, never a verbatim
+            # relationship copy: a stale ``approve``-only copy loses the
+            # argument and widens/narrows the successor.
+            if key in (
+                "approve",
+                "auto_approve_plan_action",
+                "auto_approve_argument",
+                "plan",
+                "autonomy",
+            ):
+                continue
             if value or (isinstance(value, bool) and value is not None):
                 followup_meta[key] = value
+    _inherit_autonomy_record(followup_meta, base_meta, relationships)
 
     write_agent_meta_atomic(new_artifacts_dir, followup_meta, update_index=False)
 

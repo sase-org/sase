@@ -51,6 +51,7 @@ class AgentSessionAttachLaunchPlan:
     parent_workspace_num: int | None = None
     sase_plan: str | None = None
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
+    host_composed: bool = False
 
 
 @dataclass(frozen=True)

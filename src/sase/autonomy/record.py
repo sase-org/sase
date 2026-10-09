@@ -351,13 +351,99 @@ def auto_applies(record: Mapping[str, Any] | None, gate_kind: str) -> bool:
     return decision.get("outcome") == "auto"
 
 
+def selection_to_prompt_prefix(selection: object) -> str:
+    """Return the ``%auto`` prompt prefix for a record *selection*.
+
+    ``""`` (bare ``%auto``) gives ``"%auto\\n"``; ``"tale"``/``"plan"``/``"epic"``
+    give the suffixed spelling; anything else (``"manual"``, ``None``,
+    unknown) gives ``""`` so callers never emit a prompt that fails at
+    launch. This preserves ``:plan`` exactly, unlike the legacy
+    ``prompt_mode`` projection where ``:plan`` and bare share ``plan``.
+    """
+    if selection == "":
+        return "%auto\n"
+    if selection in ("tale", "plan", "epic"):
+        return f"%auto:{selection}\n"
+    return ""
+
+
+def _actor_wire(
+    *,
+    kind: str = "host",
+    surface: str = "",
+    principal: str = "",
+) -> dict[str, Any]:
+    return {"kind": kind, "surface": surface, "principal": principal}
+
+
+def autonomy_inherit_record(
+    predecessor: Mapping[str, Any],
+    *,
+    predecessor_name: str = "",
+    explicit_selection: str | None = None,
+    actor_kind: str = "host",
+    surface: str = "",
+    principal: str = "",
+) -> dict[str, Any]:
+    """Seed a host-composed successor record from *predecessor* via core.
+
+    Returns the core ``{status, record, reason}`` dict. An explicit
+    ``%auto`` selection narrows under agent semantics; a refused widening
+    keeps the inherited record. Raises the core error message as
+    ``ValueError`` when the predecessor record cannot parse.
+    """
+    from sase.core.rust import require_rust_binding
+
+    inherit = require_rust_binding("autonomy_inherit")
+    result = inherit(
+        dict(predecessor),
+        {
+            "predecessor_name": predecessor_name,
+            "explicit_selection": explicit_selection,
+            "actor": _actor_wire(kind=actor_kind, surface=surface, principal=principal),
+            "now": _utc_now(),
+        },
+    )
+    return dict(result)
+
+
+def mutate_record(
+    record: Mapping[str, Any],
+    selection: str,
+    *,
+    expected_revision: int | None = None,
+    actor_kind: str = "human",
+    surface: str = "",
+    principal: str = "",
+) -> dict[str, Any]:
+    """Apply a ``%auto`` selection change to *record* via core.
+
+    Returns the core ``{status, record, reason}`` dict with status
+    ``applied``, ``unchanged``, ``refused``, or ``stale``.
+    """
+    from sase.core.rust import require_rust_binding
+
+    mutate = require_rust_binding("autonomy_mutate")
+    request: dict[str, Any] = {
+        "selection": selection,
+        "actor": _actor_wire(kind=actor_kind, surface=surface, principal=principal),
+        "now": _utc_now(),
+    }
+    if expected_revision is not None:
+        request["expected_revision"] = expected_revision
+    result = mutate(dict(record), request)
+    return dict(result)
+
+
 __all__ = [
     "LEGACY_AUTONOMY_KEYS",
     "apply_record_meta_patch",
     "auto_applies",
+    "autonomy_inherit_record",
     "evaluate",
     "legacy_projection",
     "live_record",
+    "mutate_record",
     "read_record",
     "record_meta_patch",
     "record_only",
@@ -366,5 +452,6 @@ __all__ = [
     "RETUNE_DROP_KEYS",
     "RETUNE_TRIGGER_KEYS",
     "retune_meta_record",
+    "selection_to_prompt_prefix",
     "with_legacy_projection",
 ]

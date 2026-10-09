@@ -31,6 +31,40 @@ def _auto_approve_active(agent: Agent) -> bool:
     return bool(agent.approve or agent.auto_approve_plan_action)
 
 
+def _restore_preview(artifacts_dir: str) -> tuple[str, str]:
+    """Return the ``(profile, selection)`` a toggle-on would restore.
+
+    Reads the live autonomy record best-effort: a non-manual record means
+    the toggle is turning off (unused here); a manual record restores its
+    ``last`` profile, else ``standard``. Anything unreadable previews
+    ``standard`` so the optimistic row patch never blocks the toggle.
+    """
+    try:
+        from sase.autonomy.record import read_record
+        from sase.axe.agent_meta import read_live_agent_meta
+    except Exception:
+        return ("standard", "")
+    try:
+        meta = read_live_agent_meta(artifacts_dir)
+    except Exception:
+        return ("standard", "")
+    try:
+        record = read_record(meta)
+    except Exception:
+        return ("standard", "")
+    if not isinstance(record, dict) or not record:
+        return ("standard", "")
+    if record.get("profile") != "manual":
+        return (
+            str(record.get("profile", "standard")),
+            str(record.get("selection", "")),
+        )
+    last = record.get("last")
+    if isinstance(last, dict) and last.get("profile"):
+        return (str(last["profile"]), str(last.get("selection", "")))
+    return ("standard", "")
+
+
 class AgentApproveMixin:
     """Mixin providing the agent bare-``%auto`` toggle.
 
@@ -42,12 +76,13 @@ class AgentApproveMixin:
     _agents: list[Agent]
 
     def action_toggle_auto_approve(self) -> None:
-        """Toggle bare ``%auto`` plan auto-approval for the selected agent.
+        """Toggle the selected agent's autonomy record for the next gate.
 
-        If auto-approval is off, enable bare ``%auto`` (approving whatever
-        plan tier the agent proposes). If any auto-approval is on (``%auto``,
-        ``%auto:plan``, ``%auto:tale``, or ``%auto:epic``, whether from launch
-        or from a previous toggle), disable it. No panel is opened.
+        If auto-approval is off, restore the last non-manual profile (else
+        ``standard``). If any auto-approval is on (``%auto``, ``%auto:plan``,
+        ``%auto:tale``, or ``%auto:epic``, whether from launch or from a
+        previous toggle), switch it to manual. Later successors inherit the
+        toggled record. No panel is opened.
         """
         if self.current_tab != "agents":
             return
@@ -64,12 +99,15 @@ class AgentApproveMixin:
         self._set_auto_approve(agent, enabled=not _auto_approve_active(agent))
 
     def _set_auto_approve(self, agent: Agent, *, enabled: bool) -> None:
-        """Enable or disable bare ``%auto`` for ``agent`` and persist it.
+        """Toggle the agent's autonomy record and persist it.
 
-        The disk write is dispatched to the tracked task queue so the UI thread
-        never blocks on I/O. The in-memory ``agent.approve`` /
-        ``auto_approve_plan_action`` fields are patched optimistically and
-        reverted if the persistence worker fails.
+        Toggle-off sends a ``manual`` autonomy mutation; toggle-on sends
+        ``restore``, which brings back the last non-manual profile (else
+        ``standard``). The disk write is dispatched to the tracked task
+        queue so the UI thread never blocks on I/O. The in-memory
+        ``agent.approve`` / ``auto_approve_plan_action`` fields are patched
+        optimistically from the read-back record shape and reverted if the
+        persistence worker fails.
         """
         artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
         if not artifacts_dir:
@@ -78,18 +116,32 @@ class AgentApproveMixin:
 
         prior_approve = agent.approve
         prior_auto_action = agent.auto_approve_plan_action
-        if enabled:
-            new_approve: bool = True
-            new_auto_action: str | None = None
-            toast = "Auto-approve enabled (%auto)"
-            meta_set: dict[str, object] = {"approve": True}
-            auto_mode: Literal["plan", "tale", "epic"] | None = "plan"
-        else:
+        target = agent.cl_name or agent.display_name or "agent"
+        # Best-effort preview of the post-toggle record for the optimistic
+        # row patch and toast; the worker's read-back record wins.
+        selection = "restore" if enabled else "manual"
+        new_approve: bool
+        new_auto_action: str | None
+        toast: str
+        if not enabled:
             new_approve = False
             new_auto_action = None
-            toast = "Auto-approve disabled"
-            meta_set = {}
-            auto_mode = None
+            toast = f"✋ {target} is now manual — its next plan, epic, or question will wait for you"
+        else:
+            restored_profile, restored_selection = _restore_preview(artifacts_dir)
+            if restored_profile == "tale":
+                new_approve = False
+                new_auto_action = "tale"
+                label = restored_selection or "tale"
+                toast = f"⚡ {label} restored · {target}"
+            elif restored_profile == "epic":
+                new_approve = False
+                new_auto_action = "epic"
+                toast = f"⚡ epic restored · {target}"
+            else:
+                new_approve = True
+                new_auto_action = None
+                toast = f"⚡ standard restored · {target}"
         generation = object()
         agent._directive_generation = generation  # type: ignore[attr-defined]
         from ..agent_durable import submit_agent_directive
@@ -117,15 +169,9 @@ class AgentApproveMixin:
             self,
             artifacts_dir=artifacts_dir,
             payload={
-                "meta_remove": [
-                    "approve",
-                    "auto_approve_plan_action",
-                    "auto_approve_argument",
-                ],
-                "meta_set": meta_set,
-                "prompt": {"kind": "set_auto_mode", "mode": auto_mode},
+                "autonomy": {"selection": selection, "surface": "tui"},
             },
-            cl_name=agent.cl_name or agent.display_name or "agent",
+            cl_name=target,
             display_name=f"Persist auto: {agent.display_name}",
             on_complete=_on_complete,
         )

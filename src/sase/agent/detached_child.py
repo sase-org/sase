@@ -144,6 +144,7 @@ def spawn_agent_session_successor(
         agent_session_role=agent_session_role or plan.agent_session_role,
         parent_workspace_dir=workspace_dir or plan.parent_workspace_dir,
         parent_workspace_num=workspace_num,
+        host_composed=True,
     )
     result = spawn_detached_child(
         project_name=project_name,

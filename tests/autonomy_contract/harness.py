@@ -294,63 +294,28 @@ _AUTO_KEYS = (
 
 
 def adapt_a_off(artifacts_dir: Path) -> dict[str, Any]:
-    """Apply the ``A`` toggle-off through the real persistence helper."""
+    """Apply the ``A`` toggle-off through the real autonomy mutation."""
     from sase.ace.tui.actions.agents._directive_persistence import (
-        AgentDirectivePersistenceSpec,
-        AgentMetaPatch,
-        persist_agent_directive_update,
+        persist_autonomy_toggle,
     )
-
-    meta = read_meta(artifacts_dir)
-
-    def _strip(prompt: str) -> str:
-        return "\n".join(
-            line
-            for line in prompt.splitlines()
-            if not line.strip().startswith("%auto") and line.strip() != "%a"
-        )
 
     (artifacts_dir / "raw_prompt.md").write_text("%auto\nDo the work", encoding="utf-8")
-    persist_agent_directive_update(
-        AgentDirectivePersistenceSpec(
-            artifacts_dir=artifacts_dir,
-            prompt_mutator=_strip,
-            meta_patch=AgentMetaPatch(
-                remove_keys=tuple(key for key in _AUTO_KEYS if key in meta)
-            ),
-        )
-    )
+    persist_autonomy_toggle(artifacts_dir, "manual", surface="tui")
     return read_meta(artifacts_dir)
 
 
 def adapt_a_on_bare(artifacts_dir: Path) -> dict[str, Any]:
-    """Apply today's ``A`` toggle-on through the real persistence helper.
+    """Apply the ``A`` toggle-on through last-profile restore.
 
     This mirrors ``_approve.py::_set_auto_approve(enabled=True)``, which
-    writes bare ``approve: True`` whatever the previous profile was. The
-    ``inherit`` phase replaces this with last-profile restore; this adapter
-    is the seam it updates.
+    sends a ``restore`` autonomy mutation: a ``:tale`` agent comes back as
+    tale, not bare. The ``inherit`` phase owns this seam.
     """
     from sase.ace.tui.actions.agents._directive_persistence import (
-        AgentDirectivePersistenceSpec,
-        AgentMetaPatch,
-        persist_agent_directive_update,
+        persist_autonomy_toggle,
     )
 
-    persist_agent_directive_update(
-        AgentDirectivePersistenceSpec(
-            artifacts_dir=artifacts_dir,
-            prompt_mutator=lambda prompt: "%auto\nDo the work",
-            meta_patch=AgentMetaPatch(
-                set_values={"approve": True},
-                remove_keys=(
-                    "auto_approve_plan_action",
-                    "auto_approve_argument",
-                    "plan",
-                ),
-            ),
-        )
-    )
+    persist_autonomy_toggle(artifacts_dir, "restore", surface="tui")
     return read_meta(artifacts_dir)
 
 
@@ -387,10 +352,20 @@ def adapt_followup_artifacts(
 
 
 def adapt_monitor_followup_prefix(live_meta: dict[str, Any]) -> str:
-    """Render the monitor follow-up ``%auto`` prefix from live meta."""
-    from sase.monitor.continuation_delivery import auto_launch_prefix
+    """Render the monitor follow-up ``%auto`` prefix from live meta.
 
-    return auto_launch_prefix(live_meta)
+    Structural inheritance carries autonomy in the successor record, so
+    follow-up prompts re-emit no ``%auto`` prefix; the Romano-E1 helper
+    now derives the expected token from the live record selection for
+    tests that assert prompt-rewrite behavior, and returns ``""`` for
+    manual records.
+    """
+    from sase.autonomy.record import read_record, selection_to_prompt_prefix
+
+    record = read_record(live_meta)
+    if record is None:
+        return ""
+    return selection_to_prompt_prefix(record.get("selection"))
 
 
 def adapt_epic_worker_prompt() -> str:

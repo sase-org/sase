@@ -625,15 +625,17 @@ The follow-up prompt's body is enclosed in a macro-disabled region, so directive
 `#macro` references, and `$(...)` command substitution inside `--reason`, `--next`,
 table fields, diagnostics, and embedded output are delivered as literal text. Only the
 routing prefix remains live: `#fork:`, `%model:`, `%effort:`, a `%queue(...)` line that
-carries the monitor's recorded queue weight (plus any recorded priority or capacity), a
-`%auto` line when the starter requested automatic gate resolution, and the starter's VCS
-workspace reference. When `--next-output tail` is used, retained output is also fenced
-and labeled as untrusted program output. The command and cwd fields are fenced too, so
-directive-shaped strings inside a shell command or path remain literal even if the
-disabled region is ever removed. `--next-output auto` defaults completed runs to facts
-and refs, failed runs to bounded selected diagnostics when available, and timeouts to a
-bounded raw tail. Use `--next-output file` for large or hostile logs when the follow-up
-should inspect the log explicitly, or `--next-output none` when the outcome summary and
+carries the monitor's recorded queue weight (plus any recorded priority or capacity),
+and the starter's VCS workspace reference. Successors inherit autonomy structurally from
+the starter member's live record; an explicit `%auto` in agent-authored follow-up text
+can only narrow, and a widening request keeps the inherited record. When
+`--next-output tail` is used, retained output is also fenced and labeled as untrusted
+program output. The command and cwd fields are fenced too, so directive-shaped strings
+inside a shell command or path remain literal even if the disabled region is ever
+removed. `--next-output auto` defaults completed runs to facts and refs, failed runs to
+bounded selected diagnostics when available, and timeouts to a bounded raw tail. Use
+`--next-output file` for large or hostile logs when the follow-up should inspect the log
+explicitly, or `--next-output none` when the outcome summary and
 `sase monitor show --all-lines` pointer are enough. The continuation evidence limits
 live under `monitor.evidence_limits` in `sase.yml`; the shipped defaults are 8 KiB
 selected diagnostics, 4 KiB fallback tail, 12 KiB total raw excerpt budget, and 200

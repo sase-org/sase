@@ -217,6 +217,32 @@ def _build_handoff(
     )
 
 
+def _rewrite_prompt_from_live_record(prompt: str, artifacts_dir: str) -> str:
+    """Rewrite *prompt*'s ``%auto`` token from the live autonomy record.
+
+    A retry after ``A`` off must not resurrect auto: the failed agent's
+    ``original_prompt`` still carries its launch-time ``%auto``, while the
+    live record is manual. The live selection wins, preserving ``:plan``
+    exactly; without a live record the prompt passes through unchanged.
+    """
+    try:
+        from sase.autonomy.record import live_record, selection_to_prompt_prefix
+        from sase.macro._directive_edit_core import set_prompt_directive
+    except Exception:
+        return prompt
+    try:
+        record = live_record(artifacts_dir)
+    except Exception:
+        return prompt
+    if record is None:
+        return prompt
+    prefix = selection_to_prompt_prefix(record.get("selection")).strip()
+    try:
+        return set_prompt_directive(prompt, {"auto"}, prefix or None)
+    except Exception:
+        return prompt
+
+
 def _build_resume_prompt(handoff: RetryHandoff) -> str:
     """Construct the prompt the child agent will receive.
 
@@ -264,11 +290,18 @@ def spawn_retry_agent(
         continuation_prompt=continuation_prompt,
     )
 
+    # Rewrite the launch-time %auto from the failed agent's live record
+    # before spawning, so a retry after A off carries no %auto.
+    handoff.original_prompt = _rewrite_prompt_from_live_record(
+        handoff.original_prompt, ctx.artifacts_dir
+    )
     # Write handoff into the parent's artifacts dir so diagnostic tooling
     # and the loader can read it from the parent side.
     handoff_path = handoff.write_to(ctx.artifacts_dir)
 
-    child_prompt = _build_resume_prompt(handoff)
+    child_prompt = _rewrite_prompt_from_live_record(
+        _build_resume_prompt(handoff), ctx.artifacts_dir
+    )
 
     extra_env: dict[str, str] = {
         ENV_RETRY_HANDOFF: handoff_path,

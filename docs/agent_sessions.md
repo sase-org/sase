@@ -389,7 +389,9 @@ requests. See
 question follow-up does: it ends the calling agent's turn in-process and continues the
 run as the next member, in the same workspace and claim. The successor gets the next
 free numeric suffix (role `feedback`) by default, or an explicit `--name TOKEN` suffix
-(role: the token itself), per the suffix table above. See
+(role: the token itself), per the suffix table above. Every host-composed successor
+inherits autonomy structurally from its predecessor's live record; an explicit `%auto`
+in agent-authored follow-up text can only narrow. See
 [Monitors: Pipe vs. monitor](monitors.md#pipe-vs-monitor).
 
 SASE resolves `parent` to the newest visible matching agent or session member in the

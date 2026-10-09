@@ -1452,7 +1452,7 @@ count gains a lit `▶M` when `M` in-flight targets remain hidden behind `.`.
 | `!R`                | Revive a previously dismissed agent                                                                                                                                                                                                                                                                                                            |
 | `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                                                                                                                                                                                                                                                 |
 | `+`                 | Run custom agent                                                                                                                                                                                                                                                                                                                               |
-| `A`                 | Toggle bare `%auto` plan auto-approval / auto-answer questions                                                                                                                                                                                                                                                                                 |
+| `A`                 | Toggle the agent's `%auto` autonomy record (off restores last profile on re-enable)                                                                                                                                                                                                                                                            |
 | `F`                 | Prepare a fork of the selected agent/session, named proc, monitor, clan container, or focused named tribe panel                                                                                                                                                                                                                                |
 | `n`                 | Name agent                                                                                                                                                                                                                                                                                                                                     |
 | `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                                                                                                                                                                                                                                                   |
@@ -6531,10 +6531,12 @@ schema before consuming the approval; failures surface an error and keep the
 notification actionable. CLI rejection also attempts the durable planner cleanup used by
 no-feedback TUI rejection.
 
-On an active agent, `A` toggles bare `%auto`, and the change takes effect at the next
-gate. If auto-approval is off, it turns it on exactly as if the agent had been launched
-with `%auto`. If any auto-approval is on (including a launch-time `%auto:tale` /
-`%auto:epic`), it turns it off, and the next plan or question gate parks for review.
+On an active agent, `A` changes the selected agent's autonomy record from its next gate.
+If any auto-approval is on (including a launch-time `%auto:tale` / `%auto:epic`), it
+switches the record to manual, and the next plan, epic, or question gate parks for
+review. If auto-approval is off, turning it back on restores the last non-manual profile
+(else `standard`): a `%auto:tale` agent comes back as tale, not bare. Later successors
+inherit the toggled record.
 
 The agent's next submitted plan is approved at its authored tier. A `tier: tale` plan is
 approved and committed as a tale; a `tier: epic` plan is approved as an epic and follows

@@ -213,29 +213,6 @@ def queue_launch_prefix(meta: Mapping[str, Any]) -> str:
     return f"{formatted}\n" if formatted else ""
 
 
-def auto_launch_prefix(meta: Mapping[str, Any]) -> str:
-    """Return a live ``%auto`` prefix carrying starter auto-approve state."""
-
-    argument = meta.get("auto_approve_argument")
-    if isinstance(argument, str):
-        normalized = argument.strip()
-        # Only re-emit arguments the closed %auto grammar still accepts.
-        # Any other legacy value (foo, off, manual, ...) falls through to
-        # the action/approve checks below, so a stale meta can never
-        # produce a follow-up prompt that now fails at launch.
-        if normalized in {"plan", "tale", "epic"}:
-            return f"%auto:{normalized}\n"
-
-    action = meta.get("auto_approve_plan_action")
-    if action in {"tale", "epic"}:
-        return f"%auto:{action}\n"
-
-    if meta.get("approve"):
-        return "%auto\n"
-
-    return ""
-
-
 def launch_wire_extra(meta: Mapping[str, Any]) -> dict[str, Any]:
     """Return admission-journal extras from the monitor's launch wires."""
 
@@ -298,7 +275,6 @@ __all__ = [
     "DELIVERY_IDENTITY_ENV",
     "DELIVERY_KEY_ENV",
     "adopt_ordinary_continuation_delivery",
-    "auto_launch_prefix",
     "claim_ordinary_continuation_dispatch",
     "continuation_delivery_env",
     "launch_wire_extra",

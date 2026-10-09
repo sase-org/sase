@@ -23,8 +23,36 @@ def _persist_directive_with_clan_records(
     """
     from sase.ace.tui.actions.agents._directive_persistence import (
         persist_agent_directive_update,
+        persist_autonomy_toggle,
     )
 
+    autonomy = payload.get("autonomy")
+    if isinstance(autonomy, dict) and isinstance(autonomy.get("selection"), str):
+        selection = str(autonomy["selection"])
+        expected = autonomy.get("expected_revision")
+        outcome = persist_autonomy_toggle(
+            artifacts_dir,
+            selection,
+            expected_revision=expected if isinstance(expected, int) else None,
+            surface=str(autonomy.get("surface", "tui") or "tui"),
+        )
+        from sase.ace.tui.actions.agents._directive_persistence import (
+            DirectivePersistenceResult,
+        )
+
+        status = str(outcome.get("status", "refused"))
+        result = DirectivePersistenceResult(
+            meta_updated=status in ("applied", "unchanged"),
+            raw_prompt_updated=status in ("applied", "unchanged"),
+        )
+        # Attach the autonomy outcome for CLI/TUI callers that report it.
+        try:
+            object.__setattr__(result, "autonomy_outcome", outcome)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        resolved = _resolve_tribe_payload(payload, artifacts_dir=artifacts_dir)
+        applied = _apply_clan_record_updates(resolved)
+        return result, applied
     spec = _spec_from_payload(payload, artifacts_dir=artifacts_dir)
     result = persist_agent_directive_update(spec)
     resolved = _resolve_tribe_payload(payload, artifacts_dir=artifacts_dir)

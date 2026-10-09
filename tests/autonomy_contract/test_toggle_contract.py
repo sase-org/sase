@@ -1,24 +1,20 @@
 """Toggle contract: ``A`` off then on restores the last profile.
 
-E1 target: for a ``%auto:tale`` agent, ``A`` off then on gives the tale
-outcomes. Today toggle-on always restores bare ``%auto``, silently widening
-``:tale`` users to epic auto-launch. This module is removed by ``inherit``.
+For a ``%auto:tale`` agent, ``A`` off then on gives the tale outcomes
+through core ``mutate_autonomy`` (``manual`` then ``restore``), not bare
+``%auto``.
 """
 
 from __future__ import annotations
 
-import pytest
+import uuid
 
 from . import harness
 from .rows import APPROVE_ARCHIVE, ASK, FIRST
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
-pytestmark = pytest.mark.xfail(
-    strict=True, reason="E1 inherit: A restores the last profile"
-)
 
-
-def test_tale_a_off_on_restores_tale(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_tale_a_off_on_restores_tale(tmp_path, monkeypatch) -> None:
     """Off then on round-trips a ``:tale`` agent through real gates."""
     harness.isolated_gate_dirs(monkeypatch, tmp_path)
     workdir = tmp_path / "work"
@@ -29,8 +25,6 @@ def test_tale_a_off_on_restores_tale(tmp_path, monkeypatch: pytest.MonkeyPatch) 
     _, _, artifacts_dir = harness.launch_meta("%auto:tale\nDo the work", workdir)
     harness.adapt_a_off(artifacts_dir)
     toggled = harness.adapt_a_on_bare(artifacts_dir)
-
-    import uuid
 
     tag = uuid.uuid4().hex[:8]
     assert (

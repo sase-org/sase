@@ -2,13 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-import pytest
-
 from sase.feature_flags import override_flags
 from sase.monitor.continuation_delivery import (
-    auto_launch_prefix,
     launch_wire_extra,
     queue_launch_prefix,
 )
@@ -16,7 +11,6 @@ from sase.monitor.continuation_delivery import (
 from ._continuation_delivery import continuation_delivery_sandbox  # noqa: F401
 
 __all__ = [
-    "test_auto_launch_prefix_reauthors_auto_directive",
     "test_epic_launch_monitor_override_is_not_inherited_by_successors",
     "test_epic_launch_monitor_override_without_starter_weight_is_not_inherited",
     "test_launch_wire_extra_keeps_user_authored_zero",
@@ -113,37 +107,30 @@ def test_queue_launch_prefix_reauthors_capacity_multiplier() -> None:
     }
 
 
-@pytest.mark.parametrize(
-    ("meta", "expected"),
-    [
-        ({"approve": True}, "%auto\n"),
-        (
-            {
-                "approve": True,
-                "auto_approve_plan_action": "tale",
-                "auto_approve_argument": "tale",
-            },
-            "%auto:tale\n",
-        ),
-        ({"auto_approve_plan_action": "epic"}, "%auto:epic\n"),
-        ({}, ""),
-        ({"approve": False}, ""),
-        ({"approve": True, "auto_approve_argument": ""}, "%auto\n"),
-        ({"approve": True, "auto_approve_argument": "   "}, "%auto\n"),
-        ({"approve": True, "auto_approve_argument": 123}, "%auto\n"),
-        # Legacy values outside the closed grammar never re-emit: they fall
-        # through to the action/approve checks so a stale meta cannot
-        # produce a follow-up prompt that now fails at launch.
-        ({"approve": True, "auto_approve_argument": "foo"}, "%auto\n"),
-        ({"approve": True, "auto_approve_argument": "off"}, "%auto\n"),
-        ({"approve": True, "auto_approve_argument": "manual"}, "%auto\n"),
-        ({"auto_approve_argument": "foo"}, ""),
-    ],
-)
-def test_auto_launch_prefix_reauthors_auto_directive(
-    meta: dict[str, Any], expected: str
-) -> None:
-    assert auto_launch_prefix(meta) == expected
+def test_followup_prompt_carries_no_auto_prefix() -> None:
+    """Follow-up prompts re-emit no ``%auto``: successors inherit structurally.
+
+    Autonomy rides the successor's inherited record (``source: inherited``),
+    never a re-emitted prompt prefix. The record selection renders the exact
+    token only for prompt-rewrite paths (retry, runner refresh, ``A``).
+    """
+    from sase.autonomy.record import read_record, selection_to_prompt_prefix
+
+    record = read_record(
+        {
+            "autonomy": {
+                "profile": "tale",
+                "selection": "tale",
+            }
+        }
+    )
+    assert record is not None
+    # The rewrite token still derives exactly from the selection (``:plan``
+    # preserved), but follow-up composition emits only the queue prefix.
+    assert selection_to_prompt_prefix(record.get("selection")) == "%auto:tale\n"
+    assert selection_to_prompt_prefix("plan") == "%auto:plan\n"
+    assert selection_to_prompt_prefix("") == "%auto\n"
+    assert selection_to_prompt_prefix("manual") == ""
 
 
 def test_queue_launch_prefix_positive_budget_is_parseable() -> None:

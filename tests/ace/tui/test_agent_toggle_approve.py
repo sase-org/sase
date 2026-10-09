@@ -195,7 +195,7 @@ def test_toggle_off_enables_bare_auto(tmp_path: Any) -> None:
     assert app.refresh_calls == [True]
     assert len(app.scheduled) == 1
     assert not (tmp_path / "agent_meta.json").exists()
-    assert any(msg.startswith("Auto-approve enabled") for msg, _ in app.notifications)
+    assert any("restored" in msg for msg, _ in app.notifications)
 
     asyncio.run(app.scheduled[0][0]())
     data = json.loads((tmp_path / "agent_meta.json").read_text())
@@ -218,13 +218,19 @@ def test_toggle_off_clears_stale_keys_but_preserves_others(tmp_path: Any) -> Non
     }
     data = _run_toggle_in_state(tmp_path / "on", record_only=True, seed_meta=seed)
     record = data.pop("autonomy")
-    assert (record["profile"], record["selection"]) == ("standard", "")
+    # Restore brings back the translated tale profile, not bare standard.
+    assert (record["profile"], record["selection"]) == ("tale", "tale")
     assert data == {"other": "keep"}
 
     off_data = _run_toggle_in_state(tmp_path / "off", record_only=False, seed_meta=seed)
     off_record = off_data.pop("autonomy")
-    assert (off_record["profile"], off_record["selection"]) == ("standard", "")
-    assert off_data == {"other": "keep", "approve": True}
+    assert (off_record["profile"], off_record["selection"]) == ("tale", "tale")
+    assert off_data == {
+        "other": "keep",
+        "auto_approve_argument": "tale",
+        "auto_approve_plan_action": "tale",
+        "plan": True,
+    }
 
 
 # --- Toggle: on -> off --------------------------------------------------------
@@ -240,7 +246,7 @@ def test_toggle_plain_on_disables(tmp_path: Any) -> None:
 
     assert agent.approve is False
     assert agent.auto_approve_plan_action is None
-    assert any(msg.startswith("Auto-approve disabled") for msg, _ in app.notifications)
+    assert any("now manual" in msg for msg, _ in app.notifications)
 
     asyncio.run(app.scheduled[0][0]())
     data = json.loads((tmp_path / "agent_meta.json").read_text())
@@ -319,7 +325,7 @@ def test_toggle_rolls_back_on_persist_failure(
         raise OSError("disk full")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._directive_persistence.persist_agent_directive_update",
+        "sase.ace.tui.actions.agents._directive_persistence.persist_autonomy_toggle",
         _boom,
     )
 

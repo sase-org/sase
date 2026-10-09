@@ -17,7 +17,7 @@ from .test_continuation_delivery_dispatch import (
     test_injected_crashes_keep_delivery_key_stable,
 )
 from .test_continuation_delivery_prefix import (
-    test_auto_launch_prefix_reauthors_auto_directive,
+    test_followup_prompt_carries_no_auto_prefix,
     test_epic_launch_monitor_override_is_not_inherited_by_successors,
     test_epic_launch_monitor_override_without_starter_weight_is_not_inherited,
     test_launch_wire_extra_keeps_user_authored_zero,
@@ -33,7 +33,7 @@ from .test_continuation_delivery_prefix import (
 )
 
 __all__ = [
-    "test_auto_launch_prefix_reauthors_auto_directive",
+    "test_followup_prompt_carries_no_auto_prefix",
     "test_budget_refusal_marks_adopted_delivery_needs_attention",
     "test_concurrent_dispatch_spawns_once",
     "test_epic_launch_monitor_override_is_not_inherited_by_successors",

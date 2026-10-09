@@ -190,9 +190,16 @@ def test_feedback_replanner_inherits_live_tale_auto(tmp_path) -> None:
 
 
 def test_followup_artifacts_persist_relationship_auto_keys(tmp_path) -> None:
-    """Relationship-carried auto keys land in the successor meta file."""
+    """The successor inherits the live record, not verbatim relationship keys.
+
+    Structural inheritance carries profile/selection/policy/``last`` with
+    ``source: inherited``; legacy relationship keys never land verbatim.
+    """
     from unittest.mock import patch
 
+    from sase.autonomy.record import read_record, resolve_selection
+
+    predecessor = resolve_selection("tale", source="prompt", surface="launch")
     followup = tmp_path / "followup-auto"
     followup.mkdir()
     with patch(
@@ -201,16 +208,21 @@ def test_followup_artifacts_persist_relationship_auto_keys(tmp_path) -> None:
     ):
         create_followup_artifacts(
             "test_proj",
-            {"model": "opus"},
+            {"model": "opus", "name": "predecessor", "autonomy": predecessor},
             "--code",
             "20260711120000",
             relationships={
                 "plan_path": str(tmp_path / "plan.md"),
-                "auto_approve_argument": "tale",
-                "auto_approve_plan_action": "tale",
+                "auto_approve_argument": "epic",
+                "auto_approve_plan_action": "epic",
             },
         )
 
     meta = json.loads((followup / "agent_meta.json").read_text())
-    assert meta["auto_approve_argument"] == "tale"
-    assert meta["auto_approve_plan_action"] == "tale"
+    record = read_record(meta)
+    assert record is not None
+    assert (record["profile"], record["selection"]) == ("tale", "tale")
+    assert record["source"] == "inherited"
+    # Stale relationship keys never land verbatim.
+    assert meta.get("auto_approve_argument") != "epic"
+    assert meta.get("auto_approve_plan_action") != "epic"

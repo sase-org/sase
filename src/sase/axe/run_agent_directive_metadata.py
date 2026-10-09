@@ -289,7 +289,12 @@ def build_agent_meta(
         agent_meta["model_alias_overrides"] = inputs.model_alias_overrides
     if inputs.vcs_provider:
         agent_meta["vcs_provider"] = inputs.vcs_provider
-    from sase.autonomy.record import apply_record_meta_patch, resolve_selection
+    from sase.autonomy.record import (
+        apply_record_meta_patch,
+        autonomy_inherit_record,
+        read_record,
+        resolve_selection,
+    )
 
     if directives.auto_enabled and directives.auto_argument is not None:
         auto_selection: str | None = directives.auto_argument
@@ -297,10 +302,41 @@ def build_agent_meta(
         auto_selection = ""
     else:
         auto_selection = None
-    apply_record_meta_patch(
-        agent_meta,
-        resolve_selection(auto_selection, source="prompt", surface="launch"),
+    host_composed = bool(
+        agent_session_attach_plan
+        and getattr(agent_session_attach_plan, "host_composed", False)
     )
+    inherited_record: dict[str, Any] | None = None
+    if host_composed and agent_session_attach_plan is not None:
+        # Host-composed attach children inherit the parent member's live
+        # record; the prompt's own %auto, if any, narrows under agent
+        # semantics. A human %id(..., session=...) launch keeps resolving
+        # from its own prompt (host_composed False).
+        parent_meta = _read_parent_agent_meta(agent_session_attach_plan)
+        predecessor = read_record(parent_meta) if parent_meta else None
+        if predecessor is not None:
+            try:
+                outcome = autonomy_inherit_record(
+                    predecessor,
+                    predecessor_name=str(
+                        parent_meta.get("name", "")
+                        if isinstance(parent_meta, dict)
+                        else ""
+                    ),
+                    explicit_selection=auto_selection,
+                    actor_kind="host",
+                )
+            except Exception:
+                outcome = None
+            if isinstance(outcome, dict) and isinstance(outcome.get("record"), dict):
+                inherited_record = dict(outcome["record"])
+    if inherited_record is not None:
+        apply_record_meta_patch(agent_meta, inherited_record)
+    else:
+        apply_record_meta_patch(
+            agent_meta,
+            resolve_selection(auto_selection, source="prompt", surface="launch"),
+        )
     if directives.hide or inputs.auto_dismiss:
         agent_meta["hidden"] = True
     if agent_tribe:
