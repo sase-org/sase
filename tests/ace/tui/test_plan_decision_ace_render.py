@@ -219,9 +219,14 @@ async def test_first_frame_tint_keeps_syntax(tmp_path) -> None:
         chosen_style = _style_for("Order by pane")
         assert chosen_style.bold is True, chosen_style
         assert chosen_style.foreground is not None, chosen_style
-        assert (
-            chosen_style.foreground.g > chosen_style.foreground.r
-            and chosen_style.foreground.g > chosen_style.foreground.b
+        # Textual 8.2+ keeps ANSI colors (like this "bold green" tint)
+        # unresolved until paint time, so the rendered placeholder carries
+        # the palette slot (ansi 2, green) with a black RGB triple instead
+        # of the resolved theme RGB. Accept either representation as green.
+        chosen_foreground = chosen_style.foreground
+        assert getattr(chosen_foreground, "ansi", None) == 2 or (
+            chosen_foreground.g > chosen_foreground.r
+            and chosen_foreground.g > chosen_foreground.b
         ), chosen_style
         unchosen_style = _style_for("Order by mode")
         assert unchosen_style.dim is True, unchosen_style

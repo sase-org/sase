@@ -13,6 +13,9 @@ from sase.instructions import run_index as run_mod
 from sase.instructions.models import ProviderRow, SessionObservation, VerifyReport
 from sase.instructions.render import _report_to_json_dict
 from sase.main.parser import create_parser
+from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented as _assert_metavar_option_documented,
+)
 from tests.main.parser_help_helpers import flat_help, parser_for
 
 
@@ -88,17 +91,21 @@ def test_verify_parser_options_are_alphabetical_with_short_aliases() -> None:
 def test_verify_help_documents_flags() -> None:
     """``verify -h`` names every option and the reporting contract."""
     help_text = flat_help(parser_for(("sase", "instructions", "verify")).format_help())
+    # Options taking a value render differently across argparse versions
+    # ("-a NAME, --agent NAME" pre-3.13 vs "-a, --agent NAME" on 3.13+), so
+    # only bare flags are asserted by substring here; valued options go
+    # through _assert_metavar_option_documented, which accepts both renderings.
     for flag in (
-        "-a, --agent",
         "-c, --coverage",
         "-H, --helpers",
         "-j, --json",
-        "-n, --limit",
-        "-p, --provider",
-        "-s, --since",
-        "-u, --until",
     ):
         assert flag in help_text
+    _assert_metavar_option_documented(help_text, "-a", "--agent", "NAME")
+    _assert_metavar_option_documented(help_text, "-n", "--limit", "N")
+    _assert_metavar_option_documented(help_text, "-p", "--provider", "PROVIDER")
+    _assert_metavar_option_documented(help_text, "-s", "--since", "WHEN")
+    _assert_metavar_option_documented(help_text, "-u", "--until", "WHEN")
     assert "reports; it does not gate" in help_text
 
 

@@ -264,9 +264,11 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     )
 
     assert "{list,render,verify}" in instructions_help
+    # Options taking a value render differently across argparse versions
+    # ("-a NAME, --agent NAME" pre-3.13 vs "-a, --agent NAME" on 3.13+), so
+    # only bare flags are asserted here; -a/-f are covered by
+    # _assert_metavar_option_documented below, which accepts both renderings.
     for _flag in (
-        "-a, --agent",
-        "-f, --fact",
         "-j, --json",
         "-N, --no-cache",
         "-p, --parity",
