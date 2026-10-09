@@ -354,7 +354,7 @@ def test_edit_freeze_blocks_question_edits_allows_prose(tmp_path) -> None:
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="response_dir",
-        auto_policy="plan",
+        auto_capabilities={"approve_archive"},
     )
     # Prose-only edit succeeds.
     prose = VALID_TALE.replace("# Plan", "# Plan\n\nExtra prose line.")

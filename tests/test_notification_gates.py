@@ -333,9 +333,9 @@ def test_gate_presentation_action_data_cannot_bypass_normalization(
 def test_custom_gate_auto_and_unsafe_display_shapes_are_rejected(
     gate_home: Path,
 ) -> None:
-    with pytest.raises(GateError) as auto_error:
-        create_gate(custom_gate_spec(request_id="custom-auto", auto=True))
-    assert auto_error.value.code == "auto_not_supported"
+    parked = create_gate(custom_gate_spec(request_id="custom-auto", auto=True))
+    assert parked.notification_id is not None
+    assert parked.auto_resolution["state"] == "disabled"
 
     invalid_icon = custom_gate_spec(request_id="invalid-icon")
     presentation = invalid_icon["presentation"]
@@ -352,7 +352,7 @@ def test_custom_gate_auto_and_unsafe_display_shapes_are_rejected(
     with pytest.raises(GateError) as duplicate_error:
         create_gate(duplicate_option)
     assert duplicate_error.value.code == "duplicate_identifier"
-    assert not (gate_home / "requests" / "custom" / "custom-auto").exists()
+    assert (gate_home / "requests" / "custom" / "custom-auto").exists()
 
 
 def test_automatic_resolution_uses_executor_without_pending_row(
@@ -425,13 +425,25 @@ def test_automatic_resolution_uses_executor_without_pending_row(
     assert pending_actions.read_pending_action_store()["actions"] == {}
 
 
-def test_launch_adapter_rejects_automatic_resolution() -> None:
-    with pytest.raises(GateError) as exc_info:
-        adapter_for_kind("launch").resolve_auto_selection(
-            GateSpec.from_mapping(gate_spec(kind="launch")), None
-        )
+def test_privileged_adapter_parks_automatic_resolution_as_manual(
+    gate_home: Path,
+) -> None:
+    """Privileged kinds always ask: auto-enabled custom parks as manual."""
+    result = create_gate(custom_gate_spec(auto={"enabled": True}))
 
-    assert exc_info.value.code == "auto_not_supported"
+    assert result.notification_id is not None
+    assert result.auto_resolution["state"] == "disabled"
+    assert result.auto_resolution["selected_option_ids"] is None
+    assert "policy" not in result.auto_resolution
+
+
+def test_gate_adapters_declare_auto_capabilities() -> None:
+    assert adapter_for_kind("plan").auto_capabilities == {"approve_archive"}
+    assert adapter_for_kind("epic_plan").auto_capabilities == {"approve"}
+    assert adapter_for_kind("question").auto_capabilities == {"first"}
+    for kind in registered_gate_kinds():
+        if kind not in {"plan", "epic_plan", "question"}:
+            assert adapter_for_kind(kind).auto_capabilities == frozenset()
 
 
 def test_gate_adapter_registry_declares_surface_capabilities() -> None:

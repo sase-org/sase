@@ -117,10 +117,18 @@ class GateResource:
 
 @dataclass(frozen=True)
 class _GateAuto:
-    """Common automatic-resolution request interpreted by the kind adapter."""
+    """Common automatic-resolution request interpreted by the kind adapter.
+
+    ``policy`` is the creator's autonomy record snapshot, attached by the
+    plan and question spec builders from the live record. The gate service
+    evaluates exactly once from this snapshot; a hand-built spec that
+    carries ``enabled`` and ``argument`` but no ``policy`` is translated
+    through core from the argument instead.
+    """
 
     enabled: bool = False
     argument: str | None = None
+    policy: dict[str, Any] | None = None
 
     @classmethod
     def from_value(cls, value: object) -> _GateAuto:
@@ -129,9 +137,10 @@ class _GateAuto:
         if isinstance(value, bool):
             return cls(enabled=value)
         data = json_object(value, "auto")
-        reject_unknown_fields(data, {"enabled", "argument"}, "auto")
+        reject_unknown_fields(data, {"enabled", "argument", "policy"}, "auto")
         enabled = data.get("enabled", False)
         argument = data.get("argument")
+        policy = data.get("policy")
         if not isinstance(enabled, bool):
             raise GateError(
                 "invalid_auto", "auto.enabled", "auto.enabled must be a boolean"
@@ -140,10 +149,24 @@ class _GateAuto:
             raise GateError(
                 "invalid_auto", "auto.argument", "auto.argument must be a string"
             )
-        return cls(enabled=enabled, argument=argument)
+        if policy is not None and not isinstance(policy, dict):
+            raise GateError(
+                "invalid_auto", "auto.policy", "auto.policy must be an object"
+            )
+        return cls(
+            enabled=enabled,
+            argument=argument,
+            policy=dict(policy) if policy is not None else None,
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        return {"enabled": self.enabled, "argument": self.argument}
+        record: dict[str, Any] = {
+            "enabled": self.enabled,
+            "argument": self.argument,
+        }
+        if self.policy is not None:
+            record["policy"] = dict(self.policy)
+        return record
 
 
 @dataclass(frozen=True)

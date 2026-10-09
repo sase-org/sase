@@ -113,7 +113,7 @@ def test_plugins_required_gate_builds_canonical_spec_preview_and_pending_action(
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "plugins_required"
     adapter = adapter_for_kind("plugins_required")
-    assert adapter.auto_policy == "forbidden"
+    assert adapter.auto_capabilities == frozenset()
     assert adapter.generic_form is True
     assert adapter.neutral_only is True
     assert adapter.default_feedback == "disabled"

@@ -190,7 +190,6 @@ def test_auto_rejects_unknown_arguments_before_publication(
     ("content", "argument", "expected_kind"),
     [
         (VALID_TALE_PLAN, "epic", "plan"),
-        (VALID_TALE_PLAN, "epic_plan", "plan"),
         (VALID_EPIC_PLAN, "tale", "epic_plan"),
         (VALID_EPIC_PLAN, "plan", "epic_plan"),
     ],

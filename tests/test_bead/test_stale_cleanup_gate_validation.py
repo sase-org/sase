@@ -18,15 +18,18 @@ from sase.notification_gates.service import create_gate
 from .stale_cleanup_gate_test_helpers import stale_cleanup_bead, stale_cleanup_spec
 
 
-def test_bead_stale_cleanup_rejects_automatic_resolution(gate_home: Path) -> None:
-    del gate_home
+def test_bead_stale_cleanup_parks_automatic_resolution_as_manual(
+    gate_home: Path,
+) -> None:
+    """Privileged kinds always ask: an auto request parks as manual."""
     spec = stale_cleanup_spec(request_id="bead-stale-cleanup-auto")
     spec["auto"] = True
 
-    with pytest.raises(GateError) as exc_info:
-        create_gate(spec)
+    gate = create_gate(spec)
 
-    assert exc_info.value.code == "auto_not_supported"
+    assert gate.notification_id is not None
+    assert gate.auto_resolution["state"] == "disabled"
+    assert gate.auto_resolution["selected_option_ids"] is None
 
 
 def _preview_resource(spec: dict[str, Any]) -> dict[str, Any]:

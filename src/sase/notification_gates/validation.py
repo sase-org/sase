@@ -285,8 +285,25 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             + ", ".join(expected_primary),
         )
     if spec.auto.enabled:
-        adapter.resolve_auto_selection(spec, spec.auto.argument)
-        adapter.automatic_input(spec)
+        from sase.autonomy.gates import evaluate_gate, record_for_auto_block
+
+        try:
+            record = record_for_auto_block(
+                {
+                    "enabled": spec.auto.enabled,
+                    "argument": spec.auto.argument,
+                    "policy": spec.auto.policy,
+                }
+            )
+        except ValueError as exc:
+            raise GateError("invalid_auto_argument", "auto.argument", str(exc)) from exc
+        decision = evaluate_gate(
+            record,
+            gate_kind=adapter.kind,
+            option_ids=[option.id for option in spec.options],
+        )
+        if decision.get("outcome") == "auto":
+            adapter.automatic_input(spec, decision)
 
 
 def _validate_operations(spec: GateSpec, resources: Mapping[str, GateResource]) -> None:

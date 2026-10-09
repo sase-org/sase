@@ -256,8 +256,8 @@ def create_plan_gate_isolated(spec: Any, artifacts_dir: Path, request_id: str) -
     """Run :func:`create_gate` with execution side effects stubbed.
 
     Stub the execution side effects only (plan archive, epic launch). The
-    decision path — readers, spec builders, cross-tier parking, the
-    adapter's auto selection — runs unpatched, as in
+    decision path — readers, spec builders, and the single core
+    ``evaluate()`` at gate creation — runs unpatched, as in
     ``test_auto_uses_the_manual_executor_and_tier_owned_aliases``.
     """
     from types import SimpleNamespace

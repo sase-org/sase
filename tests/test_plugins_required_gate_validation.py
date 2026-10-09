@@ -18,15 +18,16 @@ from tests.test_plugins_required_gate_helpers import (
 )
 
 
-def test_plugins_required_rejects_automatic_resolution(gate_home: Path) -> None:
-    del gate_home
+def test_plugins_required_parks_automatic_resolution_as_manual(gate_home: Path) -> None:
+    """Privileged kinds always ask: an auto request parks as manual."""
     spec = plugins_required_spec(request_id="plugins-required-auto")
     spec["auto"] = True
 
-    with pytest.raises(GateError) as exc_info:
-        create_gate(spec)
+    gate = create_gate(spec)
 
-    assert exc_info.value.code == "auto_not_supported"
+    assert gate.notification_id is not None
+    assert gate.auto_resolution["state"] == "disabled"
+    assert gate.auto_resolution["selected_option_ids"] is None
 
 
 def _preview_resource(spec: dict[str, Any]) -> dict[str, Any]:

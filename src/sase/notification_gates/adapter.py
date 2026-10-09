@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +15,6 @@ from sase.notification_gates.adapter_plan import (
 from sase.notification_gates.models import (
     GateError,
     GateFeedbackMode,
-    GateOption,
     GateSpec,
 )
 
@@ -41,43 +40,11 @@ class GateAdapter:
     request_filename: str
     response_filename: str
     legacy_directory_key: str
-    auto_policy: str
+    auto_capabilities: frozenset[str] = field(default_factory=frozenset)
     neutral_only: bool = False
     default_feedback: GateFeedbackMode = "disabled"
     generic_form: bool = False
     branch_actionable: bool = True
-
-    def resolve_auto_selection(
-        self, spec: GateSpec, argument: str | None
-    ) -> tuple[str, ...]:
-        """Interpret the common opaque auto argument for this kind."""
-        by_id = {option.id: option for option in spec.options}
-        if self.auto_policy == "forbidden":
-            raise GateError(
-                "auto_not_supported",
-                "auto",
-                f"automatic resolution is not supported for {self.kind} gates",
-            )
-        if self.auto_policy == "first":
-            if argument not in (None, "", "first"):
-                raise GateError(
-                    "invalid_auto_argument",
-                    "auto.argument",
-                    f"unsupported {self.kind} auto argument: {argument}",
-                )
-            return _default_branch_selection(spec.primary_branch, by_id)
-
-        allowed = {
-            "plan": {None, "", "plan", "tale"},
-            "epic_plan": {None, "", "epic", "epic_plan"},
-        }[self.kind]
-        if argument not in allowed:
-            raise GateError(
-                "invalid_auto_argument",
-                "auto.argument",
-                f"unsupported {self.kind} auto argument: {argument}",
-            )
-        return _default_branch_selection(spec.primary_branch, by_id)
 
     def normalize_option_inputs(
         self,
@@ -256,9 +223,18 @@ class GateAdapter:
         """Regenerate adapter-owned previews after an edit."""
         del bundle_path
 
-    def automatic_input(self, spec: GateSpec) -> dict[str, Any]:
-        """Return adapter-owned input for a common automatic resolution."""
-        if self.kind == "question":
+    def automatic_input(
+        self, spec: GateSpec, decision: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Return adapter-owned input for a core automatic decision.
+
+        The input is built from the decision value only: the question
+        answers for ``first``, or the epic launch mode for ``approve``.
+        It never depends on ``primary_branch``, ``default_selected``, or
+        option order.
+        """
+        value = decision.get("value")
+        if value == "first":
             from sase.user_question_actions import automatic_question_response
 
             try:
@@ -269,15 +245,6 @@ class GateAdapter:
                 code = getattr(exc, "code", "invalid_auto_input")
                 target = getattr(exc, "target", "auto")
                 raise GateError(str(code), str(target), str(exc)) from exc
-        if self.kind == "epic_plan":
+        if value == "approve":
             return {"epic_launch_mode": "launch"}
         return {}
-
-
-def _default_branch_selection(
-    branch: tuple[str, ...], by_id: Mapping[str, GateOption]
-) -> tuple[str, ...]:
-    selected = tuple(
-        option_id for option_id in branch if by_id[option_id].default_selected
-    )
-    return selected or (branch[0],)

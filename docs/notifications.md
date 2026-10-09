@@ -1276,12 +1276,19 @@ button. The selected ids must be a non-empty subset of exactly one branch.
 `default_selected` defaults to true, and a matching `groups` entry configures an AND
 branch's submit label and icon. `feedback` is `disabled`, `optional`, or `required`;
 custom options default to `optional`, and a group selection uses the strongest mode
-among its selected members. Automatic resolution is forbidden for custom gates.
-`primary_branch` must name one complete branch in canonical query order. sase's TUI
-submits it with Enter while Space toggles the focused AND member; submitting a primary
-group preserves the reviewer's current toggles. sase's TUI also numbers top-level
-branches in canonical order: the fixed keys `1`–`9` submit their matching branches
-directly. AND-member toggles remain unnumbered.
+among its selected members. Automatic resolution runs the creator's autonomy record
+through one core evaluator over explicit policy option IDs — never `primary_branch`,
+`default_selected`, or option order — so reordering the branch or switching the defaults
+off leaves the automatic outcome unchanged. Only the plan, epic-plan, and question kinds
+can auto-resolve; every other kind, including custom gates, always waits for a human.
+Each evaluation writes a `policy` block (`profile`, `selection`, `rule`, `outcome`,
+`value`, `option_ids`, `source`, `revision`, `digest`) into the request envelope's
+`auto` block and the creation result's `auto_resolution`, and, for automatic outcomes,
+into the gate response as well. `primary_branch` must name one complete branch in
+canonical query order. sase's TUI submits it with Enter while Space toggles the focused
+AND member; submitting a primary group preserves the reviewer's current toggles. sase's
+TUI also numbers top-level branches in canonical order: the fixed keys `1`–`9` submit
+their matching branches directly. AND-member toggles remain unnumbered.
 
 Every option references a bundle-owned `command` resource and is executed in query order
 as an argv array without a shell after its hash is reverified. A selected-command

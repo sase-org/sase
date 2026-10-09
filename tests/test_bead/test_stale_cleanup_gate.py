@@ -116,7 +116,7 @@ def test_bead_stale_cleanup_gate_builds_canonical_spec_preview_and_pending_actio
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "bead_stale_cleanup"
     adapter = adapter_for_kind("bead_stale_cleanup")
-    assert adapter.auto_policy == "forbidden"
+    assert adapter.auto_capabilities == frozenset()
     assert adapter.generic_form is True
     assert adapter.neutral_only is True
     assert adapter.default_feedback == "optional"

@@ -1,12 +1,10 @@
 """UI-default independence: auto never follows ``primary_branch`` order.
 
 E1 target: the automatic option IDs never depend on ``primary_branch``,
-``default_selected``, or option order. Today the plan adapter picks the
-gate's ``primary_branch`` filtered by ``default_selected``, so turning the
-defaults off drops ``commit`` from tale auto-approval. The tale cases fail
-for that documented reason; the single-option epic and question cases
-already pass and are plain tests. The ``gates`` phase removes the xfail
-markers.
+``default_selected``, or option order. Core ``evaluate()`` runs over
+explicit option IDs only: switching the defaults off leaves the outcome
+unchanged, and a reordered branch never reaches evaluation at all (the UI
+pin rejects it as ``invalid_primary_branch``).
 """
 
 from __future__ import annotations
@@ -43,7 +41,6 @@ def _mutated_tale_spec(workdir, *, default_off: bool, reorder: bool):
     return dataclasses.replace(spec, request_id=f"ui-{uuid.uuid4().hex[:8]}")
 
 
-@pytest.mark.xfail(strict=True, reason="E1 gates: auto ignores default_selected")
 def test_tale_ignores_default_selected_off(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -61,22 +58,27 @@ def test_tale_ignores_default_selected_off(
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="E1 gates: auto ignores primary_branch order")
-def test_tale_ignores_primary_branch_reorder(
+def test_tale_reordered_primary_branch_stays_invalid(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Tale auto keeps ``[approve, commit]`` when the branch is reordered."""
+    """A reordered branch never reaches evaluation: the UI pin rejects it.
+
+    ``primary_branch`` order is a UI contract (canonical query order), so a
+    human reorder fails closed as ``invalid_primary_branch`` instead of
+    silently changing — or sneaking through — the automatic outcome.
+    Option-order independence itself lives one layer down: core
+    ``evaluate()`` answers over explicit option IDs whatever order they
+    arrive in (see ``test_missing_option_asks_never_partially``).
+    """
+    from sase.notification_gates.models import GateError
+
     harness.isolated_gate_dirs(monkeypatch, tmp_path)
     workdir = tmp_path / "work"
     workdir.mkdir()
 
-    spec = _mutated_tale_spec(workdir, default_off=False, reorder=True)
-    gate = harness.create_plan_gate_isolated(spec, workdir, spec.request_id)
-
-    assert (gate.to_dict().get("auto_resolution") or {}).get("selected_option_ids") == [
-        "approve",
-        "commit",
-    ]
+    with pytest.raises(GateError) as exc_info:
+        _mutated_tale_spec(workdir, default_off=False, reorder=True)
+    assert exc_info.value.code == "invalid_primary_branch"
 
 
 def test_epic_ignores_default_selected_off(

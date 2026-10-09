@@ -1,5 +1,6 @@
 """Registered gate-kind table and its lookup projections."""
 
+from sase.autonomy.gates import capabilities_for_kind
 from sase.notification_gates.adapter import GateAdapter
 from sase.notification_gates.models import GateError
 
@@ -13,7 +14,7 @@ _ADAPTERS = (
         request_filename="plan_request.json",
         response_filename="plan_response.json",
         legacy_directory_key="response_dir",
-        auto_policy="approval",
+        auto_capabilities=capabilities_for_kind("plan"),
     ),
     GateAdapter(
         kind="epic_plan",
@@ -24,7 +25,7 @@ _ADAPTERS = (
         request_filename="plan_request.json",
         response_filename="plan_response.json",
         legacy_directory_key="response_dir",
-        auto_policy="approval",
+        auto_capabilities=capabilities_for_kind("epic_plan"),
     ),
     GateAdapter(
         kind="question",
@@ -35,7 +36,7 @@ _ADAPTERS = (
         request_filename="question_request.json",
         response_filename="question_response.json",
         legacy_directory_key="response_dir",
-        auto_policy="first",
+        auto_capabilities=capabilities_for_kind("question"),
         branch_actionable=False,
     ),
     GateAdapter(
@@ -47,7 +48,6 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bundle_path",
-        auto_policy="forbidden",
         neutral_only=True,
         default_feedback="optional",
         generic_form=True,
@@ -61,7 +61,6 @@ _ADAPTERS = (
         request_filename="launch_request.json",
         response_filename="launch_response.json",
         legacy_directory_key="response_dir",
-        auto_policy="forbidden",
     ),
     GateAdapter(
         kind="hitl",
@@ -72,7 +71,6 @@ _ADAPTERS = (
         request_filename="hitl_request.json",
         response_filename="hitl_response.json",
         legacy_directory_key="artifacts_dir",
-        auto_policy="forbidden",
     ),
     GateAdapter(
         kind="task_triage",
@@ -83,7 +81,6 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bundle_path",
-        auto_policy="forbidden",
         neutral_only=True,
         generic_form=True,
     ),
@@ -96,7 +93,6 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bead_snooze_dir",
-        auto_policy="forbidden",
         neutral_only=True,
         generic_form=True,
     ),
@@ -109,7 +105,6 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bundle_path",
-        auto_policy="forbidden",
         neutral_only=True,
         generic_form=True,
     ),
@@ -122,7 +117,6 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bundle_path",
-        auto_policy="forbidden",
         neutral_only=True,
         default_feedback="optional",
         generic_form=True,
@@ -136,7 +130,6 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bundle_path",
-        auto_policy="forbidden",
         neutral_only=True,
         generic_form=True,
     ),
@@ -149,7 +142,6 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bundle_path",
-        auto_policy="forbidden",
         neutral_only=True,
         default_feedback="optional",
         generic_form=True,

@@ -347,7 +347,10 @@ def test_cross_tier_plan_gate_turn_parks_without_dismissal(
 
     assert creation.gate.notification_id == "notif-parked"
     [spec] = seen_specs
-    assert spec["auto"] == {"enabled": False, "argument": None}
+    # The spec requests auto with the creator's record; the gate service
+    # parks the cross-tier request as manual (service-level parking is
+    # pinned by ``test_cross_tier_auto_parks_as_manual_gate_with_notification``).
+    assert spec["auto"] == {"enabled": True, "argument": auto_argument}
     assert handled == []
     assert len(notified) == 1
     assert notified[0][1] == "Plan ready for review in sase tui"

@@ -564,7 +564,12 @@ values in ACE's Decisions panel, Telegram's decision keyboard, or the CLI's
 values across selected options fail before acceptance. On approval, SASE stamps the
 accepted answers into the durable plan (see Archive fields below); every implementer
 then receives them mechanically as a host-written Reviewer decisions block, and an
-auto-approved plan with decisions posts one quiet receipt.
+auto-approved plan with decisions posts one quiet receipt. Automatic resolution runs the
+agent's autonomy record through one core evaluator over explicit policy option IDs —
+never the gate's primary branch or default selections — and records the deciding
+`policy` block (`profile`, `selection`, `rule`, `outcome`, `value`, `option_ids`,
+`source`, `revision`, `digest`) on the gate's request envelope, its creation result,
+and, for automatic outcomes, its response.
 
 Declare up to five decisions as a frontmatter map. Each decision needs an `ask` and a
 `default`. Omitting `choices` makes it a boolean toggle; supplying a map of two to five

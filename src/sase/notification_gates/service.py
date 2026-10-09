@@ -70,7 +70,6 @@ def create_gate(spec_value: Mapping[str, Any] | GateSpec) -> GateCreationResult:
         if isinstance(spec_value, GateSpec)
         else GateSpec.from_mapping(spec_value)
     )
-    spec = _normalize_cross_tier_plan_spec(spec)
     adapter = adapter_for_kind(spec.kind)
     validate_gate_spec(spec, adapter)
     request_id = spec.request_id or f"{adapter.kind}-{uuid4()}"
@@ -93,41 +92,102 @@ def create_gate(spec_value: Mapping[str, Any] | GateSpec) -> GateCreationResult:
         return _start_gate_creation(spec, adapter, paths)
 
 
-def _normalize_cross_tier_plan_spec(spec: GateSpec) -> GateSpec:
-    """Park a cross-tier plan gate as manual before validation.
+def _evaluate_gate_request(
+    spec: GateSpec, adapter: GateAdapter
+) -> tuple[dict[str, Any] | None, dict[str, Any], dict[str, Any]]:
+    """Evaluate one gate creation through core ``evaluate()`` exactly once.
 
-    A ``:tale``/``:plan`` argument on an epic plan (and ``:epic`` on a
-    tale plan) is valid but not covered, so the gate waits for a human.
-    Normalizing here — before ``validate_gate_spec``, fingerprinting, the
-    notification-id assignment, and ``_resolve_auto_gate`` — keeps every
-    downstream view in agreement, including hand-built
-    ``sase gate create`` specs. ``GateAdapter.resolve_auto_selection``
-    stays strict.
+    Returns ``(record, decision, policy_block)`` from the record snapshot
+    the spec carries (or the legacy ``enabled``/``argument`` translation
+    for hand-built specs). A cross-tier argument evaluates to ``ask``
+    through the record's policy, so the gate parks as manual; an unknown
+    spelling stays an ``invalid_auto_argument`` error.
     """
-    if spec.kind not in {"plan", "epic_plan"} or not spec.auto.enabled:
-        return spec
-    from sase._plan_gate_metadata import (
-        is_valid_plan_auto_argument,
-        plan_auto_covers_tier,
+    from sase.autonomy.gates import (
+        evaluate_gate,
+        policy_block_for_decision,
+        record_for_auto_block,
     )
 
-    tier = "epic" if spec.kind == "epic_plan" else "tale"
-    if plan_auto_covers_tier(tier, spec.auto.argument):  # type: ignore[arg-type]
-        return spec
-    if not is_valid_plan_auto_argument(spec.auto.argument):
-        # Invalid arguments stay errors: let validate_gate_spec raise
-        # invalid_auto_argument instead of parking silently as manual.
-        return spec
-    return dataclasses.replace(
-        spec,
-        auto=dataclasses.replace(spec.auto, enabled=False, argument=None),
+    try:
+        record = record_for_auto_block(
+            {
+                "enabled": spec.auto.enabled,
+                "argument": spec.auto.argument,
+                "policy": spec.auto.policy,
+            }
+        )
+    except ValueError as exc:
+        raise GateError("invalid_auto_argument", "auto.argument", str(exc)) from exc
+    decision = evaluate_gate(
+        record,
+        gate_kind=adapter.kind,
+        option_ids=[option.id for option in spec.options],
+    )
+    if decision.get("profile") != "manual":
+        _append_gate_decision_log(spec, adapter, record, decision)
+    return record, decision, policy_block_for_decision(decision)
+
+
+def _append_gate_decision_log(
+    spec: GateSpec,
+    adapter: GateAdapter,
+    record: dict[str, Any] | None,
+    decision: dict[str, Any],
+) -> None:
+    """Append the host decision-log row for one non-manual evaluation."""
+    from sase.autonomy.gates import append_decision_log, creator_meta_for_producer
+
+    try:
+        producer = spec.producer if isinstance(spec.producer, dict) else {}
+    except Exception:
+        producer = {}
+    append_decision_log(
+        decision=decision,
+        gate_kind=adapter.kind,
+        gate_id=spec.request_id or "",
+        creator_meta=creator_meta_for_producer(producer),
+    )
+
+
+def _effective_auto_state(
+    spec: GateSpec, adapter: GateAdapter
+) -> tuple[GateSpec, dict[str, Any], dict[str, Any], bool]:
+    """Evaluate one creation and normalize the spec to its outcome.
+
+    Returns ``(effective_spec, decision, policy_block, auto_execute)``.
+    The effective spec keeps the requested auto block only when the gate
+    actually auto-executes; an ``ask`` decision normalizes it to manual
+    before fingerprinting, so the notification and pending row are
+    published as today. The policy block rides along either way, so every
+    plan, epic, and question gate carries one.
+    """
+    from sase.autonomy.gates import POLICY_BLOCK_KINDS
+
+    _record, decision, block = _evaluate_gate_request(spec, adapter)
+    auto_execute = bool(spec.auto.enabled) and decision.get("outcome") == "auto"
+    if auto_execute:
+        return spec, decision, block, True
+    return (
+        dataclasses.replace(
+            spec,
+            auto=dataclasses.replace(
+                spec.auto, enabled=False, argument=None, policy=spec.auto.policy
+            ),
+        ),
+        decision,
+        block,
+        False,
     )
 
 
 def _start_gate_creation(
     spec: GateSpec, adapter: GateAdapter, paths: Any
 ) -> GateCreationResult:
-    notification_id = None if spec.auto.enabled else str(uuid4())
+    effective, decision, policy_block, auto_execute = _effective_auto_state(
+        spec, adapter
+    )
+    notification_id = None if auto_execute else str(uuid4())
     paths.root.mkdir(parents=True, exist_ok=False)
     fsync_dir(paths.root.parent)
     _write_journal(
@@ -139,20 +199,21 @@ def _start_gate_creation(
     )
     published = False
     try:
-        for resource in spec.resources:
+        for resource in effective.resources:
             materialize_resource(paths.root, resource)
         resource_hashes = {
             resource.path: sha256_file(owned_resource_path(paths.root, resource.path))
-            for resource in spec.resources
+            for resource in effective.resources
         }
         envelope = _build_envelope(
-            spec,
+            effective,
             adapter,
             request_id=paths.root.name,
             notification_id=notification_id,
             resource_hashes=resource_hashes,
+            policy_block=policy_block,
         )
-        fingerprint = _spec_fingerprint(spec, adapter, resource_hashes)
+        fingerprint = _spec_fingerprint(effective, adapter, resource_hashes)
         atomic_write_json(paths.request, envelope)
         _write_journal(
             paths.journal,
@@ -162,8 +223,16 @@ def _start_gate_creation(
             notification_id=notification_id,
             spec_sha256=fingerprint,
         )
-        if spec.auto.enabled:
-            return _resolve_auto_gate(spec, adapter, paths, envelope, fingerprint)
+        if auto_execute:
+            return _resolve_auto_gate(
+                effective,
+                adapter,
+                paths,
+                envelope,
+                fingerprint,
+                decision,
+                policy_block,
+            )
 
         assert notification_id is not None
         _write_journal(
@@ -174,13 +243,19 @@ def _start_gate_creation(
             notification_id=notification_id,
             spec_sha256=fingerprint,
         )
-        notification = _build_notification(spec, adapter, paths, notification_id)
+        notification = _build_notification(effective, adapter, paths, notification_id)
         from sase.notifications.store import append_notification_strict
 
         append_notification_strict(notification)
         published = True
         return _complete_manual_gate(
-            spec, adapter, paths, envelope, fingerprint, notification_id
+            effective,
+            adapter,
+            paths,
+            envelope,
+            fingerprint,
+            notification_id,
+            policy_block,
         )
     except BaseException:
         row_exists = notification_id is not None and _notification_exists(
@@ -202,20 +277,27 @@ def _resume_gate_creation(
             "invalid_creation_state", str(paths.journal), f"unknown gate state: {state}"
         )
     envelope = read_json_object(paths.request)
-    candidate_fingerprint = _spec_fingerprint(spec, adapter, _source_hashes(spec))
+    effective, decision, policy_block, auto_execute = _effective_auto_state(
+        spec, adapter
+    )
+    candidate_fingerprint = _spec_fingerprint(
+        effective, adapter, _source_hashes(effective)
+    )
     if candidate_fingerprint != journal.get("spec_sha256"):
         raise GateError(
             "request_id_conflict",
             paths.root.name,
             "request id already belongs to a different gate specification",
         )
-    if spec.auto.enabled:
+    if auto_execute:
         return _resolve_auto_gate(
-            spec,
+            effective,
             adapter,
             paths,
             envelope,
             candidate_fingerprint,
+            decision,
+            policy_block,
         )
     notification_id = journal.get("notification_id")
     if not isinstance(notification_id, str) or not notification_id:
@@ -231,17 +313,18 @@ def _resume_gate_creation(
         assert notification is not None
         register_notification(notification)
     else:
-        notification = _build_notification(spec, adapter, paths, notification_id)
+        notification = _build_notification(effective, adapter, paths, notification_id)
         from sase.notifications.store import append_notification_strict
 
         append_notification_strict(notification)
     return _complete_manual_gate(
-        spec,
+        effective,
         adapter,
         paths,
         envelope,
         candidate_fingerprint,
         notification_id,
+        policy_block,
     )
 
 
@@ -251,8 +334,10 @@ def _resolve_auto_gate(
     paths: Any,
     envelope: dict[str, Any],
     fingerprint: str,
+    decision: dict[str, Any],
+    policy_block: dict[str, Any],
 ) -> GateCreationResult:
-    selected_option_ids = adapter.resolve_auto_selection(spec, spec.auto.argument)
+    selected_option_ids = tuple(decision.get("option_ids") or ())
 
     gate_turn = None
     if spec.shell is not None:
@@ -271,10 +356,11 @@ def _resolve_auto_gate(
     execution = execute_gate_selection(
         paths.root,
         selected_option_ids,
-        adapter.automatic_input(spec),
+        adapter.automatic_input(spec, decision),
         source="auto_resolution",
         **execution_kwargs,
     )
+    _write_auto_policy_response(paths, adapter.kind, policy_block)
 
     if gate_turn is not None:
         from sase.gate_turn.settlement import settle_gate_turn
@@ -300,6 +386,7 @@ def _resolve_auto_gate(
         notification_id=None,
         auto_state="resolved",
         auto_selected_option_ids=selected_option_ids,
+        policy_block=policy_block,
     )
     atomic_write_json(paths.creation_result, result.to_dict())
     _write_journal(
@@ -314,6 +401,29 @@ def _resolve_auto_gate(
     return result
 
 
+def _write_auto_policy_response(
+    paths: Any, kind: str, policy_block: dict[str, Any]
+) -> None:
+    """Record the deciding policy block on an automatic gate's response.
+
+    Every plan, epic, and question gate created by an agent carries the
+    block that decided it; ``response.json`` carries it for automatic
+    outcomes.
+    """
+    from sase.autonomy.gates import POLICY_BLOCK_KINDS
+
+    if kind not in POLICY_BLOCK_KINDS:
+        return
+    try:
+        response = read_json_object(paths.response)
+    except GateError:
+        return
+    if not isinstance(response, dict):
+        return
+    response["policy"] = dict(policy_block)
+    atomic_write_json(paths.response, response)
+
+
 def _complete_manual_gate(
     spec: GateSpec,
     adapter: GateAdapter,
@@ -321,6 +431,7 @@ def _complete_manual_gate(
     envelope: dict[str, Any],
     fingerprint: str,
     notification_id: str,
+    policy_block: dict[str, Any],
 ) -> GateCreationResult:
     result = _creation_result(
         spec,
@@ -330,6 +441,7 @@ def _complete_manual_gate(
         notification_id=notification_id,
         auto_state="disabled",
         auto_selected_option_ids=None,
+        policy_block=policy_block,
     )
     atomic_write_json(paths.creation_result, result.to_dict())
     _write_journal(
@@ -350,11 +462,17 @@ def _build_envelope(
     request_id: str,
     notification_id: str | None,
     resource_hashes: dict[str, str],
+    policy_block: dict[str, Any],
 ) -> dict[str, Any]:
+    from sase.autonomy.gates import POLICY_BLOCK_KINDS
+
     created_at = datetime.now(get_timezone())
     presentation = dict(spec.presentation)
     presentation["action"] = adapter.action
     presentation.setdefault("sender", adapter.sender)
+    auto_block = spec.auto.to_dict()
+    if adapter.kind in POLICY_BLOCK_KINDS:
+        auto_block["policy"] = dict(policy_block)
     envelope: dict[str, Any] = {
         "schema_version": GATE_REQUEST_SCHEMA_VERSION,
         "request_id": request_id,
@@ -374,7 +492,7 @@ def _build_envelope(
         "primary_branch": list(spec.primary_branch),
         "operations": [operation.to_dict() for operation in spec.operations],
         "resources": [resource.envelope_dict() for resource in spec.resources],
-        "auto": spec.auto.to_dict(),
+        "auto": auto_block,
         "review_revision": 1,
         "hashes": {"resources": resource_hashes},
     }
@@ -467,8 +585,21 @@ def _creation_result(
     notification_id: str | None,
     auto_state: str,
     auto_selected_option_ids: tuple[str, ...] | None,
+    policy_block: dict[str, Any],
 ) -> GateCreationResult:
+    from sase.autonomy.gates import POLICY_BLOCK_KINDS
+
     preview = _preview_relative_path(spec)
+    auto_resolution: dict[str, Any] = {
+        "enabled": spec.auto.enabled,
+        "argument": spec.auto.argument,
+        "state": auto_state,
+        "selected_option_ids": (
+            None if auto_selected_option_ids is None else list(auto_selected_option_ids)
+        ),
+    }
+    if adapter.kind in POLICY_BLOCK_KINDS:
+        auto_resolution["policy"] = dict(policy_block)
     return GateCreationResult(
         schema_version=GATE_RESULT_SCHEMA_VERSION,
         notification_id=notification_id,
@@ -481,16 +612,7 @@ def _creation_result(
             None if preview is None else owned_resource_path(paths.root, preview)
         ),
         continuation_mode=spec.continuation_mode,
-        auto_resolution={
-            "enabled": spec.auto.enabled,
-            "argument": spec.auto.argument,
-            "state": auto_state,
-            "selected_option_ids": (
-                None
-                if auto_selected_option_ids is None
-                else list(auto_selected_option_ids)
-            ),
-        },
+        auto_resolution=auto_resolution,
         hashes=dict(envelope["hashes"]),
     )
 

@@ -16,15 +16,16 @@ from sase.notification_gates.service import create_gate
 from tests.test_bead.task_gate_test_helpers import task_triage_spec
 
 
-def test_task_triage_rejects_automatic_resolution(gate_home: Path) -> None:
-    del gate_home
+def test_task_triage_parks_automatic_resolution_as_manual(gate_home: Path) -> None:
+    """Privileged kinds always ask: an auto request parks as manual."""
     spec = task_triage_spec(request_id="task-triage-auto")
     spec["auto"] = True
 
-    with pytest.raises(GateError) as exc_info:
-        create_gate(spec)
+    gate = create_gate(spec)
 
-    assert exc_info.value.code == "auto_not_supported"
+    assert gate.notification_id is not None
+    assert gate.auto_resolution["state"] == "disabled"
+    assert gate.auto_resolution["selected_option_ids"] is None
 
 
 @pytest.mark.parametrize(

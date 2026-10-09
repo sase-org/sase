@@ -17,15 +17,16 @@ from tests.test_bead.snooze_gate_test_helpers import (
 )
 
 
-def test_bead_snooze_gate_rejects_automatic_resolution(gate_home: Path) -> None:
-    del gate_home
+def test_bead_snooze_gate_parks_automatic_resolution_as_manual(gate_home: Path) -> None:
+    """Privileged kinds always ask: an auto request parks as manual."""
     spec = bead_snooze_spec(request_id="bead-snooze-auto")
     spec["auto"] = True
 
-    with pytest.raises(GateError) as exc_info:
-        create_gate(spec)
+    gate = create_gate(spec)
 
-    assert exc_info.value.code == "auto_not_supported"
+    assert gate.notification_id is not None
+    assert gate.auto_resolution["state"] == "disabled"
+    assert gate.auto_resolution["selected_option_ids"] is None
 
 
 @pytest.mark.parametrize(

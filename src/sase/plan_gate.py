@@ -76,11 +76,9 @@ def build_plan_approval_gate_spec(
         )
 
     typed_tier = cast(PlanGateTier, tier)
-    if auto_enabled:
-        validate_plan_auto_argument(typed_tier, auto_argument)
-        if not plan_auto_covers_tier(typed_tier, auto_argument):
-            auto_enabled = False
-            auto_argument = None
+    # Cross-tier and invalid arguments are decided by core ``evaluate()``
+    # at gate creation, never parked here: a cross-tier argument asks,
+    # and an unknown spelling stays an ``invalid_auto_argument`` error.
     from sase.plan_approval_actions import require_plan_approval_validation
 
     validation = require_plan_approval_validation(plan_path, typed_tier)
@@ -223,11 +221,39 @@ def _build_plan_gate_spec(
                 for option_id in option_ids
             ],
         ],
-        "auto": {
-            "enabled": auto_enabled,
-            "argument": auto_argument,
-        },
+        "auto": _plan_gate_auto_block(
+            auto_enabled=auto_enabled,
+            auto_argument=auto_argument,
+        ),
     }
+
+
+def _plan_gate_auto_block(
+    *,
+    auto_enabled: bool,
+    auto_argument: str | None,
+) -> dict[str, Any]:
+    """Return the plan gate ``auto`` block with the creator's record.
+
+    The live record snapshot is what the gate service evaluates; a
+    hand-built spec without one falls back to the legacy
+    ``enabled``/``argument`` translation there. ``enabled`` means a
+    non-manual profile: a manual live record normalizes the block to
+    manual here so the parked gate reads exactly as today.
+    """
+    from sase.autonomy.record import live_record
+
+    block: dict[str, Any] = {"enabled": auto_enabled, "argument": auto_argument}
+    try:
+        record = live_record(os.environ.get("SASE_ARTIFACTS_DIR") or "")
+    except Exception:
+        record = None
+    if record is not None:
+        block["policy"] = record
+        if record.get("profile") == "manual":
+            block["enabled"] = False
+            block["argument"] = None
+    return block
 
 
 def _plan_action_data(

@@ -15,15 +15,16 @@ from sase.notification_gates.service import create_gate
 from .flag_gate_test_helpers import flag_triage_spec
 
 
-def test_flag_triage_rejects_automatic_resolution(gate_home: Path) -> None:
-    del gate_home
+def test_flag_triage_parks_automatic_resolution_as_manual(gate_home: Path) -> None:
+    """Privileged kinds always ask: an auto request parks as manual."""
     spec = flag_triage_spec(request_id="flag-triage-auto")
     spec["auto"] = True
 
-    with pytest.raises(GateError) as exc_info:
-        create_gate(spec)
+    gate = create_gate(spec)
 
-    assert exc_info.value.code == "auto_not_supported"
+    assert gate.notification_id is not None
+    assert gate.auto_resolution["state"] == "disabled"
+    assert gate.auto_resolution["selected_option_ids"] is None
 
 
 def _preview_resource(spec: dict[str, Any]) -> dict[str, Any]:

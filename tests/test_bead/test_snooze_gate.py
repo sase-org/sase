@@ -111,7 +111,7 @@ def test_bead_snooze_gate_builds_canonical_spec_and_snoozed_notification(
     assert is_priority(notification)
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "bead_snooze"
-    assert adapter_for_kind("bead_snooze").auto_policy == "forbidden"
+    assert adapter_for_kind("bead_snooze").auto_capabilities == frozenset()
 
 
 def test_bead_snooze_presentation_note_is_clock_independent() -> None:

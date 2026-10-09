@@ -157,7 +157,7 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert notification.action_data["gate_chip_color"] == "#FF875F"
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "flag_triage"
-    assert adapter_for_kind("flag_triage").auto_policy == "forbidden"
+    assert adapter_for_kind("flag_triage").auto_capabilities == frozenset()
     assert adapter_for_kind("flag_triage").generic_form is True
 
 

@@ -101,7 +101,7 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert notification.action_data["origin_agent"] == "claude_coder"
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "task_triage"
-    assert adapter_for_kind("task_triage").auto_policy == "forbidden"
+    assert adapter_for_kind("task_triage").auto_capabilities == frozenset()
 
 
 def test_task_triage_presents_structured_plus_one_evidence(gate_home: Path) -> None:
