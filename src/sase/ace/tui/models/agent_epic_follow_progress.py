@@ -205,25 +205,18 @@ def _read_epic_follow_progress(
                     closed=closed,
                     total=len(children),
                 )
-            try:
-                closed_issues = bead_project.list_issues(statuses=[Status.CLOSED])
-            except Exception:
-                closed_issues = []
-            resolutions = {
-                issue.id: (
-                    issue.resolution.value if issue.resolution is not None else None
-                )
-                for issue in closed_issues
-            }
             for epic_id, progress in resolved.items():
                 if progress is None:
                     continue
-                resolution = resolutions.get(epic_id)
-                if resolution:
+                try:
+                    issue = bead_project.show(epic_id)
+                except Exception:
+                    continue
+                if issue.status is Status.CLOSED and issue.resolution is not None:
                     resolved[epic_id] = _EpicFollowProgress(
                         closed=progress.closed,
                         total=progress.total,
-                        resolution=resolution,
+                        resolution=issue.resolution.value,
                     )
             return resolved
     except Exception:

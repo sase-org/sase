@@ -1662,23 +1662,25 @@ query. Unbounded list still costs ~456 ms at 1x (Python hydration of ~6,900 rows
 ### Verdict and known misses
 
 `ratio:ready` passes (1.03 at 1x to 8x): ready no longer replays closed history. The
-rest miss and stay open with measured breakdowns (follow-ups on bead sase-1h8.14):
+rest miss and stay open with measured breakdowns (each miss is owned by a task bead):
 
 - `ratio:list` (5.1x) and `abs:active-list` (318 ms at 8x): the paged query touches only
   active rows, but hydration cost is per row and the active set itself grows 8x with the
-  corpus. Needs bounded serving for unbounded active lists.
+  corpus. Needs bounded serving for unbounded active lists. Owned by sase-1iw.
 - `ratio:detail` (marginal formally, 3.7x in clean probes) and `abs:point-read` (25 ms
   at 4x vs 20 ms): the `bead_show_issue_detail` binding itself scales (~6 ms at 1x to
   ~23.5 ms at 4x) while plain `bead_show` is flat (0.6 to 0.8 ms), so the relations
-  expansion scans corpus-sized state. Facade hydration adds ~nothing.
+  expansion scans corpus-sized state. Facade hydration adds ~nothing. Owned by sase-1iv.
+  The cause is `neighborhood_in` in sase-core `read_model/queries.rs`, which loads every
+  issue id and scans every `link_provenance` row.
 - `ratio:note` (1.8x) and `ratio:update` (2.1x; binding-level 2.8x/2.9x in the epic
   notes): per-mutation cost still grows with stream count. An `strace` count during one
   facade append (1,383 stat calls total including interpreter startup, under 2,000
   streams) shows no full per-mutation stat sweep on that path, so the sweep theory needs
   revisiting — the follow-up owns the breakdown into admission, publication, and binding
-  overhead.
+  overhead. Owned by sase-1iu.
 - `abs:tui-nochange` (133 ms at 8x, doubling per scale doubling): the no-change path
-  cost is linear in active rows. Needs row virtualization.
+  cost is linear in active rows. Needs row virtualization. Owned by sase-1ix.
 
 Contention caveat: this shared host regularly sits at load 20+. One formal sweep was
 discarded outright (1x `ready` p95 88 ms vs 4 ms minutes later on the same store).

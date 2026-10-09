@@ -337,3 +337,68 @@ def test_follow_progress_warms_and_caches() -> None:
         _EPIC_FOLLOW_PROGRESS_CACHE.clear()
 
     assert changed == {agent.identity}  # type: ignore[attr-defined]
+
+
+def test_read_epic_follow_progress_uses_point_reads(monkeypatch) -> None:
+    from pathlib import Path
+
+    import sase.ace.tui.models.agent_epic_follow_progress as progress_module
+    import sase.bead.store_locator as store_locator
+    from sase.bead.model import Resolution, Status
+
+    class _Child:
+        def __init__(self, status: Status) -> None:
+            self.status = status
+
+    class _Shown:
+        def __init__(self, status: Status, resolution: Resolution | None) -> None:
+            self.status = status
+            self.resolution = resolution
+
+    class _FakeProject:
+        def __enter__(self) -> _FakeProject:
+            return self
+
+        def __exit__(self, *exc: object) -> bool:
+            return False
+
+        def get_epic_children(self, epic_id: str) -> list[_Child]:
+            if epic_id == "sase-children-fail":
+                raise RuntimeError("no children")
+            return [_Child(Status.CLOSED), _Child(Status.OPEN)]
+
+        def show(self, epic_id: str) -> _Shown:
+            if epic_id == "sase-closed":
+                return _Shown(Status.CLOSED, Resolution.CANCELED)
+            if epic_id == "sase-open":
+                return _Shown(Status.OPEN, None)
+            if epic_id == "sase-show-fail":
+                raise RuntimeError("gone")
+            raise AssertionError(f"unexpected show({epic_id})")
+
+        def list_issues(self, *args: object, **kwargs: object) -> object:
+            raise AssertionError("list_issues must not be called")
+
+    fake = _FakeProject()
+    monkeypatch.setattr(
+        store_locator,
+        "canonical_beads_dir_for_project",
+        lambda project_key: Path("/tmp/fake-beads"),
+    )
+    monkeypatch.setattr(
+        store_locator,
+        "open_bead_project_for_beads_dir",
+        lambda beads_dir: fake,
+    )
+
+    resolved = progress_module._read_epic_follow_progress(
+        "proj",
+        ["sase-closed", "sase-open", "sase-show-fail", "sase-children-fail"],
+    )
+
+    assert resolved["sase-closed"] == _EpicFollowProgress(
+        closed=1, total=2, resolution="canceled"
+    )
+    assert resolved["sase-open"] == _EpicFollowProgress(closed=1, total=2)
+    assert resolved["sase-show-fail"] == _EpicFollowProgress(closed=1, total=2)
+    assert resolved["sase-children-fail"] is None
