@@ -13,8 +13,17 @@ from pathlib import Path
 from typing import Any
 
 from ._constants import FEDERATION_IPC_SCHEMA_VERSION, FEDERATION_MAX_FRAME_BYTES
-from ._errors import FederationWorkerResponseError, FederationWorkerUnavailable
+from ._errors import (
+    FederationWorkerResponseError,
+    FederationWorkerTimeout,
+    FederationWorkerUnavailable,
+)
 from ._settings import resolve_timeout
+
+# Extra socket time beyond the worker deadline. The worker sends a bounded
+# partial response at deadline + 250 ms, so the client must still be
+# listening when it arrives instead of losing the race just before it.
+_IPC_RESPONSE_GRACE_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
@@ -48,16 +57,28 @@ class FederationIpcClient:
         if len(payload) > self.max_frame_bytes:
             raise FederationWorkerUnavailable("IPC request exceeds frame limit")
 
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-                sock.settimeout(timeout)
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout + _IPC_RESPONSE_GRACE_SECONDS)
+            try:
                 sock.connect(str(self.socket_path))
+            except OSError as exc:
+                raise FederationWorkerUnavailable(
+                    f"federation worker socket is unavailable: {self.socket_path}"
+                ) from exc
+            try:
                 sock.sendall(struct.pack(">I", len(payload)) + payload)
                 response = self._read_frame(sock)
-        except OSError as exc:
-            raise FederationWorkerUnavailable(
-                f"federation worker socket is unavailable: {self.socket_path}"
-            ) from exc
+            except TimeoutError as exc:
+                raise FederationWorkerTimeout(
+                    f"federation worker is slow to respond "
+                    f"({timeout:g}s deadline): {self.socket_path}"
+                ) from exc
+            except FederationWorkerUnavailable:
+                raise
+            except OSError as exc:
+                raise FederationWorkerUnavailable(
+                    f"federation worker socket is unavailable: {self.socket_path}"
+                ) from exc
         try:
             decoded = json.loads(response.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:

@@ -14,6 +14,10 @@ class FederationWorkerUnavailable(RuntimeError):
     """Raised when the local federation worker cannot be reached or started."""
 
 
+class FederationWorkerTimeout(FederationWorkerUnavailable):
+    """Raised when the worker is reachable but too slow to answer in time."""
+
+
 class FederationWorkerResponseError(RuntimeError):
     """Raised when the worker returns an IPC-level error response."""
 

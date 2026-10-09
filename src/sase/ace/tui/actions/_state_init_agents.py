@@ -90,6 +90,8 @@ def init_agent_state(self: Any) -> None:
     self._dispatch_launch_prompt_to_operation = {}
     self._agents_fleet_async_tasks = set()
     self._agents_fleet_refresh_generation = 0
+    self._agents_fleet_refresh_pending = False
+    self._agents_fleet_refresh_pending_source = "unknown"
     self._agents_fleet_hint_deferred_apply = None
     self._agents_fleet_loading = False
     self._agents_fleet_available = False

@@ -66,6 +66,8 @@ class AgentFleetRefreshMixin:
         _agents_fleet_focus_rows: list[Agent]
         _agents_fleet_async_tasks: set[asyncio.Task[object]]
         _agents_fleet_refresh_generation: int
+        _agents_fleet_refresh_pending: bool
+        _agents_fleet_refresh_pending_source: str
         _agents_fleet_hint_deferred_apply: tuple[Any, ...] | None
         _agents_fleet_loading: bool
         _agents_fleet_available: bool
@@ -81,12 +83,30 @@ class AgentFleetRefreshMixin:
         if self.current_tab != "agents":
             self._update_agents_header()  # type: ignore[attr-defined]
             return
-        self._agents_fleet_refresh_generation += 1
-        generation = self._agents_fleet_refresh_generation
         if force:
+            self._agents_fleet_refresh_pending = False
+            self._agents_fleet_refresh_pending_source = "unknown"
             for task in tuple(getattr(self, "_agents_fleet_async_tasks", ())):
                 if not task.done():
                     task.cancel()
+        elif any(
+            not task.done()
+            for task in tuple(getattr(self, "_agents_fleet_async_tasks", ()))
+        ):
+            # A refresh is already in flight: record one pending rerun with
+            # the latest source instead of starting another overlapping
+            # request. The generation is left alone so the in-flight result
+            # still applies when it lands.
+            self._agents_fleet_refresh_pending = True
+            self._agents_fleet_refresh_pending_source = source
+            return
+        self._agents_fleet_refresh_generation += 1
+        self._spawn_agents_fleet_refresh(
+            generation=self._agents_fleet_refresh_generation,
+            source=source,
+        )
+
+    def _spawn_agents_fleet_refresh(self, *, generation: int, source: str) -> None:
         self._agents_fleet_loading = True
         self._update_agents_header()  # type: ignore[attr-defined]
         task = spawn_pump_free_task(
@@ -220,6 +240,9 @@ class AgentFleetRefreshMixin:
                     expected_selected_identity=start_selected_identity,
                     _selection_checked=True,
                 )
+        except ValueError as exc:
+            log.warning("fleet refresh failed", exc_info=True)
+            self._apply_fleet_error(str(exc), generation=generation)
         except (FederationConfigError, FollowStoreError) as exc:
             log.debug("fleet refresh failed", exc_info=True)
             self._apply_fleet_error(str(exc), generation=generation)
@@ -230,6 +253,23 @@ class AgentFleetRefreshMixin:
             ):
                 self._agents_fleet_loading = False
                 self._update_agents_header()  # type: ignore[attr-defined]
+            if generation == getattr(
+                self, "_agents_fleet_refresh_generation", 0
+            ) and getattr(self, "_agents_fleet_refresh_pending", False):
+                # A coalesced rerun was requested while this refresh was in
+                # flight. Spawn it directly: this task is still registered
+                # until it completes, so going through the scheduler would
+                # coalesce against itself.
+                self._agents_fleet_refresh_pending = False
+                pending_source = (
+                    getattr(self, "_agents_fleet_refresh_pending_source", "unknown")
+                    or "unknown"
+                )
+                self._agents_fleet_refresh_generation += 1
+                self._spawn_agents_fleet_refresh(
+                    generation=self._agents_fleet_refresh_generation,
+                    source=pending_source,
+                )
 
     def _defer_fleet_projection_apply_if_navigating(
         self,
@@ -458,6 +498,7 @@ class AgentFleetRefreshMixin:
                 "hosts": [],
                 "diagnostics": [
                     {
+                        "schema_version": 1,
                         "code": f"fleet_{operation}_unavailable",
                         "severity": "warning",
                         "message": str(exc),

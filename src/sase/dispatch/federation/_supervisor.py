@@ -14,7 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from ._constants import FEDERATION_WORKER_COMMAND
-from ._errors import FederationWorkerResponseError, FederationWorkerUnavailable
+from ._errors import (
+    FederationWorkerResponseError,
+    FederationWorkerTimeout,
+    FederationWorkerUnavailable,
+)
 from ._hosts import FederationConfig
 from ._ipc import FederationIpcClient
 from ._settings import FederationWorkerSettings, resolve_timeout
@@ -94,6 +98,11 @@ class FederationWorkerSupervisor:
         self.ensure_started(timeout)
         try:
             return self._send(operation, timeout)
+        except FederationWorkerTimeout:
+            # The worker is alive but slow: respawning it and resending the
+            # same request would only amplify a slow host. Let the caller
+            # degrade to cached data or a visible error instead.
+            raise
         except FederationWorkerUnavailable:
             if not retry or operation.get("op") == "shutdown":
                 raise
@@ -195,6 +204,11 @@ class FederationWorkerSupervisor:
     def _healthy(self, *, timeout_seconds: float) -> bool:
         try:
             health = self._send({"op": "health"}, timeout_seconds)
+        except FederationWorkerTimeout:
+            # The probe connected but the worker was too busy to answer: it
+            # is alive, so proceed to the request instead of spawning a
+            # replacement worker.
+            return True
         except (FederationWorkerUnavailable, FederationWorkerResponseError):
             return False
         return health.get("status") == "ok"

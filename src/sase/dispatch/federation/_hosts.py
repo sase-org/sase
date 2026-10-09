@@ -102,7 +102,8 @@ def load_federation_config(
 
 
 def diagnostic_wire(diagnostic: MachineDiagnostic) -> dict[str, Any]:
-    payload = {
+    payload: dict[str, Any] = {
+        "schema_version": FEDERATION_IPC_SCHEMA_VERSION,
         "code": diagnostic.code,
         "message": diagnostic.message,
         "severity": diagnostic.severity,

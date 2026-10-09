@@ -36,6 +36,8 @@ class FleetRefreshHarness(AgentFleetMixin):
         self._agents_fleet_projection = FleetRowsProjection()
         self._agents_fleet_async_tasks: set[Any] = set()
         self._agents_fleet_refresh_generation = 1
+        self._agents_fleet_refresh_pending = False
+        self._agents_fleet_refresh_pending_source = "unknown"
         self._agents_fleet_loading = True
         self._agents_fleet_available = False
         self._agents_fleet_last_error = None

@@ -11,6 +11,7 @@ from ._constants import (
 from ._errors import (
     FederationConfigError,
     FederationWorkerResponseError,
+    FederationWorkerTimeout,
     FederationWorkerUnavailable,
 )
 from ._facade import FederationFacade, build_federation_facade
@@ -36,6 +37,7 @@ __all__ = [
     "FederationWorkerResponseError",
     "FederationWorkerSettings",
     "FederationWorkerSupervisor",
+    "FederationWorkerTimeout",
     "FederationWorkerUnavailable",
     "build_federation_facade",
     "load_federation_config",
