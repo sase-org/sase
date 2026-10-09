@@ -150,6 +150,7 @@ def _show_json(
         load_fn=lambda *, refresh, offline: catalog,
         enrich_fn=lambda catalog, **_kwargs: catalog,
         now=1000.0,
+        declared_fn=lambda entry, **_: None,
     )
     return code, json.loads(capsys.readouterr().out)
 
@@ -478,6 +479,7 @@ def test_show_refresh_flag_is_threaded_to_loader() -> None:
         args,
         load_fn=_load,
         enrich_fn=lambda catalog, **_kwargs: catalog,
+        declared_fn=lambda entry, **_: None,
         now=1000.0,
     )
 

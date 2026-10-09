@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from collections.abc import Callable
 from typing import Any
 
 from rich.console import Console
@@ -35,7 +36,19 @@ from sase.main.update_types import (
     SchedulerRunningFn,
 )
 from sase.plugin_commands.snapshot import take_command_snapshot
-from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
+from sase.plugins.catalog import (
+    PluginCatalogEntry,
+    PluginCatalogError,
+    find_plugin,
+    load_plugin_catalog,
+)
+from sase.plugins.declared_commands import (
+    DeclaredCommandProblem,
+    DeclaredCommands,
+    declared_commands_json,
+    declared_problems,
+    get_declared_commands_for_entry,
+)
 from sase.plugins.installed import build_installed_index
 from sase.plugins.operations import (
     AlreadyInstalled,
@@ -77,6 +90,9 @@ INSTALL_JSON_SCHEMA_VERSION = 1
 #: The implementation now lives in :mod:`sase.plugins.operations`.
 _resolve_install_spec = resolve_install_spec
 
+#: Upstream command-preview fetch for the dry run; injectable for tests.
+DeclaredFn = Callable[..., DeclaredCommands | None]
+
 
 def handle_plugin_install_command(
     args: argparse.Namespace,
@@ -93,6 +109,7 @@ def handle_plugin_install_command(
     availability_fn: AvailabilityProbeFn = probe_availability,
     snapshot_fn: SnapshotFn = take_command_snapshot,
     refresh_fn: PostChangeRefreshFn | None = None,
+    declared_fn: DeclaredFn = get_declared_commands_for_entry,
 ) -> int:
     """Run ``sase plugin install <plugin>``; return the process exit code."""
     query = str(getattr(args, "plugin", "") or "")
@@ -125,7 +142,14 @@ def handle_plugin_install_command(
         return _already_installed(plan.spec, as_json=as_json, out=out)
 
     if dry_run:
-        return _dry_run(plan, as_json=as_json, out=out)
+        return _dry_run(
+            plan,
+            query,
+            as_json=as_json,
+            out=out,
+            load_fn=load_fn,
+            declared_fn=declared_fn,
+        )
 
     use_spinner = not as_json and out.is_terminal
     try:
@@ -236,8 +260,19 @@ def _already_installed(spec: ResolvedSpec, *, as_json: bool, out: Console) -> in
     return 0
 
 
-def _dry_run(plan: InstallReady, *, as_json: bool, out: Console) -> int:
+def _dry_run(
+    plan: InstallReady,
+    query: str,
+    *,
+    as_json: bool,
+    out: Console,
+    load_fn: LoadFn = load_plugin_catalog,
+    declared_fn: DeclaredFn = get_declared_commands_for_entry,
+) -> int:
     spec = plan.spec
+    declared, problems = _dry_run_preview(
+        query, load_fn=load_fn, declared_fn=declared_fn
+    )
     if as_json:
         print(
             json.dumps(
@@ -248,6 +283,7 @@ def _dry_run(plan: InstallReady, *, as_json: bool, out: Console) -> int:
                     "plugin": spec.display_name,
                     "distribution": spec.requirement.name,
                     "source": spec.source,
+                    "declared_commands": declared_commands_json(declared, problems),
                 },
                 indent=2,
                 sort_keys=True,
@@ -259,8 +295,44 @@ def _dry_run(plan: InstallReady, *, as_json: bool, out: Console) -> int:
         short_name=spec.display_name,
         source=spec.source,
         console=out,
+        declared=declared,
+        problems=problems,
     )
     return 0
+
+
+def _dry_run_preview(
+    query: str,
+    *,
+    load_fn: LoadFn,
+    declared_fn: DeclaredFn,
+) -> tuple[DeclaredCommands | None, tuple[DeclaredCommandProblem, ...]]:
+    """Best-effort upstream command preview for the install dry run.
+
+    Resolves *query* against a freshly loaded catalog and fetches the
+    upstream declaration. Unknown queries, raw specs, and every fetch
+    failure degrade to ``(None, ())``, which renders nothing.
+    """
+    try:
+        from sase.plugins._operations_common import load_catalog
+
+        catalog = load_catalog(load_fn, refresh=False, offline=False)
+        entry: PluginCatalogEntry | None = find_plugin(catalog, query)
+    except Exception:  # noqa: BLE001 — previews must never fail the dry run.
+        return None, ()
+    if entry is None or entry.installed.installed:
+        return None, ()
+    try:
+        declared = declared_fn(entry, offline=False)
+    except Exception:  # noqa: BLE001 — previews must never fail the dry run.
+        return None, ()
+    if declared is None or declared.status != "declared":
+        return declared, ()
+    try:
+        problems = declared_problems(declared.names)
+    except Exception:  # noqa: BLE001 — previews degrade, the dry run must not fail.
+        problems = ()
+    return declared, problems
 
 
 def _not_found(plan: InstallNotFound, *, as_json: bool, err: Console) -> int:

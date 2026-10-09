@@ -29,12 +29,17 @@ from sase.plugins.catalog import (
     load_plugin_catalog,
     suggest_plugins,
 )
+from sase.plugins.declared_commands import (
+    DeclaredCommands,
+    get_declared_commands_for_entry,
+)
 from sase.plugins.json_payload import plugin_entry_json
 from sase.plugins.latest import enrich_entry_latest, enrich_with_latest
 from sase.plugins.render import render_catalog_show, render_show_not_found
 
 LoadFn = Callable[..., PluginCatalog]
 EnrichFn = Callable[..., PluginCatalog]
+DeclaredFn = Callable[..., DeclaredCommands | None]
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
 SHOW_JSON_SCHEMA_VERSION = 3
@@ -47,6 +52,7 @@ def handle_plugin_show_command(
     load_fn: LoadFn = load_plugin_catalog,
     enrich_fn: EnrichFn = enrich_with_latest,
     now: float | None = None,
+    declared_fn: DeclaredFn | None = None,
 ) -> int:
     """Run ``sase plugin show <plugin_name>``; return the process exit code."""
     query = str(getattr(args, "plugin_name", "") or "")
@@ -97,7 +103,14 @@ def handle_plugin_show_command(
     if as_json:
         print(
             json.dumps(
-                _build_show_json(catalog, entry, query, now=now),
+                _build_show_json(
+                    catalog,
+                    entry,
+                    query,
+                    now=now,
+                    offline=offline,
+                    declared_fn=declared_fn,
+                ),
                 indent=2,
                 sort_keys=True,
             )
@@ -114,12 +127,34 @@ def _build_show_json(
     query: str,
     *,
     now: float | None = None,
+    offline: bool = False,
+    declared_fn: DeclaredFn | None = None,
 ) -> dict[str, Any]:
     """Build the stable ``sase plugin show --json`` payload for a found plugin."""
     payload = _base_json(catalog, query, now=now)
     payload["found"] = True
-    payload["plugin"] = plugin_entry_json(entry)
+    payload["plugin"] = plugin_entry_json(
+        entry, declared_commands=_declared_preview(entry, offline, declared_fn)
+    )
     return payload
+
+
+def _declared_preview(
+    entry: PluginCatalogEntry, offline: bool, declared_fn: DeclaredFn | None
+) -> DeclaredCommands | None:
+    """Best-effort upstream command preview for one uninstalled entry.
+
+    Installed entries report no preview: their authoritative installed
+    commands win. Every failure degrades to ``None`` (``unknown`` in JSON),
+    which renders nothing.
+    """
+    if entry.installed.installed:
+        return None
+    fetch = declared_fn or get_declared_commands_for_entry
+    try:
+        return fetch(entry, offline=offline)
+    except Exception:  # noqa: BLE001 — previews must never fail the command.
+        return None
 
 
 def _build_not_found_json(

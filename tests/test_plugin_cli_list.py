@@ -128,6 +128,7 @@ def _render(catalog: PluginCatalog, *, verbose: bool = False) -> str:
         load_fn=lambda *, refresh, offline: catalog,
         enrich_fn=lambda catalog, **_kwargs: catalog,
         now=1000.0,
+        declared_map_fn=lambda entries, **_: {},
     )
     assert code == 0
     return console.file.getvalue()  # type: ignore[attr-defined]
@@ -204,7 +205,11 @@ def test_list_json_schema_version_is_pinned_to_dev_schema() -> None:
 
 
 def test_json_payload_shape_is_stable() -> None:
-    payload = _build_list_json(_sample_catalog(), now=1000.0 + 7200)
+    payload = _build_list_json(
+        _sample_catalog(),
+        now=1000.0 + 7200,
+        declared_map_fn=lambda entries, **_: {},
+    )
 
     assert payload["schema_version"] == LIST_JSON_SCHEMA_VERSION
     assert payload["query"] == GH_SEARCH_QUERY
@@ -268,7 +273,9 @@ def test_json_payload_includes_editable_dev_update_fields() -> None:
         )
     )
 
-    payload = _build_list_json(catalog, now=1000.0)
+    payload = _build_list_json(
+        catalog, now=1000.0, declared_map_fn=lambda entries, **_: {}
+    )
 
     assert payload["schema_version"] == 3
     assert payload["counts"]["updates_available"] == 1
@@ -299,6 +306,7 @@ def test_json_output_path_is_valid_json(capsys: Any) -> None:
         load_fn=lambda *, refresh, offline: _sample_catalog(),
         enrich_fn=lambda catalog, **_kwargs: catalog,
         now=1000.0,
+        declared_map_fn=lambda entries, **_: {},
     )
 
     assert code == 0
@@ -358,6 +366,7 @@ def test_render_stale_cache_warns_loudly() -> None:
         load_fn=lambda *, refresh, offline: catalog,
         enrich_fn=lambda catalog, **_kwargs: catalog,
         now=1000.0,
+        declared_map_fn=lambda entries, **_: {},
     )
     out = console.file.getvalue()  # type: ignore[attr-defined]
 
@@ -498,6 +507,7 @@ def test_refresh_flag_is_threaded_to_loader() -> None:
         load_fn=_load,
         enrich_fn=lambda catalog, **_kwargs: catalog,
         now=1000.0,
+        declared_map_fn=lambda entries, **_: {},
     )
 
     assert seen == [True]
@@ -522,6 +532,7 @@ def test_no_refresh_flag_passes_false_to_loader() -> None:
         load_fn=_load,
         enrich_fn=lambda catalog, **_kwargs: catalog,
         now=1000.0,
+        declared_map_fn=lambda entries, **_: {},
     )
 
     assert seen == [False]

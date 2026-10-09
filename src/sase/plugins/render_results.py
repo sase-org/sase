@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
@@ -12,6 +12,7 @@ from rich.text import Text
 from sase.completion.install_models import CompletionRefreshReport
 from sase.plugin_commands.chip import format_command_chip_rich
 from sase.plugin_commands.snapshot import CommandChanges
+from sase.plugins.declared_commands import DeclaredCommandProblem, DeclaredCommands
 from sase.plugins.render_common import (
     _CHANGED_GLYPH,
     _EMPTY,
@@ -82,6 +83,8 @@ def render_install_dry_run(
     short_name: str,
     source: str,
     console: Console | None = None,
+    declared: DeclaredCommands | None = None,
+    problems: Sequence[DeclaredCommandProblem] = (),
 ) -> None:
     """Print the ``sase plugin install --dry-run`` preview."""
     target = console or Console()
@@ -97,6 +100,7 @@ def render_install_dry_run(
     plan.append(short_name, style="bold")
     plan.append(f"  (from {source})", style="dim")
     body.append(plan)
+    body.extend(_declared_preview_body(declared, problems))
 
     body.append(Text(""))
     note = Text()
@@ -107,6 +111,34 @@ def render_install_dry_run(
     target.print(
         Panel(Group(*body), title="Plugin Install (dry run)", border_style="cyan")
     )
+
+
+def _declared_preview_body(
+    declared: DeclaredCommands | None,
+    problems: Sequence[DeclaredCommandProblem],
+) -> list[RenderableType]:
+    """Return the pre-install command preview lines for the dry-run panel.
+
+    Only a ``declared`` upstream preview renders: "Adds command ❯ sase
+    <name>" per command plus collision warnings. Anything else (``none``,
+    ``unknown``) renders nothing, so sase never makes a false claim.
+    """
+    if declared is None or declared.status != "declared" or not declared.names:
+        return []
+    lines: list[RenderableType] = [Text("")]
+    problems_by_name = {problem.name: problem for problem in problems}
+    for name in declared.names:
+        adds = Text()
+        adds.append("Adds command  ", style="dim")
+        adds.append(format_command_chip_rich(name, state="new"))
+        lines.append(adds)
+        problem = problems_by_name.get(name)
+        if problem is not None:
+            warning = Text()
+            warning.append("! ", style="yellow")
+            warning.append(problem.detail, style="yellow")
+            lines.append(warning)
+    return lines
 
 
 def render_plugin_update_result(

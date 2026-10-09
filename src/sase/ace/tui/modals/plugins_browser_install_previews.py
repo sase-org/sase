@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from sase.agent_clis.install import AgentCliInstallPlan
-from sase.plugins.catalog import PluginCatalogError
+from sase.plugins.catalog import PluginCatalogError, find_plugin, load_plugin_catalog
+from sase.plugins.declared_commands import (
+    DeclaredCommands,
+    get_declared_commands_for_entry,
+)
 from sase.plugins.operations import (
     InstallManyPlan,
     InstallPlan,
@@ -26,11 +31,15 @@ class InstallPreview:
     optional git-source variant (present only when the index plan is ready and
     the git plan also resolves), so the modal's toggle stays pure presentation.
     *error* carries a catalog/receipt failure message instead of a plan.
+    *declared_commands* is the upstream pre-install command preview for the
+    confirm modal (phase sase-1if.6); ``None`` (or ``unknown``) renders
+    nothing. The install-confirm rendering itself lands with sase-1if.7.
     """
 
     index_plan: InstallPlan | None
     git_plan: InstallReady | None = None
     error: str | None = None
+    declared_commands: DeclaredCommands | None = None
 
 
 @dataclass(frozen=True)
@@ -51,7 +60,12 @@ class CombinedInstallPreview:
     plugin_preview: InstallManyPreview
 
 
-def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:
+def plan_install_preview(
+    name: str,
+    *,
+    offline: bool,
+    declared_fn: Callable[..., DeclaredCommands | None] | None = None,
+) -> InstallPreview:
     """Plan ``install <name>`` (default source, then git) for the confirm modal.
 
     Delegates to :func:`sase.plugins.operations.plan_install` — the single
@@ -62,6 +76,9 @@ def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:
     the default plan is ready *and* did not already fall back, so a terminal
     outcome or an already-git default short-circuits the second load instead
     of offering a redundant duplicate variant.
+
+    Attaches the upstream command preview (phase sase-1if.6) best-effort:
+    any failure degrades to ``None``, which renders nothing.
     """
     try:
         index_plan = plan_install(name, git=False, offline=offline)
@@ -76,7 +93,31 @@ def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:
             candidate = None
         if isinstance(candidate, InstallReady):
             git_plan = candidate
-    return InstallPreview(index_plan=index_plan, git_plan=git_plan)
+    declared = _preview_for_install(name, offline=offline, declared_fn=declared_fn)
+    return InstallPreview(
+        index_plan=index_plan, git_plan=git_plan, declared_commands=declared
+    )
+
+
+def _preview_for_install(
+    name: str,
+    *,
+    offline: bool,
+    declared_fn: Callable[..., DeclaredCommands | None] | None,
+) -> DeclaredCommands | None:
+    """Best-effort upstream command preview for the install confirm modal."""
+    fetch = declared_fn or get_declared_commands_for_entry
+    try:
+        catalog = load_plugin_catalog(refresh=False, offline=offline)
+        entry = find_plugin(catalog, name)
+    except Exception:  # noqa: BLE001 — previews must never fail the preview.
+        return None
+    if entry is None:
+        return None
+    try:
+        return fetch(entry, offline=offline)
+    except Exception:  # noqa: BLE001 — previews must never fail the preview.
+        return None
 
 
 def plan_install_many_preview(

@@ -23,12 +23,19 @@ from sase.plugins.catalog import (
     PluginCatalogError,
     load_plugin_catalog,
 )
+from sase.plugins.declared_commands import (
+    DeclaredCommands,
+    attach_declared_previews,
+    live_command_owners,
+    live_reserved_command_names,
+)
 from sase.plugins.json_payload import plugin_entry_json
 from sase.plugins.latest import EagerScope, enrich_with_latest
 from sase.plugins.render import render_catalog_list
 
 LoadFn = Callable[..., PluginCatalog]
 EnrichFn = Callable[..., PluginCatalog]
+DeclaredMapFn = Callable[..., dict[str, DeclaredCommands]]
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
 LIST_JSON_SCHEMA_VERSION = 3
@@ -41,6 +48,7 @@ def handle_plugin_list_command(
     load_fn: LoadFn = load_plugin_catalog,
     enrich_fn: EnrichFn = enrich_with_latest,
     now: float | None = None,
+    declared_map_fn: DeclaredMapFn | None = None,
 ) -> int:
     """Run ``sase plugin list``; return the process exit code."""
     offline = bool(getattr(args, "offline", False))
@@ -63,7 +71,18 @@ def handle_plugin_list_command(
     )
 
     if as_json:
-        print(json.dumps(_build_list_json(catalog, now=now), indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                _build_list_json(
+                    catalog,
+                    now=now,
+                    offline=offline,
+                    declared_map_fn=declared_map_fn,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
 
     render_catalog_list(catalog, verbose=verbose, now=now, console=console)
@@ -71,10 +90,23 @@ def handle_plugin_list_command(
 
 
 def _build_list_json(
-    catalog: PluginCatalog, *, now: float | None = None
+    catalog: PluginCatalog,
+    *,
+    now: float | None = None,
+    offline: bool = False,
+    declared_map_fn: DeclaredMapFn | None = None,
 ) -> dict[str, Any]:
     """Build the stable ``sase plugin list --json`` payload."""
     now = time.time() if now is None else now
+    previews = _declared_previews(catalog, offline, declared_map_fn)
+    try:
+        owners = live_command_owners()
+    except Exception:  # noqa: BLE001 — previews degrade, the list must not fail.
+        owners = {}
+    try:
+        reserved = live_reserved_command_names()
+    except Exception:  # noqa: BLE001 — previews degrade, the list must not fail.
+        reserved = frozenset()
     return {
         "schema_version": LIST_JSON_SCHEMA_VERSION,
         "query": catalog.query,
@@ -90,8 +122,31 @@ def _build_list_json(
             "total": len(catalog.entries),
             "updates_available": catalog.updates_available,
         },
-        "entries": [plugin_entry_json(entry) for entry in catalog.entries],
+        "entries": [
+            plugin_entry_json(
+                entry,
+                declared_commands=previews.get(entry.full_name.casefold()),
+                command_owners=owners,
+                reserved_names=reserved,
+            )
+            for entry in catalog.entries
+        ],
     }
+
+
+def _declared_previews(
+    catalog: PluginCatalog, offline: bool, declared_map_fn: DeclaredMapFn | None
+) -> dict[str, DeclaredCommands]:
+    """Best-effort upstream previews for the catalog's uninstalled entries.
+
+    One shared deadline bounds the whole batch; misses degrade to ``None``
+    (``unknown`` in JSON), which renders nothing.
+    """
+    fetch = declared_map_fn or attach_declared_previews
+    try:
+        return fetch(catalog.entries, offline=offline)
+    except Exception:  # noqa: BLE001 — previews must never fail the command.
+        return {}
 
 
 def _enrich_catalog(

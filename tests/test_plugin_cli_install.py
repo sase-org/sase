@@ -267,6 +267,7 @@ def test_install_ephemeral_path_json_error_shape(
         _args(str(plugin_path), json=True),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        declared_fn=lambda entry, **_: None,
     )
 
     assert code == 1
@@ -303,6 +304,7 @@ def test_install_not_found_renders_suggestions(tmp_path: Path) -> None:
         err_console=err,
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 1
     assert "No plugin named 'githubb'" in _text(err)
@@ -314,6 +316,7 @@ def test_install_not_found_json(tmp_path: Path, capsys: Any) -> None:
         _args("githubb", json=True),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 1
     payload = json.loads(capsys.readouterr().out)
@@ -476,6 +479,7 @@ requirements = [
         probe_fn=lambda: _install(tmp_path, receipt),
         availability_fn=_all_available,
         run_fn=_run,
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 0
     text = _text(out)
@@ -496,6 +500,7 @@ def test_install_command_failure_exits_one(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         availability_fn=_all_available,
         run_fn=_run,
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 1
     assert "No solution found" in _text(err)
@@ -511,6 +516,7 @@ def test_install_receipt_error_exits_one(tmp_path: Path) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: install,
         availability_fn=_all_available,
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 1
 
@@ -532,6 +538,7 @@ def test_install_dry_run_does_not_execute(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         availability_fn=_all_available,
         run_fn=_run,
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 0
     text = _text(out)
@@ -548,6 +555,7 @@ def test_install_dry_run_json(tmp_path: Path, capsys: Any) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
         availability_fn=_all_available,
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -568,6 +576,7 @@ def test_install_dry_run_json_falls_back_to_git_on_missing_distribution(
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
         availability_fn=_all_missing,
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -580,6 +589,7 @@ def test_install_git_dry_run_uses_git_spec(tmp_path: Path, capsys: Any) -> None:
         _args("github", git=True, dry_run=True, json=True),
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
+        declared_fn=lambda entry, **_: None,
     )
     assert code == 0
     payload = json.loads(capsys.readouterr().out)

@@ -25,7 +25,7 @@ from sase.plugin_commands.adapter import (
 from sase.plugin_commands.dispatch import try_handle_plugin_command
 from sase.plugin_commands.registry import (
     discover_plugin_commands,
-    _reserved_command_names,
+    reserved_command_names,
     _validate_command_name,
 )
 from sase.plugin_commands.scan import (
@@ -116,7 +116,7 @@ def test_dispatch_module_object_value(fake_plugin_commands) -> None:
 
 
 def test_reserved_names_cover_builtins_legacy_aliases_and_help() -> None:
-    reserved = _reserved_command_names()
+    reserved = reserved_command_names()
 
     assert {"doctor", "bead", "plugin", "completion"} <= reserved
     # Legacy aliases share registrars and stay reserved.

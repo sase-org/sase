@@ -55,12 +55,13 @@ def _validate_command_name(name: str) -> bool:
     return COMMAND_NAME_RE.match(name) is not None
 
 
-def _reserved_command_names() -> frozenset[str]:
+def reserved_command_names() -> frozenset[str]:
     """Return the command names plugins may never claim.
 
     Built-in registrars (including legacy aliases) always win, as do the
     legacy root words rewritten by ``normalize_legacy_root_args`` and the
-    conventional ``help`` word.
+    conventional ``help`` word. Public so later phases (pre-install preview,
+    Updates tab) share the one reservation rule instead of recomputing it.
     """
     from sase.legacy_xprompt_syntax import RETIRED_ROOT_COMMAND
     from sase.main.parser_registry import _COMMAND_REGISTRARS
@@ -71,7 +72,7 @@ def _reserved_command_names() -> frozenset[str]:
 def discover_plugin_commands(*, honor_disable: bool = True) -> PluginCommandSet:
     """Classify ``sase_commands`` records into mounted commands and problems."""
     records = scan_plugin_commands(honor_disable=honor_disable)
-    reserved = _reserved_command_names()
+    reserved = reserved_command_names()
     by_name: dict[str, list[PluginCommandRecord]] = {}
     for record in records:
         by_name.setdefault(record.name, []).append(record)
