@@ -105,6 +105,7 @@ _LAZY_EXPORTS = {
     "TopBar": (".top_bar", "TopBar"),
     "TopBarIndicators": (".top_bar", "TopBarIndicators"),
     "ProcIndicator": (".proc_indicator", "ProcIndicator"),
+    "ToolsIndicator": (".tools_indicator", "ToolsIndicator"),
     "ToolDetailLevel": (".llm_calls_panel", "ToolDetailLevel"),
     "LLMCallsVisibilityChanged": (".llm_calls_panel", "LLMCallsVisibilityChanged"),
     "UpdatesAvailableIndicator": (
@@ -195,6 +196,7 @@ __all__ = [
     "TopBar",
     "TopBarIndicators",
     "ProcIndicator",
+    "ToolsIndicator",
     "LLMCallsVisibilityChanged",
     "UpdatesAvailableIndicator",
     "UsageHeader",

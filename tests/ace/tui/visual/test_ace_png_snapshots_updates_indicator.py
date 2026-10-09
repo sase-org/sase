@@ -385,7 +385,7 @@ async def test_updates_indicator_with_neighbors_png_snapshot(
             UpdatesAvailableIndicator,
         )
         proc_indicator = page.app.query_one("#proc-indicator", ProcIndicator)
-        proc_indicator.set_counts(1, 1)
+        proc_indicator.set_model(1, "1 TUI background proc")
         indicator.set_available(3, core=True, agent_cli_count=2)
         await wait_for_state(
             page,

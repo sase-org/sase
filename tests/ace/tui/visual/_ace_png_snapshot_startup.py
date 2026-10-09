@@ -413,6 +413,21 @@ def patch_startup_loaders(
     def _noop_proc_reconciler_start(_self: Any) -> None:
         return None
 
+    # The ToolRun glance is host state: a real store on the capturing host
+    # would paint tools chips the goldens lack. Reset the snapshot and stub
+    # the loader seam so the top bar stays empty; per-test
+    # ``seed_tool_run_surfaces`` still applies afterwards.
+    from sase.ace.tui.tool_runs import loader as tool_runs_loader_module
+    from sase.ace.tui.tool_runs import snapshot as tool_runs_snapshot_module
+
+    tool_runs_snapshot_module._set_snapshot(None)
+    monkeypatch.setattr(
+        tool_runs_snapshot_module, "load_glance_blocking", lambda **_kw: None
+    )
+    monkeypatch.setattr(
+        tool_runs_loader_module, "load_glance_blocking", lambda **_kw: None
+    )
+
     monkeypatch.setattr(
         UsageRefreshFallbackMixin,
         "_schedule_usage_refresh_fallback",

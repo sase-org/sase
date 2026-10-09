@@ -28,16 +28,28 @@ TOP_BAR_SEPARATOR = " · "
 TOP_BAR_MIN_GAP = 2
 
 
-def icon_count_chip(icon: str, count: int, hue: str) -> Text:
+def icon_count_chip(
+    icon: str,
+    count: int,
+    hue: str,
+    *,
+    display: str | None = None,
+    dim: bool = False,
+) -> Text:
     """Build a filled ``<icon> <count>`` chip in *hue*.
 
     Shared body for the proc/monitor gear chips and the stash chip. A zero
     or negative count renders as an empty (hidden) body so the hosting
-    group collapses.
+    group collapses. *display* overrides the rendered count text (for
+    ``200+`` truncation); *dim* renders the stale variant with a trailing
+    ``?``.
     """
     if count <= 0:
         return Text("")
-    return Text(f" {icon} {count} ", style=f"bold #1a1a1a on {hue}")
+    text = display if display is not None else str(count)
+    suffix = " ?" if dim else ""
+    style = f"dim #1a1a1a on {hue}" if dim else f"bold #1a1a1a on {hue}"
+    return Text(f" {icon} {text}{suffix} ", style=style)
 
 
 def separator_visibility(visible: Sequence[bool]) -> tuple[bool, ...]:

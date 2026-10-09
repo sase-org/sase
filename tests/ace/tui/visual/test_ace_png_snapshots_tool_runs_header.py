@@ -118,12 +118,15 @@ async def test_tool_runs_header_chips_png_snapshots(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_tool_run_clocks(monkeypatch)
+    # Seed after patch_startup_loaders: the startup helper resets the
+    # glance snapshot and stubs the loader seam to None, so seeding first
+    # would be clobbered and no header chips would render.
+    patch_startup_loaders(monkeypatch, agents=_header_agents())
     seed_tool_run_surfaces(
         monkeypatch,
         glances=_header_glances(),
         summaries=_header_summaries(),
     )
-    patch_startup_loaders(monkeypatch, agents=_header_agents())
 
     async with AcePage(query='"visual"', patches=patches(), size=(120, 40)) as page:
         await wait_for_startup(page)

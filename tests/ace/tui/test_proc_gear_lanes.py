@@ -7,6 +7,8 @@ from datetime import timedelta
 
 from sase.ace.tui._proc_observer_models import (
     UPDATE_PROC_TYPES,
+    _is_tool_run_carrier,
+    _tool_run_ids_for_row,
     is_gear_eligible_row,
     is_install_mutation_row,
     is_update_row,
@@ -42,6 +44,7 @@ def _row(
     status: str = "running",
     age_seconds: int = 0,
     display_name: str | None = None,
+    tags: tuple[str, ...] = (),
 ) -> ObservedProc:
     return ObservedProc(
         proc_id=proc_id,
@@ -54,6 +57,7 @@ def _row(
         display_name=display_name or proc_id,
         exclusive_scopes=scopes,
         origin=origin,
+        tags=tags,
     )
 
 
@@ -91,7 +95,7 @@ def test_install_and_plain_rows_are_proc_lane() -> None:
     ]:
         row = _row(f"row-{proc_type}", proc_type=proc_type, scopes=scopes)
         assert is_update_row(row) is False, proc_type
-        assert proc_gear_lane(row) == "proc", proc_type
+        assert proc_gear_lane(row) == "bg", proc_type
         if proc_type in {"plugin.install", "plugin.uninstall"}:
             assert is_install_mutation_row(row) is True, proc_type
         elif proc_type == "sync":
@@ -137,7 +141,7 @@ def test_proc_gear_lanes_counts_and_oldest_first() -> None:
 
     lanes = proc_gear_lanes(projection)
 
-    assert lanes.procs == 1
+    assert lanes.bg == 1
     assert lanes.monitors == 1
     assert lanes.updates == 2
     assert [row.proc_id for row in lanes.update_rows] == ["update-old", "update-new"]
@@ -156,7 +160,7 @@ def test_lane_totals_preserved() -> None:
     )
     lanes = proc_gear_lanes(projection)
     eligible = sum(1 for row in projection.active_rows() if is_gear_eligible_row(row))
-    assert lanes.procs + lanes.updates == eligible == 2
+    assert lanes.bg + lanes.updates == eligible == 2
 
 
 def _sample_scope(key: str) -> str:
@@ -194,3 +198,76 @@ def test_producer_registry_guard() -> None:
             continue
         row = _synthetic_row_for_site(site)
         assert proc_gear_lane(row) != "update", getattr(site, "site_id", site)
+
+
+def test_tool_run_carriers_are_never_bg() -> None:
+    escalated = _row("tool-1", origin="tool-run")
+    detached = _row("tool-2", tags=("tool-run", "tool-run:run-2"))
+    catalog = _row("tool-3", tags=("tool-run:run-3",))
+    command_line = _row("ace-1", proc_type="command", origin="ace")
+    adopt = _row(
+        "mon-adopt",
+        origin=MONITOR_PROC_ORIGIN,
+        tags=("tool-run", "tool-run:run-4"),
+    )
+    join = _row(
+        "mon-join",
+        origin=MONITOR_PROC_ORIGIN,
+        tags=("tool-run-join:run-5",),
+    )
+    for row in (escalated, detached, catalog, adopt, join):
+        assert _is_tool_run_carrier(row) is True, row.proc_id
+        assert proc_gear_lane(row) == "tool", row.proc_id
+    # The `: tool run` Command Line owner is drawn once, in the tool lane.
+    assert proc_gear_lane(command_line) == "bg"
+    assert (
+        proc_gear_lane(command_line, tool_run_owner_proc_ids=frozenset({"ace-1"}))
+        == "tool"
+    )
+    # A bare monitor stays orange; update and service precedence holds.
+    bare = _row("mon-bare", origin=MONITOR_PROC_ORIGIN)
+    assert _is_tool_run_carrier(bare) is False
+    assert proc_gear_lane(bare) == "monitor"
+    update_carrier = _row(
+        "update-tool",
+        proc_type="sase-update",
+        tags=("tool-run:run-6",),
+    )
+    assert proc_gear_lane(update_carrier) == "update"
+    service_carrier = _row(
+        "service-tool",
+        origin=SERVICE_HOST_ORIGIN,
+        tags=("tool-run:run-7",),
+    )
+    assert proc_gear_lane(service_carrier) is None
+
+
+def test_tool_run_ids_for_row_reads_owner_and_join_tags() -> None:
+    row = _row(
+        "carrier",
+        origin=MONITOR_PROC_ORIGIN,
+        tags=("tool-run", "tool-run:run-a", "tool-run-join:run-b"),
+    )
+    assert _tool_run_ids_for_row(row) == frozenset({"run-a", "run-b"})
+    assert _tool_run_ids_for_row(_row("plain")) == frozenset()
+
+
+def test_tool_lane_partition_counts_and_ids() -> None:
+    projection = ProcProjection(
+        rows=(
+            _row("bg-1", proc_type="sync"),
+            _row("tool-1", origin="tool-run"),
+            _row(
+                "mon-join",
+                origin=MONITOR_PROC_ORIGIN,
+                tags=("tool-run-join:run-9",),
+            ),
+            _row("mon-bare", origin=MONITOR_PROC_ORIGIN),
+        )
+    )
+    lanes = proc_gear_lanes(projection)
+    assert lanes.bg == 1
+    assert lanes.tool_procs == 2
+    assert lanes.monitors == 1
+    assert lanes.tool_run_ids == frozenset({"run-9"})
+    assert lanes.monitor_names == ("mon-bare",)

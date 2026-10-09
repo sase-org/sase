@@ -15,6 +15,7 @@ from .notification_indicator import NotificationIndicator
 from .proc_indicator import ProcIndicator
 from .stashed_prompts_indicator import StashedPromptsIndicator
 from .tab_bar import TabBar
+from .tools_indicator import ToolsIndicator
 from .top_bar_group import (
     TOP_BAR_MIN_GAP,
     TOP_BAR_SEPARATOR,
@@ -26,6 +27,7 @@ from .top_bar_group import (
 from .updates_indicator import UpdatesAvailableIndicator
 
 _TOP_BAR_GROUP_IDS: tuple[str, ...] = (
+    "tools-indicator",
     "proc-indicator",
     "updates-indicator",
     "alias-overrides-indicator",
@@ -50,8 +52,9 @@ class TopBarIndicators(Horizontal):
         return self._density
 
     def compose(self) -> ComposeResult:
-        """Yield the five groups with separators interleaved."""
+        """Yield the six groups with separators interleaved."""
         groups: tuple[TopBarGroup, ...] = (
+            ToolsIndicator(id="tools-indicator"),
             ProcIndicator(id="proc-indicator"),
             UpdatesAvailableIndicator(id="updates-indicator"),
             AliasOverridesIndicator(id="alias-overrides-indicator"),
@@ -68,7 +71,7 @@ class TopBarIndicators(Horizontal):
         self.sync_top_bar_groups()
 
     def groups(self) -> list[TopBarGroup]:
-        """Return the five indicator groups in left-to-right order."""
+        """Return the six indicator groups in left-to-right order."""
         try:
             return [
                 widget
@@ -88,7 +91,7 @@ class TopBarIndicators(Horizontal):
         return ordered
 
     def separators(self) -> list[Static]:
-        """Return the four separator widgets in left-to-right order."""
+        """Return the five separator widgets in left-to-right order."""
         try:
             return [
                 widget

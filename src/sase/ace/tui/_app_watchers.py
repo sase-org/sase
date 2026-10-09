@@ -151,6 +151,16 @@ class AppWatchersMixin:
             # later tab switch, show cached data immediately and only re-fetch
             # when there is pending work to consume.
             if not self._mounting:
+                reconcile_tool_runs = getattr(
+                    self,
+                    "_reconcile_tool_runs_on_agents_entry",
+                    None,
+                )
+                if callable(reconcile_tool_runs):
+                    try:
+                        reconcile_tool_runs()
+                    except Exception:
+                        pass
                 self._refilter_agents()
                 refresh_capacity = getattr(
                     self,

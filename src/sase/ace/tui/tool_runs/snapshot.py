@@ -180,6 +180,7 @@ class ToolRunsLoadState:
     source: str = "unknown"
     last_probe_mono: float = 0.0
     last_token: Any | None = None
+    failing_since_mono: float | None = None
 
 
 _TOOL_RUNS_DRIFT_PROBE_MIN_INTERVAL_S = 2.0

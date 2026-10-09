@@ -4048,7 +4048,8 @@ run's ⚒ Runs block on the owning Agents row, `v` to open the retained log in t
 Agents tab), `r` to run the focused catalog tool at the current project root, and `R` to
 reload. The Runs detail reuses the Agents tab Runs block renderer. The pane never
 settles or reconciles runs; the only writes it offers are the explicit stop and
-catalog-run flows.
+catalog-run flows. The top-bar `tools:` group opens this pane with all projects, so the
+pane never shows fewer runs than the chip claims.
 
 <a id="models-panel"></a>
 
@@ -5190,39 +5191,51 @@ cluster beneath it (`load: 5/8 · model: opus@high · project: +sase`): every gr
 renders as a `<type>: <body>` group where only the `<type>:` label is dim, so a group's
 value looks the same in full and compact modes, and visible groups are joined by a dim
 `·`. The left-to-right order runs from activity to system state to launch routing to
-personal queues: `procs`, `updates`, `overrides`, `priority`, `disabled`, `stash`,
+personal queues: `tools`, `bg`, `updates`, `overrides`, `priority`, `disabled`, `stash`,
 `inbox`. The always-visible `inbox` anchors the right edge directly above `project:`.
 Labels are fixed strings that never pluralize. Count chips carry their identity glyph
-inside the fill — `⚙` for procs (a blue chip for sase's TUI procs, plus an orange chip
-for monitor turns), `⬆` for updates, `≡` for the stash, `★` for priority — so compact
-mode (labels dropped together when the full cluster does not fit in the cells left over
-after the tab strip and a 2-cell minimum gap; separators kept) still identifies each
-group; widening restores full labels without oscillation. Every group is clickable:
-procs opens the Admin Center Procs tab, updates opens the Updates tab (or the Procs tab
-on the running update while SASE is updating, when the badge shows its green gear inset,
-or the Procs tab on the first restart blocker while a restart is queued, when the badge
-shows its yellow gear inset), overrides, priority, and disabled open Launch settings,
-stash opens the Prompts overlay on Stash, and inbox opens the notification modal. While
-SASE is updating itself, the `updates` group shows a green `⚙` gear inset at its left
-edge. While installed code waits for TUI-local tasks, submissions, or installation
-changes before restarting ACE and the SASE service, it shows a yellow `⚙` gear inset
-instead (green outranks yellow). Independent commands keep running. Durable operations
-started from this TUI still finish their result handling first, within the same
-60-second wait. The yellow tooltip names the actual blockers and the time ACE restarts
-anyway; clicking it opens the Procs tab on the first blocker. Feature-flag restarts
-never show the yellow gear.
+inside the fill — `⚒` for tool runs (sky blue, red with `⚠` while silent), `⚙` for
+background procs (blue) and bare monitors (orange), `⬆` for updates, `≡` for the stash,
+`★` for priority — so compact mode (labels dropped together when the full cluster does
+not fit in the cells left over after the tab strip and a 2-cell minimum gap; separators
+kept) still identifies each group; widening restores full labels without oscillation.
+Every group is clickable: tools opens Admin Center › Tools › Runs with all projects, bg
+opens the Admin Center Procs tab, updates opens the Updates tab (or the Procs tab on the
+running update while SASE is updating, when the badge shows its green gear inset, or the
+Procs tab on the first restart blocker while a restart is queued, when the badge shows
+its yellow gear inset), overrides, priority, and disabled open Launch settings, stash
+opens the Prompts overlay on Stash, and inbox opens the notification modal. While SASE
+is updating itself, the `updates` group shows a green `⚙` gear inset at its left edge.
+While installed code waits for TUI-local tasks, submissions, or installation changes
+before restarting ACE and the SASE service, it shows a yellow `⚙` gear inset instead
+(green outranks yellow). Independent commands keep running. Durable operations started
+from this TUI still finish their result handling first, within the same 60-second wait.
+The yellow tooltip names the actual blockers and the time ACE restarts anyway; clicking
+it opens the Procs tab on the first blocker. Feature-flag restarts never show the yellow
+gear.
 
-### Proc Indicator
+### Tools and Background Indicators
 
-The `procs:` group shows a filled blue `⚙ N` chip while sase's TUI own procs are running
-(e.g., sync, mail, accept, and notification-gate operations) and an orange `⚙ N` chip
-for running monitor turns (`sase monitor start` supervised commands) — the same pair the
-Procs tab header shows. Procs that are updating SASE move to the green `⚙` gear in
-`updates:` and no longer count in the blue chip. Monitors are counted separately because
-a monitor is a detached supervisor that survives TUI exit and never blocks TUI procs.
-Either chip hides at zero, and the group hides only when both counts are zero. The group
-excludes service-host rows — service procs and oneshots — which the Services tab reports
-instead. Hover for the counts; click to open the Procs tab.
+The `tools:` group shows every live `sase tool` run on the machine: a sky-blue `⚒ N`
+chip for healthy runs, a red `⚒⚠ M` chip for silent runs (no activity for 60 s or more),
+and an orange `⚙ K` chip for monitor turns not currently carrying a run. The `⚒` count
+comes from the ToolRun ledger, so it covers every mode (escalated, detached, catalog,
+monitor adopt/join, foreground) on every tab, ignoring the project filter, tribe
+selection, and session; a live child folds into its live parent. An execution is drawn
+exactly once: a proc that carries a live run is never drawn as a gear. Each chip hides
+at zero and the group hides only when all chips are zero. Before the first glance load
+the `⚒` chips stay hidden rather than showing a false zero; if loads keep failing the
+last snapshot renders dim with a trailing `?`. Hover lists up to five runs (silent
+first, then oldest) plus bare monitors; click to open Admin Center › Tools › Runs with
+all projects.
+
+The `bg:` group shows a filled blue `⚙ N` chip while sase's TUI own background procs are
+running (e.g., sync, mail, accept, and notification-gate operations) — the same count
+the Procs tab header shows in blue. Tool-run carriers never count here; they live under
+`tools:`. Procs that are updating SASE move to the green `⚙` gear in `updates:` and no
+longer count in the blue chip. The chip hides at zero. The group excludes service-host
+rows — service procs and oneshots — which the Services tab reports instead. Hover for
+the proc labels; click to open the Procs tab.
 
 ### Current Project Indicator
 
@@ -8845,17 +8858,20 @@ shows up on the tab.
 The pane defaults to **this session** plus unattributed procs; press `a` to widen it to
 every session. Historical `detached` rows remain visible in both modes. The pane title
 names the active scope and the running-lane counts, e.g.
-`Procs · this session   ⚙ 2  ⚙ 1   [3 running · 5 done]`. The blue gear is running plain
-procs (excluding monitors and update rows); the orange gear is running monitors. A green
-`⚙ N` chip appears after the orange chip only while update procs run, and update rows
-carry a green `⚙` marker. All counts follow the tab's current scope, so `a` moves them
-with the list. A zero blue/orange lane still renders as a dim `⚙ 0` so a missing chip
-cannot be read as "unknown". The bracketed totals keep their current meaning: blue plus
-green plus orange equals the running count. Rows read from the store carry a colored
-session chip (`ace·sase#14 4f2a`) that matches the one `sase proc list` prints; a
-session that has since exited renders dim with a `†`. An ordinary unattributed proc
-renders a dim `—`; a historical detached proc carries a cyan `◆ detached` marker that
-makes the legacy row kind explicit.
+`Procs · this session   ⚙ 2  ⚒ 1  ⚙ 1   [4 running · 5 done]`. The blue gear is running
+TUI background procs — the same rows the top-bar `bg:` group counts, excluding monitors,
+tool-run carriers, and update rows; the sky-blue `⚒` chip is tool-lane procs (an
+inventory count, so it shows a dim `⚒ 0` when empty — it can differ from the top-bar run
+count because foreground runs have no proc and a joined run has two); the orange gear is
+bare monitors. A green `⚙ N` chip appears after the orange chip only while update procs
+run, and update rows carry a green `⚙` marker. All counts follow the tab's current
+scope, so `a` moves them with the list. A zero blue/orange lane still renders as a dim
+`⚙ 0` so a missing chip cannot be read as "unknown". The bracketed totals keep their
+current meaning: blue plus tool plus green plus orange equals the running count. Rows
+read from the store carry a colored session chip (`ace·sase#14 4f2a`) that matches the
+one `sase proc list` prints; a session that has since exited renders dim with a `†`. An
+ordinary unattributed proc renders a dim `—`; a historical detached proc carries a cyan
+`◆ detached` marker that makes the legacy row kind explicit.
 
 Store reads happen on a worker thread and are revalidated by store mtime about once a
 second, so the tab never stats, reads, or locks the store from a render or keystroke
@@ -8864,10 +8880,11 @@ path. Retention is governed by `procs.history_limit` (see
 oldest-first, and running procs are never pruned. Because the store owns that retention,
 `d` / `D` do not dismiss rows; they only explain the retention policy.
 
-The top-bar `procs:` group's blue chip counts this session's active procs plus **every
-active unattributed proc globally**, including an approved epic that had to use the
-unattributed command fallback. Running monitor turns are counted in its orange chip
-instead, and service procs and oneshots are left to the Services tab.
+The top-bar `bg:` group's blue chip counts this session's active background procs plus
+**every active unattributed proc globally**, including an approved epic that had to use
+the unattributed command fallback. Tool-run carriers are counted in `tools:` instead,
+running bare monitor turns in the orange chip there, and service procs and oneshots are
+left to the Services tab.
 
 ### Layout
 
@@ -8886,15 +8903,17 @@ is visible.
 | `⊘`  | Yellow | Killed                                                     |
 | `?`  | Dim    | Unknown                                                    |
 | `⚙`  | Orange | Monitor turn (same mark as the Agents tab and the top bar) |
+| `⚒`  | Sky    | Tool-run carrier (same mark as the `tools:` group)         |
 
 ### Monitors on this tab
 
 A `sase monitor start` supervisor is a durable proc like any other, but this tab marks
 it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
 
-- **Orange `⚙`.** Monitor rows carry the orange gear between the status icon and the
-  label (`● ⚙ just check-full`), matching the Agents tab and the orange chip in the top
-  bar's `procs:` group. The same mark prefixes the output header.
+- **Orange `⚙`.** Bare monitor rows carry the orange gear between the status icon and
+  the label (`● ⚙ just check-full`), matching the Agents tab and the orange chip in the
+  top bar's `tools:` group. A monitor carrying a live run shows `⚒` instead. The same
+  mark prefixes the output header.
 - **Agent name.** Each monitor names its member agent (`acme--mon`) on the list's
   secondary line (`acme--mon · Working...`) and on an `agent` line in the output header.
 - **Status chip.** When the matching agent row is loaded, the effective status label

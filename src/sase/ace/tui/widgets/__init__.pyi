@@ -90,6 +90,7 @@ from .tab_quickstart import TabQuickStart as TabQuickStart
 from .top_bar import TopBar as TopBar
 from .top_bar import TopBarIndicators as TopBarIndicators
 from .proc_indicator import ProcIndicator as ProcIndicator
+from .tools_indicator import ToolsIndicator as ToolsIndicator
 from .llm_calls_panel import ToolDetailLevel as ToolDetailLevel
 from .llm_calls_panel import LLMCallsVisibilityChanged as LLMCallsVisibilityChanged
 from .updates_indicator import UpdatesAvailableIndicator as UpdatesAvailableIndicator

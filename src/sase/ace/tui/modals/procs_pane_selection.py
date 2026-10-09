@@ -471,30 +471,61 @@ class ProcsPaneSelectionMixin(_MixinBase):
             pass
 
     def _title_text(self) -> Text:
+        from sase.tool.view_vocabulary import TOOL_RUN_ACCENT, TOOL_RUN_GLYPH
+
+        from .._proc_observer_models import proc_gear_lanes
+        from ..tool_runs.top_bar import tool_run_owner_proc_ids
+
+        try:
+            from ..tool_runs.snapshot import get_snapshot
+
+            owner_ids = tool_run_owner_proc_ids(get_snapshot())
+        except Exception:
+            owner_ids = frozenset()
+        try:
+            lanes = proc_gear_lanes(
+                ProcProjection(rows=tuple(self._tasks)),
+                all_sessions=True,
+                tool_run_owner_proc_ids=owner_ids,
+            )
+        except Exception:
+            lanes = None
         running = sum(1 for task in self._tasks if is_active(task))
-        monitor_running = sum(
-            1
-            for task in self._tasks
-            if is_active(task) and proc_gear_lane(task) == "monitor"
-        )
-        # The blue chip claims to be the session proc count, so it counts exactly
-        # what the top-bar blue gear counts (proc lane only: no monitors, no
-        # update rows, no service rows); the bracketed inventory below still
-        # covers every listed row.
-        proc_running = sum(
-            1
-            for task in self._tasks
-            if is_active(task) and proc_gear_lane(task) == "proc"
-        )
-        update_running = sum(
-            1
-            for task in self._tasks
-            if is_active(task) and proc_gear_lane(task) == "update"
-        )
+        if lanes is None:
+            monitor_running = sum(
+                1
+                for task in self._tasks
+                if is_active(task) and proc_gear_lane(task) == "monitor"
+            )
+            bg_running = sum(
+                1
+                for task in self._tasks
+                if is_active(task) and proc_gear_lane(task) == "bg"
+            )
+            update_running = sum(
+                1
+                for task in self._tasks
+                if is_active(task) and proc_gear_lane(task) == "update"
+            )
+            tool_running = 0
+        else:
+            bg_running = lanes.bg
+            tool_running = lanes.tool_procs
+            monitor_running = lanes.monitors
+            update_running = len(lanes.update_rows)
         done = len(self._tasks) - running
         scope = "all sessions" if self._all_sessions else "this session"
         text = Text(f"Procs · {scope}  ")
-        text.append(gear_chip(proc_running, PROC_GEAR_HUE, hide_at_zero=False))
+        text.append(gear_chip(bg_running, PROC_GEAR_HUE, hide_at_zero=False))
+        if tool_running > 0:
+            text.append(
+                Text(
+                    f" {TOOL_RUN_GLYPH} {tool_running} ",
+                    style=f"bold #1a1a1a on {TOOL_RUN_ACCENT}",
+                )
+            )
+        else:
+            text.append(Text(f" {TOOL_RUN_GLYPH} 0 ", style=f"dim {TOOL_RUN_ACCENT}"))
         text.append(gear_chip(monitor_running, MONITOR_GEAR_HUE, hide_at_zero=False))
         text.append(gear_chip(update_running, UPDATE_GEAR_HUE))
         text.append(f"  [{running} running · {done} done]")

@@ -320,7 +320,7 @@ def test_gear_excludes_monitor_and_sessionless_service_rows() -> None:
         rows=rows, active_count=3, active_monitor_count=1, session_id="s"
     )
     lanes = proc_gear_lanes(projection)
-    assert lanes.procs + lanes.updates == 1
+    assert lanes.bg + lanes.updates == 1
     assert len(projection.active_rows()) == 3  # inventory unchanged
 
 
@@ -334,7 +334,7 @@ def test_gear_excludes_service_rows_that_lost_the_service_block() -> None:
     )
     projection = ProcProjection(rows=rows, active_count=3, session_id="s")
     lanes = proc_gear_lanes(projection)
-    assert lanes.procs + lanes.updates == 1
+    assert lanes.bg + lanes.updates == 1
     assert len(projection.active_rows()) == 3  # inventory unchanged
 
 

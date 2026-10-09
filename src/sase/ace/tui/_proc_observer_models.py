@@ -151,7 +151,7 @@ def is_service_daemon_row(row: ObservedProc) -> bool:
 
 
 def is_gear_eligible_row(row: ObservedProc) -> bool:
-    """Return whether an active row counts toward the blue proc gear.
+    """Return whether an active row counts toward the blue ``bg:`` gear.
 
     Monitor turns and service rows have their own surfaces (see
     :func:`is_service_row` for how a service row is recognized); ownership is
@@ -187,7 +187,56 @@ INSTALL_MUTATION_PROC_TYPES = UPDATE_PROC_TYPES | frozenset(
     {"plugin.install", "plugin.uninstall"}
 )
 
-GearLane = Literal["proc", "update", "monitor"]
+# Tag vocabulary shared with ``sase.tool.handoff`` (``owner_tags`` /
+# ``join_tags``). Kept as literals so this UI-side module never imports the
+# tool-launch path; ``procs_pane_render`` carries the same pair.
+TOOL_RUN_PROC_ORIGIN = "tool-run"
+TOOL_RUN_OWNER_TAG = "tool-run"
+TOOL_RUN_OWNER_TAG_PREFIX = "tool-run:"
+TOOL_RUN_JOIN_TAG_PREFIX = "tool-run-join:"
+
+GearLane = Literal["bg", "tool", "monitor", "update"]
+
+
+def _is_tool_run_carrier(row: ObservedProc) -> bool:
+    """Return whether a proc row carries a live ToolRun execution.
+
+    Carriers are ``tool-run`` procs, adopt monitors (``tool-run`` /
+    ``tool-run:<id>`` tags) and join monitors (``tool-run-join:<id>``).
+    Classification uses only ``origin`` and exact tags — never
+    ``session_id``, labels, or command prefixes.
+    """
+    if row.origin == TOOL_RUN_PROC_ORIGIN:
+        return True
+    for tag in tuple(getattr(row, "tags", None) or ()):
+        if not isinstance(tag, str):
+            continue
+        if tag == TOOL_RUN_OWNER_TAG:
+            return True
+        if tag.startswith(TOOL_RUN_OWNER_TAG_PREFIX):
+            # ``tool-run-join:<id>`` does not start with ``tool-run:``;
+            # the join prefix is checked explicitly below.
+            return True
+        if tag.startswith(TOOL_RUN_JOIN_TAG_PREFIX):
+            return True
+    return False
+
+
+def _tool_run_ids_for_row(row: ObservedProc) -> frozenset[str]:
+    """Return the distinct ToolRun ids a carrier row references via tags."""
+    ids: set[str] = set()
+    for tag in tuple(getattr(row, "tags", None) or ()):
+        if not isinstance(tag, str):
+            continue
+        if tag.startswith(TOOL_RUN_JOIN_TAG_PREFIX):
+            run_id = tag[len(TOOL_RUN_JOIN_TAG_PREFIX) :].strip()
+        elif tag.startswith(TOOL_RUN_OWNER_TAG_PREFIX):
+            run_id = tag[len(TOOL_RUN_OWNER_TAG_PREFIX) :].strip()
+        else:
+            continue
+        if run_id:
+            ids.add(run_id)
+    return frozenset(ids)
 
 
 def is_update_row(row: ObservedProc) -> bool:
@@ -224,29 +273,52 @@ def is_install_mutation_row(row: ObservedProc) -> bool:
     )
 
 
-def proc_gear_lane(row: ObservedProc) -> GearLane | None:
+def proc_gear_lane(
+    row: ObservedProc, *, tool_run_owner_proc_ids: frozenset[str] = frozenset()
+) -> GearLane | None:
     """Return the gear lane for one row.
 
-    Monitor turns read as ``"monitor"``, service rows read as ``None``,
-    update-lane rows read as ``"update"``, and everything else reads as
-    ``"proc"``. Callers still gate on the row being active.
+    A proc that carries a live ToolRun is in the ``"tool"`` lane and is
+    never drawn as a gear. Carrier monitors read as ``"tool"``; bare
+    monitor turns read as ``"monitor"``; service rows read as ``None``;
+    update-lane rows read as ``"update"``; everything else reads as
+    ``"bg"`` (the TUI's own background work). Callers still gate on the
+    row being active.
     """
     if is_monitor_turn_row(row):
+        if _is_tool_run_carrier(row):
+            return "tool"
         return "monitor"
     if is_service_row(row):
         return None
     if is_update_row(row):
         return "update"
-    return "proc"
+    if _is_tool_run_carrier(row):
+        return "tool"
+    proc_id = row.durable_proc_id or row.proc_id
+    if proc_id and proc_id in tool_run_owner_proc_ids:
+        # The ``: tool run`` Command Line case: an ``ace`` proc that owns a
+        # live glance run is drawn once, in the tool lane.
+        return "tool"
+    return "bg"
 
 
 @dataclass(frozen=True)
 class ProcGearLanes:
     """Split of active gear-eligible rows into top-bar lanes."""
 
-    procs: int = 0
+    bg: int = 0
+    tool_procs: int = 0
     monitors: int = 0
     update_rows: tuple[ObservedProc, ...] = ()
+    bg_rows: tuple[ObservedProc, ...] = ()
+    monitor_rows: tuple[ObservedProc, ...] = ()
+    tool_run_ids: frozenset[str] = frozenset()
+
+    @property
+    def procs(self) -> int:
+        """Back-compat alias for the ``bg`` lane count."""
+        return self.bg
 
     @property
     def updates(self) -> int:
@@ -258,24 +330,58 @@ class ProcGearLanes:
         """User-facing labels for active update rows, oldest first."""
         return tuple(row.label for row in self.update_rows)
 
+    @property
+    def bg_labels(self) -> tuple[str, ...]:
+        """User-facing labels for active background rows, oldest first."""
+        return tuple(row.label for row in self.bg_rows)
+
+    @property
+    def monitor_names(self) -> tuple[str, ...]:
+        """Member names of bare-monitor rows, oldest first."""
+        return tuple(
+            monitor_row_agent_name(row) or row.label for row in self.monitor_rows
+        )
+
 
 def proc_gear_lanes(
-    projection: ProcProjection, *, all_sessions: bool = False
+    projection: ProcProjection,
+    *,
+    all_sessions: bool = False,
+    tool_run_owner_proc_ids: frozenset[str] = frozenset(),
 ) -> ProcGearLanes:
-    """Split active rows into proc/monitor/update lanes in one pass."""
-    procs = 0
+    """Split active rows into bg/tool/monitor/update lanes in one pass."""
+    bg = 0
+    tool_procs = 0
     monitors = 0
+    bg_rows: list[ObservedProc] = []
+    monitor_rows: list[ObservedProc] = []
     update_rows: list[ObservedProc] = []
+    tool_run_ids: set[str] = set()
     for row in projection.active_rows(all_sessions=all_sessions):
-        lane = proc_gear_lane(row)
+        lane = proc_gear_lane(row, tool_run_owner_proc_ids=tool_run_owner_proc_ids)
         if lane == "monitor":
             monitors += 1
+            monitor_rows.append(row)
         elif lane == "update":
             update_rows.append(row)
-        elif lane == "proc":
-            procs += 1
+        elif lane == "tool":
+            tool_procs += 1
+            tool_run_ids.update(_tool_run_ids_for_row(row))
+        elif lane == "bg":
+            bg += 1
+            bg_rows.append(row)
     update_rows.sort(key=lambda item: item.started_at)
-    return ProcGearLanes(procs=procs, monitors=monitors, update_rows=tuple(update_rows))
+    bg_rows.sort(key=lambda item: item.started_at)
+    monitor_rows.sort(key=lambda item: item.started_at)
+    return ProcGearLanes(
+        bg=bg,
+        tool_procs=tool_procs,
+        monitors=monitors,
+        update_rows=tuple(update_rows),
+        bg_rows=tuple(bg_rows),
+        monitor_rows=tuple(monitor_rows),
+        tool_run_ids=frozenset(tool_run_ids),
+    )
 
 
 def monitor_row_agent_name(row: ObservedProc) -> str | None:
@@ -427,6 +533,10 @@ class ProcObserverSnapshot:
 
 
 __all__ = [
+    "TOOL_RUN_JOIN_TAG_PREFIX",
+    "TOOL_RUN_OWNER_TAG",
+    "TOOL_RUN_OWNER_TAG_PREFIX",
+    "TOOL_RUN_PROC_ORIGIN",
     "GearLane",
     "INSTALL_MUTATION_PROC_TYPES",
     "ObservedProc",

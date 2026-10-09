@@ -7,11 +7,13 @@ import pytest
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
+from sase.ace.tui.tool_runs.top_bar import TopBarToolsModel
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
     NotificationIndicator,
     ProcIndicator,
     StashedPromptsIndicator,
+    ToolsIndicator,
     TopBarIndicators,
     UpdatesAvailableIndicator,
 )
@@ -91,7 +93,18 @@ async def _drive_busy(page: AcePage, monkeypatch: pytest.MonkeyPatch) -> None:
         "peek_provider_routing_context",
         lambda *a, **k: context,
     )
-    page.app.query_one("#proc-indicator", ProcIndicator).set_counts(2, 1)
+    page.app.query_one("#tools-indicator", ToolsIndicator).set_model(
+        TopBarToolsModel(
+            live=2,
+            silent=0,
+            bare_monitors=1,
+            bare_monitor_names=("acme--mon",),
+            tooltip="2 live tool runs\nClick to open Admin Center › Tools (all projects)",
+        )
+    )
+    page.app.query_one("#proc-indicator", ProcIndicator).set_model(
+        2, "2 TUI background procs\nClick to open the Procs tab"
+    )
     page.app.query_one("#updates-indicator", UpdatesAvailableIndicator).set_available(
         3, core=True, agent_cli_count=2
     )
@@ -114,7 +127,8 @@ async def test_busy_cluster_renders_all_labels_wide(
         await _drive_busy(page, monkeypatch)
         text = _cluster_text(page)
         for label in (
-            "procs:",
+            "tools:",
+            "bg:",
             "updates:",
             "overrides:",
             "stash:",
@@ -128,7 +142,9 @@ async def test_busy_cluster_renders_all_labels_wide(
         assert "CODEX ★" in text
         assert "CLAUDE off" in text
         assert "monitors:" not in text
-        assert "procs:  ⚙ 2  ⚙ 1 " in text
+        assert "procs:" not in text
+        assert "tools:  ⚒ 2  ⚙ 1 " in text
+        assert "bg:  ⚙ 2 " in text
         assert "stash:  ≡ 4 " in text
         assert "prompts:" not in text
         assert " · " in text
@@ -207,11 +223,14 @@ async def test_busy_cluster_compacts_narrow_and_restores_wide(
         await page.pause()
         # The live proc observer can reset manual counts to the real (empty)
         # projection; re-drive them so the narrow frame stays busy.
-        page.app.query_one("#proc-indicator", ProcIndicator).set_counts(2, 1)
+        page.app.query_one("#proc-indicator", ProcIndicator).set_model(
+            2, "2 TUI background procs\nClick to open the Procs tab"
+        )
         await page.pause()
         assert cluster.density == "compact"
         narrow_text = _cluster_text(page)
-        assert "procs:" not in narrow_text
+        assert "tools:" not in narrow_text
+        assert "bg:" not in narrow_text
         assert "overrides:" not in narrow_text
         assert "priority:" not in narrow_text
         assert "disabled:" not in narrow_text
@@ -231,10 +250,12 @@ async def test_busy_cluster_compacts_narrow_and_restores_wide(
         await page.app.wait_for_refresh()
         await page.pause()
         # Re-drive proc counts for the same observer reason as above.
-        page.app.query_one("#proc-indicator", ProcIndicator).set_counts(2, 1)
+        page.app.query_one("#proc-indicator", ProcIndicator).set_model(
+            2, "2 TUI background procs\nClick to open the Procs tab"
+        )
         await page.pause()
         assert cluster.density == "full"
-        assert "procs:" in _cluster_text(page)
+        assert "bg:" in _cluster_text(page)
         assert "overrides:" in _cluster_text(page)
 
 
@@ -248,11 +269,15 @@ async def test_newly_clickable_groups_run_home_actions(
             calls.append(name)
 
         monkeypatch.setattr(page.app, "run_action", _record)
-        page.app.query_one("#proc-indicator", ProcIndicator).set_counts(1, 1)
+        page.app.query_one("#tools-indicator", ToolsIndicator).set_model(
+            TopBarToolsModel(live=1, tooltip="1 live tool run")
+        )
+        page.app.query_one("#proc-indicator", ProcIndicator).set_model(1, "one")
         page.app.query_one(
             "#stashed-prompts-indicator", StashedPromptsIndicator
         ).set_count(1)
         await page.pause()
+        await page.app.query_one("#tools-indicator", ToolsIndicator).on_click()
         await page.app.query_one("#proc-indicator", ProcIndicator).on_click()
         await page.app.query_one(
             "#stashed-prompts-indicator", StashedPromptsIndicator
@@ -261,6 +286,7 @@ async def test_newly_clickable_groups_run_home_actions(
             "#alias-overrides-indicator", AliasOverridesIndicator
         ).on_click()
         assert calls == [
+            "open_live_tool_runs",
             "open_tasks_panel",
             "open_prompt_stash",
             "open_models_panel",

@@ -245,7 +245,7 @@ appends a durable `pending` row, then starts the supervisor. The supervisor owns
 child process group, captures combined stdout/stderr, and writes the terminal status.
 `session_id=None` records an unattributed command row even when called from a live
 sase's TUI process. That makes it visible in every session's default Procs scope and
-adds the active proc to every live sase's TUI session's top-bar proc count.
+adds the active proc to every live sase's TUI session's top-bar `bg:` count.
 
 The legacy `submit_detached_proc()` compatibility wrapper is still importable for old
 integrations, but new code should call `submit_proc(..., session_id=None)`. The wrapper

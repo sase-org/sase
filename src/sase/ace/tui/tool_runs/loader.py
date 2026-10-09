@@ -62,10 +62,8 @@ class ToolRunGlanceLoaderMixin:
         return probe_tool_runs_token()
 
     def _schedule_tool_runs_refresh(self, *, source: str = "unknown") -> None:
-        """Queue a coalesced glance load once the first agents load applied."""
+        """Queue a coalesced glance load on any tab (no Agents gate)."""
         if tool_runs_disabled_reason() is not None:
-            return
-        if not getattr(self, "_agents_first_load_done", False):
             return
         state = _tool_runs_state(self)
         if state.running:
@@ -124,16 +122,31 @@ class ToolRunGlanceLoaderMixin:
             ):
                 loaded = await asyncio.to_thread(load_glance_blocking)
             if loaded is None:
+                if tool_runs_disabled_reason() is None:
+                    if state.failing_since_mono is None:
+                        state.failing_since_mono = time.monotonic()
+                try:
+                    self._update_proc_indicator()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
                 return
+            state.failing_since_mono = None
             if tool_runs_disabled_reason() is not None:
                 return
-            current_tab = getattr(self, "current_tab", "agents")
             probe_after = self._tool_runs_probe_token()  # type: ignore[attr-defined]
             token = probe_after if probe_after is not None else probe_before
             apply_loaded_snapshot(loaded, store_token=token)
             state.last_token = token
-            if current_tab == "agents":
+            # Rows patch only on the Agents tab (a no-op elsewhere), but the
+            # top bar refreshes on every tab.
+            try:
                 self._apply_tool_runs_snapshot(source=state.source)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                self._update_proc_indicator()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         except Exception:
             log.exception("ToolRun glance refresh failed")
         finally:
@@ -145,15 +158,10 @@ class ToolRunGlanceLoaderMixin:
     def _maybe_probe_tool_runs_drift(self, *, source: str = "unknown") -> None:
         """Stat-only drift probe for the 1 s countdown tick (at most /2 s).
 
-        While the last snapshot holds at least one live run and the Agents
-        tab is visible, piggyback on the existing countdown tick. Adds no
-        new timer or loop. A quiet tick opens no ToolRun file.
+        Runs on every tab, piggybacking on the existing countdown tick.
+        Adds no new timer or loop. A quiet tick opens no ToolRun file.
         """
         if tool_runs_disabled_reason() is not None:
-            return
-        if getattr(self, "current_tab", None) != "agents":
-            return
-        if not getattr(self, "_agents_first_load_done", False):
             return
         snapshot = get_snapshot()
         if snapshot is None or not snapshot.has_live_runs:
@@ -177,17 +185,53 @@ class ToolRunGlanceLoaderMixin:
         drifted = surface_token_drifted(current, last)
         if drifted or (snapshot is None):
             self._schedule_tool_runs_refresh(source=source)  # type: ignore[attr-defined]
+        # Silence can begin without a store write (a dead executor), so
+        # re-evaluate the top-bar model on the same cadence; the repaint
+        # only lands when the model changed.
+        try:
+            self._update_proc_indicator()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def _reconcile_tool_runs_on_agents_entry(self) -> None:
+        """Apply a newer glance once when returning to the Agents tab."""
+        try:
+            snapshot = get_snapshot()
+        except Exception:
+            return
+        if snapshot is None:
+            return
+        try:
+            generation = int(getattr(snapshot, "generation", 0) or 0)
+        except (TypeError, ValueError):
+            return
+        try:
+            last = int(getattr(self, "_tool_runs_last_applied_generation", 0) or 0)
+        except (TypeError, ValueError):
+            last = 0
+        if generation <= last:
+            return
+        try:
+            self._apply_tool_runs_snapshot(source="agents_tab_entry")  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _apply_tool_runs_snapshot(self, *, source: str = "unknown") -> None:
         """Patch visible rows with live or newly settled chips; never rebuild for hidden rows."""
         del source
         if getattr(self, "current_tab", "agents") != "agents":
             return
-        agents = list(getattr(self, "_agents", ()) or ())
-        if not agents:
-            return
         snapshot = get_snapshot()
         if snapshot is None:
+            return
+        try:
+            self._tool_runs_last_applied_generation = int(  # type: ignore[attr-defined]
+                getattr(snapshot, "generation", 0) or 0
+            )
+        except (TypeError, ValueError):
+            pass
+        agents = list(getattr(self, "_agents", ()) or ())
+        if not agents:
             return
         visible_by_identity: dict[Any, Any] = {}
         for agent in agents:

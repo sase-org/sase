@@ -70,8 +70,11 @@ async def test_tool_runs_rows_png_snapshots(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_tool_run_clocks(monkeypatch)
-    seed_tool_run_surfaces(monkeypatch, glances=_rows_glances(), summaries={})
+    # Seed after patch_startup_loaders: the startup helper resets the
+    # glance snapshot and stubs the loader seam to None, so seeding first
+    # would be clobbered and no row chips would render.
     patch_startup_loaders(monkeypatch, agents=_rows_agents())
+    seed_tool_run_surfaces(monkeypatch, glances=_rows_glances(), summaries={})
 
     async with AcePage(query='"visual"', patches=patches(), size=size) as page:
         await wait_for_startup(page)

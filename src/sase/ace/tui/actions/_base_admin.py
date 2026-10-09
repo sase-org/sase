@@ -50,6 +50,25 @@ class BaseAdminActionsMixin(BaseActionsHost):
         """Open the SASE Admin Center on the Tools tab."""
         self._open_config_center("tools")
 
+    def action_open_live_tool_runs(self) -> None:
+        """Open Admin Center › Tools › Runs with all projects.
+
+        The top-bar ``tools:`` click target: the pane must show at least
+        the runs the chip claims, so the project filter is lifted and the
+        Runs view is selected.
+        """
+        from ..modals.config_center_session import (
+            AdminCenterSessionState,
+        )
+
+        session_state = getattr(self, "_admin_center_session_state", None)
+        if not isinstance(session_state, AdminCenterSessionState):
+            session_state = AdminCenterSessionState()
+            self._admin_center_session_state = session_state
+        session_state.tools.active_view = "runs"
+        session_state.tools.all_projects = True
+        self._open_config_center("tools")
+
     def action_open_provider_usage(self, provider: str | None = None) -> None:
         """Open the read-only Providers · Usage view."""
         from ..modals.models_panel_usage_modal import ProviderUsageModal

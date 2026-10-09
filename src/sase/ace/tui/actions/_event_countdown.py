@@ -74,6 +74,25 @@ class EventCountdownMixin(EventHandlersBase):
             # Stream live output for an active chop run without waiting for
             # the slower full-fleet refresh interval.
             self._axe_live_tick()  # type: ignore[attr-defined]
+        if self.current_tab != "agents":
+            # ToolRun live drift probe on every tab (plan sase-1ih): stat-only,
+            # at most every 2 s, still behind the navigation and prompt gates.
+            # The Agents tab probes through its own branch above.
+            try:
+                navigating = self._nav_gate.is_navigating(now_mono=now_mono)
+            except Exception:
+                navigating = False
+            try:
+                prompt_active = self._prompt_input_active()
+            except Exception:
+                prompt_active = False
+            if not navigating and not prompt_active:
+                probe = getattr(self, "_maybe_probe_tool_runs_drift", None)
+                if callable(probe):
+                    try:
+                        probe(source="countdown_tick")
+                    except Exception:
+                        pass
 
     def _record_input_event(self) -> None:
         """Record input for delayed background work.

@@ -75,7 +75,9 @@ async def test_header_splits_running_procs_and_running_monitors(
         await pilot.pause()
 
         title = pane._title_text()
-        assert title.plain == ("Procs · this session   ⚙ 2  ⚙ 1   [3 running · 1 done]")
+        assert title.plain == (
+            "Procs · this session   ⚙ 2  ⚒ 0  ⚙ 1   [3 running · 1 done]"
+        )
         # bracketed total is the sum of both lanes, by construction.
         assert 2 + 1 == 3
         styles = [span.style for span in title.spans]
@@ -94,7 +96,9 @@ async def test_header_zero_lanes_render_dim_unfilled_chip(
         await pilot.pause()
 
         title = pane._title_text()
-        assert title.plain == "Procs · this session   ⚙ 0  ⚙ 0   [0 running · 1 done]"
+        assert (
+            title.plain == "Procs · this session   ⚙ 0  ⚒ 0  ⚙ 0   [0 running · 1 done]"
+        )
         styles = [span.style for span in title.spans]
         assert f"dim {PROC_GEAR_HUE}" in styles
         assert f"dim {MONITOR_GEAR_HUE}" in styles
@@ -113,7 +117,9 @@ async def test_header_excludes_finished_monitor_from_running_count(
         await pilot.pause()
 
         title = pane._title_text()
-        assert title.plain == "Procs · this session   ⚙ 0  ⚙ 0   [0 running · 1 done]"
+        assert (
+            title.plain == "Procs · this session   ⚙ 0  ⚒ 0  ⚙ 0   [0 running · 1 done]"
+        )
 
 
 async def test_header_counts_move_with_scope_toggle(
@@ -140,7 +146,7 @@ async def test_header_counts_move_with_scope_toggle(
         await pilot.pause()
 
         assert pane._title_text().plain == (
-            "Procs · this session   ⚙ 0  ⚙ 0   [0 running · 0 done]"
+            "Procs · this session   ⚙ 0  ⚒ 0  ⚙ 0   [0 running · 0 done]"
         )
 
         await pilot.press("a")
@@ -149,7 +155,7 @@ async def test_header_counts_move_with_scope_toggle(
 
         assert pane._all_sessions is True
         assert pane._title_text().plain == (
-            "Procs · all sessions   ⚙ 0  ⚙ 1   [1 running · 0 done]"
+            "Procs · all sessions   ⚙ 0  ⚒ 0  ⚙ 1   [1 running · 0 done]"
         )
 
 
@@ -178,13 +184,13 @@ async def test_header_blue_chip_matches_top_bar_gear_count(
         await pilot.pause()
 
         lanes = proc_gear_lanes(pilot.app._effective_proc_projection())
-        gear_count = lanes.procs + lanes.updates
+        gear_count = lanes.bg + lanes.updates
         assert gear_count == 1
         title = pane._title_text()
         # The blue chip is the top-bar gear count; the bracketed inventory
         # still lists every active row, service rows included.
         assert title.plain == (
-            f"Procs · this session   ⚙ {gear_count}  ⚙ 1   [5 running · 1 done]"
+            f"Procs · this session   ⚙ {gear_count}  ⚒ 0  ⚙ 1   [5 running · 1 done]"
         )
 
 
@@ -204,7 +210,7 @@ async def test_header_excludes_update_rows_from_blue_and_shows_green_chip(
 
         title = pane._title_text()
         assert title.plain == (
-            "Procs · this session   ⚙ 1  ⚙ 1  ⚙ 1   [3 running · 0 done]"
+            "Procs · this session   ⚙ 1  ⚒ 0  ⚙ 1  ⚙ 1   [3 running · 0 done]"
         )
         styles = [span.style for span in title.spans]
         assert f"bold #1a1a1a on {PROC_GEAR_HUE}" in styles
@@ -223,8 +229,41 @@ async def test_header_hides_green_chip_with_no_update_rows(
         await pilot.pause()
 
         title = pane._title_text()
-        assert title.plain == "Procs · this session   ⚙ 1  ⚙ 0   [1 running · 0 done]"
+        assert (
+            title.plain == "Procs · this session   ⚙ 1  ⚒ 0  ⚙ 0   [1 running · 0 done]"
+        )
         assert f"on {UPDATE_GEAR_HUE}" not in [span.style for span in title.spans]
+
+
+async def test_header_shows_tool_chip_for_carrier_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.tool.view_vocabulary import TOOL_RUN_ACCENT
+
+    patch_store_loader(monkeypatch, [])
+    plain = task("plain", label="sync", status="running", age_seconds=1)
+    carrier = task(
+        "tool-1",
+        label="tool check",
+        status="running",
+        age_seconds=2,
+        origin="tool-run",
+    )
+    join_monitor = _monitor_task(
+        "mon-join", label="just check", status="running", age_seconds=3
+    )
+    join_monitor.tags = ("tool-run-join:run-9",)
+
+    async with ProcsTestApp(queue(plain, carrier, join_monitor)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        await pilot.pause()
+
+        title = pane._title_text()
+        assert title.plain == (
+            "Procs · this session   ⚙ 1  ⚒ 2  ⚙ 0   [3 running · 0 done]"
+        )
+        styles = [span.style for span in title.spans]
+        assert f"bold #1a1a1a on {TOOL_RUN_ACCENT}" in styles
 
 
 def test_update_row_carries_green_marker() -> None:

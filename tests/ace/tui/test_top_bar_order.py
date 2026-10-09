@@ -36,9 +36,10 @@ EXPECTED_TOP_BAR_ORDER = [
 ]
 
 # Expected left-to-right child order inside ``#top-bar-indicators``: the
-# five labeled groups (procs, updates, overrides, stash, inbox) with
+# six labeled groups (tools, bg, updates, overrides, stash, inbox) with
 # separators interleaved.
 EXPECTED_TOP_BAR_CLUSTER_ORDER = [
+    "tools-indicator",
     "proc-indicator",
     "updates-indicator",
     "alias-overrides-indicator",

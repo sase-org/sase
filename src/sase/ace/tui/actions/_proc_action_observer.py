@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker
@@ -19,6 +20,7 @@ from ..proc_observer import (
     stop_orphaned_proc_observers,
 )
 from ..widgets.proc_indicator import ProcIndicator
+from ..widgets.tools_indicator import ToolsIndicator
 from ._proc_action_types import ProcCallbackConfig
 
 PROC_RECONCILE_STARTUP_DELAY_SECONDS = 1.0
@@ -125,20 +127,61 @@ class ProcObserverActionsMixin:
         )
 
     def _update_proc_indicator(self) -> None:
-        """Update the proc and updates indicators from the effective projection."""
+        """Update the tools, bg, and updates indicators from projection+glance."""
         try:
             projection = self._effective_proc_projection()
         except Exception:
             return
         try:
-            lanes = proc_gear_lanes(projection)
+            from ..tool_runs.snapshot import (
+                get_snapshot,
+                tool_runs_disabled_reason,
+            )
+            from ..tool_runs.top_bar import (
+                bg_tooltip_text,
+                tool_run_owner_proc_ids,
+                top_bar_tools_model,
+            )
+
+            snapshot = get_snapshot()
+            disabled_reason = tool_runs_disabled_reason()
+            load_state = getattr(self, "_tool_runs_load_state", None)
+            failing_since_mono = getattr(load_state, "failing_since_mono", None)
+        except Exception:
+            snapshot = None
+            disabled_reason = None
+            failing_since_mono = None
+        try:
+            owner_ids = tool_run_owner_proc_ids(snapshot)
+        except Exception:
+            owner_ids = frozenset()
+        try:
+            lanes = proc_gear_lanes(projection, tool_run_owner_proc_ids=owner_ids)
         except Exception:
             return
+        try:
+            model = top_bar_tools_model(
+                snapshot=snapshot,
+                lanes=lanes,
+                now_ts=time.time(),
+                now_mono=time.monotonic(),
+                failing_since_mono=failing_since_mono,
+                disabled_reason=disabled_reason,
+            )
+        except Exception:
+            return
+        try:
+            tools = self.query_one(  # type: ignore[attr-defined]
+                "#tools-indicator", ToolsIndicator
+            )
+            tools.set_model(model)
+        except Exception:
+            pass
         try:
             indicator = self.query_one(  # type: ignore[attr-defined]
                 "#proc-indicator", ProcIndicator
             )
-            indicator.set_counts(lanes.procs, lanes.monitors)
+            indicator.set_model(lanes.bg, bg_tooltip_text(bg_rows=lanes.bg_rows))
         except Exception:
             pass
         try:

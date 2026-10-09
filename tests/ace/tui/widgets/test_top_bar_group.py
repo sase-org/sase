@@ -78,6 +78,14 @@ def test_icon_count_chip_style_and_zero() -> None:
     assert icon_count_chip("⚙", -3, PROC_GEAR_HUE).plain == ""
 
 
+def test_icon_count_chip_display_and_dim_variants() -> None:
+    assert icon_count_chip("⚒", 200, "#87D7FF", display="200+").plain == " ⚒ 200+ "
+    stale = icon_count_chip("⚒", 2, "#87D7FF", dim=True)
+    assert stale.plain == " ⚒ 2 ? "
+    assert stale.style == "dim #1a1a1a on #87D7FF"
+    assert icon_count_chip("⚒", 0, "#87D7FF", display="200+").plain == ""
+
+
 class _ProbeGroup(TopBarGroup):
     GROUP_LABEL = "probes"
 

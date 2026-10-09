@@ -1,4 +1,4 @@
-"""Proc-indicator count and update-lane coverage."""
+"""Tools/bg indicator count and update-lane coverage."""
 
 from __future__ import annotations
 
@@ -16,12 +16,20 @@ __all__ = [
 ]
 
 
-class _FakeIndicator:
+class _FakeBgIndicator:
     def __init__(self) -> None:
-        self.counts: list[tuple[int, int]] = []
+        self.models: list[tuple[int, str]] = []
 
-    def set_counts(self, proc_count: int, monitor_count: int) -> None:
-        self.counts.append((proc_count, monitor_count))
+    def set_model(self, bg_count: int, tooltip: str) -> None:
+        self.models.append((bg_count, tooltip))
+
+
+class _FakeToolsIndicator:
+    def __init__(self) -> None:
+        self.models: list[Any] = []
+
+    def set_model(self, model: Any) -> None:
+        self.models.append(model)
 
 
 class _IndicatorHost(ProcActionsMixin):
@@ -66,7 +74,8 @@ def _update_row(proc_id: str) -> ObservedProc:
 
 
 def test_update_proc_indicator_splits_ace_and_monitor_counts() -> None:
-    proc_indicator = _FakeIndicator()
+    proc_indicator = _FakeBgIndicator()
+    tools_indicator = _FakeToolsIndicator()
     host = _IndicatorHost(
         ProcProjection(
             rows=(
@@ -88,12 +97,15 @@ def test_update_proc_indicator_splits_ace_and_monitor_counts() -> None:
         ),
         widgets={
             "#proc-indicator": proc_indicator,
+            "#tools-indicator": tools_indicator,
         },
     )
 
     host._update_proc_indicator()
 
-    assert proc_indicator.counts == [(2, 1)]
+    assert [count for count, _tooltip in proc_indicator.models] == [2]
+    assert proc_indicator.models[0][1].startswith("2 TUI background procs")
+    assert len(tools_indicator.models) == 1
 
 
 def test_update_proc_indicator_missing_proc_indicator_is_noop() -> None:
@@ -106,7 +118,7 @@ def test_update_proc_indicator_missing_proc_indicator_is_noop() -> None:
 
 
 def test_update_proc_indicator_moves_update_lane_to_green_gear() -> None:
-    proc_indicator = _FakeIndicator()
+    proc_indicator = _FakeBgIndicator()
     updates_indicator = _FakeUpdatesIndicator()
     host = _IndicatorHost(
         ProcProjection(rows=(_update_row("update-1"),)),
@@ -118,7 +130,7 @@ def test_update_proc_indicator_moves_update_lane_to_green_gear() -> None:
 
     host._update_proc_indicator()
 
-    assert proc_indicator.counts == [(0, 0)]
+    assert [count for count, _tooltip in proc_indicator.models] == [0]
     assert updates_indicator.labels == [("sase update",)]
 
     host._proc_projection = ProcProjection(
@@ -126,11 +138,11 @@ def test_update_proc_indicator_moves_update_lane_to_green_gear() -> None:
     )
     host._update_proc_indicator()
 
-    assert proc_indicator.counts[-1] == (1, 0)
+    assert proc_indicator.models[-1][0] == 1
     assert updates_indicator.labels[-1] == ("sase update",)
 
     host._proc_projection = ProcProjection(rows=(sync_row("sync-1"),))
     host._update_proc_indicator()
 
-    assert proc_indicator.counts[-1] == (1, 0)
+    assert proc_indicator.models[-1][0] == 1
     assert updates_indicator.labels[-1] == ()
