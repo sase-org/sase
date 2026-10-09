@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.legacy_xprompt_syntax import RETIRED_ROOT_COMMAND
 from sase.plugin_commands import chip as chip_module
 from sase.plugin_commands.adapter import (
     PluginCommandLoadError,
@@ -121,7 +122,7 @@ def test_reserved_names_cover_builtins_legacy_aliases_and_help() -> None:
     # Legacy aliases share registrars and stay reserved.
     assert {"task", "changespec", "vcs"} <= reserved
     assert "help" in reserved
-    assert "xprompt" in reserved
+    assert RETIRED_ROOT_COMMAND in reserved
     assert "listen" not in reserved
 
 

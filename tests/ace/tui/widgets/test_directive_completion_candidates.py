@@ -127,10 +127,16 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert directive_metadata(alt).description == (
         "Split prompt into variants with different text; shorthand %{A | B}"
     )
+    # Fail-closed %auto grammar (sase-core e8606a56): the description spells
+    # out the accepted modes so an unknown spelling fails at launch.
     assert directive_metadata(auto).description == (
-        "Request automatic gate resolution; arguments are interpreted by the gate kind"
+        "Request automatic gate resolution; use %auto, %auto+, or %auto:<mode>"
+        " with mode plan, tale, or epic. %auto:manual and %auto:off disable"
+        " automatic approval; any other spelling fails at launch"
     )
-    assert directive_metadata(auto).argument_hint == (":argument (e.g. plan|tale|epic)")
+    assert directive_metadata(auto).argument_hint == (
+        ":mode (plan|tale|epic|manual|off)"
+    )
 
 
 def test_final_directive_name_completes_to_canonical_row() -> None:

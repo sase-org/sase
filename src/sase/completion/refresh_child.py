@@ -43,7 +43,7 @@ def refresh_completions_in_child(
     JSON, non-zero exit) degrades to a failed report carrying a retry hint,
     never an exception.
     """
-    executable = tool_sase_executable(install)
+    executable = _tool_sase_executable(install)
     if not executable.is_file():
         return _child_refresh_failure(
             f"completion refresh executable is unavailable: {executable}"
@@ -98,7 +98,7 @@ def refresh_completions_in_child(
     return report
 
 
-def tool_sase_executable(install: UvToolInstall) -> Path:
+def _tool_sase_executable(install: UvToolInstall) -> Path:
     """Return the ``sase`` executable inside the managed uv tool install."""
     filename = "sase.exe" if os.name == "nt" else "sase"
     scripts_dir = "Scripts" if os.name == "nt" else "bin"
@@ -183,7 +183,7 @@ __all__ = [
     "COMPLETION_REFRESH_TIMEOUT_SECONDS",
     "CompletionRefreshReport",
     "RefreshShellOutcome",
+    "_tool_sase_executable",
     "refresh_completions_in_child",
     "render_completion_refresh",
-    "tool_sase_executable",
 ]

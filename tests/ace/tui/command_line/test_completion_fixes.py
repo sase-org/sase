@@ -190,6 +190,15 @@ async def _panel(grammar: Any) -> AsyncGenerator[tuple[Any, Any]]:
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             page.app._command_line_grammar = grammar
+            # The fixture bypasses the loader worker, which would otherwise
+            # record the spec key next to the handle. Record it here so the
+            # panel-open recheck sees no change and never rebuilds the
+            # grammar (resetting an active menu) mid-test.
+            from sase.completion.command_line_spec import (
+                current_command_line_spec_key,
+            )
+
+            page.app._command_line_grammar_key = current_command_line_spec_key()
             page.app.action_open_command_line()
             await page.expect_modal("CommandLineScreen")
             screen = page.app.screen
@@ -210,7 +219,7 @@ async def _type(page: Any, screen: Any, line: str) -> Any:
 async def test_tab_through_every_subcommand_reaches_the_last_with_a_highlight(
     grammar_handle: Any,
 ) -> None:
-    """``bead `` offers 30 subcommands; Tab walks all of them, highlight visible."""
+    """``bead `` overflows one popup window; Tab walks every subcommand."""
     async with _panel(grammar_handle) as (page, screen):
         await _type(page, screen, "bead ")
         state = screen._popup_state

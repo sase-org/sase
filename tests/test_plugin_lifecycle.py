@@ -22,9 +22,9 @@ from sase.completion.install_models import (
     RefreshShellOutcome,
 )
 from sase.plugin_commands.snapshot import (
-    CommandChange,
     CommandChanges,
-    CommandSnapshotEntry,
+    _CommandChange,
+    _CommandSnapshotEntry,
     diff_command_snapshots,
 )
 from sase.plugins import cli_install, cli_uninstall, cli_update
@@ -68,8 +68,8 @@ from ._plugin_operations_helpers import (
 
 def _entry(
     name: str, dist: str, version: str, location: str = ""
-) -> CommandSnapshotEntry:
-    return CommandSnapshotEntry(
+) -> _CommandSnapshotEntry:
+    return _CommandSnapshotEntry(
         name=name, distribution=dist, version=version, location=location
     )
 
@@ -117,13 +117,13 @@ def test_diff_reports_added_removed_and_updated() -> None:
     changes = diff_command_snapshots(before, after)
     assert changes
     assert changes.added == (
-        CommandChange(name="new", distribution="sase-new", version="0.0.1"),
+        _CommandChange(name="new", distribution="sase-new", version="0.0.1"),
     )
     assert changes.removed == (
-        CommandChange(name="gone", distribution="sase-gone", version="1.0.0"),
+        _CommandChange(name="gone", distribution="sase-gone", version="1.0.0"),
     )
     assert changes.updated == (
-        CommandChange(name="listen", distribution="sase-listen", version="0.1.2"),
+        _CommandChange(name="listen", distribution="sase-listen", version="0.1.2"),
     )
     assert changes.to_json() == {
         "added": [
@@ -250,13 +250,13 @@ def test_plugin_entry_json_includes_commands() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _snapshots(*states: dict[str, CommandSnapshotEntry]):
+def _snapshots(*states: dict[str, _CommandSnapshotEntry]):
     snapshots = iter(states)
     return lambda: next(snapshots)
 
 
 def test_execute_install_reports_added_command_and_refreshes(tmp_path: Path) -> None:
-    before: dict[str, CommandSnapshotEntry] = {}
+    before: dict[str, _CommandSnapshotEntry] = {}
     after = {"listen": _entry("listen", "sase-listen", "0.1.2")}
     refresh_calls: list[Any] = []
 
@@ -314,7 +314,7 @@ def test_no_refresh_when_command_set_is_unchanged(tmp_path: Path) -> None:
 
 
 def test_refresh_failure_is_nonfatal(tmp_path: Path) -> None:
-    before: dict[str, CommandSnapshotEntry] = {}
+    before: dict[str, _CommandSnapshotEntry] = {}
     after = {"listen": _entry("listen", "sase-listen", "0.1.2")}
 
     def _fail(install: Any) -> CompletionRefreshReport:
@@ -409,7 +409,7 @@ def test_install_panel_announces_new_command_and_refresh() -> None:
         console=out,
         command_changes=CommandChanges(
             added=(
-                CommandChange(
+                _CommandChange(
                     name="listen", distribution="sase-listen", version="0.1.2"
                 ),
             )
@@ -434,7 +434,7 @@ def test_uninstall_panel_announces_removed_command() -> None:
         console=out,
         command_changes=CommandChanges(
             removed=(
-                CommandChange(
+                _CommandChange(
                     name="listen", distribution="sase-listen", version="0.1.2"
                 ),
             )
@@ -456,7 +456,7 @@ def test_update_panel_hides_provider_only_updates() -> None:
         console=out,
         command_changes=CommandChanges(
             updated=(
-                CommandChange(
+                _CommandChange(
                     name="listen", distribution="sase-listen", version="0.1.2"
                 ),
             )

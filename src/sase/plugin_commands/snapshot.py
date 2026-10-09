@@ -18,11 +18,11 @@ from dataclasses import dataclass
 from sase.plugin_commands.scan import scan_plugin_commands
 
 #: Snapshot of the declared command set: command name -> entry details.
-CommandSnapshot = dict[str, "CommandSnapshotEntry"]
+CommandSnapshot = dict[str, "_CommandSnapshotEntry"]
 
 
 @dataclass(frozen=True)
-class CommandSnapshotEntry:
+class _CommandSnapshotEntry:
     """One declared command at snapshot time."""
 
     name: str
@@ -32,7 +32,7 @@ class CommandSnapshotEntry:
 
 
 @dataclass(frozen=True)
-class CommandChange:
+class _CommandChange:
     """One command that appeared, disappeared, or changed provider details."""
 
     name: str
@@ -52,9 +52,9 @@ class CommandChange:
 class CommandChanges:
     """Diff of two command snapshots."""
 
-    added: tuple[CommandChange, ...] = ()
-    removed: tuple[CommandChange, ...] = ()
-    updated: tuple[CommandChange, ...] = ()
+    added: tuple[_CommandChange, ...] = ()
+    removed: tuple[_CommandChange, ...] = ()
+    updated: tuple[_CommandChange, ...] = ()
 
     def __bool__(self) -> bool:
         """Return whether any command was added, removed, or updated."""
@@ -73,7 +73,7 @@ def take_command_snapshot() -> CommandSnapshot:
     """Capture the current declared command set, ignoring disable switches."""
     snapshot: CommandSnapshot = {}
     for record in scan_plugin_commands(honor_disable=False):
-        snapshot[record.name] = CommandSnapshotEntry(
+        snapshot[record.name] = _CommandSnapshotEntry(
             name=record.name,
             distribution=record.distribution,
             version=record.version,
@@ -87,7 +87,7 @@ def diff_command_snapshots(
 ) -> CommandChanges:
     """Diff two snapshots into added, removed, and updated command changes."""
     added = tuple(
-        CommandChange(
+        _CommandChange(
             name=name,
             distribution=entry.distribution,
             version=entry.version,
@@ -96,7 +96,7 @@ def diff_command_snapshots(
         if name not in before
     )
     removed = tuple(
-        CommandChange(
+        _CommandChange(
             name=name,
             distribution=entry.distribution,
             version=entry.version,
@@ -105,7 +105,7 @@ def diff_command_snapshots(
         if name not in after
     )
     updated = tuple(
-        CommandChange(
+        _CommandChange(
             name=name,
             distribution=after[name].distribution,
             version=after[name].version,
@@ -117,10 +117,10 @@ def diff_command_snapshots(
 
 
 __all__ = [
-    "CommandChange",
     "CommandChanges",
     "CommandSnapshot",
-    "CommandSnapshotEntry",
+    "_CommandChange",
+    "_CommandSnapshotEntry",
     "diff_command_snapshots",
     "take_command_snapshot",
 ]
