@@ -622,6 +622,88 @@ def test_agreement_fails_on_managed_mode() -> None:
     assert '"managed"' in verdict.detail
 
 
+def _clean_mixed_doc() -> dict[str, Any]:
+    return _update_doc(
+        "mixed",
+        [
+            {
+                "name": "sase",
+                "role": "host",
+                "status": "skipped",
+                "reason": "already current",
+            }
+        ],
+        [
+            {
+                "kind": "rust_dev_install",
+                "label": "Rebuild Rust dev artifacts into the uv-tool venv",
+                "command": ["just", "rust-dev-install-uv-tool"],
+                "reason": None,
+            }
+        ],
+    )
+
+
+def test_agreement_accepts_mixed_when_allowed() -> None:
+    verdict = install_run.classify_update_agreement(
+        _clean_mixed_doc(), allow_mixed=True
+    )
+    assert verdict.agrees is True
+    assert verdict.warning_only is False
+    assert '"mixed"' in verdict.detail
+
+
+def test_agreement_mixed_allowed_still_fails_on_published_wheel() -> None:
+    doc = _update_doc(
+        "mixed",
+        [
+            {
+                "name": "sase-core-rs",
+                "role": "core",
+                "status": "actionable",
+                "reason": (
+                    "installed sase-core-rs is a published wheel; dev installs "
+                    "use the editable build from the local checkout"
+                ),
+            }
+        ],
+        [],
+    )
+    verdict = install_run.classify_update_agreement(doc, allow_mixed=True)
+    assert verdict.agrees is False
+    assert verdict.warning_only is False
+    assert "published wheel" in verdict.detail
+
+
+def test_agreement_mixed_without_allow_mixed_still_fails() -> None:
+    verdict = install_run.classify_update_agreement(_clean_mixed_doc())
+    assert verdict.agrees is False
+    assert verdict.warning_only is False
+    assert '"mixed"' in verdict.detail
+
+
+def test_mixed_mode_with_pypi_plugin_passes_dev_verify(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    harness = Harness(tmp_path, monkeypatch)
+    # A receipt plugin installed from PyPI: no durable checkout exists, so
+    # the dev plan targets PyPI and the install receipt is mixed.
+    kit.write_receipt(
+        harness.tool_dir,
+        [
+            {"name": "sase", "specifier": "==0.17.1"},
+            {"name": "sase-github", "specifier": ">=0.1"},
+        ],
+    )
+    kit.write_dist(Path(harness.env["FAKE_SITE_PACKAGES"]), "sase-github", "0.4.2")
+    harness.lookup = kit.FakePyPI({"sase-github": "0.4.2"})
+    harness.env["FAKE_UPDATE_JSON"] = json.dumps(_clean_mixed_doc())
+    exit_code, out, err = harness.run(["dev", "-y"])
+    assert exit_code == 0
+    assert "sase now runs this checkout" in out
+    assert "Verify failed" not in err
+
+
 def test_agreement_warns_without_a_document() -> None:
     verdict = install_run.classify_update_agreement(None)
     assert verdict.agrees is False

@@ -704,12 +704,30 @@ def verify_pypi_install(
         agree_doc = (
             _parse_json_object(agreement.stdout) if agreement.returncode == 0 else None
         )
-        if agree_doc is not None and agree_doc.get("mode") == "managed":
+        # A PyPI plan that intentionally keeps an editable plugin (the
+        # unpublished-plugin fallback) installs a mixed receipt, so
+        # "mixed" agrees too instead of warning as inconclusive.
+        keeps_editable_plugin = any(
+            row.role == "plugin"
+            and row.target.kind == "editable"
+            and row.kind != "remove"
+            for row in plan.rows
+        )
+        agree_mode = agree_doc.get("mode") if agree_doc is not None else None
+        if agree_doc is not None and agree_mode == "managed":
             checks.append(
                 VerifyCheck(
                     name="update-agreement",
                     ok=True,
                     detail='sase update agrees: mode "managed"',
+                )
+            )
+        elif agree_doc is not None and agree_mode == "mixed" and keeps_editable_plugin:
+            checks.append(
+                VerifyCheck(
+                    name="update-agreement",
+                    ok=True,
+                    detail='sase update agrees: mode "mixed" (kept editable plugins)',
                 )
             )
         else:
@@ -759,7 +777,9 @@ class UpdateAgreement:
     detail: str
 
 
-def classify_update_agreement(doc: Mapping[str, object] | None) -> UpdateAgreement:
+def classify_update_agreement(
+    doc: Mapping[str, object] | None, *, allow_mixed: bool = False
+) -> UpdateAgreement:
     """Decide whether an update dry-run document agrees with a dev install.
 
     Agreement means ``mode == "dev"`` with no repair planned: no ``role:
@@ -768,6 +788,10 @@ def classify_update_agreement(doc: Mapping[str, object] | None) -> UpdateAgreeme
     empty command with a reason attached). Pull work from roots that are
     behind their upstream is fine. A missing document is inconclusive;
     the caller maps probe timeouts and failures there too.
+
+    When ``allow_mixed`` is true, ``mode == "mixed"`` (an editable host
+    plus PyPI-sourced plugins) is treated like ``"dev"``: the same dev
+    section checks run, and success names the mixed mode.
     """
     if not isinstance(doc, dict):
         return UpdateAgreement(
@@ -776,7 +800,8 @@ def classify_update_agreement(doc: Mapping[str, object] | None) -> UpdateAgreeme
             detail="sase update -n -j produced no JSON document (inconclusive)",
         )
     mode = doc.get("mode")
-    if mode != "dev":
+    mixed = allow_mixed and mode == "mixed"
+    if mode != "dev" and not mixed:
         return UpdateAgreement(
             agrees=False,
             warning_only=False,
@@ -826,6 +851,13 @@ def classify_update_agreement(doc: Mapping[str, object] | None) -> UpdateAgreeme
                     warning_only=True,
                     detail="sase update -n -j hit fetch errors (inconclusive)",
                 )
+    if mixed:
+        return UpdateAgreement(
+            agrees=True,
+            warning_only=False,
+            detail='sase update agrees: mode "mixed" (PyPI plugins stay '
+            "managed), no repair planned",
+        )
     return UpdateAgreement(
         agrees=True,
         warning_only=False,
@@ -1067,7 +1099,14 @@ def verify_dev_install(
         agree_doc = (
             _parse_json_object(agreement.stdout) if agreement.returncode == 0 else None
         )
-        verdict = classify_update_agreement(agree_doc)
+        # A dev plan that intentionally sources a plugin from PyPI (a
+        # plugin row targeting PyPI, including --with packages; removed
+        # rows do not count) installs a mixed receipt, so "mixed" agrees.
+        allow_mixed = any(
+            row.role == "plugin" and row.target.kind == "pypi" and row.kind != "remove"
+            for row in plan.rows
+        )
+        verdict = classify_update_agreement(agree_doc, allow_mixed=allow_mixed)
         checks.append(
             VerifyCheck(
                 name="update-agreement",

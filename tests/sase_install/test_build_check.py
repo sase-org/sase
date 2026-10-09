@@ -100,3 +100,45 @@ def test_no_toolchain_fails_with_guidance(tmp_path: Path) -> None:
     )
     assert not result.ok
     assert "need uv or cargo" in result.detail
+
+
+def _uv_argv_capture(tmp_path: Path) -> tuple[Path, Path]:
+    """Return (bindir, capture) with a fake uv that records its argv."""
+    capture = tmp_path / "uv-argv.txt"
+    bindir = _fake_bin(tmp_path, "uv", 'echo "$@" > "$UV_ARGV_CAPTURE"\nexit 0')
+    return bindir, capture
+
+
+def test_maturin_build_pins_interpreter_when_tool_env_exists(
+    tmp_path: Path,
+) -> None:
+    core = _core_with_crate(tmp_path)
+    tool_python = tmp_path / "tool" / "bin" / "python"
+    tool_python.parent.mkdir(parents=True)
+    tool_python.write_bytes(b"fake")
+    bindir, capture = _uv_argv_capture(tmp_path)
+    env = kit.make_env(tmp_path)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+    env["UV_ARGV_CAPTURE"] = str(capture)
+    result = install_core.pre_swap_build_check(
+        core, tool_python=str(tool_python), env=env
+    )
+    assert result.ok
+    argv = capture.read_text(encoding="utf-8")
+    assert f"--interpreter {tool_python}" in argv
+    assert f"VIRTUAL_ENV={tool_python.parent.parent}" in argv
+
+
+def test_maturin_build_unpinned_without_tool_env(tmp_path: Path) -> None:
+    core = _core_with_crate(tmp_path)
+    bindir, capture = _uv_argv_capture(tmp_path)
+    env = kit.make_env(tmp_path)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+    env["UV_ARGV_CAPTURE"] = str(capture)
+    result = install_core.pre_swap_build_check(
+        core, tool_python="/fake/tool/bin/python", env=env
+    )
+    assert result.ok
+    argv = capture.read_text(encoding="utf-8")
+    assert "--interpreter" not in argv
+    assert "VIRTUAL_ENV=" not in argv

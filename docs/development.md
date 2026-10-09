@@ -52,8 +52,8 @@ unreleased code). It installs the checkout editable plus its paired sase-core â€
 rebuilds from â€” so it needs `git` and `cargo` on top of `uv`. Day-to-day updates after
 that belong to `sase update`, which maintains the install in exactly the shape
 `install-dev` creates. See
-[Installing from a checkout](../INSTALL.md#installing-from-a-checkout) for the full
-comparison.
+[Installing from a checkout](https://github.com/sase-org/sase/blob/master/INSTALL.md#installing-from-a-checkout)
+for the full comparison.
 
 `just install` and `just install-dev` are human-only: inside a SASE agent or monitor
 they refuse with exit 2, because they would replace the `sase` binary every running

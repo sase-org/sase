@@ -536,6 +536,23 @@ def test_update_disagreement_is_warning_only(tmp_path: Path, monkeypatch: Any) -
     assert "did not report managed (inconclusive)" in err
 
 
+def test_mixed_agrees_when_keeping_an_editable_plugin(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    harness = _harness(tmp_path, monkeypatch)
+    # An unpublished plugin stays editable, so the install receipt is
+    # mixed: the update agreement is ok, not an inconclusive warning.
+    harness._write_tool_env(plugins=(("bugyi-chops", "editable", "/durable/chops"),))
+    harness.lookup = kit.FakePyPI(
+        {"sase": "0.17.1", "sase-core-rs": "0.35.4"},
+        unpublished=("bugyi-chops",),
+    )
+    harness.env["FAKE_UPDATE_JSON"] = '{"mode": "mixed"}'
+    exit_code, _, err = harness.run(["pypi", "-y"])
+    assert exit_code == 0
+    assert "did not report managed (inconclusive)" not in err
+
+
 def test_update_timeout_is_warning_only() -> None:
     def _hang(argv: object, **kwargs: object) -> Any:
         return install_run.RunnerResult(

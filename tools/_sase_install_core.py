@@ -827,10 +827,12 @@ def pre_swap_build_check(
     """Compile sase-core into a temp dir so a broken tree fails pre-swap.
 
     Preferred: ``maturin build --profile dev-update`` (via ``uv run`` so only
-    uv is required) with the same target dir and environment
+    uv is required) with the same target dir, environment, and interpreter
     ``rust-dev-install`` uses, letting the post-swap ``maturin develop``
-    reuse the artifacts. Fallback: ``cargo check`` of the same package when
-    uv is unavailable.
+    reuse the artifacts. The interpreter is pinned to ``tool_python`` (with
+    ``VIRTUAL_ENV`` pointed at the tool venv) when the tool env exists; on
+    a fresh install with no tool env yet, the unpinned command runs.
+    Fallback: ``cargo check`` of the same package when uv is unavailable.
     """
     started = time.monotonic()
     crate = Path(core_dir) / CORE_PY_CRATE
@@ -848,21 +850,46 @@ def pre_swap_build_check(
     uv = shutil.which("uv", path=path)
     if uv is not None:
         outdir = tempfile.mkdtemp(prefix="sase-core-build-check-")
+        # `uv run` swaps VIRTUAL_ENV for an ephemeral env, so without a
+        # pinned interpreter maturin builds against the wrong Python and
+        # the post-swap `maturin develop` recompiles pyo3. Pin the tool
+        # interpreter (and its venv) when the tool env already exists.
+        build_argv: list[str] = [
+            uv,
+            "run",
+            "--no-project",
+            "--with",
+            "maturin",
+            "maturin",
+            "build",
+            "--profile",
+            RUST_DEV_PROFILE,
+            "--out",
+            outdir,
+        ]
+        if Path(tool_python).is_file():
+            env_bin = shutil.which("env", path=path) or "/usr/bin/env"
+            build_argv = [
+                uv,
+                "run",
+                "--no-project",
+                "--with",
+                "maturin",
+                "--",
+                env_bin,
+                f"VIRTUAL_ENV={venv}",
+                "maturin",
+                "build",
+                "--profile",
+                RUST_DEV_PROFILE,
+                "--interpreter",
+                str(tool_python),
+                "--out",
+                outdir,
+            ]
         try:
             completed = subprocess.run(
-                [
-                    uv,
-                    "run",
-                    "--no-project",
-                    "--with",
-                    "maturin",
-                    "maturin",
-                    "build",
-                    "--profile",
-                    RUST_DEV_PROFILE,
-                    "--out",
-                    outdir,
-                ],
+                build_argv,
                 check=False,
                 capture_output=True,
                 text=True,
