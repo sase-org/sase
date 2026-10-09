@@ -24,6 +24,7 @@ from sase.axe.run_agent_successor import (
     SuccessorRequest,
     continue_as_successor,
 )
+from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import reset_killed
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
@@ -51,6 +52,7 @@ def handle_pipe_marker(
 
     Returns ``None`` so the execution loop runs the successor.
     """
+    mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
     parent_dir = state.current_artifacts_dir
     normalize_handoff_interruption_state(parent_dir)
     finalize_handoff_artifacts_as_completed(parent_dir)

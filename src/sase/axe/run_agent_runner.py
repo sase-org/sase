@@ -60,6 +60,9 @@ from sase.axe.runner_kill_provenance import (
     record_kill_provenance,
     snapshot_oom_baseline,
 )
+from sase.axe import runner_failure_facts as _runner_failure_facts_module  # noqa: F401 - boot-imported so the failure path never imports it lazily
+from sase.axe import runner_lifecycle_phase as _runner_lifecycle_phase_module  # noqa: F401 - boot-imported beside _STARTUP_CODE_IDENTITY
+from sase.axe.runner_lifecycle_phase import boot_code_identity
 from sase.axe.runner_reporting import write_error_report
 from sase.axe.runner_signals import install_sigterm_handler, killed_at, was_killed
 from sase.axe.source_skew import snapshot_source_revision
@@ -82,6 +85,13 @@ _STARTUP_CODE_IDENTITY = runner_code_identity()
 # already past its wait, where re-exec is no longer an option. Record the boot
 # revision so a later deferred-import failure can name the swap that caused it.
 snapshot_source_revision()
+
+# Boot code identity for update-skew witnesses: the snapshot of the code this
+# process image imported (host, core, and editable plugins). A refresh
+# re-exec is a new image, so it captures a new identity of its own.
+_BOOT_CODE_IDENTITY, _BOOTED_AT, _BOOT_CODE_IDENTITY_MS = boot_code_identity(
+    startup_commit=_STARTUP_CODE_IDENTITY
+)
 
 
 def _build_run_state(argv: list[str]) -> RunnerRunState:

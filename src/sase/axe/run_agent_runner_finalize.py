@@ -67,6 +67,7 @@ def write_error_done_marker(
     agent_hidden: bool,
     error: str,
     traceback_str: str,
+    failure_facts: dict[str, Any] | None = None,
 ) -> None:
     """Write a failed ``done.json`` so the TUI can display the error.
 
@@ -101,6 +102,7 @@ def write_error_done_marker(
             agent_hidden=agent_hidden,
             error=error,
             traceback_str=traceback_str,
+            failure_facts=failure_facts,
         )
         done_path = os.path.join(current_artifacts_dir, "done.json")
         with open(done_path, "w", encoding="utf-8") as f:

@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Any
 from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
+from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.run_agent_helpers import (
     create_followup_artifacts,
     promote_to_workflow,
@@ -207,6 +208,7 @@ def continue_as_successor(
     write_model_meta: Callable[..., None] | None = None,
 ) -> str:
     """Become the next in-process agent-session member and return its agent name."""
+    mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
     create = create_followup_artifacts if create_artifacts is None else create_artifacts
     promote_fn = promote_to_workflow if promote is None else promote
     store = store_followup_prompt_artifact if store_prompt is None else store_prompt

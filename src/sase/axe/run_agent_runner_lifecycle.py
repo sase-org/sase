@@ -185,6 +185,15 @@ def _ensure_failed_done_marker(
     error = state.error_summary or "workspace held without a done.json marker"
     traceback_str = state.error_traceback_str or ""
     try:
+        from sase.axe.runner_failure_facts import capture_failure_facts
+        from sase.axe.runner_lifecycle_phase import current_lifecycle_phase
+
+        failure_facts = capture_failure_facts(
+            None,
+            phase=current_lifecycle_phase(),
+            error_text=error,
+            traceback_text=traceback_str or None,
+        )
         write_error_done_marker(
             current_artifacts_dir=artifacts_dir,
             cl_name=context.cl_name,
@@ -201,6 +210,7 @@ def _ensure_failed_done_marker(
             agent_hidden=state.agent_hidden,
             error=error,
             traceback_str=traceback_str,
+            failure_facts=failure_facts,
         )
     except Exception as exc:
         print(

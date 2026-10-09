@@ -26,6 +26,7 @@ from sase.axe.run_agent_helpers import (
     update_step_marker_chat_path,
 )
 from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
+from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import reset_killed
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -89,6 +90,7 @@ def handle_plan_marker(
 
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
+    mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
     normalize_handoff_interruption_state(state.current_artifacts_dir)
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
     # Only set the planner suffix on the original workflow entry;

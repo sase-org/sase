@@ -89,6 +89,14 @@ def _write_bootstrap_agent_meta(
             "output_path": output_path,
         }
     )
+    # Boot code identity for update-skew witnesses. A refresh re-exec is a
+    # new process image, so it always records its own fresh identity here,
+    # overwriting whatever the pre-refresh pass persisted.
+    from sase.axe.runner_lifecycle_phase import boot_code_identity
+
+    code_identity, booted_at, _ = boot_code_identity()
+    agent_meta["code_identity"] = code_identity
+    agent_meta["booted_at"] = booted_at
     # Durable human-authorship provenance. An explicit launch stamp wins;
     # a refreshed re-exec keeps its existing values; anything else is
     # unknown (legacy launches), never a guess.
@@ -325,6 +333,10 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
         output_path=state.output_path,
         refreshed=RUNNER_CODE_REFRESHED_ENV in os.environ,
     )
+
+    from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
+
+    mark_lifecycle_phase(artifacts_dir, "booting")
 
     _load_submitted_prompt(state)
 

@@ -52,6 +52,7 @@ from sase.axe.runner_idle_memory import (
     IDLE_TRIM_INTERVAL_SECONDS,
     release_idle_memory,
 )
+from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import was_killed
 from sase.config.core import (
     get_max_running_agents,
@@ -523,6 +524,7 @@ def wait_for_runner_slot(
     under the runner-slot lock. Once that agent session has released its claim,
     the successor queues and reacquires capacity like any other launch.
     """
+    mark_lifecycle_phase(artifacts_dir, "waiting")
     poll_attempt = 0
     seen_token = runner_slot_state_token()
     next_trim_at: float | None = None

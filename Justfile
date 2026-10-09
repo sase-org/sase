@@ -426,6 +426,10 @@ _lint-patch-stitch-terminology: _setup
 # (plan/execute with protect_root=None, member reads, runner detection, and
 # their dataclasses) through reap_orphaned_agent_scopes, so its rows are
 # dropped.
+# sase-1j6.2 landed the update-skew failure-facts prefilter; the trigger and
+# witness-scan phases consume facts_look_like_update_skew next, so its row
+# stays until a later phase lands a real consumer (or re-key it onto a
+# still-open bead).
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -433,6 +437,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1j6(facts_look_like_update_skew)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

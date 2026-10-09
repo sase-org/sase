@@ -33,6 +33,7 @@ from sase.axe.runner_idle_memory import (
     IDLE_TRIM_INTERVAL_SECONDS,
     release_idle_memory,
 )
+from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -96,6 +97,7 @@ def wait_for_dependencies(
     Returns whether the process actually blocked. Exits with SIGTERM code if
     killed during the wait.
     """
+    mark_lifecycle_phase(artifacts_dir, "waiting")
     _WAIT_POLL_INTERVAL = 2  # seconds
 
     # A refreshed runner has already crossed the barrier. This durable fast path

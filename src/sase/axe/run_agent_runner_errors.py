@@ -6,6 +6,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from sase.axe.runner_failure_facts import capture_failure_facts
+from sase.axe.runner_lifecycle_phase import current_lifecycle_phase
+from sase.axe.source_skew import code_swap_explanation
 from sase.llm_provider.retry_config import find_retry_config_for_error
 
 
@@ -46,6 +49,13 @@ def record_runner_error(
             "a fresh process.",
             file=sys.stderr,
         )
+    swap_explanation = code_swap_explanation(exc)
+    if swap_explanation is not None:
+        print(
+            f"Likely cause: {swap_explanation}.",
+            file=sys.stderr,
+        )
+    failure_facts = capture_failure_facts(exc, phase=current_lifecycle_phase())
     agent_kills.labels(reason="error").inc()
     write_error_done_marker(
         current_artifacts_dir=context.current_artifacts_dir,
@@ -63,5 +73,6 @@ def record_runner_error(
         agent_hidden=context.agent_hidden,
         error=summary,
         traceback_str=traceback_str,
+        failure_facts=failure_facts,
     )
     return summary, traceback_str

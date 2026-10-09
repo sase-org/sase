@@ -117,6 +117,27 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     model_alias_reservation = existing_meta.get("model_alias_reservation")
     if isinstance(model_alias_reservation, dict):
         preserved["model_alias_reservation"] = dict(model_alias_reservation)
+    # Boot code identity and lifecycle breadcrumbs survive a refresh
+    # re-exec: the refreshed pass re-extracts directives into a rebuilt
+    # record, and these keys must ride along. A refreshed bootstrap already
+    # overwrote them with the new image's own values before this runs.
+    code_identity = existing_meta.get("code_identity")
+    if isinstance(code_identity, dict):
+        preserved["code_identity"] = code_identity
+    booted_at = existing_meta.get("booted_at")
+    if isinstance(booted_at, str) and booted_at:
+        preserved["booted_at"] = booted_at
+    lifecycle_phase = existing_meta.get("lifecycle_phase")
+    if isinstance(lifecycle_phase, str) and lifecycle_phase:
+        preserved["lifecycle_phase"] = lifecycle_phase
+    lifecycle_phase_at = existing_meta.get("lifecycle_phase_at")
+    if isinstance(lifecycle_phase_at, str) and lifecycle_phase_at:
+        preserved["lifecycle_phase_at"] = lifecycle_phase_at
+    lifecycle_phases = existing_meta.get("lifecycle_phases")
+    if isinstance(lifecycle_phases, list) and all(
+        isinstance(item, dict) for item in lifecycle_phases
+    ):
+        preserved["lifecycle_phases"] = lifecycle_phases
     batch_predecessor_context = existing_meta.get("batch_predecessor_context")
     if isinstance(batch_predecessor_context, dict):
         preserved["batch_predecessor_context"] = dict(batch_predecessor_context)

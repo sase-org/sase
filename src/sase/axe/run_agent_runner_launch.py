@@ -11,6 +11,7 @@ import os
 from typing import Any
 
 from sase.axe.agent_meta import overlay_live_auto_keys
+from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.clan_summary_script import (
     POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL,
     resolve_clan_summary_script,
@@ -282,6 +283,7 @@ def _build_exec_context(
 
 def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     """Prepare the claimed workspace and run the agent execution loop."""
+    mark_lifecycle_phase(state.artifacts_dir, "preparing")
     info = bootstrap.info
     try:
         _prepare_workspace_and_repos(state, bootstrap)

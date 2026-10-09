@@ -172,6 +172,9 @@ def finalize_loop(
     result: Any,
 ) -> AgentExecResult:
     """Post-loop cleanup: retry state, done marker, result construction."""
+    from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
+
+    mark_lifecycle_phase(ctx.artifacts_dir, "finalizing")
     RetryState.delete_from(ctx.artifacts_dir)
     fallback_model_override = os.environ.get("SASE_MODEL_OVERRIDE")
     if "SASE_MODEL_OVERRIDE" in os.environ:
@@ -319,6 +322,15 @@ def finalize_loop(
         else:
             actual_outcome = state.loop_outcome
 
+        from sase.axe.runner_failure_facts import capture_failure_facts
+        from sase.axe.runner_lifecycle_phase import current_lifecycle_phase
+
+        loop_failure_facts: dict[str, Any] | None = None
+        if actual_outcome != "completed":
+            loop_failure_facts = capture_failure_facts(
+                None,
+                phase=current_lifecycle_phase(),
+            )
         done_marker = build_done_marker(
             ctx.cl_name,
             ctx.project_file,
@@ -341,6 +353,7 @@ def finalize_loop(
             retried_as_timestamp=retried_as_timestamp,
             retry_chain_root_timestamp=retry_chain_root_timestamp,
             retry_error_category=retry_error_category,
+            failure_facts=loop_failure_facts,
         )
         done_path = write_done_marker_and_update_index(
             state.current_artifacts_dir,

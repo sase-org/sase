@@ -36,6 +36,7 @@ from sase.axe.run_agent_helpers import (
     is_workflow_noop,
     read_and_delete_marker,
 )
+from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.axe.runner_signals import killed_at, reset_killed, was_killed
 from sase.axe.runner_kill_provenance import record_kill_provenance
 from sase.agent.gate_intent import discard_gate_intents
@@ -191,6 +192,9 @@ def _handle_killed_iteration(
         ".sase_pipe_pending",
     )
 
+    if plan_data or q_data or monitor_data or gate_data or pipe_data:
+        mark_lifecycle_phase(state.current_artifacts_dir, "handoff")
+
     if plan_data and _marker_predates_kill(plan_data, kill_time):
         return handle_plan_marker(plan_data, ctx, state)
     if q_data and _marker_predates_kill(q_data, kill_time):
@@ -235,6 +239,7 @@ def run_execution_loop(
     prompt: str,
 ) -> _AgentExecResult:
     """Run the agent workflow loop with retry, plan approval, and question handling."""
+    mark_lifecycle_phase(ctx.artifacts_dir, "provider_running")
     from sase.macro.runtime_context import bind_runtime_template_vars
 
     with bind_runtime_template_vars({"wait": _build_wait_namespace(ctx)}):
