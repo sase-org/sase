@@ -61,10 +61,6 @@ def _opt_str(value: Any) -> str | None:
     return None if value is None else str(value)
 
 
-def _opt_int(value: Any) -> int | None:
-    return None if value is None else int(value)
-
-
 def _str_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -430,6 +426,96 @@ def episode_from_dict(data: dict[str, Any]) -> AutoRestartEpisodeWire:
     )
 
 
+def agent_failure_facts_from_dict(data: Any) -> AgentFailureFactsWire | None:
+    """Rehydrate structured failure facts from a ``done.json`` mapping.
+
+    Returns ``None`` when *data* is not a usable facts mapping (legacy
+    rows carry no structured facts and classify through the regex
+    fallback instead). Unknown fields are ignored; bounds from the
+    capture side are trusted, not re-enforced.
+    """
+    if not isinstance(data, dict) or not data:
+        return None
+
+    def chain_link(entry: Any) -> AgentFailureChainLinkWire:
+        if not isinstance(entry, dict):
+            return AgentFailureChainLinkWire()
+        return AgentFailureChainLinkWire(
+            type=str(entry.get("type", "")),
+            qualname=str(entry.get("qualname", "")),
+            module=str(entry.get("module", "")),
+            message=str(entry.get("message", "")),
+        )
+
+    import_error: AgentFailureImportErrorWire | None = None
+    raw_import = data.get("import_error")
+    if isinstance(raw_import, dict):
+        import_error = AgentFailureImportErrorWire(
+            name=_opt_str(raw_import.get("name")),
+            path=_opt_str(raw_import.get("path")),
+            missing_symbol=_opt_str(raw_import.get("missing_symbol")),
+        )
+
+    attribute_error: AgentFailureAttributeErrorWire | None = None
+    raw_attribute = data.get("attribute_error")
+    if isinstance(raw_attribute, dict):
+        attribute_error = AgentFailureAttributeErrorWire(
+            module=_opt_str(raw_attribute.get("module")),
+            attribute=_opt_str(raw_attribute.get("attribute")),
+        )
+
+    frames: list[AgentFailureFrameWire] = []
+    raw_frames = data.get("frames")
+    if isinstance(raw_frames, list):
+        for entry in raw_frames:
+            if not isinstance(entry, dict):
+                continue
+            line = entry.get("line")
+            frames.append(
+                AgentFailureFrameWire(
+                    file=str(entry.get("file", "")),
+                    function=str(entry.get("function", "")),
+                    line=None if line is None else int(line),
+                )
+            )
+
+    raw_chain = data.get("exception_chain")
+    chain = (
+        tuple(chain_link(entry) for entry in raw_chain)
+        if isinstance(raw_chain, list)
+        else ()
+    )
+    return AgentFailureFactsWire(
+        captured_at=_opt_str(data.get("captured_at")),
+        lifecycle_phase=_opt_str(data.get("lifecycle_phase")),
+        exception_chain=chain,
+        import_error=import_error,
+        attribute_error=attribute_error,
+        frames=tuple(frames),
+        last_frame_file=_opt_str(data.get("last_frame_file")),
+        skew_suspect=bool(data.get("skew_suspect", False)),
+        error_text=_opt_str(data.get("error_text")),
+    )
+
+
+def recovery_verdict_to_dict(verdict: RecoveryVerdictWire) -> dict[str, Any]:
+    """Serialize a recovery verdict to its wire dict shape."""
+    return {
+        "schema_version": verdict.schema_version,
+        "tier": verdict.tier,
+        "family": verdict.family,
+        "signature": verdict.signature,
+        "origin_module": verdict.origin_module,
+        "missing_symbol": verdict.missing_symbol,
+        "phase_class": verdict.phase_class,
+        "mode": verdict.mode,
+        "reason": verdict.reason,
+        "reason_text": verdict.reason_text,
+        "witnesses_fired": list(verdict.witnesses_fired),
+        "episode_id": verdict.episode_id,
+    }
+
+
 def agent_recovery_from_mapping(data: Any) -> AgentRecoveryWire | None:
     """Return the ``AgentRecoveryWire`` *data* describes, or ``None``."""
     if not isinstance(data, dict):
@@ -489,6 +575,7 @@ __all__ = [
     "AutoRestartRefreshLogLineWire",
     "AutoRestartWitnessesWire",
     "RecoveryVerdictWire",
+    "agent_failure_facts_from_dict",
     "agent_failure_facts_to_dict",
     "agent_recovery_from_mapping",
     "auto_restart_context_to_dict",
@@ -497,4 +584,5 @@ __all__ = [
     "ledger_record_from_dict",
     "ledger_record_to_dict",
     "recovery_verdict_from_dict",
+    "recovery_verdict_to_dict",
 ]

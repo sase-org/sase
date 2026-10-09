@@ -52,6 +52,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_archive(args)
         return
 
+    if sub == "auto-restart":
+        from sase.agents.cli_auto_restart import handle_agents_auto_restart
+
+        sys.exit(handle_agents_auto_restart(args))
+
     if sub == "artifacts":
         if getattr(args, "artifacts_subcommand", None) == "layout":
             from sase.agents.cli_artifacts_layout import handle_agents_artifacts_layout
@@ -121,7 +126,8 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
     print(
         "Usage: sase agent "
-        "{archive,artifacts,drain,hold,index,kill,list,names,persist-cleanup,"
-        "persist-directive,prompts,restart,revert,search,show,sync,tab,tribe,wait}"
+        "{archive,artifacts,auto-restart,drain,hold,index,kill,list,names,"
+        "persist-cleanup,persist-directive,prompts,restart,revert,search,show,"
+        "sync,tab,tribe,wait}"
     )
     sys.exit(1)
