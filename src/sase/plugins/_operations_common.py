@@ -6,10 +6,23 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from sase.plugin_commands.snapshot import CommandSnapshot, take_command_snapshot
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, find_plugin
 from sase.plugins.installed import InstalledInfo
+from sase.plugins.post_change import (
+    PluginChangeEffects,
+    SnapshotFn,
+    apply_post_change_effects,
+    empty_effects,
+)
+from sase.plugins.post_change import ProbeFn as PostChangeProbeFn
+from sase.plugins.post_change import RefreshFn as PostChangeRefreshFn
 from sase.plugins.pypi_source import ProjectAvailability, probe_availability
-from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
+from sase.uv_tool.detect import (
+    NotUvToolInstall,
+    UvToolInstall,
+    probe_uv_tool_install,
+)
 from sase.uv_tool.errors import UvToolError
 from sase.uv_tool.receipt import Requirement, ToolReceipt
 from sase.uv_tool.runner import UvChangeSet
@@ -134,6 +147,38 @@ def short_display_name(dist_name: str) -> str:
     if dist_name.lower().startswith("sase-") and len(dist_name) > len("sase-"):
         return dist_name[len("sase-") :]
     return dist_name
+
+
+def capture_command_snapshot_before(
+    snapshot_fn: SnapshotFn = take_command_snapshot,
+) -> CommandSnapshot | None:
+    """Capture the pre-mutation command snapshot, or ``None`` when unreadable.
+
+    A ``None`` before disables post-change effects: fabricating an empty
+    snapshot would misreport every command as added.
+    """
+    try:
+        return snapshot_fn()
+    except Exception:  # noqa: BLE001 — effects must never fail the mutation.
+        return None
+
+
+def post_change_effects(
+    before: CommandSnapshot | None,
+    *,
+    snapshot_fn: SnapshotFn = take_command_snapshot,
+    probe_fn: PostChangeProbeFn | None = None,
+    refresh_fn: PostChangeRefreshFn | None = None,
+) -> PluginChangeEffects:
+    """Return post-change effects for a finished mutation, best-effort."""
+    if before is None:
+        return empty_effects()
+    return apply_post_change_effects(
+        before,
+        probe_fn=probe_fn or probe_uv_tool_install,
+        snapshot_fn=snapshot_fn,
+        refresh_fn=refresh_fn,
+    )
 
 
 def _spec_from_entry(

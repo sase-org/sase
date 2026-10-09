@@ -26,6 +26,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.plugin_commands.scan import COMMANDS_ENTRY_POINT_GROUP
 from sase.plugins.inventory import PluginInventory, collect_plugin_inventory
 from sase.uv_tool import (
     NotUvToolInstall,
@@ -58,6 +59,7 @@ class InstalledInfo:
     installed: bool = False
     version: str | None = None
     entry_point_groups: tuple[str, ...] = ()
+    commands: tuple[str, ...] = ()
 
     @classmethod
     def not_installed(cls) -> InstalledInfo:
@@ -147,6 +149,7 @@ def build_installed_index(
             installed=True,
             version=_clean_version(dist.version),
             entry_point_groups=groups,
+            commands=_command_names(dist.entry_points),
         )
 
     for candidate in candidates_fn():
@@ -236,6 +239,19 @@ def _distribution_name_candidates(*, repo: str, name: str) -> tuple[str, ...]:
         candidates.append(f"sase-{name}")
         candidates.append(name)
     return tuple(_dedupe(candidates))
+
+
+def _command_names(entry_points: tuple[str, ...]) -> tuple[str, ...]:
+    """Return sorted ``sase_commands`` entry-point names from ``group:name`` pairs."""
+    prefix = f"{COMMANDS_ENTRY_POINT_GROUP}:"
+    names = sorted(
+        {
+            entry[len(prefix) :]
+            for entry in entry_points
+            if entry.startswith(prefix) and entry[len(prefix) :]
+        }
+    )
+    return tuple(names)
 
 
 def _dedupe(values: Iterable[str]) -> Iterable[str]:

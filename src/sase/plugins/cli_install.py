@@ -34,6 +34,7 @@ from sase.main.update_types import (
     RestartSchedulerFn,
     SchedulerRunningFn,
 )
+from sase.plugin_commands.snapshot import take_command_snapshot
 from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
 from sase.plugins.installed import build_installed_index
 from sase.plugins.operations import (
@@ -53,6 +54,8 @@ from sase.plugins.operations import (
     plan_install,
     resolve_install_spec,
 )
+from sase.plugins.post_change import SnapshotFn
+from sase.plugins.post_change import RefreshFn as PostChangeRefreshFn
 from sase.plugins.pypi_source import probe_availability
 from sase.plugins.render import (
     render_install_already_installed,
@@ -88,6 +91,8 @@ def handle_plugin_install_command(
     restart_scheduler_fn: RestartSchedulerFn = restart_scheduler_service_proc,
     clock: ClockFn = time.monotonic,
     availability_fn: AvailabilityProbeFn = probe_availability,
+    snapshot_fn: SnapshotFn = take_command_snapshot,
+    refresh_fn: PostChangeRefreshFn | None = None,
 ) -> int:
     """Run ``sase plugin install <plugin>``; return the process exit code."""
     query = str(getattr(args, "plugin", "") or "")
@@ -133,6 +138,9 @@ def handle_plugin_install_command(
                     run_fn=run_fn,
                     installed_index_fn=installed_index_fn,
                     clock=clock,
+                    snapshot_fn=snapshot_fn,
+                    probe_fn=probe_fn,
+                    refresh_fn=refresh_fn,
                 )
         else:
             outcome = execute_install(
@@ -140,6 +148,9 @@ def handle_plugin_install_command(
                 run_fn=run_fn,
                 installed_index_fn=installed_index_fn,
                 clock=clock,
+                snapshot_fn=snapshot_fn,
+                probe_fn=probe_fn,
+                refresh_fn=refresh_fn,
             )
     except UvToolError as exc:
         return _fail(exc, as_json=as_json, err=err)
@@ -170,6 +181,8 @@ def handle_plugin_install_command(
         groups=outcome.groups,
         elapsed=outcome.elapsed,
         console=out,
+        command_changes=outcome.effects.command_changes,
+        completion_refresh=outcome.effects.completion_refresh,
     )
     render_restart_info(restart, console=out, quiet=False)
     from sase.ops.commands.plugin import emit_plugin_install_result
@@ -310,6 +323,8 @@ def _result_json(outcome: InstallOutcome, restart: RestartInfo) -> dict[str, Any
         "source": spec.source,
         "version": change.new_version if change is not None else None,
         "entry_point_groups": list(outcome.groups),
+        "command_changes": outcome.effects.command_changes.to_json(),
+        "completion_refresh": outcome.effects.completion_refresh.to_json(),
         "elapsed_seconds": round(outcome.elapsed, 3),
         "restart": restart_info_json(restart),
         "dependencies_changed": sum(

@@ -16,6 +16,7 @@ from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.github_cli import GhCommandError as SharedGhCommandError
 from sase.github_cli import run_gh
 from sase.plugins.inventory import (
+    RESOURCE_ENTRY_POINT_GROUPS,
     PluginInventory,
     collect_plugin_inventory,
 )
@@ -169,13 +170,29 @@ def _required_plugins_check_from_report(
     )
 
 
+def _resource_disable_vars() -> frozenset[str]:
+    """Return the disable switches that gate resource entry-point loading.
+
+    Mirrors :func:`sase.plugins.inventory._disabled_env_for_group`: the global
+    switch plus one per resource group. Provider-group switches never appear
+    here.
+    """
+    names = {"SASE_DISABLE_PLUGINS"}
+    for group in RESOURCE_ENTRY_POINT_GROUPS:
+        names.add(f"SASE_DISABLE_PLUGIN_{group.removeprefix('sase_').upper()}")
+    return frozenset(names)
+
+
 def _check_plugins_resources() -> DiagnosticCheck:
     """Report resource entry-point load failures and disabled resource loading."""
     inventory = collect_plugin_inventory()
     resource_errors = tuple(
         ep for ep in inventory.resource_entry_points if ep.load_status == "error"
     )
-    disabled_env = inventory.disabled_env
+    # Only switches that actually gate resource loading warn here. Provider-group
+    # switches (for example ``SASE_DISABLE_PLUGIN_COMMANDS``) leave resource
+    # loading untouched, so they must not turn this check yellow.
+    disabled_env = tuple(sorted(set(inventory.disabled_env) & _resource_disable_vars()))
 
     status: CheckStatus
     if resource_errors:

@@ -228,6 +228,7 @@ def test_json_payload_shape_is_stable() -> None:
         "installed": True,
         "version": "0.4.1",
         "entry_point_groups": ["sase_vcs", "sase_workspace"],
+        "commands": [],
     }
     assert github["latest"] == {
         "checked": True,

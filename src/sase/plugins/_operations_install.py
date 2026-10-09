@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+from sase.plugin_commands.snapshot import take_command_snapshot
 from sase.plugins.catalog import (
     PluginCatalog,
     PluginCatalogEntry,
@@ -13,6 +14,9 @@ from sase.plugins.catalog import (
     suggest_plugins,
 )
 from sase.plugins.installed import build_installed_index
+from sase.plugins.post_change import PluginChangeEffects, SnapshotFn, empty_effects
+from sase.plugins.post_change import ProbeFn as PostChangeProbeFn
+from sase.plugins.post_change import RefreshFn as PostChangeRefreshFn
 from sase.plugins.pypi_source import (
     ProjectAvailability,
     probe_availability,
@@ -36,7 +40,9 @@ from ._operations_common import (
     ProbeFn,
     ResolvedSpec,
     RunUvFn,
+    capture_command_snapshot_before,
     load_catalog,
+    post_change_effects,
     resolve_install_spec,
 )
 
@@ -105,6 +111,7 @@ class InstallOutcome:
     change_set: UvChangeSet
     groups: tuple[str, ...]
     elapsed: float
+    effects: PluginChangeEffects = empty_effects()
 
 
 @dataclass(frozen=True)
@@ -115,6 +122,7 @@ class InstallManyOutcome:
     change_set: UvChangeSet
     groups: tuple[str, ...]
     elapsed: float
+    effects: PluginChangeEffects = empty_effects()
 
 
 def plan_install(
@@ -279,18 +287,31 @@ def execute_install(
     run_fn: RunUvFn = run_uv,
     installed_index_fn: InstalledIndexFn = build_installed_index,
     clock: ClockFn = time.monotonic,
+    snapshot_fn: SnapshotFn = take_command_snapshot,
+    probe_fn: PostChangeProbeFn | None = None,
+    refresh_fn: PostChangeRefreshFn | None = None,
 ) -> InstallOutcome:
     """Run the ``uv`` install for a ready plan and collect the outcome.
 
     Raises :class:`~sase.uv_tool.errors.UvToolError` if ``uv`` fails; the caller
     catches it. The entry-point-group lookup is best-effort and never raises.
+    The command snapshot is captured ahead of the ``uv`` mutation; post-change
+    effects (command diff plus a child completion refresh when the command set
+    changed) ride along in the outcome.
     """
     start = clock()
+    before = capture_command_snapshot_before(snapshot_fn)
     change_set = run_fn(plan.argv)
     elapsed = max(0.0, clock() - start)
     groups = _installed_groups(installed_index_fn, plan.spec.normalized_name)
     return InstallOutcome(
-        plan=plan, change_set=change_set, groups=groups, elapsed=elapsed
+        plan=plan,
+        change_set=change_set,
+        groups=groups,
+        elapsed=elapsed,
+        effects=post_change_effects(
+            before, snapshot_fn=snapshot_fn, probe_fn=probe_fn, refresh_fn=refresh_fn
+        ),
     )
 
 
@@ -300,9 +321,13 @@ def execute_install_many(
     run_fn: RunUvFn = run_uv,
     installed_index_fn: InstalledIndexFn = build_installed_index,
     clock: ClockFn = time.monotonic,
+    snapshot_fn: SnapshotFn = take_command_snapshot,
+    probe_fn: PostChangeProbeFn | None = None,
+    refresh_fn: PostChangeRefreshFn | None = None,
 ) -> InstallManyOutcome:
     """Run the combined ``uv`` install for a ready batch plan."""
     start = clock()
+    before = capture_command_snapshot_before(snapshot_fn)
     change_set = run_fn(plan.argv)
     elapsed = max(0.0, clock() - start)
     groups = _installed_groups_many(installed_index_fn, plan.specs)
@@ -311,6 +336,9 @@ def execute_install_many(
         change_set=change_set,
         groups=groups,
         elapsed=elapsed,
+        effects=post_change_effects(
+            before, snapshot_fn=snapshot_fn, probe_fn=probe_fn, refresh_fn=refresh_fn
+        ),
     )
 
 

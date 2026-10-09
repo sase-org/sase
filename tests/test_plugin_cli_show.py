@@ -412,6 +412,7 @@ def test_show_json_shape_is_stable(capsys: Any) -> None:
         "installed": True,
         "version": "0.4.1",
         "entry_point_groups": ["sase_vcs", "sase_workspace"],
+        "commands": [],
     }
     assert plugin["latest"] == {
         "checked": True,

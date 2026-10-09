@@ -35,6 +35,7 @@ def plugin_entry_json(entry: PluginCatalogEntry) -> dict[str, Any]:
             "installed": entry.installed.installed,
             "version": entry.installed.version,
             "entry_point_groups": list(entry.installed.entry_point_groups),
+            "commands": list(entry.installed.commands),
         },
         "latest": {
             "checked": entry.latest.checked,

@@ -16,19 +16,25 @@ from typing import Literal
 
 ENTRY_POINT_GROUPS: tuple[str, ...] = (
     "sase_artifact_refs",
+    "sase_commands",
     "sase_config",
     "sase_dispatch",
     "sase_file_hooks",
     "sase_finalizers",
     "sase_llm",
+    "sase_macros",
+    "sase_pager_history",
     "sase_plugin_manifest",
     "sase_task_types",
     "sase_vcs",
     "sase_workspace",
-    "sase_xprompts",
 )
+# Retired groups are intentionally absent: they survive only as a recognition
+# signal (honored by :mod:`sase.version._plugins`), so legacy-only
+# distributions are still detected without displaying a retired group as a
+# capability.
 RESOURCE_ENTRY_POINT_GROUPS: frozenset[str] = frozenset(
-    {"sase_config", "sase_plugin_manifest", "sase_xprompts"}
+    {"sase_config", "sase_plugin_manifest"}
 )
 PROVIDER_ENTRY_POINT_GROUPS: frozenset[str] = frozenset(
     group for group in ENTRY_POINT_GROUPS if group not in RESOURCE_ENTRY_POINT_GROUPS

@@ -130,7 +130,9 @@ def test_plugins_resources_errors_on_resource_load_failure(
         package="sase-resources",
         load_error=ImportError("boom"),
     )
-    _patch_entry_points(monkeypatch, {"sase_xprompts": [resource]})
+    _patch_entry_points(monkeypatch, {"sase_config": [resource]})
+    # The suite-wide config isolation sets this; the load must be attempted.
+    monkeypatch.delenv("SASE_DISABLE_PLUGIN_CONFIG", raising=False)
 
     check = _check_plugins_resources()
 
@@ -149,20 +151,21 @@ def test_plugins_resources_warns_when_disabled_by_env(
         value="fake_resources",
         package="sase-resources",
     )
-    _patch_entry_points(monkeypatch, {"sase_xprompts": [resource]})
-    monkeypatch.setenv("SASE_DISABLE_PLUGIN_XPROMPTS", "1")
+    _patch_entry_points(monkeypatch, {"sase_config": [resource]})
+    monkeypatch.setenv("SASE_DISABLE_PLUGIN_CONFIG", "1")
 
     check = _check_plugins_resources()
 
     assert check.status == "WARN"
-    assert "SASE_DISABLE_PLUGIN_XPROMPTS" in check.data["disabled_env"]
+    assert "SASE_DISABLE_PLUGIN_CONFIG" in check.data["disabled_env"]
+    # Provider-group switches never gate resource loading, so they stay out.
+    assert "SASE_DISABLE_PLUGIN_COMMANDS" not in check.data["disabled_env"]
     assert resource.load_calls == 0
 
 
 def test_plugins_resources_ok_when_clean(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_entry_points(monkeypatch, {})
     monkeypatch.delenv("SASE_DISABLE_PLUGINS", raising=False)
-    monkeypatch.delenv("SASE_DISABLE_PLUGIN_XPROMPTS", raising=False)
     monkeypatch.delenv("SASE_DISABLE_PLUGIN_CONFIG", raising=False)
 
     check = _check_plugins_resources()

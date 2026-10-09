@@ -15,14 +15,21 @@ from sase.uv_tool.preflight import missing_local_requirements_error
 from sase.uv_tool.receipt import Requirement, load_receipt
 from sase.uv_tool.runner import UvChangeSet, run_uv
 
+from sase.plugin_commands.snapshot import take_command_snapshot
+from sase.plugins.post_change import PluginChangeEffects, SnapshotFn, empty_effects
+from sase.plugins.post_change import ProbeFn as PostChangeProbeFn
+from sase.plugins.post_change import RefreshFn as PostChangeRefreshFn
+
 from ._operations_common import (
     ClockFn,
     LoadFn,
     NotUvTool,
     ProbeFn,
     RunUvFn,
+    capture_command_snapshot_before,
     load_catalog,
     match_injected,
+    post_change_effects,
     short_display_name,
 )
 
@@ -81,6 +88,7 @@ class UninstallOutcome:
     plan: UninstallReady
     change_set: UvChangeSet
     elapsed: float
+    effects: PluginChangeEffects = empty_effects()
 
 
 def plan_uninstall(
@@ -140,13 +148,25 @@ def execute_uninstall(
     *,
     run_fn: RunUvFn = run_uv,
     clock: ClockFn = time.monotonic,
+    snapshot_fn: SnapshotFn = take_command_snapshot,
+    probe_fn: PostChangeProbeFn | None = None,
+    refresh_fn: PostChangeRefreshFn | None = None,
 ) -> UninstallOutcome:
     """Run the ``uv`` re-install (minus the target) for a ready plan.
 
     Raises :class:`~sase.uv_tool.errors.UvToolError` if ``uv`` fails; the caller
-    catches it.
+    catches it. Post-change effects (command diff plus a child completion
+    refresh when the command set changed) ride along in the outcome.
     """
     start = clock()
+    before = capture_command_snapshot_before(snapshot_fn)
     change_set = run_fn(plan.argv)
     elapsed = max(0.0, clock() - start)
-    return UninstallOutcome(plan=plan, change_set=change_set, elapsed=elapsed)
+    return UninstallOutcome(
+        plan=plan,
+        change_set=change_set,
+        elapsed=elapsed,
+        effects=post_change_effects(
+            before, snapshot_fn=snapshot_fn, probe_fn=probe_fn, refresh_fn=refresh_fn
+        ),
+    )

@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.plugin_commands.chip import format_command_chip_rich
 from sase.plugins.catalog import (
     SASE_PLUGIN_ORG,
     PluginCatalog,
@@ -208,9 +209,15 @@ def _dev_state_label(state: str | None) -> str:
 
 def _groups_cell(entry: PluginCatalogEntry) -> Text:
     groups = entry.installed.entry_point_groups
-    if not groups:
+    commands = entry.installed.commands
+    if not groups and not commands:
         return Text(_EMPTY, style="dim")
-    return Text(", ".join(groups), style="dim")
+    cell = Text(", ".join(groups), style="dim") if groups else Text("")
+    for name in commands:
+        if cell.plain:
+            cell.append("\n")
+        cell.append(format_command_chip_rich(name))
+    return cell
 
 
 def _description_cell(entry: PluginCatalogEntry, *, verbose: bool) -> Text:

@@ -6,6 +6,7 @@ import importlib.metadata
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from sase.legacy_xprompt_syntax import RETIRED_PLUGIN_GROUP
 from sase.plugins.inventory import ENTRY_POINT_GROUPS as SASE_ENTRY_POINT_GROUPS
 from sase.version._models import (
     CONSOLE_SCRIPT_ENTRY_POINT_GROUP,
@@ -53,7 +54,10 @@ def plugin_candidates_from_distributions(
             name = entry_point_name(ep)
             value = entry_point_value(ep)
 
-            if group in SASE_ENTRY_POINT_GROUPS:
+            if group in SASE_ENTRY_POINT_GROUPS or group == RETIRED_PLUGIN_GROUP:
+                # The retired group is a recognition signal only: legacy-only
+                # distributions are still detected here, but the group is not
+                # in ENTRY_POINT_GROUPS so it is never displayed as a capability.
                 plugin_signals.append(entry_point_signal(group, name, value))
                 module = entry_point_import_module(ep)
                 if module:

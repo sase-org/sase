@@ -36,6 +36,7 @@ from sase.main.update_types import (
     RestartSchedulerFn,
     SchedulerRunningFn,
 )
+from sase.plugin_commands.snapshot import take_command_snapshot
 from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
 from sase.plugins.cli_restart import restart_after_plugin_change
 from sase.plugins.operations import (
@@ -52,6 +53,8 @@ from sase.plugins.operations import (
     execute_update,
     plan_update,
 )
+from sase.plugins.post_change import SnapshotFn
+from sase.plugins.post_change import RefreshFn as PostChangeRefreshFn
 from sase.plugins.render import (
     render_no_plugins_installed,
     render_plugin_not_installed,
@@ -92,6 +95,8 @@ def handle_plugin_update_command(
     scheduler_running_fn: SchedulerRunningFn = is_axe_running,
     restart_scheduler_fn: RestartSchedulerFn = restart_scheduler_service_proc,
     clock: ClockFn = time.monotonic,
+    snapshot_fn: SnapshotFn = take_command_snapshot,
+    refresh_fn: PostChangeRefreshFn | None = None,
 ) -> int:
     """Run ``sase plugin update``; return the process exit code."""
     query = getattr(args, "plugin", None)
@@ -134,9 +139,23 @@ def handle_plugin_update_command(
     try:
         if use_spinner:
             with out.status("Upgrading plugins via uv…", spinner="dots"):
-                outcome = execute_update(plan, run_fn=run_fn, clock=clock)
+                outcome = execute_update(
+                    plan,
+                    run_fn=run_fn,
+                    clock=clock,
+                    snapshot_fn=snapshot_fn,
+                    probe_fn=probe_fn,
+                    refresh_fn=refresh_fn,
+                )
         else:
-            outcome = execute_update(plan, run_fn=run_fn, clock=clock)
+            outcome = execute_update(
+                plan,
+                run_fn=run_fn,
+                clock=clock,
+                snapshot_fn=snapshot_fn,
+                probe_fn=probe_fn,
+                refresh_fn=refresh_fn,
+            )
     except UvToolError as exc:
         return _fail(exc, as_json=as_json, err=err)
 
@@ -165,6 +184,8 @@ def handle_plugin_update_command(
         elapsed=outcome.elapsed,
         current_version=version_fn,
         console=out,
+        command_changes=outcome.effects.command_changes,
+        completion_refresh=outcome.effects.completion_refresh,
     )
     render_restart_info(restart, console=out, quiet=False)
     _emit_plugin_update_result(args, outcome, version_fn, restart)
@@ -367,6 +388,8 @@ def _result_json(
         "elapsed_seconds": round(outcome.elapsed, 3),
         "counts": {"updated": upgraded, "already_current": len(plugins) - upgraded},
         "plugins": plugins,
+        "command_changes": outcome.effects.command_changes.to_json(),
+        "completion_refresh": outcome.effects.completion_refresh.to_json(),
         "restart": restart_info_json(restart),
     }
 

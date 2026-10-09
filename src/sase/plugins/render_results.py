@@ -9,6 +9,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.completion.install_models import CompletionRefreshReport
+from sase.plugin_commands.chip import format_command_chip_rich
+from sase.plugin_commands.snapshot import CommandChanges
 from sase.plugins.render_common import (
     _CHANGED_GLYPH,
     _EMPTY,
@@ -33,6 +36,8 @@ def render_install_result(
     groups: tuple[str, ...] = (),
     elapsed: float | None = None,
     console: Console | None = None,
+    command_changes: CommandChanges | None = None,
+    completion_refresh: CompletionRefreshReport | None = None,
 ) -> None:
     """Print the ``sase plugin install`` success panel."""
     target = console or Console()
@@ -46,7 +51,9 @@ def render_install_result(
         body.append(contributes)
 
     body.append(Text(""))
+    body.extend(_command_change_body(command_changes))
     body.append(_install_summary_line(short_name, len(deps), elapsed))
+    _append_completion_line(body, completion_refresh)
     body.append(Text("Restart running sase agents to load the plugin.", style="dim"))
     target.print(Panel(Group(*body), title="Plugin Installed", border_style="cyan"))
 
@@ -110,6 +117,8 @@ def render_plugin_update_result(
     elapsed: float | None = None,
     current_version: Callable[[str], str | None] = _no_version,
     console: Console | None = None,
+    command_changes: CommandChanges | None = None,
+    completion_refresh: CompletionRefreshReport | None = None,
 ) -> None:
     """Print the ``sase plugin update`` result panel."""
     target = console or Console()
@@ -123,7 +132,9 @@ def render_plugin_update_result(
 
     body: list[RenderableType] = [_result_table(changes)]
     body.append(Text(""))
+    body.extend(_command_change_body(command_changes))
     body.append(_plugin_update_summary_line(changes, elapsed))
+    _append_completion_line(body, completion_refresh)
     body.append(
         Text("Restart running sase agents to pick up the new version.", style="dim")
     )
@@ -167,13 +178,17 @@ def render_plugin_uninstall_result(
     short_name: str,
     elapsed: float | None = None,
     console: Console | None = None,
+    command_changes: CommandChanges | None = None,
+    completion_refresh: CompletionRefreshReport | None = None,
 ) -> None:
     """Print the ``sase plugin uninstall`` success panel."""
     target = console or Console()
     change = change_set.get(dist_name) or _removed(dist_name)
     body: list[RenderableType] = [_result_table((change,))]
     body.append(Text(""))
+    body.extend(_command_change_body(command_changes))
     body.append(_uninstall_summary_line(short_name, elapsed))
+    _append_completion_line(body, completion_refresh)
     body.append(Text("Restart running sase agents to unload the plugin.", style="dim"))
     target.print(Panel(Group(*body), title="Plugin Uninstalled", border_style="cyan"))
 
@@ -348,6 +363,76 @@ def _plugins_up_to_date_panel(all_plugins: bool) -> Panel:
     body.append("Already up to date.", style="green")
     body.append(f"\n{subject} at the latest version.", style="dim")
     return Panel(body, title="Plugin Update", border_style="cyan")
+
+
+def _command_change_body(changes: CommandChanges | None) -> list[RenderableType]:
+    """Return the command callout lines for added and removed commands.
+
+    Added commands render the chip with its summary and a ``Try it`` hint;
+    removed commands render the chip with a removal note. Provider-only updates
+    (same command set) render nothing here; they still appear in JSON.
+    """
+    if changes is None or not (changes.added or changes.removed):
+        return []
+    lines: list[RenderableType] = []
+    for change in changes.added:
+        lines.append(format_command_chip_rich(change.name, state="new"))
+        summary = _added_command_summary(change.name)
+        if summary:
+            lines.append(Text(f"  {summary}", style="dim"))
+        try_it = Text("  Try it:  ", style="dim")
+        try_it.append(f"sase {change.name} --help", style="cyan")
+        lines.append(try_it)
+    for change in changes.removed:
+        lines.append(format_command_chip_rich(change.name, state="removed"))
+    lines.append(Text(""))
+    return lines
+
+
+def _added_command_summary(name: str) -> str:
+    """Best-effort summary for a newly added command; ``""`` when unknown."""
+    try:
+        from sase.plugin_commands.adapter import resolve_command_summary
+        from sase.plugin_commands.scan import scan_plugin_commands
+
+        for record in scan_plugin_commands(honor_disable=False):
+            if record.name == name:
+                return resolve_command_summary(record)
+    except Exception:  # noqa: BLE001 — summaries must never crash the panel.
+        pass
+    return ""
+
+
+def _append_completion_line(
+    body: list[RenderableType], report: CompletionRefreshReport | None
+) -> None:
+    """Append the completion-refresh outcome line, if a refresh was attempted."""
+    if report is None or not report.attempted:
+        return
+    if not report.outcomes:
+        body.append(Text("Completion refresh: no stamped shells", style="dim"))
+        return
+    refreshed = sorted({outcome.shell for outcome in report.outcomes if outcome.ok})
+    failures = [outcome for outcome in report.outcomes if not outcome.ok]
+    if refreshed:
+        line = Text()
+        line.append("✓ ", style="green")
+        line.append(f"Shell completion refreshed ({', '.join(refreshed)})")
+        line.append(" · already-open shells: exec $SHELL", style="dim")
+        body.append(line)
+    for outcome in failures:
+        failure = Text()
+        failure.append("⚠ ", style="yellow")
+        failure.append(
+            f"Shell completion refresh failed ({outcome.shell}): ", style="yellow"
+        )
+        failure.append(outcome.detail, style="dim")
+        body.append(failure)
+    if failures:
+        retry = Text("  Retry with ", style="dim")
+        retry.append("sase completion refresh", style="cyan")
+        retry.append(".", style="dim")
+        body.append(retry)
 
 
 def _other_changes(

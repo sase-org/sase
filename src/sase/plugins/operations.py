@@ -7,6 +7,8 @@ callers continue to import from :mod:`sase.plugins.operations`.
 
 from __future__ import annotations
 
+from sase.plugins.post_change import PluginChangeEffects, empty_effects
+
 from ._operations_common import (
     AvailabilityBatchFn,
     AvailabilityProbeFn,
@@ -18,6 +20,8 @@ from ._operations_common import (
     ResolvedSpec,
     RunUvFn,
     SpecSource,
+    capture_command_snapshot_before,
+    post_change_effects,
     resolve_install_spec,
 )
 from ._operations_install import (
@@ -76,6 +80,7 @@ __all__ = [
     "NoPlugins",
     "NotInstalled",
     "NotUvTool",
+    "PluginChangeEffects",
     "ProbeFn",
     "ResolvedSpec",
     "RunUvFn",
@@ -88,6 +93,8 @@ __all__ = [
     "UpdatePlan",
     "UpdateReady",
     "UpdateUnknown",
+    "capture_command_snapshot_before",
+    "empty_effects",
     "execute_install",
     "execute_install_many",
     "execute_uninstall",
@@ -96,5 +103,6 @@ __all__ = [
     "plan_install_many",
     "plan_uninstall",
     "plan_update",
+    "post_change_effects",
     "resolve_install_spec",
 ]

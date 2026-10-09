@@ -12,7 +12,7 @@ internal workflows, or integrations without changing the core package.
 
 ## Plugin Groups
 
-Sase defines twelve entry point groups:
+Sase defines thirteen entry point groups:
 
 | Entry Point Group      | Entry Point Value | Purpose                                             | Example Plugin                  |
 | ---------------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
@@ -28,6 +28,7 @@ Sase defines twelve entry point groups:
 | `sase_config`          | Package module    | Default configuration (`default_config.yml`)        | `sase-github`, `my_sase_plugin` |
 | `sase_plugin_manifest` | Package module    | Plugin metadata resource used by diagnostics        | third-party plugin packages     |
 | `sase_commands`        | Command module    | Top-level `sase <name>` commands                    | `sase-listen` (`listen`)        |
+| `sase_pager_history`   | Provider factory  | Section-history providers for the pager             | third-party memory provider     |
 
 Provider-class entry points resolve to a class that is instantiated and registered with
 pluggy. Package-module entry points resolve to a module whose package resources are read
@@ -210,9 +211,10 @@ sase plugin show github -r
   `dev · offline`, or an unavailable/fetch-failed reason. Fix the checkout manually,
   then rerun `sase plugin list` or refresh the Admin Center Updates tab.
 - `sase plugin list -j` emits `schema_version: 3`. Each entry includes `install_type`,
-  `current_version`, and a `latest` object with `version`, `update_available`, `state`,
-  and `reason` so automation can distinguish index updates from editable-checkout dev
-  states without parsing table text.
+  `current_version`, an `installed` object with `entry_point_groups` and the mounted
+  `commands` the plugin provides, and a `latest` object with `version`,
+  `update_available`, `state`, and `reason` so automation can distinguish index updates
+  from editable-checkout dev states without parsing table text.
 
 ### Catalog fetching and cache
 
@@ -596,6 +598,15 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
   `update`, and `uninstall` restart the scheduler from the CLI when uv actually changed
   installed packages, and show an operation-specific post-restart toast when driven from
   sase's TUI. The JSON payload carries the same restart status shape as `sase update`.
+- **Command-aware lifecycle.** Every install, update, and uninstall diffs the mounted
+  `sase <name>` command set around the `uv` mutation. Added commands are announced in
+  the result panel with a `❯ sase <name>` chip, their summary, and a
+  `Try it: sase <name> --help` hint; removed commands are announced with the chip and a
+  removal note. When the command set changed, shell completion is refreshed in a fresh
+  child process (best-effort, like `sase update`: a failure never fails the mutation and
+  prints a `sase completion refresh` retry). The `-j|--json` payload carries
+  `command_changes` (`added`/`removed`/`updated`, each with `name`, `distribution`, and
+  `version`) and `completion_refresh`.
 
 ### Removing a plugin (`sase plugin uninstall`)
 
