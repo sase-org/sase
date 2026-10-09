@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.bead import cli_show_batch
 from sase.bead.cli_detail import render_issue_detail
 from sase.bead.cli_detail_json import issue_to_wire_dict, render_issue_detail_json
 from sase.bead.cli_detail_links import assemble_bead_link_neighborhood
@@ -128,7 +127,9 @@ def test_non_exiting_enricher_degrades_instead_of_exiting(
     def boom(**_kwargs: object) -> tuple[()]:
         raise RuntimeError("artifact link store is unreadable")
 
-    monkeypatch.setattr(cli_show_batch, "assemble_bead_link_neighborhood", boom)
+    monkeypatch.setattr(
+        "sase.bead.cli_show_batch_enrich.assemble_bead_link_neighborhood", boom
+    )
     detail = _detail(_issue(), include_links=False)
 
     assert enrich_with_artifact_link_neighborhood(detail) is detail

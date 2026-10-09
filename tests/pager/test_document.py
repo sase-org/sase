@@ -17,14 +17,14 @@ from sase.artifact_ref_models import (
     ArtifactRefProject,
     ArtifactRefSpan,
 )
+from sase.bead._cli_show_batch_shared import ShowRenderContext
 from sase.bead.cli_show_batch import (
-    _ShowRenderContext,
-    _show_entry_link_anchors,
     build_show_batch_document,
     default_show_render_context_resolver,
     render_show_batch,
     resolve_show_batch,
 )
+from sase.bead.cli_show_batch_render import _show_entry_link_anchors
 from sase.bead.cli_detail_style import DetailStyle
 from sase.bead.model import BeadNote, Issue, IssueType
 from sase.pager.adapters import document_from_paths
@@ -522,7 +522,7 @@ def test_bead_show_batch_adapter_uses_one_section_per_bead() -> None:
 def test_bead_show_section_anchors_to_entry_primary_workspace(
     tmp_path: Path,
 ) -> None:
-    context = _ShowRenderContext(
+    context = ShowRenderContext(
         relativize_design=False,
         plan_roots=(),
         design_cwd=tmp_path,
