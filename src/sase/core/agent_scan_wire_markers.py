@@ -19,7 +19,7 @@ overall scope of the snapshot scan boundary.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_scan_wire_agent_session_turn import AgentSessionTurnWire
 from sase.core.agent_scan_wire_markers_epic import (
@@ -37,6 +37,9 @@ from sase.core.agent_scan_wire_markers_finalizer import (
     FinalizerStatusSummaryWire,
     finalizer_status_from_mapping,
 )
+
+if TYPE_CHECKING:
+    from sase.core.agent_auto_restart_wire import AgentRecoveryWire
 
 
 @dataclass(frozen=True)
@@ -128,6 +131,7 @@ class DoneMarkerWire:
     imported_source_owner: dict[str, Any] | None = None
     status_label: str | None = None
     agent_session_turn: AgentSessionTurnWire | None = None
+    recovery: AgentRecoveryWire | None = None
     monitor_diagnostic_manifest_ref: str | None = None
     monitor_retained_log_ref: str | None = None
     continuation_monitor_result_id: str | None = None

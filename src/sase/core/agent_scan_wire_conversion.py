@@ -484,6 +484,11 @@ def _done_marker_from_dict(data: dict[str, Any]) -> DoneMarkerWire:
     if agent_session_turn is not None:
         kwargs["agent_session_turn"] = agent_session_turn
     kwargs.pop("agent_session_shell", None)
+    from sase.core.agent_auto_restart_wire import agent_recovery_from_mapping
+
+    recovery = agent_recovery_from_mapping(payload.get("recovery"))
+    if recovery is not None:
+        kwargs["recovery"] = recovery
     return DoneMarkerWire(**kwargs)
 
 

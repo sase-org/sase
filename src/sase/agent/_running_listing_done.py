@@ -67,6 +67,17 @@ def done_info_from_record(
         )
     elif outcome in {"failed", "epic_launch_failed"}:
         status = "FAILED"
+        from sase.core.agent_auto_restart_wire import RECOVERY_IN_FLIGHT_STATES
+
+        recovery_state = done.recovery.state if done.recovery is not None else None
+        if (
+            isinstance(recovery_state, str)
+            and recovery_state in RECOVERY_IN_FLIGHT_STATES
+        ):
+            # A recovery is still in flight: the row is actively
+            # restarting, not terminally failed. "RESTARTING" buckets as
+            # Running through the default status mapping.
+            status = "RESTARTING"
     else:
         status = "DONE"
 

@@ -13,7 +13,7 @@ _TONES: frozenset[str] = frozenset(
     {"neutral", "muted", "info", "ok", "warn", "error", "accent"}
 )
 _GLYPHS: frozenset[str] = frozenset(
-    {"▲", "◆", "•", "·", "●", "○", "✓", "✗", "↗", "↷", "⏱", "!", "▸", "─"}
+    {"▲", "◆", "•", "·", "●", "○", "✓", "✗", "↗", "↷", "⏱", "!", "▸", "─", "↻"}
 )
 _MAX_BLOCKS = 48
 _MAX_ENTRIES = 64
