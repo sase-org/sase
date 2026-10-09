@@ -542,19 +542,48 @@ def _agent_meta_with_status(raw: object) -> AgentMetaWire | None:
 def test_finalizer_status_is_trailing_wire_field() -> None:
     """Additive wire fields stay last so older payloads keep key order."""
     names = [field.name for field in fields(AgentMetaWire)]
-    assert names[-6:] == [
+    assert names[-7:] == [
         "proc_id",
         "finalizer_status",
         "created_epics",
         "wait_for_epics_of",
         "wait_epic_follows",
         "auto_approve_argument",
+        "autonomy",
     ]
     assert AgentMetaWire().finalizer_status is None
     assert AgentMetaWire().created_epics == []
     assert AgentMetaWire().wait_for_epics_of == []
     assert AgentMetaWire().wait_epic_follows == []
     assert AgentMetaWire().auto_approve_argument is None
+    assert AgentMetaWire().autonomy is None
+
+
+def test_autonomy_record_passes_through_wire() -> None:
+    """The core-owned autonomy record survives the wire untouched."""
+    record = {"profile": "tale", "selection": "tale", "revision": 1}
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "records": [
+                {
+                    "project_name": "proj",
+                    "project_dir": "/tmp/projects/proj",
+                    "project_file": "/tmp/projects/proj/proj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/proj/artifacts/ace-run/1",
+                    "timestamp": "1",
+                    "agent_meta": {"name": "planner", "autonomy": record},
+                }
+            ],
+        }
+    )
+    meta = snapshot.records[0].agent_meta
+    assert meta is not None
+    assert meta.autonomy == record
+    payload = agent_scan_wire_to_json_dict(meta)
+    assert payload["autonomy"] == record
 
 
 def test_finalizer_status_round_trip() -> None:

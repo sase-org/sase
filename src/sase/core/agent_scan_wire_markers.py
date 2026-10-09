@@ -279,6 +279,14 @@ class AgentMetaWire:
     # derivation tell a parked cross-tier gate (e.g. `%auto:tale` on an
     # epic plan) apart from a covered bare `%auto`.
     auto_approve_argument: str | None = None
+    # Core-owned autonomy record (`agent_meta.autonomy`, `%auto` E1
+    # `core_policy` phase). Trailing for the same key-order stability;
+    # additive serde-default, so no schema bump is needed. Pass-through
+    # dict: the record phase starts writing it and the core scanner
+    # derives the legacy `approve` / `auto_approve_plan_action` fields
+    # from it, so fleet facts and the gateway keep working once Python
+    # stops writing legacy keys.
+    autonomy: dict[str, Any] | None = None
 
     @property
     def agent_session_shell(self) -> AgentSessionTurnWire | None:
