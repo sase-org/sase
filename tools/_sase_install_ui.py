@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+"""Plan rendering for the ``sase_install`` engine (stdlib-only).
+
+Panels follow the ``sase update`` visual language with hand-rolled ANSI
+codes: rounded cyan panels, ``✓``/``⚠``/``✗``/``–`` glyphs, a dim detail
+column, and a width clamped to 60\u2013100 columns. Progress goes to stderr;
+plans, summaries, and JSON go to stdout.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+
+import _sase_install_plan as install_plan
+
+
+SCHEMA_VERSION = 1
+
+PROMPT_TEXT = "Proceed? [y/N]"
+
+_RESET = "\x1b[0m"
+_BOLD = "\x1b[1m"
+_DIM = "\x1b[2m"
+_CYAN = "\x1b[36m"
+_GREEN = "\x1b[32m"
+_YELLOW = "\x1b[33m"
+_RED = "\x1b[31m"
+
+_TOP_LEFT = "\u256d"
+_TOP_RIGHT = "\u256e"
+_BOTTOM_LEFT = "\u2570"
+_BOTTOM_RIGHT = "\u256f"
+_VERTICAL = "\u2502"
+_HORIZONTAL = "\u2500"
+
+
+def paint(text: str, *codes: str, enabled: bool = False) -> str:
+    """Wrap *text* in ANSI codes when *enabled*, else return it unchanged."""
+    if not enabled or not codes:
+        return text
+    return f"{''.join(codes)}{text}{_RESET}"
+
+
+def shorten_home(path: str, home: str | Path | None = None) -> str:
+    """Replace a leading home directory with ``~`` for display."""
+    root = str(home) if home is not None else str(Path.home())
+    if path == root:
+        return "~"
+    if path.startswith(root + "/"):
+        return "~" + path[len(root):]
+    return path
+
+
+#: Glyphs this renderer emits that occupy two terminal cells.
+_WIDE_CHARS = frozenset({"\u26a0"})
+
+
+def _dwidth(text: str) -> int:
+    """Return the terminal-cell width of *text* (wide glyphs count double)."""
+    return sum(2 if char in _WIDE_CHARS else 1 for char in text)
+
+
+def _fit(text: str, width: int) -> str:
+    if _dwidth(text) <= width:
+        return text
+    if width <= 1:
+        return text[:width]
+    out: list[str] = []
+    used = 0
+    for char in text:
+        char_width = 2 if char in _WIDE_CHARS else 1
+        if used + char_width > width - 1:
+            break
+        out.append(char)
+        used += char_width
+    return "".join(out) + "\u2026"
+
+
+def _pad_to(text: str, width: int) -> str:
+    return text + " " * max(0, width - _dwidth(text))
+
+
+def _current_desc(
+    row: install_plan.PlanRow,
+    *,
+    home: str | Path | None = None,
+    compact: bool = False,
+) -> str:
+    current = row.current
+    if current.kind == "editable" and current.path is not None:
+        if compact:
+            if current.version:
+                return f"editable {current.version}"
+            return "editable"
+        desc = shorten_home(current.path, home)
+        if current.version:
+            desc = f"{desc} \u00b7 {current.version}"
+        return desc
+    if current.kind == "local":
+        return f"{current.version} local build" if current.version else "local build"
+    if current.kind == "pypi":
+        return current.version if current.version else "PyPI"
+    if current.kind == "missing":
+        return "not installed"
+    if current.path:
+        return shorten_home(current.path, home)
+    return current.kind or "unknown"
+
+
+def _target_desc(
+    row: install_plan.PlanRow, *, home: str | Path | None = None
+) -> str:
+    target = row.target
+    if target.kind == "editable" and target.path is not None:
+        return shorten_home(target.path, home)
+    if target.kind == "editable":
+        return "editable"
+    if target.version:
+        return f"{target.version} PyPI"
+    return "PyPI"
+
+
+_BORING_KEEP_NOTES = frozenset(
+    {"editable checkout", "already current", "local build"}
+)
+
+
+def _row_content(
+    row: install_plan.PlanRow,
+    *,
+    home: str | Path | None = None,
+    content_width: int | None = None,
+) -> str:
+    kind = row.kind
+    if kind == install_plan.CHANGE_REMOVE:
+        content = f"{_current_desc(row, home=home)}  \u2192  removed"
+        if row.note:
+            content = f"{content}   {row.note}"
+        return content
+    if kind == install_plan.CHANGE_KEEP:
+        content = _current_desc(row, home=home)
+        if row.note and row.note not in _BORING_KEEP_NOTES:
+            full = f"{content}  \u2192  {row.note}"
+            compact = (
+                f"{_current_desc(row, home=home, compact=True)}  \u2192  {row.note}"
+            )
+            if content_width is None or len(full) <= content_width:
+                return full
+            return compact
+        return content
+    content = (
+        f"{_current_desc(row, home=home, compact=True)}  \u2192  "
+        f"{_target_desc(row, home=home)}"
+    )
+    if kind == install_plan.CHANGE_DOWNGRADE:
+        content = f"{content}   \u26a0 downgrade"
+    elif "\u26a0" in row.note:
+        tail = row.note.split("\u00b7")[-1].strip()
+        content = f"{content}   {tail}"
+    return content
+
+
+def _panel_title(plan: install_plan.InstallPlan) -> str:
+    if plan.mode == "dev":
+        return "just install-dev \u00b7 your `sase` \u2192 this checkout (editable)"
+    return "just install \u00b7 your `sase` \u2192 PyPI"
+
+
+def render_plan_panel(
+    plan: install_plan.InstallPlan,
+    *,
+    width: int = 80,
+    color: bool = False,
+    home: str | Path | None = None,
+) -> str:
+    """Render the plan as a rounded panel fixed to *width* columns."""
+    width = max(60, min(100, width))
+    inner = width - 2
+    label_width = 12
+    content_width = inner - 2 - label_width - 1 - 1
+
+    def border(left: str, right: str, fill: str) -> str:
+        return paint(
+            f"{left}{fill * inner}{right}", _CYAN, enabled=color
+        )
+
+    title = _fit(_panel_title(plan), inner - 4)
+    top = paint(
+        f"{_TOP_LEFT}\u2500 {title} ",
+        _CYAN,
+        enabled=color,
+    ) + paint(
+        f"{_HORIZONTAL * (inner - _dwidth(title) - 3)}{_TOP_RIGHT}",
+        _CYAN,
+        enabled=color,
+    )
+
+    lines = [top]
+    first_plugin = True
+    for row in plan.rows:
+        if row.role == "plugin":
+            label = "plugins" if first_plugin else ""
+            first_plugin = False
+        elif row.role == "host":
+            label = row.name
+        elif row.role == "core":
+            label = row.name
+        else:
+            label = row.name
+        content = _fit(
+            _row_content(row, home=home, content_width=content_width), content_width
+        )
+        if row.consequential:
+            content = paint(content, _YELLOW, enabled=color)
+        pad = " " * max(0, content_width - _dwidth(content))
+        lines.append(
+            paint(_VERTICAL, _CYAN, enabled=color)
+            + f" {_fit(label, label_width):<{label_width}} {content}{pad} "
+            + paint(_VERTICAL, _CYAN, enabled=color)
+        )
+
+    python = plan.python
+    if python.current is not None or python.target is not None:
+        if python.change:
+            py_content = (
+                f"{python.current} \u2192 {python.target}   \u26a0 python change"
+            )
+            py_content = paint(py_content, _YELLOW, enabled=color)
+        elif python.current is not None:
+            py_content = f"{python.current} (kept)"
+        else:
+            py_content = f"{python.target} (new)"
+        py_content = _fit(py_content, content_width)
+        pad = " " * max(0, content_width - _dwidth(py_content))
+        lines.append(
+            paint(_VERTICAL, _CYAN, enabled=color)
+            + f" {'python':<{label_width}} {py_content}{pad} "
+            + paint(_VERTICAL, _CYAN, enabled=color)
+        )
+
+    right = f"currently: {plan.current_mode}"
+    left = _fit(shorten_home(plan.target_dir, home), content_width - len(right) - 2)
+    target_content = f"{left}  {right}"
+    target_content = _fit(target_content, content_width)
+    pad = " " * max(0, content_width - _dwidth(target_content))
+    lines.append(
+        paint(_VERTICAL, _CYAN, enabled=color)
+        + f" {'target':<{label_width}} {paint(target_content, _DIM, enabled=color)}{pad} "
+        + paint(_VERTICAL, _CYAN, enabled=color)
+    )
+
+    host_rows = [row for row in plan.rows if row.role == "host"]
+    if (
+        host_rows
+        and host_rows[0].kind == install_plan.CHANGE_TO_PYPI
+        and host_rows[0].current.path is not None
+    ):
+        warn = _fit(
+            "\u26a0 Replaces your editable install from "
+            f"{shorten_home(host_rows[0].current.path, home)}.",
+            content_width,
+        )
+        pad = " " * max(0, content_width - _dwidth(warn))
+        lines.append(
+            paint(_VERTICAL, _CYAN, enabled=color)
+            + f" {'':<{label_width}} {paint(warn, _YELLOW, enabled=color)}{pad} "
+            + paint(_VERTICAL, _CYAN, enabled=color)
+        )
+
+    lines.append(border(_BOTTOM_LEFT, _BOTTOM_RIGHT, _HORIZONTAL))
+    return "\n".join(lines)
+
+
+def render_noop_line(plan: install_plan.InstallPlan) -> str:
+    """Render the repeat-run no-op summary line."""
+    if plan.mode == "dev":
+        return (
+            "\u2713 sase already runs this checkout "
+            "\u2014 nothing to do (--force reinstalls)"
+        )
+    host_rows = [row for row in plan.rows if row.role == "host"]
+    version = host_rows[0].target.version if host_rows else None
+    if version:
+        return (
+            f"\u2713 sase {version} from PyPI is already installed "
+            "\u2014 nothing to do (--force reinstalls)"
+        )
+    return (
+        "\u2713 sase from PyPI is already installed "
+        "\u2014 nothing to do (--force reinstalls)"
+    )
+
+
+def render_summary_line(plan: install_plan.InstallPlan, *, dry_run: bool) -> str:
+    """Render the one-line summary used by ``-q``."""
+    if plan.noop:
+        return render_noop_line(plan)
+    changes = sum(
+        1 for row in plan.rows if row.kind != install_plan.CHANGE_KEEP
+    )
+    noun = "change" if changes == 1 else "changes"
+    suffix = " \u2014 dry run, nothing changed" if dry_run else ""
+    flag = ", consequential" if plan.consequential else ""
+    return f"{plan.command}: {changes} {noun}{flag}{suffix}"
+
+
+def render_warning_lines(plan: install_plan.InstallPlan) -> list[str]:
+    """Render plan warnings as ``⚠`` lines printed after the panel."""
+    return [f"\u26a0 {warning}" for warning in plan.warnings]
+
+
+def render_prereq_line(probes: Sequence[Mapping[str, str | None]]) -> str:
+    """Render the dim prerequisite-versions line shown before the panel."""
+    parts = []
+    for probe in probes:
+        name = probe.get("name") or "?"
+        version = probe.get("version")
+        parts.append(f"{name} {version}" if version else str(name))
+    return "prerequisites: " + " \u00b7 ".join(parts)
+
+
+def pipeline_steps(mode: str) -> list[str]:
+    """Return the full pipeline step names for *mode* (execution is later work)."""
+    if mode == "dev":
+        return [
+            "preflight",
+            "plan",
+            "confirm",
+            "prepare",
+            "lock",
+            "swap",
+            "re-apply",
+            "verify",
+            "restart",
+            "summary",
+        ]
+    return ["preflight", "plan", "confirm", "lock", "swap", "verify", "restart",
+            "summary"]
+
+
+def plan_document(
+    plan: install_plan.InstallPlan,
+    *,
+    dry_run: bool,
+    outcome: str,
+    error: str | None = None,
+    log_path: str | None = None,
+) -> dict[str, object]:
+    """Build the ``-j`` JSON document body (``schema_version: 1``)."""
+    packages: list[dict[str, object]] = []
+    for row in plan.rows:
+        packages.append(
+            {
+                "name": row.name,
+                "role": row.role,
+                "current": {
+                    "source": row.current.kind,
+                    "version": row.current.version,
+                    "path": row.current.path,
+                },
+                "target": {
+                    "source": row.target.kind,
+                    "version": row.target.version,
+                    "path": row.target.path,
+                },
+                "change": row.kind,
+                "consequential": row.consequential,
+                "note": row.note,
+            }
+        )
+    commands: list[dict[str, object]] = [
+        {"purpose": "swap", "argv": list(plan.swap_argv)}
+    ]
+    if plan.overrides_path is not None:
+        commands.append(
+            {
+                "purpose": "write-overrides",
+                "path": plan.overrides_path,
+                "lines": list(plan.overrides_lines),
+            }
+        )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "command": plan.command,
+        "mode": plan.mode,
+        "dry_run": dry_run,
+        "outcome": outcome,
+        "packages": packages,
+        "python": {
+            "current": plan.python.current,
+            "target": plan.python.target,
+            "requested": plan.python.requested,
+            "change": plan.python.change,
+        },
+        "target": {"path": plan.target_dir, "current_mode": plan.current_mode},
+        "warnings": list(plan.warnings),
+        "consequential": plan.consequential,
+        "noop": plan.noop,
+        "commands": commands,
+        "steps": pipeline_steps(plan.mode),
+        "error": error,
+        "log_path": log_path,
+    }
+
+
+def render_json(
+    plan: install_plan.InstallPlan,
+    *,
+    dry_run: bool,
+    outcome: str,
+    error: str | None = None,
+    log_path: str | None = None,
+) -> str:
+    """Render the ``-j`` JSON document to stdout (nothing decorative)."""
+    return (
+        json.dumps(
+            plan_document(
+                plan, dry_run=dry_run, outcome=outcome, error=error,
+                log_path=log_path,
+            ),
+            indent=2,
+            sort_keys=False,
+        )
+        + "\n"
+    )
+
+
+def read_confirmation(stdin: object) -> bool:
+    """Read one ``[y/N]`` answer line; anything but ``y``/``yes`` declines."""
+    readline = getattr(stdin, "readline", None)
+    if not callable(readline):
+        return False
+    try:
+        answer = readline()
+    except (OSError, ValueError):
+        return False
+    if not isinstance(answer, str):
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
+__all__ = [
+    "PROMPT_TEXT",
+    "SCHEMA_VERSION",
+    "paint",
+    "pipeline_steps",
+    "plan_document",
+    "read_confirmation",
+    "render_json",
+    "render_noop_line",
+    "render_plan_panel",
+    "render_prereq_line",
+    "render_summary_line",
+    "render_warning_lines",
+    "shorten_home",
+]

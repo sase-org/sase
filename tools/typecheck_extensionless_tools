@@ -40,6 +40,19 @@ EXCLUDED_DIR_NAMES = frozenset(
 )
 PYTHON_SHEBANG_RE = re.compile(rb"(^|[/\s])python(?:\d+(?:\.\d+)*)?(\s|$)")
 
+#: Suffixed helper modules that are type-checked alongside the extensionless
+#: tools. The ``sase_install`` engine keeps its helpers as ``_*.py`` files
+#: (stdlib-only, imported via ``sys.path``), so extensionless discovery never
+#: sees them; they are listed here instead of weakening discovery for every
+#: other ``_*.py`` helper in ``tools/``.
+EXTRA_TYPED_HELPERS = (
+    "_sase_install_env.py",
+    "_sase_install_pypi.py",
+    "_sase_install_plan.py",
+    "_sase_install_state.py",
+    "_sase_install_ui.py",
+)
+
 
 def _is_python_shebang(path: Path) -> bool:
     try:
@@ -70,6 +83,10 @@ def discover_extensionless_python_tools(tools_dir: Path) -> list[Path]:
             if path.suffix or not path.is_file() or not _is_python_shebang(path):
                 continue
             scripts.append(path)
+    for helper in EXTRA_TYPED_HELPERS:
+        candidate = tools_dir / helper
+        if candidate.is_file() and candidate not in scripts:
+            scripts.append(candidate)
     return sorted(scripts)
 
 

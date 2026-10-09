@@ -1,0 +1,434 @@
+#!/usr/bin/env python3
+"""Install the `sase` command from PyPI or from a checkout (stdlib-only).
+
+``tools/sase_install pypi`` installs the latest sase release from PyPI as the
+user's ``sase`` command; ``tools/sase_install dev`` installs this checkout
+plus its paired sase-core (editable) in exactly the shape ``sase update``
+maintains. Recipes invoke this through uv so it works on a machine that has
+only uv; it never imports ``sase`` because it must work when the installed
+``sase`` is missing or broken.
+
+This phase (engine-core) builds the read-only half: guards, the environment
+snapshot, desired-state planning, the plan panel and JSON renderers, and the
+confirmation policy, with ``-n`` working for both modes. Real (non-dry-run)
+execution lands with the engine-pypi phase: after confirmation this build
+exits 1 saying so.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from collections.abc import Callable, Mapping
+from pathlib import Path
+from typing import TextIO
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import _sase_install_env as install_env
+import _sase_install_plan as install_plan
+import _sase_install_pypi as install_pypi
+import _sase_install_state as install_state
+import _sase_install_ui as install_ui
+
+
+EXIT_OK = 0
+EXIT_FAILED = 1
+EXIT_REFUSED = 2
+EXIT_INTERRUPTED = 130
+
+_NOT_IMPLEMENTED_MESSAGE = (
+    "execution is not wired yet: the pipeline (lock, swap, verify, restart) "
+    "lands with the engine-pypi phase. This preview changed nothing."
+)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the ``pypi``/``dev`` subcommand parser."""
+    parser = argparse.ArgumentParser(
+        prog="just install",
+        allow_abbrev=False,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Install the `sase` command: the latest PyPI release (`pypi`) or "
+            "this checkout plus its paired sase-core (`dev`)."
+        ),
+        epilog=(
+            "examples:\n"
+            "  just install -n                 # preview the PyPI install plan\n"
+            "  just install -y                 # install the latest release\n"
+            "  just install --version 0.17.1   # install one release\n"
+            "  just install-dev -n             # preview the dev install plan\n"
+            "  just install-dev -y             # install this checkout\n"
+            "\nexit codes: 0 success/no-op/dry-run \u00b7 1 failure/declined "
+            "\u00b7 2 refusal/usage/missing prerequisite \u00b7 130 interrupted"
+        ),
+    )
+    subparsers = parser.add_subparsers(dest="mode", required=True)
+
+    pypi = subparsers.add_parser(
+        "pypi",
+        prog="just install",
+        allow_abbrev=False,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Install the latest sase release from PyPI as your `sase` command",
+        description=(
+            "Install the latest sase release from PyPI as your `sase` command."
+        ),
+        epilog=(
+            "examples:\n"
+            "  just install -n                 # preview without changing anything\n"
+            "  just install -y                 # install the latest release\n"
+            "  just install --version 0.17.1   # install one release\n"
+            "  just install -j -n              # machine-readable plan preview"
+        ),
+    )
+    pypi.add_argument(
+        "--version",
+        metavar="X",
+        default=None,
+        help="Install exactly release X instead of the latest",
+    )
+
+    dev = subparsers.add_parser(
+        "dev",
+        prog="just install-dev",
+        allow_abbrev=False,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Install this checkout + its paired sase-core as your `sase` command",
+        description=(
+            "Install this checkout plus its paired sase-core (editable) as "
+            "your `sase` command, in exactly the shape `sase update` maintains."
+        ),
+        epilog=(
+            "examples:\n"
+            "  just install-dev -n                   # preview without changing anything\n"
+            "  just install-dev -y                   # install this checkout\n"
+            "  just install-dev --sync -y            # pull clean checkouts first\n"
+            "  just install-dev --keep-plugin-sources -y  # keep current plugin sources"
+        ),
+    )
+    dev.add_argument(
+        "--keep-plugin-sources",
+        action="store_true",
+        help="Keep each plugin's current source unless it is ephemeral or missing",
+    )
+    dev.add_argument(
+        "--sync",
+        action="store_true",
+        help="Pull the sase checkout, the core, and editable plugins first",
+    )
+
+    for sub in (pypi, dev):
+        sub.add_argument(
+            "-n",
+            "--dry-run",
+            action="store_true",
+            help="Show the plan without changing anything",
+        )
+        sub.add_argument(
+            "-y",
+            "--yes",
+            action="store_true",
+            help="Skip the confirmation prompt",
+        )
+        sub.add_argument(
+            "-q",
+            "--quiet",
+            action="store_true",
+            help="Print only the final summary line",
+        )
+        sub.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="Force plain output",
+        )
+        sub.add_argument(
+            "-j",
+            "--json",
+            action="store_true",
+            help="Emit machine-readable JSON",
+        )
+        sub.add_argument(
+            "--with",
+            dest="with_specs",
+            action="append",
+            default=[],
+            metavar="PKG",
+            help="Add PKG to the installed plugin set (repeatable)",
+        )
+        sub.add_argument(
+            "--python",
+            default=None,
+            metavar="PY",
+            help="Recreate the environment with interpreter PY",
+        )
+        sub.add_argument(
+            "--force",
+            action="store_true",
+            help="Run the full pipeline even when already current",
+        )
+    return parser
+
+
+def _stdin_is_tty(stdin: TextIO | None) -> bool:
+    isatty = getattr(stdin, "isatty", None)
+    if not callable(isatty):
+        return False
+    try:
+        return bool(isatty())
+    except (OSError, ValueError):
+        return False
+
+
+def run(
+    argv: list[str] | None = None,
+    *,
+    env: Mapping[str, str] | None = None,
+    stdin: TextIO | None = None,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+    pypi_lookup: Callable[[str], install_pypi.PypiInfo] | None = None,
+    checkout_root: str | Path | None = None,
+    tool_dir: str | Path | None = None,
+    bin_dir: str | Path | None = None,
+) -> int:
+    """Run the installer engine; return the process exit code (testable seam)."""
+    environ = os.environ if env is None else env
+    in_stream = stdin if stdin is not None else sys.stdin
+    out_stream = stdout if stdout is not None else sys.stdout
+    err_stream = stderr if stderr is not None else sys.stderr
+    try:
+        return _run(
+            argv,
+            env=environ,
+            stdin=in_stream,
+            stdout=out_stream,
+            stderr=err_stream,
+            pypi_lookup=pypi_lookup,
+            checkout_root=checkout_root,
+            tool_dir=tool_dir,
+            bin_dir=bin_dir,
+        )
+    except KeyboardInterrupt:
+        return EXIT_INTERRUPTED
+
+
+def _run(
+    argv: list[str] | None,
+    *,
+    env: Mapping[str, str],
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+    pypi_lookup: Callable[[str], install_pypi.PypiInfo] | None,
+    checkout_root: str | Path | None,
+    tool_dir: str | Path | None,
+    bin_dir: str | Path | None,
+) -> int:
+    args = build_parser().parse_args(argv)
+    mode = str(args.mode)
+    prog = (
+        install_plan.COMMAND_DEV if mode == "dev" else install_plan.COMMAND_PYPI
+    )
+    as_json = bool(args.json)
+    verbose = bool(args.verbose)
+    quiet = bool(args.quiet)
+    color = install_env.colors_enabled(env, stdout) and not verbose
+    width = install_env.terminal_width(env, stdout)
+
+    guard = install_env.agent_guard(env)
+    if guard.refused:
+        stderr.write(install_env.agent_refusal_text(prog) + "\n")
+        return EXIT_REFUSED
+    if guard.bypass_reason is not None:
+        stderr.write(install_env.agent_bypass_note(guard.bypass_reason) + "\n")
+
+    checkout = (
+        Path(checkout_root)
+        if checkout_root is not None
+        else install_env.checkout_root_from_here(Path(__file__).resolve())
+    )
+    core = install_env.resolve_core_dir(checkout, env=env)
+
+    uv = install_env.probe_uv()
+    git = install_env.probe_git() if mode == "dev" else None
+    cargo = install_env.probe_cargo() if mode == "dev" else None
+    if not uv.ok:
+        stderr.write(f"\u2717 {uv.detail}\n")
+        return EXIT_REFUSED
+
+    dry_run = bool(args.dry_run)
+    probe_warnings: list[str] = []
+    for probe, remedy in (
+        (git, "install git to use `just install-dev`"),
+        (cargo, "install rustup, or use `just install`"),
+    ):
+        if probe is not None and not probe.ok:
+            message = probe.detail or remedy
+            if dry_run:
+                probe_warnings.append(message)
+            else:
+                stderr.write(f"\u2717 {message}\n")
+                return EXIT_REFUSED
+
+    if tool_dir is not None:
+        tool_path = Path(tool_dir)
+    else:
+        uv_dir = install_env.uv_tool_dir()
+        if uv_dir is None:
+            stderr.write("\u2717 `uv tool dir` failed; is uv working?\n")
+            return EXIT_REFUSED
+        tool_path = Path(uv_dir) / "sase"
+    if bin_dir is not None:
+        bin_path = Path(bin_dir)
+    else:
+        uv_bin = install_env.uv_tool_bin_dir()
+        bin_path = Path(uv_bin) / "sase" if uv_bin else tool_path / "bin"
+
+    state = install_state.read_state(tool_dir=tool_path, bin_dir=bin_path)
+
+    if mode == "dev":
+        refusal = _durable_refusal(prog, checkout, core, state, env)
+        if refusal is not None:
+            stderr.write(refusal + "\n")
+            return EXIT_REFUSED
+
+    options = install_plan.PlanOptions(
+        mode=mode,
+        with_specs=tuple(args.with_specs or ()),
+        python=args.python,
+        force=bool(args.force),
+        version=getattr(args, "version", None),
+        keep_plugin_sources=bool(getattr(args, "keep_plugin_sources", False)),
+        sync=bool(getattr(args, "sync", False)),
+    )
+    plan = install_plan.build_plan(
+        options=options,
+        state=state,
+        checkout_root=checkout,
+        core_dir=core,
+        env=env,
+        pypi_lookup=pypi_lookup,
+    )
+
+    if dry_run:
+        if as_json:
+            stdout.write(
+                install_ui.render_json(
+                    plan,
+                    dry_run=True,
+                    outcome="noop" if plan.noop else "plan",
+                )
+            )
+            for warning in probe_warnings:
+                stderr.write(f"\u26a0 {warning}\n")
+            return EXIT_OK
+        if quiet:
+            stdout.write(install_ui.render_summary_line(plan, dry_run=True) + "\n")
+            return EXIT_OK
+        if plan.noop:
+            stdout.write(install_ui.render_noop_line(plan) + "\n")
+            for warning in (*probe_warnings, *plan.warnings):
+                stdout.write(f"\u26a0 {warning}\n")
+            return EXIT_OK
+        stdout.write(
+            install_ui.render_prereq_line(_probe_dicts(uv, git, cargo)) + "\n"
+        )
+        stdout.write(
+            install_ui.render_plan_panel(plan, width=width, color=color) + "\n"
+        )
+        for warning in (*probe_warnings, *plan.warnings):
+            stdout.write(f"\u26a0 {warning}\n")
+        return EXIT_OK
+
+    interactive = _stdin_is_tty(stdin)
+    if not interactive and not args.yes:
+        if as_json:
+            stdout.write(
+                install_ui.render_json(
+                    plan, dry_run=False, outcome="refused",
+                    error=install_env.non_tty_text(prog),
+                )
+            )
+        elif quiet:
+            stdout.write(install_ui.render_summary_line(plan, dry_run=False) + "\n")
+            stderr.write(install_env.non_tty_text(prog) + "\n")
+        elif plan.noop:
+            stdout.write(install_ui.render_noop_line(plan) + "\n")
+            stderr.write(install_env.non_tty_text(prog) + "\n")
+        else:
+            stdout.write(
+                install_ui.render_plan_panel(plan, width=width, color=color) + "\n"
+            )
+            stderr.write(install_env.non_tty_text(prog) + "\n")
+        return EXIT_REFUSED
+
+    if plan.noop and not options.force:
+        if as_json:
+            stdout.write(
+                install_ui.render_json(plan, dry_run=False, outcome="noop")
+            )
+        else:
+            stdout.write(install_ui.render_noop_line(plan) + "\n")
+        return EXIT_OK
+
+    if plan.consequential and not args.yes:
+        if not as_json and not quiet and not plan.noop:
+            stdout.write(
+                install_ui.render_plan_panel(plan, width=width, color=color) + "\n"
+            )
+        stderr.write(install_ui.PROMPT_TEXT + " ")
+        stderr.flush()
+        if not install_ui.read_confirmation(stdin):
+            stderr.write("cancelled \u2014 nothing changed\n")
+            return EXIT_FAILED
+
+    stderr.write(_NOT_IMPLEMENTED_MESSAGE + "\n")
+    return EXIT_FAILED
+
+
+def _durable_refusal(
+    prog: str,
+    checkout: Path,
+    core: Path,
+    state: install_state.InstallState,
+    env: Mapping[str, str],
+) -> str | None:
+    """Return the dev-only durable-source refusal text, if the roots are ephemeral."""
+    bad: Path | None = None
+    if install_env.is_ephemeral_path(checkout, env=env):
+        bad = checkout
+    elif install_env.is_ephemeral_path(core, env=env):
+        bad = core
+    if bad is None:
+        return None
+    durable_sase: str | None = None
+    if state.receipt is not None and state.receipt.primary.editable is not None:
+        candidate = state.receipt.primary.editable
+        if not install_env.is_ephemeral_path(candidate, env=env):
+            durable_sase = candidate
+    return install_env.durable_dev_refusal_text(
+        prog=prog, bad_root=str(bad), durable_sase=durable_sase
+    )
+
+
+def _probe_dicts(
+    *probes: install_env.ProbeResult | None,
+) -> list[dict[str, str | None]]:
+    dicts: list[dict[str, str | None]] = []
+    for probe in probes:
+        if probe is not None and probe.ok:
+            dicts.append({"name": probe.name, "version": probe.version})
+    return dicts
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point (thin wrapper over :func:`run`)."""
+    return run(argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
