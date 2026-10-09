@@ -31,18 +31,9 @@ if TYPE_CHECKING:
 
 UpdateRowKind = Literal["core", "plugin", "agent-cli"]
 UpdateRowSection = Literal["sase", "plugins-builtin", "plugins-community", "agent-clis"]
-UpdateScope = Literal["outdated", "installed", "available", "all"]
 UpdateCapability = Literal[
     "install", "uninstall", "update", "mark_update", "manual", "history"
 ]
-
-SCOPE_ORDER: tuple[UpdateScope, ...] = ("outdated", "installed", "available", "all")
-SCOPE_LABELS: dict[UpdateScope, str] = {
-    "outdated": "Outdated",
-    "installed": "Installed",
-    "available": "Available",
-    "all": "All",
-}
 
 _SECTIONS: tuple[tuple[UpdateRowSection, str, str], ...] = (
     ("sase", "── SASE ──", "bold dim"),
@@ -79,48 +70,22 @@ class UpdateRow:
     payload: CorePackageVersion | PluginCatalogEntry | AgentCliStatus
 
 
-def _row_in_scope(row: UpdateRow, scope: UpdateScope) -> bool:
-    """Return whether *row* belongs in *scope*."""
-    if scope == "outdated":
-        return row.update_available or row.error is not None
-    if scope == "installed":
-        return row.installed
-    if scope == "available":
-        return not row.installed
-    return True
-
-
-def scope_counts(rows: Sequence[UpdateRow]) -> dict[UpdateScope, int]:
-    """Count rows in each scope in one pass, ignoring any filter."""
-    counts: dict[UpdateScope, int] = dict.fromkeys(SCOPE_ORDER, 0)
-    for row in rows:
-        counts["all"] += 1
-        if row.installed:
-            counts["installed"] += 1
-        else:
-            counts["available"] += 1
-        if row.update_available or row.error is not None:
-            counts["outdated"] += 1
-    return counts
-
-
 def select_rows(
     rows: Sequence[UpdateRow],
     *,
-    scope: UpdateScope,
     needle: str,
 ) -> list[tuple[str, str, list[UpdateRow]]]:
     """Project *rows* into the pane's ``_grouped`` shape.
 
-    Empty sections are omitted. *needle* is already ``.strip().casefold()``-ed
-    by the caller and matched with ``needle in row.haystack``.
+    The pane shows one merged inventory: every row, grouped into sections
+    with updatable rows first in each section. Empty sections are omitted.
+    *needle* is already ``.strip().casefold()``-ed by the caller and matched
+    with ``needle in row.haystack``.
     """
     grouped: dict[UpdateRowSection, list[UpdateRow]] = {
         section: [] for section, _header, _style in _SECTIONS
     }
     for row in rows:
-        if not _row_in_scope(row, scope):
-            continue
         if needle and needle not in row.haystack:
             continue
         grouped[row.section].append(row)

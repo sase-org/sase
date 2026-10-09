@@ -9110,10 +9110,8 @@ appears as a row, grouped into **SASE**, **Plugins · Built-in**, **Plugins ·
 Community**, and **Agent CLIs** sections. An always-visible header above the list shows
 either the all-current banner or a digest of update counts, cache age, install mode, and
 any failed source — it never claims everything is current while a source is unknown or
-failed. A scope strip cycled with `]` / `[` narrows the list to **Outdated** (rows with
-an update available or a probe error), **Installed** (the default), **Available** (rows
-not installed), or **All**; each scope label carries a live row count. `'` jumps to any
-row via adaptive hints, across every section.
+failed. The list always shows every row (installed or not), with updatable rows first in
+each section. `'` jumps to any row via adaptive hints, across every section.
 
 Opening the tab never refreshes from the network. The first open in an ACE session
 builds the inventory from local caches the automatic update check maintains (plugin
@@ -9136,17 +9134,16 @@ install. On any markable row — an installable plugin or CLI, or an updatable C
 marks every visible row in that section with the same action, or unmarks them when all
 are already marked. Marked rows show `[✓]`. `Esc` first clears every mark (including
 filter-hidden ones); with nothing marked, `Esc` closes the Admin Center. A filter that
-matches nothing in the current scope names the scopes holding matches, with `[` / `]` to
-switch. Every install opens a confirm preview first — the exact command, plus for an
-agent CLI its target directory and PATH status and, for a script install, the script
-URL, size, and full SHA-256 — then runs the previewed plan sequentially in one tracked
-proc, CLIs before plugins when a marked set mixes both. CLIs SASE cannot install toast
-their manual instructions instead. Providers that opt out of independent CLI management,
-including the bundled internal Fakey provider, are omitted from the Agent CLIs section.
-The plain substring filter (`/`) searches every row's own fields — name, owner/repo,
-description, and topics for plugins; name, display name, binary, install method, route,
-package, and `not installed` for agent CLIs; package name for SASE rows — across all
-sections at once.
+matches nothing shows `Nothing matches the current filter.` Every install opens a
+confirm preview first — the exact command, plus for an agent CLI its target directory
+and PATH status and, for a script install, the script URL, size, and full SHA-256 — then
+runs the previewed plan sequentially in one tracked proc, CLIs before plugins when a
+marked set mixes both. CLIs SASE cannot install toast their manual instructions instead.
+Providers that opt out of independent CLI management, including the bundled internal
+Fakey provider, are omitted from the Agent CLIs section. The plain substring filter
+(`/`) searches every row's own fields — name, owner/repo, description, and topics for
+plugins; name, display name, binary, install method, route, package, and `not installed`
+for agent CLIs; package name for SASE rows — across all sections at once.
 
 Every sase-managed agent-CLI update run from `,U`, `,E`, `A`, or `sase agent-cli update`
 — and every install run from the Updates tab — is appended to

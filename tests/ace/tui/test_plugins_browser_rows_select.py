@@ -1,14 +1,10 @@
-"""Scope filtering, install routes, and available-scope tests."""
+"""Merged inventory selection, install routes, and sort tests."""
 
 from __future__ import annotations
 
 from sase.ace.tui.modals.plugins_browser_rows import (
-    SCOPE_LABELS,
-    SCOPE_ORDER,
     build_plugin_row,
     build_update_rows,
-    _row_in_scope,
-    scope_counts,
     select_rows,
 )
 from sase.agent_clis.models import (
@@ -27,7 +23,6 @@ from tests.ace.tui._plugins_browser_rows_helpers import (
     _entry,
     _installable_cli_status,
     _load_result,
-    _manual_only_cli_status,
     _not_installed_cli_status,
     _ready_cli_status,
 )
@@ -55,7 +50,7 @@ def test_select_rows_emits_sections_in_fixed_order_once() -> None:
     rows = build_update_rows(
         result, uv_tool=None, offline=False, plan_fn=plan_agent_cli_updates
     )
-    grouped = select_rows(rows, scope="all", needle="")
+    grouped = select_rows(rows, needle="")
     assert [header for header, _style, _rows in grouped] == [
         "── SASE ──",
         "── Plugins · Built-in ──",
@@ -64,35 +59,6 @@ def test_select_rows_emits_sections_in_fixed_order_once() -> None:
     ]
     keys = [row.key for _header, _style, section in grouped for row in section]
     assert keys == ["core:sase", "plugin:github", "plugin:acme", "cli:claude"]
-
-
-def test_row_in_scope_outdated_installed_and_all() -> None:
-    manual = build_update_rows(
-        _load_result(agent_cli_statuses=(_manual_only_cli_status(),)),
-        uv_tool=None,
-        offline=False,
-        plan_fn=plan_agent_cli_updates,
-    )[0]
-    assert _row_in_scope(manual, "outdated") is True
-    assert _row_in_scope(manual, "installed") is True
-
-    error_row = build_update_rows(
-        _load_result(
-            core_versions=CoreVersions(
-                packages=(_core_package(latest_error="pypi unreachable"),)
-            )
-        ),
-        uv_tool=None,
-        offline=False,
-    )[0]
-    assert error_row.update_available is False
-    assert error_row.error == "pypi unreachable"
-    assert _row_in_scope(error_row, "outdated") is True
-
-    nvim = build_plugin_row(_entry("nvim"), blocked=False)
-    assert nvim.installed is False
-    assert _row_in_scope(nvim, "installed") is False
-    assert _row_in_scope(nvim, "all") is True
 
 
 def test_select_rows_sorts_outdated_first_then_label() -> None:
@@ -119,7 +85,7 @@ def test_select_rows_sorts_outdated_first_then_label() -> None:
         stale=False,
     )
     rows = build_update_rows(_load_result(catalog=catalog), uv_tool=None, offline=False)
-    grouped = select_rows(rows, scope="all", needle="")
+    grouped = select_rows(rows, needle="")
     builtin = next(
         section for header, _style, section in grouped if "Built-in" in header
     )
@@ -161,25 +127,42 @@ def test_select_rows_one_needle_matches_all_domains() -> None:
         offline=False,
         plan_fn=plan_agent_cli_updates,
     )
-    grouped = select_rows(rows, scope="all", needle="needle-dist")
+    grouped = select_rows(rows, needle="needle-dist")
     keys = [row.key for _header, _style, section in grouped for row in section]
     assert keys == ["core:sase", "plugin:github", "cli:claude"]
 
 
-def test_scope_counts_ignore_filter_and_count_each_row_once() -> None:
-    nvim = build_plugin_row(_entry("nvim"), blocked=False)
-    github = build_plugin_row(
-        _entry(
-            "github",
-            installed=InstalledInfo(installed=True, version="1.0.0"),
-            latest=LatestInfo(checked=True, version="1.1.0", source="index"),
+def test_select_rows_returns_installed_and_not_installed_rows() -> None:
+    catalog = PluginCatalog(
+        fetched_at=_NOW,
+        entries=(
+            _entry(
+                "github",
+                installed=InstalledInfo(installed=True, version="1.0.0"),
+                latest=LatestInfo(checked=True, version="1.1.0", source="index"),
+            ),
+            _entry("nvim"),
         ),
-        blocked=False,
+        from_cache=True,
+        stale=False,
     )
-    counts = scope_counts((nvim, github))
-    assert counts["all"] == 2
-    assert counts["installed"] == 1
-    assert counts["outdated"] == 1
+    rows = build_update_rows(
+        _load_result(
+            catalog=catalog,
+            agent_cli_statuses=(_not_installed_cli_status(),),
+        ),
+        uv_tool=None,
+        offline=False,
+    )
+    grouped = select_rows(rows, needle="")
+    keys = [row.key for _header, _style, section in grouped for row in section]
+    assert "plugin:nvim" in keys
+    assert "cli:qwen" in keys
+    assert "plugin:github" in keys
+    builtin = next(
+        section for header, _style, section in grouped if "Built-in" in header
+    )
+    assert [row.key for row in builtin][0] == "plugin:github"
 
 
 # -- agent-CLI install capability, badge, and label per route ------------------
@@ -228,58 +211,6 @@ def test_agent_cli_haystack_covers_install_route_and_package() -> None:
     assert "manual" in manual_row.haystack
 
 
-# -- Available scope ----------------------------------------------------------
-
-
-def test_scope_order_cycles_outdated_installed_available_all() -> None:
-    assert SCOPE_ORDER == ("outdated", "installed", "available", "all")
-    assert SCOPE_LABELS["available"] == "Available"
-
-
-def test_available_scope_holds_only_not_installed_rows() -> None:
+def test_not_installed_plugin_row_is_uninstalled() -> None:
     nvim = build_plugin_row(_entry("nvim"), blocked=False)
-    github = build_plugin_row(
-        _entry(
-            "github",
-            installed=InstalledInfo(installed=True, version="1.0.0"),
-            latest=LatestInfo(checked=True, version="1.1.0", source="index"),
-        ),
-        blocked=False,
-    )
-    missing_cli = _cli_row(_not_installed_cli_status())
-    installed_cli = _cli_row(_ready_cli_status())
-    assert _row_in_scope(nvim, "available") is True
-    assert _row_in_scope(missing_cli, "available") is True
-    assert _row_in_scope(github, "available") is False
-    assert _row_in_scope(installed_cli, "available") is False
-
-
-def test_scope_counts_available_against_all_and_installed() -> None:
-    nvim = build_plugin_row(_entry("nvim"), blocked=False)
-    github = build_plugin_row(
-        _entry(
-            "github",
-            installed=InstalledInfo(installed=True, version="1.0.0"),
-            latest=LatestInfo(checked=True, version="1.1.0", source="index"),
-        ),
-        blocked=False,
-    )
-    counts = scope_counts((nvim, github))
-    assert counts["available"] == 1
-    assert counts["installed"] == 1
-    assert counts["all"] == 2
-    assert counts["available"] + counts["installed"] == counts["all"]
-
-
-def test_select_rows_available_scope_lists_missing_clis() -> None:
-    rows = build_update_rows(
-        _load_result(agent_cli_statuses=(_not_installed_cli_status(),)),
-        uv_tool=None,
-        offline=False,
-    )
-    keys = [
-        row.key
-        for _header, _style, section in select_rows(rows, scope="available", needle="")
-        for row in section
-    ]
-    assert keys == ["cli:qwen"]
+    assert nvim.installed is False

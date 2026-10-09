@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     from sase.updates.incoming_commits import IncomingCommits, IncomingCommitsCacheKey
 
     from .plugins_browser_loading import PluginsLoadResult
-    from .plugins_browser_rows import UpdateScope
 
 ProjectsSubTab = Literal["projects", "repos", "workspaces"]
 
@@ -111,7 +110,6 @@ class ToolRunsSessionState:
 class UpdatesSessionState:
     """Session-only cursor state for the Updates pane."""
 
-    scope: UpdateScope = "installed"
     rows: SelectionBookmark = field(default_factory=SelectionBookmark)
     agent_cli_history_all: bool = False
     #: Last successfully applied online-mode inventory (rows included), shared

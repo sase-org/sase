@@ -8,7 +8,6 @@ import pytest
 
 from sase.agent_clis.models import AgentCliStatus, InstallMethod
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.plugins_browser_rows import SCOPE_ORDER
 from sase.plugins.latest import LatestInfo
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
@@ -48,10 +47,8 @@ async def test_updates_pane_all_current_banner_shown(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        for scope in SCOPE_ORDER:
-            pane._set_scope(scope)
-            text = _render(pane._header_renderable())
-            assert "You're all up to date" in text
+        text = _render(pane._header_renderable())
+        assert "You're all up to date" in text
         text = _render(pane._all_current_banner())
         assert "sase v0.5.0 · sase-core v1.4.2 · 2 plugins current" in text
         assert "0 agent CLIs current" in text

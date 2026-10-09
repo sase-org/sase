@@ -63,18 +63,16 @@ async def test_plugins_session_restores_plugin_by_identity(
     _patch_other_panes(monkeypatch)
     _patch_catalog(monkeypatch, catalog=_catalog())
     state = AdminCenterSessionState()
-    state.updates.scope = "all"
     state.updates.rows.record("plugin:telegram", 0)
 
     async with AcePage() as page:
-        pane = await _open_plugins_pane(page, session_state=state, scope="all")
+        pane = await _open_plugins_pane(page, session_state=state)
         option_list = pane.query_one("#updates-list", OptionList)
         assert option_list.highlighted is not None
         highlighted = option_list.get_option_at_index(option_list.highlighted)
 
         assert highlighted.id == "updates-row__plugin:telegram"
         assert state.updates.rows.identity == "plugin:telegram"
-        assert state.updates.scope == "all"
 
 
 async def test_plugins_pane_summary_counts(
@@ -288,7 +286,7 @@ async def test_plugins_pane_community_label_fallback_keeps_short_identity(
         )
 
 
-async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(
+async def test_updates_filter_types_brackets_and_tab_switches_main_tab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -302,13 +300,14 @@ async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(
         await page.wait_for(lambda _s: filter_input.has_focus)
 
         await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "available")
-        assert filter_input.value == ""
+        await page.wait_for(lambda _s: filter_input.value == "[")
         assert modal._active_tab == "updates"
+
+        await page.press("escape")
+        await page.wait_for(lambda _s: not filter_input.has_focus)
 
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "config")
-        assert filter_input.value == ""
         assert page.app.current_tab == "artifacts"
 
 

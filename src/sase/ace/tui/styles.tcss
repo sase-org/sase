@@ -9656,8 +9656,6 @@ _OverlayNameModal #overlay-name-hints {
 }
 
 /* Updates tab: one merged inventory */
-PluginsBrowserPane #updates-scopes  { height: 1; text-align: center; text-wrap: nowrap;
-                                      text-overflow: clip; margin-bottom: 1; }
 PluginsBrowserPane #updates-header  { width: 100%; height: auto; text-style: bold; }
 PluginsBrowserPane #updates-filter-input { width: 100%; margin-bottom: 1; }
 PluginsBrowserPane #updates-panels  { width: 100%; height: 1fr; }

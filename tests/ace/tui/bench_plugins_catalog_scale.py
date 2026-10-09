@@ -192,7 +192,6 @@ async def _measure_size(
 ) -> dict[str, Any]:
     _patch_catalog(monkeypatch, catalog=make_scale_catalog(n), uv_tool=_uv_tool())
     pane, pane_open = await _measure_pane_open(page)
-    assert pane._scope == "all"
     assert pane._catalog is not None
     assert len(pane._catalog.entries) == n
     j_press = _measure_j_presses(pane)

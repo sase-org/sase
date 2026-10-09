@@ -104,8 +104,6 @@ async def _open_statistics_modal(
 
 async def _open_plugins_modal(
     page: AcePage,
-    *,
-    scope: str = "all",
 ) -> tuple[ConfigCenterModal, PluginsBrowserPane]:
     modal = ConfigCenterModal(initial_tab="updates")
     page.app.push_screen(modal)
@@ -113,7 +111,6 @@ async def _open_plugins_modal(
     await page.wait_for(lambda _s: bool(modal.query("#updates")))
     pane = modal.query_one("#updates", PluginsBrowserPane)
     await page.wait_for(lambda _s: not pane._loading)
-    pane._set_scope(scope)  # type: ignore[arg-type]
     await wait_for_visual_idle(page)
     return modal, pane
 

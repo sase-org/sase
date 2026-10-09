@@ -161,7 +161,7 @@ async def test_updates_jump_mode_takes_g_and_shift_g_from_the_scroller(
             assert scroll.scroll_y == 0
 
 
-async def test_updates_scope_switch_clears_jump_hints(
+async def test_updates_refresh_clears_jump_hints(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -182,7 +182,8 @@ async def test_updates_scope_switch_clears_jump_hints(
         await page.pause()
         assert pane.jump_back_stack == [origin]
 
-        pane._set_scope("installed")
+        pane.action_refresh()
+        await page.wait_for(lambda _s: not pane._loading)
         await page.pause()
 
         assert pane.jump_mode_active is False

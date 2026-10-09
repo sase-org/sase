@@ -1,23 +1,15 @@
-"""Layout and scope navigation for the Config Center Updates pane."""
+"""Layout for the Config Center Updates pane."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 from textual.widgets.option_list import Option
 
 from .plugins_browser_constants import _DETAIL_PLACEHOLDER
-from .plugins_browser_rows import (
-    SCOPE_LABELS,
-    SCOPE_ORDER,
-    UpdateScope,
-    scope_counts,
-)
-from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -45,7 +37,7 @@ _ROW_NAV_ACTIONS = {
 
 
 class PluginsBrowserLayoutMixin(_MixinBase):
-    """Compose the pane and coordinate its scope strip and master/detail list."""
+    """Compose the pane and coordinate its master/detail list."""
 
     if TYPE_CHECKING:
         _agent_cli_plan_worker: object | None
@@ -54,7 +46,6 @@ class PluginsBrowserLayoutMixin(_MixinBase):
         _grouped: list[tuple[str, str, list[UpdateRow]]]
         _loading: bool
         _rows: tuple[UpdateRow, ...]
-        _scope: UpdateScope
         _session_state: UpdatesSessionState
         app: Any
 
@@ -100,12 +91,6 @@ class PluginsBrowserLayoutMixin(_MixinBase):
         from . import plugins_browser_pane as pane_module
 
         yield Static(self._header_renderable(), id="updates-header", markup=False)
-        yield PanelTabStrip(
-            self._scope_tabs(),
-            self._scope,
-            uppercase_active=True,
-            id="updates-scopes",
-        )
         yield pane_module._PluginsFilterInput(
             placeholder="/ filter components, plugins, agent CLIs…",
             id="updates-filter-input",
@@ -173,54 +158,8 @@ class PluginsBrowserLayoutMixin(_MixinBase):
             return self._has_item_rows()
         return super().check_action(action, parameters)
 
-    def _scope_tabs(self) -> tuple[PanelTab, ...]:
-        counts = scope_counts(self._rows)
-        return tuple(
-            PanelTab(scope, f"{SCOPE_LABELS[scope]} {counts[scope]}", "#AF87FF")
-            for scope in SCOPE_ORDER
-        )
-
-    def _refresh_scope_strip(self) -> None:
-        try:
-            self.query_one("#updates-scopes", PanelTabStrip).set_tabs(
-                self._scope_tabs(), active_tab=self._scope
-            )
-        except Exception:
-            return
-
     def _has_item_rows(self) -> bool:
         return any(rows for _, _, rows in self._grouped)
-
-    @on(PanelTabStrip.TabClicked)
-    def _on_scope_clicked(self, event: PanelTabStrip.TabClicked) -> None:
-        event.stop()
-        if event.tab_id in SCOPE_ORDER:
-            self._set_scope(cast(UpdateScope, event.tab_id))
-
-    def _set_scope(self, scope: UpdateScope) -> None:
-        if scope == self._scope:
-            return
-        self.reset_jump_state(repaint=True)
-        self._scope = scope
-        self._session_state.scope = scope
-        if self._detail_debouncer is not None:
-            self._detail_debouncer.cancel()
-        self._refresh_scope_strip()
-        self._rebuild_groups()
-        self._rebuild_options(reuse_options=True)
-        self._sync_state_visibility()
-        self._render_detail_now(force=True)
-        self.focus_default()
-
-    def _cycle_scope(self, step: int) -> None:
-        index = SCOPE_ORDER.index(self._scope)
-        self._set_scope(SCOPE_ORDER[(index + step) % len(SCOPE_ORDER)])
-
-    def action_cycle_scope(self) -> None:
-        self._cycle_scope(1)
-
-    def action_cycle_scope_reverse(self) -> None:
-        self._cycle_scope(-1)
 
     def action_sync_agents(self) -> None:
         """Delegate ``a`` to ACE's shared tracked full-sync action."""

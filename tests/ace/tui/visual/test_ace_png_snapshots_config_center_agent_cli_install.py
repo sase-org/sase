@@ -165,30 +165,6 @@ async def test_config_center_agent_cli_install_marked_png_snapshot(
         )
 
 
-async def test_config_center_updates_available_scope_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Available scope lists only not-installed rows with live counts."""
-    patch_startup_loaders(monkeypatch)
-    _patch_macro_sources(monkeypatch)
-    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
-    _patch_plugins_catalog(monkeypatch)
-
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press(page.artifacts_digit("patches"))
-        await page.expect_state("artifacts_subtab", "patches")
-        _, pane = await _open_plugins_modal(page, scope="available")
-        await _wait_for_plugins_detail(page, pane)
-
-        ace_png_visual.assert_page_png(
-            page,
-            "config_center_updates_available_scope_120x40",
-            title="ACE SASE Admin Center — Updates tab (Available scope)",
-        )
-
-
 async def test_config_center_updates_mark_all_clis_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

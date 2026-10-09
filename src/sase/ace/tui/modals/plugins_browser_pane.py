@@ -100,7 +100,7 @@ from .plugins_browser_operations import (
     callable_accepts_keyword,
 )
 from .plugins_browser_rendering import PluginsBrowserRenderingMixin
-from .plugins_browser_rows import UpdateRow, UpdateScope, build_update_rows
+from .plugins_browser_rows import UpdateRow, build_update_rows
 from .plugins_browser_sase_update import (
     SaseUpdateActionsMixin,
     installed_version,
@@ -218,8 +218,6 @@ class PluginsBrowserPane(
     BINDINGS = [
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
-        ("right_square_bracket", "cycle_scope", "Next Scope"),
-        ("left_square_bracket", "cycle_scope_reverse", "Previous Scope"),
         ("i", "install", "Install"),
         ("I", "toggle_install_mark", "Mark"),
         ("space", "toggle_mark", "Mark"),
@@ -254,7 +252,6 @@ class PluginsBrowserPane(
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._session_state = session_state or UpdatesSessionState()
         self._auto_load = auto_load
-        self._scope: UpdateScope = self._session_state.scope
         self._catalog: PluginCatalog | None = None
         seeded = self._session_state.inventory
         if seeded is not None and seeded.core_versions is not None:

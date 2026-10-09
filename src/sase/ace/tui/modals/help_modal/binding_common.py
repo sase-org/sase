@@ -102,8 +102,6 @@ ADMIN_CENTER_TASKS_SECTION: tuple[str, list[tuple[str, str]]] = (
 ADMIN_CENTER_UPDATES_SECTION: tuple[str, list[tuple[str, str]]] = (
     "Admin Center Updates",
     [
-        ("Core / Plugins / Agent CLIs", "Three update sub-tabs"),
-        ("] / [", "Next / previous sub-tab"),
         ("u", "Update SASE core + plugins"),
         ("A", "Update agent CLIs"),
         ("a", "Full sync all enabled agents repositories"),

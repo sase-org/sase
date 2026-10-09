@@ -1,4 +1,4 @@
-"""Updates-pane scope and Agent CLIs browser tests."""
+"""Updates-pane Agent CLIs browser tests."""
 
 from __future__ import annotations
 
@@ -25,7 +25,6 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
 )
 
-from sase.ace.tui.modals.plugins_browser_rows import SCOPE_ORDER
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _agent_cli_statuses,
     _agent_cli_update_run,
@@ -42,7 +41,7 @@ from tests.ace.tui._proc_submit_signature_helpers import (
 from tests.ace.tui._session_reporter import session_reporter
 
 
-async def test_updates_scopes_cycle_and_gate_row_actions(
+async def test_update_agent_clis_action_is_available_when_idle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -55,26 +54,10 @@ async def test_updates_scopes_cycle_and_gate_row_actions(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        assert pane._scope == "all"
         assert pane.check_action("update_agent_clis", ()) is True
 
-        seen: list[str] = [pane._scope]
-        pane.action_cycle_scope()
-        seen.append(pane._scope)
-        pane.action_cycle_scope()
-        seen.append(pane._scope)
-        pane.action_cycle_scope()
-        seen.append(pane._scope)
-        pane.action_cycle_scope()
-        seen.append(pane._scope)
-        assert seen == ["all", "outdated", "installed", "available", "all"]
 
-        pane.action_cycle_scope_reverse()
-        assert pane._scope == "available"
-        assert tuple(SCOPE_ORDER) == ("outdated", "installed", "available", "all")
-
-
-async def test_agent_cli_session_restores_scope_and_row_by_identity(
+async def test_agent_cli_session_restores_row_by_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -84,7 +67,6 @@ async def test_agent_cli_session_restores_scope_and_row_by_identity(
         agent_cli_statuses=_agent_cli_statuses(),
     )
     state = AdminCenterSessionState()
-    state.updates.scope = "all"
     state.updates.rows.record("cli:codex", 0)
 
     async with AcePage() as page:
@@ -96,7 +78,6 @@ async def test_agent_cli_session_restores_scope_and_row_by_identity(
         await page.wait_for(lambda _s: not pane._loading)
 
         option_list = pane.query_one("#updates-list", OptionList)
-        assert pane._scope == "all"
         assert option_list.highlighted is not None
         highlighted = option_list.get_option_at_index(option_list.highlighted)
         assert highlighted.id == "updates-row__cli:codex"
@@ -187,62 +168,7 @@ async def test_agent_cli_pane_uses_shared_filtered_inventory(
         assert current.name == "claude"
 
 
-async def test_updates_scope_cycling_handles_brackets_from_core_and_lists(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(
-        monkeypatch,
-        catalog=_catalog(),
-        agent_cli_statuses=_agent_cli_statuses(),
-    )
-
-    async with AcePage() as page:
-        modal = ConfigCenterModal(initial_tab="updates")
-        page.app.push_screen(modal)
-        await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _s: bool(modal.query("#updates")))
-        pane = modal.query_one("#updates", PluginsBrowserPane)
-        await page.wait_for(lambda _s: not pane._loading)
-        updates_list = pane.query_one("#updates-list", OptionList)
-
-        assert pane._scope == "installed"
-        assert page.app.focused is updates_list
-
-        await page.press("right_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "available")
-        assert page.app.focused is updates_list
-
-        await page.press("right_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "all")
-        assert page.app.focused is updates_list
-
-        await page.press("right_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "outdated")
-        assert page.app.focused is updates_list
-
-        await page.press("right_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "installed")
-        assert page.app.focused is updates_list
-
-        await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "outdated")
-        assert page.app.focused is updates_list
-
-        await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "all")
-        assert page.app.focused is updates_list
-
-        await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "available")
-        assert page.app.focused is updates_list
-
-        await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "installed")
-        assert page.app.focused is updates_list
-
-
-async def test_updates_scope_hints_share_projects_wording(
+async def test_updates_hints_omit_scope_navigation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -252,8 +178,7 @@ async def test_updates_scope_hints_share_projects_wording(
         pane = await _open_plugins_pane(page)
         hints = pane._hints()
 
-        assert "[ ] scope" in hints
-        assert "[ / ] sub-tab" not in hints
+        assert "[ ] scope" not in hints
         assert "a sync agents" in hints
 
 
@@ -387,12 +312,10 @@ async def test_update_sase_action_remains_pane_wide(
         monkeypatch.setattr(
             pane,
             "_start_sase_update_preview",
-            lambda **_kwargs: calls.append(pane._scope),
+            lambda **_kwargs: calls.append("preview"),
         )
-        for scope in SCOPE_ORDER:
-            pane._set_scope(scope)
-            pane.action_update_sase()
-        assert calls == list(SCOPE_ORDER)
+        pane.action_update_sase()
+        assert calls == ["preview"]
 
 
 class _Reporter:

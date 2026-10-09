@@ -35,7 +35,7 @@ def _visible_keys(pane: PluginsBrowserPane) -> set[str]:
     return {row.key for row in pane._flat_rows()}
 
 
-async def test_plugin_mark_survives_scope_switch_and_is_consumed_by_install(
+async def test_plugin_mark_survives_filter_hide_and_is_consumed_by_install(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -56,9 +56,10 @@ async def test_plugin_mark_survives_scope_switch_and_is_consumed_by_install(
         pane.action_toggle_install_mark()
         assert pane._marked == {"plugin:nvim"}
 
-        pane._set_scope("installed")
+        _apply_updates_filter(pane, "zzz-no-such-row")
         assert "plugin:nvim" not in _visible_keys(pane)
         assert pane._marked == {"plugin:nvim"}
+        _apply_updates_filter(pane, "")
 
         pane.action_install()
         await page.expect_modal("PluginActionConfirmModal")
@@ -331,7 +332,7 @@ async def test_mark_all_updatable_clis_share_one_verb(
         )
 
 
-async def test_mark_all_respects_scope_and_filter(
+async def test_mark_all_respects_filter_and_section_capabilities(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -344,13 +345,11 @@ async def test_mark_all_respects_scope_and_filter(
 
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        pane._set_scope("installed")
         _highlight_row(pane, "cli:claude")
         pane.action_toggle_mark_all()
-        # qwen/muse are hidden by the Installed scope, so only updates mark.
+        # qwen/muse carry `install`, not `mark_update`, so only updates mark.
         assert pane._marked == {"cli:claude"}
 
-        pane._set_scope("all")
         _highlight_row(pane, "cli:qwen")
         _apply_updates_filter(pane, "qwen")
         pane.action_toggle_mark_all()

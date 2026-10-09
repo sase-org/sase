@@ -38,7 +38,6 @@ from .plugins_browser_constants import (
 )
 from .plugins_browser_rows import (
     UpdateRow,
-    UpdateScope,
     dev_state_label,
     select_rows,
 )
@@ -79,7 +78,6 @@ class PluginsBrowserRenderingMixin:
         _row_option_index: dict[str, int]
         _rows: tuple[UpdateRow, ...]
         _rows_by_key: dict[str, UpdateRow]
-        _scope: UpdateScope
         _session_state: Any
         _selection_guard: ProgrammaticSelectionGuard
         _uv_tool: object | None
@@ -106,8 +104,6 @@ class PluginsBrowserRenderingMixin:
 
         def _hints(self) -> str: ...
 
-        def _refresh_scope_strip(self) -> None: ...
-
         def _render_agent_cli_history(self, *, force: bool = False) -> None: ...
 
         def _sync_header(self) -> None: ...
@@ -126,7 +122,6 @@ class PluginsBrowserRenderingMixin:
         self.reset_jump_state()
         self._rebuild_groups()
         self._prune_marks()
-        self._refresh_scope_strip()
         self._sync_header()
         self._update_static("#updates-hints", self._hints())
         self._rebuild_options()
@@ -136,7 +131,6 @@ class PluginsBrowserRenderingMixin:
     def _rebuild_groups(self) -> None:
         self._grouped = select_rows(
             self._rows,
-            scope=self._scope,
             needle=self._filter_text.strip().casefold(),
         )
 
@@ -203,9 +197,9 @@ class PluginsBrowserRenderingMixin:
     def _create_options(self, reuse: dict[str, Option] | None = None) -> list[Option]:
         """Build OptionList items: disabled section headers + inventory rows.
 
-        *reuse* maps option ids from the live list. Filter and scope changes
-        keep those Option objects (and their cached visuals) so typing does
-        not re-visualize every surviving row.
+        *reuse* maps option ids from the live list. Filter changes keep
+        those Option objects (and their cached visuals) so typing does not
+        re-visualize every surviving row.
         """
         by_id = reuse or {}
         options: list[Option] = []
