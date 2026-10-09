@@ -41,12 +41,17 @@ An `sase_macros` package may provide ordinary templates in `macros/`.
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                          | Entry Points                                                                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider              | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_dispatch: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations          | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_macros: sase_github`, `sase_task_types: github`                                       |
-| `sase-telegram` | Telegram integration via job scripts (`sase_job_tg_outbound`, `sase_job_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                                                 |
-| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                 | standalone Neovim plugin files (not Python entry points)                                                                                                              |
+| Package                   | Description                                                                                                 | Entry Points                                                                                                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase` (core)             | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                                     | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_dispatch: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
+| `sase-github`             | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations                                 | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_macros: sase_github`, `sase_task_types: github`                                       |
+| `sase-telegram`           | Telegram integration via job scripts (`sase_job_tg_outbound`, `sase_job_tg_inbound`)                        | CLI scripts (not pluggy entry points)                                                                                                                                 |
+| `sase-nvim`               | Neovim integration, including project spec syntax and prompt helpers                                        | standalone Neovim plugin files (not Python entry points)                                                                                                              |
+| `sase-listen`             | Markdown-to-MP3 audio editions; ships `sase listen`, which behaves like the standalone `sase-listen` binary | `sase_commands: listen`                                                                                                                                               |
+| `sase-research-artifacts` | Research audio macros, artifact references, and file-hook templates                                         | `sase_macros: sase_research_artifacts`, `sase_artifact_refs: research`, `sase_file_hooks: research-highlights`, `sase_config: sase_research_artifacts`                |
+
+`sase-nvim` carries no `sase--plugin` catalog topic, so it never appears in the catalog
+listing; install it from its repository instead of `sase plugin install`.
 
 ## Command Plugins
 
@@ -111,6 +116,16 @@ to request path completion; otherwise only argparse `choices` produce candidates
 
 Disable switches: `SASE_DISABLE_PLUGINS` or `SASE_DISABLE_PLUGIN_COMMANDS` turns the
 whole group off. Both are permanent operational switches, not feature flags.
+
+### Migrating from the standalone `sase-listen`
+
+```bash
+sase plugin install listen
+sase listen doctor
+uv tool uninstall sase-listen
+```
+
+Migrate the feed host last, after the feed-host fallback is released.
 
 ## Installation
 

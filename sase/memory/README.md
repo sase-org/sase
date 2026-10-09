@@ -138,8 +138,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Type: `reference`
 - Parent: `AGENTS.md`
 - Description: Read anytime new CLI subcommands or options are added.
-- Lines: 41
-- Approx. tokens: 496
+- Lines: 42
+- Approx. tokens: 510
 
 ### `sase/memory/dispatch.md`
 
@@ -260,8 +260,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 13
 - Web descriptor notes: 3
-- Total lines: 1537
-- Total approx. tokens: 21898
+- Total lines: 1538
+- Total approx. tokens: 21912
 
 ## Commands
 
