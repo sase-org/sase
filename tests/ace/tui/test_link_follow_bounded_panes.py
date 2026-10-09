@@ -341,7 +341,25 @@ async def test_merge_stitch_context_carries_merges_show(
 async def _open_plans(
     page: AcePage, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> Any:
+    from pathlib import Path
+
     value = replace(_snapshot(tmp_path), archive_truncated=True)
+    # Materialize the archived plan on disk. The pane reconciles a truncated
+    # preview against the filesystem with a deep-archive scan, so a row the
+    # snapshot promises but the disk lacks is dropped from the query index
+    # once the scan lands -- racing the link-follow below under load.
+    archived = next(item for item in value.archive if item.match.plan.status == "done")
+    archived_path = Path(archived.match.plan.path)
+    archived_path.parent.mkdir(parents=True, exist_ok=True)
+    plan = archived.match.plan
+    frontmatter = dict(plan.frontmatter)
+    frontmatter.setdefault("title", plan.title)
+    archived_path.write_text(
+        "---\n"
+        + "".join(f"{key}: {val}\n" for key, val in frontmatter.items())
+        + "---\n"
+        + plan.body
+    )
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
         _choices,

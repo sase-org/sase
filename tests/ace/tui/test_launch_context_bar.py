@@ -244,13 +244,27 @@ async def test_row_fit_picks_density_from_free_cells() -> None:
         assert bar.density == "compact"
 
 
-async def test_agents_row_fit_shares_density_between_gauge_and_bar() -> None:
+async def test_agents_row_fit_shares_density_between_gauge_and_bar(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
     from sase.ace.tui.widgets.agent_load_indicator import AgentLoadIndicator
     from sase.ace.tui.widgets.launch_context_bar import AgentInfoRow
     from sase.ace.tui.widgets.launch_context_bar import _MIN_GAP_CELLS
+    from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+        patch_startup_loaders,
+        wait_for_startup,
+    )
+    from tests.ace.tui.widgets._agent_display_helpers import make_agent
+
+    # Seed one agent so the empty-roster onboarding card never shows: while
+    # onboarding is visible the agents view hides this row (display: none),
+    # which raced the width readiness wait below and timed out under load.
+    patch_startup_loaders(monkeypatch, agents=[make_agent()])
 
     async with AcePage(size=(120, 40), initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await page.expect_state("agent_count", 1)
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
         row = page.query_one_widget("#agent-info-row", AgentInfoRow)
