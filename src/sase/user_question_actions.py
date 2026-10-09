@@ -68,29 +68,34 @@ def user_question_gate_spec(
     summary = "; ".join(
         str(question.get("question") or "?") for question in normalized_questions[:3]
     )
+    # Attach the creator's live record snapshot: the gate service
+    # evaluates exactly once from it. ``enabled`` means a non-manual
+    # profile; without a live record the service falls back to the legacy
+    # bare-``%auto`` translation. A manual snapshot rides along disabled
+    # so the parked gate carries its deciding revision (rule ``manual``),
+    # exactly like a manual plan gate.
+    try:
+        import os as _os
+
+        from sase.autonomy.record import live_record as _live_record
+
+        _record = _live_record(_os.environ.get("SASE_ARTIFACTS_DIR") or "")
+    except Exception:
+        _record = None
     auto_block: dict[str, Any] | bool = auto
-    if auto:
-        # Attach the creator's live record snapshot: the gate service
-        # evaluates exactly once from it. ``enabled`` means a non-manual
-        # profile; without a live record the service falls back to the
-        # legacy bare-``%auto`` translation.
-        try:
-            import os as _os
-
-            from sase.autonomy.record import live_record as _live_record
-
-            _record = _live_record(_os.environ.get("SASE_ARTIFACTS_DIR") or "")
-        except Exception:
-            _record = None
+    if _record is not None and _record.get("profile") == "manual":
+        auto_block = {
+            "enabled": False,
+            "argument": None,
+            "policy": _record,
+        }
+    elif auto:
         if _record is not None:
-            if _record.get("profile") == "manual":
-                auto_block = False
-            else:
-                auto_block = {
-                    "enabled": True,
-                    "argument": _record.get("selection") or None,
-                    "policy": _record,
-                }
+            auto_block = {
+                "enabled": True,
+                "argument": _record.get("selection") or None,
+                "policy": _record,
+            }
         else:
             auto_block = {"enabled": True, "argument": None}
     return {

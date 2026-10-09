@@ -20,6 +20,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "agent-cli": ("sase.main.parser_agent_cli", "register_agent_cli_parser"),
     "artifact": ("sase.main.parser_artifact", "register_artifact_parser"),
     "artifact-file": ("sase.main.parser_artifact", "register_artifact_parser"),
+    "autonomy": ("sase.main.parser_autonomy", "register_autonomy_parser"),
     "axe": ("sase.main.parser_ace", "register_axe_parser"),
     "bead": ("sase.main.parser_bead", "register_bead_parser"),
     # Legacy command alias for the patch parser.

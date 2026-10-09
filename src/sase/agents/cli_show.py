@@ -65,6 +65,7 @@ def handle_agents_show(args: argparse.Namespace) -> None:
         _optional_str(meta.get("reasoning_effort")),
         _optional_str(meta.get("model_alias")),
     )
+    _append_autonomy_section(body, meta)
     if meta.get("pid"):
         body.append("PID: ", style="bold")
         body.append(f"{meta['pid']}\n")
@@ -102,6 +103,19 @@ def handle_agents_show(args: argparse.Namespace) -> None:
         body.append(f"tail -f {artifacts_dir}/live_reply.md\n")
 
     Console().print(Panel(body, title=f"Agent: {name}", border_style="cyan"))
+
+
+def _append_autonomy_section(body: Text, meta: dict[str, object]) -> None:
+    """Append the shared Autonomy section for one agent's live meta."""
+    from sase.autonomy.cli_shared import autonomy_lines
+    from sase.autonomy.record import read_record
+
+    record = read_record(meta)
+    if record is None:
+        return
+    body.append("\nAutonomy:\n", style="bold")
+    body.append_text(autonomy_lines(record))
+    body.append("\n")
 
 
 def _read_json(path: Path) -> dict[str, object]:

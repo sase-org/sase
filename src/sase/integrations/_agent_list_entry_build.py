@@ -212,7 +212,40 @@ def build_agent_list_entry(
             field_text(done, "status_label"),
             monitor_str(meta, "stop_status"),
         ),
+        autonomy=_autonomy_record(meta),
     )
+
+
+def _autonomy_record(meta: AgentMetaWire | None) -> dict[str, Any] | None:
+    """Return the live autonomy record for an agent-meta wire, if any.
+
+    The stored record wins; legacy-only metas translate through core
+    (``source: legacy``). Metas with neither give ``None`` (Manual).
+    Never raises: an unusable record or translation fails closed.
+    """
+    if meta is None:
+        return None
+    stored = meta.autonomy
+    if isinstance(stored, dict) and stored:
+        return dict(stored)
+    legacy: dict[str, Any] = {}
+    approve = getattr(meta, "approve", False)
+    if approve:
+        legacy["approve"] = True
+    for key in ("auto_approve_plan_action", "auto_approve_argument", "plan"):
+        value = getattr(meta, key, None)
+        if value is None or value is False:
+            continue
+        legacy[key] = value
+    if not legacy:
+        return None
+    try:
+        from sase.core.rust import require_rust_binding
+
+        translate = require_rust_binding("autonomy_record_from_legacy_meta")
+        return dict(translate(legacy))
+    except Exception:
+        return None
 
 
 def artifact_timestamp(agent: RunningAgentInfo) -> str | None:

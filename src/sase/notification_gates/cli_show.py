@@ -127,6 +127,7 @@ def _show(kind: str, request_id: str) -> dict[str, Any]:
         "branches": [list(branch) for branch in gate.branches],
         "kind": bundle.kind,
         "options": [_option_payload(option) for option in gate.options],
+        "policy": _policy_payload(bundle.envelope),
         "primary_branch": list(gate.primary_branch),
         "query": gate.query,
         "request_id": bundle.request_id,
@@ -216,6 +217,19 @@ def _payload_decisions(envelope: Mapping[str, Any]) -> list[Any] | None:
     return [item for item in decisions if isinstance(item, dict)] or None
 
 
+def _policy_payload(envelope: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Return the durable autonomy policy block, if this gate carries one.
+
+    Plan, epic-plan, and question gates always carry the revision that
+    decided them; every other kind carries no block and reports ``None``.
+    """
+    auto = envelope.get("auto")
+    if not isinstance(auto, Mapping):
+        return None
+    policy = auto.get("policy")
+    return dict(policy) if isinstance(policy, Mapping) and policy else None
+
+
 def _operations(envelope: Mapping[str, Any]) -> tuple[GateOperation, ...]:
     raw_operations = envelope.get("operations")
     if not isinstance(raw_operations, list):
@@ -275,6 +289,12 @@ def _print_human_gate(payload: Mapping[str, Any]) -> None:
     query = Text("Query: ", style="dim")
     query.append(str(payload["query"]))
     console.print(query, soft_wrap=True)
+
+    policy = payload.get("policy")
+    if isinstance(policy, Mapping) and policy:
+        from sase.autonomy.cli_shared import policy_line_text
+
+        console.print(policy_line_text(policy, str(payload["kind"])), soft_wrap=True)
 
     console.print(Text("Branches", style="bold"), soft_wrap=True)
     primary = list(payload["primary_branch"])

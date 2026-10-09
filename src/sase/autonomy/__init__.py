@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 from sase.autonomy.record import (
+    COVERAGE_LINE,
     LEGACY_AUTONOMY_KEYS,
     apply_record_meta_patch,
     auto_applies,
     autonomy_inherit_record,
+    decision_sentence,
     evaluate,
     legacy_projection,
     live_record,
     mutate_record,
+    profiles_catalog,
+    read_decision_log,
     read_record,
     record_meta_patch,
     record_only,
@@ -20,18 +24,23 @@ from sase.autonomy.record import (
     RETUNE_TRIGGER_KEYS,
     retune_meta_record,
     selection_to_prompt_prefix,
+    summarize_record,
     with_legacy_projection,
 )
 
 __all__ = [
+    "COVERAGE_LINE",
     "LEGACY_AUTONOMY_KEYS",
     "apply_record_meta_patch",
     "auto_applies",
     "autonomy_inherit_record",
+    "decision_sentence",
     "evaluate",
     "legacy_projection",
     "live_record",
     "mutate_record",
+    "profiles_catalog",
+    "read_decision_log",
     "read_record",
     "record_meta_patch",
     "record_only",
@@ -41,5 +50,6 @@ __all__ = [
     "RETUNE_TRIGGER_KEYS",
     "retune_meta_record",
     "selection_to_prompt_prefix",
+    "summarize_record",
     "with_legacy_projection",
 ]

@@ -435,15 +435,75 @@ def mutate_record(
     return dict(result)
 
 
+def summarize_record(record: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Return the core summary wire for *record*, or ``None`` when unusable.
+
+    Fails closed: a missing binding or an unusable record gives ``None``,
+    so inspect surfaces render the record without its summary.
+    """
+    try:
+        from sase.core.rust import require_rust_binding
+
+        summarize = require_rust_binding("autonomy_summary")
+        return dict(summarize(dict(record)))
+    except Exception:
+        return None
+
+
+def profiles_catalog() -> list[dict[str, Any]]:
+    """Return the built-in autonomy profile catalog from core."""
+    from sase.core.rust import require_rust_binding
+
+    catalog = require_rust_binding("autonomy_profiles")
+    return [dict(profile) for profile in catalog()]
+
+
+def decision_sentence(decision: Mapping[str, Any], gate_kind: str) -> str | None:
+    """Return one human line for a core decision, or ``None`` when unusable.
+
+    Accepts full decisions and durable policy blocks (which carry the same
+    deciding fields). Fails closed to ``None``.
+    """
+    try:
+        from sase.core.rust import require_rust_binding
+
+        sentence = require_rust_binding("autonomy_decision_sentence")
+        text = sentence(dict(decision), {"gate_kind": gate_kind})
+    except Exception:
+        return None
+    return text if isinstance(text, str) and text else None
+
+
+def read_decision_log(query: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return decision-log entries newest first for *query*.
+
+    *query* carries ``{since, agent, gate_kind, outcome, limit}``; ``since``
+    accepts the same DATE tokens the CLI ``--since`` options accept.
+    """
+    from sase.core.paths import sase_home
+    from sase.core.rust import require_rust_binding
+
+    read = require_rust_binding("autonomy_read_decisions")
+    return [dict(entry) for entry in read(str(sase_home()), dict(query))]
+
+
+#: Coverage line every inspect view ends with (E1 contract wording).
+COVERAGE_LINE = "Covers host checkpoints only · the agent's shell is not restricted"
+
+
 __all__ = [
+    "COVERAGE_LINE",
     "LEGACY_AUTONOMY_KEYS",
     "apply_record_meta_patch",
     "auto_applies",
     "autonomy_inherit_record",
+    "decision_sentence",
     "evaluate",
     "legacy_projection",
     "live_record",
     "mutate_record",
+    "profiles_catalog",
+    "read_decision_log",
     "read_record",
     "record_meta_patch",
     "record_only",
@@ -453,5 +513,6 @@ __all__ = [
     "RETUNE_TRIGGER_KEYS",
     "retune_meta_record",
     "selection_to_prompt_prefix",
+    "summarize_record",
     "with_legacy_projection",
 ]

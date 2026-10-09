@@ -105,6 +105,12 @@ def main() -> NoReturn:
 
         handle_artifact_command(args)
 
+    # --- autonomy ---
+    if args.command == "autonomy":
+        from .autonomy_handler import handle_autonomy_group
+
+        handle_autonomy_group(args)
+
     # --- axe ---
     if args.command == "axe":
         from .axe_handler import handle_axe_command

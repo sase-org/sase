@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from sase.agent.status_buckets import agent_is_asking
 from sase.core.output_variable_values import VarValue
@@ -163,6 +164,7 @@ class AgentListEntry:
     monitor_exit_code: int | None = None
     monitor_start_status: str | None = None
     monitor_stop_status: str | None = None
+    autonomy: dict[str, Any] | None = None
 
     @property
     def is_monitor(self) -> bool:
@@ -189,3 +191,13 @@ class AgentListEntry:
             if action == "epic":
                 return "⚡E"
         return "⚡" if self.approve else None
+
+    @property
+    def autonomy_profile(self) -> str | None:
+        """Return the autonomy profile name, or ``None`` when manual."""
+        if not isinstance(self.autonomy, dict):
+            return None
+        profile = self.autonomy.get("profile")
+        if not isinstance(profile, str) or profile == "manual":
+            return None
+        return profile

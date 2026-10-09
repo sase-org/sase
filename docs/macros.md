@@ -3034,8 +3034,18 @@ accepted spellings. Any other colon value (backtick literals included, e.g.
 `%auto:foo`), any parenthesized form (`%auto(plan=ask)`, `%a(epic=ask)`,
 `%auto(plan, epic)`, `%auto()`), and any duplicate `%auto` fail at launch with a
 `DirectiveError`. `%auto:manual` and `%auto:off` mean Manual: auto is off exactly as if
-no `%auto` were present — the token is still stripped from the cleaned prompt, and no
-auto keys are written to `agent_meta.json`.
+no `%auto` were present — the token is still stripped from the cleaned prompt, and
+`agent_meta.json` carries a Manual record.
+
+Every launch resolves its `%auto` into one revisioned `agent_meta.autonomy` record, and
+one core evaluator decides every automatic gate from that record. The four built-in
+profiles are `manual` (everything waits), `standard` (the default: tale plans approve
+and archive, epic plans approve and launch, questions take the first option), `tale`
+(`:plan`/`:tale`: tale plans approve and archive, epic plans wait), and `epic` (`:epic`:
+epic plans approve and launch, tale plans wait). Host-composed successors — coders,
+replanners, pipe/handoff, monitor and gate follow-ups, and the coder after a manual plan
+approval — inherit the live record structurally, and an explicit `%auto` in
+agent-authored follow-up text can only narrow it.
 
 Bare `%auto` (`%auto+` and `%auto:true` normalize to it) approves and archives tale
 plans — the same path as pressing Enter — approves and launches epic plans, and answers
@@ -3053,8 +3063,15 @@ Fix the lint errors in the codebase.
 sase's TUI and the macro LSP suggest `plan`, `tale`, `epic`, `manual`, and `off` as the
 closed `%auto` vocabulary. Launch, sudo, custom, HITL, task/flag triage, snooze,
 stale-cleanup, and plugin gates are never auto-resolved and must be answered explicitly.
-The `A` toggle in sase's TUI takes effect at the next gate: toggling on means bare
-`%auto`, and toggling off stops the next gate from auto-resolving.
+The `A` toggle in sase's TUI rewrites the agent's record from its next gate: toggling
+off makes it Manual, and toggling back on restores its last profile (else `standard`).
+Later successors inherit the toggled record.
+
+`sase autonomy explain` predicts each decision exactly — for an agent, a prompt
+(`--prompt` dry-runs without executing anything), or a settled gate (`--gate`) —
+`sase autonomy log` lists the decisions so far, and `sase autonomy list`/`show` print
+the built-in profiles. Autonomy covers host checkpoints only; the agent's shell is not
+restricted.
 
 When an agent launched with `%auto:tale` later submits a tale plan with `/sase_plan` or
 `sase plan propose`, sase auto-approves and commits it as an SDD tale in the resolved

@@ -6,6 +6,7 @@ from sase.main.parser_ace import register_ace_parser, register_axe_parser
 from sase.main.parser_agent import register_agent_parser
 from sase.main.parser_agent_cli import register_agent_cli_parser
 from sase.main.parser_artifact import register_artifact_parser
+from sase.main.parser_autonomy import register_autonomy_parser
 from sase.main.parser_bead import register_bead_parser
 from sase.main.parser_chat import register_chat_parser
 from sase.main.parser_commands import (
@@ -82,6 +83,7 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_agent_parser,
         register_agent_cli_parser,
         register_artifact_parser,
+        register_autonomy_parser,
         register_axe_parser,
         register_bead_parser,
         register_chat_parser,

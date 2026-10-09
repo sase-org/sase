@@ -115,6 +115,28 @@ def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
         "monitor_exit_code": agent.monitor_exit_code,
         "monitor_start_status": agent.monitor_start_status,
         "monitor_stop_status": agent.monitor_stop_status,
+        "autonomy": _autonomy_json(agent),
+    }
+
+
+def _autonomy_json(agent: AgentListEntry) -> dict[str, object] | None:
+    """Return the ``autonomy`` JSON block for one entry, if it has one."""
+    record = agent.autonomy
+    if not isinstance(record, dict) or not record:
+        return None
+    from sase.autonomy.record import summarize_record
+
+    summary = summarize_record(record)
+    profile_class = None
+    if summary is not None:
+        profile_class = summary.get("class")
+    return {
+        "profile": record.get("profile"),
+        "class": profile_class,
+        "selection": record.get("selection"),
+        "overrides": record.get("overrides", {}),
+        "source": record.get("source"),
+        "revision": record.get("revision"),
     }
 
 
@@ -146,6 +168,7 @@ def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
     table.add_column("PROVIDER")
     table.add_column("DURATION", justify="right")
     table.add_column("STATUS")
+    table.add_column("AUTO")
     table.add_column("PROMPT")
 
     for agent in agents:
@@ -157,6 +180,7 @@ def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
             _provider_badge(agent.provider),
             agent.duration,
             _status_badge(agent),
+            agent.autonomy_profile or "",
             _truncate_prompt(
                 humanize_vcs_refs_in_text(agent.prompt) if agent.prompt else None,
                 _PROMPT_PRETTY_MAX_CHARS,

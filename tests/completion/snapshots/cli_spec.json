@@ -6571,6 +6571,370 @@
       },
       {
         "aliases": [],
+        "default_child": "list",
+        "description_digest": "b32d528e645b0fea",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "autonomy",
+        "options": [
+          {
+            "choices": null,
+            "default": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "metavar": null,
+            "repeatable": false,
+            "required": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false,
+            "value_hint": null
+          }
+        ],
+        "path": [
+          "autonomy"
+        ],
+        "positionals": [],
+        "run_policy": [],
+        "stdin": false,
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "9d95cbe136a89c4a",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "explain",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "gate",
+                "hidden": false,
+                "kind": "gate",
+                "metavar": "ID",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-g",
+                  "--gate"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "prompt",
+                "hidden": false,
+                "kind": null,
+                "metavar": "TEXT",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--prompt"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "autonomy",
+              "explain"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "agent",
+                "is_remainder": false,
+                "kind": "agent",
+                "metavar": "AGENT",
+                "nargs": "?",
+                "required": false,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "a4875a003287d9af",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "autonomy",
+              "list"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "f7c3836679dc167e",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "log",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "plan",
+                  "epic_plan",
+                  "question"
+                ],
+                "default": null,
+                "dest": "kind",
+                "hidden": false,
+                "kind": null,
+                "metavar": "KIND",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-k",
+                  "--kind"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": [
+                  "auto",
+                  "ask"
+                ],
+                "default": null,
+                "dest": "outcome",
+                "hidden": false,
+                "kind": null,
+                "metavar": "OUTCOME",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-o",
+                  "--outcome"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "since",
+                "hidden": false,
+                "kind": null,
+                "metavar": "DATE",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-s",
+                  "--since"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "autonomy",
+              "log"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "agent",
+                "is_remainder": false,
+                "kind": "agent",
+                "metavar": "AGENT",
+                "nargs": "?",
+                "required": false,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "318457451a35a201",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "autonomy",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": [
+                  "epic",
+                  "manual",
+                  "standard",
+                  "tale"
+                ],
+                "dest": "profile",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "PROFILE",
+                "nargs": null,
+                "required": true,
+                "value_hint": "text"
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          }
+        ],
+        "writes": false
+      },
+      {
+        "aliases": [],
         "default_child": null,
         "description_digest": "24b35a7052b76b66",
         "hidden": false,
