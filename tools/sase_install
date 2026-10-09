@@ -8,11 +8,11 @@ maintains. Recipes invoke this through uv so it works on a machine that has
 only uv; it never imports ``sase`` because it must work when the installed
 ``sase`` is missing or broken.
 
-This phase (engine-core) builds the read-only half: guards, the environment
+The engine-core phase built the read-only half: guards, the environment
 snapshot, desired-state planning, the plan panel and JSON renderers, and the
-confirmation policy, with ``-n`` working for both modes. Real (non-dry-run)
-execution lands with the engine-pypi phase: after confirmation this build
-exits 1 saying so.
+confirmation policy, with ``-n`` working for both modes. The engine-pypi phase
+wired PyPI mode end to end (lock, swap, verify, restart); dev mode still
+previews until the engine-dev phase lands.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ import _sase_install_core as install_core
 import _sase_install_env as install_env
 import _sase_install_plan as install_plan
 import _sase_install_pypi as install_pypi
+import _sase_install_run as install_run
 import _sase_install_state as install_state
 import _sase_install_ui as install_ui
 
@@ -39,9 +40,10 @@ EXIT_FAILED = 1
 EXIT_REFUSED = 2
 EXIT_INTERRUPTED = 130
 
-_NOT_IMPLEMENTED_MESSAGE = (
-    "execution is not wired yet: the pipeline (lock, swap, verify, restart) "
-    "lands with the engine-pypi phase. This preview changed nothing."
+_DEV_NOT_IMPLEMENTED_MESSAGE = (
+    "dev execution is not wired yet: the dev pipeline (prepare, swap, "
+    "re-apply, verify) lands with the engine-dev phase. "
+    "This preview changed nothing."
 )
 
 
@@ -195,6 +197,8 @@ def run(
     checkout_root: str | Path | None = None,
     tool_dir: str | Path | None = None,
     bin_dir: str | Path | None = None,
+    lock_timeout: float | None = None,
+    command_runner: object = None,
 ) -> int:
     """Run the installer engine; return the process exit code (testable seam)."""
     environ = os.environ if env is None else env
@@ -212,6 +216,8 @@ def run(
             checkout_root=checkout_root,
             tool_dir=tool_dir,
             bin_dir=bin_dir,
+            lock_timeout=lock_timeout,
+            command_runner=command_runner,
         )
     except KeyboardInterrupt:
         return EXIT_INTERRUPTED
@@ -228,6 +234,8 @@ def _run(
     checkout_root: str | Path | None,
     tool_dir: str | Path | None,
     bin_dir: str | Path | None,
+    lock_timeout: float | None,
+    command_runner: object,
 ) -> int:
     args = build_parser().parse_args(argv)
     mode = str(args.mode)
@@ -276,7 +284,7 @@ def _run(
     if tool_dir is not None:
         tool_path = Path(tool_dir)
     else:
-        uv_dir = install_env.uv_tool_dir()
+        uv_dir = install_env.uv_tool_dir(env=env)
         if uv_dir is None:
             stderr.write("\u2717 `uv tool dir` failed; is uv working?\n")
             return EXIT_REFUSED
@@ -284,7 +292,7 @@ def _run(
     if bin_dir is not None:
         bin_path = Path(bin_dir)
     else:
-        uv_bin = install_env.uv_tool_bin_dir()
+        uv_bin = install_env.uv_tool_bin_dir(env=env)
         bin_path = Path(uv_bin) / "sase" if uv_bin else tool_path / "bin"
 
     state = install_state.read_state(tool_dir=tool_path, bin_dir=bin_path)
@@ -410,7 +418,10 @@ def _run(
             stderr.write(install_env.non_tty_text(prog) + "\n")
         return EXIT_REFUSED
 
-    if plan.noop and not options.force:
+    # Dev mode still previews: its repeat-run no-op answers here until the
+    # engine-dev phase wires the dev pipeline. PyPI mode always flows into
+    # the pipeline so the no-op verdict includes the quick health probe.
+    if mode == "dev" and plan.noop and not options.force:
         if as_json:
             stdout.write(install_ui.render_json(plan, dry_run=False, outcome="noop"))
         else:
@@ -428,8 +439,33 @@ def _run(
             stderr.write("cancelled \u2014 nothing changed\n")
             return EXIT_FAILED
 
-    stderr.write(_NOT_IMPLEMENTED_MESSAGE + "\n")
-    return EXIT_FAILED
+    if mode == "dev":
+        stderr.write(_DEV_NOT_IMPLEMENTED_MESSAGE + "\n")
+        return EXIT_FAILED
+
+    outcome = install_run.run_pypi_pipeline(
+        plan=plan,
+        state=state,
+        options=install_run.PipelineOptions(
+            env=env,
+            sase_home=str(install_env.sase_home(env)),
+            tool_dir=str(tool_path),
+            bin_dir=str(bin_path),
+            verbose=verbose,
+            quiet=quiet,
+            as_json=as_json,
+            force=bool(args.force),
+            lock_timeout=(
+                lock_timeout
+                if lock_timeout is not None
+                else install_run.LOCK_TIMEOUT_SECONDS
+            ),
+        ),
+        stdout=stdout,
+        stderr=stderr,
+        run=command_runner or install_run.default_runner,  # type: ignore[arg-type]
+    )
+    return EXIT_OK if outcome.exit_code == 0 else EXIT_FAILED
 
 
 def _durable_refusal(

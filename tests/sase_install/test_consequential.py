@@ -177,14 +177,32 @@ def test_non_tty_without_yes_prints_plan_and_exits_2(
 def test_non_tty_with_yes_runs_past_confirm(
     tmp_path: Path, monkeypatch: object
 ) -> None:
-    exit_code, _, err = _entry_run(
-        tmp_path,
-        monkeypatch,
+    from tests._sase_install_testkit import install_run
+
+    def _boom(argv: object, **kwargs: object) -> object:
+        return install_run.RunnerResult(returncode=1, stdout="", stderr="boom")
+
+    entry = kit.load_entry()
+    kit.fake_probes(monkeypatch)  # type: ignore[arg-type]
+    checkout = kit.make_checkout(tmp_path)
+    tool_dir, bin_dir = kit.make_tool_env(tmp_path, checkout=checkout)
+    env = kit.make_env(tmp_path)
+    lookup = kit.FakePyPI({"sase": "0.17.1", "sase-core-rs": "0.35.4"})
+    exit_code, _, err = kit.run_entry(
+        entry,
         ["pypi", "--version", "0.18.0", "-y"],
+        env=env,
         stdin=kit.FakeStdin(tty=False),
+        pypi_lookup=lookup,
+        checkout_root=checkout,
+        tool_dir=tool_dir,
+        bin_dir=bin_dir,
+        command_runner=_boom,
     )
-    assert exit_code == 1  # execution lands with engine-pypi
-    assert "not wired yet" in err
+    assert exit_code == 1  # the stubbed swap fails, so the pipeline fails
+    assert "Swap failed" in err
+    assert "log:" in err
+    assert "to restore the previous install, run:" in err
 
 
 def test_tty_consequential_prompts_and_decline_cancels(
@@ -201,17 +219,33 @@ def test_tty_consequential_prompts_and_decline_cancels(
     assert "cancelled" in err
 
 
-def test_tty_consequential_accept_reaches_pipeline_stub(
+def test_tty_consequential_accept_reaches_pipeline(
     tmp_path: Path, monkeypatch: object
 ) -> None:
-    exit_code, _, err = _entry_run(
-        tmp_path,
-        monkeypatch,
+    from tests._sase_install_testkit import install_run
+
+    def _boom(argv: object, **kwargs: object) -> object:
+        return install_run.RunnerResult(returncode=1, stdout="", stderr="boom")
+
+    entry = kit.load_entry()
+    kit.fake_probes(monkeypatch)  # type: ignore[arg-type]
+    checkout = kit.make_checkout(tmp_path)
+    tool_dir, bin_dir = kit.make_tool_env(tmp_path, checkout=checkout)
+    env = kit.make_env(tmp_path)
+    lookup = kit.FakePyPI({"sase": "0.17.1", "sase-core-rs": "0.35.4"})
+    exit_code, _, err = kit.run_entry(
+        entry,
         ["pypi", "--version", "0.18.0"],
+        env=env,
         stdin=kit.FakeStdin("y\n", tty=True),
+        pypi_lookup=lookup,
+        checkout_root=checkout,
+        tool_dir=tool_dir,
+        bin_dir=bin_dir,
+        command_runner=_boom,
     )
     assert exit_code == 1
-    assert "not wired yet" in err
+    assert "Swap failed" in err
 
 
 def test_tty_nonconsequential_skips_prompt(tmp_path: Path, monkeypatch: object) -> None:
@@ -231,6 +265,11 @@ def test_tty_nonconsequential_skips_prompt(tmp_path: Path, monkeypatch: object) 
         def readline(self, *args: object, **kwargs: object) -> str:
             raise AssertionError("must not prompt for a non-consequential plan")
 
+    from tests._sase_install_testkit import install_run
+
+    def _boom(argv: object, **kwargs: object) -> object:
+        return install_run.RunnerResult(returncode=1, stdout="", stderr="boom")
+
     exit_code, _, err = kit.run_entry(
         entry,
         ["pypi"],
@@ -240,6 +279,7 @@ def test_tty_nonconsequential_skips_prompt(tmp_path: Path, monkeypatch: object) 
         checkout_root=checkout,
         tool_dir=tool_dir,
         bin_dir=bin_dir,
+        command_runner=_boom,
     )
     assert exit_code == 1
-    assert "not wired yet" in err
+    assert "Swap failed" in err

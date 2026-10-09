@@ -211,13 +211,24 @@ install-venv-visual: (_install-venv "dev,visual")
 [doc("Set up this checkout's .venv plus real-terminal smoke-test dependencies")]
 install-venv-terminal-smoke: (_install-venv "dev,terminal-smoke")
 
+# The global PyPI installer runs through uv so it works on a machine that
+# has only uv. Flag set (verified): `--no-project` skips project sync,
+# `--quiet` keeps uv silent, `--python '>=3.12'` guarantees the engine's
+# floor, `--` separates uv flags from the engine command, and
+# `python -I -S` isolates the engine from an activated .venv and PYTHONPATH
+# (`-I` drops PYTHONPATH/user-site; `-S` drops the reused .venv's
+# site-packages, which `uv run` prefers when one exists — verified by
+# probing `import sase` from this checkout) while staying offline when a
+# suitable interpreter is cached.
 [group('install')]
 [doc('Install the latest sase release from PyPI as your `sase` command')]
 [positional-arguments]
 install *args:
-    @printf "✗ \`just install\` is moving: it will install sase from PyPI as your \`sase\` command.\n" >&2; \
-    printf "  setting up this checkout's .venv?   just install-venv\n" >&2; \
-    exit 2
+    @if ! command -v uv >/dev/null 2>&1; then \
+        printf "✗ just install needs uv: install it from https://docs.astral.sh/uv/getting-started/installation/\n" >&2; \
+        exit 2; \
+    fi; \
+    uv run --no-project --quiet --python '>=3.12' -- python -I -S "{{ justfile_directory() }}/tools/sase_install" pypi "$@"
 
 # Install this project's plugins.required into the active venv, verified.
 # Reads plugins.required from sase/sase.yml (not a hard-coded name list) and

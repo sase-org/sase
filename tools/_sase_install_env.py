@@ -249,7 +249,7 @@ def probe_cargo() -> ProbeResult:
     return ProbeResult(name="cargo", ok=True, version=version, detail=path)
 
 
-def uv_tool_dir(*, uv: str = "uv") -> str | None:
+def uv_tool_dir(*, uv: str = "uv", env: Mapping[str, str] | None = None) -> str | None:
     """Return ``uv tool dir`` stdout, or None when uv cannot answer."""
     try:
         completed = subprocess.run(
@@ -259,6 +259,7 @@ def uv_tool_dir(*, uv: str = "uv") -> str | None:
             text=True,
             timeout=_UV_TIMEOUT_SECONDS,
             stdin=subprocess.DEVNULL,
+            env=dict(env) if env is not None else None,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -268,7 +269,9 @@ def uv_tool_dir(*, uv: str = "uv") -> str | None:
     return text or None
 
 
-def uv_tool_bin_dir(*, uv: str = "uv") -> str | None:
+def uv_tool_bin_dir(
+    *, uv: str = "uv", env: Mapping[str, str] | None = None
+) -> str | None:
     """Return ``uv tool dir --bin`` stdout, or None when uv cannot answer."""
     try:
         completed = subprocess.run(
@@ -278,6 +281,7 @@ def uv_tool_bin_dir(*, uv: str = "uv") -> str | None:
             text=True,
             timeout=_UV_TIMEOUT_SECONDS,
             stdin=subprocess.DEVNULL,
+            env=dict(env) if env is not None else None,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -301,9 +305,7 @@ def editable_overrides_path(env: Mapping[str, str] | None = None) -> Path:
     return sase_home(env=env) / "uv" / "editable-overrides.txt"
 
 
-def colors_enabled(
-    env: Mapping[str, str] | None = None, stream: object = None
-) -> bool:
+def colors_enabled(env: Mapping[str, str] | None = None, stream: object = None) -> bool:
     """Return whether ANSI styling may be emitted."""
     source = os.environ if env is None else env
     if (source.get("NO_COLOR") or "") != "":

@@ -10,7 +10,8 @@ plans, summaries, and JSON go to stdout.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 import _sase_install_plan as install_plan
@@ -19,6 +20,16 @@ import _sase_install_plan as install_plan
 SCHEMA_VERSION = 1
 
 PROMPT_TEXT = "Proceed? [y/N]"
+
+#: Braille spinner frames for the live progress renderer (TTY only).
+SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+
+#: Step glyphs for the live and plain progress renderers.
+GLYPH_PENDING = "○"
+GLYPH_OK = "✓"
+GLYPH_WARN = "⚠"
+GLYPH_FAIL = "✗"
+GLYPH_SKIP = "–"
 
 _RESET = "\x1b[0m"
 _BOLD = "\x1b[1m"
@@ -543,20 +554,226 @@ def read_confirmation(stdin: object) -> bool:
     return answer.strip().lower() in ("y", "yes")
 
 
+def format_duration(seconds: float) -> str:
+    """Format a step duration as ``0.4s`` or ``1:02``."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    total = int(seconds)
+    return f"{total // 60}:{total % 60:02d}"
+
+
+def format_elapsed(seconds: float) -> str:
+    """Format an elapsed clock as ``mm:ss`` for plain progress lines."""
+    total = int(seconds)
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def format_plain_step(
+    elapsed: float,
+    glyph: str,
+    title: str,
+    detail: str = "",
+    duration: float | None = None,
+) -> str:
+    """Format one append-only plain progress line (non-TTY output)."""
+    line = f"[{format_elapsed(elapsed)}] {glyph} {title}"
+    if detail:
+        line = f"{line} — {detail}"
+    if duration is not None:
+        line = f"{line} ({format_duration(duration)})"
+    return line
+
+
+def tail_lines(text: str, count: int = 20) -> list[str]:
+    """Return the last *count* lines of *text* (the failure tail)."""
+    return text.splitlines()[-count:]
+
+
+def render_pypi_success(plan: install_plan.InstallPlan) -> str:
+    """Render the two-line PyPI success summary (stdout)."""
+    host_version = next(
+        (row.target.version for row in plan.rows if row.role == "host"), None
+    )
+    core_version = next(
+        (row.target.version for row in plan.rows if row.role == "core"), None
+    )
+    plugins = [
+        row
+        for row in plan.rows
+        if row.role == "plugin" and row.kind != install_plan.CHANGE_REMOVE
+    ]
+    noun = "plugin" if len(plugins) == 1 else "plugins"
+    host = f"sase {host_version}" if host_version else "sase"
+    core = f"sase-core-rs {core_version}" if core_version else "sase-core-rs"
+    return (
+        f"✓ {host} from PyPI is installed ({core} · {len(plugins)} {noun})\n"
+        "  update later: sase update"
+    )
+
+
+def render_failure_block(
+    *,
+    step_title: str,
+    log_path: str,
+    tail: Sequence[str],
+    restore_command: str | None = None,
+) -> str:
+    """Render the stderr failure block: log path, step tail, restore command.
+
+    The block names the hand-restore command but never claims a rollback
+    happened: the previous install is only restored when a human runs it.
+    """
+    lines = [f"✗ {step_title} failed", f"  log: {log_path}"]
+    lines.extend(f"  {line}" for line in tail)
+    if restore_command:
+        lines.append("  to restore the previous install, run:")
+        lines.append(f"    {restore_command}")
+    return "\n".join(lines)
+
+
+class Progress:
+    """Step progress for the execution pipeline (writes to stderr).
+
+    Three modes: ``live`` (a TTY spinner that rewrites the current line),
+    ``plain`` (append-only ``[mm:ss]`` lines for pipes and ``-v``), and
+    ``quiet`` (nothing until the caller prints its summary). Step glyphs and
+    durations follow the ``sase update`` visual language; ``NO_COLOR`` and
+    non-TTY output are honored by the caller selecting plain or quiet.
+    """
+
+    def __init__(
+        self,
+        stream: object,
+        *,
+        mode: str = "plain",
+        color: bool = False,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
+        self._stream = stream
+        self._mode = mode
+        self._color = color
+        self._clock = clock or time.monotonic
+        self._title = ""
+        self._start = 0.0
+        self._frame = 0
+        self._active = False
+        self._last_len = 0
+
+    def _write(self, text: str) -> None:
+        write = getattr(self._stream, "write", None)
+        if callable(write):
+            write(text)
+        flush = getattr(self._stream, "flush", None)
+        if callable(flush):
+            try:
+                flush()
+            except (OSError, ValueError):
+                pass
+
+    def _clear_live_line(self) -> None:
+        if self._last_len:
+            self._write("\r" + " " * self._last_len + "\r")
+            self._last_len = 0
+
+    def start(self, step: str, title: str) -> None:
+        """Announce a pipeline step (``step`` is the machine name)."""
+        del step
+        self._title = title
+        self._start = self._clock()
+        self._frame = 0
+        self._active = True
+        if self._mode == "live":
+            line = f"{paint(GLYPH_PENDING, _CYAN, enabled=self._color)} {title} …"
+            self._write(line)
+            self._last_len = _dwidth(line)
+
+    def tick(self, detail: str = "") -> None:
+        """Advance the live spinner (a no-op outside live mode)."""
+        if self._mode != "live" or not self._active:
+            return
+        frame = SPINNER_FRAMES[self._frame % len(SPINNER_FRAMES)]
+        self._frame += 1
+        suffix = f" — {detail}" if detail else ""
+        line = f"{paint(frame, _CYAN, enabled=self._color)} {self._title}{suffix}"
+        self._clear_live_line()
+        self._write(line)
+        self._last_len = _dwidth(line)
+
+    def finish(self, status: str, detail: str = "") -> None:
+        """Close the current step with ``ok``/``warn``/``fail``/``skip``."""
+        glyphs = {
+            "ok": (GLYPH_OK, _GREEN),
+            "warn": (GLYPH_WARN, _YELLOW),
+            "fail": (GLYPH_FAIL, _RED),
+            "skip": (GLYPH_SKIP, _DIM),
+        }
+        glyph, code = glyphs.get(status, (GLYPH_OK, _GREEN))
+        duration = self._clock() - self._start if self._active else 0.0
+        self._active = False
+        if self._mode == "quiet":
+            return
+        if self._mode == "live":
+            self._clear_live_line()
+            line = f"{paint(glyph, code, enabled=self._color)} {self._title}"
+            if detail:
+                line = f"{line} — {detail}"
+            line = f"{line} ({format_duration(duration)})"
+            self._write(line + "\n")
+            return
+        self._write(
+            format_plain_step(duration, glyph, self._title, detail, duration) + "\n"
+        )
+
+    def warn(self, text: str) -> None:
+        """Emit an immediate ``⚠`` line (a no-op in quiet mode)."""
+        if self._mode == "quiet":
+            return
+        if self._mode == "live":
+            self._clear_live_line()
+            self._write(f"{paint(GLYPH_WARN, _YELLOW, enabled=self._color)} {text}\n")
+            self._last_len = 0
+            return
+        self._write(f"{GLYPH_WARN} {text}\n")
+
+    def note(self, text: str) -> None:
+        """Emit a verbatim detail line (used for ``-v`` subprocess output)."""
+        if self._mode == "quiet":
+            return
+        if self._mode == "live":
+            self._clear_live_line()
+            self._write(text + "\n")
+            self._last_len = 0
+            return
+        self._write(text + "\n")
+
+
 __all__ = [
+    "GLYPH_FAIL",
+    "GLYPH_OK",
+    "GLYPH_PENDING",
+    "GLYPH_SKIP",
+    "GLYPH_WARN",
     "PROMPT_TEXT",
     "SCHEMA_VERSION",
+    "SPINNER_FRAMES",
+    "Progress",
+    "format_duration",
+    "format_elapsed",
+    "format_plain_step",
     "paint",
     "pipeline_steps",
     "plan_document",
     "read_confirmation",
+    "render_failure_block",
     "render_json",
     "render_noop_line",
     "render_plan_panel",
     "render_prereq_line",
+    "render_pypi_success",
     "render_summary_line",
     "render_sync_report",
     "render_warning_lines",
     "shorten_home",
     "sync_document",
+    "tail_lines",
 ]

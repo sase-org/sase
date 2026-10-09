@@ -292,9 +292,25 @@ def test_install_group_lists_venv_recipes_with_docs() -> None:
     assert "checkout's .venv" in output
 
 
-def test_bare_install_is_a_loud_placeholder() -> None:
+def test_install_recipe_refuses_inside_agents() -> None:
     result = subprocess.run(
-        ["just", "--justfile", str(ROOT / "Justfile"), "install"],
+        ["just", "--justfile", str(ROOT / "Justfile"), "install", "-n"],
+        cwd=ROOT,
+        env=_clean_sase_core_env({"SASE_AGENT": "1"}),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 2
+    assert "won't run inside a SASE agent" in output
+    assert "just install-venv" in output
+
+
+def test_install_recipe_help_lists_pypi_options() -> None:
+    result = subprocess.run(
+        ["just", "--justfile", str(ROOT / "Justfile"), "install", "--help"],
         cwd=ROOT,
         env=_clean_sase_core_env({}),
         check=False,
@@ -303,6 +319,6 @@ def test_bare_install_is_a_loud_placeholder() -> None:
     )
 
     output = result.stdout + result.stderr
-    assert result.returncode == 2
-    assert "`just install` is moving" in output
-    assert "just install-venv" in output
+    assert result.returncode == 0
+    assert "Install the latest sase release from PyPI" in output
+    assert "--version X" in output

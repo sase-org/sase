@@ -4,7 +4,8 @@ Every ``tools/`` engine file is referenced here by basename so
 ``tools/pyscripts-260801`` rule 1 (each file needs a reference outside
 ``tools/``) holds once these tests land: ``sase_install``,
 ``_sase_install_core.py``, ``_sase_install_env.py``, ``_sase_install_state.py``,
-``_sase_install_pypi.py``, ``_sase_install_plan.py``, ``_sase_install_ui.py``.
+``_sase_install_pypi.py``, ``_sase_install_plan.py``, ``_sase_install_run.py``,
+``_sase_install_ui.py``.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ import _sase_install_core as install_core  # noqa: E402
 import _sase_install_env as install_env  # noqa: E402
 import _sase_install_plan as install_plan  # noqa: E402
 import _sase_install_pypi as install_pypi  # noqa: E402
+import _sase_install_run as install_run  # noqa: E402
 import _sase_install_state as install_state  # noqa: E402
 import _sase_install_ui as install_ui  # noqa: E402
 
@@ -40,6 +42,7 @@ HELPER_BASENAMES = (
     "_sase_install_state.py",
     "_sase_install_pypi.py",
     "_sase_install_plan.py",
+    "_sase_install_run.py",
     "_sase_install_ui.py",
 )
 
@@ -362,6 +365,8 @@ def run_entry(
     checkout_root: Path | None = None,
     tool_dir: Path | None = None,
     bin_dir: Path | None = None,
+    lock_timeout: float | None = None,
+    command_runner: Any = None,
 ) -> tuple[int, str, str]:
     """Run the entry point with captured streams; return ``(exit, out, err)``."""
     out = io.StringIO()
@@ -376,6 +381,8 @@ def run_entry(
         checkout_root=checkout_root,
         tool_dir=tool_dir,
         bin_dir=bin_dir,
+        lock_timeout=lock_timeout,
+        command_runner=command_runner,
     )
     return exit_code, out.getvalue(), err.getvalue()
 
