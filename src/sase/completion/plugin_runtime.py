@@ -133,6 +133,5 @@ def build_runtime_spec() -> _RuntimeCompletionSpec:
 
 __all__ = [
     "PluginCommandOmission",
-    "_RuntimeCompletionSpec",
     "build_runtime_spec",
 ]

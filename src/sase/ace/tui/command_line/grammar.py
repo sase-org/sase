@@ -43,7 +43,6 @@ _COMMAND_LINE_GRAMMAR_RECHECK_ATTR = "_command_line_grammar_rechecking"
 __all__ = [
     "CompletionSpecCacheError",
     "command_line_grammar_for",
-    "_command_line_grammar_spec_key_for",
     "ensure_command_line_grammar_loaded",
     "is_command_line_grammar_pending",
     "resolve_command_line",
@@ -121,7 +120,8 @@ def ensure_command_line_grammar_loaded(
     existing thread worker and reloads the grammar only when the key changed
     (a plugin install, uninstall, or editable source edit), leaving the live
     handle untouched otherwise. The recheck never sets the pending flag, so
-    typing and completion keep serving the current handle.
+    typing and completion keep serving the current handle. An unkeyed handle
+    adopts the current key as its baseline.
     """
     if on_ready is not None:
         callbacks = getattr(app, _COMMAND_LINE_GRAMMAR_READY_CALLBACKS_ATTR, None)
@@ -172,7 +172,8 @@ async def _recheck_grammar_key(app: Any) -> None:
 
     Long-lived TUIs keep their loaded handle across ``:`` opens. Each open
     recomputes the key here (metadata reads and file stats only, never a
-    plugin import) and rebuilds only when a plugin change moved it.
+    plugin import) and rebuilds only when a plugin change moved it. An
+    unkeyed handle adopts the current key as its baseline.
     """
     try:
         try:
@@ -180,7 +181,12 @@ async def _recheck_grammar_key(app: Any) -> None:
         except Exception as error:  # noqa: BLE001 - recheck is advisory.
             log.debug("command-line grammar key recheck failed: %s", error)
             return
-        if key == _command_line_grammar_spec_key_for(app):
+        recorded = _command_line_grammar_spec_key_for(app)
+        if recorded is None:
+            setattr(app, _COMMAND_LINE_GRAMMAR_KEY_ATTR, key)
+            _take_grammar_callbacks(app)
+            return
+        if key == recorded:
             _take_grammar_callbacks(app)
             return
         try:

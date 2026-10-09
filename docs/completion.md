@@ -344,9 +344,10 @@ Freshness follows the same cache identity as everything else: the shell grammar 
 and the TUI spec cache key on the plugin command set (names, owners, versions,
 locations, and the disable-switch state) plus the `*.py` sources of editable providers.
 A plugin install, uninstall, update, or editable source edit gives new shells and new
-TUI sessions a fresh grammar automatically. Already-open shells keep their loaded
-functions until `exec $SHELL`; exported files from `sase completion zsh > file` stay
-unmanaged snapshots.
+TUI sessions a fresh grammar automatically. An already-running TUI rechecks the key
+off-thread each time the `:` command line opens, and reloads the grammar only when the
+key changed. Already-open shells keep their loaded functions until `exec $SHELL`;
+exported files from `sase completion zsh > file` stay unmanaged snapshots.
 
 A plugin subtree that fails to load (or whose parser fails to build) is skipped and
 recorded once in the grammar manifest as an omission, so a broken plugin is not

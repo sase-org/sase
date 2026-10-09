@@ -441,6 +441,45 @@ def test_tui_grammar_recheck_reloads_only_on_key_change(
     assert not grammar_module.is_command_line_grammar_pending(app)
 
 
+def test_tui_grammar_recheck_adopts_key_for_unkeyed_handle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.ace.tui.command_line.grammar as grammar_module
+
+    keys = ["key-1", "key-2"]
+    events: list[str] = []
+
+    def _sync_load():
+        events.append("sync-load")
+        return f"handle-{len(events)}"
+
+    app = _fake_app(
+        monkeypatch,
+        current_command_line_spec_key=lambda: keys[0],
+        _load_command_line_grammar_sync=_sync_load,
+    )
+    app._command_line_grammar = "handle-injected"
+
+    ready: list[str] = []
+    assert (
+        grammar_module.ensure_command_line_grammar_loaded(
+            app, on_ready=lambda: ready.append("ready")
+        )
+        is True
+    )
+    assert grammar_module.command_line_grammar_for(app) == "handle-injected"
+    assert events == []
+    assert grammar_module._command_line_grammar_spec_key_for(app) == "key-1"
+    assert ready == []
+    assert not grammar_module.is_command_line_grammar_pending(app)
+
+    keys[0] = "key-2"
+    assert grammar_module.ensure_command_line_grammar_loaded(app) is True
+    assert grammar_module.command_line_grammar_for(app) == "handle-1"
+    assert grammar_module._command_line_grammar_spec_key_for(app) == "key-2"
+    assert events == ["sync-load"]
+
+
 def test_omission_round_trip() -> None:
     omission = PluginCommandOmission(
         name="broken",
