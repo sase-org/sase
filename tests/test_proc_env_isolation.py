@@ -44,7 +44,7 @@ _SASE_ML_FILE_FAMILIES = (
     "tests/test_gate_cli_answer.py::test_set_types_every_declared_input_field",
     "tests/test_gate_cli_act.py::test_run_command_action_repeats_and_leaves_the_gate_answerable",
     "tests/gate_conformance/test_gate_conformance.py::test_gate_conformance[cli-no_input]",
-    "tests/main/test_ops_commands.py::test_patch_status_success_and_failure_results",
+    "tests/main/test_ops_commands_patch_bead.py::test_patch_status_success_and_failure_results",
     "tests/test_special_cases.py::test_launch_query_from_agent_context_requests_approval",
     "tests/test_partial_launch_cleanup.py::test_launch_query_prints_each_launched_agent_pid",
     "tests/test_prompt_inputs.py::test_launch_query_errors_clearly_on_missing_required_inputs",
