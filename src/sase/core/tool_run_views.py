@@ -114,6 +114,8 @@ class ToolRunGlance:
     bead: str | None = None
     owner_kind: str | None = None
     owner_id: str | None = None
+    join_kind: str | None = None
+    join_id: str | None = None
     parent_run_id: str | None = None
     running_ts: int | None = None
     current_stage: ToolRunGlanceStage | None = None
@@ -143,6 +145,8 @@ class ToolRunGlance:
             bead=_optional_str(data.get("bead")),
             owner_kind=_optional_str(data.get("owner_kind")),
             owner_id=_optional_str(data.get("owner_id")),
+            join_kind=_optional_str(data.get("join_kind")),
+            join_id=_optional_str(data.get("join_id")),
             parent_run_id=_optional_str(data.get("parent_run_id")),
             running_ts=_optional_int(data.get("running_ts")),
             current_stage=(

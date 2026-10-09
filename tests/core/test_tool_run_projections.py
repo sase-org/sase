@@ -85,6 +85,8 @@ def test_live_glance_round_trip(tmp_path: Path) -> None:
     assert row.project == "sase"
     assert row.stop_requested is False
     assert row.owner_kind is None
+    assert row.join_kind is None
+    assert row.join_id is None
 
 
 def test_briefs_round_trip_with_settled_run(tmp_path: Path) -> None:
@@ -143,6 +145,26 @@ def test_node_summaries_round_trip(tmp_path: Path) -> None:
     assert node.truncated is False
     assert [row.run_id for row in node.live] == [live_id]
     assert [row.run_id for row in node.runs] == [settled_id, live_id]
+
+
+def test_glance_from_wire_carries_join_fact() -> None:
+    joined = ToolRunGlance.from_wire(
+        {
+            "run_id": "r",
+            "label": "check",
+            "state": "running",
+            "join_kind": "monitor",
+            "join_id": "mon-1",
+        }
+    )
+    assert (joined.join_kind, joined.join_id) == ("monitor", "mon-1")
+
+    # Older wheels omit the fields; the mirror reads None.
+    unjoined = ToolRunGlance.from_wire(
+        {"run_id": "r", "label": "check", "state": "running"}
+    )
+    assert unjoined.join_kind is None
+    assert unjoined.join_id is None
 
 
 def test_from_wire_tolerates_unknown_and_missing_keys() -> None:
