@@ -29,12 +29,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-RUST_EXTENSION_MODULE_NAME = "sase_core_rs"
+from sase.install_remedy import install_context, reinstall_remedy
 
-_PROJECT_INSTALL_HINT = (
-    "reinstall with `just install` (or `just rust-install` for an editable "
-    "build against ../sase-core)"
-)
+RUST_EXTENSION_MODULE_NAME = "sase_core_rs"
 
 
 def require_rust_extension() -> Any:
@@ -96,7 +93,8 @@ def optional_rust_binding(name: str) -> Any | None:
 
 
 def _install_hint() -> str:
-    if _is_uv_tool_context():
+    context = install_context()
+    if context == "uv_tool_release":
         python = _venv_python(Path(sys.prefix))
         return (
             "repair the uv-tool venv with "
@@ -104,29 +102,7 @@ def _install_hint() -> str:
             "sase-core-rs` (or reinstall the tool with "
             "`uv tool install --force sase`)"
         )
-    return _PROJECT_INSTALL_HINT
-
-
-def _is_uv_tool_context() -> bool:
-    try:
-        prefix = _normalize(Path(sys.prefix))
-        expected = _normalize(_default_uv_tool_dir() / "sase")
-    except (OSError, RuntimeError, ValueError):
-        return False
-    return prefix == expected
-
-
-def _default_uv_tool_dir() -> Path:
-    override = os.environ.get("UV_TOOL_DIR")
-    if override:
-        return Path(override)
-    xdg = os.environ.get("XDG_DATA_HOME")
-    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
-    return base / "uv" / "tools"
-
-
-def _normalize(path: Path) -> Path:
-    return Path(os.path.normpath(os.fspath(path.expanduser())))
+    return reinstall_remedy(context)
 
 
 def _venv_python(prefix: Path) -> Path:

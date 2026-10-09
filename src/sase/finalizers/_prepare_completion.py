@@ -16,6 +16,7 @@ from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 from sase.core.finalizer_wire import FinalizerPlanWire
 from sase.finalizers._prepare_intents import persist_prepared_completion
 from sase.finalizers._prepare_shared import PreparedCompletion, command_argv
+from sase.install_remedy import reinstall_remedy
 from sase.finalizers.declaration import (
     FinalizerDeclarationError,
     load_finalizer_plan,
@@ -223,8 +224,7 @@ def _require_sealed_accept(intent: Mapping[str, Any], accept: str) -> None:
         raise FinalizerDeclarationError(
             "the installed core sealed this intent "
             f"as {sealed or 'pass'!r} instead of the requested "
-            f"{accept!r}; reinstall with `just install` (or "
-            "`just rust-install` for an editable build) so the "
+            f"{accept!r}; {reinstall_remedy()} so the "
             "receipt-capable core is active before preparing `no-new`",
             code="completion_accept_not_sealed",
         )

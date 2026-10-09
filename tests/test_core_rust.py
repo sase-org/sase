@@ -50,7 +50,7 @@ def test_require_rust_extension_raises_when_missing(
         require_rust_extension()
     message = str(excinfo.value)
     assert RUST_EXTENSION_MODULE_NAME in message
-    assert "just install" in message
+    assert "just install-venv" in message
 
 
 def test_require_rust_extension_uses_uv_tool_repair_hint(
@@ -61,6 +61,7 @@ def test_require_rust_extension_uses_uv_tool_repair_hint(
     tool_dir = tmp_path / "uv" / "tools"
     monkeypatch.setenv("UV_TOOL_DIR", str(tool_dir))
     monkeypatch.setattr(sys, "prefix", str(tool_dir / "sase"))
+    monkeypatch.setattr("sase.core.rust.install_context", lambda **_: "uv_tool_release")
 
     def _missing(name: str) -> object:
         raise ImportError(f"No module named {name!r}")

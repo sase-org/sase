@@ -195,7 +195,8 @@ def test_runtime_environment_warns_on_editable_source_root_drift(
 
     assert check.status == "WARN"
     assert "differs from the current checkout" in check.summary
-    assert "just install" in check.next_steps[0]
+    assert "just install-venv" in check.next_steps[0]
+    assert ".venv/bin/sase" in check.next_steps[0]
 
 
 def _git_op(

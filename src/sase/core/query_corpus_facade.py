@@ -14,6 +14,7 @@ from typing import Any
 
 from sase.ace.patch.models import Patch
 from sase.core.rust import require_rust_binding
+from sase.install_remedy import reinstall_remedy
 from sase.core.wire import to_json_dict
 from sase.core.wire_conversion import patch_to_wire
 
@@ -66,7 +67,7 @@ def _rust_corpus_length(rust_handle: Any) -> int:
         return len(rust_handle)
     except TypeError as exc:
         raise TypeError(
-            "Rust query corpus handle does not expose __len__; reinstall with "
-            "`just install` or `just rust-install` before using the persistent "
+            "Rust query corpus handle does not expose __len__; "
+            f"{reinstall_remedy()} before using the persistent "
             "query corpus facade."
         ) from exc

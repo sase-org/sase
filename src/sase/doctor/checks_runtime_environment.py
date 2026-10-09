@@ -9,6 +9,7 @@ from typing import Any, TYPE_CHECKING
 
 from sase.core.health import HEALTH_OK, check_backend_health
 from sase.diagnostics import CheckStatus, DiagnosticCheck
+from sase.install_remedy import reinstall_remedy
 from sase.doctor.checks_runtime_common import safe_resolve
 from sase.doctor.checks_vcs_git import git_result
 from sase.version.inventory import VersionPackageRecord
@@ -110,9 +111,7 @@ def check_runtime_core() -> DiagnosticCheck:
         title="Rust core health",
         summary=summary,
         details=tuple(details),
-        next_steps=(
-            "Run `just install` in this workspace, then `sase core health -j`.",
-        )
+        next_steps=(f"{_sentence(reinstall_remedy())}, then `sase core health -j`.",)
         if status == "ERROR"
         else (),
         data=report.to_dict(),
@@ -141,7 +140,7 @@ def check_runtime_environment(
 
     if get_python_version() < (3, 12):
         errors.append("Python 3.12 or newer is required.")
-        next_steps.append("Use a Python 3.12+ environment and rerun `just install`.")
+        next_steps.append(f"Use a Python 3.12+ environment, then {reinstall_remedy()}.")
 
     host = record_by_role(inventory.packages, "host")
     checkout_root = resolve_checkout_root(context.cwd)
@@ -161,7 +160,10 @@ def check_runtime_environment(
         warnings.append(
             "active sase import root differs from the current checkout root"
         )
-        next_steps.append("Run `just install` in this workspace.")
+        next_steps.append(
+            "To run this checkout's code, use its `.venv/bin/sase` "
+            "(set it up with `just install-venv`)."
+        )
 
     status: CheckStatus = "ERROR" if errors else "WARN" if warnings else "OK"
     summary = "runtime environment is consistent"
@@ -187,6 +189,11 @@ def check_runtime_environment(
             "host_install_type": host.install_type if host else None,
         },
     )
+
+
+def _sentence(phrase: str) -> str:
+    """Capitalize *phrase*'s first letter without touching the rest."""
+    return phrase[:1].upper() + phrase[1:] if phrase else phrase
 
 
 def record_by_role(

@@ -10,6 +10,7 @@ from typing import Any, TYPE_CHECKING
 from sase.agent_clis.detect import resolve_executable
 from sase.agent_clis.models import InstallMethod
 from sase.diagnostics import CheckSpec, DiagnosticCheck
+from sase.install_remedy import reinstall_remedy
 from sase.llm_provider import registry as llm_registry
 from sase.llm_provider.config import get_llm_provider_config
 from sase.llm_provider.temporary_override import get_active_temporary_override
@@ -205,8 +206,8 @@ def _check_llm_usage(context: DoctorContext) -> DiagnosticCheck:
             summary="Subscription usage cache could not be read.",
             details=(*details, str(exc)),
             next_steps=(
-                "Run `sase usage refresh`; if this is a stale binding, run "
-                "`just install`.",
+                "Run `sase usage refresh`; if this is a stale binding, "
+                f"{reinstall_remedy()}.",
             ),
             data=data,
         )

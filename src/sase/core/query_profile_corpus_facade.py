@@ -52,6 +52,7 @@ from sase.core.query_wire_conversion import (
     query_expr_wire_from_dict,
 )
 from sase.core.rust import require_rust_binding
+from sase.install_remedy import reinstall_remedy
 
 
 class ArtifactQueryCacheKey(NamedTuple):
@@ -223,8 +224,8 @@ def _rust_corpus_length(rust_handle: Any) -> int:
         return len(rust_handle)
     except TypeError as exc:
         raise TypeError(
-            "Rust query corpus handle does not expose __len__; reinstall with "
-            "`just install` (or `just rust-install`) before using the "
+            "Rust query corpus handle does not expose __len__; "
+            f"{reinstall_remedy()} before using the "
             "profile-driven query corpus facade."
         ) from exc
 
