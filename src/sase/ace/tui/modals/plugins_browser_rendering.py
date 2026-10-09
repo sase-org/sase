@@ -94,6 +94,12 @@ class PluginsBrowserRenderingMixin:
 
         def _ensure_plugin_latest(self, entry: PluginCatalogEntry) -> None: ...
 
+        def _ensure_plugin_declared_preview(
+            self, entry: PluginCatalogEntry
+        ) -> None: ...
+
+        def _declared_preview_for_entry(self, entry: PluginCatalogEntry) -> Any: ...
+
         def _plugin_incoming_commits_state(
             self, entry: PluginCatalogEntry
         ) -> tuple[IncomingCommits | None, bool]: ...
@@ -262,6 +268,33 @@ class PluginsBrowserRenderingMixin:
             and result.install_dir_on_path is False
         )
 
+    def _append_row_command_chip(self, text: Text, row: UpdateRow) -> None:
+        """Append the command chip after the version label, when there is one.
+
+        Installed plugins show the chip in bold accent; uninstalled plugins
+        show the lazily fetched cached preview in dim. Never fetches: rows
+        only consult the preview map the detail worker fills in.
+        """
+        from sase.plugin_commands.chip import format_command_chip
+
+        entry = row.payload
+        if not isinstance(entry, PluginCatalogEntry):
+            return
+        if entry.installed.installed:
+            commands = entry.installed.commands
+            if not commands:
+                return
+            for name in commands:
+                text.append("  ")
+                text.append(format_command_chip(name), style=f"bold {row.accent}")
+            return
+        preview = self._declared_preview_for_entry(entry)
+        if preview is None or preview.status != "declared" or not preview.names:
+            return
+        for name in preview.names:
+            text.append("  ")
+            text.append(format_command_chip(name), style="dim")
+
     def _row_text(self, row: UpdateRow) -> Text:
         """A single list row: mark + status glyph + name + version + extras."""
         text = Text()
@@ -283,6 +316,8 @@ class PluginsBrowserRenderingMixin:
             text.append(f"[{row.source.replace('_', ' ')}]", style="bold dim")
             if not row.installed and self._cli_install_not_on_path(row.key):
                 text.append("  ⚠ not on PATH", style="yellow")
+        if row.kind == "plugin":
+            self._append_row_command_chip(text, row)
         if row.update_available:
             text.append("  ")
             text.append(_UPDATE_GLYPH, style="bold cyan")
@@ -377,6 +412,7 @@ class PluginsBrowserRenderingMixin:
             entry = row.payload
             self._ensure_plugin_incoming_commits(entry)
             self._ensure_plugin_latest(entry)
+            self._ensure_plugin_declared_preview(entry)
             detail.update(self._detail_renderable(entry))
             if history is not None:
                 history.display = False
@@ -399,6 +435,7 @@ class PluginsBrowserRenderingMixin:
                 entry,
                 incoming_commits=incoming,
                 incoming_commits_loading=loading,
+                declared_commands=self._declared_preview_for_entry(entry),
             )
         )
         return Group(*parts)

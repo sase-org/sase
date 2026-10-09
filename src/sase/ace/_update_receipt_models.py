@@ -7,7 +7,7 @@ from typing import Literal
 
 from sase.dev_update.models import RepoCommitLog, RepoDiffStat
 
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 LEGACY_FORMAT_VERSION = 1
 MAX_COMMIT_GROUPS = 5
 MAX_PLUGIN_LINES = 3
@@ -30,6 +30,8 @@ class UpdateVersionTransition:
     old: str | None
     new: str | None
     diffstat: RepoDiffStat | None = None
+    commands_added: tuple[str, ...] = ()
+    commands_removed: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

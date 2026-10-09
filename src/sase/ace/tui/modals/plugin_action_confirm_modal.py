@@ -81,6 +81,7 @@ class PluginActionVariant:
     argv: tuple[str, ...]
     summary: str
     details: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
     items: tuple[str, ...] = ()
     items_label: str = "Plugins"
     skipped: tuple[str, ...] = ()
@@ -291,6 +292,14 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
                 line = Text()
                 line.append("- ", style="dim")
                 line.append(detail, style="dim")
+                parts.append(line)
+
+        if variant.warnings:
+            parts.append(Text(""))
+            for warning in variant.warnings:
+                line = Text()
+                line.append("⚠ ", style="yellow")
+                line.append(warning, style="yellow")
                 parts.append(line)
 
         if len(self._variants) > 1:

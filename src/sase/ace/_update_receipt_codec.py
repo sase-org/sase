@@ -82,6 +82,8 @@ def _transition_to_json(
         "old": transition.old,
         "new": transition.new,
         "diffstat": _diffstat_to_json(transition.diffstat),
+        "commands_added": list(transition.commands_added),
+        "commands_removed": list(transition.commands_removed),
     }
 
 
@@ -272,12 +274,31 @@ def _transition_from_json(payload: object) -> UpdateVersionTransition | None:
         return None
     if old is None and new is None:
         return None
+    commands_added = _command_names_from_json(payload.get("commands_added"))
+    if payload.get("commands_added") is not None and commands_added is None:
+        return None
+    commands_removed = _command_names_from_json(payload.get("commands_removed"))
+    if payload.get("commands_removed") is not None and commands_removed is None:
+        return None
     return UpdateVersionTransition(
         name=name,
         old=old,
         new=new,
         diffstat=_diffstat_from_json(payload.get("diffstat")),
+        commands_added=commands_added or (),
+        commands_removed=commands_removed or (),
     )
+
+
+def _command_names_from_json(payload: object) -> tuple[str, ...] | None:
+    """Decode an optional command-name list; ``None`` payload means absent."""
+    if payload is None:
+        return None
+    if not isinstance(payload, list):
+        return None
+    if any(not isinstance(part, str) or not part for part in payload):
+        return None
+    return tuple(payload)
 
 
 def _diffstat_to_json(diffstat: RepoDiffStat | None) -> dict[str, int] | None:

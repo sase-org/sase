@@ -9,12 +9,16 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from sase.plugin_commands.chip import format_command_chip_rich
+from sase.plugin_commands.chip import (
+    format_command_chip,
+    format_command_chip_rich,
+)
 from sase.plugins.catalog import (
     SASE_PLUGIN_ORG,
     PluginCatalog,
     PluginCatalogEntry,
 )
+from sase.plugins.declared_commands import DeclaredCommands
 from sase.plugins.render_common import (
     _AVAILABLE_GLYPH,
     _BUILTIN_STYLE,
@@ -285,6 +289,7 @@ def render_catalog_show(
     catalog: PluginCatalog,
     now: float | None = None,
     console: Console | None = None,
+    declared_commands: DeclaredCommands | None = None,
 ) -> None:
     """Print the detailed single-plugin view for ``sase plugin show``."""
     target = console or Console()
@@ -294,7 +299,7 @@ def render_catalog_show(
         target.print(Text(f"⚠ {warning}", style="yellow"))
     if entry.is_community:
         target.print(build_community_warning_panel(entry))
-    target.print(build_detail_panel(entry))
+    target.print(build_detail_panel(entry, declared_commands=declared_commands))
     target.print(_show_cache_line(entry, catalog, now=now))
 
 
@@ -327,6 +332,7 @@ def build_detail_panel(
     *,
     incoming_commits: IncomingCommits | None = None,
     incoming_commits_loading: bool = False,
+    declared_commands: DeclaredCommands | None = None,
 ) -> Panel:
     """Console-free renderable for the ``sase plugin show`` detail panel.
 
@@ -346,7 +352,7 @@ def build_detail_panel(
             )
         )
     body.append(Text(""))
-    body.append(_detail_rows(entry))
+    body.append(_detail_rows(entry, declared_commands=declared_commands))
     if not entry.installed.installed:
         body.append(Text(""))
         body.append(_install_hint(entry))
@@ -376,7 +382,11 @@ def _detail_description(entry: PluginCatalogEntry) -> Text:
     return description
 
 
-def _detail_rows(entry: PluginCatalogEntry) -> Table:
+def _detail_rows(
+    entry: PluginCatalogEntry,
+    *,
+    declared_commands: DeclaredCommands | None = None,
+) -> Table:
     table = Table(show_header=False, box=None, pad_edge=False, padding=(0, 2))
     table.add_column(style="dim", no_wrap=True)  # label
     table.add_column()  # value
@@ -387,7 +397,84 @@ def _detail_rows(entry: PluginCatalogEntry) -> Table:
     table.add_row("Homepage", Text(entry.homepage or _EMPTY, style="dim"))
     table.add_row("Topics", _topics_value(entry))
     table.add_row("Stars", _meta_value(entry))
+    commands_value = _commands_value(entry, declared_commands)
+    if commands_value is not None:
+        table.add_row("Commands", commands_value)
     return table
+
+
+def _commands_value(
+    entry: PluginCatalogEntry, declared: DeclaredCommands | None
+) -> Text | None:
+    """The Commands row for the shared detail panel, or ``None`` to omit it.
+
+    Installed plugins show one chip per command with its summary or problem
+    state. Uninstalled plugins show the declared upstream preview in dim as
+    "added on install". Unknown previews (and plugins with no commands at
+    all) omit the row so sase never makes a false claim.
+    """
+    if entry.installed.installed:
+        commands = entry.installed.commands
+        if not commands:
+            return None
+        value = Text()
+        for index, name in enumerate(commands):
+            if index:
+                value.append("\n")
+            value.append_text(_installed_command_chip(name))
+            summary = _installed_command_summary(name)
+            if summary:
+                value.append(f"  {summary}", style="dim")
+        return value
+    if declared is None or declared.status != "declared" or not declared.names:
+        return None
+    value = Text()
+    for index, name in enumerate(declared.names):
+        if index:
+            value.append("\n")
+        value.append(format_command_chip(name), style="dim")
+    value.append("\n")
+    value.append("added on install · declared in pyproject.toml", style="dim")
+    return value
+
+
+def _installed_command_chip(name: str) -> Text:
+    """One installed-command chip, yellow when the command has a problem."""
+    problem = _installed_command_problem(name)
+    if problem is not None:
+        chip = format_command_chip_rich(name, state="problem")
+        chip.append(f"  {problem}", style="yellow")
+        return chip
+    return format_command_chip_rich(name)
+
+
+def _installed_command_problem(name: str) -> str | None:
+    """Best-effort problem detail for an installed command; ``None`` when clean."""
+    try:
+        from sase.plugin_commands.registry import discover_plugin_commands
+
+        problem = discover_plugin_commands().problem_by_name(name)
+    except Exception:  # noqa: BLE001 — problems must never crash the panel.
+        return None
+    if problem is None:
+        return None
+    if problem.status == "conflict":
+        return f"conflicts with {', '.join(problem.distributions)} — both disabled"
+    return problem.reason
+
+
+def _installed_command_summary(name: str) -> str:
+    """Best-effort summary for an installed command; ``""`` when unknown."""
+    try:
+        from sase.plugin_commands.adapter import resolve_command_summary
+        from sase.plugin_commands.scan import scan_plugin_commands
+
+        for record in scan_plugin_commands(honor_disable=False):
+            if record.name == name:
+                return resolve_command_summary(record)
+    except Exception:  # noqa: BLE001 — summaries must never crash the panel.
+        pass
+    return ""
 
 
 def _installed_value(entry: PluginCatalogEntry) -> Text:

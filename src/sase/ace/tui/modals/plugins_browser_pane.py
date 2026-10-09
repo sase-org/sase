@@ -27,6 +27,7 @@ from sase.agent_clis.operations import (
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 from sase.plugins.catalog import PluginCatalog
+from sase.plugins.declared_commands import DeclaredCommands
 from sase.plugins.latest import enrich_entry_latest
 from sase.plugins.operations import (
     execute_install as execute_install,
@@ -66,6 +67,7 @@ from .plugins_browser_incoming import (
     PluginsBrowserIncomingCommitsMixin,
     load_incoming_commits_config,
 )
+from .plugins_browser_declared import PluginsBrowserDeclaredMixin
 from .plugins_browser_latest import PluginsBrowserLatestMixin
 from .plugins_browser_input import PluginsFilterInput
 from .plugins_browser_jump import PluginsBrowserJumpMixin
@@ -206,6 +208,7 @@ class PluginsBrowserPane(
     PluginsBrowserOperationsMixin,
     PluginsBrowserIncomingCommitsMixin,
     PluginsBrowserLatestMixin,
+    PluginsBrowserDeclaredMixin,
     PluginsBrowserControlsMixin,
     PluginsBrowserStatusMixin,
     PluginsBrowserRenderingMixin,
@@ -332,6 +335,9 @@ class PluginsBrowserPane(
         self._incoming_commit_workers: dict[int, IncomingCommitsCacheKey] = {}
         self._plugin_latest_loading: set[str] = set()
         self._plugin_latest_workers: dict[int, str] = {}
+        self._plugin_declared_previews: dict[str, DeclaredCommands] = {}
+        self._plugin_declared_loading: set[str] = set()
+        self._plugin_declared_workers: dict[int, str] = {}
         self._core_incoming_commits: dict[str, IncomingCommits] = {}
         self._install_mode: str | None = None
         self._dev_root: str | None = None

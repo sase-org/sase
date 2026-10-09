@@ -62,6 +62,18 @@ def _patch_plugins_catalog(
         agent_cli_history=agent_cli_history,
         agent_cli_history_error=agent_cli_history_error,
     )
+    # The lazy declared-command preview worker must never hit the network in
+    # visual snapshots: stub the fetch to unknown so rows stay deterministic
+    # and render convergence never waits on a live `gh` call.
+    from sase.plugins.declared_commands import DeclaredCommands
+
+    from sase.ace.tui.modals import plugins_browser_declared as _declared
+
+    monkeypatch.setattr(
+        _declared,
+        "get_declared_commands_for_entry",
+        lambda _entry, **_kw: DeclaredCommands(status="unknown"),
+    )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
     monkeypatch.setattr(
         pbp,

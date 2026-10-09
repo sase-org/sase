@@ -193,3 +193,66 @@ async def test_post_update_toast_diffstat_png_snapshot(
             "post_update_toast_diffstat_120x40",
             title="ACE post-update toast with line stats",
         )
+
+
+def _commands_receipt() -> UpdateToastReceipt:
+    return UpdateToastReceipt(
+        kind="managed",
+        created_at=time.time(),
+        primary=None,
+        plugins=(
+            UpdateVersionTransition(
+                "listen",
+                None,
+                "0.1.2",
+                commands_added=("listen",),
+            ),
+        ),
+    )
+
+
+async def test_post_update_toast_commands_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The post-install toast announces the plugin's new command."""
+    patch_startup_loaders(monkeypatch)
+    receipt_file = tmp_path / "pending_update_toast.json"
+    monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
+    assert write_pending_update_toast(_commands_receipt()) is True
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(post_update_toast=True),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.post_update_toast._TOAST_TIMEOUT_SECONDS",
+        300.0,
+    )
+    maybe_show_toast = PostUpdateToastMixin._maybe_show_post_update_toast
+    monkeypatch.setattr(
+        PostUpdateToastMixin,
+        "_maybe_show_post_update_toast",
+        lambda _self: None,
+    )
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        notifications=True,
+    ) as page:
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        maybe_show_toast(page.app)
+        await page.wait_for(lambda _s: bool(list(page.app._notifications)))
+        await page.wait_for(lambda _s: _toast_is_mounted(page))
+        page.app.screen.set_focus(None)
+        await wait_for_visual_idle(page)
+        await stabilize_toast_frame(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "post_update_toast_commands_120x40",
+            title="ACE post-update toast with new command",
+        )

@@ -49,11 +49,13 @@ class UninstallPreview:
     routed to a PatchI-matching toast, or an :class:`UninstallReady` opened in the
     confirm-preview modal. *error* carries a catalog/receipt failure message
     instead of a plan. Like update, uninstall offers no source toggle, so there
-    is only ever one plan.
+    is only ever one plan. *commands* carries the installed commands the
+    confirm modal announces as removed.
     """
 
     plan: UninstallPlan | None
     error: str | None = None
+    commands: tuple[str, ...] = ()
 
 
 def plan_uninstall_preview(query: str, *, offline: bool) -> UninstallPreview:
@@ -67,7 +69,31 @@ def plan_uninstall_preview(query: str, *, offline: bool) -> UninstallPreview:
         plan = plan_uninstall(query, offline=offline)
     except (PluginCatalogError, ReceiptError) as exc:
         return UninstallPreview(plan=None, error=str(exc))
-    return UninstallPreview(plan=plan)
+    return UninstallPreview(plan=plan, commands=_commands_for_uninstall(plan))
+
+
+def _commands_for_uninstall(plan: UninstallPlan) -> tuple[str, ...]:
+    """Best-effort installed commands for an uninstall plan; ``()`` when unknown."""
+    from sase.plugins.catalog import find_plugin, load_plugin_catalog
+    from sase.plugins.operations import UninstallReady
+
+    if not isinstance(plan, UninstallReady):
+        return ()
+    try:
+        catalog = load_plugin_catalog(refresh=False)
+        entry = find_plugin(catalog, plan.display_name)
+    except Exception:  # noqa: BLE001 — commands must never fail the preview.
+        return ()
+    if entry is None or not entry.installed.installed:
+        return ()
+    return tuple(entry.installed.commands)
+
+
+def _uninstall_command_details(commands: tuple[str, ...]) -> tuple[str, ...]:
+    """Confirm-modal detail lines for an uninstall: one removal line per command."""
+    from sase.plugin_commands.chip import format_command_chip
+
+    return tuple(f"❯ Removes command: {format_command_chip(name)}" for name in commands)
 
 
 def uninstall_summary(plan: UninstallReady) -> str:
@@ -178,9 +204,11 @@ class PluginUninstallActionsMixin:
                 missing_plugin_message(plan.query, plan.suggestions), severity="error"
             )
         elif isinstance(plan, UninstallReady):
-            self._open_uninstall_modal(plan)
+            self._open_uninstall_modal(plan, commands=preview.commands)
 
-    def _open_uninstall_modal(self, plan: UninstallReady) -> None:
+    def _open_uninstall_modal(
+        self, plan: UninstallReady, *, commands: tuple[str, ...] = ()
+    ) -> None:
         name = plan.display_name
         variants = [
             PluginActionVariant(
@@ -189,6 +217,7 @@ class PluginUninstallActionsMixin:
                 argv=tuple(plan.argv),
                 summary=uninstall_summary(plan),
                 details=(
+                    *_uninstall_command_details(commands),
                     "sase's TUI restarts after a successful uninstall to unload the plugin.",
                 ),
             )

@@ -602,3 +602,58 @@ async def test_config_center_updates_marks_hidden_by_filter_png_snapshot(
             "config_center_updates_marks_hidden_by_filter_120x40",
             title="ACE SASE Admin Center — Updates tab (marks hidden by filter)",
         )
+
+
+async def test_config_center_plugins_tab_commands_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An installed plugin with a command: bold row chip + Commands detail row."""
+    import dataclasses
+
+    from tests.ace.tui._plugins_browser_pane_helpers import (
+        _catalog as _default_catalog,
+    )
+
+    patch_startup_loaders(monkeypatch)
+    _patch_macro_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    catalog = _default_catalog()
+    entries = tuple(
+        dataclasses.replace(
+            entry,
+            installed=dataclasses.replace(entry.installed, commands=("listen",)),
+        )
+        if entry.name == "github"
+        else entry
+        for entry in catalog.entries
+    )
+    _patch_plugins_catalog(
+        monkeypatch, catalog=dataclasses.replace(catalog, entries=entries)
+    )
+    # Live env scans would make the summary/problem suffixes nondeterministic.
+    monkeypatch.setattr(
+        "sase.plugins.render_catalog._installed_command_summary", lambda _name: ""
+    )
+    monkeypatch.setattr(
+        "sase.plugins.render_catalog._installed_command_problem",
+        lambda _name: None,
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_plugins_modal(page)
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:github")
+        await _wait_for_plugins_detail(page, pane)
+        # The Commands row sits below the fold: scroll the detail to the
+        # bottom so the golden shows both the row chip and the detail row.
+        pane.action_scroll_to_bottom()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_tab_commands_120x40",
+            title="ACE SASE Admin Center — Updates tab (plugin commands)",
+        )

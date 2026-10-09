@@ -16,6 +16,7 @@ from sase.ace.tui.actions.proc_actions import (
 from sase.ops.names import PLUGIN_UPDATE
 from sase.dev_update.models import DevUpdatePlan
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, PluginCatalogError
+from sase.plugins.declared_commands import DeclaredCommands
 from sase.plugins.operations import (
     NotInstalled,
     NotUvTool,
@@ -57,11 +58,15 @@ class UpdatePreview:
     to a PatchI-matching toast, or an :class:`UpdateReady` opened in the
     confirm-preview modal. *error* carries a catalog/receipt failure message
     instead of a plan. Unlike install, update offers no source toggle, so there
-    is only ever one plan.
+    is only ever one plan. *installed_commands* and *declared_commands* feed
+    the commands line, which renders only when the upstream preview differs
+    from the installed set.
     """
 
     plan: UpdatePlan | None
     error: str | None = None
+    installed_commands: tuple[str, ...] = ()
+    declared_commands: DeclaredCommands | None = None
 
 
 def plan_update_preview(
@@ -77,7 +82,59 @@ def plan_update_preview(
         plan = plan_update(query, all_plugins=all_plugins, offline=offline)
     except (PluginCatalogError, ReceiptError) as exc:
         return UpdatePreview(plan=None, error=str(exc))
-    return UpdatePreview(plan=plan)
+    installed, declared = _commands_for_update(plan, offline=offline)
+    return UpdatePreview(
+        plan=plan, installed_commands=installed, declared_commands=declared
+    )
+
+
+def _commands_for_update(
+    plan: UpdatePlan, *, offline: bool
+) -> tuple[tuple[str, ...], DeclaredCommands | None]:
+    """Best-effort installed-vs-upstream commands for an update plan."""
+    from sase.plugins.catalog import find_plugin, load_plugin_catalog
+    from sase.plugins.declared_commands import get_declared_commands_for_entry
+
+    if not isinstance(plan, UpdateReady) or len(plan.targets) != 1:
+        return (), None
+    try:
+        catalog = load_plugin_catalog(refresh=False, offline=offline)
+        entry = find_plugin(catalog, plan.targets[0])
+    except Exception:  # noqa: BLE001 — commands must never fail the preview.
+        return (), None
+    if entry is None or not entry.installed.installed:
+        return (), None
+    installed = tuple(entry.installed.commands)
+    try:
+        declared = get_declared_commands_for_entry(entry, offline=offline)
+    except Exception:  # noqa: BLE001 — commands must never fail the preview.
+        declared = None
+    return installed, declared
+
+
+def _update_command_details(
+    installed: tuple[str, ...], declared: DeclaredCommands | None
+) -> tuple[str, ...]:
+    """Confirm-modal commands line for an update; empty when sets agree.
+
+    Renders only when the upstream preview differs from the installed set, so
+    command-steady updates keep the modal they always had.
+    """
+    from sase.plugin_commands.chip import format_command_chip
+
+    if declared is None or declared.status != "declared":
+        return ()
+    before, after = set(installed), set(declared.names)
+    if before == after:
+        return ()
+    lines: list[str] = []
+    for name in declared.names:
+        if name not in before:
+            lines.append(f"❯ Adds command: {format_command_chip(name)}")
+    for name in installed:
+        if name not in after:
+            lines.append(f"❯ Removes command: {format_command_chip(name)}")
+    return tuple(lines)
 
 
 def update_subject(plan: UpdateReady) -> str:
@@ -246,7 +303,14 @@ class PluginUpdateActionsMixin:
                 missing_plugin_message(plan.query, plan.suggestions), severity="error"
             )
         elif isinstance(plan, UpdateReady):
-            self._open_update_modal(plan)
+            details = (
+                _update_command_details(
+                    preview.installed_commands, preview.declared_commands
+                )
+                if isinstance(preview, UpdatePreview)
+                else ()
+            )
+            self._open_update_modal(plan, command_details=details)
         elif isinstance(preview, DevUpdatePreview):
             self._on_dev_update_preview(preview)
 
@@ -301,7 +365,9 @@ class PluginUpdateActionsMixin:
 
         self.app.push_screen(modal, _on_confirmed)
 
-    def _open_update_modal(self, plan: UpdateReady) -> None:
+    def _open_update_modal(
+        self, plan: UpdateReady, *, command_details: tuple[str, ...] = ()
+    ) -> None:
         name = plan.targets[0]
         title = f"Update {name}"
         intro = f"Confirm to upgrade {name} (sase core stays pinned)."
@@ -312,6 +378,7 @@ class PluginUpdateActionsMixin:
                 argv=tuple(plan.argv),
                 summary=update_summary(plan),
                 details=(
+                    *command_details,
                     "sase's TUI restarts after a successful update to load the new plugin code.",
                 ),
             )

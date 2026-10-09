@@ -46,6 +46,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _error: str | None
         _fresh_editable_roots_evidence: tuple[frozenset[str], float] | None
         _incoming_commit_workers: dict[int, Any]
+        _plugin_declared_workers: dict[int, str]
         _plugin_latest_workers: dict[int, str]
         _incoming_commits_enabled: bool
         _incoming_commits_limit: int
@@ -55,6 +56,8 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _now: float
         _offline: bool
         _plan_worker: Worker[Any] | None
+        _plugin_declared_loading: set[str]
+        _plugin_declared_previews: dict[str, Any]
         _restore_key: str | None
         _sase_update_plan_worker: Worker[Any] | None
         _session_state: Any
@@ -85,6 +88,10 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         ) -> None: ...
 
         def _on_plugin_latest_worker_state(
+            self, event: Worker.StateChanged, key: str
+        ) -> None: ...
+
+        def _on_plugin_declared_worker_state(
             self, event: Worker.StateChanged, key: str
         ) -> None: ...
 
@@ -126,6 +133,10 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             else self._session_state.rows.identity
         )
         self._core_incoming_commits = {}
+        # Declared previews are keyed by repo without updated_at, so a reload
+        # drops them: re-fetching is a disk-cache hit when nothing changed.
+        self._plugin_declared_previews = {}
+        self._plugin_declared_loading = set()
         self._sync_state_visibility()
         self._sync_header()
         self._update_static("#updates-hints", self._hints())
@@ -171,6 +182,10 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         latest_key = self._plugin_latest_workers.get(id(event.worker))
         if latest_key is not None:
             self._on_plugin_latest_worker_state(event, latest_key)
+            return
+        declared_key = self._plugin_declared_workers.get(id(event.worker))
+        if declared_key is not None:
+            self._on_plugin_declared_worker_state(event, declared_key)
             return
         if event.worker is self._plan_worker:
             if event.state == WorkerState.SUCCESS:

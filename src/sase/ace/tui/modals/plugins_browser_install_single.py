@@ -40,7 +40,13 @@ from .plugins_browser_install_messages import (
     install_not_found_message,
     install_summary,
 )
-from .plugins_browser_install_previews import InstallManyPreview, InstallPreview
+from .plugins_browser_install_previews import (
+    InstallManyPreview,
+    InstallPreview,
+    install_command_details,
+    install_command_warnings,
+    install_many_item_suffix,
+)
 
 _SOURCE_VARIANT_LABELS: dict[str, str] = {
     "catalog": "from index",
@@ -169,7 +175,7 @@ class PluginSingleInstallActionsMixin:
         elif isinstance(plan, AlreadyInstalled):
             self._notify(f"{plan.spec.display_name} is already installed.")
         elif isinstance(plan, InstallReady):
-            self._open_install_modal(plan, preview.git_plan)
+            self._open_install_modal(plan, preview.git_plan, preview=preview)
 
     def _on_install_many_preview(self, preview: InstallManyPreview) -> None:
         """Route a marked-set install preview to a toast or confirm modal."""
@@ -190,11 +196,25 @@ class PluginSingleInstallActionsMixin:
                 f"No marked plugins can be installed{suffix}", severity="warning"
             )
         elif isinstance(plan, InstallManyReady):
-            self._open_install_many_modal(plan)
+            self._open_install_many_modal(plan, declared=preview.declared)
 
     def _open_install_modal(
-        self, index_plan: InstallReady, git_plan: InstallReady | None
+        self,
+        index_plan: InstallReady,
+        git_plan: InstallReady | None,
+        *,
+        preview: InstallPreview | None = None,
     ) -> None:
+        command_details = install_command_details(
+            preview.declared_commands if preview is not None else None
+        )
+        command_warnings = install_command_warnings(
+            preview.declared_problems_ if preview is not None else ()
+        )
+        details = (
+            *command_details,
+            "sase's TUI restarts after a successful install to load the new plugin.",
+        )
         plans: dict[str, InstallReady] = {"index": index_plan}
         variants = [
             PluginActionVariant(
@@ -202,9 +222,8 @@ class PluginSingleInstallActionsMixin:
                 label=_source_variant_label(index_plan.spec.source),
                 argv=tuple(index_plan.argv),
                 summary=install_summary(index_plan),
-                details=(
-                    "sase's TUI restarts after a successful install to load the new plugin.",
-                ),
+                details=details,
+                warnings=command_warnings,
             )
         ]
         if git_plan is not None:
@@ -215,9 +234,8 @@ class PluginSingleInstallActionsMixin:
                     label=_source_variant_label(git_plan.spec.source),
                     argv=tuple(git_plan.argv),
                     summary=install_summary(git_plan),
-                    details=(
-                        "sase's TUI restarts after a successful install to load the new plugin.",
-                    ),
+                    details=details,
+                    warnings=command_warnings,
                 )
             )
         name = index_plan.spec.display_name
@@ -236,7 +254,9 @@ class PluginSingleInstallActionsMixin:
 
         self.app.push_screen(modal, _on_confirmed)
 
-    def _open_install_many_modal(self, plan: InstallManyReady) -> None:
+    def _open_install_many_modal(
+        self, plan: InstallManyReady, *, declared: dict[str, Any] | None = None
+    ) -> None:
         names = tuple(spec.display_name for spec in plan.specs)
         count = len(names)
         noun = "plugin" if count == 1 else "plugins"
@@ -255,6 +275,7 @@ class PluginSingleInstallActionsMixin:
                     summary=install_many_summary(plan),
                     items=tuple(
                         f"{spec.display_name}  (from {spec.source})"
+                        f"{install_many_item_suffix((declared or {}).get(spec.display_name))}"
                         for spec in plan.specs
                     ),
                     skipped=skipped,

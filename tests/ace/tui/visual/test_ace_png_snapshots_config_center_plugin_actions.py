@@ -427,3 +427,58 @@ async def test_config_center_comprehensive_update_preview_png_snapshot(
             "config_center_comprehensive_update_preview_120x32",
             title="ACE SASE Admin Center — Comprehensive update (confirm preview)",
         )
+
+
+async def test_config_center_plugins_install_commands_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The install confirm-preview modal announces commands and collisions."""
+    from sase.plugins.declared_commands import (
+        DeclaredCommandProblem,
+        DeclaredCommands,
+    )
+
+    patch_startup_loaders(monkeypatch)
+    _patch_macro_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+    ready = _ready_preview("nvim")
+    preview = pbp._InstallPreview(
+        index_plan=ready.index_plan,
+        git_plan=ready.git_plan,
+        declared_commands=DeclaredCommands(
+            status="declared",
+            names=("listen",),
+            source="pyproject:project.entry-points.sase_commands",
+        ),
+        declared_problems_=(
+            DeclaredCommandProblem(
+                name="listen",
+                kind="conflict",
+                detail=(
+                    "sase listen would conflict with sase-listen — "
+                    "both would be disabled"
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(pbp, "_plan_install_preview", lambda name, *, offline: preview)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_plugins_modal(page)
+        _highlight(pane, "nvim")  # a not-installed plugin
+        await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
+        await page.wait_for(lambda _s: pane._detail_key == "plugin:nvim")
+        pane.action_install()
+        await page.expect_modal("PluginActionConfirmModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_install_commands_preview_120x40",
+            title="ACE SASE Admin Center — Plugins install (command preview)",
+        )

@@ -117,7 +117,13 @@ def handle_plugin_show_command(
         )
         return 0
 
-    render_catalog_show(entry, catalog=catalog, now=now, console=console)
+    render_catalog_show(
+        entry,
+        catalog=catalog,
+        now=now,
+        console=console,
+        declared_commands=_declared_preview(entry, offline, declared_fn),
+    )
     return 0
 
 

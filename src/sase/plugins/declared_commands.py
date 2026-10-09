@@ -109,6 +109,15 @@ def _cache_key(full_name: str) -> str:
     return full_name.casefold()
 
 
+def declared_cache_key(full_name: str) -> str:
+    """Return the preview-map key for a ``owner/repo`` full name.
+
+    Public so the Updates tab can key its lazy per-row previews exactly like
+    the enrichment batch (:func:`attach_declared_previews`).
+    """
+    return _cache_key(full_name)
+
+
 def _read_declared_cache(path: Path | None = None) -> dict[str, _CachedDeclared]:
     """Read the declared-commands cache, returning ``{}`` on any failure."""
     cache_path = path or _cache_path()
@@ -545,6 +554,7 @@ __all__ = [
     "GH_FETCH_TIMEOUT_SECONDS",
     "PYPROJECT_SOURCE",
     "attach_declared_previews",
+    "declared_cache_key",
     "declared_commands_json",
     "declared_problems",
     "get_declared_commands_for_entry",

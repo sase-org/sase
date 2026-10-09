@@ -22,12 +22,14 @@ from sase.agent_clis.models import AgentCliUpdateResult
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult, RepoDiffStat
 from sase.main.update_types import CombinedUpdateResult
 from sase.mode_switch.models import ModeSwitchResult
+from sase.plugin_commands.snapshot import CommandChanges
 from sase.plugins.operations import (
     InstallManyOutcome,
     InstallOutcome,
     UninstallOutcome,
     UpdateOutcome as PluginUpdateOutcome,
 )
+from sase.plugins.post_change import PluginChangeEffects
 from sase.uv_tool.render import UpdateOutcome as ManagedUpdateOutcome
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
@@ -387,6 +389,7 @@ def _build_plugin_install_receipt(
     transition = _transition_from_change(
         outcome.change_set.get(spec.requirement.name),
         fallback_name=spec.requirement.name,
+        effects=outcome.effects,
     )
     dependency_count = _dependency_change_count(
         outcome.change_set,
@@ -414,6 +417,7 @@ def _build_plugin_install_many_receipt(
             transition := _transition_from_change(
                 outcome.change_set.get(spec.requirement.name),
                 fallback_name=spec.requirement.name,
+                effects=outcome.effects,
             )
         )
         is not None
@@ -451,6 +455,7 @@ def _build_plugin_update_receipt(
             transition := _transition_from_change(
                 outcome.change_set.get(target),
                 fallback_name=target,
+                effects=outcome.effects,
             )
         )
         is not None
@@ -482,6 +487,7 @@ def _build_plugin_uninstall_receipt(
     transition = _transition_from_change(
         outcome.change_set.get(outcome.plan.dist_name),
         fallback_name=outcome.plan.dist_name,
+        effects=outcome.effects,
     )
     dependency_count = _dependency_change_count(
         outcome.change_set,
@@ -499,7 +505,10 @@ def _build_plugin_uninstall_receipt(
 
 
 def _transition_from_change(
-    change: UvPackageChange | None, *, fallback_name: str
+    change: UvPackageChange | None,
+    *,
+    fallback_name: str,
+    effects: PluginChangeEffects | None = None,
 ) -> UpdateVersionTransition | None:
     if change is None or change.kind is ChangeKind.UNCHANGED:
         return None
@@ -507,7 +516,37 @@ def _transition_from_change(
     new = change.new_version
     if old is None and new is None:
         return None
-    return UpdateVersionTransition(name=change.name or fallback_name, old=old, new=new)
+    name = change.name or fallback_name
+    added, removed = _commands_for_distribution(effects, name)
+    return UpdateVersionTransition(
+        name=name, old=old, new=new, commands_added=added, commands_removed=removed
+    )
+
+
+def _commands_for_distribution(
+    effects: PluginChangeEffects | None, distribution: str
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Attribute command changes to one installed distribution.
+
+    Lifecycle effects are batch-wide, so a change belongs to *distribution*
+    only when its recorded owner matches. Anything unattributable stays off
+    the toast rather than landing under the wrong plugin.
+    """
+    if effects is None:
+        return (), ()
+    changes: CommandChanges = effects.command_changes
+    key = normalize_distribution_name(distribution)
+    added = tuple(
+        change.name
+        for change in changes.added
+        if normalize_distribution_name(change.distribution) == key
+    )
+    removed = tuple(
+        change.name
+        for change in changes.removed
+        if normalize_distribution_name(change.distribution) == key
+    )
+    return added, removed
 
 
 def _dependency_change_count(change_set: UvChangeSet, *, target_keys: set[str]) -> int:

@@ -280,13 +280,32 @@ def _plugin_line(transition: UpdateVersionTransition) -> str:
     operation = _transition_operation(transition)
     if operation == "install":
         suffix = f" v{escape(transition.new)}" if transition.new else ""
-        return f"• {name}  [green]installed{suffix}[/]"
-    if operation == "uninstall":
+        head = f"• {name}  [green]installed{suffix}[/]"
+    elif operation == "uninstall":
         suffix = f" [dim](was v{escape(transition.old)})[/]" if transition.old else ""
-        return f"• {name}  [yellow]uninstalled[/]{suffix}"
-    old = escape(transition.old or "unknown")
-    new = escape(transition.new or "unknown")
-    return f"• {name}  [dim]{old} →[/] [green]{new}[/]"
+        head = f"• {name}  [yellow]uninstalled[/]{suffix}"
+    else:
+        old = escape(transition.old or "unknown")
+        new = escape(transition.new or "unknown")
+        head = f"• {name}  [dim]{old} →[/] [green]{new}[/]"
+    return "\n".join([head, *_transition_command_lines(transition)])
+
+
+def _transition_command_lines(transition: UpdateVersionTransition) -> list[str]:
+    """Per-command lifecycle lines rendered under a plugin's toast line.
+
+    Added commands render the shared ``❯ sase <name>`` chip with a green
+    "new command" note; removed commands render the chip with a yellow
+    "removed" note. Transitions without command changes render nothing.
+    """
+    from sase.plugin_commands.chip import format_command_chip
+
+    lines: list[str] = []
+    for name in transition.commands_added:
+        lines.append(f"  {escape(format_command_chip(name))}  [green]new command[/]")
+    for name in transition.commands_removed:
+        lines.append(f"  {escape(format_command_chip(name))}  [yellow]removed[/]")
+    return lines
 
 
 def _tail_line(
