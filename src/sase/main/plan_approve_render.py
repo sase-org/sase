@@ -10,7 +10,11 @@ from sase.core.term_color import should_colorize
 
 if TYPE_CHECKING:
     from rich.console import Console
-    from sase.main.plan_direct_approval import DirectApprovalPlan, DirectApprovalRefusal
+    from sase.main.plan_direct_approval import (
+        CoderPlacement,
+        DirectApprovalPlan,
+        DirectApprovalRefusal,
+    )
     from sase.main.plan_direct_approval_run import DirectApprovalOutcome
     from sase.main.plan_pending import PendingPlan
     from sase.plan_approval_actions import PlanApprovalActionResult
@@ -21,6 +25,15 @@ def _print_recovery_command(out: Console, prompt: str) -> None:
     from rich.markup import escape
 
     out.print(f"    sase run {escape(shlex.quote(prompt))}", soft_wrap=True)
+
+
+def _print_retry_command(out: Console, outcome: DirectApprovalOutcome) -> None:
+    """Print the re-approval retry command for a failed coder launch."""
+    from rich.markup import escape
+
+    plan_path = shlex.quote(str(outcome.local_plan_path))
+    out.print("  Retry (re-runs every fallback and records the receipt):")
+    out.print(f"    sase plan approve {escape(plan_path)}", soft_wrap=True)
 
 
 def _console(*, stderr: bool) -> Console:
@@ -94,11 +107,18 @@ def render_gate_approval_dry_run(
     )
 
 
+def _effective_placement(outcome: DirectApprovalOutcome) -> CoderPlacement:
+    """Return the ladder's effective placement, falling back to the plan."""
+    placement = getattr(outcome, "placement", None)
+    return placement if placement is not None else outcome.plan.placement
+
+
 def render_direct_approval(
     outcome: DirectApprovalOutcome, *, decision_lines: list[str] | None = None
 ) -> None:
     """Render a direct approval, including a coder this command did not launch."""
     plan = outcome.plan
+    placement = _effective_placement(outcome)
     out = _console(stderr=False)
     if outcome.coder_error or outcome.gate_answered_concurrently:
         out.print(
@@ -122,8 +142,8 @@ def render_direct_approval(
         out.print("  [dim]coder[/dim]   none launched · left to the gate's responder")
     elif outcome.coder is not None:
         route = (
-            "agent session " + str(plan.placement.agent_session)
-            if plan.placement.mode == "session"
+            "agent session " + str(placement.agent_session)
+            if placement.mode == "session"
             else "standalone"
         )
         name = outcome.coder.agent_name
@@ -133,16 +153,16 @@ def render_direct_approval(
             f" · %model:{plan.model_directive or 'custom'}"
         )
     else:
-        route = "session" if plan.placement.mode == "session" else "standalone"
+        route = "session" if placement.mode == "session" else "standalone"
         out.print(
             f"  [dim]coder[/dim]   {route} · %model:{plan.model_directive or 'custom'}"
         )
     if (
-        plan.placement.mode == "standalone"
-        and plan.placement.reason
+        placement.mode == "standalone"
+        and placement.reason
         and not outcome.gate_answered_concurrently
     ):
-        out.print(f"          [dim]no agent session: {plan.placement.reason}[/dim]")
+        out.print(f"          [dim]no agent session: {placement.reason}[/dim]")
     if plan.gate is None:
         out.print("  [dim]gate[/dim]    none · never proposed")
     elif outcome.gate_answered_concurrently:
@@ -157,7 +177,8 @@ def render_direct_approval(
         out.print(f"  [yellow]! {warning}[/yellow]")
     if outcome.coder_error:
         out.print(f"\n[red]✗ Coder launch failed:[/red] {outcome.coder_error}")
-        out.print("  Launch it yourself:")
+        _print_retry_command(out, outcome)
+        out.print("  Or launch it yourself:")
         _print_recovery_command(out, outcome.coder_prompt)
     elif outcome.incomplete:
         out.print("\n  Check whether the gate's responder launched a coder:")
@@ -228,10 +249,18 @@ def render_coder_recovery(
     """Render a relaunched replacement coder as a recovery card."""
     plan = outcome.plan
     recovery = plan.recovery
+    placement = _effective_placement(outcome)
     out = _console(stderr=False)
     if retry_line:
         out.print(retry_line)
-    out.print(f"[green]↻ Coder relaunched[/green] · [bold cyan]{plan.name}[/bold cyan]")
+    if outcome.coder_error:
+        out.print(
+            f"[red]✗ Coder relaunch failed[/red] · [bold cyan]{plan.name}[/bold cyan]"
+        )
+    else:
+        out.print(
+            f"[green]↻ Coder relaunched[/green] · [bold cyan]{plan.name}[/bold cyan]"
+        )
     if plan.title:
         out.print(f"  {plan.title}")
     out.print(f"\n  [dim]plan[/dim]    {_recovery_plan_line(recovery, plan)}")
@@ -240,8 +269,8 @@ def render_coder_recovery(
         out.print("  [dim]coder[/dim]   none · commit only")
     elif outcome.coder is not None:
         route = (
-            "agent session " + str(plan.placement.agent_session)
-            if plan.placement.mode == "session"
+            "agent session " + str(placement.agent_session)
+            if placement.mode == "session"
             else "standalone"
         )
         name = outcome.coder.agent_name
@@ -251,21 +280,22 @@ def render_coder_recovery(
             f" · %model:{plan.model_directive or 'custom'}"
         )
     else:
-        route = "session" if plan.placement.mode == "session" else "standalone"
+        route = "session" if placement.mode == "session" else "standalone"
         out.print(
             f"  [dim]coder[/dim]   {route} · %model:{plan.model_directive or 'custom'}"
         )
     if (
-        plan.placement.mode == "standalone"
-        and plan.placement.reason
+        placement.mode == "standalone"
+        and placement.reason
         and outcome.coder is not None
     ):
-        out.print(f"          [dim]no agent session: {plan.placement.reason}[/dim]")
+        out.print(f"          [dim]no agent session: {placement.reason}[/dim]")
     for warning in outcome.warnings:
         out.print(f"  [yellow]! {warning}[/yellow]")
     if outcome.coder_error:
         out.print(f"\n[red]✗ Coder launch failed:[/red] {outcome.coder_error}")
-        out.print("  Launch it yourself:")
+        _print_retry_command(out, outcome)
+        out.print("  Or launch it yourself:")
         _print_recovery_command(out, outcome.coder_prompt)
     elif outcome.coder is not None:
         follow = (

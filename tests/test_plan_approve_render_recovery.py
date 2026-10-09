@@ -121,9 +121,12 @@ def test_recovery_launch_failure_card(capsys: pytest.CaptureFixture[str]) -> Non
     render_coder_recovery(_recovery_outcome(plan, coder_error="boom"))
 
     out = capsys.readouterr().out
+    assert "Coder relaunch failed" in out
     assert "before  0sk--code · failed 14m ago" in out
     assert "Coder launch failed: boom" in out
-    assert "Launch it yourself:" in out
+    assert "Retry (re-runs every fallback and records the receipt):" in out
+    assert "sase plan approve" in out
+    assert "Or launch it yourself:" in out
     assert "sase run" in out
 
 

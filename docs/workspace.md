@@ -256,7 +256,10 @@ composed prompt still carries its `#git:` or `#gh:` ref, SASE then supplies fres
 pre-allocation variables for the workspace that successor actually received. The VCS
 setup step adopts a numbered claim already owned by its runner instead of allocating a
 second checkout, and rebinds a deferred `#0` runner to the real numbered workspace once
-setup reports it.
+setup reports it. A pinned session workspace names the planner's workspace directly.
+When it is taken, the launch fails with the occupant named unless
+`SASE_AGENT_PINNED_WORKSPACE_FALLBACK=pool` requests relocation to a pool workspace;
+relocated children record the real workspace they received.
 
 The matching release step is handoff- and identity-aware. It leaves the claim and
 checkout occupant in place when the run has written a pending plan, question, monitor,

@@ -116,7 +116,9 @@ def test_direct_partial_failure_card_gives_recovery_command(
     assert err == ""
     assert f"✓ Plan committed · updates_tab · {PLAN_REF}" in out
     assert "✗ Coder launch failed: launch exploded" in out
-    assert "Launch it yourself:" in out
+    assert "Retry (re-runs every fallback and records the receipt):" in out
+    assert "sase plan approve" in out
+    assert "Or launch it yourself:" in out
     assert f"sase run {shlex.quote(PROMPT)}" in out
     assert "follow" not in out
 

@@ -528,17 +528,23 @@ follow-up, and `commit` records the approved plan in SDD without launching a cod
 instructions for the `approve` and `tale` paths. A plan with no live gate can be named
 by path, `plan:` reference, archive name, or unavailable gate ID: it is approved
 directly and starts a `#coder` in the planner's agent session when it can safely attach,
-otherwise as a standalone agent. `-n/--dry-run` renders that decision without changing
-state, and `-P/--project` supplies project context for the direct route. Re-approving an
-already-approved plan relaunches its coder when that coder failed, was killed, or never
-launched, and refuses when the coder is still running or has finished. Tale and epic
-approvals validate against their target schema before writing a response; a failure
-prints the diagnostics and expected schema and leaves the proposal pending for retry.
-Plans can also declare typed choices and toggles as Plan Decisions. Ordinary approval
-accepts their effective defaults; pass `-D/--decide ID=VALUE` to approve with different
-values, or use `sase gate answer` with `--set decision_<id>=<value>` to override them on
-a pending gate. See [Plan Decisions](sdd.md#plan-decisions) for the grammar,
-memory-consent rules, and current interface limits.
+otherwise as a standalone agent. The coder launch runs a ladder: it relocates to a pool
+workspace when the planner's workspace is taken, falls back to standalone when the agent
+session cannot be joined, and retries once on transient claim errors. Only
+unlaunchable-machine errors (missing owner identity, unknown project tag, hard-disabled
+provider, or an unspawnable process) fail the launch. On failure the card prints
+`sase plan approve <local plan path>` to re-run every fallback and record the receipt.
+`-n/--dry-run` renders that decision without changing state, and `-P/--project` supplies
+project context for the direct route. Re-approving an already-approved plan relaunches
+its coder when that coder failed, was killed, or never launched, and refuses when the
+coder is still running or has finished. Tale and epic approvals validate against their
+target schema before writing a response; a failure prints the diagnostics and expected
+schema and leaves the proposal pending for retry. Plans can also declare typed choices
+and toggles as Plan Decisions. Ordinary approval accepts their effective defaults; pass
+`-D/--decide ID=VALUE` to approve with different values, or use `sase gate answer` with
+`--set decision_<id>=<value>` to override them on a pending gate. See
+[Plan Decisions](sdd.md#plan-decisions) for the grammar, memory-consent rules, and
+current interface limits.
 
 `sase plan reject` writes the rejection response first, then uses the same durable
 cleanup path as the TUI no-feedback rejection action when the matching planner row is

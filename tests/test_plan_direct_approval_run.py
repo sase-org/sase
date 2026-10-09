@@ -175,6 +175,9 @@ def test_coder_failure_records_error(tmp_path: Path, monkeypatch) -> None:
     home = tmp_path / "sase-home"
     redirect_sase_home(monkeypatch, home)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.config._owner.require_agent_owner_identity", lambda: object()
+    )
     plan = _resolved_plan(tmp_path, kind="tale")
     adopted = home / "plans" / "202609" / "work.md"
     adopted.parent.mkdir(parents=True, exist_ok=True)
@@ -208,6 +211,9 @@ def test_success_rewrites_receipt_with_coder(tmp_path: Path, monkeypatch) -> Non
     home = tmp_path / "sase-home"
     redirect_sase_home(monkeypatch, home)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.config._owner.require_agent_owner_identity", lambda: object()
+    )
     plan = _resolved_plan(tmp_path, kind="tale")
     adopted = home / "plans" / "202609" / "work.md"
     adopted.parent.mkdir(parents=True, exist_ok=True)
@@ -305,6 +311,10 @@ class _GateRace:
                 return_value=self.adopted,
             ),
             patch("sase._plan_archive_approval.archive_approved_plan", self.archive),
+            patch(
+                "sase.config._owner.require_agent_owner_identity",
+                return_value=object(),
+            ),
             patch("sase.agent.launch_cwd.launch_agents_from_cwd", self.launch),
             patch(
                 "sase.notifications.pending_actions.mark_already_handled",
@@ -485,3 +495,134 @@ def test_direct_decide_values_stamp_into_adopted_file(
     stamped = adopted.read_text(encoding="utf-8")
     assert "answer: mode" in stamped
     assert "decided_by: reviewer" in stamped
+
+
+def test_standalone_fallback_writes_standalone_receipt(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from tests._conftest_environment import redirect_sase_home
+
+    home = tmp_path / "sase-home"
+    redirect_sase_home(monkeypatch, home)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.config._owner.require_agent_owner_identity", lambda: object()
+    )
+    base = _resolved_plan(tmp_path, kind="tale")
+    plan = replace(
+        base,
+        placement=CoderPlacement(
+            mode="session", parent="bob", member_name="bob--code", agent_session="bob"
+        ),
+    )
+    adopted = home / "plans" / "202609" / "work.md"
+    adopted.parent.mkdir(parents=True, exist_ok=True)
+    adopted.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    archived = _ApprovedPlanArchive(str(adopted), "plan:202609/work.md")
+    launched = _launch_result(tmp_path)
+    calls: list[str] = []
+
+    def _fake_launch(prompt: str, extra_env=None, **kwargs):
+        calls.append(prompt)
+        if len(calls) == 1:
+            raise RuntimeError("session down")
+        return [launched]
+
+    with (
+        patch(
+            "sase.llm_provider._plan_utils.adopt_plan_into_sase",
+            return_value=adopted,
+        ),
+        patch(
+            "sase._plan_archive_approval.archive_approved_plan",
+            return_value=archived,
+        ),
+        patch("sase.agent.launch_cwd.launch_agents_from_cwd", side_effect=_fake_launch),
+    ):
+        outcome = execute_direct_approval(plan)
+    assert outcome.coder is launched
+    assert outcome.placement is not None and outcome.placement.mode == "standalone"
+    assert len(calls) == 2
+    assert "session=" not in calls[1]
+    receipt = read_direct_approval_receipt(adopted)
+    assert receipt is not None
+    assert receipt.route == "standalone"
+    assert receipt.agent_session is None
+
+
+def test_post_launch_receipt_failure_keeps_coder(tmp_path: Path, monkeypatch) -> None:
+    from tests._conftest_environment import redirect_sase_home
+
+    home = tmp_path / "sase-home"
+    redirect_sase_home(monkeypatch, home)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.config._owner.require_agent_owner_identity", lambda: object()
+    )
+    plan = _resolved_plan(tmp_path, kind="tale")
+    adopted = home / "plans" / "202609" / "work.md"
+    adopted.parent.mkdir(parents=True, exist_ok=True)
+    adopted.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    archived = _ApprovedPlanArchive(str(adopted), "plan:202609/work.md")
+    launched = _launch_result(tmp_path)
+    writes = {"count": 0}
+    real_write = None
+    import sase.plan_approval_receipts as receipts
+
+    real_write = receipts.write_direct_approval_receipt
+
+    def _flaky_write(receipt):
+        writes["count"] += 1
+        if writes["count"] == 2:
+            raise OSError("disk full")
+        return real_write(receipt)
+
+    with (
+        patch(
+            "sase.llm_provider._plan_utils.adopt_plan_into_sase",
+            return_value=adopted,
+        ),
+        patch(
+            "sase._plan_archive_approval.archive_approved_plan",
+            return_value=archived,
+        ),
+        patch(
+            "sase.agent.launch_cwd.launch_agents_from_cwd",
+            return_value=[launched],
+        ),
+        patch(
+            "sase.plan_approval_receipts.write_direct_approval_receipt",
+            side_effect=_flaky_write,
+        ),
+    ):
+        outcome = execute_direct_approval(plan)
+    assert outcome.coder is launched
+    assert any("could not be updated" in w for w in outcome.warnings)
+
+
+def test_archive_failure_raises_plan_archive_failed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from tests._conftest_environment import redirect_sase_home
+
+    home = tmp_path / "sase-home"
+    redirect_sase_home(monkeypatch, home)
+    monkeypatch.chdir(tmp_path)
+    plan = _resolved_plan(tmp_path, kind="tale")
+    adopted = home / "plans" / "202609" / "work.md"
+    adopted.parent.mkdir(parents=True, exist_ok=True)
+    adopted.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    with (
+        patch(
+            "sase.llm_provider._plan_utils.adopt_plan_into_sase",
+            return_value=adopted,
+        ),
+        patch(
+            "sase._plan_archive_approval.archive_approved_plan",
+            side_effect=RuntimeError("store down"),
+        ),
+    ):
+        with pytest.raises(PlanApprovalActionError) as exc_info:
+            execute_direct_approval(plan)
+    assert exc_info.value.code == "plan_archive_failed"
+    assert "-k approve" in str(exc_info.value)

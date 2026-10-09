@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import random
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from sase.agent.launch_executor_types import (
@@ -19,6 +20,25 @@ from sase.running_field import WorkspaceClaimError
 
 _WORKSPACE_ALLOCATION_MAX_RETRIES_ENV = "SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES"
 _DEFAULT_WORKSPACE_ALLOCATION_MAX_RETRIES = 5
+
+SASE_AGENT_PINNED_WORKSPACE_FALLBACK = "SASE_AGENT_PINNED_WORKSPACE_FALLBACK"
+PINNED_WORKSPACE_FALLBACK_POOL = "pool"
+
+
+def is_pinned_workspace_fallback_requested(
+    env: Mapping[str, str] | None = None,
+) -> bool:
+    """Return whether pinned-workspace pool relocation was requested."""
+    try:
+        if env is None:
+            fallback_value = os.environ.get(SASE_AGENT_PINNED_WORKSPACE_FALLBACK)
+        elif isinstance(env, Mapping):
+            fallback_value = env.get(SASE_AGENT_PINNED_WORKSPACE_FALLBACK)
+        else:
+            return False
+    except Exception:
+        return False
+    return fallback_value == PINNED_WORKSPACE_FALLBACK_POOL
 
 
 def spawn_slot_with_workspace_retry(
@@ -37,18 +57,30 @@ def spawn_slot_with_workspace_retry(
     max_attempts = workspace_allocation_attempt_limit()
     last_error: BaseException | None = None
     use_preclaim = _should_preclaim_workspace(context)
+    is_pinned = bool(context.use_preallocated_workspace)
+    pinned_num = context.workspace_num if is_pinned else None
+    fallback_requested = is_pinned_workspace_fallback_requested(extra_env)
+    relocated = False
+    relocation_occupant: str | None = None
+    current_extra_env = dict(extra_env) if extra_env else None
 
     for attempt in range(1, max_attempts + 1):
         preclaim: _WorkspacePreClaim | None = None
         try:
-            if use_preclaim:
+            if use_preclaim or relocated:
                 preclaim = _preclaim_axe_workspace(context, workflow_name)
                 workspace_num = preclaim.workspace_num
                 workspace_dir = preclaim.workspace_dir
                 transfer_from_pid: int | None = preclaim.parent_pid
+                request_env = current_extra_env
+                if relocated:
+                    request_env = _relocated_session_attach_env(
+                        current_extra_env, workspace_dir, workspace_num
+                    )
             else:
                 workspace_num, workspace_dir = _resolve_slot_workspace(context)
                 transfer_from_pid = None
+                request_env = current_extra_env
 
             request = LaunchSpawnRequest(
                 cl_name=context.cl_name,
@@ -65,7 +97,7 @@ def spawn_slot_with_workspace_retry(
                 vcs_ref=context.vcs_ref,
                 deferred_workspace=context.deferred_workspace,
                 local_macros_file=local_macros_file,
-                extra_env=extra_env,
+                extra_env=request_env,
                 transfer_from_pid=transfer_from_pid,
                 name_reservation=name_reservation,
             )
@@ -73,9 +105,27 @@ def spawn_slot_with_workspace_retry(
             # Successful spawn: the callback transferred the pre-claim to
             # the child PID, so the parent no longer owns the slot.
             preclaim = None
+            if relocated and result is not None:
+                note = _relocation_note(pinned_num, relocation_occupant, workspace_num)
+                try:
+                    result.workspace_relocation = note
+                except Exception:
+                    from dataclasses import replace as _replace
+
+                    result = _replace(result, workspace_relocation=note)
             return request, result
         except WorkspaceClaimError as exc:
             last_error = exc
+            if (
+                is_pinned
+                and not relocated
+                and fallback_requested
+                and (exc.workspace_num is None or exc.workspace_num == pinned_num)
+            ):
+                relocation_occupant = _pinned_occupant_description(context)
+                relocated = True
+                # Do not sleep and do not retry the pin.
+                continue
         finally:
             if preclaim is not None:
                 # Spawn raised before/during the claim_callback, so the
@@ -91,6 +141,13 @@ def spawn_slot_with_workspace_retry(
         if attempt < max_attempts:
             time.sleep(_workspace_retry_backoff_seconds(attempt))
 
+    if is_pinned and not fallback_requested:
+        occupant = _pinned_occupant_description(context)
+        if occupant:
+            raise WorkspaceClaimError(
+                f"Pinned workspace #{pinned_num} is already claimed by {occupant}",
+                workspace_num=pinned_num,
+            ) from last_error
     raise WorkspaceClaimError(
         "Failed to claim an available workspace for "
         f"{_workspace_target_label(context)} after {max_attempts} attempts: "
@@ -172,6 +229,73 @@ def _preclaim_axe_workspace(
     )
 
 
+def _relocation_note(
+    pinned_num: int | None, occupant: str | None, pool_num: int | None
+) -> str:
+    """Return the workspace relocation summary for a moved pinned launch."""
+    if occupant:
+        base = f"pinned workspace #{pinned_num} is claimed by {occupant}"
+    else:
+        base = f"pinned workspace #{pinned_num} is claimed"
+    if pool_num is not None:
+        return f"{base}; launched in #{pool_num}"
+    return f"{base}; launched in pool workspace"
+
+
+def _pinned_occupant_description(context: LaunchExecutionContext) -> str | None:
+    """Describe the occupant holding the pinned workspace, if any."""
+    if context.workspace_num is None:
+        return None
+    try:
+        from sase.running_field import describe_workspace_occupant
+
+        return describe_workspace_occupant(
+            context.project_file,
+            context.workspace_num,
+            checkout_dir=context.workspace_dir,
+        )
+    except Exception:
+        return None
+
+
+def _relocated_session_attach_env(
+    extra_env: dict[str, str] | None,
+    workspace_dir: str,
+    workspace_num: int,
+) -> dict[str, str] | None:
+    """Rewrite the session-attach payload to name the relocated workspace."""
+    if not extra_env:
+        return extra_env
+    try:
+        from sase.agent._agent_session_attach_launch import (
+            load_agent_session_attach_plan_from_env,
+        )
+        from sase.agent.detached_child import agent_session_attach_env
+    except Exception:
+        return extra_env
+    try:
+        plan = load_agent_session_attach_plan_from_env(extra_env)
+    except Exception:
+        return extra_env
+    if plan is None:
+        return extra_env
+    if plan.parent_workspace_dir is None and plan.parent_workspace_num is None:
+        return extra_env
+    try:
+        from dataclasses import replace as _replace
+
+        relocated_plan = _replace(
+            plan,
+            parent_workspace_dir=workspace_dir,
+            parent_workspace_num=workspace_num,
+        )
+        rewritten = dict(extra_env)
+        rewritten.update(agent_session_attach_env(relocated_plan))
+        return rewritten
+    except Exception:
+        return extra_env
+
+
 def _workspace_target_label(context: LaunchExecutionContext) -> str:
     project = context.project_name or context.project_file
     if context.cl_name and context.cl_name != project:
@@ -205,6 +329,9 @@ def _resolve_slot_workspace(context: LaunchExecutionContext) -> tuple[int, str]:
 
 
 __all__ = [
+    "PINNED_WORKSPACE_FALLBACK_POOL",
+    "SASE_AGENT_PINNED_WORKSPACE_FALLBACK",
+    "is_pinned_workspace_fallback_requested",
     "spawn_slot_with_workspace_retry",
     "workspace_allocation_attempt_limit",
 ]

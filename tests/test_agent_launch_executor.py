@@ -342,3 +342,85 @@ def test_fixed_workspace_modes_do_not_retry_claim_failures(
     assert requests[0].workspace_num == expected_workspace_num
     assert requests[0].workspace_dir == expected_workspace_dir
     first_ws.assert_not_called()
+
+
+def test_pinned_with_opt_in_relocates_to_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.running_field import WorkspaceClaimError
+
+    plan = plan_fake_fanout("single", ["do work"])
+    requests: list[LaunchSpawnRequest] = []
+    monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "5")
+
+    def _spawn(request: LaunchSpawnRequest) -> AgentLaunchResult:
+        requests.append(request)
+        if len(requests) == 1:
+            raise WorkspaceClaimError("claimed", workspace_num=11)
+        return _result_for(request)
+
+    with (
+        patch(
+            "sase.running_field.claim_next_axe_workspace", return_value=13
+        ) as claim_next,
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=("/workspace/13", None),
+        ),
+        patch(
+            "sase.running_field.describe_workspace_occupant",
+            return_value="other (pid 1, live, workflow w)",
+        ),
+        patch("sase.agent.launch_executor_workspace.time.sleep") as sleep,
+    ):
+        execution = execute_launch_plan(
+            plan,
+            LaunchExecutionContext(
+                cl_name="change",
+                project_file="/project.sase",
+                project_name="project",
+                workspace_num=11,
+                workspace_dir="/workspace/11",
+                use_preallocated_workspace=True,
+            ),
+            spawn=_spawn,
+            extra_env={"SASE_AGENT_PINNED_WORKSPACE_FALLBACK": "pool"},
+            base_timestamp="ts",
+        )
+    assert claim_next.call_count == 1
+    assert [r.workspace_num for r in requests] == [11, 13]
+    sleep.assert_not_called()
+    result = execution.results[0]
+    assert result.workspace_num == 13
+    assert result.workspace_relocation is not None
+    assert "pinned workspace #11" in result.workspace_relocation
+    assert "#13" in result.workspace_relocation
+
+
+def test_pinned_without_opt_in_names_occupant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.running_field import WorkspaceClaimError
+
+    monkeypatch.setenv("SASE_AGENT_WORKSPACE_ALLOCATION_MAX_RETRIES", "1")
+    with (
+        patch(
+            "sase.running_field.describe_workspace_occupant",
+            return_value="other (pid 1, live, workflow w)",
+        ),
+        patch("sase.agent.launch_executor_workspace.time.sleep"),
+    ):
+        with pytest.raises(WorkspaceClaimError, match="already claimed by"):
+            execute_launch_plan(
+                plan_fake_fanout("single", ["do work"]),
+                LaunchExecutionContext(
+                    cl_name="change",
+                    project_file="/project.sase",
+                    project_name="project",
+                    workspace_num=11,
+                    workspace_dir="/workspace/11",
+                    use_preallocated_workspace=True,
+                ),
+                spawn=lambda request: (_ for _ in ()).throw(
+                    WorkspaceClaimError("claimed", workspace_num=11)
+                ),
+                base_timestamp="ts",
+            )

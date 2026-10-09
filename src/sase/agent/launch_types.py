@@ -18,3 +18,4 @@ class AgentLaunchResult:
     timestamp: str = ""
     artifacts_dir: str = ""
     agent_name: str | None = None
+    workspace_relocation: str | None = None

@@ -8,8 +8,6 @@ from collections.abc import Callable
 import os
 import sys
 
-from sase.running_field import WorkspaceClaim
-
 from sase.axe.run_agent_directive_clans import ClanSummaryResolutionRequest
 from sase.axe.run_agent_directives import (
     AgentInfo,
@@ -49,7 +47,9 @@ def claim_deferred_workspace(
     Releases the placeholder workspace_num=0 claim, then atomically
     allocates-and-claims a workspace *before* materializing the checkout.
     A pinned agent-session-attach target is a single-shot claim: an occupied
-    checkout fails the run with the occupant named.
+    checkout fails the run with the occupant named, unless
+    ``SASE_AGENT_PINNED_WORKSPACE_FALLBACK=pool`` requests relocation to a
+    pool workspace.
 
     Returns (workspace_num, workspace_dir).
     """
@@ -90,7 +90,32 @@ def claim_deferred_workspace(
             vcs_wf_type=vcs_wf_type,
             ws_get_dir=ws_get_dir,
         )
-        if not workspace_dir or workspace_num == 0:
+        if (not workspace_dir or workspace_num == 0) and _pinned_fallback_requested():
+            print(
+                f"{pinned_error or f'Pinned workspace #{target_workspace_num} is claimed'}; "
+                "relocating to a pool workspace",
+                file=sys.stderr,
+            )
+            workspace_num, workspace_dir, last_error = _claim_next_deferred_workspace(
+                project_file=project_file,
+                project_name=project_name,
+                workflow_name=workflow_name,
+                cl_name=cl_name,
+                artifacts_timestamp=artifacts_timestamp,
+                max_attempts=max_attempts,
+                vcs_wf_type=vcs_wf_type,
+                ws_get_dir=ws_get_dir,
+            )
+            if not workspace_dir or workspace_num == 0:
+                print(
+                    "Failed to claim a real workspace after dependencies completed "
+                    f"for {project_name}/{cl_name} after {max_attempts} attempts; "
+                    "axe workspaces may all be claimed or racing with other launches."
+                    + (f" Last error: {last_error}" if last_error else ""),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        elif not workspace_dir or workspace_num == 0:
             print(
                 pinned_error
                 or (
@@ -312,37 +337,17 @@ def _resolve_deferred_workspace_dir(
 
 
 def _describe_workspace_occupant(project_file: str, workspace_num: int) -> str | None:
-    from sase.running_field import get_claimed_workspaces
+    from sase.running_field import describe_workspace_occupant
 
-    occupants = [
-        claim
-        for claim in get_claimed_workspaces(project_file)
-        if claim.workspace_num == workspace_num
-    ]
-    if not occupants:
-        return None
-    return "; ".join(_format_workspace_occupant(claim) for claim in occupants)
+    return describe_workspace_occupant(project_file, workspace_num)
 
 
-def _format_workspace_occupant(claim: WorkspaceClaim) -> str:
-    name = claim.cl_name or claim.workflow
-    liveness = "live" if _pid_is_alive(claim.pid) else "dead"
-    detail = f"{name} (pid {claim.pid}, {liveness}, workflow {claim.workflow}"
-    if claim.artifacts_timestamp:
-        detail += f", artifacts {claim.artifacts_timestamp}"
-    return detail + ")"
+def _pinned_fallback_requested() -> bool:
+    from sase.agent.launch_executor_workspace import (
+        is_pinned_workspace_fallback_requested,
+    )
 
-
-def _pid_is_alive(pid: int) -> bool:
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+    return is_pinned_workspace_fallback_requested(os.environ)
 
 
 def _deferred_target_workspace_num() -> int | None:

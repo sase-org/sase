@@ -182,7 +182,9 @@ def test_handler_refuses_direct_execution_from_inside_an_agent(
             return_value=make_direct_plan(),
         ),
         patch("sase.main.plan_direct_approval_run._adopt_plan") as adopt,
-        patch("sase.main.plan_direct_approval_run._launch_coder") as launch,
+        patch(
+            "sase.main.plan_direct_approval_launch.launch_coder_with_fallbacks"
+        ) as launch,
     ):
         code = _exit_code(_args())
 

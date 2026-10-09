@@ -33,6 +33,11 @@ from sase.running_field._model import (
     WorkspaceClaim,
     WorkspaceClaimError,
 )
+from sase.running_field._occupant import (
+    describe_workspace_occupant,
+    format_workspace_occupant,
+    pid_is_alive,
+)
 from sase.running_field._query import get_claimed_workspaces
 from sase.running_field._release import release_workspace
 from sase.running_field._rename import update_running_field_cl_name
@@ -52,6 +57,9 @@ __all__ = [
     "ClaimResult",
     "WorkspaceClaim",
     "WorkspaceClaimError",
+    "describe_workspace_occupant",
+    "format_workspace_occupant",
+    "pid_is_alive",
     "claim_next_axe_workspace",
     "claim_next_axe_workspace_dir",
     "claim_workspace",

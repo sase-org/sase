@@ -415,3 +415,40 @@ class TestDeferredWorkspacePreparation:
                 )
 
         assert claim_workspace_mock.call_count == 1
+
+    def test_pinned_with_fallback_relocates_to_pool(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from sase.axe.run_agent_phases import claim_deferred_workspace
+
+        occupant_pid = os.getpid()
+        occupied = WorkspaceClaim(
+            17,
+            "ace(run)-260818_125956",
+            "06e--plan",
+            pid=occupant_pid,
+            artifacts_timestamp="260818_125956",
+        )
+        project_file = _write_project_file(tmp_path, running_claims=[occupied])
+        monkeypatch.setenv("SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM", "17")
+        monkeypatch.setenv("SASE_AGENT_PINNED_WORKSPACE_FALLBACK", "pool")
+        with (
+            patch("sase.running_field.claim_next_axe_workspace", return_value=18),
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=(str(tmp_path / "ws18"), None),
+            ),
+            patch("sase.axe.run_agent_phases.os.chdir"),
+        ):
+            num, _ = claim_deferred_workspace(
+                project_file,
+                "test-project",
+                "test-workflow",
+                "session-child",
+                "20260818_130000",
+            )
+        assert num == 18
+        assert "relocating to a pool workspace" in capsys.readouterr().err

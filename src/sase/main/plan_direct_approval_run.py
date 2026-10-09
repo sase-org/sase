@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.main.plan_direct_approval import (
+    CoderPlacement,
     DirectApprovalPlan,
     DirectApprovalRefusal,
     DirectApprovalRefused,
@@ -37,6 +38,7 @@ class DirectApprovalOutcome:
     coder_error: str | None = None
     warnings: tuple[str, ...] = ()
     gate_answered_concurrently: bool = False
+    placement: CoderPlacement | None = None
 
     @property
     def incomplete(self) -> bool:
@@ -68,9 +70,14 @@ def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
     # 3. Publish to the SDD store for tale/commit.
     plan_ref, saved_plan = _archive_plan(plan, local_plan)
     # 4. Write the receipt with coder fields still empty.
-    _write_receipt(plan, local_plan, plan_ref, saved_plan, coder=None, coder_error=None)
-    # 5. Retire a stale or orphaned gate, all best-effort.
     warnings: list[str] = []
+    try:
+        _write_receipt(
+            plan, local_plan, plan_ref, saved_plan, coder=None, coder_error=None
+        )
+    except OSError as exc:
+        warnings.append(f"approval receipt could not be written: {exc}")
+    # 5. Retire a stale or orphaned gate, all best-effort.
     coder_prompt = _coder_prompt(plan, plan_ref, local_plan)
     if _retire_gate(plan, warnings):
         return _settle_concurrent_answer(
@@ -79,15 +86,40 @@ def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
     # 6. Launch the coder for tale/approve.
     coder: AgentLaunchResult | None = None
     coder_error: str | None = None
+    effective_placement = plan.placement
     if plan.kind in ("tale", "approve"):
-        try:
-            coder = _launch_coder(coder_prompt, local_plan)
-        except Exception as exc:
-            coder_error = str(exc) or type(exc).__name__
+        from sase.main.plan_direct_approval_launch import (
+            CoderLaunch,
+            launch_coder_once,
+            launch_coder_with_fallbacks,
+        )
+
+        launched: CoderLaunch = launch_coder_with_fallbacks(
+            plan, local_plan, plan_ref or str(local_plan), launch=launch_coder_once
+        )
+        coder = launched.coder  # type: ignore[assignment]
+        coder_error = launched.error
+        coder_prompt = launched.prompt or coder_prompt
+        if launched.placement is not None:
+            effective_placement = launched.placement
+        warnings.extend(launched.notes)
     # 7. Rewrite the receipt with the coder outcome.
-    _write_receipt(
-        plan, local_plan, plan_ref, saved_plan, coder=coder, coder_error=coder_error
-    )
+    try:
+        _write_receipt(
+            plan,
+            local_plan,
+            plan_ref,
+            saved_plan,
+            coder=coder,
+            coder_error=coder_error,
+            placement=effective_placement,
+        )
+    except Exception as exc:
+        warnings.append(
+            f"approval receipt could not be updated: {exc}; the coder is running"
+            if coder is not None
+            else f"approval receipt could not be updated: {exc}"
+        )
     # 8. Record planner metadata, best-effort.
     _record_planner_metadata(plan, warnings)
     return DirectApprovalOutcome(
@@ -99,6 +131,7 @@ def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
         coder=coder,
         coder_error=coder_error,
         warnings=tuple(warnings),
+        placement=effective_placement,
     )
 
 
@@ -207,7 +240,13 @@ def _archive_plan(plan: DirectApprovalPlan, local_plan: Path) -> tuple[str, str 
     )
     from sase._plan_approval_protocol import PlanApprovalActionError
 
-    preflight_plan_archive_credential(("commit",))
+    try:
+        preflight_plan_archive_credential(("commit",))
+    except PlanApprovalActionError as exc:
+        if getattr(exc, "code", None) == "git_credential_denied":
+            exc_message = f"{exc} to launch the coder without archiving the plan: sase plan approve {local_plan} -k approve"
+            raise PlanApprovalActionError(exc.code, exc.target, exc_message) from exc
+        raise
     try:
         archived = archive_approved_plan(
             {},
@@ -219,6 +258,15 @@ def _archive_plan(plan: DirectApprovalPlan, local_plan: Path) -> tuple[str, str 
     except PlanAlreadyArchivedError as exc:
         raise PlanApprovalActionError(
             "already_committed", str(exc.path), str(exc)
+        ) from exc
+    except PlanApprovalActionError:
+        raise
+    except Exception as exc:
+        raise PlanApprovalActionError(
+            "plan_archive_failed",
+            plan.name,
+            f"{exc}; to launch the coder without archiving the plan: "
+            f"sase plan approve {local_plan} -k approve",
         ) from exc
     return archived.plan_archive_ref, archived.saved_plan_path
 
@@ -232,20 +280,25 @@ def _write_receipt(
     coder: AgentLaunchResult | None,
     coder_error: str | None,
     gate_answered_concurrently: bool = False,
+    placement: CoderPlacement | None = None,
 ) -> None:
     from sase.plan_approval_receipts import (
         DirectApprovalReceipt,
         write_direct_approval_receipt,
     )
 
+    effective = placement or plan.placement
     # A concurrently answered gate was never retired here and no coder was
     # placed, so neither the route, agent session, nor retired gate is recorded.
     placed = not gate_answered_concurrently
     route = (
         "none"
         if plan.kind == "commit" or not placed
-        else ("session" if plan.placement.mode == "session" else "standalone")
+        else ("session" if effective.mode == "session" else "standalone")
     )
+    agent_session = effective.agent_session if placed else None
+    if route == "standalone":
+        agent_session = None
     receipt = DirectApprovalReceipt(
         plan_path=str(local_plan),
         action=plan.kind,
@@ -258,7 +311,7 @@ def _write_receipt(
         coder_agent=getattr(coder, "agent_name", None) if coder is not None else None,
         coder_pid=getattr(coder, "pid", None) if coder is not None else None,
         coder_error=coder_error,
-        agent_session=plan.placement.agent_session if placed else None,
+        agent_session=agent_session,
         retired_gate_id=(
             plan.gate.notification_id if plan.gate is not None and placed else None
         ),
@@ -388,24 +441,61 @@ def execute_coder_recovery(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
     from sase.plan_approval_receipts import receipt_path_for
 
     lock_path = Path(str(receipt_path_for(local_plan)) + ".lock")
-    with file_lock(lock_path, timeout=30.0):
-        _refuse_if_recovered(plan, local_plan)
-        prior_names = _prior_coder_names(plan, local_plan)
-        coder_prompt = _coder_prompt(plan, plan.predicted_plan_ref, local_plan)
-        _write_recovery_receipt(plan, local_plan, coder=None, coder_error=None)
-        coder: AgentLaunchResult | None = None
-        coder_error: str | None = None
-        try:
-            coder = _launch_coder(coder_prompt, local_plan)
-        except Exception as exc:
-            coder_error = str(exc) or type(exc).__name__
-        _write_recovery_receipt(
-            plan,
-            local_plan,
-            coder=coder,
-            coder_error=coder_error,
-            prior_names=prior_names,
-        )
+    try:
+        with file_lock(lock_path, timeout=30.0):
+            _refuse_if_recovered(plan, local_plan)
+            prior_names = _prior_coder_names(plan, local_plan)
+            warnings: list[str] = []
+            try:
+                _write_recovery_receipt(plan, local_plan, coder=None, coder_error=None)
+            except OSError as exc:
+                warnings.append(f"approval receipt could not be written: {exc}")
+            coder: AgentLaunchResult | None = None
+            coder_error: str | None = None
+            effective_placement = plan.placement
+            coder_prompt = _coder_prompt(plan, plan.predicted_plan_ref, local_plan)
+            from sase.main.plan_direct_approval_launch import (
+                CoderLaunch,
+                launch_coder_once,
+                launch_coder_with_fallbacks,
+            )
+
+            launched: CoderLaunch = launch_coder_with_fallbacks(
+                plan,
+                local_plan,
+                plan.predicted_plan_ref or str(local_plan),
+                launch=launch_coder_once,
+            )
+            coder = launched.coder  # type: ignore[assignment]
+            coder_error = launched.error
+            coder_prompt = launched.prompt or coder_prompt
+            if launched.placement is not None:
+                effective_placement = launched.placement
+            warnings.extend(launched.notes)
+            try:
+                _write_recovery_receipt(
+                    plan,
+                    local_plan,
+                    coder=coder,
+                    coder_error=coder_error,
+                    prior_names=prior_names,
+                    placement=effective_placement,
+                )
+            except Exception as exc:
+                warnings.append(
+                    f"approval receipt could not be updated: {exc}; the coder is running"
+                    if coder is not None
+                    else f"approval receipt could not be updated: {exc}"
+                )
+    except Exception as exc:
+        if getattr(exc, "code", None) == "lock_timeout":
+            raise PlanApprovalActionError(
+                "approval_in_progress",
+                plan.name,
+                f"another sase plan approve for {plan.name} holds the lock; "
+                "retry when it finishes",
+            ) from exc
+        raise
     return DirectApprovalOutcome(
         plan=plan,
         local_plan_path=local_plan,
@@ -414,6 +504,8 @@ def execute_coder_recovery(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
         coder_prompt=coder_prompt,
         coder=coder,
         coder_error=coder_error,
+        warnings=tuple(warnings),
+        placement=effective_placement,
     )
 
 
@@ -482,6 +574,7 @@ def _write_recovery_receipt(
     coder: AgentLaunchResult | None,
     coder_error: str | None,
     prior_names: tuple[str, ...] | None = None,
+    placement: CoderPlacement | None = None,
 ) -> None:
     from datetime import UTC, datetime
 
@@ -508,36 +601,30 @@ def _write_recovery_receipt(
             plan_archive_ref = previous.plan_archive_ref
         if saved_plan_path is None:
             saved_plan_path = previous.saved_plan_path
+    effective = placement or plan.placement
+    route = "session" if effective.mode == "session" else "standalone"
+    agent_session = effective.agent_session
+    if route == "standalone":
+        agent_session = None
     receipt = DirectApprovalReceipt(
         plan_path=str(local_plan),
         action=plan.kind,
         approved_at=datetime.now(UTC).isoformat(),
         source="cli",
-        route=("session" if plan.placement.mode == "session" else "standalone"),
+        route=route,
         project=plan.project,
         plan_archive_ref=plan_archive_ref,
         saved_plan_path=saved_plan_path,
         coder_agent=getattr(coder, "agent_name", None) if coder is not None else None,
         coder_pid=getattr(coder, "pid", None) if coder is not None else None,
         coder_error=coder_error,
-        agent_session=plan.placement.agent_session,
+        agent_session=agent_session,
         retired_gate_id=None,
         original_path=str(plan.source_path),
         replaced_coders=replaced,
         recovered_gate_id=gate_id,
     )
     write_direct_approval_receipt(receipt)
-
-
-def _launch_coder(prompt: str, local_plan: Path) -> AgentLaunchResult:
-    from sase.agent.launch_cwd import launch_agents_from_cwd
-
-    results = launch_agents_from_cwd(
-        prompt, extra_env={"SASE_PLAN": str(local_plan)}, origin="generated"
-    )
-    if not results:
-        raise RuntimeError("agent launch produced no results")
-    return results[0]
 
 
 def _request_wait(plan: DirectApprovalPlan) -> object:

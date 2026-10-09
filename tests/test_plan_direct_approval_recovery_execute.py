@@ -89,9 +89,13 @@ def _launch_result(home: Path) -> AgentLaunchResult:
 
 def test_executor_launches_one_coder_and_writes_receipt(
     sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.main.plan_direct_approval_run import execute_coder_recovery
 
+    monkeypatch.setattr(
+        "sase.config._owner.require_agent_owner_identity", lambda: object()
+    )
     plan = _recovery_plan(sase_home_dir)
     launched = _launch_result(sase_home_dir)
     seen_env: dict[str, str] = {}
@@ -131,18 +135,25 @@ def test_executor_launches_one_coder_and_writes_receipt(
     assert receipt.plan_archive_ref == "plan:202609/work.md"
 
 
-def test_executor_launch_failure_records_error(sase_home_dir: Path) -> None:
+def test_executor_launch_failure_records_error(
+    sase_home_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from sase.main.plan_direct_approval_run import execute_coder_recovery
 
+    monkeypatch.setattr(
+        "sase.config._owner.require_agent_owner_identity", lambda: object()
+    )
     plan = _recovery_plan(sase_home_dir)
     with patch(
         "sase.agent.launch_cwd.launch_agents_from_cwd",
         side_effect=RuntimeError("boom"),
-    ):
+    ) as launch:
         outcome = execute_coder_recovery(plan)
 
     assert outcome.coder is None
     assert outcome.coder_error == "boom"
+    # A session placement now tries session then standalone.
+    assert launch.call_count == 2
     receipt = read_direct_approval_receipt(plan.source_path)
     assert receipt is not None
     assert receipt.coder_error == "boom"
@@ -192,3 +203,23 @@ def test_executor_agent_guard(
     with pytest.raises(PlanApprovalActionError) as exc_info:
         execute_coder_recovery(_recovery_plan(sase_home_dir))
     assert exc_info.value.code == "agent_launch_denied"
+
+
+def test_recovery_lock_timeout_raises_approval_in_progress(
+    sase_home_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.main.plan_direct_approval_run import execute_coder_recovery
+    from sase.plan_approval_actions import PlanApprovalActionError
+
+    plan = _recovery_plan(sase_home_dir)
+    monkeypatch.setattr(
+        "sase.notification_gates.durability.file_lock",
+        lambda *a, **k: (_ for _ in ()).throw(
+            __import__(
+                "sase.notification_gates.model_validation", fromlist=["GateError"]
+            ).GateError("lock_timeout", "lock", "busy")
+        ),
+    )
+    with pytest.raises(PlanApprovalActionError) as exc_info:
+        execute_coder_recovery(plan)
+    assert exc_info.value.code == "approval_in_progress"
