@@ -114,6 +114,7 @@ def resolve_agent_session_attach_plan(
                 "plan_chain_root": getattr(parent_meta, "plan_chain_root", False),
                 "approve": getattr(parent_meta, "approve", False),
                 "plan": getattr(parent_meta, "plan", False),
+                "autonomy": getattr(parent_meta, "autonomy", None),
             }
         )
     parent_needs_rename = parent_name == raw_parent_base

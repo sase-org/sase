@@ -24,6 +24,23 @@ _GENERIC_ROOT_SUFFIX = f"{AGENT_SESSION_SEPARATOR}0"
 _PLAN_ROOT_SUFFIX = PLAN_CHAIN_PLAN_SUFFIX
 
 
+def _meta_has_live_autonomy(meta: Mapping[str, object]) -> bool:
+    """Return whether *meta*'s autonomy record is non-manual.
+
+    Record-only launches persist no ``approve``/``plan`` keys, so the
+    record (or its legacy translation) decides the root suffix. Legacy
+    keys alone keep their exact historical meaning through the
+    translation; an unreadable record fails closed to ``False``.
+    """
+    try:
+        from sase.autonomy.record import read_record
+
+        record = read_record(meta)  # type: ignore[arg-type]
+    except Exception:
+        return False
+    return isinstance(record, dict) and record.get("profile") not in (None, "manual")
+
+
 def agent_session_root_role_suffix(meta: Mapping[str, object]) -> str:
     """Return the persisted suffix for a bare agent becoming a session member."""
     role_suffix = meta.get("role_suffix")
@@ -33,6 +50,7 @@ def agent_session_root_role_suffix(meta: Mapping[str, object]) -> str:
         or meta.get(PLAN_CHAIN_ROOT_FIELD) is True
         or meta.get("approve") is True
         or meta.get("plan") is True
+        or _meta_has_live_autonomy(meta)
     ):
         return _PLAN_ROOT_SUFFIX
     return _GENERIC_ROOT_SUFFIX

@@ -265,6 +265,21 @@ def extract_directives_and_write_meta(
     from sase.macro.hold_directive import HoldFields
 
     auto_mode = directives.auto_mode
+    # ``approve``/``plan`` project the persisted autonomy record so both
+    # flag states agree; without a record (defensive only:
+    # ``build_agent_meta`` always writes one) fall back to the directive.
+    info_approve = auto_mode == "plan"
+    info_plan = auto_mode in {"epic", "tale"}
+    record = agent_meta.get("autonomy") if isinstance(agent_meta, dict) else None
+    if isinstance(record, dict) and record:
+        try:
+            from sase.autonomy.record import legacy_projection
+
+            projected = legacy_projection(record)
+            info_approve = bool(projected.get("approve"))
+            info_plan = bool(projected.get("plan"))
+        except Exception:
+            pass
     return AgentInfo(
         name=agent_name,
         bead_id=directives.bead_id,
@@ -284,8 +299,8 @@ def extract_directives_and_write_meta(
         llm_provider=agent_llm_provider,
         vcs_provider=agent_vcs_provider,
         hidden=bool(directives.hide or auto_dismiss),
-        approve=auto_mode == "plan",
-        plan=auto_mode in {"epic", "tale"},
+        approve=info_approve,
+        plan=info_plan,
         tribe=agent_tribe,
         clan_summary_resolution=clan_summary_resolution,
         meta=agent_meta,

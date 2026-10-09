@@ -77,9 +77,30 @@ def plan_auto_covers_tier(tier: PlanGateTier, argument: str | None) -> bool:
     cover epic plans only; bare ``%auto`` (``None``/``""``) covers both. Any
     other value is invalid rather than uncovered: use
     :func:`validate_plan_auto_argument` to reject it.
+
+    Evaluated through the autonomy record (``%auto`` E1): the argument
+    becomes the equivalent legacy meta, which core translates and
+    evaluates with the tier's standard option IDs.
     """
-    covered = _EPIC_COVERED_ARGUMENTS if tier == "epic" else _TALE_COVERED_ARGUMENTS
-    return argument in covered
+    from sase.autonomy.record import auto_applies, read_record
+
+    kind = "epic_plan" if tier == "epic" else "plan"
+    # No normalization here: callers pass grammar-validated spellings, and
+    # ``recorded_auto_covers_plan`` normalizes before delegating. A padded
+    # or foreign spelling misses the historical tables, so it stays
+    # uncovered without consulting the record (whose translation trims).
+    if argument in (None, ""):
+        # Bare ``%auto`` covers both tiers.
+        legacy_meta: dict[str, Any] = {"approve": True}
+    elif isinstance(argument, str) and argument.strip() == argument:
+        legacy_meta = {"auto_approve_argument": argument}
+    else:
+        return False
+    try:
+        return auto_applies(read_record(legacy_meta), kind)
+    except Exception:
+        covered = _EPIC_COVERED_ARGUMENTS if tier == "epic" else _TALE_COVERED_ARGUMENTS
+        return argument in covered
 
 
 def effective_plan_auto_argument(

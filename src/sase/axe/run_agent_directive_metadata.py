@@ -289,19 +289,20 @@ def build_agent_meta(
         agent_meta["model_alias_overrides"] = inputs.model_alias_overrides
     if inputs.vcs_provider:
         agent_meta["vcs_provider"] = inputs.vcs_provider
-    auto_mode = directives.auto_mode
-    if auto_mode == "plan":
-        agent_meta["approve"] = True
-    if directives.auto_argument is not None:
-        agent_meta["auto_approve_argument"] = directives.auto_argument
-    if auto_mode == "epic":
-        agent_meta["auto_approve_plan_action"] = "epic"
-    if auto_mode == "tale":
-        agent_meta["auto_approve_plan_action"] = "tale"
+    from sase.autonomy.record import apply_record_meta_patch, resolve_selection
+
+    if directives.auto_enabled and directives.auto_argument is not None:
+        auto_selection: str | None = directives.auto_argument
+    elif directives.auto_enabled:
+        auto_selection = ""
+    else:
+        auto_selection = None
+    apply_record_meta_patch(
+        agent_meta,
+        resolve_selection(auto_selection, source="prompt", surface="launch"),
+    )
     if directives.hide or inputs.auto_dismiss:
         agent_meta["hidden"] = True
-    if auto_mode in {"epic", "tale"}:
-        agent_meta["plan"] = True
     if agent_tribe:
         agent_meta["tribe"] = agent_tribe
     if directives.name_template and directives.name:

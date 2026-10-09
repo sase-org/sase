@@ -65,7 +65,10 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["tribe"] == "backend"
     assert "tag" not in data
     assert data["wait_for"] == ["@f"]
-    assert data["approve"] is True
+    # Revive restores the record: flag on writes no legacy ``approve`` key.
+    record = data["autonomy"]
+    assert (record["profile"], record["selection"]) == ("standard", "")
+    assert "approve" not in data
     assert data["hidden"] is True
     assert data["role_suffix"] == ".plan"
     assert data["parent_timestamp"] == "20240101120000"

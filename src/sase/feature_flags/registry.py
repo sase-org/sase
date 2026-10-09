@@ -43,6 +43,7 @@ class FeatureFlag(StrEnum):
     claude_helper_channel = "claude_helper_channel"
     instruction_shadow_render = "instruction_shadow_render"
     typed_launch_units = "typed_launch_units"
+    autonomy_record_only = "autonomy_record_only"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -265,6 +266,17 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "SASE_INSTRUCTIONS_FILE during the call."
         ),
         bead="sase-1h4",
+    ),
+    FeatureFlag.autonomy_record_only: FeatureFlagDefinition(
+        key=FeatureFlag.autonomy_record_only,
+        kind="sunset",
+        description=(
+            "Only agent_meta.autonomy carries %auto state: launches and "
+            "autonomy mutations write no legacy approve/auto_approve_plan_action/"
+            "auto_approve_argument/plan meta keys and the runner exports no "
+            "SASE_AGENT_AUTO_APPROVE."
+        ),
+        bead="sase-1j0",
     ),
 }
 

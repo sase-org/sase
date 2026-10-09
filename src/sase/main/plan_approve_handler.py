@@ -85,6 +85,20 @@ def get_auto_plan_approval_action() -> PlanAutoApprovalAction | None:
         return "approve"
 
     meta = _read_agent_meta()
+    from sase.autonomy.record import read_record
+
+    record = read_record(meta)
+    if record is not None:
+        # The record's selection reproduces the legacy derivation: bare
+        # and ``:plan`` approve, ``:tale``/``:epic`` name their tier, and
+        # manual (or an unusable record) asks.
+        selection = record.get("selection")
+        if selection in ("tale", "epic"):
+            return selection  # type: ignore[return-value]
+        if record.get("profile") != "manual":
+            return "approve"
+        return None
+
     action = _normalize_plan_action(meta.get("auto_approve_plan_action"))
     if action is not None:
         return action
@@ -106,13 +120,22 @@ def _raw_auto_plan_argument() -> tuple[str | None, bool]:
 
     The ``SASE_AGENT_AUTO_APPROVE_ARGUMENT`` / ``SASE_AGENT_AUTO_PLAN_ARGUMENT``
     launch-time snapshot is never consulted (see
-    :func:`get_auto_plan_approval_action`).
+    :func:`get_auto_plan_approval_action`). A stored autonomy record
+    without legacy keys derives the argument from its selection, so
+    record-only launches read identically.
     """
     meta = _read_agent_meta()
     if "auto_approve_argument" in meta:
         raw_value = meta.get("auto_approve_argument")
         if isinstance(raw_value, str):
             return raw_value.strip() or None, True
+    from sase.autonomy.record import read_record
+
+    record = read_record(meta)
+    if record is not None:
+        selection = record.get("selection")
+        if selection in ("plan", "tale", "epic"):
+            return selection, True
     return None, False
 
 
@@ -639,7 +662,15 @@ def is_auto_approve_active() -> bool:
     meta means no auto (fail closed).
     """
     _argument, has_argument = _raw_auto_plan_argument()
-    return bool(has_argument or _read_agent_meta().get("approve"))
+    if has_argument:
+        return True
+    meta = _read_agent_meta()
+    from sase.autonomy.record import read_record
+
+    record = read_record(meta)
+    if record is not None:
+        return record.get("profile") != "manual"
+    return bool(meta.get("approve"))
 
 
 def get_tmux_prefix() -> str:

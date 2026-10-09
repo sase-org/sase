@@ -105,20 +105,33 @@ def _reconcile_prompt_with_live_auto_state(
     the prompt drops auto). Without an artifacts dir there is no live
     meta to consult and the prompt passes through unchanged.
 
-    The replacement directive comes from :func:`auto_launch_prefix`, the
-    same rule that builds live follow-up prompts: only ``plan``/``tale``/
-    ``epic`` re-emit literally, everything else falls through to the
-    action/approve checks, so a ``%auto:plan`` agent never widens to bare
-    ``%auto`` and legacy values never widen either.
+    The replacement directive comes from the live autonomy record's
+    selection when one is stored (the record's projection), else from
+    :func:`auto_launch_prefix`, the same rule that builds live follow-up
+    prompts: only ``plan``/``tale``/``epic`` re-emit literally, everything
+    else falls through to the action/approve checks, so a ``%auto:plan``
+    agent never widens to bare ``%auto`` and legacy values never widen
+    either.
     """
     if not artifacts_dir:
         return submitted_prompt
+    from sase.autonomy.record import live_record
     from sase.axe.agent_meta import read_live_agent_meta
     from sase.macro._directive_edit_core import set_prompt_directive
     from sase.monitor.continuation_delivery import auto_launch_prefix
 
-    live_meta = read_live_agent_meta(artifacts_dir)
-    prefix = auto_launch_prefix(live_meta).strip()
+    record = live_record(artifacts_dir)
+    if record is not None:
+        selection = record.get("selection")
+        if selection in ("plan", "tale", "epic"):
+            prefix = f"%auto:{selection}"
+        elif selection == "":
+            prefix = "%auto"
+        else:
+            prefix = ""
+    else:
+        live_meta = read_live_agent_meta(artifacts_dir)
+        prefix = auto_launch_prefix(live_meta).strip()
     replacement = prefix or None
     return set_prompt_directive(submitted_prompt, {"auto"}, replacement)
 

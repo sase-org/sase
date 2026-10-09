@@ -355,6 +355,17 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
     for key in patch.remove_keys:
         meta.pop(key, None)
     meta.update(dict(patch.set_values))
+    from sase.autonomy.record import RETUNE_TRIGGER_KEYS, retune_meta_record
+
+    if any(
+        key in RETUNE_TRIGGER_KEYS
+        for key in tuple(patch.remove_keys) + tuple(patch.set_values)
+    ):
+        # The ``A`` toggle mutates ``%auto`` state through legacy keys.
+        # Retune the stored autonomy record from the result so record
+        # readers track the toggle; with ``autonomy_record_only`` on the
+        # legacy keys leave disk again, with it off both stay in sync.
+        retune_meta_record(meta)
     if "wait_for_epics_of" in patch.set_values:
         raw_armed = patch.set_values["wait_for_epics_of"]
         armed = (

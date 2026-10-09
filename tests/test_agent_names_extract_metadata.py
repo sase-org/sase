@@ -488,25 +488,51 @@ class TestExtractDirectivesMetadata:
         assert meta["changespec_name"] == "feature-branch"
 
 
+def _extract_both_flag_states(tmp_path: Path, prompt: str) -> tuple[dict, dict]:
+    """Run the real launch path with the flag on and off in isolation."""
+    from sase.feature_flags import override_flags
+
+    with patch.object(Path, "home", return_value=tmp_path / "on"):
+        on = run_extract(tmp_path / "on", prompt=prompt)
+    with (
+        patch.object(Path, "home", return_value=tmp_path / "off"),
+        override_flags(autonomy_record_only=False),
+    ):
+        off = run_extract(tmp_path / "off", prompt=prompt)
+    return on, off
+
+
 def test_auto_epic_writes_plan_auto_action(tmp_path: Path) -> None:
     """%auto:epic is plan-specific and does not enable full auto-approve."""
-    with patch.object(Path, "home", return_value=tmp_path):
-        result = run_extract(tmp_path, prompt="%auto:epic\nDraft the epic")
+    on, off = _extract_both_flag_states(tmp_path, "%auto:epic\nDraft the epic")
 
-    assert result["info"].plan is True
-    assert result["info"].approve is False
-    assert result["meta"]["plan"] is True
-    assert result["meta"]["auto_approve_plan_action"] == "epic"
-    assert "approve" not in result["meta"]
+    for result in (on, off):
+        assert result["info"].plan is True
+        assert result["info"].approve is False
+        record = result["meta"]["autonomy"]
+        assert (record["profile"], record["selection"]) == ("epic", "epic")
+    # Record-only launch: no legacy keys with the flag on...
+    assert "auto_approve_plan_action" not in on["meta"]
+    assert "approve" not in on["meta"]
+    # ...and the exact historical keys with it off.
+    assert off["meta"]["plan"] is True
+    assert off["meta"]["auto_approve_plan_action"] == "epic"
+    assert "approve" not in off["meta"]
 
 
 def test_auto_tale_writes_plan_auto_action(tmp_path: Path) -> None:
     """%auto:tale is plan-specific and does not enable full auto-approve."""
-    with patch.object(Path, "home", return_value=tmp_path):
-        result = run_extract(tmp_path, prompt="%auto:tale\nDraft the tale")
+    on, off = _extract_both_flag_states(tmp_path, "%auto:tale\nDraft the tale")
 
-    assert result["info"].plan is True
-    assert result["info"].approve is False
-    assert result["meta"]["plan"] is True
-    assert result["meta"]["auto_approve_plan_action"] == "tale"
-    assert "approve" not in result["meta"]
+    for result in (on, off):
+        assert result["info"].plan is True
+        assert result["info"].approve is False
+        record = result["meta"]["autonomy"]
+        assert (record["profile"], record["selection"]) == ("tale", "tale")
+    # Record-only launch: no legacy keys with the flag on...
+    assert "auto_approve_plan_action" not in on["meta"]
+    assert "approve" not in on["meta"]
+    # ...and the exact historical keys with it off.
+    assert off["meta"]["plan"] is True
+    assert off["meta"]["auto_approve_plan_action"] == "tale"
+    assert "approve" not in off["meta"]

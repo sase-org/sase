@@ -16,8 +16,15 @@ from sase.core.patch_metadata import canonicalize_patch_metadata
 #: ``agent_meta.json`` keys owned by the ``A`` toggle's ``%auto`` state. The
 #: toggle adds/removes exactly these keys on disk; every runner write-back
 #: after initial directive extraction must let the on-disk values win so a
-#: stale in-memory copy cannot undo the toggle.
-AUTO_STATE_KEYS = ("approve", "auto_approve_plan_action", "auto_approve_argument")
+#: stale in-memory copy cannot undo the toggle. The core-owned
+#: ``autonomy`` record rides the same overlay so live record writes
+#: (toggle, revive) reach successors that seed from disk.
+AUTO_STATE_KEYS = (
+    "approve",
+    "auto_approve_plan_action",
+    "auto_approve_argument",
+    "autonomy",
+)
 
 
 def read_live_agent_meta(artifacts_dir: str | os.PathLike[str]) -> dict[str, Any]:
@@ -98,15 +105,21 @@ def plan_successor_auto_relationships(
 
     :func:`create_followup_artifacts` copies only allow-listed keys from
     *base_meta*, so the ``auto_approve_*`` keys ride the successor
-    ``relationships`` instead, which it persists verbatim. Only these two
-    plan-chain call paths use this; gate-turn, monitor, pipe, and retry
-    successors keep their current behavior.
+    ``relationships`` instead, which it persists verbatim. The live
+    ``autonomy`` record rides with them so the successor keeps the exact
+    record its readers evaluate. Only these two plan-chain call paths use
+    this; gate-turn, monitor, pipe, and retry successors keep their
+    current behavior.
     """
-    return {
+    carried = {
         key: seeded_meta[key]
         for key in ("auto_approve_argument", "auto_approve_plan_action")
         if seeded_meta.get(key)
     }
+    record = seeded_meta.get("autonomy")
+    if isinstance(record, dict) and record:
+        carried["autonomy"] = record
+    return carried
 
 
 def write_agent_meta_atomic(

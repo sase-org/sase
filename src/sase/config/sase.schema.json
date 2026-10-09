@@ -5984,6 +5984,12 @@
           "default": true,
           "deprecated": true
         },
+        "autonomy_record_only": {
+          "type": "boolean",
+          "description": "Only agent_meta.autonomy carries %auto state: launches and autonomy mutations write no legacy approve/auto_approve_plan_action/auto_approve_argument/plan meta keys and the runner exports no SASE_AGENT_AUTO_APPROVE.",
+          "default": true,
+          "deprecated": true
+        },
         "axe_routine_job_contract": {
           "type": "boolean",
           "description": "AXE configuration projection and public JSON use canonical routine/job names while accepted inputs still normalize to the internal AXE model.",

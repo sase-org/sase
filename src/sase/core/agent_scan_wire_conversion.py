@@ -412,8 +412,29 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
     )
 
 
+def _project_autonomy_legacy_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    """Fill legacy ``%auto`` wire fields from the autonomy record.
+
+    Record-only launches (``autonomy_record_only`` on) persist no
+    ``approve``/``auto_approve_plan_action``/``auto_approve_argument``/``plan``
+    keys; every listing, status, and TUI reader of those wire fields keeps
+    working because the core projection reproduces the historical writer
+    output exactly. Explicitly stored legacy keys always win, so pre-E1
+    agents and mixed states read byte-identically. A missing binding or
+    an unusable record leaves the payload untouched (fail closed).
+    """
+    from sase.autonomy.record import with_legacy_projection
+
+    try:
+        return with_legacy_projection(payload)
+    except Exception:
+        return payload
+
+
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
-    payload = _queue_capacity_alias_payload(_dual_patch_name_payload(dict(data)))
+    payload = _project_autonomy_legacy_fields(
+        _queue_capacity_alias_payload(_dual_patch_name_payload(dict(data)))
+    )
     if "tag" in payload or isinstance(payload.get("tribe"), str):
         payload = canonicalize_agent_tribe_metadata(dict(payload))
     kwargs = _non_default_field_kwargs(AgentMetaWire, payload)

@@ -213,20 +213,31 @@ def enrich_agent_from_meta(
     if data.get("wait_epic_follows"):
         agent.wait_epic_follows = list(epic_follow_views(data["wait_epic_follows"]))
     _apply_queue_weight_fields(agent, data)
-    raw_auto_action = data.get("auto_approve_plan_action")
+    # Record-only launches persist no legacy ``%auto`` keys: project them
+    # from the stored record into a loader-local view (never written back)
+    # so the TUI renders identical state in both flag states.
+    from sase.autonomy.record import with_legacy_projection
+
+    try:
+        auto_data = with_legacy_projection(data)
+    except Exception:
+        auto_data = data
+    raw_auto_action = auto_data.get("auto_approve_plan_action")
     auto_action = (
         raw_auto_action
         if isinstance(raw_auto_action, str) and raw_auto_action
         else None
     )
-    meta_auto_approved = agent.approve or bool(data.get("approve")) or bool(auto_action)
+    meta_auto_approved = (
+        agent.approve or bool(auto_data.get("approve")) or bool(auto_action)
+    )
     if meta_auto_approved:
         from sase._plan_gate_metadata import recorded_auto_covers_plan
 
         meta_auto_approved = recorded_auto_covers_plan(
             auto_action,
-            data.get("auto_approve_argument"),
-            data.get("plan_path"),
+            auto_data.get("auto_approve_argument"),
+            auto_data.get("plan_path"),
         )
     apply_meta_approve = not workflow_child or is_main_workflow_agent_step(agent)
     if apply_meta_approve and auto_action:
@@ -239,7 +250,7 @@ def enrich_agent_from_meta(
     if type(raw_plan_committed) is bool:
         agent.plan_committed = raw_plan_committed
     refresh_agent_plan_path(agent)
-    if apply_meta_approve and data.get("approve"):
+    if apply_meta_approve and auto_data.get("approve"):
         agent.approve = True
     if data.get("hidden"):
         agent.hidden = True
@@ -528,7 +539,7 @@ def enrich_agent_from_meta(
     # a submitted plan is waiting on manual review; agents still drafting a
     # plan, or using an auto-approval path, keep their current active display
     # state until later markers take over.
-    if data.get("plan"):
+    if auto_data.get("plan"):
         plan_approved = bool(data.get("plan_approved"))
         raw_plan_action = data.get("plan_action")
         plan_action = raw_plan_action if isinstance(raw_plan_action, str) else None

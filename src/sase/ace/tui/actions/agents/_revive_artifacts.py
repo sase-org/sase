@@ -511,6 +511,14 @@ class ArtifactRestorationMixin:
 
         data = ArtifactRestorationMixin._build_agent_meta_data(agent)
         if data:
+            from sase.autonomy.record import RETUNE_TRIGGER_KEYS, retune_meta_record
+
+            if any(key in data for key in RETUNE_TRIGGER_KEYS):
+                # Revive restores the record: retune it from the revived
+                # legacy keys so record readers see the revived policy.
+                # With ``autonomy_record_only`` on the legacy keys leave
+                # disk again; with it off both stay in sync.
+                retune_meta_record(data)
             merged = dict(existing)
             merged.update(data)
             canonicalize_agent_tribe_metadata(merged)
