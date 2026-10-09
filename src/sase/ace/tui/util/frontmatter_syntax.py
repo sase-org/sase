@@ -154,16 +154,52 @@ def tinted_document_text(
         from rich.text import Text as _Text
 
         text = _Text(folded)
-    # Overlay tint spans; token spans from highlight stay in place.
+    # Overlay tint spans so they survive Textual rendering. Textual's
+    # Content.render combines covering spans in start-offset order, so a
+    # single line-wide tint starting earlier loses its colour/bold to every
+    # token that starts later on the line (Pygments token styles set
+    # "not bold"). Split the tint at token boundaries and append each piece
+    # after the tokens: at a shared start offset the stable sort keeps the
+    # token first and the tint later in the stack, so the tint wins for its
+    # colour/bold while other token attributes on other lines are untouched.
+    # This uses only the already-highlighted spans; no re-lexing per keypress.
+    try:
+        existing = list(getattr(text, "_spans", None) or [])
+    except Exception:
+        existing = []
+    bounds: list[tuple[int, int]] = []
+    for span in existing:
+        try:
+            bounds.append((int(span[0]), int(span[1])))
+        except Exception:
+            try:
+                bounds.append(
+                    (int(getattr(span, "start", 0)), int(getattr(span, "end", 0)))
+                )
+            except Exception:
+                continue
     offset = 0
     for index, line in enumerate(lines):
         style = line_styles.get(index, "")
-        if style:
+        line_start = offset
+        line_end = offset + len(line)
+        offset += len(line) + 1
+        if not style or line_end <= line_start:
+            continue
+        cuts = {line_start, line_end}
+        for start, end in bounds:
+            if end <= line_start or start >= line_end:
+                continue
+            cuts.add(max(line_start, min(start, line_end)))
+            cuts.add(max(line_start, min(end, line_end)))
+        ordered = sorted(cuts)
+        for piece_start, piece_end in zip(ordered, ordered[1:], strict=False):
+            if piece_end <= piece_start:
+                continue
             try:
-                text.stylize(style, offset, offset + len(line))
+                text.stylize(style, piece_start, piece_end)
             except Exception:
                 pass
-        offset += len(line) + 1
     return text
 
 

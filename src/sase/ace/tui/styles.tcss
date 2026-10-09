@@ -1765,12 +1765,18 @@ SudoRequestModal > #sudo-request-container {
 
 .gate-review-body > .gate-review-actions {
     dock: left;
-    width: 44;
+    width: 42;
     height: 1fr;
     margin-right: 1;
 }
 
-.gate-review-body > .gate-review-actions--decisions {
+/* Decision-free plan rails keep the 44-cell width the compact Verdict
+   needs; generic gates stay at 42. The decisions rail stays at 50. */
+PlanApprovalModal .gate-review-body > .gate-review-actions {
+    width: 44;
+}
+
+PlanApprovalModal .gate-review-body > .gate-review-actions--decisions {
     width: 50;
 }
 

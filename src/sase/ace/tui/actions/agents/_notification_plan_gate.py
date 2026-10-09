@@ -589,28 +589,103 @@ def apply_settled_text_to_open_modal(app: object, settled: dict[str, str]) -> No
         pass
 
 
+def _extract_stale_kept_values(result: Any) -> dict[str, Any]:
+    """Flatten stale submit decision_* values by decision id."""
+    kept = dict(getattr(result, "option_inputs", None) or {})
+    kept_values: dict[str, Any] = {}
+    for inputs in kept.values():
+        if not isinstance(inputs, dict):
+            continue
+        for key, value in inputs.items():
+            if str(key).startswith("decision_"):
+                decision_id = str(key).removeprefix("decision_")
+                if decision_id not in kept_values:
+                    kept_values[decision_id] = value
+    return kept_values
+
+
 def _handle_stale_review(
     app: object,
     notification: Any,
     result: Any,
 ) -> bool:
-    """Reload a stale review, keeping values by id; True when handled."""
+    """Reload a stale review, keeping values by id; True when handled.
+
+    The bundle reload runs off the message pump via ``spawn_pump_free_task``
+    + ``asyncio.to_thread`` (the same path ``handle_plan_approval`` uses).
+    Callers without a running loop fall back to a synchronous reload.
+    """
+    try:
+        kept_values = _extract_stale_kept_values(result)
+    except Exception:
+        return False
+    try:
+        import asyncio
+
+        from ...util.pump_tasks import spawn_pump_free_task
+
+        loop: Any = None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None:
+            try:
+                request_name = str(
+                    getattr(notification, "action_data", {}).get("request_id")
+                    or getattr(notification, "id", "")
+                )
+            except Exception:
+                request_name = ""
+
+            async def _reload_and_apply() -> None:
+                try:
+                    reloaded = await asyncio.to_thread(
+                        load_neutral_plan_modal_data,
+                        notification,
+                    )
+                except Exception:
+                    return
+                try:
+                    _apply_stale_reloaded(
+                        app, notification, result, kept_values, reloaded
+                    )
+                except Exception:
+                    return
+
+            task = spawn_pump_free_task(
+                app,
+                _reload_and_apply(),
+                name=f"stale-review-reload:{request_name or 'plan'}",
+                registry_attr="_stale_review_reload_tasks",
+            )
+            if task is not None:
+                return True
+    except Exception:
+        pass
     try:
         reloaded = load_neutral_plan_modal_data(notification)
     except Exception:
         return False
+    return _apply_stale_reloaded(app, notification, result, kept_values, reloaded)
+
+
+def _apply_stale_reloaded(
+    app: object,
+    notification: Any,
+    result: Any,
+    kept_values: dict[str, Any],
+    reloaded: Any,
+) -> bool:
+    """Apply a reloaded stale bundle to the open modal or a fresh reopen.
+
+    The closed-modal branch reopens through the real ``handle_plan_approval``
+    open path (with its dismiss callback, action runner, gate keymaps, and
+    copy-plan path) so a later submit is handled. Reviewer values stashed in
+    ``esc_drafts`` are filtered to the new ids; vanished ids are dropped and
+    new ids take their defaults. Returns True when handled.
+    """
     try:
-        kept = dict(getattr(result, "option_inputs", None) or {})
-        # Flatten decision_* values by decision id from the stale submit.
-        kept_values: dict[str, Any] = {}
-        for inputs in kept.values():
-            if not isinstance(inputs, dict):
-                continue
-            for key, value in inputs.items():
-                if str(key).startswith("decision_"):
-                    decision_id = str(key).removeprefix("decision_")
-                    if decision_id not in kept_values:
-                        kept_values[decision_id] = value
         try:
             new_definitions = list(
                 getattr(reloaded, "decision_definitions", None) or []
@@ -762,7 +837,11 @@ def _handle_stale_review(
             except Exception:
                 pass
         else:
-            # Closed modal: stash filtered submit values and push a fresh modal.
+            # Closed modal: stash filtered submit values, then reopen through
+            # the real open path so the fresh modal gets the dismiss callback,
+            # action runner, gate keymaps, and copy-plan path. The modal reads
+            # the stashed values; vanished ids stay dropped and new ids take
+            # their defaults.
             try:
                 from ...modals._plan_approval_modal_state import esc_drafts
 
@@ -771,32 +850,9 @@ def _handle_stale_review(
             except Exception:
                 pass
             try:
-                from ...modals.plan_approval_modal import PlanApprovalModal as _Modal
+                from ._notification_modals import handle_plan_approval
 
-                plan_file = getattr(reloaded, "plan_file", None) or (
-                    notification.files[0]
-                    if getattr(notification, "files", [])
-                    else "/tmp/plan.md"
-                )
-                push_kwargs: dict[str, Any] = {
-                    "plan_file": str(plan_file),
-                    "default_choice": getattr(reloaded, "default_choice", None)
-                    or "tale",
-                    "gate": getattr(reloaded, "gate", None),
-                    "plan_content": getattr(reloaded, "plan_content", None),
-                    "decision_definitions": list(new_definitions),
-                    "review_revision": getattr(reloaded, "review_revision", None),
-                    "request_id": request_id or getattr(reloaded, "request_id", ""),
-                    "settled_text": getattr(reloaded, "settled_text", None),
-                }
-                # Match _notification_modals fields the load carries; drop Nones
-                # the constructor already defaults except actions/gate.
-                actions = getattr(reloaded, "actions", None)
-                if actions is not None:
-                    push_kwargs["actions"] = actions
-                # Gate is required; skip push when the stand-in lacks it.
-                if push_kwargs.get("gate") is not None:
-                    app.push_screen(_Modal(**push_kwargs))  # type: ignore[attr-defined]
+                handle_plan_approval(app, notification, _loaded=reloaded)
             except Exception:
                 pass
         try:

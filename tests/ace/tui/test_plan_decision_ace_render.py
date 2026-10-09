@@ -8,6 +8,7 @@ __all__ = [
     "test_compact_verdict_stays_inside_rail_with_stylesheet",
     "test_draft_edit_avoids_revalidate_relex",
     "test_first_frame_tint_keeps_syntax",
+    "test_generic_gate_rail_stays_42_with_stylesheet",
     "test_settled_polling_reads_only_open_modal",
 ]
 
@@ -80,8 +81,59 @@ async def test_compact_verdict_stays_inside_rail_with_stylesheet(tmp_path) -> No
                         verdict = modal.query_one("#plan-verdict")
                         assert content.contains_region(header.region)
                         assert not header.region.overlaps(verdict.region)
+                    if width == 120:
+                        # Wide breakpoint: docked-left rail widths are exact.
+                        # Decisions rails stay 50; decision-free plan rails
+                        # keep the 44 cells the compact Verdict needs.
+                        assert rail.region.width == (50 if with_decisions else 44), (
+                            choice,
+                            with_decisions,
+                            rail.region,
+                        )
                     pilot.app.pop_screen()
                     await pilot.pause()
+
+
+async def test_generic_gate_rail_stays_42_with_stylesheet(tmp_path) -> None:
+    from pathlib import Path as _Path
+
+    from textual.app import App as _App
+    from textual.containers import VerticalScroll as _VS
+
+    from sase.ace.tui.modals.custom_gate_modal import (
+        CustomGateModal as _CustomModal,
+        CustomGateModalData as _CustomData,
+    )
+    from sase.ace.tui.modals.plan_approval_gate_data import (
+        default_plan_gate_data as _plan_gate,
+    )
+
+    _ROOT = _Path(__file__).resolve().parents[3]
+
+    class _StyledApp(_App[None]):
+        CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
+        ENABLE_COMMAND_PALETTE = False
+
+    data = _CustomData(
+        request_id="req-generic-rail-1",
+        title="Generic gate",
+        sender="agent",
+        icon="❓",
+        notes=("note",),
+        attachments=(),
+        preview_name="Preview",
+        preview_text="# Preview\n",
+        gate=_plan_gate("tale"),
+    )
+    modal = _CustomModal(data)
+    async with _StyledApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        rail = modal.query_one(".gate-review-body > .gate-review-actions", _VS)
+        assert rail.region.width == 42, rail.region
+        pilot.app.pop_screen()
+        await pilot.pause()
 
 
 async def test_first_frame_tint_keeps_syntax(tmp_path) -> None:
@@ -149,6 +201,38 @@ async def test_first_frame_tint_keeps_syntax(tmp_path) -> None:
             any("#" in s or "272822" in s or "monokai" in s.lower() for s in styles)
             or len(spans) >= 5
         )
+        # Rendered output (the Textual Content path the Static widget paints):
+        # the chosen header must be green+bold, the unchosen dim, and a
+        # non-tinted token must keep its theme colour.
+        from textual.content import Content as _Content
+
+        rendered_content = _Content.from_rich_text(text)
+        segments = list(rendered_content.render())
+        assert segments, "expected rendered segments"
+
+        def _style_for(marker: str):  # type: ignore[no-untyped-def]
+            for chunk, style in segments:
+                if marker in chunk:
+                    return style
+            raise AssertionError(f"marker {marker!r} missing from rendered output")
+
+        chosen_style = _style_for("Order by pane")
+        assert chosen_style.bold is True, chosen_style
+        assert chosen_style.foreground is not None, chosen_style
+        assert (
+            chosen_style.foreground.g > chosen_style.foreground.r
+            and chosen_style.foreground.g > chosen_style.foreground.b
+        ), chosen_style
+        unchosen_style = _style_for("Order by mode")
+        assert unchosen_style.dim is True, unchosen_style
+        token_style = _style_for("tier")
+        assert token_style.dim is not True, token_style
+        assert token_style.bold is not True, token_style
+        assert token_style.foreground is not None, token_style
+        assert not (
+            token_style.foreground.g > token_style.foreground.r
+            and token_style.foreground.g > token_style.foreground.b
+        ), token_style
 
 
 async def test_draft_edit_avoids_revalidate_relex(tmp_path) -> None:

@@ -6,6 +6,7 @@ from tests.ace.tui._plan_decision_ace_shared import plan_decision_definitions
 
 __all__ = [
     "test_plan_section_render_path_no_stat_no_validate",
+    "test_stale_closed_reopen_submits_through_real_open_path",
     "test_stale_review_reloads_revision_keeping_values",
 ]
 
@@ -46,13 +47,21 @@ async def test_stale_review_reloads_revision_keeping_values(tmp_path) -> None:
     }
     new_defs = [dict(grouping_def), dict(new_choice_def)]
     from sase.ace.tui.modals.plan_approval_gate_data import default_plan_gate_data
+    from sase.ace.tui.modals.gate_action_controls import GateActionsData
 
     reloaded = types.SimpleNamespace(
         plan_file=str(plan_file),
         plan_content="# New plan\nNew body marker\n",
         default_choice="tale",
         gate=default_plan_gate_data("tale"),
-        actions=None,
+        actions=GateActionsData(),
+        bundle=types.SimpleNamespace(
+            root=tmp_path,
+            request=tmp_path / "request.json",
+            response=tmp_path / "response.json",
+            cancellation=tmp_path / "cancel.json",
+            legacy=False,
+        ),
         decision_definitions=new_defs,
         review_revision=9,
         request_id="stale-1",
@@ -70,6 +79,8 @@ async def test_stale_review_reloads_revision_keeping_values(tmp_path) -> None:
         screen_stack=[],
     )
     esc_drafts.pop("stale-1", None)
+    import asyncio as _asyncio
+
     with (
         mock.patch(
             "sase.ace.tui.actions.agents._notification_plan_gate.load_neutral_plan_modal_data",
@@ -81,6 +92,14 @@ async def test_stale_review_reloads_revision_keeping_values(tmp_path) -> None:
         ),
     ):
         assert _handle_stale_review(app, notification, result) is True
+        # The reload runs off the pump; wait for the stashed reopen.
+        for _ in range(100):
+            if (
+                esc_drafts.get("stale-1", {}).get("grouping") == "mode"
+                and len(pushed) == 1
+            ):
+                break
+            await _asyncio.sleep(0.05)
     assert esc_drafts.get("stale-1", {}).get("grouping") == "mode"
     assert "tui_note" not in esc_drafts.get("stale-1", {})
     assert "new_choice" not in esc_drafts.get("stale-1", {})
@@ -160,6 +179,12 @@ async def test_stale_review_reloads_revision_keeping_values(tmp_path) -> None:
             assert (
                 _handle_stale_review(pilot.app, open_notification, open_result) is True
             )
+            # The reload runs off the pump; wait for the in-place rebuild.
+            for _ in range(100):
+                if getattr(live_modal, "_review_revision", None) == 11:
+                    break
+                await _asyncio.sleep(0.05)
+                await pilot.pause()
         await pilot.pause()
         await pilot.pause()
         assert pushes == []
@@ -180,6 +205,155 @@ async def test_stale_review_reloads_revision_keeping_values(tmp_path) -> None:
         assert live_modal._folded_text is not None  # type: ignore[attr-defined]
         assert live_modal._callout_spans is not None  # type: ignore[attr-defined]
         assert esc_drafts.get(open_id, {}).get("grouping") == "mode"
+
+
+async def test_stale_closed_reopen_submits_through_real_open_path(tmp_path) -> None:
+    """Closed stale reopen uses handle_plan_approval and can still submit.
+
+    After the closed-path reopen, dismissing the fresh modal must reach the
+    plan response path with the restored decision_* values and the new
+    review_revision. The bundle reload must not run on the message pump.
+    """
+    import asyncio as _asyncio
+    import threading as _threading
+    import types as _types
+    import unittest.mock as _mock
+
+    from sase.ace.tui.actions.agents._notification_plan_gate import (
+        _handle_stale_review,
+    )
+    from sase.notifications import Notification
+
+    from sase.ace.tui.modals._plan_approval_modal_state import esc_drafts
+
+    plan_file = tmp_path / "stale_submit_plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    request_id = "stale-submit-1"
+    notification = Notification(
+        id=request_id,
+        timestamp="2026-10-08T00:00:00+00:00",
+        sender="agent",
+        notes=["plan"],
+        files=[str(plan_file)],
+        action="PlanApproval",
+        action_data={"request_id": request_id},
+    )
+    stale_result = _types.SimpleNamespace(
+        option_inputs={"approve": {"decision_grouping": "mode"}},
+    )
+    old_defs = plan_decision_definitions(tmp_path)
+    grouping_def = next(d for d in old_defs if d.get("id") == "grouping")
+    new_choice_def = {
+        "id": "new_choice",
+        "kind": "choice",
+        "ask": "New choice?",
+        "choices": [{"key": "a", "label": "A"}, {"key": "b", "label": "B"}],
+        "default": "a",
+        "effective_default": "a",
+    }
+    new_defs = [dict(grouping_def), dict(new_choice_def)]
+    from sase.ace.tui.modals.plan_approval_gate_data import default_plan_gate_data
+    from sase.ace.tui.modals.gate_action_controls import GateActionsData
+
+    reloaded = _types.SimpleNamespace(
+        plan_file=str(plan_file),
+        plan_content="# New plan\nNew body marker\n",
+        default_choice="tale",
+        gate=default_plan_gate_data("tale"),
+        actions=GateActionsData(),
+        bundle=_types.SimpleNamespace(
+            root=tmp_path,
+            request=tmp_path / "request.json",
+            response=tmp_path / "response.json",
+            cancellation=tmp_path / "cancel.json",
+            legacy=False,
+        ),
+        decision_definitions=new_defs,
+        review_revision=9,
+        request_id=request_id,
+        settled_text=None,
+    )
+    load_threads: list[_threading.Thread] = []
+
+    def _recording_load(_notification: object) -> object:
+        load_threads.append(_threading.current_thread())
+        return reloaded
+
+    from textual.app import App as _App
+
+    from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
+
+    class _SubmitApp(_App[None]):
+        ENABLE_COMMAND_PALETTE = False
+
+    esc_drafts.pop(request_id, None)
+    submitted: list[object] = []
+    caller_thread = _threading.current_thread()
+    async with _SubmitApp().run_test(size=(120, 40)) as pilot:
+        with (
+            _mock.patch(
+                "sase.ace.tui.actions.agents._notification_plan_gate.load_neutral_plan_modal_data",
+                side_effect=_recording_load,
+            ),
+            _mock.patch(
+                "sase.ace.tui.actions.agents._notification_plan_gate._refresh_notifications",
+                return_value=None,
+            ),
+            _mock.patch(
+                "sase.ace.tui.actions.agents._notification_modals.submit_neutral_plan_response",
+                side_effect=lambda app, note, agent, result: (
+                    submitted.append(result) or True
+                ),
+            ),
+        ):
+            assert _handle_stale_review(pilot.app, notification, stale_result) is True
+            for _ in range(100):
+                if (
+                    isinstance(pilot.app.screen, PlanApprovalModal)
+                    and getattr(pilot.app.screen, "_review_revision", None) == 9
+                ):
+                    break
+                await _asyncio.sleep(0.05)
+                await pilot.pause()
+            modal = pilot.app.screen
+            assert isinstance(modal, PlanApprovalModal)
+            # Reopened through the real open path with restored values.
+            assert modal._review_revision == 9  # type: ignore[attr-defined]
+            assert modal._decision_draft.value_for("grouping") == "mode"  # type: ignore[attr-defined]
+            assert modal._decision_draft.value_for("new_choice") == "a"  # type: ignore[attr-defined]
+            # The bundle reload ran off the message pump.
+            assert load_threads, "expected the stale reload to load the bundle"
+            assert all(t is not caller_thread for t in load_threads)
+            # Submitting the reopened modal reaches the plan response path with
+            # the restored values and the new revision.
+            from sase.ace.tui.modals.plan_approval_modal import PlanApprovalResult
+
+            await pilot.pause()
+            modal.dismiss(
+                PlanApprovalResult(
+                    action="approve",
+                    commit_plan=True,
+                    run_coder=True,
+                    choice="tale",
+                    selected_option_ids=("approve", "commit"),
+                    option_inputs={
+                        "approve": dict(modal._decision_draft.decision_map()),  # type: ignore[attr-defined]
+                        "commit": dict(modal._decision_draft.decision_map()),  # type: ignore[attr-defined]
+                    },
+                    review_revision=int(modal._review_revision or 0),  # type: ignore[attr-defined]
+                )
+            )
+            await pilot.pause()
+            await pilot.pause()
+            await pilot.pause()
+    assert len(submitted) == 1
+    sent = submitted[0]
+    flat: dict[str, object] = {}
+    for inputs in dict(getattr(sent, "option_inputs", None) or {}).values():
+        if isinstance(inputs, dict):
+            flat.update(inputs)
+    assert flat.get("decision_grouping") == "mode"
+    assert getattr(sent, "review_revision", None) == 9
 
 
 def test_plan_section_render_path_no_stat_no_validate(monkeypatch, tmp_path) -> None:
