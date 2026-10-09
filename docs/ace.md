@@ -8350,10 +8350,14 @@ chooser at all for an external repo. sase's TUI never runs `sase repo open` itse
 
 When no macro, slash skill, workflow, or file target matches, `K` treats a plain
 natural-language word that is not a glossary match as a lookup target. Correctly spelled
-words open a scrollable definition panel; use `j` / `k`, `Ctrl+D` / `Ctrl+U`, and `g` /
-`G` to navigate it. Misspelled words open a compact correction panel: press `1`–`9` to
-apply a suggestion immediately, or move with `j` / `k` and press `Enter`. The
-replacement is an ordinary undoable prompt edit.
+words open a dictionary card: the headword pill and the highlighted first definition
+with its source attribution stay pinned on top, and the cleaned per-source entries
+scroll below. When the displayed headword differs from the word under the cursor, a
+`looked up` disclosure names the original word. Use `j` / `k`, `Ctrl+D` / `Ctrl+U`, and
+`g` / `G` to navigate the entries, and press `y` to copy the highlighted definition.
+Misspelled words open a compact correction panel: press `1`–`9` to apply a suggestion
+immediately, or move with `j` / `k` and press `Enter`. The replacement is an ordinary
+undoable prompt edit.
 
 Definitions require the optional `dict` command. Spell checking requires GNU `aspell`
 with an English dictionary (`aspell-en` on Debian; Homebrew's package bundles English).

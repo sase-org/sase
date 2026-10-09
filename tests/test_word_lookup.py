@@ -21,6 +21,7 @@ from sase.core.word_lookup import (
     look_up_definitions,
     natural_word_ranges,
 )
+from sase.core.word_lookup import _parse_definition_sections
 
 _ASPELL_PIPE_ARGS = ["aspell", "-a", "--encoding=utf-8", "--lang=en_US"]
 
@@ -389,13 +390,35 @@ def test_look_up_definitions_parses_multiple_sections(
             DefinitionSection(
                 source="The Collaborative International Dictionary",
                 body=("  Hello \\Hel*lo\\, interj.\n      An expression of greeting."),
+                database="gcide",
             ),
             DefinitionSection(
                 source="WordNet (r) 3.1 (2024)",
                 body="  hello\n      n 1: an expression of greeting",
+                database="wn",
             ),
         ),
     )
+
+
+def test_parse_definition_sections_captures_database() -> None:
+    stdout = (
+        "1 definition found\n\n"
+        "From Moby Thesaurus II [moby-thesaurus]:\n\n"
+        '  2 Moby Thesaurus words for "hi":\n     hello, hi\n'
+    )
+
+    assert _parse_definition_sections(stdout) == (
+        DefinitionSection(
+            source="Moby Thesaurus II",
+            body='  2 Moby Thesaurus words for "hi":\n     hello, hi',
+            database="moby-thesaurus",
+        ),
+    )
+
+
+def test_parse_definition_sections_returns_empty_without_headers() -> None:
+    assert _parse_definition_sections("no definitions found\n") == ()
 
 
 def test_look_up_definitions_uses_documented_no_match_exit(

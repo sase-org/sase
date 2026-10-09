@@ -35,7 +35,8 @@ async def test_k_on_correct_word_pushes_definition_modal(
             sections=(
                 DefinitionSection(
                     source="WordNet (r) 3.1",
-                    body="  n 1: a greeting",
+                    database="wn",
+                    body="  hello\n      n 1: a greeting",
                 ),
             ),
         )
@@ -50,6 +51,11 @@ async def test_k_on_correct_word_pushes_definition_modal(
         await page.wait_for(lambda: _top_is(page, WordDefinitionModal))
 
         assert seen == ["hello"]
+        modal = page.ta.app.screen_stack[-1]
+        assert isinstance(modal, WordDefinitionModal)
+        assert modal._card.headword == "hello"
+        assert modal._card.lead is not None
+        assert modal._card.lead.gloss == "a greeting."
 
 
 async def test_k_on_misspelling_digit_applies_suggestion(

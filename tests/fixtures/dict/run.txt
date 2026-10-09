@@ -1,0 +1,976 @@
+8 definitions found
+
+From The Collaborative International Dictionary of English v.0.54 [gcide]:
+
+  Run \Run\ (r[u^]n), v. i. [imp. {Ran} (r[a^]n) or {Run}; p. p.
+     {Run}; p. pr. & vb. n. {Running}.] [OE. rinnen, rennen (imp.
+     ran, p. p. runnen, ronnen). AS. rinnan to flow (imp. ran, p.
+     p. gerunnen), and iernan, irnan, to run (imp. orn, arn, earn,
+     p. p. urnen); akin to D. runnen, rennen, OS. & OHG. rinnan,
+     G. rinnen, rennen, Icel. renna, rinna, Sw. rinna, r[aum]nna,
+     Dan. rinde, rende, Goth. rinnan, and perh. to L. oriri to
+     rise, Gr. 'orny`nai to stir up, rouse, Skr. [.r] (cf.
+     {Origin}), or perh. to L. rivus brook (cf. {Rival}).
+     [root]11. Cf. {Ember}, a., {Rennet}.]
+     1. To move, proceed, advance, pass, go, come, etc., swiftly,
+        smoothly, or with quick action; -- said of things animate
+        or inanimate. Hence, to flow, glide, or roll onward, as a
+        stream, a snake, a wagon, etc.; to move by quicker action
+        than in walking, as a person, a horse, a dog.
+        Specifically: 
+        [1913 Webster]
+  
+     2. Of voluntary or personal action:
+        (a) To go swiftly; to pass at a swift pace; to hasten.
+            [1913 Webster]
+  
+                  "Ha, ha, the fox!" and after him they ran.
+                                                    --Chaucer.
+            [1913 Webster]
+        (b) To flee, as from fear or danger.
+            [1913 Webster]
+  
+                  As from a bear a man would run for life. --Shak.
+            [1913 Webster]
+        (c) To steal off; to depart secretly.
+            [1913 Webster]
+        (d) To contend in a race; hence, to enter into a contest;
+            to become a candidate; as, to run for Congress.
+            [1913 Webster]
+  
+                  Know ye not that they which run in a race run
+                  all, but one receiveth the prize? So run, that
+                  ye may obtain.                    --1 Cor. ix.
+                                                    24.
+            [1913 Webster]
+        (e) To pass from one state or condition to another; to
+            come into a certain condition; -- often with in or
+            into; as, to run into evil practices; to run in debt.
+            [1913 Webster]
+  
+                  Have I not cause to rave and beat my breast, to
+                  rend my heart with grief and run distracted?
+                                                    --Addison.
+            [1913 Webster]
+        (f) To exert continuous activity; to proceed; as, to run
+            through life; to run in a circle.
+        (g) To pass or go quickly in thought or conversation; as,
+            to run from one subject to another.
+            [1913 Webster]
+  
+                  Virgil, in his first Georgic, has run into a set
+                  of precepts foreign to his subject. --Addison.
+            [1913 Webster]
+        (h) To discuss; to continue to think or speak about
+            something; -- with on.
+        (i) To make numerous drafts or demands for payment, as
+            upon a bank; -- with on.
+        (j) To creep, as serpents.
+            [1913 Webster]
+  
+     3. Of involuntary motion:
+        (a) To flow, as a liquid; to ascend or descend; to course;
+            as, rivers run to the sea; sap runs up in the spring;
+            her blood ran cold.
+        (b) To proceed along a surface; to extend; to spread.
+            [1913 Webster]
+  
+                  The fire ran along upon the ground. --Ex. ix.
+                                                    23.
+            [1913 Webster]
+        (c) To become fluid; to melt; to fuse.
+            [1913 Webster]
+  
+                  As wax dissolves, as ice begins to run.
+                                                    --Addison.
+            [1913 Webster]
+  
+                  Sussex iron ores run freely in the fire.
+                                                    --Woodward.
+            [1913 Webster]
+        (d) To turn, as a wheel; to revolve on an axis or pivot;
+            as, a wheel runs swiftly round.
+        (e) To travel; to make progress; to be moved by mechanical
+            means; to go; as, the steamboat runs regularly to
+            Albany; the train runs to Chicago.
+        (f) To extend; to reach; as, the road runs from
+            Philadelphia to New York; the memory of man runneth
+            not to the contrary.
+            [1913 Webster]
+  
+                  She saw with joy the line immortal run,
+                  Each sire impressed, and glaring in his son.
+                                                    --Pope.
+            [1913 Webster]
+        (g) To go back and forth from place to place; to ply; as,
+            the stage runs between the hotel and the station.
+        (h) To make progress; to proceed; to pass.
+            [1913 Webster]
+  
+                  As fast as our time runs, we should be very glad
+                  in most part of our lives that it ran much
+                  faster.                           --Addison.
+            [1913 Webster]
+        (i) To continue in operation; to be kept in action or
+            motion; as, this engine runs night and day; the mill
+            runs six days in the week.
+            [1913 Webster]
+  
+                  When we desire anything, our minds run wholly on
+                  the good circumstances of it; when it is
+                  obtained, our minds run wholly on the bad ones.
+                                                    --Swift.
+            [1913 Webster]
+        (j) To have a course or direction; as, a line runs east
+            and west.
+            [1913 Webster]
+  
+                  Where the generally allowed practice runs
+                  counter to it.                    --Locke.
+            [1913 Webster]
+  
+                  Little is the wisdom, where the flight
+                  So runs against all reason.       --Shak.
+            [1913 Webster]
+        (k) To be in form thus, as a combination of words.
+            [1913 Webster]
+  
+                  The king's ordinary style runneth, "Our
+                  sovereign lord the king."         --Bp.
+                                                    Sanderson.
+            [1913 Webster]
+        (l) To be popularly known; to be generally received.
+            [1913 Webster]
+  
+                  Men gave them their own names, by which they run
+                  a great while in Rome.            --Sir W.
+                                                    Temple.
+            [1913 Webster]
+  
+                  Neither was he ignorant what report ran of
+                  himself.                          --Knolles.
+            [1913 Webster]
+        (m) To have growth or development; as, boys and girls run
+            up rapidly.
+            [1913 Webster]
+  
+                  If the richness of the ground cause turnips to
+                  run to leaves.                    --Mortimer.
+            [1913 Webster]
+        (n) To tend, as to an effect or consequence; to incline.
+            [1913 Webster]
+  
+                  A man's nature runs either to herbs or weeds.
+                                                    --Bacon.
+            [1913 Webster]
+  
+                  Temperate climates run into moderate
+                  governments.                      --Swift.
+            [1913 Webster]
+        (o) To spread and blend together; to unite; as, colors run
+            in washing.
+            [1913 Webster]
+  
+                  In the middle of a rainbow the colors are . . .
+                  distinguished, but near the borders they run
+                  into one another.                 --I. Watts.
+            [1913 Webster]
+        (p) To have a legal course; to be attached; to continue in
+            force, effect, or operation; to follow; to go in
+            company; as, certain covenants run with the land.
+            [1913 Webster]
+  
+                  Customs run only upon our goods imported or
+                  exported, and that but once for all; whereas
+                  interest runs as well upon our ships as goods,
+                  and must be yearly paid.          --Sir J.
+                                                    Child.
+            [1913 Webster]
+        (q) To continue without falling due; to hold good; as, a
+            note has thirty days to run.
+        (r) To discharge pus or other matter; as, an ulcer runs.
+        (s) To be played on the stage a number of successive days
+            or nights; as, the piece ran for six months.
+        (t) (Naut.) To sail before the wind, in distinction from
+            reaching or sailing closehauled; -- said of vessels.
+            [1913 Webster]
+  
+     4. Specifically, of a horse: To move rapidly in a gait in
+        which each leg acts in turn as a propeller and a
+        supporter, and in which for an instant all the limbs are
+        gathered in the air under the body. --Stillman (The Horse
+        in Motion).
+        [1913 Webster]
+  
+     5. (Athletics) To move rapidly by springing steps so that
+        there is an instant in each step when neither foot touches
+        the ground; -- so distinguished from walking in athletic
+        competition.
+        [1913 Webster]
+  
+     {As things run}, according to the usual order, conditions,
+        quality, etc.; on the average; without selection or
+        specification.
+  
+     {To let run} (Naut.), to allow to pass or move freely; to
+        slacken or loosen.
+  
+     {To run after}, to pursue or follow; to search for; to
+        endeavor to find or obtain; as, to run after similes.
+        --Locke.
+  
+     {To run away}, to flee; to escape; to elope; to run without
+        control or guidance.
+  
+     {To run away with}.
+        (a) To convey away hurriedly; to accompany in escape or
+            elopement.
+        (b) To drag rapidly and with violence; as, a horse runs
+            away with a carriage.
+  
+     {To run down}.
+        (a) To cease to work or operate on account of the
+            exhaustion of the motive power; -- said of clocks,
+            watches, etc.
+        (b) To decline in condition; as, to run down in health.
+  
+     {To run down a coast}, to sail along it.
+  
+     {To run for an office}, to stand as a candidate for an
+        office.
+  
+     {To run in} or {To run into}.
+        (a) To enter; to step in.
+        (b) To come in collision with.
+  
+     {To run into} To meet, by chance; as, I ran into my brother
+        at the grocery store.
+  
+     {To run in trust}, to run in debt; to get credit. [Obs.]
+  
+     {To run in with}.
+        (a) To close; to comply; to agree with. [R.] --T. Baker.
+        (b) (Naut.) To make toward; to near; to sail close to; as,
+            to run in with the land.
+  
+     {To run mad}, {To run mad after} or {To run mad on}. See
+        under {Mad}.
+  
+     {To run on}.
+        (a) To be continued; as, their accounts had run on for a
+            year or two without a settlement.
+        (b) To talk incessantly.
+        (c) To continue a course.
+        (d) To press with jokes or ridicule; to abuse with
+            sarcasm; to bear hard on.
+        (e) (Print.) To be continued in the same lines, without
+            making a break or beginning a new paragraph.
+  
+     {To run out}.
+        (a) To come to an end; to expire; as, the lease runs out
+            at Michaelmas.
+        (b) To extend; to spread. "Insectile animals . . . run all
+            out into legs." --Hammond.
+        (c) To expatiate; as, to run out into beautiful
+            digressions.
+        (d) To be wasted or exhausted; to become poor; to become
+            extinct; as, an estate managed without economy will
+            soon run out.
+            [1913 Webster]
+  
+                  And had her stock been less, no doubt
+                  She must have long ago run out.   --Dryden.
+            [1913 Webster]
+  
+     {To run over}.
+        (a) To overflow; as, a cup runs over, or the liquor runs
+            over.
+        (b) To go over, examine, or rehearse cursorily.
+        (c) To ride or drive over; as, to run over a child.
+  
+     {To run riot}, to go to excess.
+  
+     {To run through}.
+        (a) To go through hastily; as to run through a book.
+        (b) To spend wastefully; as, to run through an estate.
+  
+     {To run to seed}, to expend or exhaust vitality in producing
+        seed, as a plant; figuratively and colloquially, to cease
+        growing; to lose vital force, as the body or mind.
+  
+     {To run up}, to rise; to swell; to grow; to increase; as,
+        accounts of goods credited run up very fast.
+        [1913 Webster]
+  
+              But these, having been untrimmed for many years, had
+              run up into great bushes, or rather dwarf trees.
+                                                    --Sir W.
+                                                    Scott.
+        [1913 Webster]
+  
+     {To run with}.
+        (a) To be drenched with, so that streams flow; as, the
+            streets ran with blood.
+        (b) To flow while charged with some foreign substance.
+            "Its rivers ran with gold." --J. H. Newman.
+            [1913 Webster]
+
+From The Collaborative International Dictionary of English v.0.54 [gcide]:
+
+  Run \Run\, v. t.
+     1. To cause to run (in the various senses of {Run}, v. i.);
+        as, to run a horse; to run a stage; to run a machine; to
+        run a rope through a block.
+        [1913 Webster]
+  
+     2. To pursue in thought; to carry in contemplation.
+        [1913 Webster]
+  
+              To run the world back to its first original.
+                                                    --South.
+        [1913 Webster]
+  
+              I would gladly understand the formation of a soul,
+              and run it up to its "punctum saliens." --Collier.
+        [1913 Webster]
+  
+     3. To cause to enter; to thrust; as, to run a sword into or
+        through the body; to run a nail into the foot.
+        [1913 Webster]
+  
+              You run your head into the lion's mouth. --Sir W.
+                                                    Scott.
+        [1913 Webster]
+  
+              Having run his fingers through his hair. --Dickens.
+        [1913 Webster]
+  
+     4. To drive or force; to cause, or permit, to be driven.
+        [1913 Webster]
+  
+              They ran the ship aground.            --Acts xxvii.
+                                                    41.
+        [1913 Webster]
+  
+              A talkative person runs himself upon great
+              inconveniences by blabbing out his own or other's
+              secrets.                              --Ray.
+        [1913 Webster]
+  
+              Others, accustomed to retired speculations, run
+              natural philosophy into metaphysical notions.
+                                                    --Locke.
+        [1913 Webster]
+  
+     5. To fuse; to shape; to mold; to cast; as, to run bullets,
+        and the like.
+        [1913 Webster]
+  
+              The purest gold must be run and washed. --Felton.
+        [1913 Webster]
+  
+     6. To cause to be drawn; to mark out; to indicate; to
+        determine; as, to run a line.
+        [1913 Webster]
+  
+     7. To cause to pass, or evade, official restrictions; to
+        smuggle; -- said of contraband or dutiable goods.
+        [1913 Webster]
+  
+              Heavy impositions . . . are a strong temptation of
+              running goods.                        --Swift.
+        [1913 Webster]
+  
+     8. To go through or accomplish by running; as, to run a race;
+        to run a certain career.
+        [1913 Webster]
+  
+     9. To cause to stand as a candidate for office; to support
+        for office; as, to run some one for Congress. [Colloq.
+        U.S.]
+        [1913 Webster]
+  
+     10. To encounter or incur, as a danger or risk; as, to run
+         the risk of losing one's life. See To run the chances,
+         below. "He runneth two dangers." --Bacon.
+         [1913 Webster]
+  
+               If we don't succeed, we run the risk of failure.
+                                                    --Dan Quail
+         .
+         [PJC]
+  
+     11. To put at hazard; to venture; to risk.
+         [1913 Webster]
+  
+               He would himself be in the Highlands to receive
+               them, and run his fortune with them. --Clarendon.
+         [1913 Webster]
+  
+     12. To discharge; to emit; to give forth copiously; to be
+         bathed with; as, the pipe or faucet runs hot water.
+         [1913 Webster]
+  
+               At the base of Pompey's statua,
+               Which all the while ran blood, great Caesar fell.
+                                                    --Shak.
+         [1913 Webster]
+  
+     13. To be charged with, or to contain much of, while flowing;
+         as, the rivers ran blood.
+         [1913 Webster]
+  
+     14. To conduct; to manage; to carry on; as, to run a factory
+         or a hotel. [Colloq. U.S.]
+         [1913 Webster]
+  
+     15. To tease with sarcasms and ridicule. [Colloq.]
+         [1913 Webster]
+  
+     16. To sew, as a seam, by passing the needle through material
+         in a continuous line, generally taking a series of
+         stitches on the needle at the same time.
+         [1913 Webster]
+  
+     17. To migrate or move in schools; -- said of fish; esp., to
+         ascend a river in order to spawn.
+         [1913 Webster]
+  
+     18. (Golf) To strike (the ball) in such a way as to cause it
+         to run along the ground, as when approaching a hole.
+         [Webster 1913 Suppl.]
+  
+     {To run a blockade}, to get to, or away from, a blockaded
+        port in safety.
+  
+     {To run down}.
+         (a) (Hunting) To chase till the object pursued is
+             captured or exhausted; as, to run down a stag.
+         (b) (Naut.) To run against and sink, as a vessel.
+         (c) To crush; to overthrow; to overbear. "Religion is run
+             down by the license of these times." --Berkeley.
+         (d) To disparage; to traduce. --F. W. Newman.
+  
+     {To run hard}.
+         (a) To press in competition; as, to run one hard in a
+             race.
+         (b) To urge or press importunately.
+         (c) To banter severely.
+  
+     {To run into the ground}, to carry to an absurd extreme; to
+        overdo. [Slang, U.S.]
+         (c) To erect hastily, as a building.
+             [1913 Webster]
+
+From The Collaborative International Dictionary of English v.0.54 [gcide]:
+
+  Run \Run\, n.
+     1. The act of running; as, a long run; a good run; a quick
+        run; to go on the run.
+        [1913 Webster]
+  
+     2. A small stream; a brook; a creek.
+        [1913 Webster]
+  
+     3. That which runs or flows in the course of a certain
+        operation, or during a certain time; as, a run of must in
+        wine making; the first run of sap in a maple orchard.
+        [1913 Webster]
+  
+     4. A course; a series; that which continues in a certain
+        course or series; as, a run of good or bad luck.
+        [1913 Webster]
+  
+              They who made their arrangements in the first run of
+              misadventure . . . put a seal on their calamities.
+                                                    --Burke.
+        [1913 Webster]
+  
+     5. State of being current; currency; popularity.
+        [1913 Webster]
+  
+              It is impossible for detached papers to have a
+              general run, or long continuance, if not diversified
+              with humor.                           --Addison.
+        [1913 Webster]
+  
+     6. Continued repetition on the stage; -- said of a play; as,
+        to have a run of a hundred successive nights.
+        [1913 Webster]
+  
+              A canting, mawkish play . . . had an immense run.
+                                                    --Macaulay.
+        [1913 Webster]
+  
+     7. A continuing urgent demand; especially, a pressure on a
+        bank or treasury for payment of its notes.
+        [1913 Webster]
+  
+     8. A range or extent of ground for feeding stock; as, a sheep
+        run. --Howitt.
+        [1913 Webster]
+  
+     9. (Naut.)
+        (a) The aftermost part of a vessel's hull where it narrows
+            toward the stern, under the quarter.
+        (b) The distance sailed by a ship; as, a good run; a run
+            of fifty miles.
+        (c) A voyage; as, a run to China.
+            [1913 Webster]
+  
+     10. A pleasure excursion; a trip. [Colloq.]
+         [1913 Webster]
+  
+               I think of giving her a run in London. --Dickens.
+         [1913 Webster]
+  
+     11. (Mining) The horizontal distance to which a drift may be
+         carried, either by license of the proprietor of a mine or
+         by the nature of the formation; also, the direction which
+         a vein of ore or other substance takes.
+         [1913 Webster]
+  
+     12. (Mus.) A roulade, or series of running tones.
+         [1913 Webster]
+  
+     13. (Mil.) The greatest degree of swiftness in marching. It
+         is executed upon the same principles as the double-quick,
+         but with greater speed.
+         [1913 Webster]
+  
+     14. The act of migrating, or ascending a river to spawn; --
+         said of fish; also, an assemblage or school of fishes
+         which migrate, or ascend a river for the purpose of
+         spawning.
+         [1913 Webster]
+  
+     15. (Sport) In baseball, a complete circuit of the bases made
+         by a player, which enables him to score one point; also,
+         the point thus scored; in cricket, a passing from one
+         wicket to the other, by which one point is scored; as, a
+         player made three runs; the side went out with two
+         hundred runs; the Yankees scored three runs in the
+         seventh inning.
+         [1913 Webster +PJC]
+  
+               The "runs" are made from wicket to wicket, the
+               batsmen interchanging ends at each run. --R. A.
+                                                    Proctor.
+         [1913 Webster]
+  
+     16. A pair or set of millstones.
+         [1913 Webster]
+  
+     17. (Piquet, Cribbage, etc.) A number of cards of the same
+         suit in sequence; as, a run of four in hearts.
+         [Webster 1913 Suppl.]
+  
+     18. (Golf)
+         (a) The movement communicated to a golf ball by running.
+         (b) The distance a ball travels after touching the ground
+             from a stroke.
+             [Webster 1913 Suppl.]
+  
+     {At the long run}, now, commonly, {In the long run}, in or
+        during the whole process or course of things taken
+        together; in the final result; in the end; finally.
+        [1913 Webster]
+  
+              [Man] starts the inferior of the brute animals, but
+              he surpasses them in the long run.    --J. H.
+                                                    Newman.
+        [1913 Webster]
+  
+     {Home run}.
+         (a) A running or returning toward home, or to the point
+             from which the start was made. Cf. {Home stretch}.
+         (b) (Baseball) See under {Home}.
+  
+     {The run}, or {The common run}, or {The run of the mill}
+        etc., ordinary persons; the generality or average of
+        people or things; also, that which ordinarily occurs;
+        ordinary current, course, or kind.
+        [1913 Webster +PJC]
+  
+              I saw nothing else that is superior to the common
+              run of parks.                         --Walpole.
+        [1913 Webster]
+  
+              Burns never dreamed of looking down on others as
+              beneath him, merely because he was conscious of his
+              own vast superiority to the common run of men.
+                                                    --Prof.
+                                                    Wilson.
+        [1913 Webster]
+  
+              His whole appearance was something out of the common
+              run.                                  --W. Irving.
+        [1913 Webster]
+  
+     {To let go by the run} (Naut.), to loosen and let run freely,
+        as lines; to let fall without restraint, as a sail.
+        [1913 Webster]
+
+From The Collaborative International Dictionary of English v.0.54 [gcide]:
+
+  Run \Run\, a.
+     1. Melted, or made from molten material; cast in a mold; as,
+        run butter; run iron or lead.
+        [1913 Webster]
+  
+     2. Smuggled; as, run goods. [Colloq.] --Miss Edgeworth.
+        [1913 Webster]
+  
+     {Run steel}, malleable iron castings. See under {Malleable}.
+        --Raymond.
+        [1913 Webster]
+
+From The Collaborative International Dictionary of English v.0.54 [gcide]:
+
+  All fours \All` fours"\ [formerly, {All` four"}.]
+     All four legs of a quadruped; or the two legs and two arms of
+     a person.
+     [1913 Webster]
+  
+     {To be}, {go}, or {run}, {on all fours} (Fig.), to be on the
+        same footing; to correspond (with) exactly; to be alike in
+        all the circumstances to be considered. "This example is
+        on all fours with the other." "No simile can go on all
+        fours." --Macaulay.
+        [1913 Webster]
+
+From WordNet (r) 3.0 (2006) [wn]:
+
+  run
+      n 1: a score in baseball made by a runner touching all four
+           bases safely; "the Yankees scored 3 runs in the bottom of
+           the 9th"; "their first tally came in the 3rd inning" [syn:
+           {run}, {tally}]
+      2: the act of testing something; "in the experimental trials the
+         amount of carbon was measured separately"; "he called each
+         flip of the coin a new trial" [syn: {test}, {trial}, {run}]
+      3: a race run on foot; "she broke the record for the half-mile
+         run" [syn: {footrace}, {foot race}, {run}]
+      4: an unbroken series of events; "had a streak of bad luck";
+         "Nicklaus had a run of birdies" [syn: {streak}, {run}]
+      5: (American football) a play in which a player attempts to
+         carry the ball through or past the opposing team; "the
+         defensive line braced to stop the run"; "the coach put great
+         emphasis on running" [syn: {run}, {running}, {running play},
+         {running game}]
+      6: a regular trip; "the ship made its run in record time"
+      7: the act of running; traveling on foot at a fast pace; "he
+         broke into a run"; "his daily run keeps him fit" [syn: {run},
+         {running}]
+      8: the continuous period of time during which something (a
+         machine or a factory) operates or continues in operation;
+         "the assembly line was on a 12-hour run"
+      9: unrestricted freedom to use; "he has the run of the house"
+      10: the production achieved during a continuous period of
+          operation (of a machine or factory etc.); "a daily run of
+          100,000 gallons of paint"
+      11: a small stream [syn: {rivulet}, {rill}, {run}, {runnel},
+          {streamlet}]
+      12: a race between candidates for elective office; "I managed
+          his campaign for governor"; "he is raising money for a
+          Senate run" [syn: {political campaign}, {campaign}, {run}]
+      13: a row of unravelled stitches; "she got a run in her
+          stocking" [syn: {run}, {ladder}, {ravel}]
+      14: the pouring forth of a fluid [syn: {discharge},
+          {outpouring}, {run}]
+      15: an unbroken chronological sequence; "the play had a long run
+          on Broadway"; "the team enjoyed a brief run of victories"
+      16: a short trip; "take a run into town"
+      v 1: move fast by using one's feet, with one foot off the ground
+           at any given time; "Don't run--you'll be out of breath";
+           "The children ran to the store"
+      2: flee; take to one's heels; cut and run; "If you see this man,
+         run!"; "The burglars escaped before the police showed up"
+         [syn: {scat}, {run}, {scarper}, {turn tail}, {lam}, {run
+         away}, {hightail it}, {bunk}, {head for the hills}, {take to
+         the woods}, {escape}, {fly the coop}, {break away}]
+      3: stretch out over a distance, space, time, or scope; run or
+         extend between two points or beyond a certain point; "Service
+         runs all the way to Cranbury"; "His knowledge doesn't go very
+         far"; "My memory extends back to my fourth year of life";
+         "The facts extend beyond a consideration of her personal
+         assets" [syn: {run}, {go}, {pass}, {lead}, {extend}]
+      4: direct or control; projects, businesses, etc.; "She is
+         running a relief operation in the Sudan" [syn: {operate},
+         {run}]
+      5: have a particular form; "the story or argument runs as
+         follows"; "as the saying goes..." [syn: {run}, {go}]
+      6: move along, of liquids; "Water flowed into the cave"; "the
+         Missouri feeds into the Mississippi" [syn: {run}, {flow},
+         {feed}, {course}]
+      7: perform as expected when applied; "The washing machine won't
+         go unless it's plugged in"; "Does this old car still run
+         well?"; "This old radio doesn't work anymore" [syn:
+         {function}, {work}, {operate}, {go}, {run}] [ant:
+         {malfunction}, {misfunction}]
+      8: change or be different within limits; "Estimates for the
+         losses in the earthquake range as high as $2 billion";
+         "Interest rates run from 5 to 10 percent"; "The instruments
+         ranged from tuba to cymbals"; "My students range from very
+         bright to dull" [syn: {range}, {run}]
+      9: run, stand, or compete for an office or a position; "Who's
+         running for treasurer this year?" [syn: {campaign}, {run}]
+      10: cause to emit recorded audio or video; "They ran the tapes
+          over and over again"; "I'll play you my favorite record";
+          "He never tires of playing that video" [syn: {play}, {run}]
+      11: move about freely and without restraint, or act as if
+          running around in an uncontrolled way; "who are these people
+          running around in the building?"; "She runs around telling
+          everyone of her troubles"; "let the dogs run free"
+      12: have a tendency or disposition to do or be something; be
+          inclined; "She tends to be nervous before her lectures";
+          "These dresses run small"; "He inclined to corpulence" [syn:
+          {tend}, {be given}, {lean}, {incline}, {run}]
+      13: be operating, running or functioning; "The car is still
+          running--turn it off!" [ant: {idle}, {tick over}]
+      14: change from one state to another; "run amok"; "run rogue";
+          "run riot"
+      15: cause to perform; "run a subject"; "run a process"
+      16: be affected by; be subjected to; "run a temperature"; "run a
+          risk"
+      17: continue to exist; "These stories die hard"; "The legend of
+          Elvis endures" [syn: {prevail}, {persist}, {die hard},
+          {run}, {endure}]
+      18: occur persistently; "Musical talent runs in the family"
+      19: carry out a process or program, as on a computer or a
+          machine; "Run the dishwasher"; "run a new program on the
+          Mac"; "the computer executed the instruction" [syn: {run},
+          {execute}]
+      20: include as the content; broadcast or publicize; "We ran the
+          ad three times"; "This paper carries a restaurant review";
+          "All major networks carried the press conference" [syn:
+          {carry}, {run}]
+      21: carry out; "run an errand"
+      22: pass over, across, or through; "He ran his eyes over her
+          body"; "She ran her fingers along the carved figurine"; "He
+          drew her hair through his fingers" [syn: {guide}, {run},
+          {draw}, {pass}]
+      23: cause something to pass or lead somewhere; "Run the wire
+          behind the cabinet" [syn: {run}, {lead}]
+      24: make without a miss
+      25: deal in illegally, such as arms or liquor [syn: {run},
+          {black market}]
+      26: cause an animal to move fast; "run the dogs"
+      27: be diffused; "These dyes and colors are guaranteed not to
+          run" [syn: {run}, {bleed}]
+      28: sail before the wind
+      29: cover by running; run a certain distance; "She ran 10 miles
+          that day"
+      30: extend or continue for a certain period of time; "The film
+          runs 5 hours" [syn: {run}, {run for}]
+      31: set animals loose to graze
+      32: keep company; "the heifers run with the bulls to produce
+          offspring" [syn: {run}, {consort}]
+      33: run with the ball; in such sports as football
+      34: travel rapidly, by any (unspecified) means; "Run to the
+          store!"; "She always runs to Italy, because she has a lover
+          there"
+      35: travel a route regularly; "Ships ply the waters near the
+          coast" [syn: {ply}, {run}]
+      36: pursue for food or sport (as of wild animals); "Goering
+          often hunted wild boars in Poland"; "The dogs are running
+          deer"; "The Duke hunted in these woods" [syn: {hunt}, {run},
+          {hunt down}, {track down}]
+      37: compete in a race; "he is running the Marathon this year";
+          "let's race and see who gets there first" [syn: {race},
+          {run}]
+      38: progress by being changed; "The speech has to go through
+          several more drafts"; "run through your presentation before
+          the meeting" [syn: {move}, {go}, {run}]
+      39: reduce or cause to be reduced from a solid to a liquid
+          state, usually by heating; "melt butter"; "melt down gold";
+          "The wax melted in the sun" [syn: {melt}, {run}, {melt
+          down}]
+      40: come unraveled or undone as if by snagging; "Her nylons were
+          running" [syn: {ladder}, {run}]
+      41: become undone; "the sweater unraveled" [syn: {run},
+          {unravel}]
+
+From Moby Thesaurus II by Grady Ward, 1.0 [moby-thesaurus]:
+
+  1024 Moby Thesaurus words for "run":
+     Brownian movement, Everyman, Indian file, Le Mans, Lehrfreiheit,
+     Public, Zeitgeist, abide, abrade, abrasion, abscond, absquatulate,
+     academic freedom, acciaccatura, acquire, act, adolescent stream,
+     advance, affluence, afflux, affluxion, aim, air lane, air race,
+     airlift, alameda, angular motion, appoggiatura, arabesque, array,
+     arroyo, articulation, ascend, ascending, ascent, assault,
+     automobile race, average, average man, averageness, axial motion,
+     azimuth, back, back up, backflowing, backing, backward motion,
+     balance, bank, bark, batch, be effective, be in action,
+     be responsible for, bear, bear upon, bearing, beat, beat a retreat,
+     beaten path, beaten track, beck, bent, berm, bicycle path,
+     bicycle race, bide, blemish, bloody, boardwalk, boat, boat race,
+     bolt, booking, boost, borscht circuit, bound, bourn,
+     braided stream, branch, break, breed, bridle path, bring down,
+     bring on, bring out, bring upon, brook, brooklet, buck, budge,
+     bull, bulldoze, bum, bump, bundle, bunt, bureaucracy,
+     bureaucratism, burn, burrow, burst, burst of speed, bustle, butt,
+     butt against, buzz, cadence, cadenza, call the signals, campaign,
+     canoe, canter, captain, career, carry, carry on, carry out,
+     carry sail, carry through, catena, catenation, catwalk, cave,
+     center, chafe, chain, chain reaction, chaining, change,
+     change place, channel, chart a course, chase, check, chinoiserie,
+     chip, circle, circuit, circumnavigate, claw, clear out, climb,
+     climbing, coast, coil, colliquate, coloratura, command, common man,
+     common run, commonality, commonness, commute, concatenation,
+     concourse, concussion, cond, conduct, confluence, conflux, conn,
+     connection, consecution, constitutional freedom, contest a seat,
+     contest of speed, continualness, continuance, continuation,
+     continue, continue to be, continuity, continuum, contract, control,
+     couch, course, cover, cover ground, covert, coxswain, crack,
+     crackle, cram, craze, creek, crick, cross, cross-country race,
+     crosscurrent, crossing, crowd, cruise, culture, currency, current,
+     cut, cut and run, cycle, daily grind, dash, dash off, dash on,
+     date, dead run, deal with, decamp, decoagulate, decoct,
+     defeat time, defluxion, defrost, defy time, deliquesce, den,
+     depart, derby, descend, descending, descent, desert, designate,
+     dig, direct, direction, direction line, dissolve, division, dog,
+     dog it, dog race, dogtrot, double-time, downflow, downpour,
+     downward motion, drag race, drift, driftage, drive, drone,
+     duration, dwell, dysentery, earth, ebb, ebbing, elapse, elbow,
+     elope, embellishment, emigrate, emigration, encompass,
+     endless belt, endless round, endurance, endurance race, endure,
+     engagement, engineer, engrave, enter the lists, environ, esplanade,
+     everyman, everywoman, excursion, exist, expatriate, expatriation,
+     expedition, expire, extend, extension, extensiveness, falcon,
+     fall in with, fall into, fare, fare forth, farm, fastwalk, fatten,
+     feed, fester, festinate, fetch, file, filiation, fioritura,
+     flank speed, flash burn, flat-out speed, flee, flight, flight path,
+     flit, float, flood, flourish, flow, flow back, flow in, flow on,
+     flow out, flowing, flowing stream, fluency, fluidify, fluidize,
+     flush, fluviation, flux, fly, follow the hounds, foot,
+     foot pavement, footpath, footrace, footway, force, forced draft,
+     form, forward motion, fowl, fox-trot, fracture, fray, frazzle,
+     freedom, freedom from fear, freedom from want, freedom of worship,
+     fresh, freshet, fret, fugitate, full gallop, function, fuse, gain,
+     gall, gallop, gamut, gang, garden path, gash, generality, get,
+     get going, get moving, get out, get over, ghost, gill,
+     girl next door, git, glacial movement, glide, go, go along,
+     go around, go by, go by ship, go hunting, go on, go on shipboard,
+     go out, go round, go sideways, go to sea, goad, golden mean,
+     govern, grace, grace note, gradation, grand tour, grind, groove,
+     grow, guide, gun, gush, gyrate, habitualness, hand gallop, handle,
+     happy medium, hasten, hatch, have effect, have free play,
+     have play, have the conn, hawk, head, head up, heading,
+     headlong rush, heat, heavy right foot, hectograph, helm,
+     helmsmanship, herd, hie, high lope, hightail, hiking trail, hold,
+     hold in solution, hold on, hold out, hold the reins, hole,
+     homme moyen sensuel, hop, hop along, hotfoot, hound, hum, hunt,
+     hunt down, hurdle race, hurry, hurry on, hurry through, hurry up,
+     hurry-scurry, hurt, hurtle, hustle, immigrate, immigration,
+     impress, imprint, in-migrate, in-migration, incidental,
+     incidental note, incise, incision, inclination, incur, inflow,
+     infuse, injure, injury, intermigrate, intermigration, invite,
+     issue, itinerary, jab, jack, jacklight, jam, jaunt, jog, jog trot,
+     joggle, jolt, jostle, journey, jump, jump bail, junket,
+     juste-milieu, keep, keep on, kill, lacerate, laceration, lair, lap,
+     lapse, last, last long, last out, lay, lazy stream, leach, lead,
+     lead on, leap, leg, lengthening, lesion, levant, liberty, license,
+     lie, line, line of direction, line of march, lineage, liquefy,
+     liquesce, liquidize, live, live on, live through, lixiviate, lodge,
+     long mordent, loose, lope, lose no time, lot, maim, main current,
+     mainstream, maintain, maintenance, make, make a passage, make go,
+     make haste, make mincemeat of, make off, make the rules,
+     make tracks, making, mall, manage, maneuver, manipulate, marathon,
+     marathon race, mastermind, match race, matter, maul, maximum speed,
+     mean, meandering stream, median, mediocrity, medium, melt,
+     melt down, mew, midchannel, middle, middle course, middle ground,
+     middle point, middle position, middle state, middle-of-the-road,
+     midpoint, midstream, migrate, migration, militate, mill run,
+     millrace, millstream, mimeograph, monotone, mordent, mortal wound,
+     motion, motorboat, motorcycle race, mount, mounting, move,
+     move along, move on, move over, move quickly, movement,
+     moving road, multigraph, mutilate, mutilation, name,
+     name for office, navigable river, navigate, navigation, nexus,
+     nominate, norm, normal, normality, nudge, nurture, oblique motion,
+     obstacle race, ocean trip, officer, ongoing, onrush, onward course,
+     open throttle, operate, orbit, ordain, order, ordinariness,
+     ordinary Joe, ordinary run, orientation, ornament, out-migrate,
+     out-migration, outflow, outing, overprint, package tour, par,
+     parade, part, pass, pass by, passage, path, pathway, pendulum,
+     percolate, perdure, peregrination, perennate, perform, perform on,
+     periodicity, perk, perpetuation, perseverance, persist,
+     persistence, piece, pierce, pile drive, pilgrimage, pilot,
+     piloting, play, playing engagement, pleasure trip, plenum,
+     plow the deep, plunge, plunging, ply, point, poke, portion, post,
+     potato race, pour, powder train, practice, prado, pralltriller,
+     prescribe, press, press on, prevail, prevalence, primrose path,
+     print, proceed, prod, progress, progression, prolongation,
+     promenade, proof, propose, protraction, prove, prowl after,
+     public walk, publish, pull, pull a proof, pull the strings, punch,
+     puncture, pursuance, push, push on, put out, put to bed,
+     put to press, put up, quarter, quarterback, queue, race,
+     racing stream, radial motion, raise, ram, ram down, rampantness,
+     ranch, random motion, range, rank, rankle, rattle, reach,
+     reach out, rear, recurrence, red tape, red-tapeism, refine,
+     reflowing, refluence, reflux, regatta, regress, regression,
+     regulate, regurgitate, reign, reissue, relay, relay race, remain,
+     remigrate, remigration, rend, render, rent, repetition, reprint,
+     reticulation, retrogress, retrogression, ride, ride the sea,
+     ride to hounds, rifeness, rip, ripen, rise, rising, river, rivulet,
+     road, road race, roll, roll on, rotate, rotation, roulade, round,
+     round trip, route, routine, routineness, row, rubberneck tour,
+     ruck, rule, run against, run away, run away from, run away with,
+     run for it, run for office, run its course, run off, run on,
+     run out, rundle, runlet, runnel, runway, rupture, rush,
+     rush through, rut, sack race, safari, sail, sail free, sail round,
+     sail the sea, sally, sashay, savage, scald, scale, scamper, scoot,
+     scorch, scotch, scramble, scrape, scratch, screw, scud, scuff,
+     scull, scurry, scuttle, sea lane, sea trip, seafare,
+     second-degree burn, see to, sequence, series, set, shake,
+     shakedown cruise, shape a course, shepherd, shift, shikar, shin,
+     shits, shoot, shortcut, shoulder, shove, show the heels, sidewalk,
+     sideward motion, sike, single file, single mordent, sink, sinking,
+     skedaddle, skim, skin, skip, skip out, skipper, slash, slide, slip,
+     slip the cable, slit, smelt, smuggle, sneak, soar, soaring, solo,
+     solubilize, solve, sore, span, spate, spectrum, speed,
+     speedway race, spill stream, spin, sport, sprain, spread, spring,
+     sprint, sprint race, spurt, squirrel cage, stab, stab wound, stalk,
+     stamp, stand, stand for office, start, stay, stay on,
+     staying power, steam, steamboat, steer, steerage, steering, step,
+     step along, step lively, sternway, stick, still-hunt, stir,
+     stock-car race, straddle, straight course, strain, stream,
+     stream action, streamlet, stress, stretch, stretch out, strike,
+     string, strip, submit, subside, subsiding, subsist,
+     subterranean river, succession, suppurate, surge, surge back,
+     surround, survive, sustain, sustained action, sustenance, swarm,
+     swarming, swath, sweep, sweepingness, swing, tack down wind,
+     take French leave, take a voyage, take care of, take command,
+     take effect, take flight, take in, take the helm, take the lead,
+     take to flight, take wing, tamp, tarry, tear, tendency, tenor,
+     test flight, thaw, the Four Freedoms, the general tendency,
+     the main course, the run of, thin, third-degree burn, thread,
+     three-legged race, thrust, thrust out, tick, tide, tide over, tier,
+     time spirit, tone, torch race, tour, towing path, towpath, track,
+     track race, trade route, trail, train, traject, trajectory, trajet,
+     transmigrate, transmigration, trauma, traumatize, travel, traverse,
+     treadmill, trek, trend, trip, trot, trots, trottoir, tunnel, turn,
+     turn tail, unclot, undercurrent, undertow, unfreeze,
+     uninterrupted course, unremittingness, upward motion, usualness,
+     vaudeville circuit, via media, voyage, wadi, walk, walk the waters,
+     walkway, wane, water flow, watercourse, waterway, way, wayfare,
+     wear, wear well, weep, welcome, well-worn groove, wend, whirl,
+     wide-open speed, widespreadness, windrow, work, wound,
+     wounds immedicable, wrench, yacht, yacht race
+  
+  
+
+From The Free On-line Dictionary of Computing (11 February 2025) [foldoc]:
+
+  execution
+  execute
+  run
+  
+     <operating system, programming> The process of carrying out
+     the {instructions} in a computer program by a computer.
+  
+     See also {dry run}.
+  
+     (1996-05-13)
+  

@@ -7701,40 +7701,21 @@ WordDefinitionModal {
 }
 
 WordDefinitionModal > Container {
-    width: 85%;
-    height: 85%;
-    max-width: 150;
-    max-height: 42;
-    border: thick #5FD7AF;
-    background: $surface;
-    padding: 1 2;
+    width: 88; max-width: 94%;
+    height: auto; max-height: 90%;
+    border: round #5FD7AF;
+    border-title-align: left; border-subtitle-align: right;
+    background: $surface; padding: 1 2;
 }
-
-WordDefinitionModal #word-definition-title {
-    height: auto;
-    margin-bottom: 1;
+WordDefinitionModal #word-definition-hero { dock: top; height: auto; }
+WordDefinitionModal #word-definition-headline { height: auto; }
+WordDefinitionModal #word-definition-lead {
+    height: auto; margin-top: 1; padding: 0 1;
+    background: $boost; border-left: tall #5FD7AF;
 }
-
-WordDefinitionModal #word-definition-scroll {
-    height: 1fr;
-    scrollbar-gutter: stable;
-    border: solid #5FD7AF;
-    padding: 0 1;
-}
-
-WordDefinitionModal #word-definition-content {
-    width: 100%;
-    height: auto;
-}
-
-WordDefinitionModal #word-definition-footer {
-    text-align: center;
-    color: $text-muted;
-    height: auto;
-    margin-top: 1;
-    border-top: solid #5FD7AF;
-    padding-top: 1;
-}
+WordDefinitionModal #word-definition-attribution { height: auto; text-align: right; color: $text-muted; }
+WordDefinitionModal #word-definition-scroll { height: auto; max-height: 100%; margin-top: 1; scrollbar-gutter: stable; }
+WordDefinitionModal #word-definition-content { width: 100%; height: auto; }
 
 /* ===== Spellcheck Panel Modal Styling ===== */
 

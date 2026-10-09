@@ -60,10 +60,22 @@ class PromptWordLookupMixin(_MixinBase):
         definitions = await asyncio.to_thread(look_up_definitions, span.word)
         if not self._word_lookup_request_is_current(request_id):
             return
+        card = None
+        if definitions.status == "ok":
+            from sase.ace.tui.modals.word_definition_card import (
+                build_definition_card,
+            )
+
+            card = await asyncio.to_thread(
+                build_definition_card, span.word, definitions.sections
+            )
+            if not self._word_lookup_request_is_current(request_id):
+                return
         self._handle_definition_result(
             span,
             definitions,
             spelling_unavailable=spelling.status == "unavailable",
+            card=card,
         )
 
     def _handle_spelling_terminal_result(
@@ -105,13 +117,20 @@ class PromptWordLookupMixin(_MixinBase):
         definitions: DefinitionResult,
         *,
         spelling_unavailable: bool,
+        card: object = None,
     ) -> None:
         if definitions.status == "ok":
+            from sase.ace.tui.modals.word_definition_card import (
+                build_definition_card,
+            )
             from sase.ace.tui.modals.word_definition_modal import (
                 WordDefinitionModal,
             )
 
-            self.app.push_screen(WordDefinitionModal(span.word, definitions.sections))
+            resolved = card
+            if resolved is None:
+                resolved = build_definition_card(span.word, definitions.sections)
+            self.app.push_screen(WordDefinitionModal(resolved))  # type: ignore[arg-type]
             return
         if definitions.status == "unavailable":
             self.notify(

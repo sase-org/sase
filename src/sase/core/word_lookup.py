@@ -65,6 +65,7 @@ class DefinitionSection:
 
     source: str
     body: str
+    database: str = ""
 
 
 @dataclass(frozen=True)
@@ -349,6 +350,7 @@ def _parse_definition_sections(stdout: str) -> tuple[DefinitionSection, ...]:
             DefinitionSection(
                 source=match.group("source").strip(),
                 body=body,
+                database=match.group("database").strip(),
             )
         )
     return tuple(sections)
