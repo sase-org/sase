@@ -36,7 +36,7 @@ bootstrap path must extend one of the two handoff lists above.
 The temporary prompt file crosses the re-exec verbatim: the live ``%auto``
 reconcile is not applied here (no ``sase.*`` import may run between the
 identity check and ``os.execv``) but in the refreshed pass's bootstrap, via
-``_reconcile_prompt_with_live_auto_state`` in ``_load_submitted_prompt``.
+``reconcile_prompt_with_live_auto_state`` in ``_load_submitted_prompt``.
 """
 
 from __future__ import annotations
@@ -113,7 +113,7 @@ def runner_code_identity() -> str | None:
     return _source_code_identity(_editable_sase_source_root())
 
 
-def _reconcile_prompt_with_live_auto_state(
+def reconcile_prompt_with_live_auto_state(
     submitted_prompt: str,
     artifacts_dir: str | None,
 ) -> str:

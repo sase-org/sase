@@ -19,7 +19,7 @@ from sase.axe.run_agent_retry_spawn import RetryHandoff
 from sase.axe.run_agent_runner_cli import read_prompt_file
 from sase.axe.run_agent_runner_refresh import (
     RUNNER_CODE_REFRESHED_ENV,
-    _reconcile_prompt_with_live_auto_state,
+    reconcile_prompt_with_live_auto_state,
 )
 from sase.axe.run_agent_runner_setup import (
     apply_retry_chain_to_meta,
@@ -212,7 +212,7 @@ def _load_submitted_prompt(state: RunnerRunState) -> None:
         # ``sase.*`` import runs in the torn pre-exec process. Apply the live
         # ``%auto`` reconcile now, in the refreshed process, before directive
         # extraction: an ``A`` toggle made during the wait must survive.
-        state.prompt = _reconcile_prompt_with_live_auto_state(
+        state.prompt = reconcile_prompt_with_live_auto_state(
             state.prompt, state.artifacts_dir
         )
     state.submitted_prompt = state.prompt

@@ -18,7 +18,7 @@ from sase.axe.run_agent_markers import (
     persist_refreshed_clan_summary,
     record_run_started_at,
 )
-from sase.axe.run_agent_runner_refresh import _reconcile_prompt_with_live_auto_state
+from sase.axe.run_agent_runner_refresh import reconcile_prompt_with_live_auto_state
 from sase.axe.run_agent_wait_markers import record_wait_completed_at
 from sase.main.plan_approve_handler import (
     get_auto_plan_approval_action,
@@ -184,7 +184,7 @@ def test_refresh_reconcile_strips_stale_auto_after_toggle_off(
     artifacts.mkdir()
     _write_meta(artifacts, {"name": "agent-x"})
 
-    reconciled = _reconcile_prompt_with_live_auto_state(
+    reconciled = reconcile_prompt_with_live_auto_state(
         "%auto\nDo the thing", str(artifacts)
     )
 
@@ -199,7 +199,7 @@ def test_refresh_reconcile_restores_auto_after_toggle_on(
     artifacts.mkdir()
     _write_meta(artifacts, {"approve": True})
 
-    reconciled = _reconcile_prompt_with_live_auto_state("Do the thing", str(artifacts))
+    reconciled = reconcile_prompt_with_live_auto_state("Do the thing", str(artifacts))
 
     assert reconciled.startswith("%auto")
     assert "Do the thing" in reconciled
@@ -213,7 +213,7 @@ def test_refresh_reconcile_keeps_live_tale_mode(tmp_path: Path) -> None:
         {"approve": True, "auto_approve_argument": "tale"},
     )
 
-    reconciled = _reconcile_prompt_with_live_auto_state(
+    reconciled = reconcile_prompt_with_live_auto_state(
         "%auto:tale\nDo the thing", str(artifacts)
     )
 
@@ -223,7 +223,7 @@ def test_refresh_reconcile_keeps_live_tale_mode(tmp_path: Path) -> None:
 def test_refresh_reconcile_without_artifacts_dir_passes_through() -> None:
     prompt = "%auto\nDo the thing"
 
-    assert _reconcile_prompt_with_live_auto_state(prompt, None) == prompt
+    assert reconcile_prompt_with_live_auto_state(prompt, None) == prompt
 
 
 def test_refresh_reconcile_keeps_live_plan_mode(tmp_path: Path) -> None:
@@ -234,7 +234,7 @@ def test_refresh_reconcile_keeps_live_plan_mode(tmp_path: Path) -> None:
         {"approve": True, "auto_approve_argument": "plan"},
     )
 
-    reconciled = _reconcile_prompt_with_live_auto_state(
+    reconciled = reconcile_prompt_with_live_auto_state(
         "%auto\nDo the thing", str(artifacts)
     )
 
@@ -247,7 +247,7 @@ def test_refresh_reconcile_bare_meta_keeps_bare_auto(tmp_path: Path) -> None:
     artifacts.mkdir()
     _write_meta(artifacts, {"approve": True})
 
-    reconciled = _reconcile_prompt_with_live_auto_state(
+    reconciled = reconcile_prompt_with_live_auto_state(
         "%auto:plan\nDo the thing", str(artifacts)
     )
 
@@ -260,7 +260,7 @@ def test_refresh_reconcile_toggle_off_strips_plan_spelling(tmp_path: Path) -> No
     artifacts.mkdir()
     _write_meta(artifacts, {"name": "agent-x"})
 
-    reconciled = _reconcile_prompt_with_live_auto_state(
+    reconciled = reconcile_prompt_with_live_auto_state(
         "%auto:plan\nDo the thing", str(artifacts)
     )
 
@@ -275,7 +275,7 @@ def test_refresh_reconcile_legacy_argument_never_widens_to_bare(
     artifacts.mkdir()
     _write_meta(artifacts, {"auto_approve_argument": "off"})
 
-    reconciled = _reconcile_prompt_with_live_auto_state(
+    reconciled = reconcile_prompt_with_live_auto_state(
         "%auto:plan\nDo the thing", str(artifacts)
     )
 
