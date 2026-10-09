@@ -159,9 +159,12 @@ def test_launch_followup_agent_uses_explicit_next_model(
     assert "%model:claude-sonnet-5" not in captured["prompt"]
 
 
-def test_launch_followup_agent_reauthors_auto_prefix(
+def test_launch_followup_agent_inherits_auto_structurally_without_prefix(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Autonomy rides structural inheritance (the follow-up inherits the starter
+    # member's live record), so even with auto-approve state present no %auto
+    # prefix is re-emitted. See docs/monitors.md.
     monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
         tmp_path, monkeypatch
     )
@@ -196,8 +199,9 @@ def test_launch_followup_agent_reauthors_auto_prefix(
 
     assert result.launched is True
     assert captured["prompt"].startswith(
-        "%auto:tale\n#fork:acme--0\n%model:claude-sonnet-5\n%effort:high\n\n"
+        "#fork:acme--0\n%model:claude-sonnet-5\n%effort:high\n\n"
     )
+    assert "%auto" not in captured["prompt"]
 
 
 def test_launch_followup_agent_omits_auto_prefix_without_auto_state(
