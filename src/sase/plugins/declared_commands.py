@@ -109,7 +109,7 @@ def _cache_key(full_name: str) -> str:
     return full_name.casefold()
 
 
-def read_declared_cache(path: Path | None = None) -> dict[str, _CachedDeclared]:
+def _read_declared_cache(path: Path | None = None) -> dict[str, _CachedDeclared]:
     """Read the declared-commands cache, returning ``{}`` on any failure."""
     cache_path = path or _cache_path()
     try:
@@ -161,7 +161,7 @@ def read_declared_cache(path: Path | None = None) -> dict[str, _CachedDeclared]:
     return entries
 
 
-def write_declared_cache(
+def _write_declared_cache(
     entries: dict[str, _CachedDeclared],
     *,
     path: Path | None = None,
@@ -203,7 +203,7 @@ def _is_fresh(cached: _CachedDeclared, updated_at: str, now: float) -> bool:
 GhRunnerFn = Callable[..., Any]
 
 
-def fetch_upstream_pyproject(
+def _fetch_upstream_pyproject(
     full_name: str,
     *,
     run_fn: GhRunnerFn | None = None,
@@ -237,7 +237,7 @@ def fetch_upstream_pyproject(
     return text
 
 
-def parse_declared_commands(text: str) -> DeclaredCommands:
+def _parse_declared_commands(text: str) -> DeclaredCommands:
     """Parse declared ``sase_commands`` from ``pyproject.toml`` *text*.
 
     Returns status ``declared`` (with the sorted command names) or ``none``.
@@ -279,12 +279,12 @@ WriteCacheFn = Callable[[dict[str, _CachedDeclared]], None]
 ClockFn = Callable[[], float]
 
 
-def get_declared_commands(
+def _get_declared_commands(
     full_name: str,
     *,
     updated_at: str = "",
     offline: bool = False,
-    fetch_fn: FetchFn = fetch_upstream_pyproject,
+    fetch_fn: FetchFn = _fetch_upstream_pyproject,
     read_cache_fn: ReadCacheFn | None = None,
     write_cache_fn: WriteCacheFn | None = None,
     clock: ClockFn = time.time,
@@ -296,7 +296,7 @@ def get_declared_commands(
     """
     now = clock()
     try:
-        cached = (read_cache_fn or read_declared_cache)().get(_cache_key(full_name))
+        cached = (read_cache_fn or _read_declared_cache)().get(_cache_key(full_name))
     except Exception:  # noqa: BLE001 — cache failures must not fail the preview.
         cached = None
     if cached is not None and _is_fresh(cached, updated_at, now):
@@ -313,11 +313,11 @@ def get_declared_commands(
         declared = DeclaredCommands(status="unknown", names=(), source=None)
     else:
         try:
-            declared = parse_declared_commands(text)
+            declared = _parse_declared_commands(text)
         except ValueError:
             declared = DeclaredCommands(status="unknown", names=(), source=None)
     try:
-        entries = (read_cache_fn or read_declared_cache)()
+        entries = (read_cache_fn or _read_declared_cache)()
         entries[_cache_key(full_name)] = _CachedDeclared(
             status=declared.status,
             names=declared.names,
@@ -325,7 +325,7 @@ def get_declared_commands(
             updated_at=updated_at,
             fetched_at=now,
         )
-        (write_cache_fn or write_declared_cache)(entries)
+        (write_cache_fn or _write_declared_cache)(entries)
     except Exception:  # noqa: BLE001 — cache writes are best-effort.
         pass
     return declared
@@ -428,7 +428,7 @@ def attach_declared_previews(
     entries: Sequence[Any],
     *,
     offline: bool = False,
-    fetch_fn: FetchFn = fetch_upstream_pyproject,
+    fetch_fn: FetchFn = _fetch_upstream_pyproject,
     read_cache_fn: ReadCacheFn | None = None,
     write_cache_fn: WriteCacheFn | None = None,
     clock: ClockFn = time.time,
@@ -456,7 +456,7 @@ def attach_declared_previews(
 
     def _one(entry: Any) -> tuple[str, DeclaredCommands]:
         try:
-            declared = get_declared_commands(
+            declared = _get_declared_commands(
                 entry.full_name,
                 updated_at=entry.updated_at or "",
                 fetch_fn=fetch_fn,
@@ -509,7 +509,7 @@ def get_declared_commands_for_entry(
     entry: Any,
     *,
     offline: bool = False,
-    fetch_fn: FetchFn = fetch_upstream_pyproject,
+    fetch_fn: FetchFn = _fetch_upstream_pyproject,
     read_cache_fn: ReadCacheFn | None = None,
     write_cache_fn: WriteCacheFn | None = None,
     clock: ClockFn = time.time,
@@ -522,7 +522,7 @@ def get_declared_commands_for_entry(
     """
     if _entry_is_installed(entry):
         return DeclaredCommands(status="unknown", names=(), source=None)
-    return get_declared_commands(
+    return _get_declared_commands(
         entry.full_name,
         updated_at=entry.updated_at or "",
         offline=offline,
@@ -547,12 +547,7 @@ __all__ = [
     "attach_declared_previews",
     "declared_commands_json",
     "declared_problems",
-    "fetch_upstream_pyproject",
-    "get_declared_commands",
     "get_declared_commands_for_entry",
     "live_command_owners",
     "live_reserved_command_names",
-    "parse_declared_commands",
-    "read_declared_cache",
-    "write_declared_cache",
 ]

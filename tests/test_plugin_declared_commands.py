@@ -27,12 +27,12 @@ from sase.plugins.declared_commands import (
     attach_declared_previews,
     declared_commands_json,
     declared_problems,
-    fetch_upstream_pyproject,
-    get_declared_commands,
+    _fetch_upstream_pyproject,
+    _get_declared_commands,
     get_declared_commands_for_entry,
-    parse_declared_commands,
-    read_declared_cache,
-    write_declared_cache,
+    _parse_declared_commands,
+    _read_declared_cache,
+    _write_declared_cache,
 )
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.json_payload import plugin_entry_json
@@ -140,30 +140,30 @@ def _isolated_cache(
 
 
 def test_parse_declared_names() -> None:
-    declared = parse_declared_commands(_LISTEN_TOML)
+    declared = _parse_declared_commands(_LISTEN_TOML)
     assert declared.status == "declared"
     assert declared.names == ("listen",)
     assert declared.source == "pyproject:project.entry-points.sase_commands"
 
 
 def test_parse_no_entry_points_is_none() -> None:
-    declared = parse_declared_commands(_PLAIN_TOML)
+    declared = _parse_declared_commands(_PLAIN_TOML)
     assert declared == DeclaredCommands(status="none", names=(), source=None)
 
 
 def test_parse_missing_project_table_is_none() -> None:
-    declared = parse_declared_commands("[tool.ruff]\nline-length = 100\n")
+    declared = _parse_declared_commands("[tool.ruff]\nline-length = 100\n")
     assert declared.status == "none"
 
 
 def test_parse_dynamic_entry_points_raises() -> None:
     with pytest.raises(ValueError, match="dynamic entry-points"):
-        parse_declared_commands(_DYNAMIC_TOML)
+        _parse_declared_commands(_DYNAMIC_TOML)
 
 
 def test_parse_garbage_raises() -> None:
     with pytest.raises(ValueError, match="cannot parse"):
-        parse_declared_commands("not [ valid = toml {{{")
+        _parse_declared_commands("not [ valid = toml {{{")
 
 
 # --------------------------------------------------------------------------- #
@@ -188,7 +188,7 @@ def _gh_runner(stdout: str = "", *, returncode: int = 0) -> Any:
 
 
 def test_fetch_upstream_pyproject_uses_raw_media_type() -> None:
-    text = fetch_upstream_pyproject(
+    text = _fetch_upstream_pyproject(
         "sase-org/sase-listen", run_fn=_gh_runner(_LISTEN_TOML)
     )
     assert text == _LISTEN_TOML
@@ -196,7 +196,7 @@ def test_fetch_upstream_pyproject_uses_raw_media_type() -> None:
 
 def test_fetch_upstream_pyproject_failure_is_none() -> None:
     assert (
-        fetch_upstream_pyproject(
+        _fetch_upstream_pyproject(
             "sase-org/sase-listen", run_fn=_gh_runner("", returncode=1)
         )
         is None
@@ -205,15 +205,15 @@ def test_fetch_upstream_pyproject_failure_is_none() -> None:
     def _missing(*args: Any, **kwargs: Any) -> Any:
         raise FileNotFoundError("no such file or directory: 'gh'")
 
-    assert fetch_upstream_pyproject("sase-org/sase-listen", run_fn=_missing) is None
+    assert _fetch_upstream_pyproject("sase-org/sase-listen", run_fn=_missing) is None
 
 
 def test_end_to_end_declared_through_fake_gh() -> None:
     read_fn, write_fn = _isolated_cache()
-    declared = get_declared_commands(
+    declared = _get_declared_commands(
         "sase-org/sase-listen",
         updated_at="2026-10-01T00:00:00Z",
-        fetch_fn=lambda full_name: fetch_upstream_pyproject(
+        fetch_fn=lambda full_name: _fetch_upstream_pyproject(
             full_name, run_fn=_gh_runner(_LISTEN_TOML)
         ),
         read_cache_fn=read_fn,
@@ -232,7 +232,7 @@ def test_end_to_end_declared_through_fake_gh() -> None:
 def test_get_declared_commands_declared_and_cached() -> None:
     read_fn, write_fn = _isolated_cache()
     fetch = _fetch({"sase-org/sase-listen": _LISTEN_TOML})
-    first = get_declared_commands(
+    first = _get_declared_commands(
         "sase-org/sase-listen",
         updated_at="2026-10-01T00:00:00Z",
         fetch_fn=fetch,
@@ -249,7 +249,7 @@ def test_get_declared_commands_declared_and_cached() -> None:
         seen.append(_full_name)
         raise AssertionError("cache hit must not refetch")
 
-    second = get_declared_commands(
+    second = _get_declared_commands(
         "sase-org/sase-listen",
         updated_at="2026-10-01T00:00:00Z",
         fetch_fn=_boom,
@@ -263,7 +263,7 @@ def test_get_declared_commands_declared_and_cached() -> None:
 
 def test_get_declared_commands_missing_file_is_unknown() -> None:
     read_fn, write_fn = _isolated_cache()
-    declared = get_declared_commands(
+    declared = _get_declared_commands(
         "sase-org/sase-gone",
         fetch_fn=_fetch({}),
         read_cache_fn=read_fn,
@@ -274,7 +274,7 @@ def test_get_declared_commands_missing_file_is_unknown() -> None:
 
 def test_get_declared_commands_parse_error_is_unknown() -> None:
     read_fn, write_fn = _isolated_cache()
-    declared = get_declared_commands(
+    declared = _get_declared_commands(
         "sase-org/sase-broken",
         fetch_fn=_fetch({"sase-org/sase-broken": "not [ valid {{{"}),
         read_cache_fn=read_fn,
@@ -285,7 +285,7 @@ def test_get_declared_commands_parse_error_is_unknown() -> None:
 
 def test_get_declared_commands_dynamic_is_unknown() -> None:
     read_fn, write_fn = _isolated_cache()
-    declared = get_declared_commands(
+    declared = _get_declared_commands(
         "sase-org/sase-dyn",
         fetch_fn=_fetch({"sase-org/sase-dyn": _DYNAMIC_TOML}),
         read_cache_fn=read_fn,
@@ -300,7 +300,7 @@ def test_get_declared_commands_offline_never_fetches() -> None:
     def _boom(_full_name: str) -> str | None:
         raise AssertionError("offline must not fetch")
 
-    declared = get_declared_commands(
+    declared = _get_declared_commands(
         "sase-org/sase-listen",
         offline=True,
         fetch_fn=_boom,
@@ -313,7 +313,7 @@ def test_get_declared_commands_offline_never_fetches() -> None:
 def test_get_declared_commands_invalidated_on_updated_at() -> None:
     read_fn, write_fn = _isolated_cache()
     fetch = _fetch({"sase-org/sase-listen": _LISTEN_TOML})
-    first = get_declared_commands(
+    first = _get_declared_commands(
         "sase-org/sase-listen",
         updated_at="2026-09-01T00:00:00Z",
         fetch_fn=fetch,
@@ -329,7 +329,7 @@ def test_get_declared_commands_invalidated_on_updated_at() -> None:
         calls.append(full_name)
         return _PLAIN_TOML
 
-    second = get_declared_commands(
+    second = _get_declared_commands(
         "sase-org/sase-listen",
         updated_at="2026-10-01T00:00:00Z",
         fetch_fn=_watch,
@@ -361,7 +361,7 @@ def test_get_declared_commands_expires_after_ttl() -> None:
         calls.append(full_name)
         return _PLAIN_TOML
 
-    declared = get_declared_commands(
+    declared = _get_declared_commands(
         "sase-org/sase-listen",
         updated_at="2026-10-01T00:00:00Z",
         fetch_fn=_watch,
@@ -376,17 +376,17 @@ def test_get_declared_commands_expires_after_ttl() -> None:
 def test_declared_cache_round_trip_on_disk(tmp_path: Path) -> None:
     path = tmp_path / "declared_commands_cache.json"
     fetch = _fetch({"sase-org/sase-listen": _LISTEN_TOML})
-    declared = get_declared_commands(
+    declared = _get_declared_commands(
         "sase-org/sase-listen",
         updated_at="2026-10-01T00:00:00Z",
         fetch_fn=fetch,
-        read_cache_fn=lambda: read_declared_cache(path),
-        write_cache_fn=lambda entries: write_declared_cache(entries, path=path),
+        read_cache_fn=lambda: _read_declared_cache(path),
+        write_cache_fn=lambda entries: _write_declared_cache(entries, path=path),
         clock=lambda: 2000.0,
     )
     assert declared.status == "declared"
     assert path.exists()
-    cached = read_declared_cache(path)
+    cached = _read_declared_cache(path)
     assert cached["sase-org/sase-listen"].names == ("listen",)
 
 

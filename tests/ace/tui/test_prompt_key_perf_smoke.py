@@ -59,6 +59,25 @@ async def _await_bar_mounted(app: AceApp, pilot: object) -> PromptInputBar:
         await pilot.pause()  # type: ignore[attr-defined]
 
 
+async def _await_perf_action(log_path: Path, pilot: object, action: str) -> None:
+    """Wait until the perf JSONL records a sample for *action*.
+
+    The bar completes a key-to-paint sample on the next paint after mount,
+    which a loaded CI host may not reach before the next keypress. A new
+    ``begin()`` discards the still in-flight sample by design, so the next
+    press must wait for this sample to land instead of racing it.
+    """
+    import asyncio
+
+    deadline = asyncio.get_running_loop().time() + 15.0
+    while True:
+        if any(s.get("action") == action for s in _read_samples(log_path)):
+            return
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError(f"perf sample {action!r} was not recorded within 15s")
+        await pilot.pause()  # type: ignore[attr-defined]
+
+
 async def test_prompt_key_perf_harness_records_space_and_cycle(
     _perf_jsonl: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -98,8 +117,12 @@ async def test_prompt_key_perf_harness_records_space_and_cycle(
             state="ready",
             pairs=(("#git:foo", "#git:foo"), ("#git:bar", "#git:bar")),
         )
+        # Wait for the `<space>` sample to land before pressing anything
+        # else: the cycle press starts a new sample and discards the still
+        # in-flight one by design, which flakes on loaded CI hosts.
+        await _await_perf_action(_perf_jsonl, pilot, "prompt_space")
         await pilot.press("ctrl+p")
-        await pilot.pause()
+        await _await_perf_action(_perf_jsonl, pilot, "prompt_cycle_ctrl_p")
 
     actions = [s.get("action") for s in _read_samples(_perf_jsonl)]
     assert "prompt_space" in actions
