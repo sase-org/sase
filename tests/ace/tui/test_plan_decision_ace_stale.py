@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sase.ace.testing import wait_for
 from tests.ace.tui._plan_decision_ace_shared import plan_decision_definitions
 
 __all__ = [
@@ -12,7 +13,9 @@ __all__ = [
 
 
 async def test_stale_review_reloads_revision_keeping_values(tmp_path) -> None:
-    from sase.ace.tui.actions.agents._notification_plan_gate import _handle_stale_review
+    from sase.ace.tui.actions.agents._notification_plan_gate_stale import (
+        handle_stale_review,
+    )
     from sase.notifications import Notification
     import types
 
@@ -83,15 +86,15 @@ async def test_stale_review_reloads_revision_keeping_values(tmp_path) -> None:
 
     with (
         mock.patch(
-            "sase.ace.tui.actions.agents._notification_plan_gate.load_neutral_plan_modal_data",
+            "sase.ace.tui.actions.agents._notification_plan_gate_stale.load_neutral_plan_modal_data",
             return_value=reloaded,
         ),
         mock.patch(
-            "sase.ace.tui.actions.agents._notification_plan_gate._refresh_notifications",
+            "sase.ace.tui.actions.agents._notification_plan_gate_stale.refresh_notifications",
             return_value=None,
         ),
     ):
-        assert _handle_stale_review(app, notification, result) is True
+        assert handle_stale_review(app, notification, result) is True
         # The reload runs off the pump; wait for the stashed reopen.
         for _ in range(100):
             if (
@@ -168,23 +171,22 @@ async def test_stale_review_reloads_revision_keeping_values(tmp_path) -> None:
         with (
             mock.patch.object(pilot.app, "push_screen", _capture_push),
             mock.patch(
-                "sase.ace.tui.actions.agents._notification_plan_gate.load_neutral_plan_modal_data",
+                "sase.ace.tui.actions.agents._notification_plan_gate_stale.load_neutral_plan_modal_data",
                 return_value=open_reloaded,
             ),
             mock.patch(
-                "sase.ace.tui.actions.agents._notification_plan_gate._refresh_notifications",
+                "sase.ace.tui.actions.agents._notification_plan_gate_stale.refresh_notifications",
                 return_value=None,
             ),
         ):
             assert (
-                _handle_stale_review(pilot.app, open_notification, open_result) is True
+                handle_stale_review(pilot.app, open_notification, open_result) is True
             )
             # The reload runs off the pump; wait for the in-place rebuild.
-            for _ in range(100):
-                if getattr(live_modal, "_review_revision", None) == 11:
-                    break
-                await _asyncio.sleep(0.05)
-                await pilot.pause()
+            await wait_for(
+                pilot,
+                lambda: getattr(live_modal, "_review_revision", None) == 11,
+            )
         await pilot.pause()
         await pilot.pause()
         assert pushes == []
@@ -214,13 +216,12 @@ async def test_stale_closed_reopen_submits_through_real_open_path(tmp_path) -> N
     plan response path with the restored decision_* values and the new
     review_revision. The bundle reload must not run on the message pump.
     """
-    import asyncio as _asyncio
     import threading as _threading
     import types as _types
     import unittest.mock as _mock
 
-    from sase.ace.tui.actions.agents._notification_plan_gate import (
-        _handle_stale_review,
+    from sase.ace.tui.actions.agents._notification_plan_gate_stale import (
+        handle_stale_review,
     )
     from sase.notifications import Notification
 
@@ -292,11 +293,11 @@ async def test_stale_closed_reopen_submits_through_real_open_path(tmp_path) -> N
     async with _SubmitApp().run_test(size=(120, 40)) as pilot:
         with (
             _mock.patch(
-                "sase.ace.tui.actions.agents._notification_plan_gate.load_neutral_plan_modal_data",
+                "sase.ace.tui.actions.agents._notification_plan_gate_stale.load_neutral_plan_modal_data",
                 side_effect=_recording_load,
             ),
             _mock.patch(
-                "sase.ace.tui.actions.agents._notification_plan_gate._refresh_notifications",
+                "sase.ace.tui.actions.agents._notification_plan_gate_stale.refresh_notifications",
                 return_value=None,
             ),
             _mock.patch(
@@ -306,15 +307,14 @@ async def test_stale_closed_reopen_submits_through_real_open_path(tmp_path) -> N
                 ),
             ),
         ):
-            assert _handle_stale_review(pilot.app, notification, stale_result) is True
-            for _ in range(100):
-                if (
+            assert handle_stale_review(pilot.app, notification, stale_result) is True
+            await wait_for(
+                pilot,
+                lambda: (
                     isinstance(pilot.app.screen, PlanApprovalModal)
                     and getattr(pilot.app.screen, "_review_revision", None) == 9
-                ):
-                    break
-                await _asyncio.sleep(0.05)
-                await pilot.pause()
+                ),
+            )
             modal = pilot.app.screen
             assert isinstance(modal, PlanApprovalModal)
             # Reopened through the real open path with restored values.

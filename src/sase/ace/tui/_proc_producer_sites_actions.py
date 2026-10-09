@@ -363,7 +363,7 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
     ),
     site(
         "notify.plan_gate.durable",
-        "src/sase/ace/tui/actions/agents/_notification_plan_gate.py",
+        "src/sase/ace/tui/actions/agents/_notification_plan_gate_submit.py",
         "_submit_durable_neutral_plan_response",
         "duck_submit_durable",
         "GATE_ANSWER",
@@ -376,7 +376,7 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
     ),
     site(
         "notify.plan_gate",
-        "src/sase/ace/tui/actions/agents/_notification_plan_gate.py",
+        "src/sase/ace/tui/actions/agents/_notification_plan_gate_submit.py",
         "submit_neutral_plan_response",
         "session_worker",
         "plan-gate",

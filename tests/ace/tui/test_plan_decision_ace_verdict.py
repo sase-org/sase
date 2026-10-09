@@ -312,7 +312,7 @@ async def test_feedback_bar_shows_carries_readonly(tmp_path) -> None:
 
 
 def test_settled_labels_truthful(tmp_path) -> None:
-    from sase.ace.tui.actions.agents._notification_plan_gate import (
+    from sase.ace.tui.actions.agents._notification_plan_gate_load import (
         _settled_text_for_bundle,
     )
     import types

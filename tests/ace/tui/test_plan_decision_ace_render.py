@@ -365,7 +365,7 @@ def test_settled_polling_reads_only_open_modal(tmp_path) -> None:
             side_effect=_counting_fake,
         ),
         _mock.patch(
-            "sase.ace.tui.actions.agents._notification_plan_gate._settled_text_for_bundle",
+            "sase.ace.tui.actions.agents._notification_plan_gate_load._settled_text_for_bundle",
             return_value="Approved via CLI",
         ),
     ):
