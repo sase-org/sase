@@ -5,7 +5,11 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-from sase.axe.agent_meta import overlay_live_auto_keys, write_agent_meta_atomic
+from sase.axe.agent_meta import (
+    AUTO_STATE_KEYS,
+    overlay_live_auto_keys,
+    write_agent_meta_atomic,
+)
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -20,7 +24,7 @@ def persist_refreshed_clan_summary(
 ) -> dict[str, Any]:
     """Merge a refreshed clan summary into current disk and runner metadata."""
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    disk_meta: dict[str, Any] = {}
+    disk_meta: dict[str, Any] | None = None
     try:
         with open(meta_path, encoding="utf-8") as f:
             loaded = json.load(f)
@@ -29,11 +33,15 @@ def persist_refreshed_clan_summary(
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
-    merged_meta = {**disk_meta, **agent_meta, "clan_summary": clan_summary}
+    merged_meta = {**(disk_meta or {}), **agent_meta, "clan_summary": clan_summary}
     # Memory-wins merge must not resurrect auto state an ``A`` toggle
-    # stripped from disk: the live on-disk auto keys win.
+    # stripped from disk: the live on-disk auto keys win. A failed read
+    # passes None so the overlay passes through instead of stripping.
     overlay_live_auto_keys(artifacts_dir, merged_meta, disk_meta=disk_meta)
     write_agent_meta(artifacts_dir, merged_meta)
+    for key in AUTO_STATE_KEYS:
+        if key not in merged_meta:
+            agent_meta.pop(key, None)
     agent_meta.update(merged_meta)
     return merged_meta
 
@@ -65,7 +73,7 @@ def record_run_started_at(
     from datetime import UTC, datetime
 
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    disk_meta: dict[str, Any] = {}
+    disk_meta: dict[str, Any] | None = None
     try:
         with open(meta_path, encoding="utf-8") as f:
             loaded = json.load(f)
@@ -74,7 +82,7 @@ def record_run_started_at(
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
-    disk_run_started_at = disk_meta.get("run_started_at")
+    disk_run_started_at = (disk_meta or {}).get("run_started_at")
     if isinstance(disk_run_started_at, str) and disk_run_started_at:
         agent_meta["run_started_at"] = disk_run_started_at
         return disk_run_started_at
@@ -86,7 +94,7 @@ def record_run_started_at(
         run_started_at = datetime.now(UTC).isoformat()
         agent_meta["run_started_at"] = run_started_at
 
-    merged_meta = {**disk_meta, **agent_meta, "run_started_at": run_started_at}
+    merged_meta = {**(disk_meta or {}), **agent_meta, "run_started_at": run_started_at}
     run_started_epoch = _epoch_from_iso(run_started_at)
     if run_started_epoch is not None:
         wait_completed_epoch = _epoch_from_iso(merged_meta.get("wait_completed_at"))
@@ -101,8 +109,12 @@ def record_run_started_at(
                 slot_wait_started_at
             )
     # Memory-wins merge must not resurrect auto state an ``A`` toggle
-    # stripped from disk: the live on-disk auto keys win.
+    # stripped from disk: the live on-disk auto keys win. A failed read
+    # passes None so the overlay passes through instead of stripping.
     overlay_live_auto_keys(artifacts_dir, merged_meta, disk_meta=disk_meta)
+    for key in AUTO_STATE_KEYS:
+        if key not in merged_meta:
+            agent_meta.pop(key, None)
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
     return run_started_at

@@ -2936,7 +2936,7 @@ two separate `%wait:` directives. Backtick-quoted values (e.g. `` %wait:`a,b` ``
 treated as a single literal and not split on commas.
 
 The `%hide` directive is a boolean flag — it takes no arguments and is simply present or
-absent. The `%auto` directive defaults to plan mode when bare and accepts `:plan`,
+absent. The `%auto` directive covers both plan tiers when bare and accepts `:plan`,
 `:tale`, `:epic`, `:manual`, or `:off`; any other value, and any parenthesized form,
 fails at launch.
 
@@ -3249,7 +3249,7 @@ invalid proposal pending. CLI rejection writes the same no-feedback rejection re
 as sase's TUI, then attempts to dismiss and user-kill the matching planner when it can
 be found.
 
-When an agent launched with `%auto:epic` later submits a plan with `/sase_plan` or
+When an agent launched with `%auto:epic` later submits an epic plan with `/sase_plan` or
 `sase plan propose`, sase follows the same epic path as the TUI Epic action: it writes
 the SDD epic files, commits them as needed, initializes beads, and launches the epic
 follow-up agent. Like every other `%auto` spelling, `%auto:epic` still answers question

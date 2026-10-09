@@ -106,10 +106,17 @@ def _normalize_cross_tier_plan_spec(spec: GateSpec) -> GateSpec:
     """
     if spec.kind not in {"plan", "epic_plan"} or not spec.auto.enabled:
         return spec
-    from sase._plan_gate_metadata import plan_auto_covers_tier
+    from sase._plan_gate_metadata import (
+        is_valid_plan_auto_argument,
+        plan_auto_covers_tier,
+    )
 
     tier = "epic" if spec.kind == "epic_plan" else "tale"
     if plan_auto_covers_tier(tier, spec.auto.argument):  # type: ignore[arg-type]
+        return spec
+    if not is_valid_plan_auto_argument(spec.auto.argument):
+        # Invalid arguments stay errors: let validate_gate_spec raise
+        # invalid_auto_argument instead of parking silently as manual.
         return spec
     return dataclasses.replace(
         spec,

@@ -106,6 +106,65 @@ def test_runner_bound_workspace_rebind_moves_claim_meta_and_occupant(
     assert occupant.cl_name == "feature"
 
 
+def test_workspace_rebind_keeps_toggle_off(tmp_path: Path) -> None:
+    """A rebind never writes stale auto keys back over an A toggle."""
+    import os as _os
+
+    workspace = tmp_path / "project_10"
+    workspace.mkdir()
+    pid = _os.getpid()
+    project_file = create_project_file_with_running(
+        tmp_path,
+        running_claims=[
+            WorkspaceClaim(0, "ace-runner", "feature", pid=pid),
+            WorkspaceClaim(10, "git-main", None, pid=pid),
+        ],
+    )
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False, project_name="project")
+    ctx.project_file = project_file
+    ctx.workspace_num = 0
+    ctx.workspace_dir = str(tmp_path / "project")
+    ctx.workflow_name = "ace-runner"
+    ctx.cl_name = "feature"
+    ctx.artifacts_timestamp = "20260828120000"
+    ctx.agent_name = "identity-agent"
+    ctx.agent_meta = {
+        "pid": pid,
+        "name": "identity-agent",
+        "approve": True,
+        "auto_approve_plan_action": "tale",
+        "auto_approve_argument": "tale",
+    }
+    (Path(ctx.artifacts_dir) / "agent_meta.json").write_text(
+        json.dumps({"pid": pid, "name": "identity-agent"}), encoding="utf-8"
+    )
+
+    with (
+        patch(
+            "sase.linked_repos.resolve_linked_repos_for_project",
+            return_value=LinkedRepoResolution(repos=()),
+        ),
+        patch(
+            "sase.axe.run_agent_runner_setup_meta."
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+    ):
+        rebind_agent_workspace_identity_from_output(
+            ctx,
+            artifacts_dir=ctx.artifacts_dir,
+            output={
+                "workspace_num": 10,
+                "runner_bound_workspace": True,
+            },
+            workspace_dir=str(workspace),
+        )
+
+    meta = json.loads((Path(ctx.artifacts_dir) / "agent_meta.json").read_text())
+    assert "approve" not in meta
+    assert "auto_approve_plan_action" not in meta
+    assert "auto_approve_argument" not in meta
+
+
 def test_finalize_loop_returns_and_writes_rebound_workspace(
     tmp_path: Path,
 ) -> None:

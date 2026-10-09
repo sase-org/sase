@@ -54,7 +54,8 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
 
     1. Guard: verify SASE_AGENT and SASE_ARTIFACTS_DIR env vars
     2. Validate plan_file exists
-    3. Validate the authored plan tier (and any pinned auto-approval tier)
+    3. Validate the authored plan tier (a pinned auto tier selects coverage;
+       a cross-tier pin parks the plan for review)
     4. Move plan into the ~/.sase/plans/ archive (consumes the scratch file)
     5. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
     6. Kill the agent runner's process group via SIGTERM
@@ -77,8 +78,9 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         sys.exit(1)
 
     # Validate before formatting or making any queue-related mutation.  A
-    # pinned tale/epic auto action is the target tier so the core validator
-    # emits its authoritative tier-mismatch diagnostic and target schema.
+    # pinned tier selects coverage, so the core validator emits its
+    # authoritative tier-mismatch diagnostic and target schema; a cross-tier
+    # pin parks the plan for review.
     from sase.main.plan_approve_handler import (
         get_auto_plan_approval_action,
         get_auto_plan_approval_argument,

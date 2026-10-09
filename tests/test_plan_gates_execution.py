@@ -218,6 +218,37 @@ def test_cross_tier_auto_parks_as_manual_gate_with_notification(
     assert notification.id == gate.notification_id
 
 
+def test_epic_plan_cross_tier_tale_parks_and_foo_raises(
+    gate_home: Path,
+) -> None:
+    """An epic plan with :tale parks; with :foo it stays an error."""
+    from sase.notification_gates.models import GateError as _GateError
+
+    parked = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "epic-cross-tale.md", VALID_EPIC_PLAN),
+            "epic-cross-tale",
+            auto_enabled=True,
+            auto_argument="tale",
+        )
+    )
+    assert parked.kind == "epic_plan"
+    assert parked.notification_id is not None
+    [notification] = load_notifications()
+    assert notification.id == parked.notification_id
+
+    with pytest.raises(_GateError) as exc_info:
+        create_gate(
+            build_plan_approval_gate_spec(
+                write_plan(gate_home, "epic-invalid-foo.md", VALID_EPIC_PLAN),
+                "epic-invalid-foo",
+                auto_enabled=True,
+                auto_argument="foo",
+            )
+        )
+    assert exc_info.value.code == "invalid_auto_argument"
+
+
 def test_shared_host_executor_handles_feedback_rejection_and_races(
     gate_home: Path,
 ) -> None:

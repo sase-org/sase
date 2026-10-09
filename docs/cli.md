@@ -577,10 +577,12 @@ example on failure. Use `-e/--explain` for tier-specific authoring guidance, `-j
 for the stable machine-readable envelope, or `-q/--quiet` to suppress the successful
 human summary. A plan that has decisions also prints the Decision Sheet after the
 result, and, when the live `%auto` spelling covers the plan's tier,
-`auto-approved: every decision takes its default`. In `--json` mode stdout stays one
-JSON document: the sheet, the `%auto` note, and the outside-agent quote-verification
-note live inside the `decisions` envelope while the same human text goes to stderr. See
-the [validation output](sdd.md#plan-frontmatter-schema-and-validation). The removed
+`auto-approved: every decision takes its default`. When the spelling does not cover the
+tier, sase prints `%auto:<mode>` does not cover `<tier>` plans; this plan waits for
+review instead. In `--json` mode stdout stays one JSON document: the sheet, the `%auto`
+note, and the outside-agent quote-verification note live inside the `decisions` envelope
+while the same human text goes to stderr. See the
+[validation output](sdd.md#plan-frontmatter-schema-and-validation). The removed
 `-t/--tier` option is now invalid command usage. A valid plan exits 0, a validation
 failure exits 1, and invalid command usage exits 2.
 

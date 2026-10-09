@@ -232,6 +232,27 @@ async def test_invalid_auto_spelling_shows_launch_message_with_dispatch(
         assert "unknown auto mode 'foo'" in rendered
 
 
+async def test_dispatch_with_invalid_auto_shows_message_once(
+    no_catalog_worker: None,
+) -> None:
+    from sase.macro._directive_scan import scan_auto_directive
+
+    prompt = "%dispatch:apollo\n%auto:foo\n#gh:sase"
+    app = DispatchPickerFocusApp(prompt)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        _seed_remote_targets(bar)
+        scan = scan_auto_directive(prompt)
+        assert scan is not None and scan.error is not None
+        bar._dispatch_preflight_override = (scan.error, "error", prompt)
+        text, severity, _ = bar._dispatch_context_text(prompt)
+        rendered = renderable_to_text(text)
+        assert rendered is not None
+        assert severity == "error"
+        assert rendered.count("Invalid %auto spelling") == 1
+
+
 @pytest.mark.parametrize("prompt", ["%auto:tale\n#gh:sase", "%auto:off\n#gh:sase"])
 async def test_valid_and_manual_auto_spellings_show_nothing(
     no_catalog_worker: None,

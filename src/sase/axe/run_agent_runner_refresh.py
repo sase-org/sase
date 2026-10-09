@@ -92,33 +92,6 @@ def runner_code_identity() -> str | None:
     return _source_code_identity(_editable_sase_source_root())
 
 
-def _live_auto_prompt_mode(live_meta: Mapping[str, Any]) -> str | None:
-    """Return the ``%auto`` mode the live meta describes, or ``None`` to strip.
-
-    Mirrors the live-meta readers: a present ``auto_approve_argument``
-    string enables auto (``tale``/``epic`` keep their mode, anything else
-    is bare ``%auto``); otherwise a normalizable ``auto_approve_plan_action``
-    (``approve`` means bare) or a truthy ``approve`` enables it. No auto
-    keys means the ``A`` toggle turned auto off, so the prompt's stale
-    ``%auto`` must be stripped before re-extraction.
-    """
-    raw_argument = live_meta.get("auto_approve_argument")
-    if isinstance(raw_argument, str):
-        if raw_argument.strip() in ("tale", "epic"):
-            return raw_argument.strip()
-        return "plan"
-    raw_action = live_meta.get("auto_approve_plan_action")
-    if isinstance(raw_action, str):
-        normalized = raw_action.strip().lower()
-        if normalized in ("tale", "epic"):
-            return normalized
-        if normalized == "approve":
-            return "plan"
-    if live_meta.get("approve"):
-        return "plan"
-    return None
-
-
 def _reconcile_prompt_with_live_auto_state(
     submitted_prompt: str,
     artifacts_dir: str | None,
@@ -131,17 +104,23 @@ def _reconcile_prompt_with_live_auto_state(
     the prompt re-enables auto) and a toggle-on is lost (no ``%auto`` in
     the prompt drops auto). Without an artifacts dir there is no live
     meta to consult and the prompt passes through unchanged.
+
+    The replacement directive comes from :func:`auto_launch_prefix`, the
+    same rule that builds live follow-up prompts: only ``plan``/``tale``/
+    ``epic`` re-emit literally, everything else falls through to the
+    action/approve checks, so a ``%auto:plan`` agent never widens to bare
+    ``%auto`` and legacy values never widen either.
     """
     if not artifacts_dir:
         return submitted_prompt
-    from typing import cast
-
     from sase.axe.agent_meta import read_live_agent_meta
-    from sase.macro.directive_edit import AutoMode, set_prompt_auto_mode
+    from sase.macro._directive_edit_core import set_prompt_directive
+    from sase.monitor.continuation_delivery import auto_launch_prefix
 
     live_meta = read_live_agent_meta(artifacts_dir)
-    mode = cast(AutoMode | None, _live_auto_prompt_mode(live_meta))
-    return set_prompt_auto_mode(submitted_prompt, mode)
+    prefix = auto_launch_prefix(live_meta).strip()
+    replacement = prefix or None
+    return set_prompt_directive(submitted_prompt, {"auto"}, replacement)
 
 
 def refresh_runner_code_after_wait(

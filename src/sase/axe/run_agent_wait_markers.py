@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sase.axe.agent_meta import overlay_live_auto_keys
+from sase.axe.agent_meta import AUTO_STATE_KEYS, overlay_live_auto_keys
 from sase.axe.run_agent_markers import write_agent_meta
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -226,7 +226,7 @@ def record_wait_completed_at(
     satisfied instant.
     """
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    disk_meta: dict[str, Any] = {}
+    disk_meta: dict[str, Any] | None = None
     try:
         with open(meta_path, encoding="utf-8") as f:
             loaded = json.load(f)
@@ -235,7 +235,7 @@ def record_wait_completed_at(
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
 
-    disk_wait_completed_at = disk_meta.get("wait_completed_at")
+    disk_wait_completed_at = (disk_meta or {}).get("wait_completed_at")
     if isinstance(disk_wait_completed_at, str) and disk_wait_completed_at:
         agent_meta["wait_completed_at"] = disk_wait_completed_at
         return disk_wait_completed_at
@@ -246,7 +246,11 @@ def record_wait_completed_at(
         if isinstance(memory_wait_completed_at, str) and memory_wait_completed_at
         else datetime.now(UTC).isoformat()
     )
-    merged_meta = {**disk_meta, **agent_meta, "wait_completed_at": wait_completed_at}
+    merged_meta = {
+        **(disk_meta or {}),
+        **agent_meta,
+        "wait_completed_at": wait_completed_at,
+    }
     if wait_release_source in WAIT_RELEASE_SOURCES:
         merged_meta["wait_release_source"] = wait_release_source
         satisfied = (
@@ -264,8 +268,12 @@ def record_wait_completed_at(
                     0.0, float(wait_released_at) - satisfied
                 )
     # Memory-wins merge must not resurrect auto state an ``A`` toggle
-    # stripped from disk: the live on-disk auto keys win.
+    # stripped from disk: the live on-disk auto keys win. A failed read
+    # passes None so the overlay passes through instead of stripping.
     overlay_live_auto_keys(artifacts_dir, merged_meta, disk_meta=disk_meta)
+    for key in AUTO_STATE_KEYS:
+        if key not in merged_meta:
+            agent_meta.pop(key, None)
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
     return wait_completed_at

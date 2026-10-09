@@ -181,7 +181,7 @@ def scan_auto_directive(prompt: str) -> _AutoDirectiveScan | None:
     (suppressed inside ``%{...}`` fan-out, mirroring ``scan_tab_directive``,
     where each branch validates alone).
     """
-    if "%auto" not in prompt and "%a" not in prompt:
+    if "%a" not in prompt:
         return None
 
     fenced_blocks: list[str] = []

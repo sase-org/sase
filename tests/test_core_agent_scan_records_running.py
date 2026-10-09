@@ -316,6 +316,38 @@ def test_running_record_carries_auto_approve_plan_action(
     assert rec.agent_meta.auto_approve_plan_action == "epic"
 
 
+def test_running_record_carries_auto_approve_argument_and_parks_cross_tier(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    from sase.integrations._agent_list_entry_status import _plan_status
+
+    plan_path = tmp_path / "epic-cross.md"
+    plan_path.write_text("---\ntier: epic\n---\n# Plan\n", encoding="utf-8")
+    meta_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["approve"] = True
+    data["auto_approve_argument"] = "plan"
+    data["plan"] = True
+    data["plan_path"] = str(plan_path)
+    data["plan_submitted_at"] = ["2026-04-27T15:05:00Z"]
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
+
+    assert rec.agent_meta is not None
+    assert rec.agent_meta.auto_approve_argument == "plan"
+    assert _plan_status(rec.agent_meta) == "EPIC"
+
+
 def test_running_record_prefers_canonical_agent_meta_tribe(fixture_root: Path) -> None:
     meta_path = (
         fixture_root

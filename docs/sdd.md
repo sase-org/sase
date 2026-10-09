@@ -540,11 +540,12 @@ outside-agent path. When an auto plan-approval action is active (`%auto`), one m
 follows the sheet: `auto-approved: every decision takes its default`. That line is not
 printed merely because the process is inside an agent: it appears only when the live
 `%auto` spelling covers the plan's tier, so a cross-tier plan under `%auto:tale` or
-`%auto:epic` omits it and waits for review. In `--json` mode stdout stays one JSON
-document: the sheet, the `%auto` note, and the outside-agent quote-verification note
-live inside the `decisions` envelope. If agent-context host checks add diagnostics, the
-plan is cleared and the sheet is skipped. Ordinary plans without decisions keep the
-JSON-only contract.
+`%auto:epic` omits it and waits for review. At propose time the uncovered line reads
+`%auto:<mode>` does not cover `<tier>` plans; this plan waits for review. In `--json`
+mode stdout stays one JSON document: the sheet, the `%auto` note, and the outside-agent
+quote-verification note live inside the `decisions` envelope. If agent-context host
+checks add diagnostics, the plan is cleared and the sheet is skipped. Ordinary plans
+without decisions keep the JSON-only contract.
 
 ### Plan Decisions
 

@@ -63,6 +63,43 @@ def test_auto_rejected_spellings_match_rust(token: str) -> None:
         plan_typed_launch_units(f"{token}\nDo the work", selected_project="sase")
 
 
+def test_auto_error_messages_match_on_every_surface() -> None:
+    """Every surface shows the exact same message for one bad spelling."""
+    from sase.macro._directive_scan import scan_auto_directive
+
+    cases = {
+        "%a:foo": "%auto:foo",
+        "%auto:`foo`": "%auto:foo",
+        "%auto:foo": "%auto:foo",
+    }
+    for token, canonical in cases.items():
+        prompt = f"{token}\nDo the work"
+        with pytest.raises(DirectiveError) as py_exc:
+            extract_prompt_directives(prompt)
+        scan = scan_auto_directive(prompt)
+        assert scan is not None and scan.error is not None
+        with pytest.raises(ValueError) as rust_exc:
+            plan_typed_launch_units(prompt, selected_project="sase")
+        assert str(py_exc.value) == scan.error == str(rust_exc.value)
+        assert f"'{canonical}'" in str(py_exc.value)
+
+
+def test_auto_paren_error_keeps_literal_source_on_every_surface() -> None:
+    """Paren spellings keep their literal source slice everywhere."""
+    from sase.macro._directive_scan import scan_auto_directive
+
+    token = "%a(epic=ask)"
+    prompt = f"{token}\nDo the work"
+    with pytest.raises(DirectiveError) as py_exc:
+        extract_prompt_directives(prompt)
+    scan = scan_auto_directive(prompt)
+    assert scan is not None and scan.error is not None
+    with pytest.raises(ValueError) as rust_exc:
+        plan_typed_launch_units(prompt, selected_project="sase")
+    assert str(py_exc.value) == scan.error == str(rust_exc.value)
+    assert f"'{token}'" in str(py_exc.value)
+
+
 def test_auto_duplicate_rejected_on_both_sides() -> None:
     """A duplicate %auto (including %auto with %auto:off) fails everywhere."""
     with pytest.raises(DirectiveError, match="Duplicate directive '%auto'"):

@@ -449,15 +449,24 @@ class PromptInputBarDispatchMixin(_MixinBase):
             if tab_severity == "error":
                 severity = "error"
         auto_segment = self._auto_context_segment(prompt)
+        auto_error: str | None = None
         if auto_segment is not None:
             text.append("  ")
             text.append_text(auto_segment)
             severity = "error"
+            try:
+                from sase.macro._directive_scan import scan_auto_directive as _scan_auto
+
+                _auto_scan = _scan_auto(prompt)
+                auto_error = _auto_scan.error if _auto_scan is not None else None
+            except Exception:  # noqa: BLE001 - segment already shows the error.
+                auto_error = None
         override = self._dispatch_preflight_override
         if override is not None and (not override[2] or override[2] == prompt):
-            text.append("  ")
-            text.append(override[0], style=_override_style(override[1]))
-            severity = override[1]
+            if auto_error is None or override[0] != auto_error:
+                text.append("  ")
+                text.append(override[0], style=_override_style(override[1]))
+                severity = override[1]
         elif scan is not None:
             text.append("  proof checked on submit", style="dim")
         visible = scan is not None

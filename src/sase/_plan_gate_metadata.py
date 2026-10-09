@@ -65,6 +65,11 @@ _TALE_COVERED_ARGUMENTS = frozenset({None, "", "plan", "tale"})
 _EPIC_COVERED_ARGUMENTS = frozenset({None, "", "epic", "epic_plan"})
 
 
+def is_valid_plan_auto_argument(argument: str | None) -> bool:
+    """Return whether *argument* is a known ``%auto`` plan argument."""
+    return argument in _PLAN_AUTO_VALID_ARGUMENTS
+
+
 def plan_auto_covers_tier(tier: PlanGateTier, argument: str | None) -> bool:
     """Return whether an auto argument covers a plan tier.
 
