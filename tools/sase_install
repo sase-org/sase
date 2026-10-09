@@ -26,6 +26,7 @@ from typing import TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _sase_install_core as install_core
 import _sase_install_env as install_env
 import _sase_install_plan as install_plan
 import _sase_install_pypi as install_pypi
@@ -230,9 +231,7 @@ def _run(
 ) -> int:
     args = build_parser().parse_args(argv)
     mode = str(args.mode)
-    prog = (
-        install_plan.COMMAND_DEV if mode == "dev" else install_plan.COMMAND_PYPI
-    )
+    prog = install_plan.COMMAND_DEV if mode == "dev" else install_plan.COMMAND_PYPI
     as_json = bool(args.json)
     verbose = bool(args.verbose)
     quiet = bool(args.quiet)
@@ -305,43 +304,86 @@ def _run(
         keep_plugin_sources=bool(getattr(args, "keep_plugin_sources", False)),
         sync=bool(getattr(args, "sync", False)),
     )
-    plan = install_plan.build_plan(
-        options=options,
-        state=state,
-        checkout_root=checkout,
-        core_dir=core,
-        env=env,
-        pypi_lookup=pypi_lookup,
+    try:
+        plan = install_plan.build_plan(
+            options=options,
+            state=state,
+            checkout_root=checkout,
+            core_dir=core,
+            env=env,
+            pypi_lookup=pypi_lookup,
+        )
+    except install_core.CorePairingError as exc:
+        stderr.write(f"\u2717 {exc}\n")
+        return EXIT_FAILED
+
+    # dev-core-prep: `-n --sync` fetches every checkout the plan will use
+    # and reports, but never merges. Without `--sync`, nothing is pulled
+    # during planning except the rule-2 pin fetch inside the pairing rule.
+    sync_results: list[install_core.SyncRepo] | None = None
+    if dry_run and mode == "dev" and options.sync:
+        sync_results = install_core.sync_repos(_sync_paths(plan), merge=False, env=env)
+    sync_failed = sync_results is not None and any(
+        not result.ok for result in sync_results
     )
 
     if dry_run:
         if as_json:
-            stdout.write(
-                install_ui.render_json(
-                    plan,
-                    dry_run=True,
-                    outcome="noop" if plan.noop else "plan",
+            if sync_failed:
+                assert sync_results is not None
+                stdout.write(
+                    install_ui.render_json(
+                        plan,
+                        dry_run=True,
+                        outcome="error",
+                        error=_sync_error(sync_results),
+                        sync=_sync_dicts(sync_results),
+                    )
                 )
-            )
+            else:
+                stdout.write(
+                    install_ui.render_json(
+                        plan,
+                        dry_run=True,
+                        outcome="noop" if plan.noop else "plan",
+                        sync=(
+                            _sync_dicts(sync_results)
+                            if sync_results is not None
+                            else None
+                        ),
+                    )
+                )
             for warning in probe_warnings:
                 stderr.write(f"\u26a0 {warning}\n")
-            return EXIT_OK
+            return EXIT_FAILED if sync_failed else EXIT_OK
+        if sync_failed:
+            assert sync_results is not None
+            stdout.write(
+                install_ui.render_sync_report(
+                    _sync_dicts(sync_results),
+                    width=width,
+                    color=color,
+                )
+                + "\n"
+            )
+            return EXIT_FAILED
         if quiet:
             stdout.write(install_ui.render_summary_line(plan, dry_run=True) + "\n")
+            _write_sync_report(stdout, sync_results, width=width, color=color)
             return EXIT_OK
         if plan.noop:
             stdout.write(install_ui.render_noop_line(plan) + "\n")
             for warning in (*probe_warnings, *plan.warnings):
                 stdout.write(f"\u26a0 {warning}\n")
+            _write_sync_report(stdout, sync_results, width=width, color=color)
             return EXIT_OK
-        stdout.write(
-            install_ui.render_prereq_line(_probe_dicts(uv, git, cargo)) + "\n"
-        )
+        stdout.write(install_ui.render_prereq_line(_probe_dicts(uv, git, cargo)) + "\n")
         stdout.write(
             install_ui.render_plan_panel(plan, width=width, color=color) + "\n"
         )
         for warning in (*probe_warnings, *plan.warnings):
             stdout.write(f"\u26a0 {warning}\n")
+        _write_sync_report(stdout, sync_results, width=width, color=color)
         return EXIT_OK
 
     interactive = _stdin_is_tty(stdin)
@@ -349,7 +391,9 @@ def _run(
         if as_json:
             stdout.write(
                 install_ui.render_json(
-                    plan, dry_run=False, outcome="refused",
+                    plan,
+                    dry_run=False,
+                    outcome="refused",
                     error=install_env.non_tty_text(prog),
                 )
             )
@@ -368,9 +412,7 @@ def _run(
 
     if plan.noop and not options.force:
         if as_json:
-            stdout.write(
-                install_ui.render_json(plan, dry_run=False, outcome="noop")
-            )
+            stdout.write(install_ui.render_json(plan, dry_run=False, outcome="noop"))
         else:
             stdout.write(install_ui.render_noop_line(plan) + "\n")
         return EXIT_OK
@@ -412,6 +454,61 @@ def _durable_refusal(
             durable_sase = candidate
     return install_env.durable_dev_refusal_text(
         prog=prog, bad_root=str(bad), durable_sase=durable_sase
+    )
+
+
+def _sync_paths(plan: install_plan.InstallPlan) -> list[str]:
+    """Return the checkouts ``--sync`` pulls: sase, core, editable plugins."""
+    paths = [plan.checkout_root]
+    if Path(plan.core_dir).is_dir():
+        paths.append(plan.core_dir)
+    for row in plan.rows:
+        if (
+            row.role == "plugin"
+            and row.target.kind == "editable"
+            and row.target.path
+            and Path(row.target.path).is_dir()
+        ):
+            paths.append(row.target.path)
+    return paths
+
+
+def _sync_dicts(
+    results: list[install_core.SyncRepo],
+) -> list[dict[str, object]]:
+    """Adapt gate results to the sync report renderer rows."""
+    return [
+        {
+            "path": result.path,
+            "ok": result.ok,
+            "skipped": result.skipped,
+            "detail": result.detail,
+        }
+        for result in results
+    ]
+
+
+def _sync_error(results: list[install_core.SyncRepo]) -> str:
+    """Join gate failures for the ``-j`` error field."""
+    failures = [
+        f"{result.path}: {result.detail}" for result in results if not result.ok
+    ]
+    return "; ".join(failures)
+
+
+def _write_sync_report(
+    stdout: TextIO,
+    results: list[install_core.SyncRepo] | None,
+    *,
+    width: int,
+    color: bool,
+) -> None:
+    """Append the ``--sync`` fetch report after a dry-run plan, if any."""
+    if results is None:
+        return
+    stdout.write(
+        install_ui.render_sync_report(_sync_dicts(results), width=width, color=color)
+        + "\n"
     )
 
 

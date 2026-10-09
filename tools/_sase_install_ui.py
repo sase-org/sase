@@ -49,7 +49,7 @@ def shorten_home(path: str, home: str | Path | None = None) -> str:
     if path == root:
         return "~"
     if path.startswith(root + "/"):
-        return "~" + path[len(root):]
+        return "~" + path[len(root) :]
     return path
 
 
@@ -109,9 +109,7 @@ def _current_desc(
     return current.kind or "unknown"
 
 
-def _target_desc(
-    row: install_plan.PlanRow, *, home: str | Path | None = None
-) -> str:
+def _target_desc(row: install_plan.PlanRow, *, home: str | Path | None = None) -> str:
     target = row.target
     if target.kind == "editable" and target.path is not None:
         return shorten_home(target.path, home)
@@ -122,9 +120,7 @@ def _target_desc(
     return "PyPI"
 
 
-_BORING_KEEP_NOTES = frozenset(
-    {"editable checkout", "already current", "local build"}
-)
+_BORING_KEEP_NOTES = frozenset({"editable checkout", "already current", "local build"})
 
 
 def _row_content(
@@ -159,6 +155,9 @@ def _row_content(
     elif "\u26a0" in row.note:
         tail = row.note.split("\u00b7")[-1].strip()
         content = f"{content}   {tail}"
+    elif kind == install_plan.CHANGE_UPGRADE and row.note and row.note != "PyPI":
+        # The core fast-forward row carries its <a> -> <b> action here.
+        content = f"{content}   \u00b7 {row.note}"
     return content
 
 
@@ -182,9 +181,7 @@ def render_plan_panel(
     content_width = inner - 2 - label_width - 1 - 1
 
     def border(left: str, right: str, fill: str) -> str:
-        return paint(
-            f"{left}{fill * inner}{right}", _CYAN, enabled=color
-        )
+        return paint(f"{left}{fill * inner}{right}", _CYAN, enabled=color)
 
     title = _fit(_panel_title(plan), inner - 4)
     top = paint(
@@ -297,9 +294,7 @@ def render_summary_line(plan: install_plan.InstallPlan, *, dry_run: bool) -> str
     """Render the one-line summary used by ``-q``."""
     if plan.noop:
         return render_noop_line(plan)
-    changes = sum(
-        1 for row in plan.rows if row.kind != install_plan.CHANGE_KEEP
-    )
+    changes = sum(1 for row in plan.rows if row.kind != install_plan.CHANGE_KEEP)
     noun = "change" if changes == 1 else "changes"
     suffix = " \u2014 dry run, nothing changed" if dry_run else ""
     flag = ", consequential" if plan.consequential else ""
@@ -309,6 +304,98 @@ def render_summary_line(plan: install_plan.InstallPlan, *, dry_run: bool) -> str
 def render_warning_lines(plan: install_plan.InstallPlan) -> list[str]:
     """Render plan warnings as ``⚠`` lines printed after the panel."""
     return [f"\u26a0 {warning}" for warning in plan.warnings]
+
+
+def _shrink_path(path: str, width: int) -> str:
+    """Shorten *path* to *width* cells, keeping the distinguishing tail."""
+    if _dwidth(path) <= width:
+        return path
+    if width <= 1:
+        return path[:width]
+    out: list[str] = []
+    used = 0
+    for char in reversed(path):
+        char_width = 2 if char in _WIDE_CHARS else 1
+        if used + char_width > width - 1:
+            break
+        out.append(char)
+        used += char_width
+    return "\u2026" + "".join(reversed(out))
+
+
+def render_sync_report(
+    results: Sequence[Mapping[str, object]],
+    *,
+    width: int = 80,
+    color: bool = False,
+    home: str | Path | None = None,
+) -> str:
+    """Render the ``--sync`` fetch/merge report as a rounded box.
+
+    *results* holds per-repo mappings with ``path``, ``ok``, ``skipped``,
+    and ``detail`` keys (see ``sync_document`` for the JSON shape). Long
+    paths shrink from the front so the per-repo outcome is never cut off.
+    """
+    width = max(60, min(100, width))
+    inner = width - 2
+    content_width = inner - 2
+
+    title = _fit("just install-dev \u00b7 --sync", inner - 4)
+    top = paint(
+        f"{_TOP_LEFT}\u2500 {title} ",
+        _CYAN,
+        enabled=color,
+    ) + paint(
+        f"{_HORIZONTAL * (inner - _dwidth(title) - 3)}{_TOP_RIGHT}",
+        _CYAN,
+        enabled=color,
+    )
+    lines = [top]
+    for result in results:
+        path = shorten_home(str(result.get("path", "?")), home)
+        detail = str(result.get("detail", ""))
+        if result.get("skipped"):
+            glyph = "\u2013"
+        elif result.get("ok"):
+            glyph = "\u2713"
+        else:
+            glyph = "\u2717"
+        room = content_width - _dwidth(f"{glyph}   {detail}")
+        if room >= 8:
+            content = f"{glyph} {_shrink_path(path, room)}  {detail}"
+        else:
+            content = _fit(f"{glyph} {path}  {detail}", content_width)
+        if not result.get("ok") and not result.get("skipped"):
+            content = paint(content, _YELLOW, enabled=color)
+        pad = " " * max(0, content_width - _dwidth(content))
+        lines.append(
+            paint(_VERTICAL, _CYAN, enabled=color)
+            + f" {content}{pad} "
+            + paint(_VERTICAL, _CYAN, enabled=color)
+        )
+    lines.append(
+        paint(
+            f"{_BOTTOM_LEFT}{_HORIZONTAL * inner}{_BOTTOM_RIGHT}",
+            _CYAN,
+            enabled=color,
+        )
+    )
+    return "\n".join(lines)
+
+
+def sync_document(results: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
+    """Return the ``-j`` ``sync`` entries for per-repo gate results."""
+    documents: list[dict[str, object]] = []
+    for result in results:
+        documents.append(
+            {
+                "path": result.get("path"),
+                "ok": bool(result.get("ok")),
+                "skipped": bool(result.get("skipped", False)),
+                "detail": result.get("detail"),
+            }
+        )
+    return documents
 
 
 def render_prereq_line(probes: Sequence[Mapping[str, str | None]]) -> str:
@@ -336,8 +423,16 @@ def pipeline_steps(mode: str) -> list[str]:
             "restart",
             "summary",
         ]
-    return ["preflight", "plan", "confirm", "lock", "swap", "verify", "restart",
-            "summary"]
+    return [
+        "preflight",
+        "plan",
+        "confirm",
+        "lock",
+        "swap",
+        "verify",
+        "restart",
+        "summary",
+    ]
 
 
 def plan_document(
@@ -347,6 +442,7 @@ def plan_document(
     outcome: str,
     error: str | None = None,
     log_path: str | None = None,
+    sync: Sequence[Mapping[str, object]] | None = None,
 ) -> dict[str, object]:
     """Build the ``-j`` JSON document body (``schema_version: 1``)."""
     packages: list[dict[str, object]] = []
@@ -402,6 +498,7 @@ def plan_document(
         "steps": pipeline_steps(plan.mode),
         "error": error,
         "log_path": log_path,
+        "sync": sync_document(sync) if sync is not None else None,
     }
 
 
@@ -412,13 +509,18 @@ def render_json(
     outcome: str,
     error: str | None = None,
     log_path: str | None = None,
+    sync: Sequence[Mapping[str, object]] | None = None,
 ) -> str:
     """Render the ``-j`` JSON document to stdout (nothing decorative)."""
     return (
         json.dumps(
             plan_document(
-                plan, dry_run=dry_run, outcome=outcome, error=error,
+                plan,
+                dry_run=dry_run,
+                outcome=outcome,
+                error=error,
                 log_path=log_path,
+                sync=sync,
             ),
             indent=2,
             sort_keys=False,
@@ -453,6 +555,8 @@ __all__ = [
     "render_plan_panel",
     "render_prereq_line",
     "render_summary_line",
+    "render_sync_report",
     "render_warning_lines",
     "shorten_home",
+    "sync_document",
 ]

@@ -3,7 +3,7 @@
 Every ``tools/`` engine file is referenced here by basename so
 ``tools/pyscripts-260801`` rule 1 (each file needs a reference outside
 ``tools/``) holds once these tests land: ``sase_install``,
-``_sase_install_env.py``, ``_sase_install_state.py``,
+``_sase_install_core.py``, ``_sase_install_env.py``, ``_sase_install_state.py``,
 ``_sase_install_pypi.py``, ``_sase_install_plan.py``, ``_sase_install_ui.py``.
 """
 
@@ -25,6 +25,7 @@ TOOLS_DIR = Path(__file__).resolve().parents[1] / "tools"
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
+import _sase_install_core as install_core  # noqa: E402
 import _sase_install_env as install_env  # noqa: E402
 import _sase_install_plan as install_plan  # noqa: E402
 import _sase_install_pypi as install_pypi  # noqa: E402
@@ -34,6 +35,7 @@ import _sase_install_ui as install_ui  # noqa: E402
 
 ENTRY_BASENAME = "sase_install"
 HELPER_BASENAMES = (
+    "_sase_install_core.py",
     "_sase_install_env.py",
     "_sase_install_state.py",
     "_sase_install_pypi.py",
@@ -118,18 +120,114 @@ def make_env(tmp_path: Path, **overrides: str) -> dict[str, str]:
 
 
 def make_checkout(
-    parent: Path, name: str = "checkout", version: str = "0.17.1"
+    parent: Path,
+    name: str = "checkout",
+    version: str = "0.17.1",
+    core_dep: str | None = None,
 ) -> Path:
-    """Create a fake sase checkout with a static ``[project]`` version."""
+    """Create a fake sase checkout with a static ``[project]`` version.
+
+    Pass *core_dep* (for example ``"sase-core-rs>=0.35.0,<0.36.0"``) to
+    declare the ``sase-core-rs`` floor the version-window check validates.
+    """
     root = parent / name
     root.mkdir(parents=True, exist_ok=True)
+    dep_line = f'\ndependencies = ["{core_dep}"]' if core_dep else ""
     root.joinpath("pyproject.toml").write_text(
-        f'[project]\nname = "sase"\nversion = "{version}"\n', encoding="utf-8"
+        f'[project]\nname = "sase"\nversion = "{version}"{dep_line}\n',
+        encoding="utf-8",
     )
     root.joinpath("sase-core-revision.txt").write_text(
         "e8606a564e4ddccbc4eb2369f4f32dd02ce8c3af\n", encoding="utf-8"
     )
     return root
+
+
+def write_pin_file(checkout: Path, sha: str) -> Path:
+    """Point a fixture checkout's pin file at *sha*."""
+    pin = checkout / "sase-core-revision.txt"
+    pin.write_text(f"{sha}\n", encoding="utf-8")
+    return pin
+
+
+def _git(args: list[str], cwd: Path) -> Any:
+    """Run git with throwaway identity (no global config required)."""
+    import subprocess
+
+    return subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=sase-test",
+            "-c",
+            "user.email=sase-test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            *args,
+        ],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def init_git_repo(path: Path, *, branch: str = "master") -> Path:
+    """Turn *path* into a git repo with one commit on *branch*."""
+    path.mkdir(parents=True, exist_ok=True)
+    _git(["init", "-b", branch], cwd=path)
+    path.joinpath("seed.txt").write_text("seed\n", encoding="utf-8")
+    _git(["add", "-A"], cwd=path)
+    _git(["commit", "-m", "seed"], cwd=path)
+    return path
+
+
+def git_commit(repo: Path, filename: str = "work.txt", content: str = "work\n") -> None:
+    """Append one commit touching *filename* in *repo*."""
+    repo.joinpath(filename).write_text(content, encoding="utf-8")
+    _git(["add", "-A"], cwd=repo)
+    _git(["commit", "-m", f"touch {filename}"], cwd=repo)
+
+
+def git_head(repo: Path) -> str:
+    """Return the full HEAD sha of *repo*."""
+    import subprocess
+
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout.strip()
+
+
+def make_core_checkout(
+    parent: Path, name: str = "sase-core", version: str = "0.35.0"
+) -> Path:
+    """Create a fixture sase-core git checkout at *version*."""
+    root = init_git_repo(parent / name)
+    root.joinpath("Cargo.toml").write_text(
+        f'[workspace]\n[workspace.package]\nversion = "{version}"\n',
+        encoding="utf-8",
+    )
+    _git(["add", "-A"], cwd=root)
+    _git(["commit", "-m", "core manifest"], cwd=root)
+    return root
+
+
+def make_dev_checkout(
+    parent: Path,
+    core: Path,
+    *,
+    name: str = "checkout",
+    dep: str = "sase-core-rs>=0.35.0,<0.36.0",
+) -> Path:
+    """Create a fixture sase checkout pinned at *core*'s HEAD."""
+    checkout = make_checkout(parent, name=name, core_dep=dep)
+    write_pin_file(checkout, git_head(core))
+    return checkout
 
 
 def make_sibling(parent: Path, dist_name: str, version: str = "0.4.2") -> Path:

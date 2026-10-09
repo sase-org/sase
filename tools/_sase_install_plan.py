@@ -16,6 +16,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+import _sase_install_core as install_core
 import _sase_install_env as install_env
 import _sase_install_pypi as install_pypi
 import _sase_install_state as install_state
@@ -237,9 +238,7 @@ def resolve_sibling(
     if install_env.is_ephemeral_path(candidate, env=env):
         return None
     try:
-        data = tomllib.loads(
-            (candidate / "pyproject.toml").read_text(encoding="utf-8")
-        )
+        data = tomllib.loads((candidate / "pyproject.toml").read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError):
         return None
     if not isinstance(data, dict):
@@ -410,9 +409,10 @@ def _resolve_pypi_plugin(
         desired = DesiredPlugin(kept_req, current.version)
         return desired, current, "PyPI unreachable \u00b7 keeping source", CHANGE_KEEP
     if keep_sources and current.kind == "editable" and current.path is not None:
-        if install_env.is_ephemeral_path(
-            current.path, env=env
-        ) or not Path(current.path).exists():
+        if (
+            install_env.is_ephemeral_path(current.path, env=env)
+            or not Path(current.path).exists()
+        ):
             warnings.append(
                 f"plugin '{name}' kept source is ephemeral or missing "
                 f"({current.path}); moving it to PyPI."
@@ -452,8 +452,10 @@ def build_plan(
     """Build the read-only install plan for *options* against *state*."""
     lookup = pypi_lookup or install_pypi.fetch_pypi_info
     checkout = Path(checkout_root)
-    core = Path(core_dir) if core_dir is not None else install_env.resolve_core_dir(
-        checkout, env=env
+    core = (
+        Path(core_dir)
+        if core_dir is not None
+        else install_env.resolve_core_dir(checkout, env=env)
     )
     warnings: list[str] = []
     fresh = state.receipt is None
@@ -590,9 +592,7 @@ def build_plan(
             note = f"{note} \u00b7 \u26a0 downgrade"
         desired_plugins.append(desired.requirement)
         target = TargetSource(
-            kind="editable"
-            if desired.requirement.editable is not None
-            else "pypi",
+            kind="editable" if desired.requirement.editable is not None else "pypi",
             version=desired.display_version,
             path=desired.requirement.editable,
         )
@@ -615,17 +615,25 @@ def build_plan(
         core_local=state.mode in ("dev", "mixed"),
     )
     if options.mode == "dev":
+        # dev-core-prep: the pairing rule decides the core row. Rules 1
+        # (clone) and 3 (fast-forward) are prepare-stage plan rows; rule 5
+        # (ready) and the stale-hatch rows keep the installed source. A
+        # pairing this module cannot satisfy raises CorePairingError, which
+        # the entry point reports. Dirty and stale-hatch rows are
+        # consequential without changing the source, so their flag is
+        # carried explicitly instead of derived from the change kind.
+        pairing = install_core.pair_core(checkout, core, env=env)
+        warnings.extend(pairing.warnings)
         core_target = TargetSource(kind="editable", path=str(core))
-        if core_current.kind == "editable" and _same_path(core_current.path, core):
-            core_kind, core_note = CHANGE_KEEP, "editable checkout"
-        elif core_current.kind == "editable":
-            core_kind, core_note = CHANGE_RETARGET, "retarget checkout"
-        elif core_current.kind == "local":
-            core_kind, core_note = CHANGE_KEEP, "local build"
-        elif core_current.kind == "missing":
-            core_kind, core_note = CHANGE_ADD, "editable checkout"
+        if pairing.action == "clone":
+            core_kind, core_note = CHANGE_ADD, pairing.note
+            core_consequential = False
+        elif pairing.action == "fast-forward":
+            core_kind, core_note = CHANGE_UPGRADE, pairing.note
+            core_consequential = False
         else:
-            core_kind, core_note = CHANGE_TO_EDITABLE, "editable checkout"
+            core_kind, core_note = CHANGE_KEEP, pairing.note
+            core_consequential = pairing.consequential
     else:
         core_info = lookup(CORE_DIST_NAME)
         if core_info.warning is not None:
@@ -633,9 +641,15 @@ def build_plan(
         core_target = TargetSource(kind="pypi", version=core_info.version)
         if core_current.kind in ("editable", "local"):
             core_kind, core_note = CHANGE_TO_PYPI, "PyPI"
-            if core_current.version and core_info.version and (
-                install_pypi.compare_versions(core_current.version, core_info.version)
-                > 0
+            if (
+                core_current.version
+                and core_info.version
+                and (
+                    install_pypi.compare_versions(
+                        core_current.version, core_info.version
+                    )
+                    > 0
+                )
             ):
                 core_note = "PyPI \u00b7 \u26a0 downgrade"
         elif core_current.kind == "missing":
@@ -643,6 +657,10 @@ def build_plan(
         else:
             core_kind = _index_kind(core_current.version, core_info.version)
             core_note = "PyPI" if core_kind != CHANGE_KEEP else "already current"
+    if options.mode == "dev":
+        core_row_consequential = core_consequential
+    else:
+        core_row_consequential = _consequential(core_kind)
     rows.append(
         PlanRow(
             name=CORE_DIST_NAME,
@@ -650,7 +668,7 @@ def build_plan(
             current=core_current,
             target=core_target,
             kind=core_kind,
-            consequential=_consequential(core_kind),
+            consequential=core_row_consequential,
             note=core_note,
         )
     )
@@ -674,11 +692,16 @@ def build_plan(
     consequential = any(row.consequential for row in rows) or (
         python_change and state.env_exists
     )
+    # A consequential plan is never a no-op: dirty-core and stale-hatch
+    # rows keep their source but must still rebuild and re-prompt, and such
+    # a pair never gets the healthy success line. (Today only keep rows can
+    # be consequential this way, so existing plans are unaffected.)
     noop = (
         not fresh
         and not options.force
         and all(row.kind == CHANGE_KEEP for row in rows)
         and not python_change
+        and not consequential
     )
 
     overrides = editable_override_lines([desired_host_req, *desired_plugins])
@@ -689,11 +712,6 @@ def build_plan(
         build_swap_argv(desired_host_req, desired_plugins, overrides=overrides_path)
     )
 
-    if options.sync:
-        warnings.append(
-            "--sync requested: the fatal sync gate lands with dev-core-prep; "
-            "this preview covers the package set only."
-        )
     force_foreign_env = state.env_exists and fresh
     if force_foreign_env:
         warnings.append(
@@ -724,9 +742,7 @@ def build_plan(
     )
 
 
-def _downgrade_pair(
-    current_version: str | None, desired: DesiredPlugin
-) -> bool:
+def _downgrade_pair(current_version: str | None, desired: DesiredPlugin) -> bool:
     return bool(
         current_version
         and desired.display_version

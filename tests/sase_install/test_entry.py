@@ -209,7 +209,10 @@ def test_help_lists_modes() -> None:
         assert flag in flat, flag
 
 
-def test_sync_flag_warns_gate_lands_later(tmp_path: Path, monkeypatch: object) -> None:
+def test_sync_flag_fetches_and_reports(tmp_path: Path, monkeypatch: object) -> None:
+    # The --sync gate landed with dev-core-prep: a dry run fetches every
+    # checkout the plan will use and prints the report (here the plain-dir
+    # fixture checkout is skipped, and the missing core becomes a clone row).
     entry, env, checkout, tool_dir, bin_dir, lookup = _harness(tmp_path, monkeypatch)
     exit_code, out, _ = kit.run_entry(
         entry,
@@ -221,7 +224,8 @@ def test_sync_flag_warns_gate_lands_later(tmp_path: Path, monkeypatch: object) -
         bin_dir=bin_dir,
     )
     assert exit_code == 0
-    assert "dev-core-prep" in out
+    assert "--sync" in out
+    assert "skipping" in out
 
 
 def test_version_compare_orders_releases() -> None:

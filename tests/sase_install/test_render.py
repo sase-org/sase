@@ -45,7 +45,9 @@ def _flip_plan(tmp_path: Path) -> install_plan.InstallPlan:
 
 
 def _dev_plan(tmp_path: Path) -> install_plan.InstallPlan:
-    checkout = kit.make_checkout(tmp_path)
+    # A healthy paired core: the dev panel shows the noop pairing rows.
+    core = kit.make_core_checkout(tmp_path)
+    checkout = kit.make_dev_checkout(tmp_path, core)
     tool_dir, _ = kit.make_tool_env(tmp_path, checkout=checkout)
     state = install_state.read_state(tool_dir=tool_dir, bin_dir=tool_dir / "bin")
     lookup = kit.FakePyPI({"sase": "0.17.1", "sase-core-rs": "0.37.0"})
@@ -53,6 +55,7 @@ def _dev_plan(tmp_path: Path) -> install_plan.InstallPlan:
         options=install_plan.PlanOptions(mode="dev"),
         state=state,
         checkout_root=checkout,
+        core_dir=core,
         env=kit.make_env(tmp_path),
         pypi_lookup=lookup,
     )

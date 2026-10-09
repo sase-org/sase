@@ -9,7 +9,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +46,7 @@ PYTHON_SHEBANG_RE = re.compile(rb"(^|[/\s])python(?:\d+(?:\.\d+)*)?(\s|$)")
 #: sees them; they are listed here instead of weakening discovery for every
 #: other ``_*.py`` helper in ``tools/``.
 EXTRA_TYPED_HELPERS = (
+    "_sase_install_core.py",
     "_sase_install_env.py",
     "_sase_install_pypi.py",
     "_sase_install_plan.py",
