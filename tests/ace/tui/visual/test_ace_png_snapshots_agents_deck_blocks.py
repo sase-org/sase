@@ -12,6 +12,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import show_reply_card
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -196,20 +197,7 @@ def _left_scrollbar_in_sync(page: AcePage, detail: AgentDetail) -> bool:
 
 
 async def _show_reply(page: AcePage) -> AgentDetail:
-    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-    await wait_for_state(
-        page,
-        lambda: set(detail._main_deck_document.card_ids) == {"context", "reply"},
-        description="Main deck has Context and Reply cards",
-    )
-    await page.press("ctrl+j")
-    await wait_for_state(
-        page,
-        lambda: detail.deck_area.panel(0).main_view.active_card_id == "reply",
-        description="Main deck shows the Reply card",
-    )
-    await wait_for_visual_idle(page)
-    return detail
+    return await show_reply_card(page)
 
 
 async def test_agents_deck_blocks_paged_newest_png_snapshot(

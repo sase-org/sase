@@ -591,10 +591,15 @@ class DeckPanelDocumentTransitionsMixin:
                         document, preferred_card=preferred_card, mode=new_mode
                     )
             else:
+                # The sticky preferred card (the user's explicit choice)
+                # wins the card decision over a scroll-derived anchor, which
+                # can still point at the previous card while layout settles
+                # under load. The anchor still owns the scroll offset restore
+                # below. Without a recorded choice the anchor rules as before.
                 active = self.show_document_paged(  # type: ignore[attr-defined]
                     deck,
                     document,
-                    anchor_card or preferred_card,
+                    preferred_card or anchor_card,
                     new_mode,
                 )
         except Exception:

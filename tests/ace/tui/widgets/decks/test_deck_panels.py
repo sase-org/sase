@@ -281,6 +281,45 @@ async def test_cycle_focused_deck_wraps_and_reloads(tmp_path: Path) -> None:
         assert panel.deck is DeckId.FINAL
 
 
+async def test_cycle_focused_deck_card_applies_when_view_lags(
+    tmp_path: Path,
+) -> None:
+    """A ctrl+j that lands while the view still shows the old document sticks.
+
+    Freezes the loaded race window deterministically: the panel holds the
+    new two-card document while the Main view still shows the previous
+    context-only document. The press must switch to Reply (and record the
+    sticky card) instead of being silently dropped.
+    """
+    from sase.ace.tui.widgets.decks.main_document import MainDeckDocument
+
+    app = _DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        panel = detail.deck_area.panel(0)
+        assert set(detail._main_deck_document.card_ids) == {"context", "reply"}
+        assert panel.main_view.active_card_id == "context"
+        current = panel._main_document
+        context_card = current.card("context")
+        assert context_card is not None
+        panel.main_view._document = MainDeckDocument(
+            cards=(context_card,),
+            subject=current.subject,
+            partial=False,
+            digest="stale-context-only",
+        )
+        shown = detail.cycle_focused_deck_card(1)
+        await pilot.pause()
+        assert shown == "reply"
+        assert panel.main_view.active_card_id == "reply"
+        assert detail.deck_area.state.panels[0].preferred_card == "reply"
+
+
 async def test_deck_palette_availability_gates() -> None:
     from sase.ace.tui.commands._availability_agents import agents_available
     from sase.ace.tui.commands.types import CommandContext

@@ -61,6 +61,73 @@ def main_deck_scroll(page: AcePage, panel_index: int = 0) -> VerticalScroll:
     return detail.deck_area.panel(panel_index).active_scroll()
 
 
+async def show_reply_card(page: AcePage, panel_index: int = 0) -> AgentDetail:
+    """Switch the Main deck to Reply with one ctrl+j once cycling can land it.
+
+    Readiness matches exactly what ``DeckPanel.cycle_card`` needs: the panel
+    document holds Context and Reply, the view already shows that document,
+    and no deferred Main body is still being built off the pump. Pressing
+    earlier silently drops the keystroke under parallel load.
+    """
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    await wait_for_state(
+        page,
+        lambda: set(detail._main_deck_document.card_ids) == {"context", "reply"},
+        description="Main deck has Context and Reply cards",
+    )
+    await wait_for_state(
+        page,
+        lambda: _main_view_ready_to_cycle(detail, panel_index),
+        description="Main deck view is ready to cycle to the Reply card",
+    )
+    # The deck can land on Reply by itself (spread sticky landing) while the
+    # readiness wait runs. Pressing then would wrap back to Context, so only
+    # press when the switch is still needed. This is one press, not a retry:
+    # a dropped press still fails loudly on the wait below.
+    already = False
+    try:
+        already = (
+            detail.deck_area.panel(panel_index).main_view.active_card_id == "reply"
+        )
+    except Exception:
+        already = False
+    if not already:
+        await page.press("ctrl+j")
+    await wait_for_state(
+        page,
+        lambda: detail.deck_area.panel(panel_index).main_view.active_card_id == "reply",
+        description="Main deck shows the Reply card",
+    )
+    await wait_for_visual_idle(page)
+    return detail
+
+
+def _main_view_ready_to_cycle(detail: AgentDetail, panel_index: int) -> bool:
+    """Return whether ctrl+j can cycle the Main panel right now."""
+    try:
+        panel = detail.deck_area.panel(panel_index)
+    except Exception:
+        return False
+    try:
+        if panel.deck is not DeckId.MAIN:
+            return False
+    except Exception:
+        return False
+    try:
+        document = panel.main_view._document
+        view_ids = set(document.card_ids) if document is not None else set()
+    except Exception:
+        return False
+    if view_ids != {"context", "reply"}:
+        return False
+    try:
+        applied = int(getattr(panel, "_main_view_applied_generation", 0))
+        generation = int(getattr(panel, "_view_generation", 0))
+    except Exception:
+        return False
+    return applied >= generation
+
+
 async def select_main_card(
     page: AcePage, card_id: str, panel_index: int = 0, *, max_presses: int = 8
 ) -> None:

@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
     zoom_multi_file_agent,
 )
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import show_reply_card
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -172,15 +173,7 @@ async def test_agents_decks_single_main_reply_png_snapshot(
     patch_startup_loaders(monkeypatch, agents=[_reply_agent(tmp_path)])
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _goto_agents(page, 1)
-        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-        await wait_for_state(
-            page,
-            lambda: set(detail._main_deck_document.card_ids) == {"context", "reply"},
-            description="Main deck has Context and Reply cards",
-        )
-        await page.press("ctrl+j")
-        await wait_for_visual_idle(page)
-        assert detail.deck_area.panel(0).main_view.active_card_id == "reply"
+        await show_reply_card(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_decks_single_main_reply_120x40",
@@ -201,14 +194,7 @@ async def test_agents_decks_live_reply_partial_and_growth_png_snapshots(
 
     async with AcePage(query='"visual-live-reply"', patches=patches()) as page:
         await _goto_agents(page, 1)
-        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-        await wait_for_state(
-            page,
-            lambda: set(detail._main_deck_document.card_ids) == {"context", "reply"},
-            description="live Main deck has Context and Reply cards",
-        )
-        await page.press("ctrl+j")
-        await wait_for_visual_idle(page)
+        detail = await show_reply_card(page)
         single_panel = detail.deck_area.panel(0)
         assert single_panel.main_view.active_card_id == "reply"
         assert "Current progress:" in _reply_card_text(detail)

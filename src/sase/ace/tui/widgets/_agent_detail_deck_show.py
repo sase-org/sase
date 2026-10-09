@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from .decks.main_document import MainDeckDocument
-from .decks.model import DeckId
+from .decks.model import DeckId, cycle_card_id
 
 log = logging.getLogger(__name__)
 
@@ -161,7 +161,9 @@ class AgentDetailDeckShowMixin:
         try:
             shown = panel.cycle_card(direction)
         except Exception:
-            return None
+            shown = None
+        if shown is None:
+            shown = self._apply_ready_deck_card(panel, direction)
         if shown is not None:
             try:
                 index = panel.panel_index
@@ -176,6 +178,40 @@ class AgentDetailDeckShowMixin:
             else:
                 self.set_deck_preferred_card(index, shown)
         return shown
+
+    def _apply_ready_deck_card(self, panel: Any, direction: int) -> str | None:
+        """Apply a dropped Main card switch whose document is already ready.
+
+        ``cycle_card`` shows through the view's stored document. When that
+        copy lags the panel document (a re-show scheduled off the pump has
+        not applied yet under load), the keystroke is silently dropped even
+        though the panel already holds both cards. Push the panel document
+        with the cycled card as preferred instead of losing the press.
+        """
+        try:
+            if panel.deck is not DeckId.MAIN:
+                return None
+            document = panel._main_document
+            ids = [card.card_id for card in document.cards]
+            if len(ids) < 2:
+                return None
+            try:
+                active = panel.main_view.active_card_id
+            except Exception:
+                active = None
+            if active is None:
+                try:
+                    active = panel._main_active_card
+                except Exception:
+                    active = None
+            next_id = cycle_card_id(ids, active, direction)
+            if next_id is None or next_id == active:
+                return None
+            if document.card(next_id) is None:
+                return None
+            return panel.show_main_document(document, preferred_card=next_id)
+        except Exception:
+            return None
 
     def _remember_deck_preferred_card(
         self,
