@@ -10,6 +10,7 @@ shared journal/hash/lookup primitives in
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 from collections.abc import Mapping
 from typing import Any
@@ -84,7 +85,7 @@ def _start_gate_creation(
     spec: GateSpec, adapter: GateAdapter, paths: Any
 ) -> GateCreationResult:
     effective, decision, policy_block, auto_execute = effective_auto_state(
-        spec, adapter
+        spec, adapter, request_id=paths.root.name
     )
     notification_id = None if auto_execute else str(uuid4())
     paths.root.mkdir(parents=True, exist_ok=False)
@@ -169,6 +170,44 @@ def _start_gate_creation(
         raise
 
 
+def _persisted_policy_block(envelope: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the durable policy snapshot from a persisted gate envelope, if any."""
+    try:
+        auto = envelope.get("auto")
+        if not isinstance(auto, dict):
+            return None
+        policy = auto.get("policy")
+        return dict(policy) if isinstance(policy, dict) and policy else None
+    except Exception:
+        return None
+
+
+def _effective_from_persisted_policy(
+    spec: GateSpec, policy_block: dict[str, Any]
+) -> tuple[GateSpec, dict[str, Any], dict[str, Any], bool]:
+    """Rebuild the effective creation state from a persisted policy snapshot.
+
+    Reuses the first evaluation's decision instead of evaluating again, so
+    journal recovery never appends a duplicate decision-log row and the
+    request/result/response policy identity stays consistent.
+    """
+    decision = dict(policy_block)
+    auto_execute = bool(spec.auto.enabled) and decision.get("outcome") == "auto"
+    if auto_execute:
+        return spec, decision, dict(policy_block), True
+    return (
+        dataclasses.replace(
+            spec,
+            auto=dataclasses.replace(
+                spec.auto, enabled=False, argument=None, policy=spec.auto.policy
+            ),
+        ),
+        decision,
+        dict(policy_block),
+        False,
+    )
+
+
 def _resume_gate_creation(
     spec: GateSpec, adapter: GateAdapter, paths: Any, journal: dict[str, Any]
 ) -> GateCreationResult:
@@ -178,9 +217,15 @@ def _resume_gate_creation(
             "invalid_creation_state", str(paths.journal), f"unknown gate state: {state}"
         )
     envelope = read_json_object(paths.request)
-    effective, decision, policy_block, auto_execute = effective_auto_state(
-        spec, adapter
-    )
+    persisted = _persisted_policy_block(envelope)
+    if persisted is not None:
+        effective, decision, policy_block, auto_execute = (
+            _effective_from_persisted_policy(spec, persisted)
+        )
+    else:
+        effective, decision, policy_block, auto_execute = effective_auto_state(
+            spec, adapter, request_id=paths.root.name
+        )
     candidate_fingerprint = spec_fingerprint(
         effective, adapter, source_hashes(effective)
     )

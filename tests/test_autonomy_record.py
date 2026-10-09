@@ -153,7 +153,11 @@ def test_apply_record_meta_patch_removes_legacy_when_on() -> None:
     record = resolve_selection("", source="prompt", surface="launch")
     apply_record_meta_patch(meta, record)
     assert meta["autonomy"] == record
-    assert not any(key in meta for key in LEGACY_AUTONOMY_KEYS)
+    assert "approve" not in meta
+    assert "auto_approve_argument" not in meta
+    assert "auto_approve_plan_action" not in meta
+    # The dual-use ``plan`` flow marker is preserved.
+    assert meta.get("plan") is True
 
 
 def test_auto_applies_kinds() -> None:
@@ -306,9 +310,11 @@ def test_wire_conversion_projects_record(tmp_path: Path) -> None:
     assert wire.approve is False
     assert wire.autonomy == tale
 
-    # Explicit legacy keys win over the record.
+    # An existing valid record is authoritative: stale legacy keys cannot
+    # override it, including false/absent projection values.
     wire = _agent_meta_from_dict(
         {"autonomy": tale, "approve": True, "auto_approve_argument": "plan"}
     )
-    assert wire.approve is True
-    assert wire.auto_approve_argument == "plan"
+    assert wire.approve is False
+    assert wire.auto_approve_argument == "tale"
+    assert wire.auto_approve_plan_action == "tale"

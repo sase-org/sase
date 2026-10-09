@@ -70,8 +70,11 @@ def test_autonomy_show_json_pretty_and_unknown(capsys: Any) -> None:
 
 
 def _seed_log(home: Path) -> None:
+    from datetime import UTC, datetime
+
     from sase.core.rust import require_rust_binding
 
+    now = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
     append = require_rust_binding("autonomy_append_decision")
     for gate_kind, outcome, agent in (
         ("plan", "auto", "seed-agent"),
@@ -82,7 +85,7 @@ def _seed_log(home: Path) -> None:
             str(home),
             {
                 "schema_version": 1,
-                "at": "2026-10-09T10:00:00Z",
+                "at": now,
                 "agent": agent,
                 "agent_session": "seed-session",
                 "project": "sase",

@@ -79,18 +79,27 @@ def evaluate_gate(
     *,
     gate_kind: str,
     option_ids: list[str],
+    capabilities: list[str] | None = None,
 ) -> dict[str, Any]:
     """Evaluate one gate request against *record* through core.
 
-    A ``None`` record is Manual and always asks.
+    A ``None`` record is Manual and always asks. When *capabilities* is
+    None the built-in kind table applies; gate creation passes the owning
+    adapter's ``auto_capabilities`` so an empty or reduced set asks via
+    ``not_capable`` instead of auto-resolving.
     """
     from sase.autonomy.record import evaluate
 
+    effective = (
+        sorted(capabilities)
+        if capabilities is not None
+        else sorted(capabilities_for_kind(gate_kind))
+    )
     return evaluate(
         record,
         gate_kind,
         option_ids,
-        sorted(capabilities_for_kind(gate_kind)),
+        effective,
     )
 
 

@@ -256,6 +256,7 @@ def extract_prompt_directives(
     )
     auto_mode = resolve_auto_mode(expanded_args)
     auto_enabled, auto_argument = resolve_auto_argument(expanded_args)
+    auto_present = "auto" in expanded_args
     model_alias_overrides = resolve_model_alias_overrides(
         collected.model_alias_overrides,
         process_references=process_references,
@@ -268,6 +269,7 @@ def extract_prompt_directives(
         auto_mode=auto_mode,
         auto_enabled=auto_enabled,
         auto_argument=auto_argument,
+        auto_present=auto_present,
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
         model_alias=(

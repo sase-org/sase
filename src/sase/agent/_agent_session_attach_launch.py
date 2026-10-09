@@ -34,6 +34,17 @@ def prepare_agent_session_attach_launch(
     if directive is None:
         return context, extra_env
 
+    # A trusted host-composed injection (direct approval coder, recovery)
+    # arrives in extra_env with host_composed True for the same parent.
+    # Preserve it across the fresh resolve so the child inherits instead
+    # of resolving from its own prompt. Human launches carry no such env
+    # and stay host_composed False.
+    trusted_host_composed = False
+    try:
+        existing = load_agent_session_attach_plan_from_env(dict(extra_env or {}))
+        trusted_host_composed = bool(existing is not None and existing.host_composed)
+    except Exception:
+        trusted_host_composed = False
     resolver = (
         resolve_agent_session_attach_plan
         or _resolution.resolve_agent_session_attach_plan
@@ -43,6 +54,13 @@ def prepare_agent_session_attach_launch(
         project_name=context.project_name,
         pending_agent_session_parents=pending_agent_session_parents,
     )
+    if trusted_host_composed:
+        from dataclasses import replace as _replace
+
+        try:
+            plan = _replace(plan, host_composed=True)
+        except Exception:
+            pass
     env = dict(extra_env or {})
     env.update(agent_session_attach_env(plan))
     if plan.sase_plan:
@@ -187,6 +205,7 @@ def load_agent_session_attach_plan_from_env(
         parent_workspace_num=_int_or_none(data.get("parent_workspace_num")),
         sase_plan=_str_or_none(data.get("sase_plan")),
         model_alias_overrides=_string_mapping(data.get("model_alias_overrides")),
+        host_composed=bool(data.get("host_composed", False)),
     )
 
 

@@ -21,6 +21,46 @@ class CoderLaunch:
     notes: tuple[str, ...] = ()
 
 
+def _host_composed_attach_env(prompt: str) -> dict[str, str]:
+    """Return a trusted host-composed attach env for a session coder prompt.
+
+    Direct approval and coder recovery launch a host-composed coder when a
+    planner/session exists: the prompt's own ``%id(suffix, session=parent)``
+    resolves through the existing session placement, but the child must
+    inherit the planner's live autonomy record instead of resolving from
+    its own prompt. Human-authored session attaches never pass through
+    this helper and keep resolving from their own prompt. Failures return
+    no env so the launch falls back to the historical path.
+    """
+    try:
+        from dataclasses import replace as _replace
+
+        from sase.agent._agent_session_attach_directives import (
+            extract_agent_session_attach_directive,
+        )
+        from sase.agent._agent_session_attach_resolution import (
+            resolve_agent_session_attach_plan,
+        )
+        from sase.agent.detached_child import agent_session_attach_env
+        from sase.main.utils import ensure_project_file_and_get_workspace_num
+    except Exception:
+        return {}
+    try:
+        directive = extract_agent_session_attach_directive(prompt)
+        if directive is None:
+            return {}
+        _, _, project_name = ensure_project_file_and_get_workspace_num(
+            create_missing=False
+        )
+        if not project_name:
+            return {}
+        plan = resolve_agent_session_attach_plan(directive, project_name=project_name)
+        plan = _replace(plan, host_composed=True)
+        return agent_session_attach_env(plan)
+    except Exception:
+        return {}
+
+
 def launch_coder_once(prompt: str, local_plan: Path) -> object:
     """Launch one coder exactly as the historical direct-approval path did."""
     from sase.agent.launch_cwd import launch_agents_from_cwd
@@ -28,12 +68,14 @@ def launch_coder_once(prompt: str, local_plan: Path) -> object:
         SASE_AGENT_PINNED_WORKSPACE_FALLBACK,
     )
 
+    extra_env: dict[str, str] = {
+        "SASE_PLAN": str(local_plan),
+        SASE_AGENT_PINNED_WORKSPACE_FALLBACK: "pool",
+    }
+    extra_env.update(_host_composed_attach_env(prompt))
     results = launch_agents_from_cwd(
         prompt,
-        extra_env={
-            "SASE_PLAN": str(local_plan),
-            SASE_AGENT_PINNED_WORKSPACE_FALLBACK: "pool",
-        },
+        extra_env=extra_env,
         origin="generated",
     )
     if not results:

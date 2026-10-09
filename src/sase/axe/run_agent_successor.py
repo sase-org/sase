@@ -197,6 +197,34 @@ def _resolved_suffix(
     )
 
 
+def _explicit_autonomy_selection(prompt: str) -> str | None:
+    """Extract the agent-authored ``%auto`` selection from a successor prompt.
+
+    Returns ``""`` for bare ``%auto``, the argument for enabled spellings,
+    ``"manual"`` for explicit ``:manual``/``:off``, and None when the prompt
+    carries no ``%auto``. Invalid spellings fail closed to None (pure
+    inherit); Python only extracts and transports, core decides narrowing.
+    """
+    try:
+        from sase.macro.directives import extract_prompt_directives
+    except Exception:
+        return None
+    try:
+        _, directives = extract_prompt_directives(prompt)
+    except Exception:
+        return None
+    try:
+        if directives.auto_enabled and directives.auto_argument is not None:
+            return str(directives.auto_argument)
+        if directives.auto_enabled:
+            return ""
+        if bool(getattr(directives, "auto_present", False)):
+            return "manual"
+    except Exception:
+        return None
+    return None
+
+
 def continue_as_successor(
     ctx: AgentExecContext,
     state: LoopState,
@@ -234,11 +262,18 @@ def continue_as_successor(
     )
     if request.before_create is not None:
         request.before_create(suffix, successor_name)
+    relationships = dict(request.relationships or {})
+    explicit_selection = _explicit_autonomy_selection(request.prompt)
+    if (
+        explicit_selection is not None
+        and "autonomy_explicit_selection" not in relationships
+    ):
+        relationships["autonomy_explicit_selection"] = explicit_selection
     create_kwargs: dict[str, Any] = {
         "workspace_num": ctx.workspace_num,
         "agent_name_override": successor_name if ctx.agent_name else None,
         "workflow_name": ctx.agent_name,
-        "relationships": request.relationships,
+        "relationships": relationships,
     }
     if request.agent_session_role is not None:
         create_kwargs["agent_session_role"] = request.agent_session_role

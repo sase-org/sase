@@ -90,31 +90,9 @@ def persist_autonomy_toggle(
         if status in ("applied", "unchanged"):
             updated = dict(meta)
             try:
-                from sase.autonomy.record import (
-                    LEGACY_AUTONOMY_KEYS,
-                    legacy_projection,
-                    record_only,
-                )
+                from sase.autonomy.record import apply_record_meta_patch
 
                 apply_record_meta_patch(updated, record)
-                if not record_only():
-                    # Drop stale legacy keys the new projection no longer
-                    # carries (e.g. a toggled-off ``approve: True``): the
-                    # shared patch only adds truthy keys.
-                    try:
-                        projection = legacy_projection(record)
-                    except Exception:
-                        projection = {}
-                    for key in LEGACY_AUTONOMY_KEYS:
-                        if key not in (
-                            "approve",
-                            "auto_approve_argument",
-                            "auto_approve_plan_action",
-                            "plan",
-                        ):
-                            continue
-                        if projection.get(key) in (None, False):
-                            updated.pop(key, None)
             except Exception:
                 updated["autonomy"] = record
             if updated != meta:

@@ -142,6 +142,21 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
             if isinstance(value, str) and value:
                 preserved[key] = value
         preserved[AGENT_SESSION_PARALLEL_KEY] = True
+    try:
+        from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+
+        refreshed = os.environ.get(RUNNER_CODE_REFRESHED_ENV) == "1"
+    except Exception:
+        refreshed = False
+    if refreshed:
+        # Same-agent runner refresh re-exec: the refreshed pass rewrote the
+        # prompt from the live record, so the freshly resolved record would
+        # lose revision/last/digest/source. Preserve the live full record so
+        # A-off then refresh then A-on restores tale. A genuinely new human
+        # launch never carries the refreshed marker, so it resolves fresh.
+        autonomy = existing_meta.get("autonomy")
+        if isinstance(autonomy, dict) and autonomy:
+            preserved["autonomy"] = dict(autonomy)
     return preserved
 
 

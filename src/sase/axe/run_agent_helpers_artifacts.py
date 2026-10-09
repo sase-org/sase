@@ -27,6 +27,23 @@ from sase.plan_chain import (
 )
 
 
+def _explicit_autonomy_selection_from_relationships(
+    relationships: dict[str, Any] | None,
+) -> str | None:
+    """Return the agent-authored ``%auto`` selection for a successor, if any.
+
+    :func:`continue_as_successor` extracts the successor prompt's ``%auto``
+    (``""`` for bare, ``"manual"`` for explicit ``:manual``/``:off``) and
+    stashes it under ``autonomy_explicit_selection`` so structural
+    inheritance can narrow under agent semantics. Absence gives None (pure
+    inherit). Non-string values fail closed to None.
+    """
+    if not isinstance(relationships, dict):
+        return None
+    raw = relationships.get("autonomy_explicit_selection")
+    return raw if isinstance(raw, str) else None
+
+
 def _inherit_autonomy_record(
     followup_meta: dict[str, Any],
     base_meta: dict[str, Any],
@@ -40,11 +57,12 @@ def _inherit_autonomy_record(
     seed it from live disk, e.g. :func:`live_plan_successor_meta` or the
     interrupted-phase live read); when it carries no record, a relationship
     ``autonomy`` dict is accepted as the predecessor so the legacy
-    plan-chain path keeps working. An explicit ``%auto`` in an
-    agent-authored successor prompt narrows under agent semantics; the
-    generated prompts this helper serves carry none, so no explicit
-    selection is passed. Failures fail closed to a manual record so a
-    successor never inherits a half-written state.
+    plan-chain path keeps working. An explicit ``%auto`` selection stashed
+    by :func:`continue_as_successor` narrows under agent semantics; a
+    refused widening keeps the inherited record and is noted in the run
+    log. An unreadable predecessor never adopts a wider authored policy:
+    it fails closed to manual. Other failures fail closed to a manual
+    record so a successor never inherits a half-written state.
     """
     from sase.autonomy.record import (
         apply_record_meta_patch,
@@ -70,6 +88,7 @@ def _inherit_autonomy_record(
         except Exception:
             followup_meta["autonomy"] = manual
         return
+    explicit_selection = _explicit_autonomy_selection_from_relationships(relationships)
     predecessor_name = base_meta.get("name")
     if not isinstance(predecessor_name, str):
         predecessor_name = ""
@@ -77,7 +96,7 @@ def _inherit_autonomy_record(
         outcome = autonomy_inherit_record(
             predecessor,
             predecessor_name=predecessor_name,
-            explicit_selection=None,
+            explicit_selection=explicit_selection,
             actor_kind="host",
         )
     except Exception:
@@ -85,6 +104,14 @@ def _inherit_autonomy_record(
     record = outcome.get("record")
     if not isinstance(record, dict) or not record:
         return
+    if outcome.get("status") == "refused" and explicit_selection is not None:
+        import logging as _logging
+
+        _logging.getLogger(__name__).info(
+            "autonomy widening refused for in-process successor of %s: %s",
+            predecessor_name or "predecessor",
+            outcome.get("reason", ""),
+        )
     try:
         apply_record_meta_patch(followup_meta, record)
     except Exception:
@@ -305,6 +332,7 @@ def create_followup_artifacts(
                 "auto_approve_argument",
                 "plan",
                 "autonomy",
+                "autonomy_explicit_selection",
             ):
                 continue
             if value or (isinstance(value, bool) and value is not None):

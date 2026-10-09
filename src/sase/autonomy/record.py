@@ -229,13 +229,16 @@ def retune_meta_record(meta: dict[str, Any]) -> dict[str, Any]:
 
 
 def with_legacy_projection(meta: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a copy of *meta* with missing legacy ``%auto`` keys filled.
+    """Return a copy of *meta* with legacy ``%auto`` keys from the record.
 
-    Explicitly stored legacy keys always win; only absent keys project
-    from the stored record, so pre-E1 and mixed states read unchanged. A
-    missing binding or an unusable record returns an unmodified copy.
-    Never mutates the input, so loader-local views cannot leak projected
-    keys back to disk.
+    An existing valid record is authoritative for the auto keys
+    (``approve``, ``auto_approve_plan_action``, ``auto_approve_argument``),
+    including false/absent projection values: stale stored keys are removed
+    so a manual record with stale ``approve=True`` reads manual. Legacy keys
+    translate only when no record exists (via :func:`read_record` callers).
+    The dual-use ``plan`` flow marker is preserved untouched. A missing
+    binding or an unusable record returns an unmodified copy. Never mutates
+    the input, so loader-local views cannot leak projected keys to disk.
     """
     filled = dict(meta)
     record = filled.get("autonomy")
@@ -249,10 +252,12 @@ def with_legacy_projection(meta: Mapping[str, Any]) -> dict[str, Any]:
         "approve",
         "auto_approve_plan_action",
         "auto_approve_argument",
-        "plan",
     ):
-        if key not in filled and projection.get(key) not in (None, False):
-            filled[key] = projection[key]
+        projected = projection.get(key)
+        if projected in (None, False):
+            filled.pop(key, None)
+        else:
+            filled[key] = projected
     return filled
 
 
@@ -287,10 +292,21 @@ def apply_record_meta_patch(
     agent_meta: dict[str, Any], record: Mapping[str, Any]
 ) -> dict[str, Any]:
     """Write *record* into *agent_meta* honoring the sunset flag."""
-    agent_meta.update(record_meta_patch(record))
+    patch = record_meta_patch(record)
+    agent_meta.update(patch)
     if record_only():
-        for key in LEGACY_AUTONOMY_KEYS:
+        # The dual-use ``plan`` flow marker is preserved even with the flag
+        # on: it is plan-flow status, not ``%auto`` state.
+        for key in RETUNE_DROP_KEYS:
             agent_meta.pop(key, None)
+    else:
+        # Drop stale auto keys the new projection no longer carries (e.g. a
+        # toggled-off ``approve: True``). The shared patch only adds truthy
+        # keys, so without this a flag-off rewrite would leave them behind.
+        # The dual-use ``plan`` flow marker is preserved.
+        for key in RETUNE_DROP_KEYS:
+            if key not in patch:
+                agent_meta.pop(key, None)
     return agent_meta
 
 
@@ -432,7 +448,23 @@ def mutate_record(
     if expected_revision is not None:
         request["expected_revision"] = expected_revision
     result = mutate(dict(record), request)
-    return dict(result)
+    outcome = dict(result)
+    # Provenance compatibility until the core pin includes truthful human
+    # source: a human TUI/CLI mutation must not retain the launch source.
+    try:
+        inner = outcome.get("record")
+        if (
+            isinstance(inner, dict)
+            and actor_kind == "human"
+            and surface in ("tui", "cli")
+            and inner.get("source") != surface
+        ):
+            inner = dict(inner)
+            inner["source"] = surface
+            outcome["record"] = inner
+    except Exception:
+        pass
+    return outcome
 
 
 def summarize_record(record: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -478,7 +510,9 @@ def read_decision_log(query: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Return decision-log entries newest first for *query*.
 
     *query* carries ``{since, agent, gate_kind, outcome, limit}``; ``since``
-    accepts the same DATE tokens the CLI ``--since`` options accept.
+    is a UTC timestamp string in the log's ``at`` format
+    (``YYYY-MM-DDTHH:MM:SSZ``). The CLI normalizes DATE tokens to this
+    form before calling; core only compares timestamp strings.
     """
     from sase.core.paths import sase_home
     from sase.core.rust import require_rust_binding

@@ -10,15 +10,17 @@ from sase.notification_gates.registry import GateAdapter
 
 
 def _evaluate_gate_request(
-    spec: GateSpec, adapter: GateAdapter
+    spec: GateSpec, adapter: GateAdapter, *, request_id: str | None = None
 ) -> tuple[dict[str, Any] | None, dict[str, Any], dict[str, Any]]:
     """Evaluate one gate creation through core ``evaluate()`` exactly once.
 
     Returns ``(record, decision, policy_block)`` from the record snapshot
     the spec carries (or the legacy ``enabled``/``argument`` translation
-    for hand-built specs). A cross-tier argument evaluates to ``ask``
-    through the record's policy, so the gate parks as manual; an unknown
-    spelling stays an ``invalid_auto_argument`` error.
+    for hand-built specs). The owning adapter's ``auto_capabilities``
+    decide ``not_capable``: an empty set asks even for an automatic
+    profile. A cross-tier argument evaluates to ``ask`` through the
+    record's policy, so the gate parks as manual; an unknown spelling
+    stays an ``invalid_auto_argument`` error.
     """
     from sase.autonomy.gates import (
         evaluate_gate,
@@ -36,13 +38,20 @@ def _evaluate_gate_request(
         )
     except ValueError as exc:
         raise GateError("invalid_auto_argument", "auto.argument", str(exc)) from exc
+    try:
+        capabilities = sorted(adapter.auto_capabilities)
+    except Exception:
+        capabilities = None
     decision = evaluate_gate(
         record,
         gate_kind=adapter.kind,
         option_ids=[option.id for option in spec.options],
+        capabilities=capabilities,
     )
     if decision.get("profile") != "manual":
-        _append_gate_decision_log(spec, adapter, record, decision)
+        _append_gate_decision_log(
+            spec, adapter, record, decision, request_id=request_id
+        )
     return record, decision, policy_block_for_decision(decision)
 
 
@@ -51,6 +60,8 @@ def _append_gate_decision_log(
     adapter: GateAdapter,
     record: dict[str, Any] | None,
     decision: dict[str, Any],
+    *,
+    request_id: str | None = None,
 ) -> None:
     """Append the host decision-log row for one non-manual evaluation."""
     from sase.autonomy.gates import append_decision_log, creator_meta_for_producer
@@ -59,16 +70,19 @@ def _append_gate_decision_log(
         producer = spec.producer if isinstance(spec.producer, dict) else {}
     except Exception:
         producer = {}
+    # A generated request id lives on the bundle path, not the spec: log it
+    # so the row joins to request/result/response.
+    gate_id = request_id or spec.request_id or ""
     append_decision_log(
         decision=decision,
         gate_kind=adapter.kind,
-        gate_id=spec.request_id or "",
+        gate_id=gate_id,
         creator_meta=creator_meta_for_producer(producer),
     )
 
 
 def effective_auto_state(
-    spec: GateSpec, adapter: GateAdapter
+    spec: GateSpec, adapter: GateAdapter, *, request_id: str | None = None
 ) -> tuple[GateSpec, dict[str, Any], dict[str, Any], bool]:
     """Evaluate one creation and normalize the spec to its outcome.
 
@@ -81,7 +95,9 @@ def effective_auto_state(
     """
     from sase.autonomy.gates import POLICY_BLOCK_KINDS
 
-    _record, decision, block = _evaluate_gate_request(spec, adapter)
+    _record, decision, block = _evaluate_gate_request(
+        spec, adapter, request_id=request_id
+    )
     auto_execute = bool(spec.auto.enabled) and decision.get("outcome") == "auto"
     if auto_execute:
         return spec, decision, block, True

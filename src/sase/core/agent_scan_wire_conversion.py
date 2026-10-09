@@ -419,9 +419,11 @@ def _project_autonomy_legacy_fields(payload: dict[str, Any]) -> dict[str, Any]:
     ``approve``/``auto_approve_plan_action``/``auto_approve_argument``/``plan``
     keys; every listing, status, and TUI reader of those wire fields keeps
     working because the core projection reproduces the historical writer
-    output exactly. Explicitly stored legacy keys always win, so pre-E1
-    agents and mixed states read byte-identically. A missing binding or
-    an unusable record leaves the payload untouched (fail closed).
+    output exactly. An existing valid record is authoritative, including
+    false/absent values, so stale mixed-state keys cannot override it;
+    the dual-use ``plan`` flow marker is preserved. Payloads with no
+    record read legacy keys unchanged for pre-E1 agents. A missing binding
+    or an unusable record leaves the payload untouched (fail closed).
     """
     from sase.autonomy.record import with_legacy_projection
 

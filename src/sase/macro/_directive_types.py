@@ -187,6 +187,10 @@ class PromptDirectives:
             ``tale``, or ``epic``), or None for bare ``%auto`` and for
             the manual spellings. Unknown spellings never reach here:
             extraction raises ``DirectiveError`` at launch.
+        auto_present: Whether an ``%auto``/``%a`` directive was authored,
+            including explicit ``:manual``/``:off``. Absence is False;
+            explicit manual spellings report True with ``auto_enabled``
+            False so host-composed inheritance can narrow to manual.
         dispatch: Remote machine alias requested via the %dispatch directive,
             or None for a local launch.
         agent_tab: Canonical stored tab name from ``%tab``, or None for the
@@ -197,6 +201,7 @@ class PromptDirectives:
     auto_mode: str | None = None
     auto_enabled: bool = False
     auto_argument: str | None = None
+    auto_present: bool = False
     hide: bool = False
     model: str | None = None
     model_alias: str | None = None

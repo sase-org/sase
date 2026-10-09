@@ -110,6 +110,8 @@ def build_agent_meta(
         auto_selection: str | None = directives.auto_argument
     elif directives.auto_enabled:
         auto_selection = ""
+    elif bool(getattr(directives, "auto_present", False)):
+        auto_selection = "manual"
     else:
         auto_selection = None
     host_composed = bool(
@@ -140,6 +142,27 @@ def build_agent_meta(
                 outcome = None
             if isinstance(outcome, dict) and isinstance(outcome.get("record"), dict):
                 inherited_record = dict(outcome["record"])
+                if outcome.get("status") == "refused":
+                    import logging as _logging
+
+                    _logging.getLogger(__name__).info(
+                        "autonomy widening refused for host-composed child of %s: %s",
+                        (
+                            parent_meta.get("name", "")
+                            if isinstance(parent_meta, dict)
+                            else ""
+                        ),
+                        outcome.get("reason", ""),
+                    )
+        else:
+            # An unreadable predecessor must not let a host-composed child
+            # adopt a wider authored policy: fail closed to manual.
+            try:
+                inherited_record = resolve_selection(
+                    None, source="inherited", surface="launch"
+                )
+            except Exception:
+                inherited_record = None
     if inherited_record is not None:
         apply_record_meta_patch(agent_meta, inherited_record)
     else:
