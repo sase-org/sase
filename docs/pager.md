@@ -350,8 +350,10 @@ plain reload behavior.
 ## Document origins
 
 A document's origin seeds which bare-token link rules apply, since a bare token's
-meaning depends on where it came from: `bead` and `agent` documents recognize a bare
-bead id (`sase-uk.7`) as a bead link, and `diff` documents recognize a bare short SHA as
-a commit link. `file` and `research` documents apply no bare-token rules. The Agents-tab
-metadata pager uses the `agent` origin so a bead id mentioned in its BEAD section links
-exactly as it would in a bead document.
+meaning depends on where it came from: `bead` and `agent` documents recognize bare bead
+ids for the document's own bead prefix, its related beads' prefixes, and every enabled
+project's name or alias, for example `sase-uk.7` or `bob-cli-5s.1`, as bead links, and
+`diff` documents recognize a bare short SHA as a commit link. `file` and `research`
+documents apply no bare-token rules. Documents without declared prefixes fall back to
+`sase`. The Agents-tab metadata pager uses the `agent` origin so a bead id mentioned in
+its BEAD section links exactly as it would in a bead document.

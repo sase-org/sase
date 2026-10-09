@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 import io
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -14,7 +15,13 @@ from rich.text import Text
 from sase.artifact_ref_models import ArtifactRefDocumentOwner, ArtifactRefDocumentTarget
 from sase.artifact_ref_operations import split_link_location
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
-from sase.pager.link_scan import LinkSpan, LinkSpanKind, PagerOrigin, scan_links
+from sase.pager.link_scan import (
+    LinkSpan,
+    LinkSpanKind,
+    PagerOrigin,
+    normalize_bead_id_prefixes,
+    scan_links,
+)
 
 if TYPE_CHECKING:
     from sase.pager.history.models import VersionPin
@@ -84,6 +91,7 @@ class PagerSection:
     owner: ArtifactRefDocumentOwner | None = None
     known_kinds: tuple[str, ...] = ()
     version_pin: VersionPin | None = None  # type: ignore[valid-type]
+    bead_id_prefixes: tuple[str, ...] = ()
     _body_text: Text = field(init=False, repr=False, compare=False)
     # Lazily filled derivation cache: ("spans", origin) -> target spans,
     # ("rows", width) -> line-start prefix, ("digest",) -> content digest.
@@ -113,6 +121,9 @@ class PagerSection:
         object.__setattr__(self, "targets", targets)
         object.__setattr__(self, "link_anchors", tuple(self.link_anchors))
         object.__setattr__(self, "known_kinds", tuple(dict.fromkeys(self.known_kinds)))
+        object.__setattr__(
+            self, "bead_id_prefixes", normalize_bead_id_prefixes(self.bead_id_prefixes)
+        )
 
     @property
     def plain_text(self) -> str:
@@ -305,12 +316,37 @@ def section_target_spans(
     attached_ranges = [(target.start, target.end) for target in attached]
     scanned = tuple(
         _scanned_target_span(span)
-        for span in scan_links(plain, effective_origin, known_kinds=section.known_kinds)
+        for span in scan_links(
+            plain,
+            effective_origin,
+            known_kinds=section.known_kinds,
+            bead_id_prefixes=section.bead_id_prefixes,
+        )
         if not _overlaps(span.start, span.end, attached_ranges)
     )
     merged = tuple(sorted((*attached, *scanned), key=_target_span_sort_key))
     object.__setattr__(section, "_memo", {**section._memo, key: merged})
     return merged
+
+
+def section_with_bead_id_prefixes(
+    section: PagerSection, prefixes: Iterable[str]
+) -> PagerSection:
+    """Return *section* with *prefixes* stamped as its bead-ID prefixes.
+
+    Returns *section* unchanged when the normalized prefixes already match,
+    so producers can stamp every section unconditionally. Otherwise returns
+    a shallow copy with a fresh empty memo, avoiding a re-run of
+    ``__post_init__`` (which would re-render the body) and never sharing a
+    stale span memo.
+    """
+    normalized = normalize_bead_id_prefixes(prefixes)
+    if normalized == section.bead_id_prefixes:
+        return section
+    cloned = copy.copy(section)
+    object.__setattr__(cloned, "bead_id_prefixes", normalized)
+    object.__setattr__(cloned, "_memo", {})
+    return cloned
 
 
 #: How many distinct widths one section's line-start prefix memo keeps.
@@ -525,8 +561,9 @@ __all__ = [
     "section_line_prefix",
     "section_origin",
     "section_syntax_language",
+    "section_target_spans",
+    "section_with_bead_id_prefixes",
     "target_action_destination",
     "target_resolution_cache_identity",
-    "section_target_spans",
     "target_resolution_ref",
 ]

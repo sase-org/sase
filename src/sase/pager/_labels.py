@@ -36,7 +36,7 @@ from sase.pager.document import (
     target_resolution_cache_identity,
     target_resolution_ref,
 )
-from sase.pager.link_scan import LinkSpanKind
+from sase.pager.link_scan import LinkSpanKind, is_bare_short_sha
 
 PAGER_LABEL_ALPHABET = "".join(
     char for char in JUMP_HINT_CHARS if char not in PAGER_RESERVED_JUMP_COMMAND_KEYS
@@ -493,7 +493,7 @@ def _target_artifact_tab(target: PagerTargetSpan) -> str | None:
         ref_kind = ref.split(":", 1)[0].lower()
         return _REF_KIND_TABS.get(ref_kind)
     if target.kind == LinkSpanKind.BARE_TOKEN.value:
-        return "beads" if target.text.startswith("sase-") else "patches"
+        return "patches" if is_bare_short_sha(target.text) else "beads"
     return _DIRECT_KIND_TABS.get(target.kind.lower())
 
 

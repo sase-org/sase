@@ -11,7 +11,12 @@ from rich.text import Text
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS, agent_status_bucket
 from sase.llm_provider.model_label import append_model_field
-from sase.pager.document import PagerDocument, PagerSection
+from sase.pager.bead_prefixes import pager_bead_id_prefixes
+from sase.pager.document import (
+    PagerDocument,
+    PagerSection,
+    section_with_bead_id_prefixes,
+)
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.link_scan import PagerOrigin
 from sase.project_display_names import humanize_cl_name
@@ -310,6 +315,20 @@ def build_agent_metadata_document(
                 body=Text("No metadata available for this agent.\n", style="dim"),
             ),
         )
+    bead_ids: list[str] = []
+    bead_summary = summary.bead_summary
+    if bead_summary is not None:
+        summary_id = getattr(bead_summary, "id", None)
+        if isinstance(summary_id, str) and summary_id:
+            bead_ids.append(summary_id)
+    for attr in ("epic_bead_id", "phase_bead_id"):
+        value = getattr(agent, attr, None)
+        if isinstance(value, str) and value.strip():
+            bead_ids.append(value)
+    prefixes = pager_bead_id_prefixes(bead_ids)
+    sections = tuple(
+        section_with_bead_id_prefixes(section, prefixes) for section in sections
+    )
     title = agent.presented_agent_name or agent.agent_name or agent.cl_name
     return PagerDocument(
         sections=sections,

@@ -378,6 +378,13 @@ def _print_rich(result: ResolvedArtifactReference, body: str) -> None:
 
 def _page_markdown(result: ResolvedArtifactReference, body: str) -> None:
     body = _ensure_trailing_newline(body)
+    bead_id_prefixes: tuple[str, ...] = ()
+    if result.parsed.kind_type == "bead":
+        bead_id = result.parsed.payload.id
+        if bead_id:
+            from sase.pager.bead_prefixes import pager_bead_id_prefixes
+
+            bead_id_prefixes = pager_bead_id_prefixes((bead_id,))
     page_or_print(
         body,
         mode=PagerMode.ALWAYS,
@@ -393,6 +400,7 @@ def _page_markdown(result: ResolvedArtifactReference, body: str) -> None:
                     origin=_pager_origin(result),
                     owner=document_owner_from_artifact(result),
                     known_kinds=known_kinds_from_artifact_context(result.context),
+                    bead_id_prefixes=bead_id_prefixes,
                 ),
             ),
             title=result.canonical_reference,

@@ -40,6 +40,7 @@ from sase.pager.document import (
     section_line_prefix,
     section_syntax_language,
     section_target_spans,
+    section_with_bead_id_prefixes,
     target_action_destination,
     target_resolution_cache_identity,
 )
@@ -606,3 +607,74 @@ def test_section_line_prefix_bounds_distinct_widths() -> None:
 
     widths = [key for key in section._memo if key[0] == "rows"]
     assert len(widths) <= 4
+
+
+def test_pager_section_bead_id_prefixes_normalize() -> None:
+    section = PagerSection(
+        identity="bead:bob-cli-1",
+        title="bob-cli-1",
+        kind="bead",
+        body="bob-cli-1\n",
+        bead_id_prefixes=("bob-cli", "bob-cli", "a.b", " "),
+    )
+    assert section.bead_id_prefixes == ("bob-cli",)
+
+
+def test_section_target_spans_honors_bead_id_prefixes() -> None:
+    body = "see bob-cli-5s.1 and sase-uk.1 here"
+    bob_only = PagerSection(
+        identity="bead:bob-cli-5s",
+        title="bob-cli-5s",
+        kind="bead",
+        body=body,
+        bead_id_prefixes=("bob-cli",),
+    )
+    both = PagerSection(
+        identity="bead:bob-cli-5s",
+        title="bob-cli-5s",
+        kind="bead",
+        body=body,
+        bead_id_prefixes=("bob-cli", "sase"),
+    )
+    default = PagerSection(
+        identity="bead:bob-cli-5s", title="bob-cli-5s", kind="bead", body=body
+    )
+    assert [span.text for span in section_target_spans(bob_only, PagerOrigin.BEAD)] == [
+        "bob-cli-5s.1"
+    ]
+    assert [span.text for span in section_target_spans(both, PagerOrigin.BEAD)] == [
+        "bob-cli-5s.1",
+        "sase-uk.1",
+    ]
+    assert [span.text for span in section_target_spans(default, PagerOrigin.BEAD)] == [
+        "sase-uk.1"
+    ]
+
+
+def test_section_with_bead_id_prefixes_returns_same_object_for_equal() -> None:
+    section = PagerSection(
+        identity="bead:bob-cli-5s",
+        title="bob-cli-5s",
+        kind="bead",
+        body="bob-cli-5s.1\n",
+        bead_id_prefixes=("bob-cli",),
+    )
+    assert section_with_bead_id_prefixes(section, ("bob-cli", "bob-cli")) is section
+
+
+def test_section_with_bead_id_prefixes_returns_copy_with_fresh_spans() -> None:
+    section = PagerSection(
+        identity="bead:bob-cli-5s",
+        title="bob-cli-5s",
+        kind="bead",
+        body="see bob-cli-5s.1 here",
+    )
+    before = section_target_spans(section, PagerOrigin.BEAD)
+    assert [span.text for span in before] == []
+    stamped = section_with_bead_id_prefixes(section, ("bob-cli",))
+    assert stamped is not section
+    assert stamped.bead_id_prefixes == ("bob-cli",)
+    assert stamped.plain_text == section.plain_text
+    after = section_target_spans(stamped, PagerOrigin.BEAD)
+    assert [span.text for span in after] == ["bob-cli-5s.1"]
+    assert [span.text for span in section_target_spans(section, PagerOrigin.BEAD)] == []

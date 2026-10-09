@@ -20,8 +20,10 @@ from sase.pager.link_scan import (  # noqa: PLC2701
     LinkSpan,
     LinkSpanKind,
     PagerOrigin,
-    _BARE_TOKEN_RECOGNIZERS,
     _FrozenSpanIndex,
+    _bare_bead_id_regex,
+    _bare_token_recognizer,
+    normalize_bead_id_prefixes,
     scan_bounded_links,
     scan_links,
 )
@@ -374,7 +376,53 @@ def test_scan_bounded_links_keeps_line_suffix_spans(text: str) -> None:
     assert result.notice is None
 
 
-def _reference_scan_links(text: str, origin: PagerOrigin) -> tuple[LinkSpan, ...]:
+def test_bare_bead_id_prefixes_recognize_non_sase_ids() -> None:
+    text = "children bob-cli-5s bob-cli-5s.1 bob-cli-5s.10 bob-cli-5s.land done"
+    for origin in (PagerOrigin.BEAD, PagerOrigin.AGENT):
+        spans = scan_links(text, origin, bead_id_prefixes=("bob-cli",))
+        bare = [span.text for span in spans if span.kind is LinkSpanKind.BARE_TOKEN]
+        assert bare == [
+            "bob-cli-5s",
+            "bob-cli-5s.1",
+            "bob-cli-5s.10",
+            "bob-cli-5s.land",
+        ]
+    for origin in (PagerOrigin.FILE, PagerOrigin.RESEARCH, PagerOrigin.DIFF):
+        spans = scan_links(text, origin, bead_id_prefixes=("bob-cli",))
+        assert [span for span in spans if span.kind is LinkSpanKind.BARE_TOKEN] == []
+
+
+def test_bare_bead_id_default_fallback_keeps_sase_only() -> None:
+    assert [
+        span.text
+        for span in scan_links("see bob-cli-5s.1 here", PagerOrigin.BEAD)
+        if span.kind is LinkSpanKind.BARE_TOKEN
+    ] == []
+    assert [
+        span.text
+        for span in scan_links("see sase-uk.1 here", PagerOrigin.BEAD)
+        if span.kind is LinkSpanKind.BARE_TOKEN
+    ] == ["sase-uk.1"]
+
+
+def test_bare_bead_id_longest_prefix_wins() -> None:
+    text = "see sase-github-1a and sase-uk.1 here"
+    spans = scan_links(text, PagerOrigin.BEAD, bead_id_prefixes=("sase", "sase-github"))
+    bare = [span.text for span in spans if span.kind is LinkSpanKind.BARE_TOKEN]
+    assert bare == ["sase-github-1a", "sase-uk.1"]
+
+
+def test_bead_id_prefix_normalization_drops_unsafe_and_dedupes() -> None:
+    assert normalize_bead_id_prefixes(["a.b", " ", "x-", "a--b", "", "ok"]) == ("ok",)
+    assert normalize_bead_id_prefixes(["b", "a", "b", " a "]) == ("a", "b")
+    assert _bare_bead_id_regex(("a", "b")) is _bare_bead_id_regex(("b", "a"))
+
+
+def _reference_scan_links(
+    text: str,
+    origin: PagerOrigin,
+    bead_id_prefixes: tuple[str, ...] = (),
+) -> tuple[LinkSpan, ...]:
     """The pre-optimization scanner: linear overlap checks, full offset map.
 
     Kept as the equivalence oracle for the near-linear rewrite: same
@@ -406,7 +454,7 @@ def _reference_scan_links(text: str, origin: PagerOrigin) -> tuple[LinkSpan, ...
                 )
             )
 
-    recognizer = _BARE_TOKEN_RECOGNIZERS.get(origin)
+    recognizer = _bare_token_recognizer(origin, bead_id_prefixes)
     if recognizer is not None:
         for match in recognizer(text):
             start, end = match.start(), match.end()
@@ -449,6 +497,7 @@ _PARITY_PIECES = (
     "[label](https://example.com/y)",
     "@agent:sase-4z.bob",
     "sase-uk.1",
+    "bob-cli-5s.1",
     "abc1234",
     "deadbeef",
 )
@@ -461,15 +510,17 @@ def _span_identity(span: LinkSpan) -> tuple[str, int, int, str, object]:
 def test_scan_links_matches_reference_on_random_inputs() -> None:
     """Fixed-seed property test: the rewrite keeps exact scan results."""
     random.seed(20261002)
+    prefix_choices = ((), ("sase",), ("sase", "bob-cli"))
     for _trial in range(60):
         origin = random.choice(list(PagerOrigin))
+        prefixes = random.choice(prefix_choices)
         text = " ".join(
             random.choice(_PARITY_PIECES) for _ in range(random.randint(1, 25))
         )
         if random.random() < 0.3:
             text = text.replace(" ", "\n", random.randint(0, 3))
-        expected = _reference_scan_links(text, origin)
-        actual = scan_links(text, origin)
+        expected = _reference_scan_links(text, origin, tuple(prefixes))
+        actual = scan_links(text, origin, bead_id_prefixes=prefixes)
         assert [_span_identity(span) for span in actual] == [
             _span_identity(span) for span in expected
         ]
@@ -513,3 +564,15 @@ def test_scan_links_stays_near_linear_on_link_dense_input(
     assert len(bead_spans) == 16000
     assert linear_calls == 0
     assert index_queries == 8000
+
+    linear_calls = 0
+    index_queries = 0
+    multi_text = "".join(
+        f"see sase-ab.{index} bob-cli-cd.{index}\n" for index in range(2000)
+    )
+    multi_spans = scan_links(
+        multi_text, PagerOrigin.BEAD, bead_id_prefixes=("sase", "bob-cli")
+    )
+    assert len(multi_spans) == 4000
+    assert linear_calls == 0
+    assert index_queries == 4000

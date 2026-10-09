@@ -385,6 +385,18 @@ def origin_for_project_ref(project_ref: str) -> BeadStoreOrigin | None:
     )
 
 
+def enabled_project_ref_prefixes() -> tuple[str, ...]:
+    """Return every enabled project's refs as bead-ID prefixes.
+
+    Project refs (name, effective name, aliases) double as the default
+    bead-ID prefixes the routing layer accepts, so pager bare-token
+    recognition uses the same set. Reads no bead store.
+    """
+    return tuple(
+        sorted(set().union(*(_project_refs(r) for r in _enabled_project_records())))
+    )
+
+
 def _enabled_project_records() -> tuple[ProjectRecordWire, ...]:
     return tuple(
         record
@@ -485,6 +497,7 @@ __all__ = [
     "BeadStoreOrigin",
     "BeadStoreSnapshot",
     "bead_id_prefix",
+    "enabled_project_ref_prefixes",
     "enabled_project_store_snapshots",
     "origin_for_project_ref",
     "probe_bead_target_owner",

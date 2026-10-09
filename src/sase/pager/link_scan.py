@@ -12,6 +12,7 @@ from bisect import bisect_left
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import lru_cache
 from typing import TYPE_CHECKING
 import re
 
@@ -24,15 +25,82 @@ from sase.pager.path_hints import iter_pager_file_path_matches
 if TYPE_CHECKING:
     from sase.artifact_ref_models import ArtifactRefDocumentTarget
 
-# A bare bead id such as ``sase-uk.1`` or ``sase-ug.land``. Scoped to this
-# checkout's own project key: generalizing to other bead stores' keys is
-# tracked as a follow-up rather than risked here as a looser, more
-# false-positive-prone pattern.
-_BARE_BEAD_ID_RE = re.compile(
-    r"(?<![\w-])sase-[0-9a-z]{1,4}(?:\.[A-Za-z0-9]+)*(?![\w-])"
-)
+# Fallback bare bead-ID prefixes for sections that declare none. Covers
+# tool-run log documents and any other AGENT/BEAD producer that does not
+# stamp per-document prefixes.
+DEFAULT_BARE_BEAD_ID_PREFIXES: tuple[str, ...] = ("sase",)
+
+
+def normalize_bead_id_prefixes(prefixes: Iterable[str]) -> tuple[str, ...]:
+    """Normalize bead-ID prefixes into a stable, sorted tuple.
+
+    Each value is stripped; empty or unsafe values are dropped. Unsafe
+    matches ``sase.bead.prefix_policy._is_safe_bead_prefix`` (whitespace,
+    ``.``, ``/``, ``\\``, ``--``, or a trailing ``-``) and is re-implemented
+    here so the cold path does not import the bead package.
+    """
+
+    def _is_safe(prefix: str) -> bool:
+        if not prefix:
+            return False
+        if any(char.isspace() for char in prefix):
+            return False
+        if "." in prefix or "/" in prefix or "\\" in prefix:
+            return False
+        if "--" in prefix:
+            return False
+        if prefix.endswith("-"):
+            return False
+        return True
+
+    seen: set[str] = set()
+    for raw in prefixes:
+        cleaned = raw.strip()
+        if not cleaned or not _is_safe(cleaned):
+            continue
+        seen.add(cleaned)
+    return tuple(sorted(seen))
+
+
+@lru_cache(maxsize=64)
+def _bare_bead_id_regex(prefixes: tuple[str, ...]) -> re.Pattern[str]:
+    """Compile the bare bead-ID pattern for one normalized prefix tuple."""
+    ordered = sorted(prefixes, key=lambda part: (-len(part), part))
+    alternation = "|".join(re.escape(part) for part in ordered)
+    return re.compile(
+        rf"(?<![\w-])(?:{alternation})-[0-9a-z]{{1,4}}(?:\.[A-Za-z0-9]+)*(?![\w-])"
+    )
+
+
 # A bare short git sha, seven to forty lowercase hex characters.
 _BARE_SHORT_SHA_RE = re.compile(r"(?<![\w-])[0-9a-f]{7,40}(?![\w-])")
+
+
+def is_bare_short_sha(text: str) -> bool:
+    """Return whether *text* is exactly one bare short SHA."""
+    return _BARE_SHORT_SHA_RE.fullmatch(text) is not None
+
+
+def _bare_token_recognizer(
+    origin: PagerOrigin,
+    bead_id_prefixes: Iterable[str] = (),
+) -> Callable[[str], Iterator[re.Match[str]]] | None:
+    """Return the bare-token recognizer for *origin*, or ``None``.
+
+    BEAD and AGENT origins recognize bare bead IDs for the given prefixes
+    (falling back to ``DEFAULT_BARE_BEAD_ID_PREFIXES`` when none survive
+    normalization). DIFF recognizes bare short SHAs. Every other origin
+    recognizes no bare tokens.
+    """
+    if origin in (PagerOrigin.BEAD, PagerOrigin.AGENT):
+        normalized = normalize_bead_id_prefixes(bead_id_prefixes)
+        if not normalized:
+            normalized = DEFAULT_BARE_BEAD_ID_PREFIXES
+        return _bare_bead_id_regex(normalized).finditer
+    if origin is PagerOrigin.DIFF:
+        return _BARE_SHORT_SHA_RE.finditer
+    return None
+
 
 # A UTF-8 character's first byte: any byte that is not a continuation byte.
 _CHARACTER_START_RE = re.compile(rb"[^\x80-\xBF]")
@@ -89,6 +157,7 @@ def scan_links(
     origin: PagerOrigin,
     *,
     known_kinds: Iterable[str] = (),
+    bead_id_prefixes: Iterable[str] = (),
 ) -> tuple[LinkSpan, ...]:
     """Scan *text* for precedence-ordered link spans, with no I/O.
 
@@ -149,7 +218,7 @@ def scan_links(
             )
         )
 
-    recognizer = _BARE_TOKEN_RECOGNIZERS.get(origin)
+    recognizer = _bare_token_recognizer(origin, bead_id_prefixes)
     if recognizer is not None:
         rust_index = _FrozenSpanIndex(occupied) if ordered else None
         bare_max_end = -1
@@ -178,6 +247,7 @@ def scan_bounded_links(
     *,
     budget: HintContentBudget | None = None,
     known_kinds: Iterable[str] = (),
+    bead_id_prefixes: Iterable[str] = (),
 ) -> BoundedLinkScan:
     """Bound *text* to the shared hint-content budget, then scan it for links.
 
@@ -190,7 +260,12 @@ def scan_bounded_links(
     )
     return BoundedLinkScan(
         content=bounded.content,
-        spans=scan_links(bounded.content, origin, known_kinds=known_kinds),
+        spans=scan_links(
+            bounded.content,
+            origin,
+            known_kinds=known_kinds,
+            bead_id_prefixes=bead_id_prefixes,
+        ),
         notice=bounded.notice,
     )
 
@@ -259,14 +334,3 @@ def _byte_to_character_offsets(text: str, needed: list[int]) -> dict[int, int]:
             raise KeyError(offset)
         mapping[offset] = index
     return mapping
-
-
-_BARE_TOKEN_RECOGNIZERS: Mapping[
-    PagerOrigin, Callable[[str], Iterator[re.Match[str]]]
-] = {
-    PagerOrigin.BEAD: _BARE_BEAD_ID_RE.finditer,
-    PagerOrigin.DIFF: _BARE_SHORT_SHA_RE.finditer,
-    # Agent metadata documents treat bare bead ids exactly like bead
-    # documents (the BEAD section's own id is a bare token in its heading).
-    PagerOrigin.AGENT: _BARE_BEAD_ID_RE.finditer,
-}

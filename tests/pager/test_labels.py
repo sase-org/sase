@@ -9,7 +9,11 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
-from sase.ace.tui._artifact_tab_model import ARTIFACTS_ACCENTS, EXTERNAL_ACCENT
+from sase.ace.tui._artifact_tab_model import (
+    ARTIFACTS_ACCENTS,
+    ARTIFACTS_ICONS,
+    EXTERNAL_ACCENT,
+)
 from sase.pager._labels import (
     LabelWindowScope,
     PAGER_LABEL_ALPHABET,
@@ -17,11 +21,19 @@ from sase.pager._labels import (
     PagerLabel,
     _row_for_character_offset,
     _section_row_for_character_offset,
+    _target_artifact_tab,
+    _target_marker,
     build_label_layer,
     render_section_with_labels,
     style_target_accents,
 )
-from sase.pager.document import AttachedTarget, PagerDocument, PagerOrigin, PagerSection
+from sase.pager.document import (
+    AttachedTarget,
+    PagerDocument,
+    PagerOrigin,
+    PagerSection,
+    PagerTargetSpan,
+)
 
 _CONSOLE = Console(color_system="truecolor")
 _LABEL_BACKGROUND = Color.parse("#FFD75F")
@@ -414,3 +426,30 @@ def test_window_mode_labels_match_between_row_paths() -> None:
         assert _section_row_for_character_offset(
             section, label.target.start, width
         ) == _row_for_character_offset(section.plain_text, label.target.start, width)
+
+
+def _bare_target(text: str) -> PagerTargetSpan:
+    return PagerTargetSpan(
+        kind="bare_token",
+        target=text,
+        start=0,
+        end=len(text),
+        text=text,
+        source="scanned",
+    )
+
+
+def test_non_sase_bare_bead_token_gets_beads_marker() -> None:
+    target = _bare_target("bob-cli-5s.1")
+    assert _target_artifact_tab(target) == "beads"
+    marker = _target_marker(target, dangling=False)
+    assert marker.icon == ARTIFACTS_ICONS["beads"]
+    assert marker.accent == ARTIFACTS_ACCENTS["beads"]
+
+
+def test_diff_bare_short_sha_still_gets_patches_marker() -> None:
+    target = _bare_target("deadbeef")
+    assert _target_artifact_tab(target) == "patches"
+    marker = _target_marker(target, dangling=False)
+    assert marker.icon == ARTIFACTS_ICONS["patches"]
+    assert marker.accent == ARTIFACTS_ACCENTS["patches"]

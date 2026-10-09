@@ -595,6 +595,10 @@ def _show_batch_sections(
     render_context_for: _ShowRenderContextResolver,
     images_mode: str = "never",
 ) -> tuple[PagerSection, ...]:
+    from sase.pager.bead_prefixes import pager_bead_id_prefixes
+    from sase.pager.link_scan import normalize_bead_id_prefixes
+
+    enabled_prefixes = pager_bead_id_prefixes((), include_enabled_projects=True)
     reference_contexts: dict[object, ArtifactRefContext | None] = {}
 
     def context_for(
@@ -611,6 +615,19 @@ def _show_batch_sections(
         context = render_context_for(entry.origin)
         subject_ref = f"bead:{issue.id}"
         reference_context = context_for(entry, context)
+        bead_ids = [issue.id]
+        detail = entry.detail
+        if detail is not None:
+            for group in (
+                detail.ancestors,
+                detail.phases,
+                detail.child_epics,
+                detail.depends_on,
+                detail.blocks,
+            ):
+                bead_ids.extend(ref.issue_id for ref in group)
+        id_prefixes = pager_bead_id_prefixes(bead_ids, include_enabled_projects=False)
+        bead_id_prefixes = normalize_bead_id_prefixes((*id_prefixes, *enabled_prefixes))
         body = render_issue_detail(
             _require_detail(entry),
             relativize_design=context.relativize_design,
@@ -640,6 +657,7 @@ def _show_batch_sections(
                 context.design_cwd, source_reference=subject_ref
             ),
             known_kinds=known_kinds_from_artifact_context(reference_context),
+            bead_id_prefixes=bead_id_prefixes,
         )
         try:
             from sase.bead.show_images import (
