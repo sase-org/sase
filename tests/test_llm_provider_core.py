@@ -176,6 +176,10 @@ def test_resolve_model_provider_implicit_mapping() -> None:
         "claude",
         "claude-haiku-4-5",
     )
+    assert resolve_model_provider("claude-haiku-5-5") == (
+        "claude",
+        "claude-haiku-5-5",
+    )
     assert resolve_model_provider("claude-fable-5") == (
         "claude",
         "claude-fable-5",
@@ -255,6 +259,7 @@ def test_model_short_alias_map_contains_claude_entries() -> None:
     assert "claude-opus-5" not in aliases
     assert "claude-sonnet-5" not in aliases
     assert aliases.get("claude-haiku-4-5") == "haiku45"
+    assert aliases.get("claude-haiku-5-5") == "haiku55"
     assert aliases.get("claude-fable-5") == "fable"
 
 

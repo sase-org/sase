@@ -29,7 +29,10 @@ _USAGE_ROW_RE = re.compile(
 )
 _MODEL_LABELS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("claude-fable-5", ("claude fable 5", "fable 5", "fable")),
-    ("claude-haiku-4-5", ("claude haiku 4 5", "haiku 4 5", "haiku")),
+    # Order matters: the 4.5 entry must stay before 5.5 so that the bare
+    # "haiku" alias on 5.5 does not also match "haiku 4 5" labels.
+    ("claude-haiku-4-5", ("claude haiku 4 5", "haiku 4 5")),
+    ("claude-haiku-5-5", ("claude haiku 5 5", "haiku 5 5", "haiku")),
     ("sonnet", ("sonnet",)),
     ("opus", ("opus",)),
 )

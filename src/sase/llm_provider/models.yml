@@ -68,9 +68,11 @@ providers:
       - opus
       - sonnet
       - haiku
+      - claude-haiku-5-5
       - claude-haiku-4-5
       - claude-fable-5
     short_aliases:
+      claude-haiku-5-5: haiku55
       claude-haiku-4-5: haiku45
       claude-fable-5: fable
     tiers:
@@ -201,7 +203,7 @@ providers:
 aliases:
   xsmall:
     target:
-      "claude/claude-haiku-4-5@xhigh | codex/gpt-6-luna@medium |
+      "claude/claude-haiku-5-5@xhigh | codex/gpt-6-luna@medium |
       agy/gemini-3.8-flash-high | muse/muse-spark-1.3-contributor@medium"
     description: >-
       Extra-small launch alias for lookup, formatting, and tiny edits with obvious

@@ -39,6 +39,7 @@ def test_build_model_options_has_known_models() -> None:
     ids = {o.id for o in options if o is not None}
     assert "opus" in ids
     assert "sonnet" in ids
+    assert "claude-haiku-5-5" in ids
     assert "claude-haiku-4-5" in ids
     assert "claude-fable-5" in ids
     assert "o3" in ids
@@ -218,10 +219,10 @@ def test_model_picker_hides_fakey_provider_group_and_models() -> None:
     assert CUSTOM_SENTINEL in row_ids
 
 
-def test_model_picker_claude_h4_5_row_includes_alias() -> None:
-    """Remaining explicit Claude point-model should be pickable with its short alias."""
+def test_model_picker_claude_point_model_rows_include_alias() -> None:
+    """Explicit Claude point-models should be pickable with their short aliases."""
     rows = build_model_rows()
-    expected = {"claude-haiku-4-5": "haiku45"}
+    expected = {"claude-haiku-5-5": "haiku55", "claude-haiku-4-5": "haiku45"}
 
     for model_id, alias in expected.items():
         row = next(row for row in rows if row.option_id == model_id)
@@ -229,6 +230,9 @@ def test_model_picker_claude_h4_5_row_includes_alias() -> None:
         assert row.model_id == model_id
         assert row.alias == alias
         assert row.label == f"    {model_id}  ({alias})"
+
+    by_id = {row.option_id: i for i, row in enumerate(rows)}
+    assert by_id["claude-haiku-5-5"] < by_id["claude-haiku-4-5"]
 
 
 def _picker_disable(provider: str, *, mode: str) -> TemporaryProviderDisable:
