@@ -125,7 +125,7 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
     # auto-resolved shell still runs through the same production
     # `_start_gate_creation` -> `_resolve_auto_gate` path every kind
     # shares.
-    import sase.notification_gates.service as gate_service_module
+    import sase.notification_gates.service_creation as gate_service_module
     from sase.axe.run_agent_helpers_artifacts import update_meta_field
     from sase.notification_gates.models import GateSpec
     from sase.user_question_actions import QUESTION_COMMAND_PATH

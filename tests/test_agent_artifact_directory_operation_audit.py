@@ -171,13 +171,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "bundles are not agent artifact directories."
         ),
     ),
-    "src/sase/notification_gates/service.py:_start_gate_creation": DirOpReview(
+    "src/sase/notification_gates/service_creation.py:_start_gate_creation": DirOpReview(
         exemption=(
             "Compensates an unpublished interaction_requests bundle after gate "
             "creation fails; interaction bundles are not agent artifact directories."
         ),
     ),
-    "src/sase/notification_gates/service.py:create_gate": DirOpReview(
+    "src/sase/notification_gates/service_creation.py:create_gate": DirOpReview(
         exemption=(
             "Repairs an initializing or failed interaction_requests bundle before "
             "retry; interaction bundles are not agent artifact directories."
