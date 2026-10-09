@@ -17,7 +17,10 @@ from typing import Any
 from sase.axe.run_agent_phases import AgentInfo, extract_directives_and_write_meta
 from sase.axe.run_agent_retry_spawn import RetryHandoff
 from sase.axe.run_agent_runner_cli import read_prompt_file
-from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+from sase.axe.run_agent_runner_refresh import (
+    RUNNER_CODE_REFRESHED_ENV,
+    _reconcile_prompt_with_live_auto_state,
+)
 from sase.axe.run_agent_runner_setup import (
     apply_retry_chain_to_meta,
     enter_agent_workspace,
@@ -196,6 +199,14 @@ def _load_submitted_prompt(state: RunnerRunState) -> None:
         state.prompt_file,
         refreshed_fallback_file=refreshed_prompt_fallback,
     )
+    if RUNNER_CODE_REFRESHED_ENV in os.environ:
+        # A code refresh re-exec replays the prompt file verbatim so that no
+        # ``sase.*`` import runs in the torn pre-exec process. Apply the live
+        # ``%auto`` reconcile now, in the refreshed process, before directive
+        # extraction: an ``A`` toggle made during the wait must survive.
+        state.prompt = _reconcile_prompt_with_live_auto_state(
+            state.prompt, state.artifacts_dir
+        )
     state.submitted_prompt = state.prompt
     try:
         write_submitted_prompt_artifact(state.artifacts_dir, state.submitted_prompt)

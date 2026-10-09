@@ -32,6 +32,11 @@ Already-audited inputs that need no behavior change:
 
 Anyone adding a new ``consume_*_from_env()`` / ``os.environ.pop(...)`` in the
 bootstrap path must extend one of the two handoff lists above.
+
+The temporary prompt file crosses the re-exec verbatim: the live ``%auto``
+reconcile is not applied here (no ``sase.*`` import may run between the
+identity check and ``os.execv``) but in the refreshed pass's bootstrap, via
+``_reconcile_prompt_with_live_auto_state`` in ``_load_submitted_prompt``.
 """
 
 from __future__ import annotations
@@ -42,6 +47,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from sase.agent.multi_prompt_macros import (
+    read_local_macros_path,
+    restore_local_macros_path,
+    serialize_local_macros,
+    set_local_macros_path,
+)
+from sase.axe.run_agent_directive_identity import (
+    planned_name_is_reserved_for_artifacts,
+)
 from sase.version._git import probe_git_metadata_at_ref
 from sase.version._models import HOST_DISTRIBUTION_NAME
 from sase.version._sources import (
@@ -52,6 +66,13 @@ from sase.version._sources import (
     resolve_import,
     source_root,
 )
+
+# Warm modules that refresh-path helpers still import lazily. Between the
+# code-identity check and ``os.execv`` no new ``sase.*`` import may run (a
+# torn tree can no longer satisfy them), so these must already sit in
+# ``sys.modules``; the import-firewall test pins that property.
+import sase.agent.names._registry_batch  # noqa: F401
+import sase.core.paths  # noqa: F401
 
 RUNNER_CODE_REFRESHED_ENV = "SASE_RUNNER_CODE_REFRESHED"
 _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
@@ -149,9 +170,14 @@ def refresh_runner_code_after_wait(
 
     The one-shot guard is removed on the refreshed pass before agent execution,
     preventing nested agents from inheriting runner-internal refresh state.
-    """
-    from sase.agent.multi_prompt_macros import read_local_macros_path
 
+    No ``sase.*`` import may run between the identity comparison above and
+    ``os.execv`` below: the new tree can be torn relative to this image, so
+    every helper this path touches is imported at module scope (and the
+    lazily-imported leaves warmed there too). The ``%auto`` reconcile used to
+    live here; it now runs in the refreshed pass's bootstrap instead, where
+    the new tree is already the running code.
+    """
     already_refreshed = os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None) is not None
     if already_refreshed or not blocking_wait_occurred or killed:
         return
@@ -167,12 +193,9 @@ def refresh_runner_code_after_wait(
         f"{startup_identity} -> {current_identity}",
         flush=True,
     )
-    # The refreshed pass re-extracts directives from this file: reconcile
-    # its stale ``%auto`` with the live meta first so an ``A`` toggle made
-    # during the wait survives the re-exec.
-    submitted_prompt = _reconcile_prompt_with_live_auto_state(
-        submitted_prompt, artifacts_dir
-    )
+    # The refreshed pass re-extracts directives from this file, applying the
+    # live ``%auto`` reconcile during its own bootstrap (see
+    # ``_load_submitted_prompt``), so the prompt is persisted verbatim here.
     try:
         Path(prompt_file).write_text(submitted_prompt, encoding="utf-8")
     except OSError as exc:
@@ -188,16 +211,9 @@ def refresh_runner_code_after_wait(
     new_local_macros_path: str | None = None
     if local_macros:
         try:
-            from sase.agent.multi_prompt_macros import (
-                serialize_local_macros,
-                set_local_macros_path,
-            )
-
             new_local_macros_path = serialize_local_macros(dict(local_macros))
             set_local_macros_path(os.environ, new_local_macros_path)
         except Exception as exc:
-            from sase.agent.multi_prompt_macros import restore_local_macros_path
-
             if new_local_macros_path is not None:
                 try:
                     os.unlink(new_local_macros_path)
@@ -236,8 +252,6 @@ def refresh_runner_code_after_wait(
             else:
                 os.environ[_PLANNED_AGENT_NAME_ENV] = previous_planned_name
         if new_local_macros_path is not None:
-            from sase.agent.multi_prompt_macros import restore_local_macros_path
-
             restore_local_macros_path(os.environ, previous_local_macros)
             try:
                 os.unlink(new_local_macros_path)
@@ -262,10 +276,6 @@ def _validated_continuation_planned_name(
     if not agent_name or not artifacts_dir:
         return None
     try:
-        from sase.axe.run_agent_directive_identity import (
-            planned_name_is_reserved_for_artifacts,
-        )
-
         if planned_name_is_reserved_for_artifacts(agent_name, artifacts_dir):
             return agent_name
     except Exception:

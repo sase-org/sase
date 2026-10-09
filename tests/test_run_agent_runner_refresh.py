@@ -5,9 +5,13 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from sase.axe.run_agent_runner_state import RunnerRunState
 
 from sase.axe.run_agent_runner_refresh import (
     RUNNER_CODE_REFRESHED_ENV,
@@ -435,7 +439,7 @@ def test_refresh_exec_failure_restores_prior_local_macros_value(
             return_value="b" * 40,
         ),
         patch(
-            "sase.agent.multi_prompt_macros.serialize_local_macros",
+            "sase.axe.run_agent_runner_refresh.serialize_local_macros",
             side_effect=tracking_serialize,
         ),
         patch(
@@ -508,7 +512,7 @@ def test_refresh_serialization_failure_skips_refresh(
             return_value="b" * 40,
         ),
         patch(
-            "sase.agent.multi_prompt_macros.serialize_local_macros",
+            "sase.axe.run_agent_runner_refresh.serialize_local_macros",
             side_effect=RuntimeError("cannot serialize"),
         ),
         patch("sase.axe.run_agent_runner_refresh.os.execv") as execv,
@@ -526,6 +530,171 @@ def test_refresh_serialization_failure_skips_refresh(
     assert RUNNER_CODE_REFRESHED_ENV not in os.environ
     assert LOCAL_MACROS_ENV not in os.environ
     assert "local macros could not be re-materialized" in capsys.readouterr().err
+
+
+def test_refresh_path_imports_no_new_sase_modules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Import firewall: the identity check to execv span imports no new code.
+
+    A torn post-update tree cannot satisfy fresh imports, which is exactly
+    how the 2026-10-09 ``auto_launch_prefix`` incident died. Any
+    ``sase.*`` import after the identity check trips the firewall, so this
+    reaches ``execv`` only when every refresh-path helper (including the
+    lazily-imported leaves they touch) was already imported at boot.
+    """
+    from sase.agent.multi_prompt_macros import LOCAL_MACROS_ENV
+    from sase.macro.models import Macro
+
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    monkeypatch.delenv(LOCAL_MACROS_ENV, raising=False)
+    prompt_file = tmp_path / "prompt.md"
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    submitted_prompt = "%wait:builder\nDo work"
+    macros = {"_x": Macro(name="_x", content="expanded body")}
+    attempted: list[str] = []
+
+    class _ImportFirewall:
+        def find_spec(
+            self,
+            fullname: str,
+            path: object = None,
+            target: object = None,
+        ) -> object:
+            if fullname == "sase" or fullname.startswith("sase."):
+                attempted.append(fullname)
+                raise ImportError(f"import-firewall: {fullname} imported late")
+            return None
+
+    firewall = _ImportFirewall()
+    captured: dict[str, str] = {}
+
+    def capture_exec(*_args: object) -> None:
+        captured.update(os.environ)
+
+    sys.meta_path.insert(0, firewall)
+    try:
+        with (
+            patch(
+                "sase.axe.run_agent_runner_refresh.runner_code_identity",
+                return_value="b" * 40,
+            ),
+            patch(
+                "sase.agent.names.planned_registered_name_belongs_to_artifact",
+                return_value=True,
+            ),
+            patch(
+                "sase.axe.run_agent_runner_refresh.os.execv",
+                side_effect=capture_exec,
+            ),
+        ):
+            refresh_runner_code_after_wait(
+                "a" * 40,
+                blocking_wait_occurred=True,
+                killed=False,
+                prompt_file=str(prompt_file),
+                submitted_prompt=submitted_prompt,
+                agent_name="builder.w0",
+                artifacts_dir=str(artifacts_dir),
+                local_macros=macros,
+            )
+    finally:
+        sys.meta_path.remove(firewall)
+
+    assert attempted == []
+    assert prompt_file.read_text(encoding="utf-8") == submitted_prompt
+    assert captured[RUNNER_CODE_REFRESHED_ENV] == "1"
+    assert captured["SASE_AGENT_PLANNED_NAME"] == "builder.w0"
+    assert LOCAL_MACROS_ENV in captured
+
+
+def _refreshed_bootstrap_state(tmp_path: Path, prompt_text: str) -> RunnerRunState:
+    """Build a refreshed-pass state whose prompt file holds *prompt_text*."""
+    from sase.axe.run_agent_runner_state import RunnerRunState
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir(exist_ok=True)
+    prompt_file = tmp_path / "prompt.md"
+    prompt_file.write_text(prompt_text, encoding="utf-8")
+    return RunnerRunState(
+        cl_name="refresh-reconcile",
+        project_file="/tmp/projects/sase/sase.sase",
+        prompt_file=str(prompt_file),
+        output_path=str(tmp_path / "output.log"),
+        workflow_name="ace(run)-260701_010202",
+        timestamp="260701_010202",
+        update_target="",
+        is_home_mode=False,
+        workspace_dir=str(tmp_path / "workspace"),
+        workspace_num=7,
+        project_name="sase",
+        artifacts_timestamp="20260701_010202",
+        artifacts_dir=str(artifacts_dir),
+    )
+
+
+@pytest.mark.parametrize(
+    ("live_meta", "stale_prompt", "expected_head"),
+    [
+        ({"name": "agent-x"}, "%auto\nDo the thing", None),
+        ({"name": "agent-x"}, "%auto:plan\nDo the thing", None),
+        ({"autonomy": {"selection": ""}}, "Do the thing", "%auto"),
+        (
+            {"autonomy": {"selection": "plan"}},
+            "%auto\nDo the thing",
+            "%auto:plan",
+        ),
+    ],
+    ids=("toggle-off", "toggle-off-plan-spelling", "toggle-on", "auto-plan"),
+)
+def test_refreshed_pass_reconcile_keeps_wait_time_auto_toggle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    live_meta: dict[str, object],
+    stale_prompt: str,
+    expected_head: str | None,
+) -> None:
+    """An ``A`` toggle made during the wait survives the re-exec.
+
+    The pre-exec path persists the prompt verbatim (it may not import), so
+    the refreshed process must apply the live ``%auto`` reconcile before
+    directive extraction; otherwise a toggle-off is undone and a toggle-on
+    is lost.
+    """
+    import json
+
+    from sase.axe.run_agent_runner_bootstrap import _load_submitted_prompt
+
+    monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
+    state = _refreshed_bootstrap_state(tmp_path, stale_prompt)
+    (Path(state.artifacts_dir) / "agent_meta.json").write_text(
+        json.dumps(live_meta), encoding="utf-8"
+    )
+
+    _load_submitted_prompt(state)
+
+    if expected_head is None:
+        assert "%auto" not in state.prompt
+    else:
+        assert state.prompt.split("\n")[0].startswith(expected_head)
+    assert "Do the thing" in state.prompt
+    assert state.submitted_prompt == state.prompt
+
+
+def test_non_refreshed_pass_leaves_prompt_unreconciled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reconcile hook is gated on the refresh marker."""
+    from sase.axe.run_agent_runner_bootstrap import _load_submitted_prompt
+
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    stale_prompt = "%auto\nDo the thing"
+    state = _refreshed_bootstrap_state(tmp_path, stale_prompt)
+
+    _load_submitted_prompt(state)
+
+    assert state.prompt == stale_prompt
 
 
 def test_refresh_local_macros_boundary_replay(
