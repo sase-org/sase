@@ -232,6 +232,7 @@ def _disable_prettier_for_skill_generation(
             "sase_questions",
             (
                 "sase questions '<json>'",
+                "Put your recommended option first",
                 "embed a Plan Decision",
                 "writes a durable handoff marker",
                 "sends `SIGTERM`",

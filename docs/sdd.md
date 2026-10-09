@@ -538,10 +538,12 @@ render, or on stderr after the JSON object in `--json` mode, the command also pr
 Decision Sheet whenever the validated plan still has decisions. That includes the
 outside-agent path. When an auto plan-approval action is active (`%auto`), one more line
 follows the sheet: `auto-approved: every decision takes its default`. That line is not
-printed merely because the process is inside an agent. In `--json` mode stdout stays one
-JSON document: the sheet, the `%auto` note, and the outside-agent quote-verification
-note live inside the `decisions` envelope. If agent-context host checks add diagnostics,
-the plan is cleared and the sheet is skipped. Ordinary plans without decisions keep the
+printed merely because the process is inside an agent: it appears only when the live
+`%auto` spelling covers the plan's tier, so a cross-tier plan under `%auto:tale` or
+`%auto:epic` omits it and waits for review. In `--json` mode stdout stays one JSON
+document: the sheet, the `%auto` note, and the outside-agent quote-verification note
+live inside the `decisions` envelope. If agent-context host checks add diagnostics, the
+plan is cleared and the sheet is skipped. Ordinary plans without decisions keep the
 JSON-only contract.
 
 ### Plan Decisions

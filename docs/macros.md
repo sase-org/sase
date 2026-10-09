@@ -2000,7 +2000,7 @@ are extracted and stripped from the prompt before further processing.
 | `%proc`           |       | Define and natively dispatch a beta stand-alone process unit                                                  |
 | `%final`          |       | Select configured finalizer instances for this launch                                                         |
 | `%hide`           | `%h`  | Hide the agent from the default Agents tab display                                                            |
-| `%auto`           | `%a`  | Request automatic gate resolution; an optional argument is gate-owned                                         |
+| `%auto`           | `%a`  | Auto-resolve plan, epic, and question gates; closed vocabulary below; other forms fail at launch              |
 | `%repeat`         | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                                                             |
 | `%alt`            | `%{}` | Split prompt into variants with different text (brace shorthand)                                              |
 | `%macros_enabled` |       | Enable or disable macro expansion for a text region                                                           |
@@ -2059,7 +2059,7 @@ recipes appear only when the `typed_launch_units` beta flag is enabled. Retired 
 | `%if`             | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes      | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                                                          |
 | `%proc`           | `%proc(...)`, `%proc::`; Bash/Python recipes                                                 | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                                                          |
 | `%hide` / `%h`    | Bare flag and plus form                                                                      | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `%auto` / `%a`    | Bare, plus, and `%auto:...`                                                                  | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `%auto` / `%a`    | Bare, plus, and `%auto:...`                                                                  | `plan`, `tale`, `epic`, `manual`, `off`; any other value fails at launch and parenthesized forms are rejected.                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `%repeat` / `%r`  | `%repeat:...`                                                                                | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `%alt`            | `%{...}` shorthand, `%alt(...)`, `%alt:...`                                                  | No structured argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `%macros_enabled` | `%macros_enabled:...`                                                                        | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -2413,11 +2413,13 @@ Directives use the same argument syntax as macro references:
 %(#review,#test)             # Legacy shorthand, still accepted (prefer `%{...}`)
 %{sec=#review | perf=#test}  # Named branches become child name suffixes
 %{extra instructions}        # Single branch: split into with/without variants
-%auto                        # Request automatic gate resolution using its default
+%auto                        # Auto-resolve plan, epic, and question gates using the default
 %a                           # Same, using alias
-%auto:plan                   # Compatibility alias for normal-plan auto-approval
-%auto:tale                   # Plan first, then auto-approve & commit as a tale
-%auto:epic                   # Plan first, then auto-approve & commit as an epic
+%auto:plan                   # Auto-approve tale plans only; epic plans wait for review
+%auto:tale                   # Same as :plan: auto-approve tale plans only
+%auto:epic                   # Auto-approve epic plans only; tale plans wait for review
+%auto:manual                 # Manual: auto off, exactly as if no %auto were present
+%auto:off                    # Same as :manual
 ```
 
 Model names containing spaces or parentheses must use the quoted parenthesis form (for
@@ -2935,7 +2937,8 @@ treated as a single literal and not split on commas.
 
 The `%hide` directive is a boolean flag — it takes no arguments and is simply present or
 absent. The `%auto` directive defaults to plan mode when bare and accepts `:plan`,
-`:tale`, or `:epic`.
+`:tale`, `:epic`, `:manual`, or `:off`; any other value, and any parenthesized form,
+fails at launch.
 
 ### Example
 
@@ -3025,15 +3028,21 @@ Run periodic health checks.
 ### Auto Directive
 
 The `%auto` directive (alias `%a`) requests automatic resolution when the agent reaches
-a notification gate. The directive parser retains its optional raw argument without
-applying a global enum; the adapter for the gate kind interprets and validates that
-argument. Consequently, an opaque spelling such as `%auto:foo` is valid directive syntax
-and reaches the adapter, which may reject it as unsupported.
+a notification gate. The prompt grammar is closed: `%auto`, `%auto+`, `%auto:true`,
+`%auto:plan`, `%auto:tale`, `%auto:epic`, `%auto:manual`, and `%auto:off` are the only
+accepted spellings. Any other colon value (backtick literals included, e.g.
+`%auto:foo`), any parenthesized form (`%auto(plan=ask)`, `%a(epic=ask)`,
+`%auto(plan, epic)`, `%auto()`), and any duplicate `%auto` fail at launch with a
+`DirectiveError`. `%auto:manual` and `%auto:off` mean Manual: auto is off exactly as if
+no `%auto` were present — the token is still stripped from the cleaned prompt, and no
+auto keys are written to `agent_meta.json`.
 
-Bare `%auto` asks each adapter for its default automatic choice. A tale plan gate uses
-normal approval, an epic plan gate uses epic approval, and a question gate selects the
-first listed option for each question. Launch approval gates reject automatic resolution
-and must be answered explicitly.
+Bare `%auto` (`%auto+` and `%auto:true` normalize to it) approves and archives tale
+plans — the same path as pressing Enter — approves and launches epic plans, and answers
+every question gate with its first option. `%auto:plan`, `%auto:tale`, and `%auto:epic`
+limit which plan tier auto-resolves: `:plan` and `:tale` cover tale plans only, while
+`:epic` covers epic plans only. A plan of the other tier parks for human review instead
+of erroring. All three still auto-answer every question gate with its first option.
 
 ```
 %auto
@@ -3041,20 +3050,18 @@ and must be answered explicitly.
 Fix the lint errors in the codebase.
 ```
 
-sase's TUI and the macro LSP suggest `plan`, `tale`, and `epic` as compatibility
-arguments for plan workflows; those suggestions are not a parser allowlist. `%auto:plan`
-explicitly selects normal approval for an authored tale plan, `%auto:tale` auto-approves
-and commits an authored tale, and `%auto:epic` follows the authored epic path. The plan
-adapter rejects unknown arguments and tier-changing combinations such as `%auto:epic` on
-a tale or `%auto:tale` on an epic. Other adapters own different vocabularies: for
-example, the question adapter also accepts `first`, while the launch adapter accepts no
-automatic argument or default.
+sase's TUI and the macro LSP suggest `plan`, `tale`, `epic`, `manual`, and `off` as the
+closed `%auto` vocabulary. Launch, sudo, custom, HITL, task/flag triage, snooze,
+stale-cleanup, and plugin gates are never auto-resolved and must be answered explicitly.
+The `A` toggle in sase's TUI takes effect at the next gate: toggling on means bare
+`%auto`, and toggling off stops the next gate from auto-resolving.
 
-When an agent launched with `%auto:tale` later submits a plan with `/sase_plan` or
+When an agent launched with `%auto:tale` later submits a tale plan with `/sase_plan` or
 `sase plan propose`, sase auto-approves and commits it as an SDD tale in the resolved
 plans root's `<YYYYMM>/` directory and launches the coder follow-up — the same path as
-the TUI Tale action. Use `sase repo path plans` instead of assuming whether the root is
-in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` sidecar:
+the TUI Tale action. An epic plan from the same agent parks for review. Use
+`sase repo path plans` instead of assuming whether the root is in-tree, a legacy
+`.sase/sdd/` clone, or the split `--plans` sidecar:
 
 ```
 %auto:tale
@@ -3196,7 +3203,8 @@ process, owns the pending review. In the TUI it shows the authored `TALE` or `EP
 status (or legacy `PLAN`) and settles when the selected branch's commands complete.
 Feedback launches a replanner; tale approval launches a coder; epic approval may be
 terminal because its approval command launches epic execution itself. The `%auto:tale`
-and `%auto:epic` modes use the same pipeline but answer the plan decision synchronously.
+and `%auto:epic` modes use the same pipeline but answer the plan decision synchronously
+when the spelling covers the plan's tier; a plan of the other tier parks for review.
 
 Once the plan is approved, sase launches a follow-up **coder** agent. That automated
 hand-off still inlines the approved plan with `@` and does not share a body with the
@@ -3244,8 +3252,8 @@ be found.
 When an agent launched with `%auto:epic` later submits a plan with `/sase_plan` or
 `sase plan propose`, sase follows the same epic path as the TUI Epic action: it writes
 the SDD epic files, commits them as needed, initializes beads, and launches the epic
-follow-up agent. Unlike bare `%auto`, `%auto:epic` is plan-specific and does not
-automatically answer unrelated questions.
+follow-up agent. Like every other `%auto` spelling, `%auto:epic` still answers question
+gates automatically with the first option; it only limits which plan tier auto-resolves.
 
 ```
 %auto:epic
