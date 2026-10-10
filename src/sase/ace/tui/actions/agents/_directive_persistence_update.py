@@ -121,8 +121,7 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
     ):
         # The ``A`` toggle mutates ``%auto`` state through legacy keys.
         # Retune the stored autonomy record from the result so record
-        # readers track the toggle; with ``autonomy_record_only`` on the
-        # legacy keys leave disk again, with it off both stay in sync.
+        # readers track the toggle; the legacy keys leave disk again.
         retune_meta_record(meta)
     if "wait_for_epics_of" in patch.set_values:
         raw_armed = patch.set_values["wait_for_epics_of"]

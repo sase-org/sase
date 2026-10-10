@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.main.parser_sudo import register_sudo_parser
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.service import create_gate
@@ -25,10 +24,9 @@ def test_remote_finalize_headless_streams_output_and_settles_once(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(
-            build_sudo_gate_request(_request(), request_id="sudo-remote-headless")
-        )
+    gate = create_gate(
+        build_sudo_gate_request(_request(), request_id="sudo-remote-headless")
+    )
     from sase.ops.io import write_operation_request
     from sase.ops.models import DurableOperationRequest
     from sase.ops.names import SUDO_FINALIZE
@@ -134,8 +132,7 @@ def test_remote_finalize_headless_streams_output_and_settles_once(
             str(sidecar),
         ]
     )
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(finalize_args) == 0
+    assert handle_sudo_command(finalize_args) == 0
     raw = capsys.readouterr().out
     assert "starting reviewed command" in raw
     finished = json.loads(raw[raw.index("{") :])
@@ -145,8 +142,7 @@ def test_remote_finalize_headless_streams_output_and_settles_once(
     assert load_execution_state(gate.bundle_path) is None
     assert not remote_dir.exists()
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(finalize_args) == 0
+    assert handle_sudo_command(finalize_args) == 0
     replay = json.loads(capsys.readouterr().out)
     assert replay["status"] == "answered"
 
@@ -158,8 +154,7 @@ def test_remote_finalize_uncertain_error_keeps_recovery_state(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     from sase.ops.io import write_operation_request
     from sase.ops.models import DurableOperationRequest
     from sase.ops.names import SUDO_FINALIZE
@@ -253,8 +248,7 @@ def test_remote_finalize_uncertain_error_keeps_recovery_state(
         "sase.notification_gates.executor.has_controlling_tty",
         lambda: False,
     )
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 2
+    assert handle_sudo_command(args) == 2
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "pending"
     assert output["code"] == "timeout"

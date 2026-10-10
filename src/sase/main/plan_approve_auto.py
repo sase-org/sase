@@ -102,8 +102,7 @@ def _raw_auto_plan_argument() -> tuple[str | None, bool]:
     The ``SASE_AGENT_AUTO_APPROVE_ARGUMENT`` / ``SASE_AGENT_AUTO_PLAN_ARGUMENT``
     launch-time snapshot is never consulted (see
     :func:`get_auto_plan_approval_action`). A stored autonomy record
-    without legacy keys derives the argument from its selection, so
-    record-only launches read identically.
+    without legacy keys derives the argument from its selection.
     """
     meta = _read_agent_meta()
     if "auto_approve_argument" in meta:
@@ -124,10 +123,10 @@ def is_auto_approve_active() -> bool:
     """Check if auto-approve is active from the live agent_meta.json.
 
     Returns True if the agent's ``agent_meta.json`` (located via
-    SASE_ARTIFACTS_DIR) carries auto state. The ``SASE_AGENT_AUTO_APPROVE``
-    launch-time snapshot is never consulted, so an ``A`` toggle-off takes
-    effect at the next question gate. Missing, unreadable, or non-dict
-    meta means no auto (fail closed).
+    SASE_ARTIFACTS_DIR) carries auto state. No launch-time environment
+    snapshot is consulted, so an ``A`` toggle-off takes effect at the
+    next question gate. Missing, unreadable, or non-dict meta means no
+    auto (fail closed).
     """
     _argument, has_argument = _raw_auto_plan_argument()
     if has_argument:

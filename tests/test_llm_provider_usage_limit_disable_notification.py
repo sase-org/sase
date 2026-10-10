@@ -25,6 +25,18 @@ from tests._llm_provider_usage_limit_disable_helpers import (
 )
 
 
+def _inline_settings_patch() -> object:
+    """Force the inline-notification path: drains stay a relaunch decision."""
+    from unittest.mock import patch
+
+    from sase.llm_provider.usage_limit_config import UsageLimitSettings
+
+    return patch(
+        "sase.llm_provider.usage_limit_disable.get_usage_limit_settings",
+        return_value=UsageLimitSettings(relaunch=False),
+    )
+
+
 @pytest.fixture
 def registered_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
@@ -43,9 +55,10 @@ class TestUsageLimitNotification:
         registered_providers: None,
     ) -> None:
         mock_detect.return_value = _detection()
-        result = handle_possible_usage_limit(
-            provider="claude", error_text="usage limit reached"
-        )
+        with _inline_settings_patch():
+            result = handle_possible_usage_limit(
+                provider="claude", error_text="usage limit reached"
+            )
         assert result is not None
         mock_notify.assert_called_once()
         assert mock_notify.call_args.args[0] is result
@@ -78,9 +91,10 @@ class TestUsageLimitNotification:
         def worker() -> None:
             try:
                 barrier.wait(timeout=5)
-                handle_possible_usage_limit(
-                    provider="claude", error_text="usage limit reached"
-                )
+                with _inline_settings_patch():
+                    handle_possible_usage_limit(
+                        provider="claude", error_text="usage limit reached"
+                    )
             except BaseException as exc:  # noqa: BLE001 - collected for the parent
                 errors.append(exc)
 
@@ -148,9 +162,10 @@ class TestUsageLimitNotification:
         registered_providers: None,
     ) -> None:
         mock_detect.return_value = _detection()
-        result = handle_possible_usage_limit(
-            provider="claude", error_text="usage limit reached"
-        )
+        with _inline_settings_patch():
+            result = handle_possible_usage_limit(
+                provider="claude", error_text="usage limit reached"
+            )
         assert result is not None
         assert get_active_provider_disable("claude") is not None
 
@@ -184,11 +199,12 @@ class TestUsageLimitNotification:
         )
         mock_detect.return_value = _detection()
 
-        handle_possible_usage_limit(
-            provider="claude",
-            error_text="usage limit reached",
-            artifacts_dir=str(artifacts_dir),
-        )
+        with _inline_settings_patch():
+            handle_possible_usage_limit(
+                provider="claude",
+                error_text="usage limit reached",
+                artifacts_dir=str(artifacts_dir),
+            )
 
         mock_notify.assert_called_once()
         assert mock_notify.call_args.kwargs["agent_name"] == "bbugyi200.athena.03j"
@@ -204,11 +220,12 @@ class TestUsageLimitNotification:
     ) -> None:
         mock_detect.return_value = _detection()
 
-        handle_possible_usage_limit(
-            provider="claude",
-            error_text="usage limit reached",
-            artifacts_dir=str(tmp_path / "does-not-exist"),
-        )
+        with _inline_settings_patch():
+            handle_possible_usage_limit(
+                provider="claude",
+                error_text="usage limit reached",
+                artifacts_dir=str(tmp_path / "does-not-exist"),
+            )
 
         mock_notify.assert_called_once()
         assert mock_notify.call_args.kwargs["agent_name"] is None

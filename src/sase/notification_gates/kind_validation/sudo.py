@@ -5,7 +5,6 @@ from __future__ import annotations
 from sase.notification_gates.kind_validation.resources import read_gate_resource
 from sase.notification_gates.models import GateError, GateSpec, stamp_schema_dialect
 from sase.sudo.core import DEFAULT_SUDO_CORE
-from sase.sudo.feature import require_sudo_requests_enabled
 from sase.sudo.models import normalize_sudo_request
 from sase.sudo.target import resolve_sudo_target
 
@@ -16,8 +15,7 @@ DENY_COMMAND_PATH = "commands/deny"
 
 
 def validate_sudo_spec(spec: GateSpec) -> None:
-    """Keep sudo gates feature-flagged and on the registered command contract."""
-    require_sudo_requests_enabled("sudo")
+    """Keep sudo gates on the registered command contract."""
     _validate_payload(spec)
     _validate_structure(spec)
     _validate_commands(spec)

@@ -21,7 +21,7 @@ from sase.ace.tui.actions.agents._notification_sudo import (
     handle_sudo_request,
 )
 from sase.ace.tui.modals import SudoRequestModalData, SudoRequestModalResult
-from sase.feature_flags import SASE_FEATURE_FLAGS_ENV, override_flags
+from sase.feature_flags import SASE_FEATURE_FLAGS_ENV
 from sase.notification_gates.service import create_gate
 from sase.notifications import Notification
 from sase.notifications.store import load_notifications
@@ -133,13 +133,12 @@ def test_sudo_notification_loader_projects_verified_manifest(
     gate_home: Path,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        create_gate(
-            build_sudo_gate_request(
-                _sudo_request(),
-                producer={"agent": "coder", "project": "sase"},
-            )
+    create_gate(
+        build_sudo_gate_request(
+            _sudo_request(),
+            producer={"agent": "coder", "project": "sase"},
         )
+    )
     notification = load_notifications()[0]
     notification.action_data["project"] = "sase"
 
@@ -159,8 +158,7 @@ async def test_sudo_run_uses_terminal_handoff_not_durable_proc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        create_gate(build_sudo_gate_request(_sudo_request()))
+    create_gate(build_sudo_gate_request(_sudo_request()))
     notification = load_notifications()[0]
     result = SudoRequestModalResult(action="run", command_ids=("refresh",))
     app = _SudoActionApp(result)
@@ -229,8 +227,7 @@ async def test_sudo_request_while_executing_shows_status_instead_of_modal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        create_gate(build_sudo_gate_request(_sudo_request()))
+    create_gate(build_sudo_gate_request(_sudo_request()))
     notification = load_notifications()[0]
     app = _SudoActionApp(None)
 
@@ -262,8 +259,7 @@ async def test_sudo_deny_uses_headless_durable_gate_executor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        create_gate(build_sudo_gate_request(_sudo_request()))
+    create_gate(build_sudo_gate_request(_sudo_request()))
     notification = load_notifications()[0]
     result = SudoRequestModalResult(action="deny", feedback="not needed")
     app = _SudoActionApp(result)

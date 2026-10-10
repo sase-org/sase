@@ -1830,10 +1830,10 @@ llm_provider:
   #                              # usage-window reset when no reset hint is
   #                              # found; precedence is hint > window > flat
   #   notify: true               # notify once for each new disable window
-  #   relaunch: true              # (beta: provider_drain) submit a drain proc
-  #                              # that relaunches the agents a hard disable
-  #                              # stranded and folds the report into the
-  #                              # notify: true notification
+  #   relaunch: true              # submit a drain proc that relaunches
+  #                              # the agents a hard disable stranded and
+  #                              # folds the report into the notify: true
+  #                              # notification
   #   relaunch_limit: 20          # most agents an automatic drain relaunches
   #   providers:
   #     claude:

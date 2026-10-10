@@ -2639,9 +2639,8 @@ Provider plugins supply conservative built-in patterns through
   small grace buffer of 60 seconds. See [Reset-hint forms](#reset-hint-forms) for what
   it parses.
 - `notify` controls the notification created for a new automatic disable window.
-- `relaunch` and `relaunch_limit`, behind the `provider_drain` beta flag, control
-  whether a hard disable submits a durable drain that relaunches the agents it stranded
-  and how many it moves at most. See
+- `relaunch` and `relaunch_limit` control whether a hard disable submits a durable drain
+  that relaunches the agents it stranded and how many it moves at most. See
   [Draining a Disabled Provider](#draining-a-disabled-provider).
 - `providers.<provider>.patterns` adds positive provider-specific substrings.
 - `providers.<provider>.exclude_patterns` adds suppressing substrings for near misses
@@ -2744,15 +2743,13 @@ the previous run's artifacts before relaunching. Any in-flight progress on a `RU
 row is lost; the chat transcript under `~/.sase/chats` survives.
 
 The `llm_provider.usage_limit.relaunch` / `relaunch_limit` config fields (above) control
-whether and how much a usage-limit hard disable drains automatically; the
-`provider_drain` beta flag gates that automatic submission and sase's TUI Launch Control
-[automatic provider drain](ace.md#automatic-provider-drain) — both are off until the
-flag is enabled.
+whether and how much a usage-limit hard disable drains automatically, as does sase's TUI
+Launch Control [automatic provider drain](ace.md#automatic-provider-drain).
 
-`sase agent drain <provider>` is the always-available manual escape hatch regardless of
-the flag: it previews with `--dry-run`, refuses a provider with no active hard disable
-(exit 2 for `nothing_to_drain`, except an automatic request records that empty result as
-a successful no-op), and confirms before discarding live progress unless `-y`/`--yes` or
+`sase agent drain <provider>` is the always-available manual escape hatch: it previews
+with `--dry-run`, refuses a provider with no active hard disable (exit 2 for
+`nothing_to_drain`, except an automatic request records that empty result as a
+successful no-op), and confirms before discarding live progress unless `-y`/`--yes` or
 `-j`/`--json` is given. `-m/--model` is the way to move an agent the plan would
 otherwise report stranded — pointing the whole drain at a reachable model turns every
 moved agent into an ordinary reroute. `-l/--limit` caps how many agents move at once;

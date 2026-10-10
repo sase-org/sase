@@ -415,7 +415,7 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 def _project_autonomy_legacy_fields(payload: dict[str, Any]) -> dict[str, Any]:
     """Fill legacy ``%auto`` wire fields from the autonomy record.
 
-    Record-only launches (``autonomy_record_only`` on) persist no
+    Launches persist no
     ``approve``/``auto_approve_plan_action``/``auto_approve_argument``/``plan``
     keys; every listing, status, and TUI reader of those wire fields keeps
     working because the core projection reproduces the historical writer

@@ -516,8 +516,7 @@ class ArtifactRestorationMixin:
             if any(key in data for key in RETUNE_TRIGGER_KEYS):
                 # Revive restores the record: retune it from the revived
                 # legacy keys so record readers see the revived policy.
-                # With ``autonomy_record_only`` on the legacy keys leave
-                # disk again; with it off both stay in sync.
+                # The legacy keys leave disk again.
                 retune_meta_record(data)
             merged = dict(existing)
             merged.update(data)

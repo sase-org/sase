@@ -145,14 +145,14 @@ def _dispatch_disable_followup(
 ) -> None:
     """Own the one notification for this disable: inline, or via a drain.
 
-    A drain is only attempted when the flag is on, ``relaunch`` is enabled,
-    and the record this call just won is a hard disable -- a soft disable
-    spares the provider in pools but still allows launches, so nothing is
-    stranded. When a drain is submitted it owns the (enriched) notification;
-    this process sends none. A submission failure falls back to today's
-    inline notification so the user is never left silent.
+    A drain is attempted when ``relaunch`` is enabled and the record this
+    call just won is a hard disable -- a soft disable spares the provider
+    in pools but still allows launches, so nothing is stranded. When a
+    drain is submitted it owns the (enriched) notification; this process
+    sends none. A submission failure falls back to the inline notification
+    so the user is never left silent.
     """
-    if not (settings.relaunch and outcome.record.is_hard and _provider_drain_enabled()):
+    if not (settings.relaunch and outcome.record.is_hard):
         _notify_usage_limit_disabled(
             detection, model=model, artifacts_dir=artifacts_dir
         )
@@ -185,12 +185,6 @@ def _trigger_usage_refresh_after_limit(
             provider,
             exc_info=True,
         )
-
-
-def _provider_drain_enabled() -> bool:
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.provider_drain)
 
 
 def _notify_usage_limit_disabled(

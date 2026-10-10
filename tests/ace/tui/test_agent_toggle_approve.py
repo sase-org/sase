@@ -154,32 +154,25 @@ def test_auto_approve_active_maps_each_state() -> None:
 # --- Toggle: off -> on -------------------------------------------------------
 
 
-def _run_toggle_in_state(
-    workdir: Any,
-    *,
-    record_only: bool,
-    seed_meta: dict[str, Any] | None = None,
-    **agent_overrides: object,
-) -> dict[str, Any]:
+def _run_toggle(workdir: Any, **kwargs: object) -> dict[str, Any]:
     """Flip the ``A`` toggle once and return the persisted disk meta.
 
     Runs the full production path (optimistic in-memory mutation plus the
-    scheduled persistence worker) with ``autonomy_record_only`` forced to
-    *record_only*.
+    scheduled persistence worker). ``kwargs`` splits into an optional
+    ``seed_meta`` mapping plus agent field overrides.
     """
     from pathlib import Path
 
-    from sase.feature_flags import override_flags
+    seed_meta = kwargs.pop("seed_meta", None)
 
     directory = Path(str(workdir))
     directory.mkdir(parents=True, exist_ok=True)
     if seed_meta is not None:
         (directory / "agent_meta.json").write_text(json.dumps(seed_meta))
-    agent = _make_agent(str(directory), **agent_overrides)
+    agent = _make_agent(str(directory), **kwargs)
     app = FakeApproveApp(agent)
-    with override_flags(autonomy_record_only=record_only):
-        app.action_toggle_auto_approve()
-        asyncio.run(app.scheduled[0][0]())
+    app.action_toggle_auto_approve()
+    asyncio.run(app.scheduled[0][0]())
     return json.loads((directory / "agent_meta.json").read_text())
 
 
@@ -204,11 +197,6 @@ def test_toggle_off_enables_bare_auto(tmp_path: Any) -> None:
     assert (record["profile"], record["selection"]) == ("standard", "")
     assert data == {}
 
-    off_data = _run_toggle_in_state(tmp_path / "off", record_only=False)
-    off_record = off_data.pop("autonomy")
-    assert (off_record["profile"], off_record["selection"]) == ("standard", "")
-    assert off_data == {"approve": True}
-
 
 def test_toggle_off_clears_stale_keys_but_preserves_others(tmp_path: Any) -> None:
     seed = {
@@ -216,21 +204,11 @@ def test_toggle_off_clears_stale_keys_but_preserves_others(tmp_path: Any) -> Non
         "auto_approve_argument": "tale",
         "other": "keep",
     }
-    data = _run_toggle_in_state(tmp_path / "on", record_only=True, seed_meta=seed)
+    data = _run_toggle(tmp_path / "on", seed_meta=seed)
     record = data.pop("autonomy")
     # Restore brings back the translated tale profile, not bare standard.
     assert (record["profile"], record["selection"]) == ("tale", "tale")
     assert data == {"other": "keep"}
-
-    off_data = _run_toggle_in_state(tmp_path / "off", record_only=False, seed_meta=seed)
-    off_record = off_data.pop("autonomy")
-    assert (off_record["profile"], off_record["selection"]) == ("tale", "tale")
-    assert off_data == {
-        "other": "keep",
-        "auto_approve_argument": "tale",
-        "auto_approve_plan_action": "tale",
-        "plan": True,
-    }
 
 
 # --- Toggle: on -> off --------------------------------------------------------
@@ -255,16 +233,6 @@ def test_toggle_plain_on_disables(tmp_path: Any) -> None:
     assert (record["profile"], record["selection"]) == ("manual", "manual")
     assert data == {"other": "keep"}
 
-    off_data = _run_toggle_in_state(
-        tmp_path / "off",
-        record_only=False,
-        seed_meta=seed,
-        approve=True,
-    )
-    off_record = off_data.pop("autonomy")
-    assert (off_record["profile"], off_record["selection"]) == ("manual", "manual")
-    assert off_data == {"other": "keep"}
-
 
 def test_toggle_launch_time_epic_disables_fully(tmp_path: Any) -> None:
     seed = {
@@ -273,9 +241,8 @@ def test_toggle_launch_time_epic_disables_fully(tmp_path: Any) -> None:
         "auto_approve_argument": "epic",
         "other": "keep",
     }
-    data = _run_toggle_in_state(
+    data = _run_toggle(
         tmp_path / "on",
-        record_only=True,
         seed_meta=seed,
         approve=True,
         auto_approve_plan_action="epic",
@@ -283,17 +250,6 @@ def test_toggle_launch_time_epic_disables_fully(tmp_path: Any) -> None:
     record = data.pop("autonomy")
     assert (record["profile"], record["selection"]) == ("manual", "manual")
     assert data == {"other": "keep"}
-
-    off_data = _run_toggle_in_state(
-        tmp_path / "off",
-        record_only=False,
-        seed_meta=seed,
-        approve=True,
-        auto_approve_plan_action="epic",
-    )
-    off_record = off_data.pop("autonomy")
-    assert (off_record["profile"], off_record["selection"]) == ("manual", "manual")
-    assert off_data == {"other": "keep"}
 
 
 def test_toggle_persist_refreshes_artifact_index(tmp_path: Any) -> None:

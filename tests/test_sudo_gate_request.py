@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 
 from sase.agent.gate_intent import list_gate_intents
-from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.models import GateError
@@ -23,15 +22,14 @@ from sase.sudo.models import normalize_sudo_request
 from tests._sudo_gate_helpers import _multi_command_request, _request
 
 
-def test_sudo_gate_creation_is_feature_flagged(gate_home: Path) -> None:
+def test_sudo_gate_creation_is_unconditional(gate_home: Path) -> None:
     del gate_home
     spec = build_sudo_gate_request(_request())
 
-    with override_flags(agent_sudo_requests=False):
-        with pytest.raises(GateError) as excinfo:
-            create_gate(spec)
+    gate = create_gate(spec)
 
-    assert excinfo.value.code == "feature_disabled"
+    assert gate.request_id
+    assert gate.bundle_path.exists()
 
 
 def test_sudo_gate_contains_tty_approve_and_headless_deny(
@@ -39,8 +37,7 @@ def test_sudo_gate_contains_tty_approve_and_headless_deny(
 ) -> None:
     del gate_home
 
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
 
     request = read_json_object(gate.request_path)
     options = {option["id"]: option for option in request["options"]}
@@ -92,9 +89,8 @@ def test_sudo_manifest_hash_is_part_of_kind_validation(gate_home: Path) -> None:
     tampered = copy.deepcopy(spec)
     tampered["payload"]["sudo"]["manifest"]["commands"][0]["why"] = "tampered"
 
-    with override_flags(agent_sudo_requests=True):
-        with pytest.raises(GateError) as excinfo:
-            create_gate(tampered)
+    with pytest.raises(GateError) as excinfo:
+        create_gate(tampered)
 
     assert excinfo.value.code == "invalid_sudo_payload"
     assert excinfo.value.target == "payload.sudo.manifest"

@@ -11,7 +11,6 @@ from typing import Any
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.main.parser_sudo import register_sudo_parser
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
@@ -49,8 +48,7 @@ def test_sudo_answer_default_detach_returns_execution_started(
 ) -> None:
     del gate_home
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
@@ -84,8 +82,7 @@ def test_sudo_answer_default_detach_returns_execution_started(
     monkeypatch.setattr("sase.sudo.detach.run_sudo_runner_detached", fake_detached)
     monkeypatch.setattr("sase.sudo.detach.submit_proc_request", fake_submit)
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
+    assert handle_sudo_command(args) == 0
 
     output = json.loads(capsys.readouterr().out)
     request = captured["request"]
@@ -115,8 +112,7 @@ def test_sudo_answer_no_detach_stays_synchronous(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(
@@ -142,8 +138,7 @@ def test_sudo_answer_no_detach_stays_synchronous(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("detached")),
     )
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
+    assert handle_sudo_command(args) == 0
 
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "answered"
@@ -156,8 +151,7 @@ def test_sudo_answer_detach_falls_back_for_old_runner(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(
@@ -178,8 +172,7 @@ def test_sudo_answer_detach_falls_back_for_old_runner(
         ),
     )
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
+    assert handle_sudo_command(args) == 0
 
     captured = capsys.readouterr()
     output = json.loads(captured.out)
@@ -194,8 +187,7 @@ def test_sudo_answer_detach_remote_old_target_falls_back(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(
@@ -224,8 +216,7 @@ def test_sudo_answer_detach_remote_old_target_falls_back(
         ),
     )
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
+    assert handle_sudo_command(args) == 0
 
     captured = capsys.readouterr()
     output = json.loads(captured.out)
@@ -242,8 +233,7 @@ def test_sudo_answer_detach_remote_starts_finalize_proc(
 ) -> None:
     del gate_home
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(
@@ -294,8 +284,7 @@ def test_sudo_answer_detach_remote_starts_finalize_proc(
     )
     monkeypatch.setattr("sase.sudo.detach.submit_proc_request", fake_submit)
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
+    assert handle_sudo_command(args) == 0
 
     output = json.loads(capsys.readouterr().out)
     request = captured["request"]
@@ -328,8 +317,7 @@ def test_sudo_exec_contract_advertises_detached_runner(
         "sase.sudo.cli.runner_supports_detached_execution", lambda: True
     )
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
+    assert handle_sudo_command(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema_version"] == 1
@@ -368,8 +356,7 @@ def test_sudo_exec_detach_writes_handshake_file(
         lambda *_args, **_kwargs: handshake,
     )
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
+    assert handle_sudo_command(args) == 0
 
     assert json.loads(handshake_path.read_text(encoding="utf-8")) == handshake
     assert not ledger_path.exists()
@@ -383,8 +370,7 @@ def test_sudo_answer_detach_rejects_live_duplicate(
 ) -> None:
     del gate_home
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(
@@ -405,10 +391,9 @@ def test_sudo_answer_detach_rejects_live_duplicate(
     )
     monkeypatch.setattr("sase.sudo.execution._proc_is_live", lambda _proc_id: True)
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
-        capsys.readouterr()
-        assert handle_sudo_command(args) == 2
+    assert handle_sudo_command(args) == 0
+    capsys.readouterr()
+    assert handle_sudo_command(args) == 2
 
     output = json.loads(capsys.readouterr().out)
     assert output["code"] == "execution_in_progress"
@@ -424,8 +409,7 @@ def test_sudo_show_and_list_include_executing_state(
 ) -> None:
     del gate_home
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     from sase.sudo.execution import SudoExecutionState, write_execution_state
 
     write_execution_state(
@@ -452,11 +436,10 @@ def test_sudo_show_and_list_include_executing_state(
     show_args = parser.parse_args(["sudo", "show", gate.request_id, "--json"])
     list_args = parser.parse_args(["sudo", "list", "--json"])
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(show_args) == 0
-        show_payload = json.loads(capsys.readouterr().out)
-        assert handle_sudo_command(list_args) == 0
-        list_payload = json.loads(capsys.readouterr().out)
+    assert handle_sudo_command(show_args) == 0
+    show_payload = json.loads(capsys.readouterr().out)
+    assert handle_sudo_command(list_args) == 0
+    list_payload = json.loads(capsys.readouterr().out)
 
     assert show_payload["status"] == "pending"
     assert show_payload["sudo"]["executing"] is True
@@ -475,14 +458,12 @@ def test_sudo_finalize_json_requires_operation_sidecar(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(["sudo", "finalize", gate.request_id, "--json"])
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 1
+    assert handle_sudo_command(args) == 1
 
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "pending"

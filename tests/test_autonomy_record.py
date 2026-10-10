@@ -1,9 +1,8 @@
 """Autonomy record persistence and readers (``%auto`` E1 ``record`` phase).
 
-With ``autonomy_record_only`` on, every launch persists
-``agent_meta.autonomy`` and no legacy ``%auto`` meta keys; with it off,
-both are written. Every reader below goes through the record (or its
-legacy translation), so both states behave identically.
+Every launch persists ``agent_meta.autonomy`` and no legacy ``%auto``
+meta keys. Every reader below goes through the record (or its legacy
+translation), so record and legacy-only metas behave identically.
 """
 
 from __future__ import annotations
@@ -18,14 +17,13 @@ from sase.autonomy.record import (
     LEGACY_AUTONOMY_KEYS,
     apply_record_meta_patch,
     auto_applies,
+    legacy_projection,
     live_record,
     read_record,
     record_meta_patch,
-    record_only,
     resolve_selection,
     retune_meta_record,
 )
-from sase.feature_flags import override_flags
 from tests.autonomy_contract.harness import launch_meta
 from tests.autonomy_contract.rows import SPELLING_ROWS
 
@@ -74,32 +72,29 @@ def _launch(prompt: str, workdir: Path) -> dict[str, Any]:
     return meta
 
 
-def test_record_flag_defaults_on() -> None:
-    assert record_only() is True
-
-
 @pytest.mark.parametrize("row", SPELLING_ROWS, ids=[row.id for row in SPELLING_ROWS])
-def test_launch_record_shape_both_states(row, tmp_path: Path) -> None:
-    """Every spelling resolves to the same record in both flag states."""
+def test_launch_record_shape(row, tmp_path: Path) -> None:
+    """Every spelling resolves to its record with no legacy keys."""
     prompt, profile, selection, legacy = _SPELLING_EXPECTATIONS[row.id]
     assert row.prompt == prompt
 
-    on_meta = _launch(prompt, tmp_path / "on")
-    with override_flags(autonomy_record_only=False):
-        off_meta = _launch(prompt, tmp_path / "off")
+    meta = _launch(prompt, tmp_path)
 
-    for meta in (on_meta, off_meta):
-        record = meta["autonomy"]
-        assert record["profile"] == profile
-        assert record["selection"] == selection
-        assert record["revision"] == 1
-        assert record["schema_version"] == 1
+    record = meta["autonomy"]
+    assert record["profile"] == profile
+    assert record["selection"] == selection
+    assert record["revision"] == 1
+    assert record["schema_version"] == 1
 
-    # Flag on: no legacy keys. Flag off: the exact historical writer keys.
-    assert not any(key in on_meta for key in LEGACY_AUTONOMY_KEYS)
-    assert {
-        key: off_meta[key] for key in LEGACY_AUTONOMY_KEYS if key in off_meta
-    } == legacy
+    # Launches write no legacy keys; the projection still reproduces
+    # the historical writer keys for readers on the record.
+    assert not any(key in meta for key in LEGACY_AUTONOMY_KEYS)
+    projected = {
+        key: value
+        for key, value in legacy_projection(record).items()
+        if key in LEGACY_AUTONOMY_KEYS and value not in (None, False)
+    }
+    assert projected == legacy
 
 
 def test_tale_launch_acceptance(tmp_path: Path) -> None:
@@ -129,26 +124,19 @@ def test_read_record_none_without_state() -> None:
     assert read_record(None) is None
 
 
-def test_record_meta_patch_both_states() -> None:
+def test_record_meta_patch_writes_no_legacy() -> None:
     record = resolve_selection("tale", source="prompt", surface="launch")
-    assert set(record_meta_patch(record)) == {"autonomy"}
-    with override_flags(autonomy_record_only=False):
-        patch = record_meta_patch(record)
+    patch = record_meta_patch(record)
     assert patch["autonomy"] == record
-    assert patch["auto_approve_argument"] == "tale"
-    assert patch["auto_approve_plan_action"] == "tale"
-    assert patch["plan"] is True
-    assert "approve" not in patch
-    assert "prompt_mode" not in patch
+    assert set(patch) == {"autonomy"}
 
 
-def test_record_meta_patch_manual_off_writes_no_legacy() -> None:
+def test_record_meta_patch_manual_writes_no_legacy() -> None:
     record = resolve_selection(None, source="prompt", surface="launch")
-    with override_flags(autonomy_record_only=False):
-        assert set(record_meta_patch(record)) == {"autonomy"}
+    assert set(record_meta_patch(record)) == {"autonomy"}
 
 
-def test_apply_record_meta_patch_removes_legacy_when_on() -> None:
+def test_apply_record_meta_patch_removes_legacy() -> None:
     meta = {"approve": True, "plan": True}
     record = resolve_selection("", source="prompt", surface="launch")
     apply_record_meta_patch(meta, record)
@@ -234,14 +222,12 @@ def test_retune_after_toggle_off() -> None:
     assert not any(key in meta for key in LEGACY_AUTONOMY_KEYS)
 
 
-def test_retune_after_toggle_on_both_states() -> None:
-    for enabled in (True, False):
-        meta: dict[str, Any] = {}
-        meta["approve"] = True
-        with override_flags(autonomy_record_only=enabled):
-            retune_meta_record(meta)
-        assert meta["autonomy"]["profile"] == "standard"
-        assert ("approve" in meta) is not enabled
+def test_retune_after_toggle_on_drops_legacy() -> None:
+    meta: dict[str, Any] = {}
+    meta["approve"] = True
+    retune_meta_record(meta)
+    assert meta["autonomy"]["profile"] == "standard"
+    assert "approve" not in meta
 
 
 def test_plan_auto_covers_tier_matches_historical_tables() -> None:

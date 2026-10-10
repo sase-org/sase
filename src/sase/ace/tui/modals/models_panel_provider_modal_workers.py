@@ -43,7 +43,6 @@ else:
 
 _SNAPSHOT_GROUP = "provider-routing-snapshot"
 _WRITE_GROUP = "provider-routing-write"
-_PROVIDER_DRAIN_FLAG = "provider_drain"
 
 
 def _disable_success_toast(
@@ -86,17 +85,6 @@ def _priority_success_toast(
     )
 
 
-def _provider_drain_flag_enabled() -> bool:
-    """Return whether the provider-drain ACE prompt should be offered."""
-    from sase.feature_flags.models import FeatureFlagError
-    from sase.feature_flags.snapshot import current_flags
-
-    try:
-        return current_flags().enabled(_PROVIDER_DRAIN_FLAG)
-    except FeatureFlagError:
-        return False
-
-
 def _provider_drain_requested(
     provider: str,
     *,
@@ -115,8 +103,6 @@ def _provider_drain_requested(
     if not changed or mode != PROVIDER_DISABLE_MODE_HARD:
         return False
     if previous_mode == PROVIDER_DISABLE_MODE_HARD:
-        return False
-    if not _provider_drain_flag_enabled():
         return False
     disable = active_disable(snapshot.provider_disables.get(provider), now=captured_now)
     if disable is None or not disable.is_hard:

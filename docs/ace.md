@@ -4441,7 +4441,6 @@ hold:
   hard, or an expired disable → hard). Re-hard-disabling or extending an already
   hard-disabled provider never re-drains; use `sase agent drain <provider>` for that
   case.
-- The `provider_drain` beta flag is enabled.
 
 The disable write returns immediately with the usual "disabled" toast, then a
 `Draining <PROVIDER>` start toast follows. The drain runs as the durable `agent.drain`

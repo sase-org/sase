@@ -30,7 +30,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider.provider_disable import get_active_provider_disables
 from sase.llm_provider.registry import provider_path_env_var
 from sase.notifications.store import load_notifications
@@ -222,7 +221,7 @@ def _read_drain_result(proc_id: str) -> DurableOperationResult:
     )
 
 
-def test_provider_drain_e2e_flag_on_relaunches_stranded_agent(
+def test_provider_drain_e2e_relaunches_stranded_agent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     harness = FakeyRetryHarness(tmp_path, monkeypatch, max_retries=1, wait_times=[0])
@@ -250,8 +249,7 @@ def test_provider_drain_e2e_flag_on_relaunches_stranded_agent(
     with patch(
         "sase.procs.submit_proc_request", side_effect=_capturing_submit
     ) as mock_submit:
-        with override_flags(provider_drain=True):
-            _run_trigger_to_disable(harness, monkeypatch)
+        _run_trigger_to_disable(harness, monkeypatch)
 
     # Exactly one active hard disable for fakey, written by the trigger's
     # own real usage-limit failure.
@@ -345,58 +343,3 @@ def test_provider_drain_e2e_flag_on_relaunches_stranded_agent(
     notes = notifications[0].notes
     assert any("Relaunched 1 agent(s) on CODEX" in line for line in notes)
     assert not any("Failed" in line for line in notes)
-
-
-def test_provider_drain_e2e_flag_off_leaves_agents_alone(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    harness = FakeyRetryHarness(tmp_path, monkeypatch, max_retries=1, wait_times=[0])
-    _configure_reroute_environment(monkeypatch, harness)
-    second_artifacts = _seed_second_agent(harness)
-    # The best-effort usage-refresh limit-event trigger is orthogonal to
-    # drain ownership (covered by test_usage_refresh.py); disable it so it
-    # does not add an unrelated submit_proc_request call to this drill.
-    monkeypatch.setattr(
-        "sase.llm_provider.usage_limit_disable._trigger_usage_refresh_after_limit",
-        lambda provider, outcome: None,
-    )
-    second_meta_before = (second_artifacts / "agent_meta.json").read_text(
-        encoding="utf-8"
-    )
-    second_done_before = (second_artifacts / "done.json").read_text(encoding="utf-8")
-
-    from sase.procs import submit_proc_request as real_submit_proc_request
-
-    def _capturing_submit(request: ProcSubmitRequest) -> Proc:
-        return real_submit_proc_request(request)
-
-    with patch(
-        "sase.procs.submit_proc_request", side_effect=_capturing_submit
-    ) as mock_submit:
-        with override_flags(provider_drain=False):
-            _run_trigger_to_disable(harness, monkeypatch)
-
-    disables = get_active_provider_disables()
-    assert set(disables) == {"fakey"}
-    assert disables["fakey"].source == "usage_limit"
-
-    # No drain proc submitted at all.
-    mock_submit.assert_not_called()
-
-    # The second agent's row is untouched: still there, byte-identical.
-    assert second_artifacts.exists()
-    assert (second_artifacts / "agent_meta.json").read_text(
-        encoding="utf-8"
-    ) == second_meta_before
-    assert (second_artifacts / "done.json").read_text(
-        encoding="utf-8"
-    ) == second_done_before
-
-    # Exactly one notification, with today's plain (no drain-notes) content.
-    notifications = [
-        note for note in load_notifications() if note.sender == "llm.usage_limit"
-    ]
-    assert len(notifications) == 1
-    notes = notifications[0].notes
-    assert not any(line.startswith("Relaunched") for line in notes)
-    assert not any(line.startswith("Left alone") for line in notes)

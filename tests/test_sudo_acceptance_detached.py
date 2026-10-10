@@ -9,7 +9,6 @@ from typing import Any
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.main.parser_sudo import register_sudo_parser
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.durability import read_json_object
@@ -31,10 +30,9 @@ def test_sudo_detached_answer_finalizes_like_synchronous(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
     _install_capable_runner(tmp_path, monkeypatch)
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(
-            build_sudo_gate_request(_request(), request_id="sudo-detach-flow")
-        )
+    gate = create_gate(
+        build_sudo_gate_request(_request(), request_id="sudo-detach-flow")
+    )
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
@@ -69,8 +67,7 @@ def test_sudo_detached_answer_finalizes_like_synchronous(
         ["sudo", "answer", gate.request_id, "--run", "--detach", "--json"]
     )
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(answer_args) == 0
+    assert handle_sudo_command(answer_args) == 0
 
     started = json.loads(capsys.readouterr().out)
     assert started["status"] == "execution_started"
@@ -106,8 +103,7 @@ def test_sudo_detached_answer_finalizes_like_synchronous(
         lambda: False,
     )
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(finalize_args) == 0
+    assert handle_sudo_command(finalize_args) == 0
 
     raw = capsys.readouterr().out
     assert "starting reviewed command" in raw
@@ -127,8 +123,7 @@ def test_sudo_detached_finalize_is_idempotent_after_response(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
@@ -145,8 +140,7 @@ def test_sudo_detached_finalize_is_idempotent_after_response(
     answer_args = parser.parse_args(
         ["sudo", "answer", gate.request_id, "--run", "--no-detach", "--json"]
     )
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(answer_args) == 0
+    assert handle_sudo_command(answer_args) == 0
     capsys.readouterr()
     sidecar = tmp_path / "finalize-request.json"
     from sase.ops.io import write_operation_request
@@ -173,8 +167,7 @@ def test_sudo_detached_finalize_is_idempotent_after_response(
             str(sidecar),
         ]
     )
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(finalize_args) == 0
+    assert handle_sudo_command(finalize_args) == 0
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "answered"
 
@@ -186,8 +179,7 @@ def test_sudo_detached_nonterminal_ledger_leaves_gate_pending(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     args = parser.parse_args(
@@ -208,8 +200,7 @@ def test_sudo_detached_nonterminal_ledger_leaves_gate_pending(
             "diagnostic": "no",
         },
     )
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 2
+    assert handle_sudo_command(args) == 2
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "pending"
     assert output["code"] == "authentication_failed"
@@ -223,8 +214,7 @@ def test_sudo_finalize_executor_death_without_ledger(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     from sase.sudo.execution import (
         SudoExecutionState,
         create_handoff_dir,
@@ -286,8 +276,7 @@ def test_sudo_finalize_executor_death_without_ledger(
             str(sidecar),
         ]
     )
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 1
+    assert handle_sudo_command(args) == 1
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "pending"
     assert output["code"] == "executor_died"

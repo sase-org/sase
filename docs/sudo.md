@@ -26,21 +26,11 @@ Agents learn this contract from the generated `/sase_sudo` skill.
 
 ## Enable The Workflow
 
-Sudo requests are a beta feature behind the `agent_sudo_requests` feature flag, which is
-off by default. While it is off, every `sase sudo` subcommand fails with
-`feature_disabled`. Enable it persistently on each machine that creates, answers, or
-executes sudo requests:
+Sudo requests are always available: every `sase sudo` subcommand works without any
+opt-in step. When you approve from sase's TUI, its terminal handoff runs
+`sase sudo answer` directly on the reviewing machine.
 
-```bash
-sase flag enable agent_sudo_requests
-```
-
-Use the persisted setting rather than a per-invocation `-f agent_sudo_requests`. When
-you approve from sase's TUI, its terminal handoff does not pass along the TUI's own
-resolved flag snapshot, so `sase sudo answer` resolves the flag afresh from the
-machine's saved choice and configuration.
-
-Approval also needs the `sase_sudo_runner` entry point that ships with SASE's Rust core
+Approval needs the `sase_sudo_runner` entry point that ships with SASE's Rust core
 package. SASE looks for it next to the running Python interpreter first, then on `PATH`.
 
 ## Agent Contract
@@ -244,8 +234,7 @@ Target-side SASE invocations — the contract probe and both synchronous and det
 installed under login-profile paths such as `~/.local/bin` can be found, matching the
 remote screenshot contract. Manifest staging, ledger and log reads, liveness probes,
 stop signaling, and cleanup stay direct, minimal remote commands. The target needs
-`sase` available in that login environment, its own `sase_sudo_runner`, and
-`agent_sudo_requests` enabled, because `sase sudo exec` is behind the same flag. The PAM
+`sase` available in that login environment and its own `sase_sudo_runner`. The PAM
 conversation stays on the reviewer's `/dev/tty` between the reviewer and the target
 machine, so ACE or `--json` stdout pipes cannot swallow it. The fleet gateway never
 carries that conversation.

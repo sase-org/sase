@@ -1,8 +1,8 @@
 """The provider_drain-gated ownership decision: drain vs inline notify.
 
-Every branch covers both the ``provider_drain`` flag and the
-``relaunch``/hard-disable preconditions the plan requires before a drain
-is ever attempted, and confirms exactly one notification path fires. The
+Every branch covers the ``relaunch``/hard-disable preconditions required
+before a drain is ever attempted, and confirms exactly one notification
+path fires. The
 best-effort usage-refresh limit-event trigger is orthogonal to drain
 ownership (covered by test_usage_refresh.py) and is patched out here so
 it does not add an unrelated ``submit_proc_request`` call to assert on.
@@ -16,7 +16,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider.usage_limit_disable import handle_possible_usage_limit
 from tests._llm_provider_usage_limit_disable_helpers import (
     _NOW,
@@ -44,7 +43,7 @@ class TestUsageLimitDrainSubmission:
     @patch("sase.procs.submit_proc_request")
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
-    def test_flag_on_submits_drain_and_skips_inline_notify(
+    def test_submits_drain_and_skips_inline_notify(
         self,
         mock_detect: MagicMock,
         mock_notify: MagicMock,
@@ -52,10 +51,9 @@ class TestUsageLimitDrainSubmission:
         registered_providers: None,
     ) -> None:
         mock_detect.return_value = _detection()
-        with override_flags(provider_drain=True):
-            result = handle_possible_usage_limit(
-                provider="claude", error_text="usage limit reached"
-            )
+        result = handle_possible_usage_limit(
+            provider="claude", error_text="usage limit reached"
+        )
         assert result is not None
         mock_submit.assert_called_once()
         request = mock_submit.call_args.args[0]
@@ -79,7 +77,7 @@ class TestUsageLimitDrainSubmission:
     @patch("sase.procs.submit_proc_request")
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
-    def test_flag_on_submits_drain_with_trigger_artifacts_dir(
+    def test_submits_drain_with_trigger_artifacts_dir(
         self,
         mock_detect: MagicMock,
         mock_notify: MagicMock,
@@ -94,12 +92,11 @@ class TestUsageLimitDrainSubmission:
         )
         mock_detect.return_value = _detection()
 
-        with override_flags(provider_drain=True):
-            result = handle_possible_usage_limit(
-                provider="claude",
-                error_text="usage limit reached",
-                artifacts_dir=str(artifacts_dir),
-            )
+        result = handle_possible_usage_limit(
+            provider="claude",
+            error_text="usage limit reached",
+            artifacts_dir=str(artifacts_dir),
+        )
 
         assert result is not None
         mock_submit.assert_called_once()
@@ -111,25 +108,7 @@ class TestUsageLimitDrainSubmission:
     @patch("sase.procs.submit_proc_request")
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
-    def test_flag_off_notifies_inline_and_never_submits(
-        self,
-        mock_detect: MagicMock,
-        mock_notify: MagicMock,
-        mock_submit: MagicMock,
-        registered_providers: None,
-    ) -> None:
-        mock_detect.return_value = _detection()
-        with override_flags(provider_drain=False):
-            handle_possible_usage_limit(
-                provider="claude", error_text="usage limit reached"
-            )
-        mock_submit.assert_not_called()
-        mock_notify.assert_called_once()
-
-    @patch("sase.procs.submit_proc_request")
-    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
-    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
-    def test_relaunch_false_notifies_inline_even_with_flag_on(
+    def test_relaunch_false_notifies_inline_without_drain(
         self,
         mock_detect: MagicMock,
         mock_notify: MagicMock,
@@ -139,12 +118,9 @@ class TestUsageLimitDrainSubmission:
         from sase.llm_provider.usage_limit_config import UsageLimitSettings
 
         mock_detect.return_value = _detection()
-        with (
-            override_flags(provider_drain=True),
-            patch(
-                "sase.llm_provider.usage_limit_disable.get_usage_limit_settings",
-                return_value=UsageLimitSettings(relaunch=False),
-            ),
+        with patch(
+            "sase.llm_provider.usage_limit_disable.get_usage_limit_settings",
+            return_value=UsageLimitSettings(relaunch=False),
         ):
             handle_possible_usage_limit(
                 provider="claude", error_text="usage limit reached"
@@ -181,10 +157,7 @@ class TestUsageLimitDrainSubmission:
                 mode="soft",
             ),
         )
-        with override_flags(provider_drain=True):
-            handle_possible_usage_limit(
-                provider="claude", error_text="usage limit reached"
-            )
+        handle_possible_usage_limit(provider="claude", error_text="usage limit reached")
         mock_submit.assert_not_called()
         mock_notify.assert_called_once()
 
@@ -199,10 +172,9 @@ class TestUsageLimitDrainSubmission:
         registered_providers: None,
     ) -> None:
         mock_detect.return_value = _detection()
-        with override_flags(provider_drain=True):
-            result = handle_possible_usage_limit(
-                provider="claude", error_text="usage limit reached"
-            )
+        result = handle_possible_usage_limit(
+            provider="claude", error_text="usage limit reached"
+        )
         assert result is not None
         mock_submit.assert_called_once()
         mock_notify.assert_called_once()
@@ -220,17 +192,14 @@ class TestUsageLimitDrainSubmission:
         mock_detect.return_value = _detection(
             expires_at=_NOW + 100.0, reset_source="usage_window"
         )
-        with override_flags(provider_drain=True):
-            handle_possible_usage_limit(
-                provider="claude", error_text="usage limit reached"
-            )
+        handle_possible_usage_limit(provider="claude", error_text="usage limit reached")
         request = mock_submit.call_args.args[0]
         assert request.operation_payload["reset_source"] == "usage_window"
 
     @patch("sase.procs.submit_proc_request")
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
-    def test_flag_on_but_notify_disabled_sends_nothing(
+    def test_notify_disabled_sends_nothing(
         self,
         mock_detect: MagicMock,
         mock_notify: MagicMock,
@@ -240,12 +209,9 @@ class TestUsageLimitDrainSubmission:
         from sase.llm_provider.usage_limit_config import UsageLimitSettings
 
         mock_detect.return_value = _detection()
-        with (
-            override_flags(provider_drain=True),
-            patch(
-                "sase.llm_provider.usage_limit_disable.get_usage_limit_settings",
-                return_value=UsageLimitSettings(notify=False),
-            ),
+        with patch(
+            "sase.llm_provider.usage_limit_disable.get_usage_limit_settings",
+            return_value=UsageLimitSettings(notify=False),
         ):
             handle_possible_usage_limit(
                 provider="claude", error_text="usage limit reached"

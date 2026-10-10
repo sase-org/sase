@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.notification_gates.command_runner import run_owned_command
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.durability import read_json_object
@@ -35,8 +34,7 @@ def test_sudo_headless_entrypoints_refuse_without_accepting_decision(
     source: str,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     receipt = _runner_receipt(read_json_object(gate.request_path))
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
@@ -66,8 +64,7 @@ def test_forged_sudo_headless_authorization_refuses_without_attempt_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     receipt = _runner_receipt(read_json_object(gate.request_path))
     sudo_payload = read_json_object(gate.request_path)["payload"]["sudo"]
     monkeypatch.setattr(

@@ -22,7 +22,6 @@ from sase.autonomy.record import (
     resolve_selection,
     with_legacy_projection,
 )
-from sase.feature_flags import override_flags
 from tests.autonomy_contract import harness
 
 
@@ -93,34 +92,30 @@ def _build_with_prompt(
     )
 
 
-@pytest.mark.parametrize("flag_on", [True, False])
-def test_host_composed_explicit_manual_narrows(tmp_path: Path, flag_on: bool) -> None:
+def test_host_composed_explicit_manual_narrows(tmp_path: Path) -> None:
     """Explicit ``%auto:manual``/``:off`` narrows a tale parent to manual."""
-    with override_flags(autonomy_record_only=flag_on):
-        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
-        parent_meta = harness.read_meta(parent_dir)
-        plan = _host_composed_plan(parent_dir, parent_meta)
-        for prompt in ("%auto:manual\nDo the work", "%auto:off\nDo the work"):
-            meta = _build_with_prompt(prompt, tmp_path, plan=plan)
-            record = read_record(meta)
-            assert record is not None
-            assert record["profile"] == "manual"
-            assert record["source"] == "inherited"
-
-
-@pytest.mark.parametrize("flag_on", [True, False])
-def test_host_composed_bare_widening_refused(tmp_path: Path, flag_on: bool) -> None:
-    """Bare ``%auto`` on a tale child keeps the inherited tale record."""
-    with override_flags(autonomy_record_only=flag_on):
-        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
-        parent_meta = harness.read_meta(parent_dir)
-        plan = _host_composed_plan(parent_dir, parent_meta)
-        meta = _build_with_prompt("%auto\nDo the work", tmp_path, plan=plan)
+    _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
+    parent_meta = harness.read_meta(parent_dir)
+    plan = _host_composed_plan(parent_dir, parent_meta)
+    for prompt in ("%auto:manual\nDo the work", "%auto:off\nDo the work"):
+        meta = _build_with_prompt(prompt, tmp_path, plan=plan)
         record = read_record(meta)
         assert record is not None
-        assert record["profile"] == "tale"
-        assert record["selection"] == "tale"
+        assert record["profile"] == "manual"
         assert record["source"] == "inherited"
+
+
+def test_host_composed_bare_widening_refused(tmp_path: Path) -> None:
+    """Bare ``%auto`` on a tale child keeps the inherited tale record."""
+    _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
+    parent_meta = harness.read_meta(parent_dir)
+    plan = _host_composed_plan(parent_dir, parent_meta)
+    meta = _build_with_prompt("%auto\nDo the work", tmp_path, plan=plan)
+    record = read_record(meta)
+    assert record is not None
+    assert record["profile"] == "tale"
+    assert record["selection"] == "tale"
+    assert record["source"] == "inherited"
 
 
 def test_host_composed_unreadable_predecessor_fails_closed(tmp_path: Path) -> None:
@@ -179,14 +174,12 @@ def _direct_approval_plan(tmp_path: Path, *, recovery: bool = False):
 @pytest.mark.parametrize("caller", ["direct", "recovery"])
 @pytest.mark.parametrize("cwd_project", ["contract-proj", "other-proj", None])
 @pytest.mark.parametrize("parent_mode", ["tale", "off"])
-@pytest.mark.parametrize("flag_on", [True, False])
 def test_direct_approval_and_recovery_inherit_from_target_project(
     tmp_path: Path,
     monkeypatch,
     caller: str,
     cwd_project: str | None,
     parent_mode: str,
-    flag_on: bool,
 ) -> None:
     """Direct approval and recovery retain inheritance across unrelated CWDs."""
     from types import SimpleNamespace
@@ -207,93 +200,90 @@ def test_direct_approval_and_recovery_inherit_from_target_project(
     monkeypatch.delenv("SASE_AGENT", raising=False)
     workdir = tmp_path / "work"
     workdir.mkdir()
-    with override_flags(autonomy_record_only=flag_on):
-        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", workdir)
-        if parent_mode == "off":
-            harness.adapt_a_off(parent_dir)
-        parent_meta = harness.read_meta(parent_dir)
-        parent_record = read_record(parent_meta)
-        assert parent_record is not None
+    _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", workdir)
+    if parent_mode == "off":
+        harness.adapt_a_off(parent_dir)
+    parent_meta = harness.read_meta(parent_dir)
+    parent_record = read_record(parent_meta)
+    assert parent_record is not None
 
-        unresolved_plan = replace(
-            _host_composed_plan(parent_dir, parent_meta), host_composed=False
-        )
-        resolved_projects: list[str] = []
+    unresolved_plan = replace(
+        _host_composed_plan(parent_dir, parent_meta), host_composed=False
+    )
+    resolved_projects: list[str] = []
 
-        def _resolve(directive, *, project_name: str, **_kwargs):
-            resolved_projects.append(project_name)
-            if project_name != "contract-proj":
-                raise RuntimeError(f"unrecognized session project: {project_name}")
-            return unresolved_plan
+    def _resolve(directive, *, project_name: str, **_kwargs):
+        resolved_projects.append(project_name)
+        if project_name != "contract-proj":
+            raise RuntimeError(f"unrecognized session project: {project_name}")
+        return unresolved_plan
 
-        monkeypatch.setattr(
-            attach_resolution, "resolve_agent_session_attach_plan", _resolve
-        )
-        monkeypatch.setattr(
-            "sase.main.utils.ensure_project_file_and_get_workspace_num",
-            lambda **_kwargs: (None, 0, cwd_project),
-        )
-        monkeypatch.setattr(
-            "sase.config._owner.require_agent_owner_identity", lambda: object()
-        )
-        built: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        attach_resolution, "resolve_agent_session_attach_plan", _resolve
+    )
+    monkeypatch.setattr(
+        "sase.main.utils.ensure_project_file_and_get_workspace_num",
+        lambda **_kwargs: (None, 0, cwd_project),
+    )
+    monkeypatch.setattr(
+        "sase.config._owner.require_agent_owner_identity", lambda: object()
+    )
+    built: list[dict[str, Any]] = []
 
-        def _fake_process_launch(prompt: str, extra_env=None, **_kwargs):
-            context = SimpleNamespace(project_name="contract-proj", is_home_mode=True)
-            pre_resolved = load_agent_session_attach_plan_from_env(
-                dict(extra_env or {})
-            )
-            assert pre_resolved is not None and pre_resolved.host_composed is True
-            _context, child_env = prepare_agent_session_attach_launch(
-                prompt,
-                context,
-                dict(extra_env or {}),
-                resolve_agent_session_attach_plan=_resolve,
-            )
-            attach_plan = load_agent_session_attach_plan_from_env(child_env)
-            assert attach_plan is not None and attach_plan.host_composed is True
-            _, directives = extract_prompt_directives(prompt)
-            child_meta = build_agent_meta(
-                _inputs(workdir),
-                directives=directives,
+    def _fake_process_launch(prompt: str, extra_env=None, **_kwargs):
+        context = SimpleNamespace(project_name="contract-proj", is_home_mode=True)
+        pre_resolved = load_agent_session_attach_plan_from_env(dict(extra_env or {}))
+        assert pre_resolved is not None and pre_resolved.host_composed is True
+        _context, child_env = prepare_agent_session_attach_launch(
+            prompt,
+            context,
+            dict(extra_env or {}),
+            resolve_agent_session_attach_plan=_resolve,
+        )
+        attach_plan = load_agent_session_attach_plan_from_env(child_env)
+        assert attach_plan is not None and attach_plan.host_composed is True
+        _, directives = extract_prompt_directives(prompt)
+        child_meta = build_agent_meta(
+            _inputs(workdir),
+            directives=directives,
+            agent_name=attach_plan.agent_name,
+            agent_tribe=None,
+            agent_session_attach_plan=attach_plan,
+            clan_membership_plan=None,
+        )
+        built.append(child_meta)
+        return [
+            AgentLaunchResult(
+                pid=123,
+                workspace_num=0,
+                workspace_dir=str(workdir),
+                output_path=str(tmp_path / "coder.out"),
                 agent_name=attach_plan.agent_name,
-                agent_tribe=None,
-                agent_session_attach_plan=attach_plan,
-                clan_membership_plan=None,
             )
-            built.append(child_meta)
-            return [
-                AgentLaunchResult(
-                    pid=123,
-                    workspace_num=0,
-                    workspace_dir=str(workdir),
-                    output_path=str(tmp_path / "coder.out"),
-                    agent_name=attach_plan.agent_name,
-                )
-            ]
+        ]
 
-        monkeypatch.setattr(
-            "sase.agent.launch_cwd.launch_agents_from_cwd", _fake_process_launch
-        )
-        plan = _direct_approval_plan(tmp_path, recovery=caller == "recovery")
-        outcome = (
-            execute_coder_recovery(plan)
-            if caller == "recovery"
-            else execute_direct_approval(plan)
-        )
+    monkeypatch.setattr(
+        "sase.agent.launch_cwd.launch_agents_from_cwd", _fake_process_launch
+    )
+    plan = _direct_approval_plan(tmp_path, recovery=caller == "recovery")
+    outcome = (
+        execute_coder_recovery(plan)
+        if caller == "recovery"
+        else execute_direct_approval(plan)
+    )
 
-        assert outcome.coder is not None
-        assert len(built) == 1
-        child_record = read_record(built[0])
-        assert child_record is not None
-        assert child_record["profile"] == parent_record["profile"]
-        assert child_record["selection"] == parent_record["selection"]
-        assert child_record["policy"] == parent_record["policy"]
-        assert child_record["source"] == "inherited"
-        assert child_record["revision"] == parent_record["revision"]
-        assert child_record["last"] == parent_record["last"]
-        assert child_record["digest"] == parent_record["digest"]
-        assert set(resolved_projects) == {"contract-proj"}
+    assert outcome.coder is not None
+    assert len(built) == 1
+    child_record = read_record(built[0])
+    assert child_record is not None
+    assert child_record["profile"] == parent_record["profile"]
+    assert child_record["selection"] == parent_record["selection"]
+    assert child_record["policy"] == parent_record["policy"]
+    assert child_record["source"] == "inherited"
+    assert child_record["revision"] == parent_record["revision"]
+    assert child_record["last"] == parent_record["last"]
+    assert child_record["digest"] == parent_record["digest"]
+    assert set(resolved_projects) == {"contract-proj"}
 
 
 def test_human_session_attach_uses_its_prompt_and_standalone_stays_standalone(
@@ -410,46 +400,38 @@ def test_successor_prompt_extraction_covers_manual(tmp_path: Path) -> None:
     assert _explicit_autonomy_selection("plain work") is None
 
 
-@pytest.mark.parametrize("flag_on", [True, False])
-def test_record_authoritative_over_stale_legacy(tmp_path: Path, flag_on: bool) -> None:
+def test_record_authoritative_over_stale_legacy(tmp_path: Path) -> None:
     """A manual record with stale auto keys still reads manual everywhere."""
     from sase.core.agent_scan_wire_conversion import _agent_meta_from_dict
 
-    with override_flags(autonomy_record_only=flag_on):
-        manual = resolve_selection(None, source="prompt", surface="launch")
-        mixed = {
-            "autonomy": manual,
-            "approve": True,
-            "auto_approve_plan_action": "tale",
-            "auto_approve_argument": "tale",
-        }
-        projected = with_legacy_projection(mixed)
-        assert "approve" not in projected
-        assert "auto_approve_plan_action" not in projected
-        assert "auto_approve_argument" not in projected
-        wire = _agent_meta_from_dict(dict(mixed))
-        assert wire.approve is False
+    manual = resolve_selection(None, source="prompt", surface="launch")
+    mixed = {
+        "autonomy": manual,
+        "approve": True,
+        "auto_approve_plan_action": "tale",
+        "auto_approve_argument": "tale",
+    }
+    projected = with_legacy_projection(mixed)
+    assert "approve" not in projected
+    assert "auto_approve_plan_action" not in projected
+    assert "auto_approve_argument" not in projected
+    wire = _agent_meta_from_dict(dict(mixed))
+    assert wire.approve is False
 
 
-@pytest.mark.parametrize("flag_on", [True, False])
-def test_apply_removes_stale_flag_off(tmp_path: Path, flag_on: bool) -> None:
-    """Flag-off rewrites drop stale auto keys centrally, keeping ``plan``."""
-    with override_flags(autonomy_record_only=flag_on):
-        manual = resolve_selection(None, source="prompt", surface="launch")
-        meta: dict[str, Any] = {
-            "approve": True,
-            "auto_approve_argument": "tale",
-            "plan": True,
-        }
-        apply_record_meta_patch(meta, manual)
-        assert meta["autonomy"] == manual
-        if flag_on:
-            assert "approve" not in meta
-            assert "auto_approve_argument" not in meta
-        else:
-            assert "approve" not in meta
-            assert "auto_approve_argument" not in meta
-        assert meta.get("plan") is True
+def test_apply_removes_stale_keys(tmp_path: Path) -> None:
+    """Rewrites drop stale auto keys centrally, keeping ``plan``."""
+    manual = resolve_selection(None, source="prompt", surface="launch")
+    meta: dict[str, Any] = {
+        "approve": True,
+        "auto_approve_argument": "tale",
+        "plan": True,
+    }
+    apply_record_meta_patch(meta, manual)
+    assert meta["autonomy"] == manual
+    assert "approve" not in meta
+    assert "auto_approve_argument" not in meta
+    assert meta.get("plan") is True
 
 
 def test_human_mutation_source_truthful(tmp_path: Path) -> None:
@@ -461,61 +443,57 @@ def test_human_mutation_source_truthful(tmp_path: Path) -> None:
     assert outcome_cli["record"]["source"] == "cli"
 
 
-@pytest.mark.parametrize("flag_on", [True, False])
-def test_refresh_preserves_live_record(
-    tmp_path: Path, monkeypatch, flag_on: bool
-) -> None:
+def test_refresh_preserves_live_record(tmp_path: Path, monkeypatch) -> None:
     """A-off, refreshed metadata build, and A-on retain the tale restore state."""
     from sase.axe.run_agent_directive_metadata import preserved_agent_metadata
     from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
     from sase.axe.run_agent_runner_refresh import reconcile_prompt_with_live_auto_state
     from sase.macro.directives import extract_prompt_directives
 
-    with override_flags(autonomy_record_only=flag_on):
-        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
-        harness.adapt_a_off(parent_dir)
-        live = harness.read_meta(parent_dir)
-        live_record = read_record(live)
-        assert live_record is not None
-        assert live_record["profile"] == "manual"
-        assert live_record["revision"] == 2
-        assert live_record["last"] == {"profile": "tale", "selection": "tale"}
+    _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
+    harness.adapt_a_off(parent_dir)
+    live = harness.read_meta(parent_dir)
+    live_record = read_record(live)
+    assert live_record is not None
+    assert live_record["profile"] == "manual"
+    assert live_record["revision"] == 2
+    assert live_record["last"] == {"profile": "tale", "selection": "tale"}
 
-        monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
-        preserved = preserved_agent_metadata(str(parent_dir))
-        assert preserved.get("autonomy") == live_record
-        submitted_prompt = "%auto:tale\nDo the work"
-        refreshed_prompt = reconcile_prompt_with_live_auto_state(
-            submitted_prompt, str(parent_dir)
-        )
-        assert refreshed_prompt == "Do the work"
-        _, directives = extract_prompt_directives(refreshed_prompt)
-        from sase.axe.run_agent_directive_metadata import build_agent_meta
+    monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
+    preserved = preserved_agent_metadata(str(parent_dir))
+    assert preserved.get("autonomy") == live_record
+    submitted_prompt = "%auto:tale\nDo the work"
+    refreshed_prompt = reconcile_prompt_with_live_auto_state(
+        submitted_prompt, str(parent_dir)
+    )
+    assert refreshed_prompt == "Do the work"
+    _, directives = extract_prompt_directives(refreshed_prompt)
+    from sase.axe.run_agent_directive_metadata import build_agent_meta
 
-        rebuilt = build_agent_meta(
-            _inputs(tmp_path, preserved),
-            directives=directives,
-            agent_name="contract-agent",
-            agent_tribe=None,
-            agent_session_attach_plan=None,
-            clan_membership_plan=None,
-        )
-        harness.write_meta(parent_dir, rebuilt)
-        rebuilt_record = read_record(rebuilt)
-        assert rebuilt_record == live_record
-        assert rebuilt_record["revision"] == 2
-        assert rebuilt_record["last"] == {"profile": "tale", "selection": "tale"}
+    rebuilt = build_agent_meta(
+        _inputs(tmp_path, preserved),
+        directives=directives,
+        agent_name="contract-agent",
+        agent_tribe=None,
+        agent_session_attach_plan=None,
+        clan_membership_plan=None,
+    )
+    harness.write_meta(parent_dir, rebuilt)
+    rebuilt_record = read_record(rebuilt)
+    assert rebuilt_record == live_record
+    assert rebuilt_record["revision"] == 2
+    assert rebuilt_record["last"] == {"profile": "tale", "selection": "tale"}
 
-        monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
-        fresh_preserved = preserved_agent_metadata(str(parent_dir))
-        assert "autonomy" not in fresh_preserved
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    fresh_preserved = preserved_agent_metadata(str(parent_dir))
+    assert "autonomy" not in fresh_preserved
 
-        restored = harness.adapt_a_on_bare(parent_dir)
-        restored_record = read_record(restored)
-        assert restored_record is not None
-        assert restored_record["profile"] == "tale"
-        assert restored_record["selection"] == "tale"
-        assert restored_record["revision"] == 3
+    restored = harness.adapt_a_on_bare(parent_dir)
+    restored_record = read_record(restored)
+    assert restored_record is not None
+    assert restored_record["profile"] == "tale"
+    assert restored_record["selection"] == "tale"
+    assert restored_record["revision"] == 3
 
 
 def test_single_evaluation_per_creation(tmp_path: Path, monkeypatch) -> None:

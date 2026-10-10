@@ -8,10 +8,10 @@ fail-closed reads.
 
 Legacy keys (``approve``, ``auto_approve_plan_action``,
 ``auto_approve_argument``, ``plan``) are read only through
-:func:`read_record` (record first, legacy translation second) and written
-only through :func:`record_meta_patch` (flag-off branch). The ``A`` toggle
-rewrite and host-composed successor inheritance belong to the ``inherit``
-phase, which builds on this module.
+:func:`read_record` (record first, legacy translation second) and never
+written by new launches or mutations. The ``A`` toggle rewrite and
+host-composed successor inheritance belong to the ``inherit`` phase,
+which builds on this module.
 """
 
 from __future__ import annotations
@@ -21,10 +21,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-#: ``agent_meta.json`` keys that only carry ``%auto`` state. With the
-#: ``autonomy_record_only`` sunset flag on, launches and autonomy mutations
-#: write none of these; the record projection reproduces them for readers
-#: that have not moved onto the record yet.
+#: ``agent_meta.json`` keys that only carry ``%auto`` state. Launches
+#: and autonomy mutations write none of these; the record projection
+#: reproduces them for readers that have not moved onto the record yet.
 LEGACY_AUTONOMY_KEYS = (
     "approve",
     "auto_approve_plan_action",
@@ -48,14 +47,6 @@ _GATE_STANDARD_REQUESTS: dict[str, dict[str, list[str]]] = {
         "capabilities": ["approve_archive", "approve", "first"],
     },
 }
-
-
-def record_only() -> bool:
-    """Return whether only ``agent_meta.autonomy`` carries ``%auto`` state."""
-    from sase.feature_flags.registry import FeatureFlag
-    from sase.feature_flags.snapshot import current_flags
-
-    return current_flags().enabled(FeatureFlag.autonomy_record_only)
 
 
 def _utc_now() -> str:
@@ -183,8 +174,8 @@ def refresh_record_from_legacy(
     return resolve_selection(selection, source=source, surface=surface)
 
 
-#: Legacy keys :func:`retune_meta_record` drops with the flag on. ``plan``
-#: is deliberately absent: it doubles as a plan-flow status marker written
+#: Legacy keys :func:`retune_meta_record` drops. ``plan`` is
+#: deliberately absent: it doubles as a plan-flow status marker written
 #: by revive and plan submission, which the toggle never removed either,
 #: so retuning preserves it exactly as today.
 RETUNE_DROP_KEYS = (
@@ -204,27 +195,17 @@ def retune_meta_record(meta: dict[str, Any]) -> dict[str, Any]:
     Call only after a write that touched the legacy keys (the ``A``
     toggle patch, revive data): absent legacy keys mean Manual, so an
     unconditional recompute would clobber a live record on any other
-    path. Drops the ``%auto`` keys with ``autonomy_record_only`` on,
-    keeps both with it off, and always preserves ``plan`` (a dual-use
-    status marker), exactly as the toggle does today. Returns *meta*
-    unchanged when the bindings are unavailable, preserving today's
-    legacy behavior exactly.
+    path. Drops the ``%auto`` keys and always preserves ``plan`` (a
+    dual-use status marker), exactly as the toggle does today. Returns
+    *meta* unchanged when the bindings are unavailable, preserving
+    today's legacy behavior exactly.
     """
     record = refresh_record_from_legacy(meta)
     if record is None:
         return meta
     meta["autonomy"] = record
-    if record_only():
-        for key in RETUNE_DROP_KEYS:
-            meta.pop(key, None)
-    else:
-        meta.update(
-            {
-                key: value
-                for key, value in legacy_projection(record).items()
-                if key != "prompt_mode" and value not in (None, False)
-            }
-        )
+    for key in RETUNE_DROP_KEYS:
+        meta.pop(key, None)
     return meta
 
 
@@ -264,49 +245,25 @@ def with_legacy_projection(meta: Mapping[str, Any]) -> dict[str, Any]:
 def record_meta_patch(record: Mapping[str, Any]) -> dict[str, Any]:
     """Return the ``agent_meta`` keys to set for *record*.
 
-    Always sets ``autonomy``. With ``autonomy_record_only`` off it also
-    sets the projected legacy keys; with the flag on it sets none of
-    them, so callers starting from a fresh dict simply never add them.
-    Callers mutating an existing dict must additionally drop
-    :data:`LEGACY_AUTONOMY_KEYS` when :func:`record_only` holds: use
-    :func:`apply_record_meta_patch` for that.
+    Always sets ``autonomy`` and no legacy keys, so callers starting
+    from a fresh dict simply never add them. Callers mutating an
+    existing dict must additionally drop :data:`LEGACY_AUTONOMY_KEYS`:
+    use :func:`apply_record_meta_patch` for that.
     """
     patch: dict[str, Any] = {"autonomy": dict(record)}
-    if not record_only():
-        projection = legacy_projection(record)
-        # Today's writers only persist meaningful keys (``approve``/``plan``
-        # when true, the argument/action when present); ``prompt_mode`` is
-        # for ``set_prompt_auto_mode``, never a meta key. Dropping the
-        # false/None entries reproduces the historical writer output
-        # exactly, including the manual case writing no legacy keys.
-        for key, value in projection.items():
-            if key == "prompt_mode":
-                continue
-            if value is False or value is None:
-                continue
-            patch[key] = value
     return patch
 
 
 def apply_record_meta_patch(
     agent_meta: dict[str, Any], record: Mapping[str, Any]
 ) -> dict[str, Any]:
-    """Write *record* into *agent_meta* honoring the sunset flag."""
+    """Write *record* into *agent_meta*, dropping stale legacy keys."""
     patch = record_meta_patch(record)
     agent_meta.update(patch)
-    if record_only():
-        # The dual-use ``plan`` flow marker is preserved even with the flag
-        # on: it is plan-flow status, not ``%auto`` state.
-        for key in RETUNE_DROP_KEYS:
-            agent_meta.pop(key, None)
-    else:
-        # Drop stale auto keys the new projection no longer carries (e.g. a
-        # toggled-off ``approve: True``). The shared patch only adds truthy
-        # keys, so without this a flag-off rewrite would leave them behind.
-        # The dual-use ``plan`` flow marker is preserved.
-        for key in RETUNE_DROP_KEYS:
-            if key not in patch:
-                agent_meta.pop(key, None)
+    # The dual-use ``plan`` flow marker is preserved: it is plan-flow
+    # status, not ``%auto`` state.
+    for key in RETUNE_DROP_KEYS:
+        agent_meta.pop(key, None)
     return agent_meta
 
 
@@ -540,7 +497,6 @@ __all__ = [
     "read_decision_log",
     "read_record",
     "record_meta_patch",
-    "record_only",
     "refresh_record_from_legacy",
     "resolve_selection",
     "RETUNE_DROP_KEYS",

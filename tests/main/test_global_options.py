@@ -21,10 +21,24 @@ from sase.main.global_options import (
 )
 from sase.main.parser import create_parser, parser_only_hint
 from tests._conftest_runtime import reset_process_feature_flags
+from tests.feature_flags._helpers import definitions, demo_flag
 
 
-REGISTERED_ENABLE_KEY = "provider_drain"
-REGISTERED_DISABLE_KEY = "provider_drain"
+REGISTERED_ENABLE_KEY = "demo_flag"
+REGISTERED_DISABLE_KEY = "demo_flag"
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run CLI option tests against synthetic defs, never live rollout keys."""
+    test_definitions = definitions(demo_flag(REGISTERED_ENABLE_KEY, kind="beta"))
+    monkeypatch.setattr(
+        "sase.feature_flags.registry.feature_flag_definitions",
+        lambda: test_definitions,
+    )
+    monkeypatch.setattr(
+        snapshot_mod, "feature_flag_definitions", lambda: test_definitions
+    )
 
 
 def _extract_feature_flags(argv: list[str]) -> tuple[dict[str, bool], list[str]]:

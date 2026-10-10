@@ -56,7 +56,10 @@ def test_flag_candidates_come_from_the_in_process_registry() -> None:
     result = candidates_for("flag", "", project=None, limit=200)
 
     keys = {candidate.value for candidate in result}
-    assert "agent_sudo_requests" in keys
+    assert keys == set()
+    assert "agent_sudo_requests" not in keys
+    assert "provider_drain" not in keys
+    assert "autonomy_record_only" not in keys
     assert "muse_synchronous_shell" not in keys
     assert "grok_rules_delivery" not in keys
     assert "claude_helper_channel" not in keys
@@ -64,10 +67,6 @@ def test_flag_candidates_come_from_the_in_process_registry() -> None:
     assert "monitor_continuation_records" not in keys
     assert "coder_inherits_planner_chat" not in keys
     assert "completion_refresh_on_update" not in keys
-    sudo = next(
-        candidate for candidate in result if candidate.value == "agent_sudo_requests"
-    )
-    assert sudo.description.startswith("beta:")
 
 
 def test_model_candidates_are_the_builtin_size_aliases() -> None:

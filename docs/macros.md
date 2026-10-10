@@ -1711,11 +1711,11 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_questions`     | Ask the user structured questions when the provider-native question tool is disabled          |
 | `sase_repo`          | Open and audit linked, sidecar, other-project, or external repositories before accessing them |
 | `sase_run`           | Request an agent-initiated launch through `LaunchApproval`                                    |
-| `sase_sudo`          | Request reviewed privileged execution through a typed sudo gate instead of raw sudo (beta)    |
+| `sase_sudo`          | Request reviewed privileged execution through a typed sudo gate instead of raw sudo           |
 | `sase_var`           | Attach named output variables to the current SASE agent run                                   |
 
-The sudo request workflow behind `sase_sudo` requires the `agent_sudo_requests` beta
-flag; see [Sudo Requests](sudo.md).
+The sudo request workflow behind `sase_sudo` is described under
+[Sudo Requests](sudo.md).
 
 ## Memory Field
 

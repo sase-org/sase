@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.gate_turn.models import GateTurnRecord
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.durability import read_json_object
@@ -99,8 +98,7 @@ def test_sudo_approval_requires_controlling_tty_before_accepting_decision(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     receipt = _runner_receipt(read_json_object(gate.request_path))
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
@@ -130,8 +128,7 @@ def test_sudo_approval_must_use_sudo_cli_even_with_tty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     receipt = _runner_receipt(read_json_object(gate.request_path))
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
@@ -161,8 +158,7 @@ def test_sudo_deny_is_headless_safe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
         lambda: False,
@@ -184,8 +180,7 @@ def test_sudo_command_resource_requires_runner_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
         lambda: True,
@@ -211,8 +206,7 @@ def test_sudo_approval_requires_command_ids_before_accepting_decision(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(build_sudo_gate_request(_request()))
+    gate = create_gate(build_sudo_gate_request(_request()))
     receipt = _runner_receipt(read_json_object(gate.request_path))
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",

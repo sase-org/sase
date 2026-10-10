@@ -6025,24 +6025,7 @@
       "additionalProperties": {
         "type": "boolean"
       },
-      "properties": {
-        "agent_sudo_requests": {
-          "type": "boolean",
-          "description": "Gate the typed sudo request workflow while the runner, TUI modal, skill guard, and SSH relay phases land.",
-          "default": false
-        },
-        "autonomy_record_only": {
-          "type": "boolean",
-          "description": "Only agent_meta.autonomy carries %auto state: launches and autonomy mutations write no legacy approve/auto_approve_plan_action/auto_approve_argument/plan meta keys and the runner exports no SASE_AGENT_AUTO_APPROVE.",
-          "default": true,
-          "deprecated": true
-        },
-        "provider_drain": {
-          "type": "boolean",
-          "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual hard disable in Launch Control submits the same drain automatically, toasting when it starts and when it finishes.",
-          "default": false
-        }
-      }
+      "properties": {}
     }
   }
 }

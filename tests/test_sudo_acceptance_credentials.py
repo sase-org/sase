@@ -11,7 +11,6 @@ from typing import Any
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.main.parser_sudo import register_sudo_parser
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.durability import canonical_json_bytes
@@ -40,10 +39,9 @@ def test_sudo_local_flow_never_persists_canary_credentials(
     sase_home = tmp_path / "sase-home"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
 
-    with override_flags(agent_sudo_requests=True):
-        gate = create_gate(
-            build_sudo_gate_request(_request(), request_id="sudo-canary-flow")
-        )
+    gate = create_gate(
+        build_sudo_gate_request(_request(), request_id="sudo-canary-flow")
+    )
 
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
@@ -70,8 +68,7 @@ def test_sudo_local_flow_never_persists_canary_credentials(
 
     monkeypatch.setattr("sase.sudo.cli.run_sudo_runner", fake_runner)
 
-    with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 0
+    assert handle_sudo_command(args) == 0
 
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "answered"

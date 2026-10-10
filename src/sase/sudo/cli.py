@@ -53,7 +53,6 @@ from sase.sudo.execution import (
     recover_dead_attempt,
     write_execution_state,
 )
-from sase.sudo.feature import require_sudo_requests_enabled
 from sase.sudo.gate import DENY_OPTION_ID, build_sudo_gate_request
 from sase.sudo.lease import sudo_auth_lease
 from sase.sudo.manifest import selected_sudo_manifest
@@ -85,7 +84,6 @@ def handle_sudo_command(args: argparse.Namespace) -> int:
     if subcommand == "answer":
         return _answer(args)
     try:
-        require_sudo_requests_enabled("sudo")
         if subcommand == "exec":
             return _exec(args)
         if subcommand == "finalize":
@@ -212,7 +210,6 @@ def _answer(args: argparse.Namespace) -> int:
     raw_ref = str(args.gate_ref)
     gate_id = raw_ref
     try:
-        require_sudo_requests_enabled("sudo")
         gate_id = resolve_sudo_gate_id(raw_ref)
         decision = _decision(args)
         retry = _retry(args)

@@ -13,7 +13,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.autonomy.record import read_record
-from sase.feature_flags import override_flags
 
 from . import harness
 
@@ -35,20 +34,6 @@ def test_tale_successor_inherits_record(tmp_path) -> None:
     assert record["profile"] == "tale"
     assert record["selection"] == "tale"
     assert record["source"] == "inherited"
-
-
-def test_tale_successor_inherits_both_flag_states(tmp_path) -> None:
-    """Inheritance matches with the sunset flag on and off."""
-    _, live_meta, _ = _launch_tale(tmp_path)
-    on = harness.adapt_followup_artifacts(live_meta, tmp_path, suffix="--on")
-    with override_flags(autonomy_record_only=False):
-        _, off_live, _ = harness.launch_meta(
-            "%auto:tale\nDo the work", tmp_path / "off-work"
-        )
-        off = harness.adapt_followup_artifacts(off_live, tmp_path, suffix="--off")
-    assert read_record(on)["profile"] == "tale"
-    assert read_record(off)["profile"] == "tale"
-    assert read_record(on)["selection"] == read_record(off)["selection"] == "tale"
 
 
 def test_plan_successor_not_widened_to_bare(tmp_path) -> None:

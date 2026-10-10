@@ -97,9 +97,6 @@ async def test_provider_modal_hard_disable_starts_automatic_drain(
         raise AssertionError("plan_provider_drain must not run on the write path")
 
     monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
-    monkeypatch.setattr(
-        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
-    )
     monkeypatch.setattr(provider_drain_module, "plan_provider_drain", no_plan)
     monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
@@ -153,9 +150,6 @@ async def test_provider_modal_soft_to_hard_transition_drains(monkeypatch) -> Non
         return True
 
     monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
-    monkeypatch.setattr(
-        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
-    )
     monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
@@ -197,9 +191,6 @@ async def test_provider_modal_hard_to_hard_window_change_does_not_drain(
         return True
 
     monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
-    monkeypatch.setattr(
-        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
-    )
     monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
@@ -237,9 +228,6 @@ async def test_provider_modal_soft_disable_does_not_drain(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
-    monkeypatch.setattr(
-        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
-    )
     monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
@@ -259,43 +247,6 @@ async def test_provider_modal_soft_disable_does_not_drain(monkeypatch) -> None:
     assert submitted == []
 
 
-async def test_provider_modal_flag_off_does_not_drain(monkeypatch) -> None:
-    before = _snapshot(_status("claude"))
-    disable = _disable("claude", expires_at=1_000.0, source="ace")
-    after = _snapshot(
-        _status("claude", active_disable=disable),
-        disables={"claude": disable},
-    )
-    disable_mock = MagicMock(return_value=disable)
-    submitted: list[dict] = []
-
-    def fake_submit(_app, *, provider, on_complete=None):
-        submitted.append({"provider": provider})
-        return True
-
-    monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
-    monkeypatch.setattr(
-        provider_modal_workers, "_provider_drain_flag_enabled", lambda: False
-    )
-    monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
-    monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
-
-    async with ModelsPanelTestApp().run_test() as pilot:
-        modal = ProviderRoutingModal(
-            before, load_snapshot=lambda: after if disable_mock.called else before
-        )
-        modal.notify = MagicMock()  # type: ignore[method-assign]
-        pilot.app.push_screen(modal)
-        await pilot.pause()
-        modal._pending_provider = "claude"
-        modal._pending_mode = PROVIDER_DISABLE_MODE_HARD
-        modal._submit_disable(RelativeOverrideDuration(900.0))
-        await wait_for(pilot, lambda: modal._write_worker is None)
-        await pilot.pause()
-
-    assert submitted == []
-
-
 async def test_provider_modal_unchanged_write_does_not_drain(monkeypatch) -> None:
     before = _snapshot(_status("claude"))
     disable_mock = MagicMock(return_value=_disable("claude", expires_at=1_000.0))
@@ -306,9 +257,6 @@ async def test_provider_modal_unchanged_write_does_not_drain(monkeypatch) -> Non
         return True
 
     monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
-    monkeypatch.setattr(
-        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
-    )
     monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
@@ -341,9 +289,6 @@ async def test_provider_modal_drain_submit_false_shows_no_start_toast(
         return False
 
     monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
-    monkeypatch.setattr(
-        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
-    )
     monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
@@ -384,9 +329,6 @@ async def test_provider_modal_drain_submit_raises_shows_error_toast(
         raise RuntimeError("boom")
 
     monkeypatch.setattr(provider_modal_workers, "disable_provider", disable_mock)
-    monkeypatch.setattr(
-        provider_modal_workers, "_provider_drain_flag_enabled", lambda: True
-    )
     monkeypatch.setattr(provider_modal_drain, "submit_provider_drain", fake_submit)
     monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 

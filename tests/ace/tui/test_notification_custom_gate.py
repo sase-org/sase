@@ -11,7 +11,6 @@ from sase.ace.tui.actions.agents._notification_handlers import handle_view_error
 from sase.ace.tui.actions.agents._notification_provider_direct import (
     direct_unread_notification_page,
 )
-from sase.feature_flags import override_flags
 from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.service import create_gate
 from sase.bead.task_gate import create_task_triage_gate
@@ -53,8 +52,7 @@ def test_notification_flow_dispatches_sudo_before_generic_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del gate_home
-    with override_flags(agent_sudo_requests=True):
-        create_gate(build_sudo_gate_request(_sudo_request()))
+    create_gate(build_sudo_gate_request(_sudo_request()))
     notification = load_notifications()[0]
     app = _NotificationFlowApp(notification)
     sudo_dispatched: list[Any] = []

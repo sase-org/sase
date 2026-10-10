@@ -314,11 +314,6 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
 
     state.prompt, vcs_tag = resolve_agent_refs_in_prompt(state.prompt)
 
-    from sase.autonomy.record import record_only
-
-    if info.approve and not record_only():
-        os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
-
     output_variable_namespaces = build_output_variable_namespaces(info.wait_names)
 
     _promote_bead_claim(state, bootstrap)

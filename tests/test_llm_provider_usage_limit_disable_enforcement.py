@@ -6,7 +6,7 @@ paths and from the workflow-error backstop; see
 ``tests/test_axe_run_agent_exec_retry_usage_limits.py`` for the call-site
 wiring. Notification wiring lives in the sibling
 ``test_llm_provider_usage_limit_disable_notification.py``, and the
-provider_drain-gated ownership decision lives in
+drain-vs-inline ownership decision lives in
 ``test_llm_provider_usage_limit_disable_drain.py``.
 """
 
@@ -68,6 +68,13 @@ def registered_providers(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestHandlePossibleUsageLimit:
+    @pytest.fixture(autouse=True)
+    def _no_real_drain_submit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "sase.procs.submit_proc_request",
+            MagicMock(),
+        )
+
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
     def test_returns_none_when_no_match(
         self, mock_detect: MagicMock, registered_providers: None
@@ -162,10 +169,19 @@ class TestHandlePossibleUsageLimit:
         assert disable.expires_at == pytest.approx(expected_expires_at, abs=1)
         assert disable.expires_at != pytest.approx(fixed_now + 86400, abs=3600)
 
+        # A hard disable with relaunch enabled always drains: the drain
+        # proc owns the enriched notification, so no inline notification
+        # fires here.
+        from sase import procs as procs_module
+
+        assert isinstance(procs_module.submit_proc_request, MagicMock)
+        procs_module.submit_proc_request.assert_called_once()
+        request = procs_module.submit_proc_request.call_args.args[0]
+        assert request.operation == "agent.drain"
         notifications = [
             note for note in load_notifications() if note.sender == "llm.usage_limit"
         ]
-        assert len(notifications) == 1
+        assert notifications == []
 
     def test_grok_usage_balance_exhausted_writes_flat_48h_disable(
         self, registered_providers: None

@@ -488,51 +488,33 @@ class TestExtractDirectivesMetadata:
         assert meta["changespec_name"] == "feature-branch"
 
 
-def _extract_both_flag_states(tmp_path: Path, prompt: str) -> tuple[dict, dict]:
-    """Run the real launch path with the flag on and off in isolation."""
-    from sase.feature_flags import override_flags
-
-    with patch.object(Path, "home", return_value=tmp_path / "on"):
-        on = run_extract(tmp_path / "on", prompt=prompt)
-    with (
-        patch.object(Path, "home", return_value=tmp_path / "off"),
-        override_flags(autonomy_record_only=False),
-    ):
-        off = run_extract(tmp_path / "off", prompt=prompt)
-    return on, off
+def _extract(tmp_path: Path, prompt: str) -> dict:
+    """Run the real launch path in isolation."""
+    with patch.object(Path, "home", return_value=tmp_path / "work"):
+        return run_extract(tmp_path / "work", prompt=prompt)
 
 
 def test_auto_epic_writes_plan_auto_action(tmp_path: Path) -> None:
     """%auto:epic is plan-specific and does not enable full auto-approve."""
-    on, off = _extract_both_flag_states(tmp_path, "%auto:epic\nDraft the epic")
+    result = _extract(tmp_path, "%auto:epic\nDraft the epic")
 
-    for result in (on, off):
-        assert result["info"].plan is True
-        assert result["info"].approve is False
-        record = result["meta"]["autonomy"]
-        assert (record["profile"], record["selection"]) == ("epic", "epic")
-    # Record-only launch: no legacy keys with the flag on...
-    assert "auto_approve_plan_action" not in on["meta"]
-    assert "approve" not in on["meta"]
-    # ...and the exact historical keys with it off.
-    assert off["meta"]["plan"] is True
-    assert off["meta"]["auto_approve_plan_action"] == "epic"
-    assert "approve" not in off["meta"]
+    assert result["info"].plan is True
+    assert result["info"].approve is False
+    record = result["meta"]["autonomy"]
+    assert (record["profile"], record["selection"]) == ("epic", "epic")
+    # Launches write no legacy keys; readers project them from the record.
+    assert "auto_approve_plan_action" not in result["meta"]
+    assert "approve" not in result["meta"]
 
 
 def test_auto_tale_writes_plan_auto_action(tmp_path: Path) -> None:
     """%auto:tale is plan-specific and does not enable full auto-approve."""
-    on, off = _extract_both_flag_states(tmp_path, "%auto:tale\nDraft the tale")
+    result = _extract(tmp_path, "%auto:tale\nDraft the tale")
 
-    for result in (on, off):
-        assert result["info"].plan is True
-        assert result["info"].approve is False
-        record = result["meta"]["autonomy"]
-        assert (record["profile"], record["selection"]) == ("tale", "tale")
-    # Record-only launch: no legacy keys with the flag on...
-    assert "auto_approve_plan_action" not in on["meta"]
-    assert "approve" not in on["meta"]
-    # ...and the exact historical keys with it off.
-    assert off["meta"]["plan"] is True
-    assert off["meta"]["auto_approve_plan_action"] == "tale"
-    assert "approve" not in off["meta"]
+    assert result["info"].plan is True
+    assert result["info"].approve is False
+    record = result["meta"]["autonomy"]
+    assert (record["profile"], record["selection"]) == ("tale", "tale")
+    # Launches write no legacy keys; readers project them from the record.
+    assert "auto_approve_plan_action" not in result["meta"]
+    assert "approve" not in result["meta"]

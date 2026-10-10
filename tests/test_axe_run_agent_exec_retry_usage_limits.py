@@ -92,6 +92,7 @@ class TestHandleWorkflowErrorUsageLimitPrecedence:
                 "sase.axe.run_agent_exec_retry.time.sleep", MagicMock()
             ) as mock_sleep,
             patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch("sase.procs.submit_proc_request"),
         ):
             action = handle_workflow_error(
                 RuntimeError(error_text), tracker, ctx, state
@@ -309,6 +310,7 @@ class TestHandleWorkflowErrorUsageLimitPrecedence:
                 "sase.axe.run_agent_exec_retry.time.sleep", MagicMock()
             ) as mock_sleep,
             patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch("sase.procs.submit_proc_request"),
             patch("sase.axe.run_agent_exec_retry.prepare_workspace", MagicMock()),
         ):
             action = handle_workflow_error(
@@ -349,6 +351,7 @@ class TestHandleWorkflowErrorUsageLimitPrecedence:
                 "sase.axe.run_agent_exec_retry.time.sleep", MagicMock()
             ) as mock_sleep,
             patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch("sase.procs.submit_proc_request"),
         ):
             action = handle_workflow_error(
                 RuntimeError(CLAUDE_WEEKLY_LIMIT), tracker, ctx, state
@@ -385,6 +388,7 @@ class TestHandleWorkflowErrorUsageLimitPrecedence:
                 "sase.axe.run_agent_exec_retry.time.sleep", MagicMock()
             ) as mock_sleep,
             patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch("sase.procs.submit_proc_request"),
         ):
             action = handle_workflow_error(
                 RuntimeError(CLAUDE_WEEKLY_LIMIT), tracker, ctx, state
@@ -428,6 +432,7 @@ class TestHandleWorkflowErrorUsageLimitPrecedence:
                 "sase.axe.run_agent_exec_retry.time.sleep", MagicMock()
             ) as mock_sleep,
             patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch("sase.procs.submit_proc_request"),
             patch(
                 "sase.axe.run_agent_exec_retry.handle_possible_usage_limit",
                 wraps=handle_possible_usage_limit,
