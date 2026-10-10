@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 AGENT_SESSION_ATTACH_ENV = "SASE_AGENT_SESSION_ATTACH"
 # legacy agent-family spelling: an agent launched before the rename can still
-# hand its attach plan to an upgraded child while the sunset flag is enabled.
+# hand its attach plan to an upgraded child; the spelling is always accepted.
 LEGACY_AGENT_FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
 
 

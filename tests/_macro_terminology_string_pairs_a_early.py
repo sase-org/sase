@@ -71,7 +71,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("src/sase/doctor/checks_config.py", '"config.retired_xprompt_names"'),
     (
         "src/sase/doctor/checks_config_retired.py",
-        '"""List every retired xprompt authored surface in either flag state.',
+        '"""List every retired xprompt authored surface.',
     ),
     (
         "src/sase/doctor/checks_config_retired.py",
@@ -140,7 +140,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("src/sase/integrations/macro_lsp.py", '"sase_xprompt_lsp"'),
     (
         "src/sase/integrations/macro_lsp.py",
-        "``xprompts/`` directory only while the sunset flag allows it.",
+        "``xprompts/`` directory as an always-accepted alias.",
     ),
     (
         "src/sase/integrations/macro_lsp.py",

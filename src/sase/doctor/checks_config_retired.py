@@ -41,11 +41,11 @@ _KEYMAP_REPLACEMENT = dict(RETIRED_KEYMAP_ACTIONS)
 
 
 def check_config_retired_xprompt_names(context: DoctorContext) -> DiagnosticCheck:
-    """List every retired xprompt authored surface in either flag state.
+    """List every retired xprompt authored surface.
 
     Inspects raw authored inputs independently of the loader's acceptance
-    policy, so legacy input is reported even when ordinary loading would
-    reject it (flag off) or silently accept it (flag on). Never expands
+    policy, so legacy input is reported even though ordinary loading always
+    accepts it. Never expands
     templates and never exposes environment values: only names, keys, and
     paths are reported. Durable files and permanent ``%xprompts_enabled``
     regions are not retirement findings and are never reported here.
@@ -229,7 +229,7 @@ def _scan_definition_directories(context: DoctorContext) -> list[dict[str, str]]
                 _finding(
                     str(path),
                     f"retired definition directory ({source.scope} "
-                    f"{source.locator}); skipped while the sunset flag is off",
+                    f"{source.locator}); never loaded",
                     "move definitions to the canonical macros directory",
                 )
             )

@@ -5181,7 +5181,7 @@ chezmoi source.
 
 ```yaml
 feature_flags:
-  provider_drain: true
+  demo_key: true
 ```
 
 The generated JSON Schema exposes one boolean property per registered flag with its
@@ -5215,27 +5215,26 @@ to `"shell"`, and `"continuation_mode": "gate_shell"`; `--shell` on `sase proc l
 error. Write the session and turn spellings in new prompts and config, and use `--name`
 for proc commands.
 
-The sunset flag for retired macro spellings accepts, while it stays on, the aliases in
-[the macro rename section](macros.md#retired-macro-spellings). Turning it off rejects
-those spellings in a new command, config key, frontmatter key, environment variable, or
-`sase path` target, and the error names the replacement. The retired entry-point group
-is not loaded, a plugin's packaged copy of the retired definition directory is not read,
-and those retired directories are invisible to expansion, workflow loading, completion,
-catalogs, and save choices. Config keys, frontmatter keys, and the plugin-disable
-environment variable are an error when both the retired name and the macro name are
-present, in either flag state. The LSP command environment variable is the exception: a
+The retired macro spellings in
+[the macro rename section](macros.md#retired-macro-spellings) are always accepted.
+Supplying a retired spelling in a new command, config key, frontmatter key, environment
+variable, or `sase path` target resolves to its replacement. The retired entry-point
+group is not loaded, a plugin's packaged copy of the retired definition directory is not
+read, and those retired directories are invisible to expansion, workflow loading,
+completion, catalogs, and save choices. Config keys, frontmatter keys, and the
+plugin-disable environment variable are an error when both the retired name and the
+macro name are present. The LSP command environment variable is the exception: a
 non-empty macro value wins and the retired value is ignored. See that section for which
-names those are. The region alias there stays accepted either way. State files and agent
-artifact filenames already written under the old names stay readable either way, and new
-writes use only the macro spelling. A default `sase doctor` run includes the config
-check for those retired authored surfaces in either flag state. It reports non-empty
-retired definition directories and does not report those state files, agent artifact
-filenames, or that region alias.
+names those are. The region alias there stays accepted. State files and agent artifact
+filenames already written under the old names stay readable, and new writes use only the
+macro spelling. A default `sase doctor` run includes the config check for those retired
+authored surfaces. It reports non-empty retired definition directories and does not
+report those state files, agent artifact filenames, or that region alias.
 
 When an owner-manifest hood entry still carries an explicit `files` list, readers accept
-a missing list either way, and a present list may be the current canonical set or the
-legacy set, which is that current set with every `sessions/` path removed and the legacy
-redirect stubs retained. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).
+a missing list, and a present list may be the current canonical set or the legacy set,
+which is that current set with every `sessions/` path removed and the legacy redirect
+stubs retained. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).
 
 Run `sase flag list` for the live registry with effective and saved state.
 
@@ -5263,7 +5262,7 @@ detail card (`STATE`).
 {
   "version": 1,
   "flags": {
-    "provider_drain": true
+    "demo_key": true
   }
 }
 ```
@@ -5317,14 +5316,14 @@ higher source is removed.
 
 Root-level `-f/--enable-feature` and `-F/--disable-feature` force a registered flag on
 or off for one `sase` invocation. They must appear before the subcommand
-(`sase -f provider_drain run "..."`). They outrank every config layer, a saved machine
+(`sase -f demo_key run "..."`). They outrank every config layer, a saved machine
 preference, and an inherited `SASE_FEATURE_FLAGS` value, and they merge into
 `SASE_FEATURE_FLAGS` so launched agents and other child processes inherit the same
 overrides.
 
 `SASE_FEATURE_FLAGS` is a strict JSON object of booleans, for example
-`{"provider_drain":false}`. Malformed JSON, a non-object payload, or a non-boolean value
-is a startup error for that process. SASE-launched children inherit a resolved snapshot
+`{"demo_key":false}`. Malformed JSON, a non-object payload, or a non-boolean value is a
+startup error for that process. SASE-launched children inherit a resolved snapshot
 through the same variable, so `sase flag list` marks env provenance prominently. CLI
 overrides are marked the same way (`CLI:--enable-feature` / `CLI:--disable-feature`).
 After a successful save, SASE merges the chosen key into `SASE_FEATURE_FLAGS` so an

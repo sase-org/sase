@@ -1990,8 +1990,8 @@ are extracted and stripped from the prompt before further processing.
 | `%hold`           |       | Declare a pre-run admission hold on selected agents and procs                                                 |
 | `%dispatch`       |       | Launch on one enrolled remote machine                                                                         |
 | `%tab`            |       | Place this launch's presentation root on a named agent tab                                                    |
-| `%if`             |       | Statically omit a segment, or attach a beta admission predicate                                               |
-| `%proc`           |       | Define and natively dispatch a beta stand-alone process unit                                                  |
+| `%if`             |       | Statically omit a segment, or attach an admission predicate                                                   |
+| `%proc`           |       | Define and natively dispatch a stand-alone process unit                                                       |
 | `%final`          |       | Select configured finalizer instances for this launch                                                         |
 | `%hide`           | `%h`  | Hide the agent from the default Agents tab display                                                            |
 | `%auto`           | `%a`  | Auto-resolve plan, epic, and question gates; closed vocabulary below; other forms fail at launch              |
@@ -3555,10 +3555,10 @@ But #foo HERE will be expanded normally.
 ````
 
 This prevents accidental expansion of `#name` patterns in code examples, documentation,
-and similar content. The flag-gated `%if::` and `%proc::` forms are the exception: the
-immediately following `bash` or `python` fence belongs to that directive, so its content
-is captured as opaque structured code and the directive plus fence are stripped from the
-model prompt. See [Typed launch units](#typed-launch-units).
+and similar content. The `%if::` and `%proc::` forms are the exception: the immediately
+following `bash` or `python` fence belongs to that directive, so its content is captured
+as opaque structured code and the directive plus fence are stripped from the model
+prompt. See [Typed launch units](#typed-launch-units).
 
 ### Disabled Regions
 

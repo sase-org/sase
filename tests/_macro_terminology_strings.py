@@ -153,7 +153,7 @@ _MACRO_STRING_ALLOWLIST: set[tuple[str, str]] = STRING_PAIRS_A | STRING_PAIRS_B
 _MACRO_COMMENT_ALLOWLIST: set[tuple[str, str]] = {
     (
         "src/sase/agent/multi_prompt.py",
-        "# retired ``xprompts`` gated by the sunset flag. Both spellings in one",
+        "# retired ``xprompts`` always accepted as an alias. Both spellings in one",
     ),
     (
         "src/sase/completion/candidates/catalog_snippets.py",

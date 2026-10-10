@@ -530,7 +530,7 @@ def _discover_plugin_macro_dirs() -> list[dict[str, str]]:
     """Return concrete plugin macro directories for the Rust LSP loader.
 
     Probes each plugin's ``macros/`` directory first and the retired
-    ``xprompts/`` directory only while the sunset flag allows it.
+    ``xprompts/`` directory as an always-accepted alias.
     """
     if macro_plugins_disabled():
         return []

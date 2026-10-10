@@ -53,9 +53,9 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase flag                         # same as `sase flag list`\n"
             "  sase flag list                    # every registered flag\n"
-            "  sase flag enable provider_drain # persist on for this machine\n"
-            "  sase flag disable provider_drain\n"
-            "  sase flag show plugins_enabled    # one flag's provenance\n"
+            "  sase flag enable demo_key # persist on for this machine\n"
+            "  sase flag disable demo_key\n"
+            "  sase flag show demo_key    # one flag's provenance\n"
             "  sase flag new demo_key --when-enabled '...' --when-disabled '...' "
             "--remove-when '...'\n"
             "  sase flag new demo_key -k beta -r 2026-12-01/0.19.0 "
@@ -232,8 +232,8 @@ def _add_mutation_parser(
         ),
         epilog=(
             "examples:\n"
-            f"  sase flag {name} provider_drain\n"
-            f"  sase flag {name} provider_drain --json"
+            f"  sase flag {name} demo_key\n"
+            f"  sase flag {name} demo_key --json"
         ),
     )
     parser.add_argument(

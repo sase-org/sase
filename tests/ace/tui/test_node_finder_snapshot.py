@@ -31,7 +31,7 @@ from tests.ace.tui.test_node_finder_snapshot_hidden import (
     test_folded_and_query_hidden_at_once,
     test_i_hidden_rows_use_the_pre_hide_roster_and_keep_tree_position,
     test_i_hidden_snapshot_omits_dismissed_and_explicitly_removed_rows,
-    test_query_hidden_on_both_flag_branches,
+    test_query_hidden_marks_nonmatching_rows,
     test_remote_fleet_row_is_listed,
     test_visible_row_carries_here_and_no_reasons,
 )
@@ -61,7 +61,7 @@ __all__ = [
     "test_non_agent_steps_are_context_only_or_omitted",
     "test_panel_tree_state_matches_rebuild",
     "test_plain_row_describer_matches_single_row",
-    "test_query_hidden_on_both_flag_branches",
+    "test_query_hidden_marks_nonmatching_rows",
     "test_remote_fleet_row_is_listed",
     "test_snapshot_filter_hints_map_to_identities",
     "test_snapshot_header_counts_match_brute_force_with_mixed_hidden_reasons",
