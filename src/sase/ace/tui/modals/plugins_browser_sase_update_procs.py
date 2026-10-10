@@ -56,6 +56,7 @@ class SaseUpdateProcMixin:
         _uv_tool: object | None
         app: Any
         is_mounted: bool
+        screen: Any
 
         def _notify(
             self,
@@ -302,11 +303,29 @@ class SaseUpdateProcMixin:
                 unchanged_message or completion.message,
                 severity=unchanged_severity,
             )
-            if self.is_mounted and not self._loading:
+            if self.is_mounted and not self._loading and self._is_still_presented():
                 self._start_load(force=False)
         else:
             detail = completion.error or completion.message
             self._notify(f"{failure_prefix}: {detail}", severity="error")
+
+    def _is_still_presented(self) -> bool:
+        """Return True while this pane's screen is still the presented screen.
+
+        ``pop_screen`` removes the screen from the stack before unmount
+        finishes, so ``is_mounted`` can still be true on a popped pane. The
+        screen-stack check is the signal that the reload would be visible.
+        Anything defensive here only skips an opportunistic reload: the
+        inventory is already invalidated, so the next open refetches anyway.
+        """
+        try:
+            screen = self.screen
+        except Exception:  # noqa: BLE001 - detached pane has no screen.
+            return False
+        try:
+            return self.app.screen is screen
+        except Exception:  # noqa: BLE001 - no active app; skip the reload.
+            return False
 
     def _restart_after_update(self, message: str) -> None:
         """Notify briefly, then reuse the TUI + axe restart machinery."""

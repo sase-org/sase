@@ -193,6 +193,64 @@ async def test_mutation_completion_after_unmount_invalidates_memo(
         assert len(calls) == 2
 
 
+async def test_mutation_completion_while_covered_starts_no_catalog_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from datetime import datetime
+
+    from textual.screen import Screen
+
+    from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+    from sase.ace.tui.proc_observer import ObservedProc
+
+    _patch_other_panes(monkeypatch)
+    calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    state = AdminCenterSessionState()
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page, session_state=state)
+        assert len(calls) == 1
+        # Cover the pane with another screen while it stays mounted. This
+        # reproduces the popped-pane race deterministically: the old
+        # `is_mounted` signal is still true, but this pane is no longer the
+        # presented screen, so the unchanged path must not start a load.
+        cover = Screen()
+        page.app.push_screen(cover)
+        await page.wait_for(lambda _s: page.app.screen is cover)
+        assert pane.is_mounted
+
+        pane._handle_code_update_completion(
+            TrackedProcCompletion(
+                proc_info=ObservedProc(
+                    proc_id="session-test",
+                    proc_type="sase-update",
+                    cl_name="",
+                    project_file="",
+                    status="done",
+                    message="done",
+                    started_at=datetime(2026, 8, 21, 12, 0, 0),
+                    display_name="sase-update",
+                ),
+                success=True,
+                message="done",
+                output="",
+                payload=None,
+            ),
+            failure_prefix="sase update failed",
+        )
+
+        # Drain any loader the completion path started: a stray `_start_load`
+        # flips `_loading` until its worker finishes recording the call, so a
+        # bare assert here would race the worker thread.
+        await page.wait_for(lambda _s: not pane._loading)
+        assert len(calls) == 1
+        assert state.updates.inventory is None
+
+        page.app.pop_screen()
+        await page.expect_modal("ConfigCenterModal")
+        await _reopen(page, state)
+        assert len(calls) == 2
+
+
 async def test_lazy_plugin_latest_survives_reopen(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
