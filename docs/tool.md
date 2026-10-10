@@ -428,8 +428,9 @@ settles to either an authoritative outcome or an explicit, typed uncertainty. On
 ToolRun links to exactly one proc; each `-H` invocation is a new request, and a run id
 executes at most once. The owner proc is attributed to a TUI session only when the
 process that submitted it is itself a live registered session. An agent escalation,
-`-d`, and a human shell `-H` leave it unattributed. See
-[Opening a row](ace.md#opening-a-row).
+`-d`, and a human shell `-H` leave it unattributed even when another TUI is open; there
+is no fallback to the newest TUI session. Unattributed procs remain visible in the Procs
+tab's **this session** scope. See [Durable Procs](ace.md#durable-procs).
 
 ```bash
 sase tool run -H check     # returns at once with a run id; the shell may close
@@ -569,7 +570,8 @@ of copying it. Admin Center → Tools (tab `7`) covers project-wide runs, failur
 signatures, and the tool catalog. Stopping a run and starting a catalog tool are
 explicit, confirmed flows; when a hand-off settles, an `OpenToolRun` notification jumps
 back to the run. In the Procs tab, `Enter` on the owner proc or on a monitor that joined
-the run opens Tools focused on that run. See [Opening a row](ace.md#opening-a-row),
+the run opens Tools focused on that run, unless the row also has a Command Line tag,
+which opens its transcript block first. See [Opening a row](ace.md#opening-a-row),
 [Agents Tab Tool Runs](ace.md#agents-tab-tool-runs), and the
 [Tools tab](ace.md#tools-tab). The TUI never reconciles: a silent run is shown in red
 and left for its owner (or a backend reconcile) to settle.

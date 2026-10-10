@@ -119,51 +119,74 @@ whole group off. Both are permanent operational switches, not feature flags.
 
 ### Where a command shows up
 
-Every surface that names a mounted command uses the same chip, `❯ sase <name>`. The chip
-means "a plugin gave you this command."
+Catalog panels, full help, and operation results label plugin commands with
+`❯ sase <name>`. Type `sase <name>` to run the command; `❯` is a visual marker. The
+label can also describe an uninstalled command or a command disabled by a name conflict,
+so a chip alone does not establish that the command can run.
+
+A **declared** command is named in a plugin's package metadata. A **mounted** command
+has an eligible name with exactly one owner and is exposed on `sase`. Mounting does not
+establish that its adapter can load or its parser can be built; doctor checks those
+separately. The owning **distribution** is the installed Python package, whose name can
+differ from the command name.
 
 **Help.** Compact `sase --help` lists mounted commands in a **Plugin commands** group:
-name, summary, and distribution. The group is omitted when none are mounted, and a
-broken plugin never breaks compact help. `sase --full-help` adds the chip, the summary,
-and `(distribution version)`. Problem rows (failed to load, shadowed by a built-in,
-invalid name, or two distributions claiming one name) are marked `⚠` with a one-line
-reason. The footer says to manage plugins with `sase plugin list` or the Updates tab.
+name, summary, and distribution. The group is omitted when none are mounted, and a load
+failure falls back to the distribution's summary in compact help, so a command listed
+there may still fail to run. `sase --full-help` adds the chip, the summary, and
+`(distribution version)`. Problem rows (failed to load, shadowed by a built-in, invalid
+name, or two distributions claiming one name) are marked `⚠` with a one-line reason. The
+footer says to manage plugins with `sase plugin list` or the Updates tab.
 
-**Doctor.** `sase doctor` runs `plugins.commands` by default. It reports how many
-commands are mounted and which claims cannot mount. A load failure or a name collision
-is `ERROR`. A shadowed or invalid name is `WARN`. Add
-`sase doctor -D -C plugins.commands-parsers` to build each parser as well; a parser
-failure is `ERROR`. A load or parser failure's next step is `sase plugin update`
-followed by the command name. A collision's next step uninstalls the first owner.
+**Doctor.** `sase doctor` runs `plugins.commands` by default. It loads mounted command
+adapters and reports command and claim problems; its mounted count includes only
+adapters that loaded successfully. A load failure or a name collision is `ERROR`. A
+shadowed or invalid name is `WARN`. Add `sase doctor -D -C plugins.commands-parsers` to
+build each parser as well; a parser failure is `ERROR`. The report currently suggests
+`sase plugin update <command-name>` for a load or parser failure. If that name does not
+identify the plugin in the catalog, use the owning distribution shown in the diagnostic
+with `sase plugin show <distribution>` to find the plugin to update. For a collision,
+doctor suggests uninstalling the first owner in its alphabetically sorted list; it does
+not uninstall anything automatically. Choose which plugin to keep before running an
+uninstall command.
 
 **Catalog.** `sase plugin list` prints each installed command's chip in that plugin's
 entry-point cell. `sase plugin show` adds a **Commands** row: one chip per installed
-command, with its summary, or a yellow problem note when the command cannot mount. An
+command, with its summary and a yellow note for a name conflict, shadowed name, or
+invalid name. Adapter load failures are diagnosed by full help and doctor. An
 uninstalled plugin shows the upstream preview in dim, labeled
 `added on install · declared in pyproject.toml`, and only when that preview is known. An
-unknown preview omits the row. `sase plugin list -j` already includes the mounted names
-on each installed entry's `commands` array.
+unknown preview omits the row. `sase plugin list -j` includes the installed declarations
+in each entry's `installed.commands` array, including names that cannot mount.
 
 **Updates tab.** An installed plugin row shows its chips in the row accent. An
-uninstalled row shows the cached declared preview in dim and does not fetch to draw that
-chip. The detail panel uses the same Commands row as `sase plugin show`.
+uninstalled row shows the cached declared preview in dim. Selecting it can fetch a
+preview for the detail panel; drawing the list itself does not fetch one. The detail
+panel uses the same Commands row as `sase plugin show`.
 
-Confirmations say what will change, and they say nothing when the preview is unknown:
+The confirmation modal previews changes before running an operation. Command lines are
+omitted when the relevant metadata is unknown:
 
 - Install: `❯ Adds a new command: ❯ sase <name>` for each declared command. A batch row
   gains ` (adds ❯ sase <name>, ...)`.
-- Update: `❯ Adds command:` and `❯ Removes command:` only when the upstream set differs
-  from the installed set. A command-steady update keeps the modal it had.
-- Uninstall: `❯ Removes command: ❯ sase <name>` for each command the plugin mounts now.
+- Update: a single-plugin managed update shows `❯ Adds command:` and
+  `❯ Removes command:` when the upstream declarations differ from the installed set. No
+  command lines appear when the sets agree. Multi-plugin and editable-checkout updates
+  do not show this comparison.
+- Uninstall: `❯ Removes command: ❯ sase <name>` for each installed declaration,
+  including commands that cannot currently mount.
 
-A declared name that matches a built-in warns `sase <name> would be shadowed`. A name
-another installed plugin already mounts warns
+In a single-plugin install confirmation, a declared name that matches a built-in warns
+`sase <name> would be shadowed`. A name another installed plugin already mounts warns
 `sase <name> would conflict with <distribution> — both would be disabled`. Those
-warnings are yellow and appear before you confirm. After the change, the completion
-toast lists added commands as `new command` and removed commands as `removed`.
+warnings are yellow and appear before you confirm; batch-install and update
+confirmations do not show these collision warnings. After the change, the completion
+toast labels net added command names as `new command` and removed names as `removed`.
+These labels describe metadata changes; use full help or doctor to check whether the
+commands can load.
 
-Previews are best-effort. A failed upstream read renders no command lines rather than
-guessing.
+Previews are best-effort. An unknown preview renders no command lines; it does not mean
+the plugin declares no commands.
 
 ### Migrating from the standalone `sase-listen`
 
@@ -243,9 +266,9 @@ sase plugin show github -r
   editable checkout renders its current dev version and, when its upstream tracking
   branch is ahead, `current → latest` with a dim `dev` tag.
 - **`show`** renders a detail panel: description, installed status and contributed entry
-  points, a **Commands** row when the plugin mounts or declares commands, latest
-  available version, repository, homepage, topics, stars, last update, and license.
-  Community plugins lead with a prominent third-party warning. An unknown
+  points, a **Commands** row for installed declarations or a known upstream command
+  preview, latest available version, repository, homepage, topics, stars, last update,
+  and license. Community plugins lead with a prominent third-party warning. An unknown
   `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero. See
   [Where a command shows up](#where-a-command-shows-up) for the chip and preview rules.
 - Built-in vs. community is decided by the owning org: `sase-org` (case-insensitive) is

@@ -13,9 +13,10 @@ running-only — add `-a` for recent DONE/FAILED.
 When a plugin mounts commands, compact help adds a **Plugin commands** group after the
 common commands. Each row is the command name, its one-line summary, and the
 distribution that provides it. The group is left out when nothing is mounted. A plugin
-that fails to load does not break `sase --help`. Load failures, name collisions, and
-shadowed names appear on `sase --full-help` instead, each marked `⚠`, and that footer
-closes with a pointer to `sase plugin list` and the Updates tab. See
+that fails to load can still appear there with its distribution's summary, so being
+listed does not prove that it can run. Load failures, name collisions, and shadowed
+names appear on `sase --full-help` instead, each marked `⚠`, and that footer closes with
+a pointer to `sase plugin list` and the Updates tab. See
 [Command plugins](plugins.md#command-plugins).
 
 Compact help's `memory` blurb still mentions reviewing proposals, but that CLI workflow
@@ -930,12 +931,16 @@ the [shell-completion](completion.md) install stamps, and the deep-only
 registered (`sase doctor -D -C completion.registration`). Selecting a deep check without
 `-D` is rejected rather than silently skipped.
 
-`plugins.commands` lists every mounted plugin command and reports claim problems. A load
-failure is `ERROR` on this check. A name collision is `ERROR` and names every owner; the
-next step uninstalls the first. A shadowed or invalid name is `WARN`. The deep-only
-`plugins.commands-parsers` check (`sase doctor -D -C plugins.commands-parsers`) also
-builds each mounted command's parser, and a parser failure is `ERROR` too. A load or
-parser failure's next step is `sase plugin update` followed by the command name. See
+`plugins.commands` loads mounted command adapters and reports command and claim
+problems. A load failure is `ERROR` on this check. A name collision is `ERROR` and names
+every owner; the suggested next step is an uninstall command for the first owner
+alphabetically; doctor does not run it. A shadowed or invalid name is `WARN`. The
+deep-only `plugins.commands-parsers` check
+(`sase doctor -D -C plugins.commands-parsers`) also builds each mounted command's
+parser, and a parser failure is `ERROR` too. A load or parser failure's suggested next
+step currently uses `sase plugin update <command-name>`. The command name may differ
+from the plugin name; use the owning distribution in the diagnostic to identify the
+plugin before updating it. See
 [Where a command shows up](plugins.md#where-a-command-shows-up).
 
 `project.junk_directories` reports directories under `~/.sase/projects/` that have no

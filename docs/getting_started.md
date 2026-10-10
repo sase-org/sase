@@ -455,7 +455,8 @@ The names you'll keep bumping into, in one place:
   boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode, Muse Code,
   Grok Build for agents; bare git and GitHub for version control. A plugin can also
   mount a top-level `sase <name>` command; `sase --help` lists the ones that are
-  installed.
+  mounted. A help listing alone does not prove that a plugin can load; use
+  `sase doctor -C plugins.commands` to check.
 
 ## What To Read Next
 
@@ -463,6 +464,7 @@ The names you'll keep bumping into, in one place:
   — the launch post and conceptual front door.
 - [CLI reference](cli.md) — a discovery index of `sase` commands (compact `sase --help`
   lists the common commands plus any plugin commands that are mounted;
-  `sase --full-help` prints every built-in command and plugin-command problems).
+  `sase --full-help` prints every built-in command, mounted plugin commands, and
+  plugin-command problems).
 - [The SASE repository](https://github.com/sase-org/sase) — source, issues, and project
   direction.

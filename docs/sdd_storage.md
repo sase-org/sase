@@ -239,13 +239,18 @@ transactional.
 `sdd.push_after_commit` controls pushes after later SDD commits: `async` starts a
 detached background push, `true` pushes synchronously, and `false` skips the push.
 
-A store commit includes both worktree changes and paths already staged in the index
-under that commit's pathspecs. Only worktree changes are passed to `git add`.
-Already-staged paths, including staged deletions whose files are gone from disk, go into
-the commit as they stand. A repo-wide commit (no specific paths, or only the repo root)
-excludes `goals/`; that directory belongs to the goal write transaction. A commit that
-names specific paths includes those paths. When nothing in the worktree or the index
-matches, no commit is created.
+A store commit includes changed files under its selected paths, whether the changes are
+in the worktree (files on disk) or already staged in Git's index. Worktree changes are
+passed to `git add` before committing. Staged-only changes, including staged deletions
+whose files are gone from disk, are included too. If a file has both staged and unstaged
+edits, the full working-file contents are staged and committed; partial staging is not
+preserved for that file.
+
+A repo-wide commit (no specific paths, or only the repo root) excludes `goals/`; that
+directory belongs to the goal write transaction. A targeted commit considers only the
+named files or directories and leaves staged changes outside them alone. Explicitly
+targeting `goals/` includes it. If the selected paths have no changes to commit, no
+commit is created.
 
 ### Network Git Operations
 

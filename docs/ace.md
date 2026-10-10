@@ -8914,10 +8914,12 @@ is visible.
 
 ### Opening a row
 
-`Enter` or a click on the list follows one order. The hints line can list more than one
-`⏎:` token when a row qualifies for more than one jump; `Enter` still does only the
-first match below. Jump mode (`'`) does not use this order: its hints line switches to
-the jump prompt, and these actions stay put.
+With the proc list focused, `Enter` or a click opens the first matching destination
+below. The hints line can list more than one `⏎:` token when a row qualifies for more
+than one action; these are not separate choices, and their display order does not
+determine what opens. Jump mode (`'`) selects a row by its hint without opening it.
+While jump mode is active, the hints line shows the jump prompt and these opening
+actions do nothing.
 
 1. **Command Line** (`command-line` tag). Admin Center closes and the
    [Command Line](#command-line) opens on that block. The hint is `⏎: block`. A missing
@@ -8927,9 +8929,10 @@ the jump prompt, and these actions stay put.
    focused on that run. The hint is `⏎: run`. This is how a monitor that reserved a run,
    and a monitor that joined one with `sase monitor start -J`, open the run. Those rows
    show `⚒`.
-3. **Bare monitor.** When the monitor's agent row is loaded, Admin Center closes and the
-   Agents tab reveals that agent. The hint is `⏎: agent`, and only when the jump can
-   land. If the agent is not on the Agents tab, sase's TUI says so and stays put.
+3. **Monitor without a run tag.** When the monitor's agent row is loaded, Admin Center
+   closes and the Agents tab reveals that agent. The hint is `⏎: agent`, and only when
+   the jump can land. If the agent is not on the Agents tab, sase's TUI says so and
+   stays put.
 
 A row that is none of these does not navigate.
 
@@ -8968,7 +8971,8 @@ it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
   Agents tab, the Reply card follows that same file in place when the live-reply follow
   is active; see [Agents Tab Main Deck](#agents-tab-main-deck).
 - **`<enter>`.** A monitor that owns or joined a tool run opens that run (`⏎: run`). A
-  bare monitor whose agent is loaded jumps to the Agents tab (`⏎: agent`). See
+  monitor without a run tag whose agent is loaded jumps to the Agents tab (`⏎: agent`).
+  Command Line rows take precedence over both destinations. See
   [Opening a row](#opening-a-row).
 - **Visible in both scopes.** Monitor procs are unattributed, so they appear in both
   **this session** and **all sessions**.
@@ -9018,20 +9022,26 @@ a mirrored `tui` row is left to its owning TUI. Epic launches record the approvi
 surface as `ace`, `telegram`, `cli`, or `axe`, with `api` retained as the fallback for
 direct or unrecognized API callers.
 
-Session attribution is not delegation: a `command` proc always executes under its own
-supervisor, while its session id decides which TUI includes it by default. A hand-off
-tool-run proc (`sase tool run -H`, `sase tool run -d`, or the automatic reservation
-path) is stamped only when the submitting process is itself a live registered TUI
-session, such as a catalog launch started inside sase's TUI. An agent escalation, a
-detached run, and a human shell `-H` leave the proc unattributed even when another TUI
-is open. There is no latest-session fallback, and a failed session lookup still submits
-the proc with no session. Unattributed rows stay visible in **this session**.
-`--session` accepts a full session id, a unique id prefix or short handle, or `current`,
-`latest`, and `none`; the default is this process's sase's TUI session, then the newest
-live one, then no session. `sase proc run --session none` creates an unattributed
-command row. `sase proc list` scopes work to the resolved session plus unattributed rows
-by default, and widens to every session with `--all`. Rows from a session that has since
-exited render dim with a `†` marker.
+Session attribution controls which TUI includes a proc by default; the proc still
+executes under its own supervisor. Here, a **TUI session** is one running TUI process,
+not an agent session. The attribution rules depend on how the proc starts.
+
+A hand-off tool-run proc (`sase tool run -H`, `sase tool run -d`, or the automatic
+reservation path) is stamped only when the submitting process is itself a live
+registered TUI session, such as a catalog launch started inside sase's TUI. An agent
+escalation, a detached run, and a human shell `-H` leave the proc unattributed even when
+another TUI is open. There is no latest-session fallback, and a failed session lookup
+still submits the proc with no session. Unattributed rows stay visible in **this
+session**.
+
+For `sase proc run` and `sase proc list`, `--session` accepts a full session id, a
+unique id prefix or short handle, or `current`, `latest`, and `none`. The default
+(`current`) uses this process's registered TUI session, then the newest live one, then
+no session. This latest-session fallback applies to these proc commands, not to tool-run
+hand-offs. `sase proc run --session none` creates an unattributed command row.
+`sase proc list` scopes work to the resolved session plus unattributed rows by default,
+and widens to every session with `--all`. Rows from a session that has since exited
+render dim with a `†` marker.
 
 **Retention.** [`procs.history_limit`](configuration.md#procs) caps how many _finished_
 procs are kept; pending and running work is never pruned for being old. Lowering the
