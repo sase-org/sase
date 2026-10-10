@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Protocol
 
+from sase.core.rust import require_rust_binding
+
 AGENT_STATUS_BUCKETS: tuple[str, ...] = (
     "Stopped",
     "Failed",
@@ -219,29 +221,18 @@ def status_bucket_for_values(
 
     ``retried_as_timestamp`` remains accepted for callers that already have
     retry metadata, but failure bucketing is based on the displayed status.
+
+    Glyph stripping stays here; the bucket table itself lives in
+    ``sase_core::agent_archive`` behind the ``status_bucket_for_status``
+    binding, so this is a thin wrapper over canonical text.
     """
     del retried_as_timestamp
-    status_text = _canonical_status_text(status or "")
-    if status_text in _TERMINAL_STATUSES:
-        return "Done"
-    if status_text in _STOPPED_STATUSES:
-        return "Stopped"
-    if status_text == "STARTING":
-        return "Starting"
-    # ``ANSWERED`` is the transient post-answer state: the user replied and the
-    # agent is expected to resume, so it buckets with the actively-running rows
-    # rather than the input-needed ``Stopped`` group.
-    if status_text in ACTIVE_PLAN_HANDOFF_STATUSES or status_text == ANSWERED_STATUS:
-        return "Running"
-    if status_text == QUEUED_STATUS:
-        return QUEUED_STATUS_BUCKET
-    if status_text == "WAITING":
-        return "Waiting"
-    if status_text in PLAN_EXECUTION_FAILED_STATUSES or status_text.startswith(
-        "FAILED"
-    ):
-        return "Failed"
-    return "Running"
+    canonical_status = _canonical_status_text(status or "")
+    binding = require_rust_binding("status_bucket_for_status")
+    bucket = binding(canonical_status)
+    if not isinstance(bucket, str):
+        raise TypeError("status_bucket_for_status binding returned a non-string bucket")
+    return bucket
 
 
 class _AgentStatusBucketRow(Protocol):
