@@ -20,7 +20,6 @@ from sase.ace.tui.bgcmd import (
     read_slot_output_tail,
     stop_legacy_background_command,
 )
-from sase.feature_flags import override_flags
 from sase.procs.models import Proc
 from sase.procs.service_meta import ProcServiceBlock
 
@@ -69,19 +68,17 @@ def _store(procs: list[Proc], *, dismissed: set[str] | None = None) -> Generator
     with (
         patch(_PATCH_READ_PROCS, return_value=procs),
         patch(_PATCH_DISMISSED, return_value=dismissed or set()),
-        override_flags(bgcmd_legacy_slots=False),
     ):
         yield
 
 
 @contextmanager
-def _legacy_dir(*, flag: bool = True) -> Generator[Path]:
+def _legacy_dir() -> Generator[Path]:
     with tempfile.TemporaryDirectory() as tmp_dir:
         with (
             patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)),
             patch(_PATCH_READ_PROCS, return_value=[]),
             patch(_PATCH_DISMISSED, return_value=set()),
-            override_flags(bgcmd_legacy_slots=flag),
         ):
             yield Path(tmp_dir)
 
@@ -340,7 +337,7 @@ def test_choose_slot_never_reuses_legacy_directories() -> None:
     assert choose_bgcmd_slot(infos) == 4
 
 
-# --- legacy slot directories (bgcmd_legacy_slots sunset flag) --------------
+# --- legacy slot directories (retired storage, always readable) -------------
 
 
 def test_bgcmd_state_dir_path() -> None:
@@ -349,7 +346,7 @@ def test_bgcmd_state_dir_path() -> None:
     assert "axe" in str(BGCMD_STATE_DIR)
 
 
-def test_legacy_slot_is_readable_while_the_sunset_flag_is_on() -> None:
+def test_legacy_slot_is_readable() -> None:
     with _legacy_dir() as root:
         _write_legacy(root, 2, command="old cmd", finished_at="2025-01-01T12:01:00")
         infos = read_bgcmd_slots()
@@ -363,13 +360,6 @@ def test_legacy_slot_is_readable_while_the_sunset_flag_is_on() -> None:
     )
     assert info.proc_id is None
     assert info.finished_at == "2025-01-01T12:01:00"
-
-
-def test_legacy_slots_are_ignored_when_the_sunset_flag_is_off() -> None:
-    with _legacy_dir(flag=False) as root:
-        _write_legacy(root, 2)
-        assert read_bgcmd_slots() == {}
-        assert get_slot_info(2) is None
 
 
 def test_legacy_running_process_is_reported_running() -> None:

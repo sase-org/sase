@@ -29,7 +29,6 @@ from sase.core.wait_dependency_resolution import (
     dependency_resolution_status,
     read_json_dict,
 )
-from sase.feature_flags import override_flags
 from sase.scripts._agent_chat_from_name_tribe import resolve_tribe_fork_source
 
 from tests.axe_chop_runner_helpers import make_script
@@ -320,7 +319,6 @@ def test_job_result_validation_error_uses_canonical_wording(
     monkeypatch.setattr("sase.axe.config.load_config_layers", lambda: layers)
 
     with (
-        override_flags(axe_routine_job_contract=True),
         patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         pytest.raises(SystemExit) as exc_info,
     ):
@@ -381,10 +379,7 @@ def test_bracketed_target_job_name_config_error_uses_canonical_wording(
     monkeypatch.setattr("sase.axe.config.load_merged_config", lambda: {})
     monkeypatch.setattr("sase.axe.config.load_config_layers", lambda: layers)
 
-    with (
-        override_flags(axe_routine_job_contract=True),
-        pytest.raises(SystemExit) as exc_info,
-    ):
+    with pytest.raises(SystemExit) as exc_info:
         handle_axe_chop_list(
             argparse.Namespace(
                 axe_subcommand="job",

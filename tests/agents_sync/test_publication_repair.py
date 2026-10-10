@@ -16,7 +16,6 @@ from sase.agents_sync.publication_repair import (
 from sase.agents_sync.publication_validation import load_validated_publication
 from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
-from sase.feature_flags import FeatureFlag, override_flags
 
 
 def _target(tmp_path: Path, name: str) -> ProjectTarget:
@@ -211,7 +210,7 @@ def test_repair_manifest_is_a_noop_when_already_complete(tmp_path: Path) -> None
     assert report == ()
 
 
-def test_repair_digest_writer_honors_slim_agents_manifest_flag(
+def test_repair_digest_writer_omits_explicit_file_lists(
     tmp_path: Path,
 ) -> None:
     owner = AgentOwnerIdentity("alice", "athena")
@@ -224,15 +223,8 @@ def test_repair_digest_writer_honors_slim_agents_manifest_flag(
     manifest = json.loads(payload[manifest_key])
     assert "files" not in manifest["hoods"]["foo"]
 
-    with override_flags(**{str(FeatureFlag.slim_agents_manifest): False}):
-        payload_off, resigned_off = repair_owner_hood_digests(target, repo, owner)
-    assert resigned_off
-    manifest_off = json.loads(payload_off[manifest_key])
-    fat_files = manifest_off["hoods"]["foo"]["files"]
-    assert fat_files == sorted(set(fat_files))
 
-
-def test_repair_manifest_writer_honors_slim_agents_manifest_flag(
+def test_repair_manifest_writer_omits_explicit_file_lists(
     tmp_path: Path,
 ) -> None:
     owner = AgentOwnerIdentity("alice", "athena")
@@ -244,13 +236,6 @@ def test_repair_manifest_writer_honors_slim_agents_manifest_flag(
     assert any("foo" in entry and "recovered" in entry for entry in report)
     manifest = json.loads(payload[manifest_key])
     assert "files" not in manifest["hoods"]["foo"]
-
-    with override_flags(**{str(FeatureFlag.slim_agents_manifest): False}):
-        payload_off, report_off = _repair_owner_manifest(target, repo, owner)
-    assert any("foo" in entry and "recovered" in entry for entry in report_off)
-    manifest_off = json.loads(payload_off[manifest_key])
-    fat_files = manifest_off["hoods"]["foo"]["files"]
-    assert fat_files == sorted(set(fat_files))
 
 
 def test_repair_manifest_never_reads_a_foreign_owners_path_family(

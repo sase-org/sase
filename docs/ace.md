@@ -3255,8 +3255,7 @@ tree reads at a glance:
   killed), a muted `#N` index, and the command, and ends with a chip carrying the
   recorded exit code and age (for example `exit 0 · 4m ago`), so they cannot be mistaken
   for scheduled AXE work. Commands started before oneshots existed remain readable from
-  their old slot directories (no exit code) while the `bgcmd_legacy_slots` sunset flag
-  is on.
+  their old slot directories (no exit code) until those directories age out.
 
 ### Description Panel
 

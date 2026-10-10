@@ -3602,11 +3602,10 @@ remain accepted, schema-valid input aliases but are marked deprecated: `lumberja
 `job_script_dirs`, and `lumberjack_log_max_bytes`,
 `lumberjack_log_temp_max_age_seconds`, `lumberjack_restart_backoff_max_seconds`, and
 `verbose_lumberjack_diagnostics` for their `routine_*` counterparts. New configuration
-should use the canonical keys. With the default-on `axe_routine_job_contract` sunset
-flag, `sase config show` prints the effective AXE block with the canonical names. Legacy
-`sase_chop_*` executables still exist beside the `sase_job_*` entrypoints. See
-[AXE compatibility aliases](axe.md#compatibility-aliases) for the matching CLI,
-environment, and artifact-reference aliases.
+should use the canonical keys. `sase config show` prints the effective AXE block with
+the canonical names. Legacy `sase_chop_*` executables still exist beside the
+`sase_job_*` entrypoints. See [AXE compatibility aliases](axe.md#compatibility-aliases)
+for the matching CLI, environment, and artifact-reference aliases.
 
 All jobs are scripts. Exact-name resolution checks `job_script_dirs`, then the running
 interpreter's bin directory, then `$PATH`. Invalid fields, duplicate identities,
@@ -5196,20 +5195,16 @@ flag for retired macro spellings. That flag defaults on. Its registry key uses t
 retired spelling, so its behavior is documented in
 [the macro rename section](macros.md#retired-macro-spellings) instead of this table.
 
-| Flag                             | Kind   | Default | Controls                                                                                                                                                                                                                                  |
-| -------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_sudo_requests`            | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                                                                                       |
-| `agents_session_manifest_compat` | sunset | `true`  | When an owner manifest still lists files, accept the current set or the legacy set that drops `sessions/` pages. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).                                                              |
-| `autonomy_record_only`           | sunset | `true`  | Only `agent_meta.autonomy` carries `%auto` state; off also writes the legacy meta keys.                                                                                                                                                   |
-| `axe_routine_job_contract`       | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                                                                                                     |
-| `bgcmd_legacy_slots`             | sunset | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                                                                                                            |
-| `claude_helper_channel`          | sunset | `true`  | Claude receives the packaged helper instructions and a tool guard that prevents native helpers from submitting root final declarations. See [Root and helper agents](agent_providers.md#root-and-helper-agents).                          |
-| `grok_rules_delivery`            | sunset | `true`  | Grok root runs receive the SASE single-turn directive plus the managed project root `AGENTS.md` through `--rules`. See [Grok Build Integration](llms.md#grok-build-integration).                                                          |
-| `instruction_shadow_render`      | sunset | `true`  | Root provider invocations record an intended bundle and manifest and set `SASE_INSTRUCTIONS_FILE` for the call. Current providers do not read it, so existing delivery stays the same. See [Instruction Bundles](instruction_bundles.md). |
-| `monitor_continuation_records`   | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                                                                   |
-| `muse_synchronous_shell`         | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                                                                             |
-| `provider_drain`                 | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit` and Launch Control's automatic provider drain in `ace.md`).                                                                 |
-| `slim_agents_manifest`           | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                                                                       |
+| Flag                           | Kind   | Default | Controls                                                                                                                                                                                                                                  |
+| ------------------------------ | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_sudo_requests`          | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                                                                                       |
+| `autonomy_record_only`         | sunset | `true`  | Only `agent_meta.autonomy` carries `%auto` state; off also writes the legacy meta keys.                                                                                                                                                   |
+| `claude_helper_channel`        | sunset | `true`  | Claude receives the packaged helper instructions and a tool guard that prevents native helpers from submitting root final declarations. See [Root and helper agents](agent_providers.md#root-and-helper-agents).                          |
+| `grok_rules_delivery`          | sunset | `true`  | Grok root runs receive the SASE single-turn directive plus the managed project root `AGENTS.md` through `--rules`. See [Grok Build Integration](llms.md#grok-build-integration).                                                          |
+| `instruction_shadow_render`    | sunset | `true`  | Root provider invocations record an intended bundle and manifest and set `SASE_INSTRUCTIONS_FILE` for the call. Current providers do not read it, so existing delivery stays the same. See [Instruction Bundles](instruction_bundles.md). |
+| `monitor_continuation_records` | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                                                                   |
+| `muse_synchronous_shell`       | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                                                                             |
+| `provider_drain`               | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit` and Launch Control's automatic provider drain in `ace.md`).                                                                 |
 
 `agent_decks` and `agent_tabs` are no longer registered. The Agents tab always shows
 [data decks and cards](ace.md#agent-data-decks-and-cards) and
@@ -5246,11 +5241,10 @@ check for those retired authored surfaces in either flag state. It reports non-e
 retired definition directories and does not report those state files, agent artifact
 filenames, or that region alias.
 
-`agents_session_manifest_compat` applies when an owner-manifest hood entry still carries
-an explicit `files` list. Readers accept a missing list either way. On, a present list
-may be the current canonical set or the legacy set, which is that current set with every
-`sessions/` path removed and the legacy redirect stubs retained. Off, only the current
-canonical set matches. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).
+When an owner-manifest hood entry still carries an explicit `files` list, readers accept
+a missing list either way, and a present list may be the current canonical set or the
+legacy set, which is that current set with every `sessions/` path removed and the legacy
+redirect stubs retained. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).
 
 Run `sase flag list` for the live registry with effective and saved state.
 

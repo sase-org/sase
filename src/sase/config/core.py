@@ -609,7 +609,6 @@ def load_public_merged_config() -> dict[str, Any]:
 
     from sase.config.inventory import serialize_config_layer
     from sase.core.rust import require_rust_binding
-    from sase.feature_flags import FeatureFlag, current_flags
 
     layer_inputs = [serialize_config_layer(layer) for layer in load_config_layers()]
     if not any(
@@ -623,9 +622,9 @@ def load_public_merged_config() -> dict[str, Any]:
             "layers": layer_inputs,
             "require_descriptions": False,
             "require_description_shape": False,
-            "routine_job_contract": current_flags().enabled(
-                FeatureFlag.axe_routine_job_contract
-            ),
+            # The retired routine/job rollout switch is gone: the public
+            # routine/job projection is always requested.
+            "routine_job_contract": True,
         }
     )
     public_config = payload.get("public_config")

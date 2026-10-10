@@ -15,7 +15,6 @@ from sase.axe.config_backend import (
     plan_axe_entry_edit,
 )
 from sase.config.core import ConfigLayer
-from sase.feature_flags import override_flags
 
 
 def _layers(target: Path) -> list[ConfigLayer]:
@@ -211,8 +210,7 @@ def test_canonical_routine_job_config_projects_public_names(
         },
     )
 
-    with override_flags(axe_routine_job_contract=True):
-        composition = compose_axe_config([layer])
+    composition = compose_axe_config([layer])
 
     assert composition.effective_config["axe"]["chop_script_dirs"] == ["/opt/jobs"]
     release = composition.effective_config["axe"]["lumberjacks"]["checks"]["chops"][
@@ -279,19 +277,14 @@ def test_lumberjack_job_timeout_edit_targets_existing_legacy_source(
     assert "job_timeout" not in routine
 
 
-def test_public_projection_obeys_contract_flag(tmp_path: Path) -> None:
+def test_public_projection_uses_canonical_contract(tmp_path: Path) -> None:
     target = tmp_path / "sase.yml"
     layer = _layers(target)[0]
 
-    with override_flags(axe_routine_job_contract=False):
-        legacy = compose_axe_config([layer])
-    assert "lumberjacks" in legacy.public_config["axe"]
-    assert "routines" not in legacy.public_config["axe"]
-
-    with override_flags(axe_routine_job_contract=True):
-        canonical = compose_axe_config([layer])
+    canonical = compose_axe_config([layer])
     assert "routines" in canonical.public_config["axe"]
     assert "jobs" in canonical.public_config["axe"]["routines"]["checks.main"]
+    assert "lumberjacks" not in canonical.public_config["axe"]
 
 
 def test_composition_enforces_description_shape() -> None:

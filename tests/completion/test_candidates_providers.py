@@ -56,13 +56,15 @@ def test_flag_candidates_come_from_the_in_process_registry() -> None:
     result = candidates_for("flag", "", project=None, limit=200)
 
     keys = {candidate.value for candidate in result}
-    assert "slim_agents_manifest" in keys
+    assert "monitor_continuation_records" in keys
     assert "coder_inherits_planner_chat" not in keys
     assert "completion_refresh_on_update" not in keys
-    slim = next(
-        candidate for candidate in result if candidate.value == "slim_agents_manifest"
+    records = next(
+        candidate
+        for candidate in result
+        if candidate.value == "monitor_continuation_records"
     )
-    assert slim.description.startswith("sunset:")
+    assert records.description.startswith("sunset:")
 
 
 def test_model_candidates_are_the_builtin_size_aliases() -> None:

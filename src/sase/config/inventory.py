@@ -41,12 +41,15 @@ _schema_cache: dict[str, Any] | None = None
 
 
 def routine_job_contract_enabled(value: bool | None = None) -> bool:
-    """Return the effective routine/job public-config projection flag."""
+    """Return the effective routine/job public-config projection flag.
+
+    The rollout switch is retired: the canonical routine/job projection is
+    always used. An explicit *value* is still accepted at the boundary but
+    no longer selects a legacy projection.
+    """
     if value is not None:
         return value
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.axe_routine_job_contract)
+    return True
 
 
 class ConfigBackendError(RuntimeError):

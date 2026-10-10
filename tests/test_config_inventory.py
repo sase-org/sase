@@ -19,7 +19,6 @@ from sase.config.inventory import (
     discover_layer_inputs,
     load_config_schema,
 )
-from sase.feature_flags import override_flags
 
 
 # The merged config produced by folding the fixture layer stack through the
@@ -131,6 +130,11 @@ def _inventory_schema() -> dict[str, Any]:
                 "properties": {
                     "max_hook_runners": {"type": "integer", "default": 3},
                     "chop_script_dirs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                    },
+                    "job_script_dirs": {
                         "type": "array",
                         "items": {"type": "string"},
                         "default": [],
@@ -274,16 +278,18 @@ def test_deep_merge_fold_matches_rust_golden() -> None:
 
 def test_inventory_effective_values_match_merge_golden() -> None:
     """Per-field effective values from the Rust inventory match the golden."""
-    with override_flags(axe_routine_job_contract=False):
-        inventory = _build_fixture_inventory()
+    inventory = _build_fixture_inventory()
     assert inventory.field("timezone").effective_value == "US/Pacific"
     assert inventory.field("use_chezmoi").effective_value is True
     assert inventory.field("axe.max_hook_runners").effective_value == 5
-    assert inventory.field("axe.chop_script_dirs").effective_value == [
+    # The retired routine/job switch always projects the canonical keys:
+    # the merged legacy-authored list surfaces under the canonical path.
+    assert inventory.field("axe.job_script_dirs").effective_value == [
         "a",
         "b",
         "c",
     ]
+    assert inventory.field("axe.chop_script_dirs").has_effective is False
     assert inventory.field("linked_repos").effective_value == [
         {"name": "user"},
         {"name": "overlay"},
@@ -291,13 +297,10 @@ def test_inventory_effective_values_match_merge_golden() -> None:
     ]
 
 
-def test_inventory_projects_canonical_axe_aliases_when_contract_enabled() -> None:
-    with (
-        patch(
-            "sase.config.inventory.load_config_layers",
-            return_value=_axe_alias_layers(),
-        ),
-        override_flags(axe_routine_job_contract=True),
+def test_inventory_projects_canonical_axe_aliases() -> None:
+    with patch(
+        "sase.config.inventory.load_config_layers",
+        return_value=_axe_alias_layers(),
     ):
         inventory = build_config_inventory(schema=_axe_alias_schema())
 
@@ -311,26 +314,6 @@ def test_inventory_projects_canonical_axe_aliases_when_contract_enabled() -> Non
     legacy_interval = inventory.field("axe.lumberjacks.checks.interval")
     assert legacy_interval is not None
     assert legacy_interval.has_effective is False
-
-
-def test_inventory_keeps_legacy_view_when_contract_disabled() -> None:
-    with (
-        patch(
-            "sase.config.inventory.load_config_layers",
-            return_value=_axe_alias_layers(),
-        ),
-        override_flags(axe_routine_job_contract=False),
-    ):
-        inventory = build_config_inventory(schema=_axe_alias_schema())
-
-    interval = inventory.field("axe.lumberjacks.checks.interval")
-    assert interval is not None
-    assert interval.effective_value == 19
-    assert [c.raw_value for c in interval.contributions] == [5, 19]
-
-    canonical_interval = inventory.field("axe.routines.checks.interval")
-    assert canonical_interval is not None
-    assert canonical_interval.has_effective is False
 
 
 # --- Provenance & source rail ---------------------------------------------

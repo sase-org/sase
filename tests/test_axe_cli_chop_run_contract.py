@@ -1,4 +1,4 @@
-"""Tests for the axe_routine_job_contract upgrade path across the CLI surface."""
+"""Tests for the canonical routine/job contract across the CLI surface."""
 
 import argparse
 import json
@@ -14,7 +14,6 @@ from sase.axe.cli import (
     handle_axe_chop_run,
 )
 from sase.config.core import ConfigLayer
-from sase.feature_flags import FeatureFlag, override_flags
 
 pytest_plugins = ("tests._axe_cli_fixtures",)
 
@@ -24,7 +23,7 @@ def _make_executable(path: Path, text: str) -> None:
     path.chmod(path.stat().st_mode | 0o111)
 
 
-def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
+def test_routine_job_contract_exercises_public_and_legacy_paths(
     temp_state_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -135,37 +134,37 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
     def capture_job_list_payload(
         *,
         axe_subcommand: str = "job",
-        enabled: bool,
     ) -> dict[str, object]:
-        with override_flags(axe_routine_job_contract=enabled) as flags:
-            decision = flags.decision(FeatureFlag.axe_routine_job_contract)
-            assert decision.enabled is enabled
-            assert decision.source == "override"
-            with pytest.raises(SystemExit) as exc_info:
-                handle_axe_chop_list(
-                    argparse.Namespace(
-                        axe_subcommand=axe_subcommand,
-                        json=True,
-                        available=False,
-                        verbose=False,
-                    )
+        with pytest.raises(SystemExit) as exc_info:
+            handle_axe_chop_list(
+                argparse.Namespace(
+                    axe_subcommand=axe_subcommand,
+                    json=True,
+                    available=False,
+                    verbose=False,
                 )
-            assert exc_info.value.code == 0
-            return json.loads(capsys.readouterr().out)
+            )
+        assert exc_info.value.code == 0
+        return json.loads(capsys.readouterr().out)
 
-    list_payload = capture_job_list_payload(enabled=True)
-    disabled_job_payload = capture_job_list_payload(enabled=False)
-    hidden_chop_payload = capture_job_list_payload(
-        axe_subcommand="chop",
-        enabled=True,
-    )
+    def capture_doctor_payload(*, axe_subcommand: str = "job") -> dict[str, object]:
+        with pytest.raises(SystemExit) as exc_info:
+            handle_axe_chop_doctor(
+                argparse.Namespace(
+                    axe_subcommand=axe_subcommand,
+                    json=True,
+                    verbose=False,
+                )
+            )
+        assert exc_info.value.code == 0
+        return json.loads(capsys.readouterr().out)
+
+    list_payload = capture_job_list_payload()
+    hidden_chop_payload = capture_job_list_payload(axe_subcommand="chop")
 
     assert list_payload["schema_version"] == 2
     assert "jobs" in list_payload
     assert "chops" not in list_payload
-    assert disabled_job_payload["schema_version"] == 1
-    assert "chops" in disabled_job_payload
-    assert "jobs" not in disabled_job_payload
     assert hidden_chop_payload["schema_version"] == 1
     assert "chops" in hidden_chop_payload
     assert "jobs" not in hidden_chop_payload
@@ -173,9 +172,9 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
         (item["routine"], item["name"]): item
         for item in list_payload["jobs"]["configured"]
     }
-    disabled_configured = {
+    hidden_configured = {
         (item["lumberjack"], item["name"]): item
-        for item in disabled_job_payload["chops"]["configured"]
+        for item in hidden_chop_payload["chops"]["configured"]
     }
     expanded = configured[("chop-watch", "exact.dotted[sase]")]
     assert expanded["parent_name"] == "exact.dotted"
@@ -185,55 +184,29 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
     )
     assert configured[("legacy-list", "list.job")]["script"] == "fixture_success"
     assert (
-        disabled_configured[("chop-watch", "exact.dotted[sase]")]["parent_name"]
+        hidden_configured[("chop-watch", "exact.dotted[sase]")]["parent_name"]
         == "exact.dotted"
     )
-    assert disabled_configured[("chop-watch", "legacy.entry")]["script"] == (
+    assert hidden_configured[("chop-watch", "legacy.entry")]["script"] == (
         "sase_chop_legacy_only"
     )
 
-    with override_flags(axe_routine_job_contract=True) as flags:
-        decision = flags.decision(FeatureFlag.axe_routine_job_contract)
-        assert decision.enabled is True
-        assert decision.source == "override"
-        with pytest.raises(SystemExit) as exc_info:
-            handle_axe_chop_doctor(
-                argparse.Namespace(
-                    axe_subcommand="job",
-                    json=True,
-                    verbose=False,
-                )
-            )
-        assert exc_info.value.code == 0
-        doctor_payload = json.loads(capsys.readouterr().out)
+    doctor_payload = capture_doctor_payload()
     assert doctor_payload["schema_version"] == 2
     assert "jobs" in doctor_payload
     assert "chops" not in doctor_payload
 
-    with override_flags(axe_routine_job_contract=False) as flags:
-        decision = flags.decision(FeatureFlag.axe_routine_job_contract)
-        assert decision.enabled is False
-        assert decision.source == "override"
-        with pytest.raises(SystemExit) as exc_info:
-            handle_axe_chop_doctor(
-                argparse.Namespace(
-                    axe_subcommand="job",
-                    json=True,
-                    verbose=False,
-                )
-            )
-        assert exc_info.value.code == 0
-        disabled_doctor_payload = json.loads(capsys.readouterr().out)
-    assert disabled_doctor_payload["schema_version"] == 1
-    assert "chops" in disabled_doctor_payload
-    assert "jobs" not in disabled_doctor_payload
+    hidden_doctor_payload = capture_doctor_payload(axe_subcommand="chop")
+    assert hidden_doctor_payload["schema_version"] == 1
+    assert "chops" in hidden_doctor_payload
+    assert "jobs" not in hidden_doctor_payload
     assert any(
         check["id"] == "configured_job_scripts" and check["status"] == "OK"
         for check in doctor_payload["checks"]
     )
     assert any(
         check["id"] == "configured_chop_scripts" and check["status"] == "OK"
-        for check in disabled_doctor_payload["checks"]
+        for check in hidden_doctor_payload["checks"]
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -253,7 +226,6 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
     assert "--routine" in ambiguous_error
 
     with (
-        override_flags(axe_routine_job_contract=True),
         patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         pytest.raises(SystemExit) as exc_info,
     ):
@@ -343,10 +315,9 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
     )
     from sase.core.rust import require_rust_binding
 
-    with override_flags(axe_routine_job_contract=True):
-        status_payload = require_rust_binding("project_axe_status_public")(
-            snapshot.to_wire()
-        )
+    status_payload = require_rust_binding("project_axe_status_public")(
+        snapshot.to_wire()
+    )
     routines = {item["routine_name"]: item for item in status_payload["routines"]}
     assert routines["chop-watch"]["configured_jobs"] == [
         "chop-test",

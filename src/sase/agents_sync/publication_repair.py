@@ -30,7 +30,6 @@ from sase.agents_sync.models import (
     SyncOutcome,
 )
 from sase.agents_sync.publication_validation import (
-    hood_file_set,
     snapshot_path,
     verify_run_files,
 )
@@ -54,7 +53,6 @@ from sase.agents_sync.v2_models import (
 )
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from sase.feature_flags import FeatureFlag, current_flags
 
 REPAIR_DIGESTS_COMMAND = "sase agent sync --repair-digests"
 REPAIR_MANIFEST_COMMAND = "sase agent sync --repair-manifest"
@@ -77,7 +75,6 @@ def repair_owner_hood_digests(
 
     project = V2ProjectIdentity(target.project_key, target.project)
     manifest = read_owner_manifest(repo_root, owner, project)
-    slim = current_flags().enabled(FeatureFlag.slim_agents_manifest)
     payload: dict[str, bytes] = {}
     resigned: list[str] = []
     updated_hoods: dict[str, V2OwnerHoodEntry] = {}
@@ -92,7 +89,7 @@ def repair_owner_hood_digests(
         updated_hoods[hood] = replace(
             entry,
             digest=content_digest(snapshot_bytes),
-            files=None if slim else hood_file_set(repaired),
+            files=None,
         )
         resigned.extend(f"{hood}: {path}" for path in drifted)
     if not updated_hoods:
@@ -152,7 +149,6 @@ def _repair_owner_manifest(
 
     project = V2ProjectIdentity(target.project_key, target.project)
     manifest = read_owner_manifest(repo_root, owner, project)
-    slim = current_flags().enabled(FeatureFlag.slim_agents_manifest)
     existing = manifest.by_hood()
     report: list[str] = []
     recovered: dict[str, V2OwnerHoodEntry] = {}
@@ -160,9 +156,7 @@ def _repair_owner_manifest(
         if hood in existing:
             continue
         try:
-            recovered[hood] = _recovered_hood_entry(
-                repo_root, owner, project, hood, slim=slim
-            )
+            recovered[hood] = _recovered_hood_entry(repo_root, owner, project, hood)
         except (AgentsSyncFormatError, OSError) as exc:
             report.append(f"{hood}: skipped recovery: {exc}")
             continue
@@ -182,8 +176,6 @@ def _recovered_hood_entry(
     owner: AgentOwnerIdentity,
     project: V2ProjectIdentity,
     hood: str,
-    *,
-    slim: bool,
 ) -> V2OwnerHoodEntry:
     relative = snapshot_path(owner, hood)
     snapshot_bytes = (repo_root / relative).read_bytes()
@@ -198,7 +190,7 @@ def _recovered_hood_entry(
         verify_run_files(repo_root, run)
     return V2OwnerHoodEntry(
         content_digest(snapshot_bytes),
-        None if slim else hood_file_set(snapshot),
+        None,
         len(snapshot.runs),
         sum(is_session_container(item.kind) for item in snapshot.containers),
     )

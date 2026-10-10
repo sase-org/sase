@@ -21,31 +21,17 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
-    axe_routine_job_contract = "axe_routine_job_contract"
     agent_sudo_requests = "agent_sudo_requests"
-    bgcmd_legacy_slots = "bgcmd_legacy_slots"
     grok_rules_delivery = "grok_rules_delivery"
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
-    slim_agents_manifest = "slim_agents_manifest"
-    agents_session_manifest_compat = "agents_session_manifest_compat"
     claude_helper_channel = "claude_helper_channel"
     instruction_shadow_render = "instruction_shadow_render"
     autonomy_record_only = "autonomy_record_only"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
-    FeatureFlag.axe_routine_job_contract: FeatureFlagDefinition(
-        key=FeatureFlag.axe_routine_job_contract,
-        kind="sunset",
-        description=(
-            "AXE configuration projection and public JSON use canonical "
-            "routine/job names while accepted inputs still normalize to the "
-            "internal AXE model."
-        ),
-        bead="sase-11f",
-    ),
     FeatureFlag.agent_sudo_requests: FeatureFlagDefinition(
         key=FeatureFlag.agent_sudo_requests,
         kind="beta",
@@ -54,15 +40,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "skill guard, and SSH relay phases land."
         ),
         bead="sase-111",
-    ),
-    FeatureFlag.bgcmd_legacy_slots: FeatureFlagDefinition(
-        key=FeatureFlag.bgcmd_legacy_slots,
-        kind="sunset",
-        description=(
-            "Keep legacy ~/.sase/axe/bgcmd slot directories readable in the "
-            "Services tab oneshot section."
-        ),
-        bead="sase-13w",
     ),
     FeatureFlag.monitor_continuation_records: FeatureFlagDefinition(
         key=FeatureFlag.monitor_continuation_records,
@@ -107,17 +84,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         ),
         bead="sase-sx",
     ),
-    FeatureFlag.slim_agents_manifest: FeatureFlagDefinition(
-        key=FeatureFlag.slim_agents_manifest,
-        kind="sunset",
-        description=(
-            "Owner-manifest writes (fresh publish, digest repair, and "
-            "manifest repair) omit each hood's per-hood files list, and "
-            "reads use the dedicated larger manifest byte and hood-count "
-            "caps with lenient old-reader skip for the omitted-files shape."
-        ),
-        bead="sase-11p",
-    ),
     FeatureFlag.claude_helper_channel: FeatureFlagDefinition(
         key=FeatureFlag.claude_helper_channel,
         kind="sunset",
@@ -127,15 +93,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "it) and a PreToolUse guard via inline --settings JSON."
         ),
         bead="sase-1gw",
-    ),
-    FeatureFlag.agents_session_manifest_compat: FeatureFlagDefinition(
-        key=FeatureFlag.agents_session_manifest_compat,
-        kind="sunset",
-        description=(
-            "Accepts the exact supported legacy family-only explicit file "
-            "set beside the current canonical set."
-        ),
-        bead="sase-1ft",
     ),
     FeatureFlag.instruction_shadow_render: FeatureFlagDefinition(
         key=FeatureFlag.instruction_shadow_render,

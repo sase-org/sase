@@ -12,7 +12,6 @@ from sase.agents_sync.links import hosted_provider
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_snapshot import build_hood_snapshot
 from sase.agents_sync.publication_validation import (
-    hood_file_set,
     load_validated_publication,
     previous_snapshot,
     snapshot_path,
@@ -36,7 +35,6 @@ from sase.agents_sync.v2_models import (
     is_session_container,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from sase.feature_flags import FeatureFlag, current_flags
 
 
 def plan_hoods(
@@ -75,7 +73,6 @@ def plan_hoods(
     }
     current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     published = refreshed = unchanged = sessions = runs = 0
-    slim = current_flags().enabled(FeatureFlag.slim_agents_manifest)
 
     for hood in sorted(set(hoods)):
         previous = previous_snapshot(repo_root, owner, hood, entries.get(hood))
@@ -90,10 +87,11 @@ def plan_hoods(
         hood_snapshot_path = snapshot_path(owner, hood)
         snapshot_bytes = v2_json_bytes(hood_snapshot.to_json_dict())
         hood_payload[hood_snapshot_path] = snapshot_bytes
-        files = None if slim else hood_file_set(hood_snapshot)
+        # Owner-manifest writes always omit the per-hood file list; old
+        # explicit lists on disk are still read and validated.
         entry = V2OwnerHoodEntry(
             content_digest(snapshot_bytes),
-            files,
+            None,
             len(hood_snapshot.runs),
             sum(is_session_container(item.kind) for item in hood_snapshot.containers),
         )

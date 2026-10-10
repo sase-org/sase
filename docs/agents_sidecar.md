@@ -68,28 +68,22 @@ sharing the `@agent:` reference.
 
 Owner manifests map each hood to its snapshot digest plus run and session counts. The
 snapshot itself lists every referenced file with its size and SHA-256 digest, so the
-manifest does not need to repeat that file set. With the default-on
-`slim_agents_manifest` sunset flag, every manifest write (a fresh publication or either
-repair command below) omits the per-hood `files` list, which keeps an owner manifest
-small even for owners with thousands of hoods. Readers always accept a missing `files`
-list. When a list is present and the default-on `agents_session_manifest_compat` sunset
-flag is on, two exact sorted unique sets are accepted. The current set names the hood
-snapshot and hood README, each run's agent README and recorded file paths, and, for
-every session or family container, both `sessions/<global>.md` and
-`families/<global>.md`. Clan containers add no pages. The legacy set is that same list
-with every `sessions/` path removed, so it still includes the `families/` redirect
-stubs. It is a second accepted shape only when the current set contains `sessions/`
-paths. A hood with no session or family container has one set, and that set is current.
-Any other list is a mismatch. Turning the compat flag off accepts only the current set.
-New writes omit the list while `slim_agents_manifest` is on; otherwise they write the
-current set, including both page kinds when the hood has session or family containers. A
-matching list does not skip the other checks: a changed snapshot digest or a changed
-referenced file still fails publication. Owner manifests have their own read caps (16
-MiB and 16,384 hoods), and a write that would exceed them fails before anything lands.
-Turning `slim_agents_manifest` off restores the older shape that repeats each hood's
-`files` list. SASE versions that predate the optional list treat a slim manifest as
-malformed and skip that owner when they rebuild shared indexes, so upgrade every machine
-that publishes to a shared sidecar.
+manifest does not need to repeat that file set. Every manifest write (a fresh
+publication or either repair command below) omits the per-hood `files` list, which keeps
+an owner manifest small even for owners with thousands of hoods. Readers always accept a
+missing `files` list. When a list is present, two exact sorted unique sets are accepted.
+The current set names the hood snapshot and hood README, each run's agent README and
+recorded file paths, and, for every session or family container, both
+`sessions/<global>.md` and `families/<global>.md`. Clan containers add no pages. The
+legacy set is that same list with every `sessions/` path removed, so it still includes
+the `families/` redirect stubs. It is a second accepted shape only when the current set
+contains `sessions/` paths. A hood with no session or family container has one set, and
+that set is current. Any other list is a mismatch. A matching list does not skip the
+other checks: a changed snapshot digest or a changed referenced file still fails
+publication. Owner manifests have their own read caps (16 MiB and 16,384 hoods), and a
+write that would exceed them fails before anything lands. SASE versions that predate the
+optional list treat a slim manifest as malformed and skip that owner when they rebuild
+shared indexes, so upgrade every machine that publishes to a shared sidecar.
 
 Snapshot and per-run JSON is strictly versioned, canonically encoded, size/count
 bounded, and content-addressed with SHA-256. Names and paths are validated as single

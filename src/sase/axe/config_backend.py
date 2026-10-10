@@ -20,7 +20,6 @@ from sase.config.inventory import (
     load_config_schema,
     serialize_config_layer,
 )
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.core.rust import require_rust_binding
 
 
@@ -431,9 +430,9 @@ def compose_axe_config(
                 "layers": layer_inputs,
                 "require_descriptions": True,
                 "require_description_shape": True,
-                "routine_job_contract": current_flags().enabled(
-                    FeatureFlag.axe_routine_job_contract
-                ),
+                # The retired routine/job rollout switch is gone: the
+                # public routine/job projection is always requested.
+                "routine_job_contract": True,
             }
         )
     except ValueError as exc:

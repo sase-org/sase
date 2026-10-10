@@ -21,10 +21,8 @@ from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.agent_session_manifest import (
     SESSION_MANIFEST_CLASS_CURRENT,
     SESSION_MANIFEST_CLASS_SUPPORTED_LEGACY,
-    canonical_session_manifest_files,
     classify_session_manifest_files,
 )
-from sase.feature_flags import FeatureFlag, current_flags
 
 
 def previous_snapshot(
@@ -150,13 +148,8 @@ def _check_explicit_file_set(
 ) -> None:
     """Enforce the explicit manifest file-set policy through the Rust core."""
     assert entry.files is not None
-    if not current_flags().enabled(FeatureFlag.agents_session_manifest_compat):
-        expected = hood_file_set(snapshot)
-        if expected != entry.files:
-            raise AgentsSyncFormatError(
-                f"manifest file set mismatch for {'.'.join(key)!r}"
-            )
-        return
+    # Old explicit file sets are still read: the current canonical set and
+    # the exact supported legacy family-only set are both accepted.
     decision = classify_session_manifest_files(
         owner_username=snapshot.owner.username,
         owner_machine=snapshot.owner.machine_name,
@@ -178,22 +171,6 @@ def _check_explicit_file_set(
             f"manifest file set mismatch for {'.'.join(key)!r}: "
             f"{decision.classification}: {decision.reason}"
         )
-
-
-def hood_file_set(snapshot: V2HoodSnapshot) -> tuple[str, ...]:
-    """Derive the current canonical explicit file set through the Rust core."""
-    return canonical_session_manifest_files(
-        owner_username=snapshot.owner.username,
-        owner_machine=snapshot.owner.machine_name,
-        local_hood=snapshot.local_hood,
-        run_global_names=tuple(run.global_name for run in snapshot.runs),
-        run_file_paths=tuple(
-            reference.path for run in snapshot.runs for _kind, reference in run.files
-        ),
-        containers=tuple(
-            (container.kind, container.global_name) for container in snapshot.containers
-        ),
-    )
 
 
 def snapshot_path(owner: AgentOwnerIdentity, hood: str) -> str:

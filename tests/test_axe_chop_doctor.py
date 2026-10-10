@@ -27,7 +27,6 @@ from sase.axe.config import (
     ChopConfig,
     LumberjackConfig,
 )
-from sase.feature_flags import override_flags
 
 
 def _make_executable(path: Path) -> None:
@@ -503,7 +502,7 @@ def test_handle_axe_chop_list_json_has_schema_version(
     assert any(c["name"] == "friendly" for c in payload["chops"]["configured"])
 
 
-def test_handle_axe_job_list_json_uses_public_contract_under_flag(
+def test_handle_axe_job_list_json_uses_public_contract(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -525,9 +524,8 @@ def test_handle_axe_job_list_json_uses_public_contract_under_flag(
         available=False,
         verbose=False,
     )
-    with override_flags(axe_routine_job_contract=True):
-        with pytest.raises(SystemExit) as exc:
-            cli.handle_axe_chop_list(args)
+    with pytest.raises(SystemExit) as exc:
+        cli.handle_axe_chop_list(args)
 
     assert exc.value.code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -598,7 +596,7 @@ def test_handle_axe_chop_doctor_exit_one_on_error(
     assert payload["status"] == "ERROR"
 
 
-def test_handle_axe_job_doctor_json_uses_public_contract_under_flag(
+def test_handle_axe_job_doctor_json_uses_public_contract(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -608,9 +606,8 @@ def test_handle_axe_job_doctor_json_uses_public_contract_under_flag(
     )
 
     args = argparse.Namespace(axe_subcommand="job", json=True, verbose=False)
-    with override_flags(axe_routine_job_contract=True):
-        with pytest.raises(SystemExit) as exc:
-            cli.handle_axe_chop_doctor(args)
+    with pytest.raises(SystemExit) as exc:
+        cli.handle_axe_chop_doctor(args)
 
     assert exc.value.code == 1
     payload = json.loads(capsys.readouterr().out)
@@ -649,9 +646,8 @@ def test_handle_axe_job_doctor_json_preserves_exact_legacy_script_path(
     monkeypatch.setattr(cli, "load_axe_config", lambda: config)
 
     args = argparse.Namespace(axe_subcommand="job", json=True, verbose=False)
-    with override_flags(axe_routine_job_contract=True):
-        with pytest.raises(SystemExit) as exc:
-            cli.handle_axe_chop_doctor(args)
+    with pytest.raises(SystemExit) as exc:
+        cli.handle_axe_chop_doctor(args)
 
     assert exc.value.code == 1
     output = capsys.readouterr().out

@@ -16,7 +16,6 @@ from sase.config.edit import (
     apply_config_edit,
     plan_config_edit,
 )
-from sase.feature_flags import override_flags
 from tests._config_edit_helpers import (
     config_inventory,
     config_layer,
@@ -93,14 +92,13 @@ def test_apply_canonical_axe_edit_preserves_legacy_source_subtree(
     ]
     inventory = config_inventory(layers, schema=_axe_edit_schema())
 
-    with override_flags(axe_routine_job_contract=True):
-        plan = plan_config_edit(
-            inventory,
-            "axe.routines.checks.interval",
-            "user",
-            ConfigEditOp.set_value(19),
-            use_chezmoi=False,
-        )
+    plan = plan_config_edit(
+        inventory,
+        "axe.routines.checks.interval",
+        "user",
+        ConfigEditOp.set_value(19),
+        use_chezmoi=False,
+    )
 
     assert plan.write_plan.key_path == (
         "axe",
@@ -139,14 +137,13 @@ def test_apply_public_missing_axe_leaf_preserves_legacy_source_subtree(
         schema=_axe_edit_schema(),
     )
 
-    with override_flags(axe_routine_job_contract=True):
-        plan = plan_config_edit(
-            inventory,
-            "axe.routines.checks.job_timeout",
-            "user",
-            ConfigEditOp.set_value(30),
-            use_chezmoi=False,
-        )
+    plan = plan_config_edit(
+        inventory,
+        "axe.routines.checks.job_timeout",
+        "user",
+        ConfigEditOp.set_value(30),
+        use_chezmoi=False,
+    )
 
     assert plan.write_plan.key_path == (
         "axe",

@@ -155,9 +155,10 @@ def plan_config_edit(
     preview, and validation, then computes the target-file text diff in memory.
     No file is written during planning.
     """
+    # The retired routine/job switch is accepted and ignored by the core:
+    # candidate and preview views always use the public projection, while
+    # the write plan keeps the requested source spelling.
     project_public_contract = routine_job_contract_enabled(routine_job_contract)
-    if path is None and key_path is not None and routine_job_contract is None:
-        project_public_contract = False
     request: dict[str, object] = {
         "schema": inventory.schema,
         "layers": list(inventory.layer_inputs),

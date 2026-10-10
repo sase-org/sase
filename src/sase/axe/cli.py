@@ -427,8 +427,10 @@ def handle_axe_lumberjack_status(args: argparse.Namespace) -> None:
 
 
 def _emit_public_job_json(args: argparse.Namespace) -> bool:
-    if getattr(args, "axe_subcommand", None) != "job":
-        return False
-    from sase.feature_flags import FeatureFlag, current_flags
+    """Whether *args* requests the canonical routine/job JSON envelope.
 
-    return current_flags().enabled(FeatureFlag.axe_routine_job_contract)
+    The public ``job`` spelling always emits schema-version-2 JSON with
+    routine/job field names; the hidden legacy ``chop`` spelling keeps its
+    schema-version-1 envelope.
+    """
+    return getattr(args, "axe_subcommand", None) == "job"

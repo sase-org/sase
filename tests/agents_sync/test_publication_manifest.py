@@ -7,23 +7,38 @@ import pytest
 
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
-from sase.agents_sync.publication_validation import (
-    hood_file_set,
-    load_validated_publication,
-)
+from sase.agents_sync.publication_validation import load_validated_publication
 from sase.agents_sync.v2_io import content_digest, v2_json_bytes
+from sase.agents_sync.v2_models import V2HoodSnapshot
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.agent_session_manifest import (
     SESSION_MANIFEST_CLASS_CURRENT,
     SESSION_MANIFEST_CLASS_SUPPORTED_LEGACY,
     classify_session_manifest_files,
 )
-from sase.feature_flags import FeatureFlag, override_flags
 from tests.agents_sync.publication_fixtures import _identity, _inventory, _target
 
 
 def _owner_manifest_path(repo: Path) -> Path:
     return repo / "users" / "alice" / "machines" / "athena" / "manifest.json"
+
+
+def _canonical_files(snapshot: V2HoodSnapshot) -> tuple[str, ...]:
+    """Derive *snapshot*'s canonical explicit file set through the Rust core."""
+    decision = classify_session_manifest_files(
+        owner_username=snapshot.owner.username,
+        owner_machine=snapshot.owner.machine_name,
+        local_hood=snapshot.local_hood,
+        run_global_names=tuple(run.global_name for run in snapshot.runs),
+        run_file_paths=tuple(
+            reference.path for run in snapshot.runs for _kind, reference in run.files
+        ),
+        containers=tuple(
+            (container.kind, container.global_name) for container in snapshot.containers
+        ),
+        explicit_files=None,
+    )
+    return decision.canonical_files
 
 
 def test_publication_skips_undecodable_foreign_manifest_but_keeps_local_strict(
@@ -160,7 +175,7 @@ def test_plan_hoods_manifest_guard_is_inert_on_a_clean_repository(
     assert not any("omits" in diagnostic for diagnostic in counts.diagnostics)
 
 
-def test_manifest_writer_honors_slim_agents_manifest_flag(tmp_path: Path) -> None:
+def test_manifest_writer_omits_explicit_file_lists(tmp_path: Path) -> None:
     target = _target(tmp_path)
     repo = target.sidecar_path
     repo.mkdir()
@@ -175,18 +190,6 @@ def test_manifest_writer_honors_slim_agents_manifest_flag(tmp_path: Path) -> Non
     )
     slim_manifest = json.loads(_owner_manifest_path(repo).read_text(encoding="utf-8"))
     assert "files" not in slim_manifest["hoods"]["foo"]
-
-    with override_flags(**{str(FeatureFlag.slim_agents_manifest): False}):
-        publish_agent_hood(
-            target,
-            repo,
-            "foo.bar.baz--code",
-            identity=_identity(),
-            inventory=inventory,
-        )
-    fat_manifest = json.loads(_owner_manifest_path(repo).read_text(encoding="utf-8"))
-    fat_files = fat_manifest["hoods"]["foo"]["files"]
-    assert fat_files == sorted(set(fat_files))
 
     publish_agent_hood(
         target,
@@ -225,16 +228,36 @@ def test_plan_hoods_write_guard_rejects_a_manifest_over_the_read_cap(
     assert not _owner_manifest_path(repo).exists()
 
 
-def _publish_fat_foo(target, repo, inventory):
-    with override_flags(**{str(FeatureFlag.slim_agents_manifest): False}):
-        counts = publish_agent_hood(
-            target,
-            repo,
-            "foo.bar.baz--code",
-            identity=_identity(),
-            inventory=inventory,
-        )
+def _publish_foo_with_explicit_files(target, repo, inventory):
+    """Publish hood ``foo`` slim, then attach its canonical file list on disk.
+
+    Writers no longer emit explicit ``files`` lists, but old manifests still
+    carry them, so compat scenarios synthesize one via :func:`_canonical_files`.
+    """
+    from sase.agents_sync.v2_io import read_hood_snapshot
+
+    counts = publish_agent_hood(
+        target,
+        repo,
+        "foo.bar.baz--code",
+        identity=_identity(),
+        inventory=inventory,
+    )
     assert counts.hoods_published == 1
+    snapshot = read_hood_snapshot(
+        repo
+        / "users"
+        / "alice"
+        / "machines"
+        / "athena"
+        / "hoods"
+        / "foo"
+        / "snapshot.json"
+    )
+    manifest_path = _owner_manifest_path(repo)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["hoods"]["foo"]["files"] = list(_canonical_files(snapshot))
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     return counts
 
 
@@ -276,7 +299,7 @@ def test_legacy_family_only_manifest_accepted_for_cross_owner_publish(
     repo = target.sidecar_path
     repo.mkdir()
     inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
-    _publish_fat_foo(target, repo, inventory)
+    _publish_foo_with_explicit_files(target, repo, inventory)
 
     manifest_path = _owner_manifest_path(repo)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -292,19 +315,13 @@ def test_legacy_family_only_manifest_accepted_for_cross_owner_publish(
         if path.is_file()
     }
 
-    with override_flags(
-        **{
-            str(FeatureFlag.slim_agents_manifest): False,
-            str(FeatureFlag.agents_session_manifest_compat): True,
-        }
-    ):
-        zap_counts = publish_agent_hood(
-            target,
-            repo,
-            "zap.solo",
-            identity=_identity(),
-            inventory=inventory,
-        )
+    zap_counts = publish_agent_hood(
+        target,
+        repo,
+        "zap.solo",
+        identity=_identity(),
+        inventory=inventory,
+    )
     assert zap_counts.hoods_published == 1
 
     after_foo_snapshot = (
@@ -328,19 +345,13 @@ def test_legacy_family_only_manifest_accepted_for_cross_owner_publish(
 
     bob_inventory = _bob_inventory()
     bob_identity = AgentIdentitySnapshot(AgentOwnerIdentity("bob", "zeus"))
-    with override_flags(
-        **{
-            str(FeatureFlag.slim_agents_manifest): False,
-            str(FeatureFlag.agents_session_manifest_compat): True,
-        }
-    ):
-        bob_counts = publish_agent_hood(
-            target,
-            repo,
-            "solo",
-            identity=bob_identity,
-            inventory=bob_inventory,
-        )
+    bob_counts = publish_agent_hood(
+        target,
+        repo,
+        "solo",
+        identity=bob_identity,
+        inventory=bob_inventory,
+    )
     assert bob_counts.hoods_published == 1
     assert (repo / "agents" / "bob.zeus.solo" / "README.md").is_file()
     assert (
@@ -354,52 +365,14 @@ def test_legacy_family_only_manifest_accepted_for_cross_owner_publish(
         / "snapshot.json"
     ).read_bytes() == after_foo_snapshot
 
-    with override_flags(
-        **{
-            str(FeatureFlag.slim_agents_manifest): False,
-            str(FeatureFlag.agents_session_manifest_compat): True,
-        }
-    ):
-        repeat = publish_agent_hood(
-            target,
-            repo,
-            "zap.solo",
-            identity=_identity(),
-            inventory=inventory,
-        )
-    assert repeat.hoods_unchanged >= 1
-
-
-def test_legacy_manifest_disabled_flag_retains_strict_comparison(
-    tmp_path: Path,
-) -> None:
-    target = _target(tmp_path)
-    repo = target.sidecar_path
-    repo.mkdir()
-    inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
-    _publish_fat_foo(target, repo, inventory)
-
-    manifest_path = _owner_manifest_path(repo)
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["hoods"]["foo"]["files"] = _to_legacy_family_only(
-        list(manifest["hoods"]["foo"]["files"])
+    repeat = publish_agent_hood(
+        target,
+        repo,
+        "zap.solo",
+        identity=_identity(),
+        inventory=inventory,
     )
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-
-    with override_flags(
-        **{
-            str(FeatureFlag.slim_agents_manifest): False,
-            str(FeatureFlag.agents_session_manifest_compat): False,
-        }
-    ):
-        with pytest.raises(AgentsSyncFormatError, match="manifest file set mismatch"):
-            publish_agent_hood(
-                target,
-                repo,
-                "zap.solo",
-                identity=_identity(),
-                inventory=inventory,
-            )
+    assert repeat.hoods_unchanged >= 1
 
 
 def test_legacy_manifest_rejects_partial_and_unexpected_paths(
@@ -409,7 +382,7 @@ def test_legacy_manifest_rejects_partial_and_unexpected_paths(
     repo = target.sidecar_path
     repo.mkdir()
     inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
-    _publish_fat_foo(target, repo, inventory)
+    _publish_foo_with_explicit_files(target, repo, inventory)
 
     manifest_path = _owner_manifest_path(repo)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -419,38 +392,26 @@ def test_legacy_manifest_rejects_partial_and_unexpected_paths(
     partial = sorted(legacy_files[:-1])
     manifest["hoods"]["foo"]["files"] = partial
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    with override_flags(
-        **{
-            str(FeatureFlag.slim_agents_manifest): False,
-            str(FeatureFlag.agents_session_manifest_compat): True,
-        }
-    ):
-        with pytest.raises(AgentsSyncFormatError, match="manifest file set mismatch"):
-            publish_agent_hood(
-                target,
-                repo,
-                "zap.solo",
-                identity=_identity(),
-                inventory=inventory,
-            )
+    with pytest.raises(AgentsSyncFormatError, match="manifest file set mismatch"):
+        publish_agent_hood(
+            target,
+            repo,
+            "zap.solo",
+            identity=_identity(),
+            inventory=inventory,
+        )
 
     unexpected = sorted([*legacy_files, "sessions/alice.athena.foo.bar.nonexistent.md"])
     manifest["hoods"]["foo"]["files"] = unexpected
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    with override_flags(
-        **{
-            str(FeatureFlag.slim_agents_manifest): False,
-            str(FeatureFlag.agents_session_manifest_compat): True,
-        }
-    ):
-        with pytest.raises(AgentsSyncFormatError, match="manifest file set mismatch"):
-            publish_agent_hood(
-                target,
-                repo,
-                "zap.solo",
-                identity=_identity(),
-                inventory=inventory,
-            )
+    with pytest.raises(AgentsSyncFormatError, match="manifest file set mismatch"):
+        publish_agent_hood(
+            target,
+            repo,
+            "zap.solo",
+            identity=_identity(),
+            inventory=inventory,
+        )
 
 
 def test_no_session_hood_has_no_legacy_exception_and_slim_stays_supported(
@@ -462,23 +423,15 @@ def test_no_session_hood_has_no_legacy_exception_and_slim_stays_supported(
     repo = target.sidecar_path
     repo.mkdir()
     inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
-    with override_flags(
-        **{
-            str(FeatureFlag.slim_agents_manifest): False,
-            str(FeatureFlag.agents_session_manifest_compat): True,
-        }
-    ):
-        publish_agent_hood(
-            target,
-            repo,
-            "zap.solo",
-            identity=_identity(),
-            inventory=inventory,
-        )
+    publish_agent_hood(
+        target,
+        repo,
+        "zap.solo",
+        identity=_identity(),
+        inventory=inventory,
+    )
     manifest = json.loads(_owner_manifest_path(repo).read_text(encoding="utf-8"))
-    zap_files = manifest["hoods"]["zap"]["files"]
-    assert not any(path.startswith("sessions/") for path in zap_files)
-    assert not any(path.startswith("families/") for path in zap_files)
+    assert "files" not in manifest["hoods"]["zap"]
 
     snapshot = read_hood_snapshot(
         repo
@@ -490,7 +443,9 @@ def test_no_session_hood_has_no_legacy_exception_and_slim_stays_supported(
         / "zap"
         / "snapshot.json"
     )
-    assert hood_file_set(snapshot) == tuple(zap_files)
+    zap_files = list(_canonical_files(snapshot))
+    assert not any(path.startswith("sessions/") for path in zap_files)
+    assert not any(path.startswith("families/") for path in zap_files)
     decision = classify_session_manifest_files(
         owner_username="alice",
         owner_machine="athena",
@@ -525,7 +480,7 @@ def test_genuine_corruption_still_fails_beside_legacy_support(
     repo = target.sidecar_path
     repo.mkdir()
     inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
-    _publish_fat_foo(target, repo, inventory)
+    _publish_foo_with_explicit_files(target, repo, inventory)
 
     manifest_path = _owner_manifest_path(repo)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -547,7 +502,7 @@ def test_genuine_corruption_still_fails_beside_legacy_support(
     pristine_manifest = manifest_path.read_bytes()
 
     snapshot = read_hood_snapshot(snapshot_path)
-    assert hood_file_set(snapshot) != tuple(
+    assert _canonical_files(snapshot) != tuple(
         json.loads(pristine_manifest)["hoods"]["foo"]["files"]
     )
     decision = classify_session_manifest_files(
@@ -566,15 +521,14 @@ def test_genuine_corruption_still_fails_beside_legacy_support(
     tampered = json.loads(pristine_snapshot.decode("utf-8"))
     tampered["owner"]["machine_name"] = "zeus"
     snapshot_path.write_bytes(v2_json_bytes(tampered))
-    with override_flags(**{str(FeatureFlag.agents_session_manifest_compat): True}):
-        with pytest.raises(AgentsSyncFormatError, match="snapshot digest mismatch"):
-            publish_agent_hood(
-                target,
-                repo,
-                "zap.solo",
-                identity=_identity(),
-                inventory=inventory,
-            )
+    with pytest.raises(AgentsSyncFormatError, match="snapshot digest mismatch"):
+        publish_agent_hood(
+            target,
+            repo,
+            "zap.solo",
+            identity=_identity(),
+            inventory=inventory,
+        )
     snapshot_path.write_bytes(pristine_snapshot)
     manifest_path.write_bytes(pristine_manifest)
 
@@ -585,7 +539,6 @@ def test_genuine_corruption_still_fails_beside_legacy_support(
         )
     )
     payload_path.write_bytes(b'{"tampered": true}\n')
-    with override_flags(**{str(FeatureFlag.agents_session_manifest_compat): True}):
-        with pytest.raises(AgentsSyncFormatError, match="file digest mismatch"):
-            load_validated_publication(repo)
+    with pytest.raises(AgentsSyncFormatError, match="file digest mismatch"):
+        load_validated_publication(repo)
     assert content_digest(payload_path.read_bytes()) != content_digest(b"")

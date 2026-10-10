@@ -7,10 +7,10 @@ transient}``) with a recorded exit code, a store-owned log, and a stable
 module turns those rows into the slot-keyed :class:`BackgroundCommandInfo`
 records the Services tab renders.
 
-Slot directories under ``~/.sase/axe/bgcmd/`` are the retired storage. While
-the ``bgcmd_legacy_slots`` sunset flag is on they stay readable (and can be
-stopped, cleared, and dismissed) until they age out; nothing ever writes a new
-one. Every reader here does disk I/O: call them off the event loop.
+Slot directories under ``~/.sase/axe/bgcmd/`` are the retired storage. They
+stay readable (and can be stopped, cleared, and dismissed) until they age
+out; nothing ever writes a new one. Every reader here does disk I/O: call
+them off the event loop.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from sase.project_display_names import project_display_name_for
 if TYPE_CHECKING:
     from sase.procs.models import Proc
 
-# Retired slot-directory storage (read-only behind ``bgcmd_legacy_slots``).
+# Retired slot-directory storage (read-only; nothing ever writes a new one).
 BGCMD_STATE_DIR = sase_subdir("axe") / "bgcmd"
 
 # Number of ``#n`` display indices (1-9).
@@ -82,13 +82,6 @@ class BackgroundCommandInfo:
 def bgcmd_identity(slot: int, info: BackgroundCommandInfo) -> str:
     """Return the stable identity a dismissal is keyed by."""
     return info.proc_id or f"legacy:{slot}"
-
-
-def _legacy_slots_enabled() -> bool:
-    """Whether retired slot directories are still read (sunset flag)."""
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.bgcmd_legacy_slots)
 
 
 # --- Durable oneshot rows ------------------------------------------------
@@ -211,13 +204,11 @@ def _tail_lines(path: Path, lines: int) -> str:
 def read_bgcmd_slots() -> dict[int, BackgroundCommandInfo]:
     """Return every visible background command keyed by its ``#n`` index.
 
-    One proc-store read, plus a scan of the retired slot directories while
-    ``bgcmd_legacy_slots`` is on. A durable row wins an index a legacy
-    directory also holds.
+    One proc-store read, plus a scan of the retired slot directories. A
+    durable row wins an index a legacy directory also holds.
     """
     infos: dict[int, BackgroundCommandInfo] = {}
-    if _legacy_slots_enabled():
-        infos.update(_read_legacy_infos())
+    infos.update(_read_legacy_infos())
     infos.update(_read_oneshot_infos())
     return infos
 

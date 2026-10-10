@@ -13,7 +13,6 @@ from sase.config.core import (
     load_merged_config,
     load_public_merged_config,
 )
-from sase.feature_flags import override_flags
 
 
 # --- _deep_merge tests ---
@@ -137,10 +136,10 @@ def test_load_merged_config_normalizes_axe_aliases_through_rust(
     assert "routines" not in merged["axe"]
 
 
-def test_load_public_merged_config_projects_axe_by_rollout_state(
+def test_load_public_merged_config_projects_canonical_axe(
     tmp_path: Path,
 ) -> None:
-    """Public config views use canonical AXE keys only while the flag is on."""
+    """Public config views always use canonical AXE keys."""
     global_config = tmp_path / "global"
     global_config.mkdir()
     (global_config / "sase.yml").write_text(
@@ -165,15 +164,10 @@ def test_load_public_merged_config_projects_axe_by_rollout_state(
         patch("sase.config.core._load_default_config", return_value=default),
         patch("sase.config.core._load_plugin_configs", return_value=[]),
     ):
-        with override_flags(axe_routine_job_contract=True):
-            canonical = load_public_merged_config()
-        with override_flags(axe_routine_job_contract=False):
-            legacy = load_public_merged_config()
+        canonical = load_public_merged_config()
 
     assert canonical["axe"]["routines"]["checks"]["interval"] == 19
     assert "lumberjacks" not in canonical["axe"]
-    assert legacy["axe"]["lumberjacks"]["checks"]["interval"] == 19
-    assert "routines" not in legacy["axe"]
 
 
 def test_config_show_projects_public_axe_contract(
@@ -205,7 +199,6 @@ def test_config_show_projects_public_axe_contract(
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
         patch("sase.config.core._load_default_config", return_value=default),
         patch("sase.config.core._load_plugin_configs", return_value=[]),
-        override_flags(axe_routine_job_contract=True),
         pytest.raises(SystemExit) as exit_info,
     ):
         handle_config_command(argparse.Namespace(config_subcommand="show", key="axe"))

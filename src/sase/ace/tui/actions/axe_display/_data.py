@@ -558,8 +558,8 @@ def _collect_axe_status_data_impl(
             else frozenset(tail_chop_keys)
         )
 
-    # Load bgcmd state: oneshot rows from the proc store (plus legacy slot
-    # directories while ``bgcmd_legacy_slots`` is on), one store read total.
+    # Load bgcmd state: oneshot rows from the proc store (plus readable
+    # legacy slot directories), one store read total.
     bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = sorted(
         read_bgcmd_slots().items()
     )

@@ -120,16 +120,13 @@ still send them:
 | `sase doctor -C axe.chops`                                        | `sase doctor -C axe.jobs`                              | The old check ID remains a selection alias.                              |
 | Stored `chop` agent tribe                                         | `job` tribe                                            | See [Structured Results](#structured-results-and-launch-proposals).      |
 
-The `axe_routine_job_contract` [feature flag](configuration.md#feature_flags), a sunset
-flag that is on by default, controls the public projection. While it is on, canonical
-commands such as `sase axe job list --json` and `sase axe job doctor --json` emit
-schema-version-2 JSON with routine/job field names (for example `routines`,
+Canonical commands such as `sase axe job list --json` and `sase axe job doctor --json`
+emit schema-version-2 JSON with routine/job field names (for example `routines`,
 `routine_name`, `configured_jobs`, and `jobs`), and `sase config show` prints the AXE
-block with canonical keys. Hidden legacy `chop` commands, and every command while the
-flag is off, keep the schema-version-1 envelopes. Runtime state paths and durable
-registries are not migrated: directories under `~/.sase/axe/lumberjacks/`, per-job
-`chops/` subdirectories, and `agent_chops.json` remain intentionally legacy-named
-storage.
+block with canonical keys. Hidden legacy `chop` commands keep the schema-version-1
+envelopes. Runtime state paths and durable registries are not migrated: directories
+under `~/.sase/axe/lumberjacks/`, per-job `chops/` subdirectories, and
+`agent_chops.json` remain intentionally legacy-named storage.
 
 ### Examples
 

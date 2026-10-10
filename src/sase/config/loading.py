@@ -62,7 +62,10 @@ def _with_rust_normalized_axe(
             "layers": layer_inputs,
             "require_descriptions": False,
             "require_description_shape": False,
-            "routine_job_contract": False,
+            # Retired switch, accepted and ignored: the effective config
+            # below is always the internal merge; only the public
+            # projection (unused here) is affected.
+            "routine_job_contract": True,
         }
     )
     effective = payload.get("effective_config")

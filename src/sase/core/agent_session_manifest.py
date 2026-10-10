@@ -33,28 +33,6 @@ class _SessionManifestClassification:
     reason: str
 
 
-def canonical_session_manifest_files(
-    *,
-    owner_username: str,
-    owner_machine: str,
-    local_hood: str,
-    run_global_names: tuple[str, ...] | list[str] = (),
-    run_file_paths: tuple[str, ...] | list[str] = (),
-    containers: tuple[tuple[str, str], ...] | list[tuple[str, str]] = (),
-) -> tuple[str, ...]:
-    """Derive the current canonical explicit file set through Rust."""
-    result = classify_session_manifest_files(
-        owner_username=owner_username,
-        owner_machine=owner_machine,
-        local_hood=local_hood,
-        run_global_names=run_global_names,
-        run_file_paths=run_file_paths,
-        containers=containers,
-        explicit_files=None,
-    )
-    return result.canonical_files
-
-
 def classify_session_manifest_files(
     *,
     owner_username: str,
@@ -185,6 +163,5 @@ __all__ = [
     "SESSION_MANIFEST_CLASS_SLIM",
     "SESSION_MANIFEST_CLASS_SUPPORTED_LEGACY",
     "SESSION_MANIFEST_WIRE_SCHEMA_VERSION",
-    "canonical_session_manifest_files",
     "classify_session_manifest_files",
 ]
