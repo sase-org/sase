@@ -61,10 +61,11 @@ def classify_wait_target(
 
     target_member_records = _member_records_for_target(target, records)
     if not target_member_records:
-        return WaitTargetState(
-            target=target,
-            state=WaitState.STALLED,
-            reason="target artifact is missing",
+        return _missing_target_state(
+            target,
+            records,
+            wait_blocked=wait_blocked,
+            liveness_checker=liveness_checker,
         )
     member_states = tuple(
         _classify_record(record, liveness_checker) for record in target_member_records
@@ -88,6 +89,58 @@ def _member_records_for_target(
     if not selected:
         return ()
     return (_follow_retry_chain(selected[0], records),)
+
+
+def _missing_target_state(
+    target: WaitTarget,
+    records: Sequence[AgentArtifactRecordWire],
+    *,
+    wait_blocked: bool = False,
+    liveness_checker: LivenessChecker = is_process_alive,
+) -> WaitTargetState:
+    """Classify a wait target whose artifacts are gone from the snapshot.
+
+    The healer's forced-reuse wipe removes the failed row, so an
+    identity-pinned wait can outlive its directory. When the restart
+    ledger names a replacement, classify the replacement instead; when a
+    recovery is still in flight, stay parked instead of going terminal.
+    """
+    from sase.agent.auto_restart.forward import (
+        find_replacement_artifacts_dir,
+        recovery_in_flight,
+    )
+
+    old_dir = target.artifact_dir
+    if old_dir:
+        replacement = find_replacement_artifacts_dir(old_dir)
+        if replacement:
+            matches = [
+                record for record in records if record.artifact_dir == replacement
+            ]
+            if matches:
+                record = _follow_retry_chain(matches[0], records)
+                member = _classify_record(record, liveness_checker)
+                state = _aggregate_member_states((member,), wait_blocked=wait_blocked)
+                return WaitTargetState(
+                    target=target,
+                    state=state,
+                    members=(member,),
+                    reason=(
+                        "followed auto-restart replacement"
+                        + (f": {member.reason}" if member.reason else "")
+                    ),
+                )
+        if recovery_in_flight(old_dir):
+            return WaitTargetState(
+                target=target,
+                state=WaitState.WAITING,
+                reason="auto-restart recovery in flight",
+            )
+    return WaitTargetState(
+        target=target,
+        state=WaitState.STALLED,
+        reason="target artifact is missing",
+    )
 
 
 def _classify_record(

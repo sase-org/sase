@@ -79,6 +79,12 @@ class RunnerRunState:
     error_traceback_str: str | None = None
     run_started_at: str | None = None
     suppress_completion_notification: bool = False
+    # Set at boot from the flag-plus-config enablement; the failure path
+    # rings the recovery doorbell only when this bit is on.
+    auto_restart_enabled: bool = False
+    # Set when the failure path rang the recovery doorbell: shutdown sends
+    # the completion notification silent so the episode row owns the story.
+    force_silent_notification: bool = False
     active_agent_started: bool = False
     running_marker_path: str | None = None
     # Set while a waiting agent holds a bead claim it has not yet promoted.
@@ -112,6 +118,7 @@ class RunnerRunState:
             agent_llm_provider=self.agent_llm_provider,
             agent_vcs_provider=self.agent_vcs_provider,
             agent_hidden=self.agent_hidden,
+            project_name=self.project_name,
         )
 
     def shutdown_context(self) -> RunnerShutdownContext:
@@ -154,6 +161,7 @@ class RunnerRunState:
             error_traceback_str=self.error_traceback_str,
             suppress_completion_notification=self.suppress_completion_notification,
             runtime=self.runtime,
+            force_silent_notification=self.force_silent_notification,
             held_bead_claim_id=claim.bead_id if claim is not None else None,
             held_bead_claim_agent=claim.agent_name if claim is not None else None,
             held_bead_claim_project=claim.project_name if claim is not None else None,

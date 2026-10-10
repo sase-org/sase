@@ -308,12 +308,21 @@ def test_waits_lane_holds_only_bead_claim_checks_and_epic_launch_flush() -> None
     """``wait_checks`` moved to ``agent_waits``; ``sidecar_auto_sync`` to ``sidecar_sync``."""
     cfg = load_axe_config()
     assert sorted(c.name for c in cfg.lumberjacks["waits"].chops) == [
+        "agent_auto_restart",
         "bead_claim_checks",
         "epic_launch_flush",
     ]
     epic_launch_flush = _default_chop("waits", "epic_launch_flush")
     assert epic_launch_flush.trigger == {"provider": "always"}
     assert epic_launch_flush.run_every == 30
+
+
+def test_agent_auto_restart_job_watches_doorbell_and_lock() -> None:
+    """The auto-restart sweep fires on doorbells with a 60s quiet backstop."""
+    chop = _default_chop("waits", "agent_auto_restart")
+    assert chop.script == "sase_job_agent_auto_restart"
+    assert chop.trigger.get("provider") == "fs"
+    assert chop.trigger.get("max_quiet") == "60s"
 
 
 def test_shipped_lane_split_config() -> None:

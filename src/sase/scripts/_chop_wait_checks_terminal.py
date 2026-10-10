@@ -14,6 +14,7 @@ from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
     read_json_dict as _read_json_dict,
 )
+from sase.agent.auto_restart.forward import recovery_in_flight
 from sase.core.wait_dependency_resolution._epic_follow import EpicFollowDecision
 from sase.core.wait_dependency_resolution._types import ArtifactCandidate
 from sase.notifications.models import Notification, normalize_notification_tags
@@ -60,6 +61,8 @@ def terminal_blockers(
             continue
         candidate = _artifact_candidate_for_identity(dependency_index, dependency)
         if candidate is not None and _identity_terminal_blocker(candidate):
+            if recovery_in_flight(candidate.artifact_dir):
+                continue
             outcome = candidate.outcome
             assert outcome is not None
             blockers.append(
@@ -82,6 +85,8 @@ def terminal_blockers(
             exclude_artifact_dir=self_artifact_dir,
             launched_at_or_before=waiter_launch_cutoff,
         ):
+            if recovery_in_flight(candidate.artifact_dir):
+                continue
             assert candidate.outcome is not None
             blockers.append(
                 TerminalBlocker(
@@ -101,6 +106,8 @@ def terminal_blockers(
             exclude_artifact_dir=self_artifact_dir,
             newer_than=waiter_launch_cutoff if name.startswith("@") else None,
         ):
+            if recovery_in_flight(candidate.artifact_dir):
+                continue
             assert candidate.outcome is not None
             blockers.append(
                 TerminalBlocker(

@@ -139,6 +139,42 @@ def resolve_initial_wait_release(
     )
 
 
+def _forward_identity_deps(
+    wait_identity_deps: Iterable[object],
+) -> list[object]:
+    """Remap wiped identity deps to their auto-restart replacement.
+
+    Identity- (or ref-) based waits pin the old artifacts dir, which the
+    healer's forced-reuse wipe removes. When the ledger names a launched
+    replacement for a dir that no longer exists, resolve against the
+    replacement instead so the waiter follows the new row.
+    """
+    try:
+        from sase.agent.auto_restart.forward import find_replacement_artifacts_dir
+    except Exception:
+        return list(wait_identity_deps)
+    mapped: list[object] = []
+    for dependency in wait_identity_deps:
+        if isinstance(dependency, dict):
+            old = dependency.get("artifact_dir")
+            if isinstance(old, str) and old and not os.path.exists(old):
+                try:
+                    replacement = find_replacement_artifacts_dir(old)
+                except Exception:
+                    replacement = None
+                if (
+                    isinstance(replacement, str)
+                    and replacement
+                    and os.path.exists(replacement)
+                ):
+                    remapped = dict(dependency)
+                    remapped["artifact_dir"] = replacement
+                    mapped.append(remapped)
+                    continue
+        mapped.append(dependency)
+    return mapped
+
+
 def _resolve_marker_release(
     marker: dict[str, Any],
     *,
@@ -146,6 +182,15 @@ def _resolve_marker_release(
     artifacts_dir: str,
 ) -> WaitReleaseDecision:
     """Decide one release pass for a marker with a freshly built index."""
+    try:
+        identity_deps = marker.get("wait_for_artifacts", [])
+        if isinstance(identity_deps, list) and identity_deps:
+            marker = {
+                **marker,
+                "wait_for_artifacts": _forward_identity_deps(identity_deps),
+            }
+    except Exception:
+        pass
     if not project_name:
         return _parked_release_decision(WaitDependencyStatus("waiting", ("<unknown>",)))
 

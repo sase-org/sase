@@ -6,7 +6,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from sase.axe.runner_failure_facts import capture_failure_facts
+from sase.axe.runner_auto_restart_doorbell import (
+    drop_doorbell,
+    pending_recovery_payload,
+)
+from sase.axe.runner_failure_facts import (
+    capture_failure_facts,
+    facts_look_like_update_skew,
+)
 from sase.axe.runner_lifecycle_phase import current_lifecycle_phase
 from sase.axe.source_skew import code_swap_explanation
 from sase.llm_provider.retry_config import find_retry_config_for_error
@@ -27,6 +34,7 @@ class RunnerErrorContext:
     agent_llm_provider: str | None
     agent_vcs_provider: str | None
     agent_hidden: bool
+    project_name: str | None = None
 
 
 def record_runner_error(
@@ -37,8 +45,18 @@ def record_runner_error(
     agent_kills: Any,
     message_prefix: str,
     error_summary: str | None = None,
+    auto_restart_enabled: bool = False,
+    killed: bool = False,
 ) -> tuple[str, str]:
-    """Print the active exception and write a failed ``done.json`` marker."""
+    """Print the active exception and write a failed ``done.json`` marker.
+
+    When the auto-restart feature is enabled and the failure facts look
+    like update skew, the marker carries ``recovery.state == "pending"``
+    and a doorbell file is dropped for the scheduler job — before any
+    completion notification is sent. No doorbell is dropped for user
+    kills. The doorbell path uses only boot-imported modules, so a torn
+    interpreter can still ring it.
+    """
     print(f"{message_prefix}: {exc}", file=sys.stderr)
     traceback.print_exc()
     summary = error_summary or f"{type(exc).__qualname__}: {exc}"
@@ -56,6 +74,13 @@ def record_runner_error(
             file=sys.stderr,
         )
     failure_facts = capture_failure_facts(exc, phase=current_lifecycle_phase())
+    recovery: dict[str, Any] | None = None
+    if (
+        auto_restart_enabled
+        and not killed
+        and facts_look_like_update_skew(failure_facts)
+    ):
+        recovery = pending_recovery_payload()
     agent_kills.labels(reason="error").inc()
     write_error_done_marker(
         current_artifacts_dir=context.current_artifacts_dir,
@@ -74,5 +99,15 @@ def record_runner_error(
         error=summary,
         traceback_str=traceback_str,
         failure_facts=failure_facts,
+        recovery=recovery,
     )
+    if recovery is not None:
+        # The done marker is durable now; ring before the completion
+        # notification so a broken notify path cannot lose the recovery.
+        drop_doorbell(
+            artifacts_dir=context.current_artifacts_dir,
+            project=context.project_name or "project",
+            agent_name=context.agent_name,
+            skew_suspect=True,
+        )
     return summary, traceback_str

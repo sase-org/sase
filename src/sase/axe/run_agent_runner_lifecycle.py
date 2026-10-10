@@ -75,6 +75,7 @@ class RunnerShutdownState:
     held_bead_claim_id: str | None = None
     held_bead_claim_agent: str | None = None
     held_bead_claim_project: str | None = None
+    force_silent_notification: bool = False
 
 
 @dataclass(frozen=True)
@@ -395,7 +396,7 @@ def finalize_runner_shutdown(
             artifacts_timestamp=context.artifacts_timestamp,
             workflow_name=context.workflow_name,
             success=state.success,
-            agent_hidden=state.agent_hidden,
+            agent_hidden=state.agent_hidden or state.force_silent_notification,
             agent_name=state.agent_name,
             agent_model=state.agent_model,
             agent_llm_provider=state.agent_llm_provider,

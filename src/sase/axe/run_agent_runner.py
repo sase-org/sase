@@ -62,6 +62,8 @@ from sase.axe.runner_kill_provenance import (
 )
 from sase.axe import runner_failure_facts as _runner_failure_facts_module  # noqa: F401 - boot-imported so the failure path never imports it lazily
 from sase.axe import runner_lifecycle_phase as _runner_lifecycle_phase_module  # noqa: F401 - boot-imported beside _STARTUP_CODE_IDENTITY
+from sase.axe import runner_auto_restart_doorbell as _runner_doorbell_module  # noqa: F401 - boot-imported so the failure path never imports it lazily
+from sase.axe.runner_auto_restart_doorbell import recovery_requests_silence
 from sase.axe.runner_lifecycle_phase import boot_code_identity
 from sase.axe.runner_reporting import write_error_report
 from sase.axe.runner_signals import install_sigterm_handler, killed_at, was_killed
@@ -294,6 +296,22 @@ def _record_completion(state: RunnerRunState) -> None:
     print(f"Duration: {state.duration}")
 
 
+def _silence_notification_for_pending_recovery(state: RunnerRunState) -> None:
+    """Silence the failure notification when a recovery is pending.
+
+    The failure path already dropped the doorbell before this runs; the
+    scheduler job and the episode row own the user-visible story, so the
+    raw failure notification stays silent. Best effort: a missing or
+    unreadable marker keeps the loud default.
+    """
+    try:
+        done_path = os.path.join(state.current_artifacts_dir, "done.json")
+        if recovery_requests_silence(done_path):
+            state.force_silent_notification = True
+    except Exception:
+        pass
+
+
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
     # The runner's stdout shares one output file with stderr. Line-buffer
@@ -309,6 +327,12 @@ def main() -> None:
 
     install_process_feature_flags()
     state = _build_run_state(sys.argv)
+    try:
+        from sase.agent.auto_restart.gate import auto_restart_automatic_enabled
+
+        state.auto_restart_enabled = bool(auto_restart_automatic_enabled())
+    except Exception:
+        state.auto_restart_enabled = False
 
     try:
         try:
@@ -323,7 +347,10 @@ def main() -> None:
                 agent_kills=AGENT_KILLS,
                 message_prefix="Error running agent",
                 error_summary=str(lost_intent) if lost_intent is not None else None,
+                auto_restart_enabled=state.auto_restart_enabled,
+                killed=was_killed(),
             )
+            _silence_notification_for_pending_recovery(state)
         except SystemExit as e:
             if is_user_kill_exit(e):
                 state.exec_outcome = "killed"
@@ -343,7 +370,10 @@ def main() -> None:
                 agent_kills=AGENT_KILLS,
                 message_prefix="Agent exited before completion",
                 error_summary=f"{type(e).__qualname__}: {system_exit_code(e)}",
+                auto_restart_enabled=state.auto_restart_enabled,
+                killed=was_killed(),
             )
+            _silence_notification_for_pending_recovery(state)
 
         _record_completion(state)
 

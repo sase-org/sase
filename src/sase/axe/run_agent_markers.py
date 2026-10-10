@@ -156,6 +156,7 @@ def build_done_marker(
     kill_source: str | None = None,
     kill_evidence: dict[str, Any] | None = None,
     failure_facts: dict[str, Any] | None = None,
+    recovery: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a done marker dict for writing to done.json."""
     marker: dict[str, Any] = {
@@ -228,6 +229,8 @@ def build_done_marker(
             marker["kill_evidence"] = kill_evidence
     if failure_facts is not None:
         marker["failure_facts"] = failure_facts
+    if recovery is not None:
+        marker["recovery"] = recovery
     return marker
 
 
