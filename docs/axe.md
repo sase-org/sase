@@ -1238,26 +1238,26 @@ that agent fails, so successful work remains de-duplicated. A key-release error 
 appended to the job output and does not replace the original launch or agent outcome.
 
 A proposal's `prompt` may contain typed directives such as `%if::` (a Bash or Python
-condition fence) or `%proc`. When the `typed_launch_units` beta flag is enabled, a batch
-containing an active directive routes through the same durable typed admission
-coordinator used by sase's TUI, `sase run`, and LaunchApproval, joining AXE as a fourth
-typed-admission source; see [Agent Launch Flow](architecture.md#agent-launch-flow). A
-`%if` predicate evaluates after its unit's `%wait` dependency settles and before any
-runner, agent identity, proc identity, or model request is allocated. For a selected
-managed project, the predicate itself briefly uses a claimed, prepared operational
-workspace so stale job checkouts can observe newer pushed work before admission decides.
-Exit `0` admits the unit normally; exit `1` records a skip with no runner, identity,
-proc, or model allocation. AXE owns the admission bundle across the run, keeping the job
-in active `launched` state until every admitted unit reaches its own terminal state, and
-treats predicate skips as successful no-op outcomes rather than once-per duplicates or
-launcher errors. A structured proposal `wait_on` becomes both a typed admission-order
-edge and, for an admitted Agent unit, a restored named-agent `%wait` in the prompt AXE
-dispatches to the runner. If admission skips or condition-errors an intermediate
-proposal, AXE relinks that runner wait to the nearest earlier proposal that actually
-launched; if no ancestor launched, it dispatches without a named wait. A batch with no
-active `%if`/`%proc` directive, or any batch while the flag is disabled, keeps using the
-legacy launch path unchanged; an explicit typed directive while the flag is disabled
-fails before any agent or model is dispatched.
+condition fence) or `%proc`. A batch containing an active directive routes through the
+same durable typed admission coordinator used by sase's TUI, `sase run`, and
+LaunchApproval, joining AXE as a fourth typed-admission source; see
+[Agent Launch Flow](architecture.md#agent-launch-flow). A `%if` predicate evaluates
+after its unit's `%wait` dependency settles and before any runner, agent identity, proc
+identity, or model request is allocated. For a selected managed project, the predicate
+itself briefly uses a claimed, prepared operational workspace so stale job checkouts can
+observe newer pushed work before admission decides. Exit `0` admits the unit normally;
+exit `1` records a skip with no runner, identity, proc, or model allocation. AXE owns
+the admission bundle across the run, keeping the job in active `launched` state until
+every admitted unit reaches its own terminal state, and treats predicate skips as
+successful no-op outcomes rather than once-per duplicates or launcher errors. A
+structured proposal `wait_on` becomes both a typed admission-order edge and, for an
+admitted Agent unit, a restored named-agent `%wait` in the prompt AXE dispatches to the
+runner. If admission skips or condition-errors an intermediate proposal, AXE relinks
+that runner wait to the nearest earlier proposal that actually launched; if no ancestor
+launched, it dispatches without a named wait. A batch with no active `%if`/`%proc`
+directive, or any batch while the flag is disabled, keeps using the legacy launch path
+unchanged; an explicit typed directive while the flag is disabled fails before any agent
+or model is dispatched.
 
 Python job packages should use the public `sase.jobs` SDK (`load_job_invocation`,
 `JobLogger`, `JobReport`, `JobResultBuilder`, and `launch_proposal`) for argument

@@ -364,13 +364,10 @@ def launch_feature_flag_keys() -> list[str]:
     """Return currently enabled launch/editor flags for Rust entry points."""
     from sase.feature_flags.registry import FeatureFlag
     from sase.feature_flags.snapshot import current_flags
-    from sase.macro.code_value import typed_launch_units_enabled
     from sase.macro.hold_directive import AGENT_HOLDS_FLAG
 
     flags: list[str] = [AGENT_HOLDS_FLAG]
     snapshot = current_flags()
     if snapshot.enabled(FeatureFlag.queue_capacity_budget):
         flags.append(str(FeatureFlag.queue_capacity_budget))
-    if typed_launch_units_enabled():
-        flags.append(str(FeatureFlag.typed_launch_units))
     return flags

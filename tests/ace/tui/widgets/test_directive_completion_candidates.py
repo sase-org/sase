@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
-import pytest
-
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
     extract_directive_arg_token_around_cursor,
     extract_directive_token_around_cursor,
     is_directive_like_token,
 )
-from sase.feature_flags import override_flags
 from sase.legacy_xprompt_names import LEGACY_XPROMPT_ENABLED_DIRECTIVE_NAME
 
 from ._directive_completion_helpers import (
@@ -20,13 +15,6 @@ from ._directive_completion_helpers import (
     directive_metadata,
     single_directive_candidate,
 )
-
-
-@pytest.fixture(autouse=True)
-def _typed_launch_units_off_by_default() -> Iterator[None]:
-    """Keep candidate lists independent of host typed_launch_units state."""
-    with override_flags(typed_launch_units=False):
-        yield
 
 
 def test_directive_like_token_accepts_marker_and_identifier() -> None:

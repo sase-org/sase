@@ -19,7 +19,6 @@ from sase.axe.run_agent_wait_markers import (
 )
 from sase.core.agent_launch_facade import agent_unit_dispatch_prompt
 from sase.core.agent_launch_wire import AgentUnitWire, launch_plan_from_dict
-from sase.feature_flags import override_flags
 from sase.macro.directives import extract_prompt_directives
 from tests._agent_names_extract_fixtures import run_extract
 from tests._launch_admission_helpers import agent_result as _agent_result
@@ -66,15 +65,14 @@ def test_agent_skill_typed_launch_preserves_canonical_capacity(
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
-    with override_flags(typed_launch_units=True):
-        created = create_launch_approval_request(
-            {
-                "schema_version": 1,
-                "prompt": _QUEUE_PROMPT,
-                "reason": "cover LaunchApproval capacity",
-            },
-            source_surface="agent_skill",
-        )
+    created = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": _QUEUE_PROMPT,
+            "reason": "cover LaunchApproval capacity",
+        },
+        source_surface="agent_skill",
+    )
 
     written = _payload(created.request_path)
     assert written["source_surface"] == "agent_skill"
@@ -119,8 +117,7 @@ def test_agent_skill_typed_launch_preserves_canonical_capacity(
     _assert_canonical_capacity(marker, explicit=True)
 
     seen = _capture_launch(tmp_path, monkeypatch)
-    with override_flags(typed_launch_units=True):
-        result = dispatch_approved_launch_request(created.response_dir)
+    result = dispatch_approved_launch_request(created.response_dir)
     assert "%queue(capacity=100)" in str(seen["prompt"])
     assert "wait_runners" not in str(seen["prompt"])
     assert result.launched_count == 1
@@ -140,38 +137,3 @@ def test_agent_skill_typed_launch_preserves_canonical_capacity(
         ).read_text(encoding="utf-8")
     )
     _assert_canonical_capacity(receipt, explicit=True)
-
-
-def test_flag_off_compat_dispatch_keeps_canonical_capacity(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    pytest.importorskip("sase_core_rs")
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    monkeypatch.chdir(tmp_path)
-    with override_flags(typed_launch_units=False):
-        created = create_launch_approval_request(
-            {
-                "schema_version": 1,
-                "prompt": _QUEUE_PROMPT,
-                "reason": "cover flag-off capacity",
-            },
-            source_surface="agent_skill",
-        )
-
-    written = _payload(created.request_path)
-    assert "typed_plan" not in written
-    assert written["dispatch"]["prompt"] == _QUEUE_PROMPT
-    assert "%queue(capacity=100)" in written["dispatch"]["prompt"]
-    assert "wait_runners" not in written["dispatch"]["prompt"]
-
-    seen = _capture_launch(tmp_path, monkeypatch)
-    with override_flags(typed_launch_units=False):
-        result = dispatch_approved_launch_request(created.response_dir)
-    assert seen["prompt"] == _QUEUE_PROMPT
-    assert result.launched_count == 1
-
-    _cleaned, directives = extract_prompt_directives(str(seen["prompt"]))
-    assert directives.queue_capacity == 100
-    extract_result = run_extract(tmp_path / "compat-meta", prompt=str(seen["prompt"]))
-    _assert_canonical_capacity(extract_result["meta"], explicit=True)

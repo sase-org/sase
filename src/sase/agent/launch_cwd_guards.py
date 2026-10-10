@@ -51,13 +51,10 @@ def guard_typed_directives_require_admission(
     *,
     recorder: LaunchHistoryRecorder,
 ) -> None:
-    """Fail closed if enabled ``%if`` / ``%proc`` reaches agent-only execution."""
+    """Fail closed if ``%if`` / ``%proc`` reaches agent-only execution."""
     from sase.agent.launch_request_types import TypedAdmissionRequiredError
-    from sase.macro.code_value import typed_launch_units_enabled
     from sase.macro.directives import has_typed_launch_directive
 
-    if not typed_launch_units_enabled():
-        return
     if not any(
         has_typed_launch_directive(segment)
         for segment in (submitted_query, *expanded_segments)
@@ -65,9 +62,8 @@ def guard_typed_directives_require_admission(
         return
     recorder.record_failed()
     raise TypedAdmissionRequiredError(
-        "typed_launch_units is enabled and this prompt contains an active "
-        "%if or %proc directive; it must go through typed admission instead "
-        "of the agent-only launch path"
+        "this prompt contains an active %if or %proc directive; it must go "
+        "through typed admission instead of the agent-only launch path"
     )
 
 

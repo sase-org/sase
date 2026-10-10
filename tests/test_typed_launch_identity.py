@@ -16,7 +16,6 @@ from sase.core.agent_launch_wire import (
     agent_launch_wire_to_json_dict,
     launch_plan_from_dict,
 )
-from sase.feature_flags import override_flags
 from sase.macro.directives import extract_prompt_directives
 
 
@@ -146,8 +145,7 @@ def test_plan_typed_launch_units_preserves_identity_forms(
     prompt: str, expect: dict[str, object]
 ) -> None:
     pytest.importorskip("sase_core_rs")
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(prompt, selected_project="sase")
+    plan = plan_typed_launch_units(prompt, selected_project="sase")
     agent = plan.units[0].payload
     assert isinstance(agent, AgentUnitWire)
     for field, value in expect.items():
@@ -191,10 +189,9 @@ def test_typed_dispatch_prompt_matches_extract_prompt_directives() -> None:
         "%wait:toobig-3j.foo.0\n"
         "Join"
     )
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            prompt, launch_kind="multi_prompt", selected_project="sase"
-        )
+    plan = plan_typed_launch_units(
+        prompt, launch_kind="multi_prompt", selected_project="sase"
+    )
     declarer = plan.units[0].payload
     joiner = plan.units[1].payload
     assert isinstance(declarer, AgentUnitWire)
@@ -241,10 +238,9 @@ def test_typed_launch_resolves_shared_keyed_clan_marker_once(
         "%wait:toobig-{@lead!}.foo.0\n"
         "Join toobig-{@lead!}.bar.0"
     )
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            prompt, launch_kind="multi_prompt", selected_project="sase"
-        )
+    plan = plan_typed_launch_units(
+        prompt, launch_kind="multi_prompt", selected_project="sase"
+    )
 
     declarer = plan.units[0].payload
     joiner = plan.units[1].payload

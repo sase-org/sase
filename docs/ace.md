@@ -2714,7 +2714,7 @@ badges instead of verbose text:
 | `⚙N`  | N finished monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (grey)                                                                                                                                                                                                               |
 | `⋔`   | Gate turn; its gate accent while pending/running, grey when settled, red on failure                                                                                                                                                                                                                               |
 | `⋔N`  | N gates in a session/clan subtree or tribe panel title, colored by lifecycle bucket                                                                                                                                                                                                                               |
-| `▣`   | Stand-alone `%proc` named proc (row label; beta, `typed_launch_units`)                                                                                                                                                                                                                                            |
+| `▣`   | Stand-alone `%proc` named proc (row label)                                                                                                                                                                                                                                                                        |
 | `▣N`  | N stand-alone named procs in a panel title's separate proc chip                                                                                                                                                                                                                                                   |
 
 A monitor turn (a session member whose work is a supervised command, started with
@@ -2853,21 +2853,19 @@ half keeps the standard `#8787AF`, giving the column internal hierarchy without
 inflating the palette. Statuses not in the table fall back to `(STATUS)` text for
 forwards compatibility.
 
-A stand-alone `%proc` unit (beta, behind `typed_launch_units`) is backed only by the
-proc store — it is never an agent, never nested under an agent session, and never
-counted in agent runner, unread, clan, or session totals. It renders as its own
-top-level `▣` row with a Bash/Python language badge, current phase/status, elapsed time,
-and project, and a panel title reports it in a separate `▣<count>` chip alongside the
-ordinary agent metrics. Selecting one opens a `NAMED PROC` detail (status/phase
-timeline, project/ workspace/cwd, language, code digest and safe preview, waits,
-condition result, timeouts, and a bounded live-log tail). `x` on a running stand-alone
-named proc asks for confirmation and then kills it and removes its row in one step — the
-durable cleanup proc stops it through the native proc service — and `x` dismisses a
-finished one with no confirmation. Dismissal only clears the Agents-tab row — the proc
-stays visible in the [Procs pane](#durable-procs) and in `sase proc show`, and a
-dismissed Agents-tab row does not come back. See
-[Experimental typed launch units](macros.md#experimental-typed-launch-units) for the
-directives that create it.
+A stand-alone `%proc` unit is backed only by the proc store — it is never an agent,
+never nested under an agent session, and never counted in agent runner, unread, clan, or
+session totals. It renders as its own top-level `▣` row with a Bash/Python language
+badge, current phase/status, elapsed time, and project, and a panel title reports it in
+a separate `▣<count>` chip alongside the ordinary agent metrics. Selecting one opens a
+`NAMED PROC` detail (status/phase timeline, project/ workspace/cwd, language, code
+digest and safe preview, waits, condition result, timeouts, and a bounded live-log
+tail). `x` on a running stand-alone named proc asks for confirmation and then kills it
+and removes its row in one step — the durable cleanup proc stops it through the native
+proc service — and `x` dismisses a finished one with no confirmation. Dismissal only
+clears the Agents-tab row — the proc stays visible in the [Procs pane](#durable-procs)
+and in `sase proc show`, and a dismissed Agents-tab row does not come back. See
+[Typed launch units](macros.md#typed-launch-units) for the directives that create it.
 
 ### Agent Search
 

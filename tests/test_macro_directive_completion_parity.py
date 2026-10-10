@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,13 +27,6 @@ from tests._macro_directive_completion_parity_surface import (
     _model_alias_description,
     _model_entries,
 )
-
-
-@pytest.fixture(autouse=True)
-def _typed_launch_units_off_by_default() -> Iterator[None]:
-    """Keep ungated-contract assertions independent of host flag state."""
-    with override_flags(typed_launch_units=False):
-        yield
 
 
 def _surface_rows_for_name_parity(rows: Iterable[SurfaceRow]) -> list[SurfaceRow]:
@@ -82,20 +75,19 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
     assert "capacity budget" in queue.documentation
     assert "%if" in expected_labels
     assert "%if(should_run=...)" in expected_labels
-    assert "%if:: bash" not in expected_labels
-    assert "%proc" not in expected_labels
+    assert "%if:: bash" in expected_labels
+    assert "%proc" in expected_labels
     assert "%dispatch" in expected_labels
 
 
-def test_ace_and_lsp_include_typed_launch_directives_when_enabled(
+def test_ace_and_lsp_include_typed_launch_directives(
     tmp_path: Path,
 ) -> None:
-    with override_flags(typed_launch_units=True):
-        ace_candidates, shared = build_directive_completion_candidates("%")
-        assert shared == ""
-        ace_labels = {row.label for row in _ace_surface_rows(ace_candidates)}
-        with LspSession(tmp_path) as lsp:
-            lsp_labels = {row.label for row in lsp.complete("%")}
+    ace_candidates, shared = build_directive_completion_candidates("%")
+    assert shared == ""
+    ace_labels = {row.label for row in _ace_surface_rows(ace_candidates)}
+    with LspSession(tmp_path) as lsp:
+        lsp_labels = {row.label for row in lsp.complete("%")}
 
     assert "%if" in ace_labels
     assert "%if:: bash" in ace_labels

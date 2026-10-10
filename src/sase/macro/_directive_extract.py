@@ -60,10 +60,8 @@ def extract_prompt_directives(
     from sase.core.agent_launch_facade import filter_conditional_prompt_text
     from sase.macro.code_value import (
         raise_if_code_directive_scan_failed,
-        reject_disabled_code_directives,
         scan_directive_owned_fences,
         strip_owned_code_spans,
-        typed_launch_units_enabled,
     )
 
     prompt = filter_conditional_prompt_text(prompt)
@@ -71,10 +69,8 @@ def extract_prompt_directives(
         return "", PromptDirectives()
     original_prompt = prompt
     owned_scan = scan_directive_owned_fences(prompt)
-    reject_disabled_code_directives(prompt, scan=owned_scan)
-    if typed_launch_units_enabled():
-        raise_if_code_directive_scan_failed(owned_scan)
-        prompt = strip_owned_code_spans(prompt, owned_scan)
+    raise_if_code_directive_scan_failed(owned_scan)
+    prompt = strip_owned_code_spans(prompt, owned_scan)
 
     prompt = preprocess_directive_double_colon_shorthand(prompt)
 

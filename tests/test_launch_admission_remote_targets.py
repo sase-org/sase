@@ -93,11 +93,10 @@ def _settled_result(*, target: str, operation_id: str, agent_id: str) -> Any:
 
 def test_typed_plan_keeps_incident_workspace_and_dispatch() -> None:
     pytest.importorskip("sase_core_rs")
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            INCIDENT_PROMPT,
-            selected_project="gh_sase-org__sase",
-        )
+    plan = plan_typed_launch_units(
+        INCIDENT_PROMPT,
+        selected_project="gh_sase-org__sase",
+    )
     agent = plan.units[0].payload
     assert isinstance(agent, AgentUnitWire)
     assert agent.dispatch_target == "apollo"
@@ -118,12 +117,11 @@ def test_typed_plan_keeps_incident_workspace_and_dispatch() -> None:
 def test_typed_plan_keeps_distinct_workspace_refs() -> None:
     pytest.importorskip("sase_core_rs")
     prompt = "%id:one\n#gh:sase\nFirst\n---\n%id:two\n#git:dotfiles\nSecond"
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            prompt,
-            launch_kind="multi_prompt",
-            selected_project="sase",
-        )
+    plan = plan_typed_launch_units(
+        prompt,
+        launch_kind="multi_prompt",
+        selected_project="sase",
+    )
     first = plan.units[0].payload
     second = plan.units[1].payload
     assert isinstance(first, AgentUnitWire)
@@ -135,11 +133,10 @@ def test_typed_plan_keeps_distinct_workspace_refs() -> None:
 
 def test_agent_session_attach_does_not_inherit_plan_project_as_unit_ref() -> None:
     pytest.importorskip("sase_core_rs")
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            "%id(reviewer, session=parent)\nReview",
-            selected_project="sase",
-        )
+    plan = plan_typed_launch_units(
+        "%id(reviewer, session=parent)\nReview",
+        selected_project="sase",
+    )
     agent = plan.units[0].payload
     assert isinstance(agent, AgentUnitWire)
     assert agent.agent_session_attach_parent == "parent"
@@ -183,11 +180,10 @@ def test_approved_remote_unit_does_not_spawn_locally(
         "sase.dispatch.launch.maybe_dispatch_launch",
         fake_remote,
     )
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            INCIDENT_PROMPT,
-            selected_project="gh_sase-org__sase",
-        )
+    plan = plan_typed_launch_units(
+        INCIDENT_PROMPT,
+        selected_project="gh_sase-org__sase",
+    )
     response_dir = tmp_path / "bundle"
     response_dir.mkdir()
     result = dispatch_typed_launch_request(
@@ -314,12 +310,11 @@ def test_mixed_local_and_remote_units_route_independently(
         "%dispatch:apollo\n%id:observer\n#gh:sase\nWatch\n---\n"
         "%id:local-reviewer\nDo local work"
     )
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            prompt,
-            launch_kind="multi_prompt",
-            selected_project="gh_sase-org__sase",
-        )
+    plan = plan_typed_launch_units(
+        prompt,
+        launch_kind="multi_prompt",
+        selected_project="gh_sase-org__sase",
+    )
     response_dir = tmp_path / "bundle"
     response_dir.mkdir()
     dispatch_typed_launch_request(
@@ -361,11 +356,10 @@ def test_offline_remote_target_does_not_fall_back_locally(
         )
 
     monkeypatch.setattr("sase.dispatch.launch.maybe_dispatch_launch", fake_remote)
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            INCIDENT_PROMPT,
-            selected_project="gh_sase-org__sase",
-        )
+    plan = plan_typed_launch_units(
+        INCIDENT_PROMPT,
+        selected_project="gh_sase-org__sase",
+    )
     response_dir = tmp_path / "bundle"
     response_dir.mkdir()
     result = dispatch_typed_launch_request(
@@ -411,11 +405,10 @@ def test_duplicate_remote_settlement_reuses_operation(
         "sase.agent.launcher.launch_agents_from_cwd",
         lambda *args, **kwargs: pytest.fail("local spawn"),
     )
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            INCIDENT_PROMPT,
-            selected_project="gh_sase-org__sase",
-        )
+    plan = plan_typed_launch_units(
+        INCIDENT_PROMPT,
+        selected_project="gh_sase-org__sase",
+    )
     agent = plan.units[0]
     first = dispatch_agent_unit(
         agent,
@@ -458,11 +451,10 @@ def test_uncertain_remote_receipt_is_inspectable(
         )
 
     monkeypatch.setattr("sase.dispatch.launch.maybe_dispatch_launch", fake_remote)
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            INCIDENT_PROMPT,
-            selected_project="gh_sase-org__sase",
-        )
+    plan = plan_typed_launch_units(
+        INCIDENT_PROMPT,
+        selected_project="gh_sase-org__sase",
+    )
     ok, identity, message, spawned, extra = dispatch_agent_unit(
         plan.units[0],
         "a" * 64,
@@ -495,11 +487,10 @@ def test_unresolved_workspace_ref_refuses_home_fallback(
         "sase.dispatch.launch.maybe_dispatch_launch",
         lambda *args, **kwargs: pytest.fail("should refuse before network"),
     )
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            INCIDENT_PROMPT,
-            selected_project="home",
-        )
+    plan = plan_typed_launch_units(
+        INCIDENT_PROMPT,
+        selected_project="home",
+    )
     ok, _identity, message, spawned, extra = dispatch_agent_unit(
         plan.units[0],
         "b" * 64,
@@ -536,11 +527,10 @@ def test_source_refusal_does_not_spawn_locally(
             )
         ),
     )
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            INCIDENT_PROMPT,
-            selected_project="gh_sase-org__sase",
-        )
+    plan = plan_typed_launch_units(
+        INCIDENT_PROMPT,
+        selected_project="gh_sase-org__sase",
+    )
     ok, _identity, message, spawned, _extra = dispatch_agent_unit(
         plan.units[0],
         "c" * 64,

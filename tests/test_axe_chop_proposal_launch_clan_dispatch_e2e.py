@@ -10,7 +10,6 @@ import pytest
 
 from sase.axe.chop_proposal_launch import launch_chop_proposals
 from sase.axe.chop_proposals import prepare_chop_proposals
-from sase.feature_flags import override_flags
 from sase.macro import extract_vcs_workflow_tag
 from sase.macro.directives import extract_prompt_directives
 from tests._axe_chop_proposal_launch_helpers import patch_condition_workspace_lease
@@ -93,10 +92,7 @@ def test_typed_clan_batch_promotes_first_surviving_member_end_to_end(
             )
         ]
 
-    with (
-        override_flags(typed_launch_units=True),
-        patch("sase.notifications.senders.notify_workflow_complete"),
-    ):
+    with patch("sase.notifications.senders.notify_workflow_complete"):
         launches = launch_chop_proposals(
             lumberjack_name="split",
             chop_name="split",
@@ -197,10 +193,7 @@ def test_typed_clan_batch_restores_sequential_member_waits_end_to_end(
             )
         ]
 
-    with (
-        override_flags(typed_launch_units=True),
-        patch("sase.notifications.senders.notify_workflow_complete"),
-    ):
+    with patch("sase.notifications.senders.notify_workflow_complete"):
         launches = launch_chop_proposals(
             lumberjack_name="split",
             chop_name="split",

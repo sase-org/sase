@@ -13,34 +13,19 @@ from sase.agent.launch_request_response import dispatch_approved_launch_request
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import plan_typed_launch_units
 from sase.core.agent_launch_wire import agent_launch_wire_to_json_dict
-from sase.feature_flags import override_flags
 from tests._launch_admission_helpers import agent_result as _agent_result
 
 
-def test_create_request_omits_typed_plan_when_flag_off(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    monkeypatch.chdir(tmp_path)
-    result = create_launch_approval_request(
-        {"schema_version": 1, "prompt": "Do work", "reason": "cover flag off"}
-    )
-    written = json.loads(result.request_path.read_text(encoding="utf-8"))["payload"]
-    assert "typed_plan" not in written
-
-
-def test_create_request_attaches_typed_plan_when_flag_on(
+def test_create_request_attaches_typed_plan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
-    with override_flags(typed_launch_units=True):
-        result = create_launch_approval_request(
-            {"schema_version": 1, "prompt": "Do work", "reason": "cover flag on"}
-        )
+    result = create_launch_approval_request(
+        {"schema_version": 1, "prompt": "Do work", "reason": "cover flag on"}
+    )
     written = json.loads(result.request_path.read_text(encoding="utf-8"))["payload"]
     assert written["typed_plan"]["units"][0]["payload"]["kind"] == "agent"
     assert written["plan_digest"] == written["typed_plan"]["content_digest"]
@@ -56,14 +41,13 @@ def test_typed_plan_preview_renders_holds_section_for_a_held_unit(
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
-    with override_flags(typed_launch_units=True):
-        result = create_launch_approval_request(
-            {
-                "schema_version": 1,
-                "prompt": "%hold(pending, ttl=30m)\nDo work",
-                "reason": "cover typed hold preview",
-            }
-        )
+    result = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "%hold(pending, ttl=30m)\nDo work",
+            "reason": "cover typed hold preview",
+        }
+    )
     written = json.loads(result.request_path.read_text(encoding="utf-8"))["payload"]
     assert written["typed_plan"]["units"][0]["payload"]["hold"]["pending"] is True
     preview = result.preview_path.read_text(encoding="utf-8")
@@ -107,8 +91,7 @@ def test_old_request_without_typed_plan_uses_compat_dispatch(
 def test_typed_dispatch_result_includes_summary(tmp_path: Path) -> None:
     pytest.importorskip("sase_core_rs")
     prompt = "%q(w=0.25)\nDo work"
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(prompt, selected_project="sase")
+    plan = plan_typed_launch_units(prompt, selected_project="sase")
     response_dir = tmp_path / "bundle"
     response_dir.mkdir()
     data = {

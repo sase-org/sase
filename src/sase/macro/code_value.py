@@ -9,19 +9,11 @@ from functools import cache
 from typing import Any
 
 from sase.core.rust import require_rust_binding
-from sase.feature_flags.registry import FeatureFlag
-from sase.feature_flags.snapshot import current_flags
 from sase.macro._exceptions import DirectiveError
 
 
 _OWNED_PLACEHOLDER_PREFIX = "\x00XPC_"
 _OWNED_PLACEHOLDER_SUFFIX = "\x00"
-
-TYPED_LAUNCH_UNITS_DISABLED_MESSAGE = (
-    "The %if and %proc directives require the typed_launch_units beta flag. "
-    "Enable it with `sase flag enable typed_launch_units`. These directives "
-    "are never forwarded to the model."
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,11 +54,6 @@ class CodeDirectiveScan:
     diagnostics: tuple[_CodeDirectiveDiagnostic, ...]
 
 
-def typed_launch_units_enabled() -> bool:
-    """Return the process-local `typed_launch_units` decision."""
-    return current_flags().enabled(FeatureFlag.typed_launch_units)
-
-
 def scan_directive_owned_fences(text: str) -> CodeDirectiveScan:
     """Scan `%if::` / `%proc::` fences via the shared Rust contract."""
     payload = _owned_scanner()(text)
@@ -83,25 +70,10 @@ def raise_if_code_directive_scan_failed(scan: CodeDirectiveScan) -> None:
     raise DirectiveError(diagnostic.message)
 
 
-def reject_disabled_code_directives(
-    text: str,
-    *,
-    scan: CodeDirectiveScan | None = None,
-) -> None:
-    """Reject explicit `%if` / `%proc` uses while the beta flag is off."""
-    if typed_launch_units_enabled():
-        return
-    resolved = scan if scan is not None else scan_directive_owned_fences(text)
-    if resolved.directives or _mentions_code_directive(text):
-        raise DirectiveError(TYPED_LAUNCH_UNITS_DISABLED_MESSAGE)
-
-
 def protect_owned_code_directives(text: str, blocks: list[str]) -> str:
     """Placeholder-protect directive-owned fences before ordinary fence scans."""
     scan = scan_directive_owned_fences(text)
-    reject_disabled_code_directives(text, scan=scan)
-    if typed_launch_units_enabled():
-        raise_if_code_directive_scan_failed(scan)
+    raise_if_code_directive_scan_failed(scan)
     spans = [directive.span for directive in scan.directives]
     spans.extend(_proc_paren_spans(text))
     spans = sorted(set(spans), key=lambda item: item[0], reverse=True)
@@ -228,28 +200,6 @@ def _byte_to_character(text: str) -> dict[int, int]:
     return mapping
 
 
-def _mentions_code_directive(text: str) -> bool:
-    if "%if" not in text and "%proc" not in text:
-        return False
-    from sase.macro._fenced_blocks import fenced_block_ranges
-
-    fences = fenced_block_ranges(text)
-    cursor = 0
-    length = len(text)
-    while cursor < length:
-        index = text.find("%", cursor)
-        if index < 0:
-            return False
-        if any(start <= index < end for start, end in fences):
-            cursor = index + 1
-            continue
-        rest = text[index + 1 :]
-        if _is_directive_token(rest, "proc") or rest.startswith("if::"):
-            return True
-        cursor = index + 1
-    return False
-
-
 def _proc_paren_spans(text: str) -> list[tuple[int, int]]:
     """Return `%proc(...)` spans so quoted bodies stay opaque during expansion."""
     import re
@@ -268,30 +218,18 @@ def _proc_paren_spans(text: str) -> list[tuple[int, int]]:
     return spans
 
 
-def _is_directive_token(rest: str, name: str) -> bool:
-    if not rest.startswith(name):
-        return False
-    if len(rest) == len(name):
-        return False
-    next_char = rest[len(name)]
-    return next_char in {"(", ":", "+"}
-
-
 @cache
 def _owned_scanner() -> Callable[..., Any]:
     return require_rust_binding("scan_directive_owned_fences")
 
 
 __all__ = [
-    "TYPED_LAUNCH_UNITS_DISABLED_MESSAGE",
     "CodeDirectiveScan",
     "CodeValue",
     "make_code_value",
     "protect_owned_code_directives",
     "raise_if_code_directive_scan_failed",
     "unprotect_owned_code_directives",
-    "reject_disabled_code_directives",
     "scan_directive_owned_fences",
     "strip_owned_code_spans",
-    "typed_launch_units_enabled",
 ]

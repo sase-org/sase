@@ -87,13 +87,13 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "tab": ("colon", "parenthesized"),
         "wait": ("colon", "parenthesized", "bare"),
         "queue": ("colon", "parenthesized"),
-        "if": ("parenthesized",),
+        "if": ("parenthesized", "double_colon"),
         "proc": ("parenthesized", "double_colon"),
         "xprompts_enabled": ("colon",),
     }
     assert contract["if"].get("feature_flag") is None
     assert contract["hold"].get("feature_flag") is None
-    assert contract["proc"]["feature_flag"] == "typed_launch_units"
+    assert contract["proc"].get("feature_flag") is None
     assert contract["queue"].get("feature_flag") is None
     assert contract["queue"]["alias"] == "q"
     assert contract["hold"].get("alias") is None

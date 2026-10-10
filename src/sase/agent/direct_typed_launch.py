@@ -137,10 +137,6 @@ def dispatch_direct_typed_launch(
     """
     from sase.agent.launch_admission import dispatch_typed_launch_request
     from sase.core.agent_launch_facade import sanitize_condition_inputs
-    from sase.macro.code_value import (
-        TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
-        typed_launch_units_enabled,
-    )
     from sase.macro.directives import DirectiveError, has_typed_launch_directive
 
     try:
@@ -149,12 +145,6 @@ def dispatch_direct_typed_launch(
         raise LaunchRequestError("invalid_request", "prompt", str(exc)) from exc
     if not has_typed_launch_directive(expanded_prompt):
         return None
-    if not typed_launch_units_enabled():
-        raise LaunchRequestError(
-            "invalid_request",
-            "prompt",
-            TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
-        )
     cwd = source_cwd or str(Path.cwd())
     selected_project = resolve_typed_launch_selected_project(expanded_prompt)
     typed_plan = prepare_typed_launch_plan(

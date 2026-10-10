@@ -18,9 +18,7 @@ from sase.core.agent_launch_wire import (
     agent_launch_wire_to_json_dict,
     launch_plan_from_dict,
 )
-from sase.feature_flags import override_flags
 from sase.macro.code_value import make_code_value
-from sase.macro.directives import DirectiveError
 
 
 def test_agent_launch_schema_version_pinned() -> None:
@@ -84,9 +82,11 @@ def test_typed_launch_plan_from_dict_rehydrates_proc_payload() -> None:
     )
 
 
-def test_plan_typed_launch_units_feature_off_rejects_proc() -> None:
-    with pytest.raises(DirectiveError, match="typed_launch_units"):
-        plan_typed_launch_units('%proc("just check")', selected_project="sase")
+def test_plan_typed_launch_units_accepts_proc_unconditionally() -> None:
+    plan = plan_typed_launch_units('%proc("just check")', selected_project="sase")
+
+    assert isinstance(plan.units[0].payload, ProcUnitWire)
+    assert plan.units[0].payload.code.source == "just check"
 
 
 def test_agent_unit_queue_weight_round_trips_json_shape() -> None:
@@ -187,12 +187,11 @@ def test_agent_unit_omits_default_queue_weight_provenance_from_json() -> None:
 def test_plan_typed_launch_units_rust_mixed_graph() -> None:
     pytest.importorskip("sase_core_rs")
 
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            '%proc("just check")\n---\n%wait\n%id:reviewer\nReview',
-            launch_kind="multi_prompt",
-            selected_project="sase",
-        )
+    plan = plan_typed_launch_units(
+        '%proc("just check")\n---\n%wait\n%id:reviewer\nReview',
+        launch_kind="multi_prompt",
+        selected_project="sase",
+    )
 
     assert plan.launch_kind == "multi_prompt"
     assert isinstance(plan.units[0].payload, ProcUnitWire)

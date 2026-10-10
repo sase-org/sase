@@ -353,10 +353,6 @@ def _maybe_dispatch_typed_chop_proposals(
         prepare_typed_launch_plan,
     )
     from sase.agent.launch_request_types import LaunchRequestError
-    from sase.macro.code_value import (
-        TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
-        typed_launch_units_enabled,
-    )
     from sase.macro.directives import DirectiveError, has_typed_launch_directive
 
     query = _query_for_plans(plans)
@@ -366,12 +362,6 @@ def _maybe_dispatch_typed_chop_proposals(
         raise LaunchRequestError("invalid_request", "prompt", str(exc)) from exc
     if not has_typed_launch_directive(expanded_prompt):
         return None
-    if not typed_launch_units_enabled():
-        raise LaunchRequestError(
-            "invalid_request",
-            "prompt",
-            TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
-        )
 
     selected_project, source_cwd, project_file = _resolve_typed_batch_project(plans)
     typed_plan_dict = prepare_typed_launch_plan(

@@ -10,7 +10,6 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV
-from sase.agent.launch_request_types import LaunchRequestError
 from sase.axe.chop_proposal_launch import launch_chop_proposals
 from sase.axe.chop_proposals import prepare_chop_proposals
 from sase.axe.chop_runner import run_configured_chop_once
@@ -85,10 +84,7 @@ def test_typed_chop_proposal_uses_durable_admission_and_chop_env(
             )
         ]
 
-    with (
-        override_flags(typed_launch_units=True),
-        patch("sase.notifications.senders.notify_workflow_complete") as notify,
-    ):
+    with patch("sase.notifications.senders.notify_workflow_complete") as notify:
         launches = launch_chop_proposals(
             lumberjack_name="docs",
             chop_name="docs",
@@ -201,45 +197,6 @@ def test_typed_chop_dispatch_carries_launch_hold_key() -> None:
     assert calls[0][LAUNCH_HOLD_KEY_ENV] == "launch:req-axe-hold/unit-1"
 
 
-def test_typed_chop_proposal_flag_off_rejects_before_launch(
-    temp_state_dir: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    pytest.importorskip("sase_core_rs")
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    prepared = prepare_chop_proposals(
-        "docs",
-        {
-            "proposed_launches": [
-                {
-                    "prompt": "%if::\n```bash\ntrue\n```\nReview docs.",
-                    "workspace": "git:sase",
-                }
-            ]
-        },
-    )
-    monkeypatch.setattr(
-        "sase.agent.launch_cwd_common.resolve_known_project_vcs_launch_ref",
-        lambda _prompt: known_project_resolver(repo),
-    )
-
-    def _launch(*args: object, **kwargs: object) -> list[SimpleNamespace]:
-        raise AssertionError("typed flag-off proposal reached the launcher")
-
-    with override_flags(typed_launch_units=False):
-        with pytest.raises(LaunchRequestError, match="typed_launch_units"):
-            launch_chop_proposals(
-                lumberjack_name="docs",
-                chop_name="docs",
-                run_id="run-flag-off",
-                proposals=prepared,
-                launch_agent_from_cwd_fn=lambda *args, **kwargs: None,
-                launch_agents_from_cwd_fn=_launch,
-            )
-
-
 def test_runner_all_skipped_typed_admission_succeeds_without_agent(
     temp_state_dir: Path,
     tmp_path: Path,
@@ -270,7 +227,6 @@ def test_runner_all_skipped_typed_admission_succeeds_without_agent(
     patch_condition_workspace_lease(monkeypatch, repo)
 
     with (
-        override_flags(typed_launch_units=True),
         patch("sase.axe.chop_runner.find_all_patches", return_value=[]),
         patch("sase.axe.chop_runner.launch_agents_from_cwd") as launch_batch,
     ):

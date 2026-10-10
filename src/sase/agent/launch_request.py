@@ -260,10 +260,6 @@ def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def _typed_plan_payload(prompt: str) -> dict[str, Any] | None:
-    from sase.macro.code_value import typed_launch_units_enabled
-
-    if not typed_launch_units_enabled():
-        return None
     expanded = _expand_prompt_for_typed_launch(prompt)
     selected_project = _resolve_typed_launch_selected_project(expanded)
     return _prepare_typed_launch_plan(expanded, selected_project=selected_project)

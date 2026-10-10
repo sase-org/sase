@@ -5225,7 +5225,6 @@ retired spelling, so its behavior is documented in
 | `refresh_panel`                  | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                                                                                                |
 | `slim_agents_manifest`           | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                                                                       |
 | `strict_macro_input_types`       | sunset | `true`  | Unknown macro input types are load errors with suggestions. Off keeps the legacy fallback to the single-line `line` type. See [Typed Inputs](macros.md#typed-inputs).                                                                     |
-| `typed_launch_units`             | beta   | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                                                                                                    |
 
 `agent_decks` and `agent_tabs` are no longer registered. The Agents tab always shows
 [data decks and cards](ace.md#agent-data-decks-and-cards) and
@@ -5270,18 +5269,16 @@ canonical set matches. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout
 
 Run `sase flag list` for the live registry with effective and saved state.
 
-The registered `typed_launch_units` beta flag defaults to `false`. Enabling it exposes
-the experimental `%if::` script-admission and `%proc` parser, completion, and
-launch-plan contract. Static `%if(should_run=true|false)` segment omission is not
-feature-gated and works before typed launch planning in either flag state.
-User-initiated sase's TUI and `sase run` submissions execute typed directives through
-durable typed admission without a LaunchApproval gate. The frozen plan keeps the
-complete `%id` and `%clan` identity binding, and keyed `{@<id>}` markers resolve once at
-batch creation. Agent-initiated launches still freeze the typed plan for LaunchApproval;
-after approval, the same admission coordinator resolves waits, evaluates `%if::`
-predicates, and dispatches eligible units — agent units through the established agent
-launch path, and `%proc` units through native stand-alone named-proc dispatch; see
-[Experimental typed launch units](macros.md#experimental-typed-launch-units).
+`%if::` script-admission and `%proc` are always available: parser, completion, and
+launch-plan contract included. Static `%if(should_run=true|false)` segment omission
+works before typed launch planning. User-initiated sase's TUI and `sase run` submissions
+execute typed directives through durable typed admission without a LaunchApproval gate.
+The frozen plan keeps the complete `%id` and `%clan` identity binding, and keyed
+`{@<id>}` markers resolve once at batch creation. Agent-initiated launches still freeze
+the typed plan for LaunchApproval; after approval, the same admission coordinator
+resolves waits, evaluates `%if::` predicates, and dispatches eligible units — agent
+units through the established agent launch path, and `%proc` units through native
+stand-alone named-proc dispatch; see [Typed launch units](macros.md#typed-launch-units).
 
 #### Saved machine preferences
 

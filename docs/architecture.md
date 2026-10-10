@@ -66,18 +66,18 @@ across those entry points:
 10. Hand review, revert, restore, or commit work to the VCS and workspace provider
     layers when requested.
 
-When the `typed_launch_units` beta flag is enabled, user-initiated sase's TUI and
-`sase run` submissions, approved LaunchApproval requests, and typed AXE job proposal
-batches share one typed admission path. Recursive macro expansion and fan-out still
-happen first, keyed `{@<id>}` agent-name markers resolve once across that expanded
-batch, then Rust builds an immutable `LaunchPlan` of tagged Agent or Proc units with
-stable logical IDs, the complete `%id`/`%clan` identity binding, waits, optional `%if`
-predicates, and code digests. Dispatch reconstructs grouping directives from that
-binding instead of a positional name alone. Direct user submissions persist that plan in
-a durable bundle and dispatch immediately; agent-initiated launches freeze the same
-digest behind LaunchApproval; AXE job batches containing an active `%if`/`%proc`
-directive dispatch through the same durable bundle under the internal `axe_chop` source
-surface, with the originating job run owning the bundle across process restarts (see
+User-initiated sase's TUI and `sase run` submissions, approved LaunchApproval requests,
+and typed AXE job proposal batches share one typed admission path. Recursive macro
+expansion and fan-out still happen first, keyed `{@<id>}` agent-name markers resolve
+once across that expanded batch, then Rust builds an immutable `LaunchPlan` of tagged
+Agent or Proc units with stable logical IDs, the complete `%id`/`%clan` identity
+binding, waits, optional `%if` predicates, and code digests. Dispatch reconstructs
+grouping directives from that binding instead of a positional name alone. Direct user
+submissions persist that plan in a durable bundle and dispatch immediately;
+agent-initiated launches freeze the same digest behind LaunchApproval; AXE job batches
+containing an active `%if`/`%proc` directive dispatch through the same durable bundle
+under the internal `axe_chop` source surface, with the originating job run owning the
+bundle across process restarts (see
 [Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals)).
 Within an AXE job clan, dispatch — not planning — owns the declarer decision: the first
 surviving (eligible, dispatched) member of an undeclared clan claims it durably, so a

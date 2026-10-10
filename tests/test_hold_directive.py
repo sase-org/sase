@@ -114,13 +114,12 @@ def test_hold_adapter_reports_errors_and_expands_selectors() -> None:
 
 
 def test_typed_launch_threads_hold_and_rebuilds_dispatch_prompt() -> None:
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            "%hold(pending, hood=sase-11l, ttl=5m)\nDo work",
-            selected_project="sase",
-        )
-        agent = plan.units[0].payload
-        rebuilt = agent_unit_dispatch_prompt(agent)
+    plan = plan_typed_launch_units(
+        "%hold(pending, hood=sase-11l, ttl=5m)\nDo work",
+        selected_project="sase",
+    )
+    agent = plan.units[0].payload
+    rebuilt = agent_unit_dispatch_prompt(agent)
 
     assert isinstance(agent, AgentUnitWire)
     assert isinstance(agent.hold, HoldFieldsWire)

@@ -42,7 +42,6 @@ class FeatureFlag(StrEnum):
     agents_session_manifest_compat = "agents_session_manifest_compat"
     claude_helper_channel = "claude_helper_channel"
     instruction_shadow_render = "instruction_shadow_render"
-    typed_launch_units = "typed_launch_units"
     autonomy_record_only = "autonomy_record_only"
 
 
@@ -241,12 +240,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "set beside the current canonical set."
         ),
         bead="sase-1ft",
-    ),
-    FeatureFlag.typed_launch_units: FeatureFlagDefinition(
-        key=FeatureFlag.typed_launch_units,
-        kind="beta",
-        description="Beta gate for typed launch units, %if, and %proc.",
-        bead="sase-s7",
     ),
     FeatureFlag.strict_macro_input_types: FeatureFlagDefinition(
         key=FeatureFlag.strict_macro_input_types,

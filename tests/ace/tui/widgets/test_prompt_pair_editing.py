@@ -507,6 +507,7 @@ async def test_invocation_colon_conversion_is_one_undo_checkpoint() -> None:
         ("#foo::   body", "#foo()::   body"),
         ("#!ns/foo:: ", "#!ns/foo():: "),
         ("%proc:: ", "%proc():: "),
+        ("%if:: ", "%if():: "),
         ("%clan:: ", "%clan():: "),
         ("%c:: ", "%c():: "),
     ],
@@ -535,7 +536,6 @@ async def test_typing_paren_after_double_colon_forms(
     [
         "%q:: ",
         "%model:: ",
-        "%if:: ",
         "%macros_enabled:: ",
         "%unknown:: ",
         "#foo::\t",

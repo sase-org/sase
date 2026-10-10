@@ -212,10 +212,8 @@ def plan_typed_launch_units(
     """
 
     from sase.agent.agent_name_keys import resolve_agent_name_key_markers
-    from sase.macro.code_value import reject_disabled_code_directives
 
     filtered_prompt = filter_conditional_prompt_text(prompt)
-    reject_disabled_code_directives(filtered_prompt)
     resolved_prompt = resolve_agent_name_key_markers([filtered_prompt])[0]
     from sase.macro.queue_directive import launch_feature_flag_keys
 

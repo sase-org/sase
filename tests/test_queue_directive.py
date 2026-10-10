@@ -113,7 +113,7 @@ def test_queue_weight_extracts_unconditionally() -> None:
 
 
 def test_capacity_multiplier_extracts_formats_and_rebuilds() -> None:
-    with override_flags(queue_capacity_budget=True, typed_launch_units=True):
+    with override_flags(queue_capacity_budget=True):
         parsed = parse_queue_capacity_value("1.50x")
         cleaned, directives = extract_prompt_directives("%q(1.5x, w=0.25)\nDo work")
         plan = plan_typed_launch_units(
@@ -144,28 +144,26 @@ def test_queue_weight_alias_duplicate_errors() -> None:
 
 
 def test_typed_launch_parses_queue_and_rebuilds_canonical_prompt() -> None:
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            "%w(builder, time=5m) %q(3, p=20, w=2)\nDo work",
-            selected_project="sase",
-        )
-        agent = plan.units[0].payload
-        assert isinstance(agent, AgentUnitWire)
-        assert agent.wait_runners == 3
-        assert agent.wait_priority == 20
-        assert agent.queue_weight == 2.0
-        assert agent.queue_weight_explicit is True
-        rebuilt = agent_unit_dispatch_prompt(agent)
+    plan = plan_typed_launch_units(
+        "%w(builder, time=5m) %q(3, p=20, w=2)\nDo work",
+        selected_project="sase",
+    )
+    agent = plan.units[0].payload
+    assert isinstance(agent, AgentUnitWire)
+    assert agent.wait_runners == 3
+    assert agent.wait_priority == 20
+    assert agent.queue_weight == 2.0
+    assert agent.queue_weight_explicit is True
+    rebuilt = agent_unit_dispatch_prompt(agent)
     assert "%queue(capacity=3, priority=20, weight=2)" in rebuilt
     assert "%wait(runners=" not in rebuilt
 
 
 def test_typed_launch_preserves_explicit_default_weight() -> None:
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units("%q(w=1.0)\nDo work", selected_project="sase")
-        agent = plan.units[0].payload
-        assert isinstance(agent, AgentUnitWire)
-        rebuilt = agent_unit_dispatch_prompt(agent)
+    plan = plan_typed_launch_units("%q(w=1.0)\nDo work", selected_project="sase")
+    agent = plan.units[0].payload
+    assert isinstance(agent, AgentUnitWire)
+    rebuilt = agent_unit_dispatch_prompt(agent)
 
     assert agent.queue_weight == 1.0
     assert agent.queue_weight_explicit is True
@@ -173,17 +171,16 @@ def test_typed_launch_preserves_explicit_default_weight() -> None:
 
 
 def test_typed_launch_rejects_retired_wait_queue_keywords() -> None:
-    with override_flags(typed_launch_units=True):
-        with pytest.raises(Exception, match="%queue"):
-            plan_typed_launch_units(
-                "%wait(runners=5)\nDo work",
-                selected_project="sase",
-            )
-        with pytest.raises(Exception, match="%queue"):
-            plan_typed_launch_units(
-                "%wait(priority=5)\nDo work",
-                selected_project="sase",
-            )
+    with pytest.raises(Exception, match="%queue"):
+        plan_typed_launch_units(
+            "%wait(runners=5)\nDo work",
+            selected_project="sase",
+        )
+    with pytest.raises(Exception, match="%queue"):
+        plan_typed_launch_units(
+            "%wait(priority=5)\nDo work",
+            selected_project="sase",
+        )
 
 
 def _queue_occurrence(source: str, args: list[dict[str, str]]) -> dict[str, Any]:
@@ -255,13 +252,12 @@ def test_zero_weight_extracts_explicit(budget: bool) -> None:
 
 
 def test_typed_launch_dispatch_prompt_carries_zero_weight() -> None:
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units("%q(w=0)\nDo work", selected_project="sase")
-        agent = plan.units[0].payload
-        assert isinstance(agent, AgentUnitWire)
-        assert agent.queue_weight == 0.0
-        assert agent.queue_weight_explicit is True
-        rebuilt = agent_unit_dispatch_prompt(agent)
+    plan = plan_typed_launch_units("%q(w=0)\nDo work", selected_project="sase")
+    agent = plan.units[0].payload
+    assert isinstance(agent, AgentUnitWire)
+    assert agent.queue_weight == 0.0
+    assert agent.queue_weight_explicit is True
+    rebuilt = agent_unit_dispatch_prompt(agent)
 
     assert "%queue(weight=0)" in rebuilt
 

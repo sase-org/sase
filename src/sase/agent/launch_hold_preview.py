@@ -51,9 +51,7 @@ def _iter_prompt_holds(
     prompt: str, *, project: str | None
 ) -> list[tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]]:
     """Enumerate ``(label, hold_fields, project)`` for every unit in *prompt*."""
-    from sase.macro.code_value import typed_launch_units_enabled
-
-    if typed_launch_units_enabled() and ("%if" in prompt or "%proc" in prompt):
+    if "%if" in prompt or "%proc" in prompt:
         return _typed_prompt_holds(prompt)
     return _non_typed_prompt_holds(prompt, project=project)
 

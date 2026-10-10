@@ -1,33 +1,34 @@
-"""Gated `%if`/`%proc` contract, fence opacity, and flag-off rejection."""
+"""Unconditional `%if`/`%proc` contract, fence opacity, and completion."""
 
 from __future__ import annotations
 
 import pytest
 
 from sase.core.agent_launch_facade import plan_typed_launch_units
-from sase.feature_flags import FeatureFlag, override_flags
-from sase.macro.code_value import (
-    TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
-    make_code_value,
-    scan_directive_owned_fences,
-)
+from sase.macro.code_value import make_code_value, scan_directive_owned_fences
 from sase.macro.directives import DirectiveError, extract_prompt_directives
 from sase.macro.models import InputArg, InputType
 from sase.macro.processor import process_macro_references_with_catalog
 
 
-def test_flag_off_rejects_if_and_does_not_leak_to_cleaned_prompt() -> None:
+def test_typed_units_accept_if_fence_and_strip_from_model_prompt() -> None:
     prompt = "%if::\n\n```bash\ntest -f pyproject.toml\n```\nReview"
-    with pytest.raises(DirectiveError, match="typed_launch_units"):
-        extract_prompt_directives(prompt)
+    cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == "Review"
+    assert directives.if_code is not None
+    assert directives.if_code.language == "bash"
 
 
-def test_flag_off_rejects_proc_paren_form() -> None:
-    with pytest.raises(DirectiveError, match="typed_launch_units"):
-        extract_prompt_directives('%proc("just check")\nReview')
+def test_typed_units_accept_proc_paren_form() -> None:
+    cleaned, directives = extract_prompt_directives('%proc("just check")\nReview')
+
+    assert cleaned.strip() == "Review"
+    assert directives.proc_code is not None
+    assert directives.proc_code.source == "just check"
 
 
-def test_flag_off_allows_static_boolean_if_and_strips_it() -> None:
+def test_static_boolean_if_is_stripped_without_typed_code() -> None:
     cleaned, directives = extract_prompt_directives("%if(should_run=true)\nReview")
 
     assert cleaned == "Review"
@@ -62,36 +63,12 @@ def test_static_boolean_if_filters_before_typed_unit_planning() -> None:
     ]
 
 
-def test_flag_on_preserves_prose_if_proc_mentions() -> None:
-    prompt = "stop un-admitted %if/%proc units"
-
-    with override_flags(typed_launch_units=True):
-        cleaned, directives = extract_prompt_directives(prompt)
-
-    assert cleaned == prompt
-    assert "%if/%proc" in cleaned
-    assert directives.if_code is None
-    assert directives.proc_code is None
-
-
-def test_flag_on_preserves_bare_if_and_proc_at_line_start() -> None:
-    prompt = "%if is plain text\n%proc is plain text"
-
-    with override_flags(typed_launch_units=True):
-        cleaned, directives = extract_prompt_directives(prompt)
-
-    assert cleaned == prompt
-    assert directives.if_code is None
-    assert directives.proc_code is None
-
-
-def test_flag_off_allows_prose_if_proc_mentions() -> None:
+def test_typed_units_preserve_prose_if_proc_mentions() -> None:
     for prompt in [
         "stop un-admitted %if/%proc units",
         "%if is plain text\n%proc is plain text",
     ]:
-        with override_flags(typed_launch_units=False):
-            cleaned, directives = extract_prompt_directives(prompt)
+        cleaned, directives = extract_prompt_directives(prompt)
 
         assert cleaned == prompt
         assert directives.if_code is None
@@ -108,19 +85,17 @@ def test_flag_off_allows_prose_if_proc_mentions() -> None:
         ("%proc:: echo hi\nReview", "requires a body"),
     ],
 )
-def test_flag_on_rejects_invalid_code_directive_forms(
+def test_typed_units_reject_invalid_code_directive_forms(
     prompt: str,
     message: str,
 ) -> None:
-    with override_flags(typed_launch_units=True):
-        with pytest.raises(DirectiveError, match=message):
-            extract_prompt_directives(prompt)
+    with pytest.raises(DirectiveError, match=message):
+        extract_prompt_directives(prompt)
 
 
-def test_flag_on_captures_if_fence_and_strips_from_model_prompt() -> None:
+def test_typed_units_capture_if_fence_and_strip_from_model_prompt() -> None:
     prompt = "%if::\n\n```bash\ntest -f pyproject.toml\n%wait and #refs\n```\nReview the tree"
-    with override_flags(typed_launch_units=True):
-        cleaned, directives = extract_prompt_directives(prompt)
+    cleaned, directives = extract_prompt_directives(prompt)
     assert "Review the tree" in cleaned
     assert "%if" not in cleaned
     assert "test -f pyproject.toml" not in cleaned
@@ -130,21 +105,19 @@ def test_flag_on_captures_if_fence_and_strips_from_model_prompt() -> None:
     assert len(directives.if_code.digest) == 64
 
 
-def test_flag_on_paren_proc_is_literal_and_stripped() -> None:
-    with override_flags(typed_launch_units=True):
-        cleaned, directives = extract_prompt_directives(
-            '%proc("echo %wait and #foo")\nDone'
-        )
+def test_typed_units_paren_proc_is_literal_and_stripped() -> None:
+    cleaned, directives = extract_prompt_directives(
+        '%proc("echo %wait and #foo")\nDone'
+    )
     assert cleaned.strip() == "Done"
     assert directives.proc_code is not None
     assert directives.proc_code.source == "echo %wait and #foo"
     assert directives.proc_code.language == "bash"
 
 
-def test_flag_on_fenced_proc_preserves_options() -> None:
+def test_typed_units_fenced_proc_preserves_options() -> None:
     prompt = '%proc(timeout="20m", label="Scoped")::\n```bash\njust check\n```\n'
-    with override_flags(typed_launch_units=True):
-        cleaned, directives = extract_prompt_directives(prompt)
+    cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == ""
     assert directives.proc_code is not None
     assert directives.proc_code.source == "just check\n"
@@ -153,16 +126,14 @@ def test_flag_on_fenced_proc_preserves_options() -> None:
 
 def test_fenced_proc_rejects_parenthesized_body() -> None:
     prompt = '%proc("just check")::\n```bash\njust test\n```\n'
-    with override_flags(typed_launch_units=True):
-        with pytest.raises(DirectiveError, match="parenthesized body"):
-            extract_prompt_directives(prompt)
+    with pytest.raises(DirectiveError, match="parenthesized body"):
+        extract_prompt_directives(prompt)
 
 
 def test_literal_percent_hash_frontmatter_and_jinja_inside_owned_fence() -> None:
     body = "%model:opus\n#work\n---\n{{ name }}\n$(echo hi)\n``` inner"
     prompt = f"%if::\n```python\n{body}\n```\nLaunch"
-    with override_flags(typed_launch_units=True):
-        cleaned, directives = extract_prompt_directives(prompt)
+    cleaned, directives = extract_prompt_directives(prompt)
     assert directives.if_code is not None
     assert directives.if_code.source.strip() == body
     assert "%model" not in cleaned
@@ -170,11 +141,10 @@ def test_literal_percent_hash_frontmatter_and_jinja_inside_owned_fence() -> None
 
 
 def test_unknown_language_and_missing_fence_are_hard_errors() -> None:
-    with override_flags(typed_launch_units=True):
-        with pytest.raises(DirectiveError, match="unsupported code language"):
-            extract_prompt_directives("%proc::\n```ruby\nputs 1\n```\n")
-        with pytest.raises(DirectiveError, match="exactly one closed"):
-            extract_prompt_directives("%if::\n\nReview")
+    with pytest.raises(DirectiveError, match="unsupported code language"):
+        extract_prompt_directives("%proc::\n```ruby\nputs 1\n```\n")
+    with pytest.raises(DirectiveError, match="exactly one closed"):
+        extract_prompt_directives("%if::\n\nReview")
 
 
 def test_crlf_and_blank_lines_before_owned_fence() -> None:
@@ -188,8 +158,7 @@ def test_crlf_and_blank_lines_before_owned_fence() -> None:
 def test_nested_expansion_does_not_expand_inside_owned_fence() -> None:
     catalog = {}
     prompt = "%if::\n```bash\necho #secret\n```\n#secret"
-    with override_flags(typed_launch_units=True):
-        expanded = process_macro_references_with_catalog(prompt, catalog)
+    expanded = process_macro_references_with_catalog(prompt, catalog)
     assert "echo #secret" in expanded
 
 
@@ -201,7 +170,7 @@ def test_code_input_type_is_structured() -> None:
     assert value.digest == make_code_value("print('hi')", "bash").digest
 
 
-def test_completion_exposes_static_if_and_hides_proc_while_flag_is_off() -> None:
+def test_completion_exposes_static_if_and_proc_unconditionally() -> None:
     from sase.ace.tui.widgets.directive_completion import (
         build_directive_completion_candidates,
     )
@@ -209,9 +178,4 @@ def test_completion_exposes_static_if_and_hides_proc_while_flag_is_off() -> None
     candidates, _ = build_directive_completion_candidates("%")
     insertions = {candidate.insertion for candidate in candidates}
     assert "%if" in insertions
-    assert "%proc" not in insertions
-    with override_flags(typed_launch_units=True):
-        enabled, _ = build_directive_completion_candidates("%")
-    enabled_insertions = {candidate.insertion for candidate in enabled}
-    assert "%if" in enabled_insertions
-    assert "%proc" in enabled_insertions
+    assert "%proc" in insertions

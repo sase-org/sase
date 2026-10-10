@@ -94,11 +94,8 @@ def test_tab_plus_dispatch_is_accepted() -> None:
 
 
 def test_tab_plus_proc_is_rejected() -> None:
-    from sase.feature_flags import override_flags
-
-    with override_flags(typed_launch_units=True):
-        with pytest.raises(DirectiveError, match="stand-alone %proc"):
-            extract_prompt_directives('%tab:sase %proc("echo hi")')
+    with pytest.raises(DirectiveError, match="stand-alone %proc"):
+        extract_prompt_directives('%tab:sase %proc("echo hi")')
 
 
 def test_tab_query_legacy_dialect() -> None:

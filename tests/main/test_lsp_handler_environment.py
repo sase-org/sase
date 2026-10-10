@@ -25,7 +25,6 @@ from sase.integrations.macro_lsp import (
     SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV,
     SASE_MACRO_PLUGIN_DIRS_JSON_ENV,
     SASE_MACRO_VCS_PROJECT_CATALOG_ENV,
-    SASE_TYPED_LAUNCH_UNITS_ENV,
     _prepare_macro_lsp_environment,
 )
 
@@ -485,19 +484,6 @@ def test_prepare_lsp_environment_respects_plugin_disable_env(
 
     assert json.loads(env[SASE_MACRO_PLUGIN_DIRS_JSON_ENV]) == []
     assert json.loads(env[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV]) == []
-
-
-@pytest.mark.parametrize("enabled,expected", [(False, "0"), (True, "1")])
-def test_prepare_lsp_environment_pins_typed_launch_units(
-    tmp_path: Path,
-    enabled: bool,
-    expected: str,
-) -> None:
-    env: dict[str, str] = {}
-    with override_flags(typed_launch_units=enabled):
-        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
-
-    assert env[SASE_TYPED_LAUNCH_UNITS_ENV] == expected
 
 
 def test_prepare_lsp_environment_pins_retired_agent_holds_on(

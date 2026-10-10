@@ -32,7 +32,6 @@ from sase.core.agent_launch_wire import (
     agent_launch_wire_to_json_dict,
     launch_plan_from_dict,
 )
-from sase.feature_flags import override_flags
 from sase.notification_gates.paths import REQUEST_FILENAME
 from sase.ops.models import DurableOperationRequest
 from sase.ops.names import RUN_LAUNCH
@@ -91,7 +90,6 @@ def _run_launch_query(
     query: str,
     *,
     payload: dict[str, Any] | None = None,
-    typed_launch_units: bool = True,
     capture_typed: bool = True,
     expect_launch_agents: bool = False,
     selected_project: str | None = "sase",
@@ -114,7 +112,7 @@ def _run_launch_query(
         return _typed_dispatch_result(dict(data))
 
     launch_agents = MagicMock(return_value=[_agent_result()])
-    with override_flags(typed_launch_units=typed_launch_units), ExitStack() as stack:
+    with ExitStack() as stack:
         stack.enter_context(patch("sase.ops.cli.load_request", return_value=request))
         stack.enter_context(
             patch(
@@ -300,22 +298,6 @@ def test_mixed_agent_proc_wait_graph(
     assert plan.units[1].waits[0].kind == "logical"
 
 
-def test_feature_off_rejects_active_proc(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    captured = _run_launch_query(
-        monkeypatch,
-        tmp_path,
-        '%proc("echo hello")',
-        typed_launch_units=False,
-        capture_typed=False,
-    )
-    assert captured["exit"].code == 1
-    captured["launch_agents"].assert_not_called()
-    assert captured["emit"].call_args.kwargs["success"] is False
-    assert "typed_launch_units" in captured["emit"].call_args.kwargs["message"]
-
-
 def test_invalid_typed_syntax_fails_before_agent_launch(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -329,7 +311,7 @@ def test_invalid_typed_syntax_fails_before_agent_launch(
     assert captured["emit"].call_args.kwargs["success"] is False
 
 
-def test_literal_and_disabled_proc_keep_legacy_path(
+def test_literal_proc_mentions_keep_legacy_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     fenced = '```text\n%proc("echo hello")\n```\nDo work'
@@ -354,7 +336,7 @@ def test_literal_and_disabled_proc_keep_legacy_path(
     assert captured["typed_calls"] == []
 
 
-def test_feature_on_plain_prompt_keeps_legacy_and_launch_units(
+def test_plain_prompt_keeps_legacy_and_launch_units(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     captured = _run_launch_query(
@@ -378,7 +360,7 @@ def test_feature_on_plain_prompt_keeps_legacy_and_launch_units(
     assert kwargs["launch_units"][0].prompt == "one"
 
 
-def test_feature_on_force_reuse_without_typed_directive(
+def test_force_reuse_without_typed_directive(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from types import SimpleNamespace
@@ -588,9 +570,8 @@ def test_legacy_agent_path_rejects_enabled_proc_before_llm(
     monkeypatch.setattr("sase.agent.launcher.spawn_agent_subprocess", spawn)
     from sase.agent.launcher import launch_agents_from_cwd
 
-    with override_flags(typed_launch_units=True):
-        with pytest.raises(TypedAdmissionRequiredError, match="typed admission"):
-            launch_agents_from_cwd('%proc("echo hello")')
+    with pytest.raises(TypedAdmissionRequiredError, match="typed admission"):
+        launch_agents_from_cwd('%proc("echo hello")')
     spawn.assert_not_called()
 
 
@@ -611,29 +592,28 @@ def test_isolated_direct_bash_proc_settles_without_agent(
     )
     emit = MagicMock()
     request = DurableOperationRequest(operation=RUN_LAUNCH, payload={"prompt": prompt})
-    with override_flags(typed_launch_units=True):
-        with (
-            patch("sase.ops.cli.load_request", return_value=request),
-            patch(
-                "sase.agent.prompt_inputs.missing_required_input_names",
-                return_value=[],
-            ),
-            patch(
-                "sase.macro.unresolved.scan_query_for_unresolved_references",
-                return_value=[],
-            ),
-            patch("sase.ops.commands.run.emit_run_launch_result", emit),
-            patch(
-                "sase.notification_gates.service.create_gate",
-                side_effect=AssertionError("LaunchApproval must not be created"),
-            ),
-            patch(
-                "sase.agent.launcher.spawn_agent_subprocess",
-                side_effect=AssertionError("LLM must not be invoked"),
-            ),
-        ):
-            with pytest.raises(SystemExit) as exc_info:
-                launch_query(prompt)
+    with (
+        patch("sase.ops.cli.load_request", return_value=request),
+        patch(
+            "sase.agent.prompt_inputs.missing_required_input_names",
+            return_value=[],
+        ),
+        patch(
+            "sase.macro.unresolved.scan_query_for_unresolved_references",
+            return_value=[],
+        ),
+        patch("sase.ops.commands.run.emit_run_launch_result", emit),
+        patch(
+            "sase.notification_gates.service.create_gate",
+            side_effect=AssertionError("LaunchApproval must not be created"),
+        ),
+        patch(
+            "sase.agent.launcher.spawn_agent_subprocess",
+            side_effect=AssertionError("LLM must not be invoked"),
+        ),
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            launch_query(prompt)
     assert exc_info.value.code == 0
     payload = emit.call_args.kwargs["payload"]
     assert payload["count"] == 0

@@ -21,11 +21,7 @@ def collect_code_directive(
     name: str,
 ) -> None:
     """Collect one `%if` / `%proc` directive into the shared state."""
-    from sase.macro.code_value import (
-        TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
-        make_code_value,
-        typed_launch_units_enabled,
-    )
+    from sase.macro.code_value import make_code_value
 
     has_open_paren = match.group(2) is not None
     colon_arg = match.group(3)
@@ -33,8 +29,6 @@ def collect_code_directive(
     is_bare = not has_open_paren and colon_arg is None and plus_suffix is None
     if is_bare and not prompt.startswith("::", match.end()):
         return
-    if not typed_launch_units_enabled():
-        raise DirectiveError(TYPED_LAUNCH_UNITS_DISABLED_MESSAGE)
     if name == "if":
         raise DirectiveError(
             "%if requires %if:: followed by exactly one closed bash or python fence."

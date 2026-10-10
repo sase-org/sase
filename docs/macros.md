@@ -1045,9 +1045,7 @@ off, unknown names still fall back to `line`.
 
 A `code` input is not a plain string with a convention. Binding yields a structured
 `CodeValue` (source, language, digest, preview). Unlabelled values default to Bash;
-sase's TUI and the macro LSP treat the field as code rather than a scalar. Completing
-the type as an input is gated with the `typed_launch_units` beta flag, same as `%if::`
-and `%proc`.
+sase's TUI and the macro LSP treat the field as code rather than a scalar.
 
 An `effort` input accepts exactly one of the seven `%effort` levels (`none`, `minimal`,
 `low`, `medium`, `high`, `xhigh`, `max`); anything else is rejected the same way a
@@ -2041,9 +2039,8 @@ model prompt; the raw prompt keeps it.
 sase's TUI and the macro LSP use the same Rust directive contract for names, aliases,
 argument syntax, keyword names, fixed values, full-form snippet recipes, and replacement
 ranges. Name completion advertises every enabled user-facing directive, including
-`%final` and the static `%if(should_run=...)` form. `%proc` and `%if::` code-form
-recipes appear only when the `typed_launch_units` beta flag is enabled. Retired `%name`
-/ `%n` and `%tribe` / `%t` forms are not completed.
+`%final`, the static `%if(should_run=...)` form, and the `%proc` and `%if::` code forms
+with their recipes. Retired `%name` / `%n` and `%tribe` / `%t` forms are not completed.
 
 | Directive         | Completed forms                                                                              | Completed argument rows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ----------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2056,8 +2053,8 @@ recipes appear only when the `typed_launch_units` beta flag is enabled. Retired 
 | `%queue` / `%q`   | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes positional capacity values, suggesting `1`, `100`, and `1.5x` (a multiplier of the effective `max_running_agents` budget). Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1` and `1.5x`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
 | `%hold`           | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows.                                                                                                                                                                                                                                  |
 | `%dispatch`       | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `%if`             | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes      | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                                                          |
-| `%proc`           | `%proc(...)`, `%proc::`; Bash/Python recipes                                                 | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                                                          |
+| `%if`             | `%if(should_run=...)`, `%if::` Bash and Python fence recipes                                 | `should_run=` with `true` and `false` is always available, as are the code-form recipes.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `%proc`           | `%proc(...)`, `%proc::`; Bash/Python recipes                                                 | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=` are always available.                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `%hide` / `%h`    | Bare flag and plus form                                                                      | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `%auto` / `%a`    | Bare, plus, and `%auto:...`                                                                  | `plan`, `tale`, `epic`, `manual`, `off`; any other value fails at launch and parenthesized forms are rejected.                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `%repeat` / `%r`  | `%repeat:...`                                                                                | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -2147,18 +2144,16 @@ still launches with the rest of its text.
 raise an error instead of dropping the segment silently. `%if:value` and `%if+` are not
 static forms and raise an error; use `%if(should_run=...)` for static omission.
 
-### Experimental typed launch units
+### Typed launch units
 
-`typed_launch_units` is a beta feature flag and defaults off. With the flag off, a
-script `%if::` or `%proc` form is rejected with an instruction to run
-`sase flag enable typed_launch_units`; the directive is not forwarded to the model.
-Static `%if(should_run=true|false)` works in both flag states and is resolved before
-typed launch planning. Directive names used as prose are left alone:
+Script `%if::` and `%proc` forms are always available; the directives are never
+forwarded to the model. Static `%if(should_run=true|false)` works the same way and is
+resolved before typed launch planning. Directive names used as prose are left alone:
 `stop un-admitted %if/%proc units` and line-leading text such as `%if is plain text` are
-literal in either flag state. A token becomes directive-like only when the name is
-followed by `(`, `:`, or `+`; the bare code form must be immediately followed by `::`.
-Enabling the flag exposes the code-form completion rows and full Bash/Python snippet
-recipes, and lets the directive parser capture these forms:
+literal. A token becomes directive-like only when the name is followed by `(`, `:`, or
+`+`; the bare code form must be immediately followed by `::`. Completion offers the
+code-form rows and full Bash/Python snippet recipes, and the directive parser captures
+these forms:
 
 ````text
 %if::
@@ -2915,8 +2910,8 @@ consumes no capacity; the phase agents it launches claim their own. A zero weigh
 also be authored with `%q(w=0)`: a user-authored zero is inherited by successors as
 explicit, while the monitor's host-set zero never leaks to them. A `%proc` unit with
 queue fields is checked against this budget but never holds a claim (see
-[Experimental typed launch units](#experimental-typed-launch-units)). Workflow
-Python/bash steps and axe Patch runners are outside this budget.
+[Typed launch units](#typed-launch-units)). Workflow Python/bash steps and axe Patch
+runners are outside this budget.
 
 Roll out this change by replacing long-lived sase's TUI/AXE and runner processes, or by
 letting old work drain before launching weighted workloads. Records written before
@@ -3567,7 +3562,7 @@ This prevents accidental expansion of `#name` patterns in code examples, documen
 and similar content. The flag-gated `%if::` and `%proc::` forms are the exception: the
 immediately following `bash` or `python` fence belongs to that directive, so its content
 is captured as opaque structured code and the directive plus fence are stripped from the
-model prompt. See [Experimental typed launch units](#experimental-typed-launch-units).
+model prompt. See [Typed launch units](#typed-launch-units).
 
 ### Disabled Regions
 
