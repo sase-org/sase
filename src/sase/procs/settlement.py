@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -16,15 +18,18 @@ from .models import (
     TERMINAL_PROC_STATUSES,
     Proc,
     ProcFinish,
+    ProcObservedSettlementOutcome,
     ProcSettlement,
     ProcSupervisorClaim,
 )
 from .runtime import (
     proc_request_sidecar_path,
+    proc_runtime_dir,
     proc_settlement_sidecar_path,
     read_json_object,
     write_json_atomic,
 )
+from .spawn import SUPERVISOR_LOG_NAME
 from .store import begin_proc_settlement, claim_proc_supervisor, finish_proc, get_proc
 
 _SETTLEMENT_SCHEMA_VERSION = 1
@@ -59,6 +64,36 @@ def settle_named_proc(
     result: dict[str, Any] | None = None,
 ) -> Proc:
     """Run remaining settlement checkpoints, then publish the terminal row."""
+    with _settlement_lock(proc_id):
+        return _settle_named_proc_locked(
+            proc_id,
+            supervisor_id=supervisor_id,
+            status=status,
+            message=message,
+            termination_reason=termination_reason,
+            exit_code=exit_code,
+            result=result,
+        )
+
+
+def observed_command_has_exited(proc: Proc) -> bool:
+    """Return whether durable evidence shows the command has already exited."""
+    outcome = ProcObservedSettlementOutcome.from_dict(proc.settlement_outcome)
+    if outcome is not None and outcome.is_known_command_result():
+        return True
+    return _sidecar_has_known_outcome(proc.proc_id, supervisor_id=proc.supervisor_id)
+
+
+def _settle_named_proc_locked(
+    proc_id: str,
+    *,
+    supervisor_id: str,
+    status: str,
+    message: str,
+    termination_reason: str,
+    exit_code: int | None,
+    result: dict[str, Any] | None,
+) -> Proc:
     current = get_proc(proc_id)
     if current is None:
         raise RuntimeError(f"proc {proc_id} disappeared during settlement")
@@ -66,68 +101,85 @@ def settle_named_proc(
         _release_proc_holds(current)
         return current
     current = _ensure_claimed(current, supervisor_id=supervisor_id)
-    if current.status != "settling":
-        begin_proc_settlement(
-            ProcSettlement(
-                proc_id=proc_id,
-                supervisor_id=supervisor_id,
-                settling_at=_utc_timestamp(),
-                exit_code=exit_code,
-                message=message,
-            )
+    owner = current.supervisor_id or supervisor_id
+    proposed = ProcObservedSettlementOutcome(
+        status=status,
+        termination_reason=termination_reason,
+        command_ended_at=_utc_timestamp(),
+        exit_code=exit_code,
+        message=message,
+    )
+    sidecar = read_json_object(proc_settlement_sidecar_path(proc_id))
+    begun = begin_proc_settlement(
+        ProcSettlement(
+            proc_id=proc_id,
+            supervisor_id=owner,
+            settling_at=current.settling_started_at or proposed.command_ended_at,
+            exit_code=exit_code,
+            message=message,
+            outcome=proposed,
+            sidecar=sidecar or None,
         )
-        current = get_proc(proc_id) or current
+    ).proc
+    current = begun or get_proc(proc_id) or current
+    maybe_crash("settlement_begun")
+    frozen = ProcObservedSettlementOutcome.from_dict(current.settlement_outcome)
+    if frozen is not None:
+        status = frozen.status
+        termination_reason = frozen.termination_reason
+        exit_code = frozen.exit_code
+        if frozen.message:
+            message = frozen.message
+        command_ended_at = frozen.command_ended_at
+    else:
+        command_ended_at = proposed.command_ended_at
 
-    state = _load_settlement_state(current, supervisor_id=supervisor_id)
+    state = _load_settlement_state(current, supervisor_id=owner)
     state["exit_code"] = exit_code
     state["message"] = message
     state["status"] = status
     state["termination_reason"] = termination_reason
+    state["command_ended_at"] = command_ended_at
     if result is not None:
         state["result"] = result
     _save_settlement_state(proc_id, state)
-    maybe_crash("command_gone")
-    _mark(state, "command_gone")
 
-    _close_output_checkpoint(state)
-    maybe_crash("output_closed")
-    _mark(state, "output_closed")
+    try:
+        _run_checkpoint(state, "command_gone", lambda _state: None)
+        _run_checkpoint(state, "output_closed", _close_output_checkpoint)
+        _run_checkpoint(state, "claim_settled", _settle_workspace_claim)
+        from sase.legacy_xprompt_names import prompt_proc_origin_matches
 
-    _settle_workspace_claim(state)
-    maybe_crash("claim_settled")
-    _mark(state, "claim_settled")
-    from sase.legacy_xprompt_names import prompt_proc_origin_matches
+        if prompt_proc_origin_matches(current.origin):
+            from sase.agent.launch_proc_runtime import cleanup_prompt_proc_inputs
 
-    if prompt_proc_origin_matches(current.origin):
-        from sase.agent.launch_proc_runtime import cleanup_prompt_proc_inputs
+            cleanup_prompt_proc_inputs(proc_id)
 
-        cleanup_prompt_proc_inputs(proc_id)
+        _run_checkpoint(state, "artifacts_settled", _settle_artifacts)
+        _run_checkpoint(state, "followup_settled", _settle_followup)
 
-    _settle_artifacts(state)
-    maybe_crash("artifacts_settled")
-    _mark(state, "artifacts_settled")
+        status, message, termination_reason = _finalize_operation_result(
+            current,
+            state,
+            status=str(state.get("status") or status),
+            message=str(state.get("message") or message),
+            termination_reason=str(
+                state.get("termination_reason") or termination_reason
+            ),
+        )
+        state["status"] = status
+        state["message"] = message
+        state["termination_reason"] = termination_reason
+        _save_settlement_state(proc_id, state)
 
-    _settle_followup(state)
-    maybe_crash("followup_settled")
-    _mark(state, "followup_settled")
-
-    status, message, termination_reason = _finalize_operation_result(
-        current,
-        state,
-        status=status,
-        message=message,
-        termination_reason=termination_reason,
-    )
-    state["status"] = status
-    state["message"] = message
-    state["termination_reason"] = termination_reason
-    _save_settlement_state(proc_id, state)
-
-    envelope = _result_envelope(current, state)
-    if not state.get("operation"):
-        _write_result_envelope(current, state, envelope)
-    maybe_crash("result_written")
-    _mark(state, "result_written")
+        envelope = _result_envelope(current, state)
+        if not state.get("operation"):
+            _write_result_envelope(current, state, envelope)
+        maybe_crash("result_written")
+        _mark(state, "result_written")
+    except Exception as exc:
+        _record_settlement_error(state, step=_failed_step(state), exc=exc)
+        raise
 
     # Release proc holds before the terminal row is visible, so observers
     # never see success while the proc hold is still stored.
@@ -135,7 +187,7 @@ def settle_named_proc(
     finished = finish_proc(
         ProcFinish(
             proc_id=proc_id,
-            supervisor_id=supervisor_id,
+            supervisor_id=owner,
             status=status,
             finished_at=_utc_timestamp(),
             exit_code=exit_code,
@@ -162,6 +214,64 @@ def maybe_crash(checkpoint: str) -> None:
     """Exit immediately after *checkpoint* when crash injection is enabled."""
     if os.environ.get(_CRASH_AFTER_ENV) == checkpoint:
         os._exit(90)
+
+
+@contextmanager
+def _settlement_lock(proc_id: str) -> Iterator[None]:
+    lock_path = proc_runtime_dir(proc_id) / ".settlement.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _run_checkpoint(state: dict[str, Any], checkpoint: Checkpoint, fn: Any) -> None:
+    if _already(state, checkpoint):
+        return
+    fn(state)
+    maybe_crash(checkpoint)
+    _mark(state, checkpoint)
+
+
+def _record_settlement_error(
+    state: dict[str, Any], *, step: str, exc: BaseException
+) -> None:
+    proc_id = str(state.get("proc_id") or "")
+    error = f"{type(exc).__name__}: {exc}".strip() or type(exc).__name__
+    state["settlement_error"] = {
+        "step": step,
+        "error": error[:500],
+        "supervisor_log": str(proc_runtime_dir(proc_id) / SUPERVISOR_LOG_NAME),
+    }
+    if proc_id:
+        _save_settlement_state(proc_id, state)
+
+
+def _failed_step(state: dict[str, Any]) -> str:
+    checkpoints = state.get("checkpoints") or {}
+    for name in _CHECKPOINTS:
+        if not checkpoints.get(name):
+            return name
+    return "result_written"
+
+
+def _sidecar_has_known_outcome(proc_id: str, *, supervisor_id: str | None) -> bool:
+    state = read_json_object(proc_settlement_sidecar_path(proc_id))
+    if not state:
+        return False
+    if supervisor_id and state.get("supervisor_id") not in {None, supervisor_id}:
+        return False
+    reason = state.get("termination_reason")
+    status = state.get("status")
+    return (
+        isinstance(status, str)
+        and status in TERMINAL_PROC_STATUSES
+        and isinstance(reason, str)
+        and reason not in {"", "supervisor-loss", "reboot"}
+    )
 
 
 def is_named_proc_row(proc: Proc) -> bool:
@@ -265,6 +375,7 @@ def _result_envelope(proc: Proc, state: dict[str, Any]) -> dict[str, Any]:
             "schema_version": _SETTLEMENT_SCHEMA_VERSION,
             "status": state.get("status"),
             "termination_reason": state.get("termination_reason"),
+            "command_ended_at": state.get("command_ended_at"),
         }
     )
     return envelope
@@ -499,5 +610,6 @@ def _utc_timestamp() -> str:
 __all__ = [
     "is_named_proc_row",
     "maybe_crash",
+    "observed_command_has_exited",
     "settle_named_proc",
 ]

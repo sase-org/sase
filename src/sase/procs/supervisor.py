@@ -20,6 +20,7 @@ from .logs import proc_log_max_bytes
 from .models import (
     TERMINAL_PROC_STATUSES,
     Proc,
+    ProcObservedSettlementOutcome,
     ProcSupervisorClaim,
 )
 from .runtime import (
@@ -135,14 +136,25 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     supervisor_id = supervisor_identity_token(os.getpid())
     if proc.status == "settling":
         owner = proc.supervisor_id or supervisor_id
-        finished = settle_named_proc(
-            proc.proc_id,
-            supervisor_id=owner,
-            status="error",
-            message=proc.message or "supervisor resumed settlement",
-            termination_reason="supervisor-loss",
-            exit_code=proc.exit_code,
-        )
+        frozen = ProcObservedSettlementOutcome.from_dict(proc.settlement_outcome)
+        if frozen is not None and frozen.is_known_command_result():
+            finished = settle_named_proc(
+                proc.proc_id,
+                supervisor_id=owner,
+                status=frozen.status,
+                message=frozen.message or proc.message or "completed",
+                termination_reason=frozen.termination_reason,
+                exit_code=frozen.exit_code,
+            )
+        else:
+            finished = settle_named_proc(
+                proc.proc_id,
+                supervisor_id=owner,
+                status="error",
+                message=proc.message or "supervisor resumed settlement",
+                termination_reason="supervisor-loss",
+                exit_code=proc.exit_code,
+            )
         return 0 if finished.status == "success" else 1
 
     status = "error"

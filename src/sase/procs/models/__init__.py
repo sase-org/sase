@@ -20,6 +20,7 @@ from .common import (
 from .operations import (
     UNSET,
     ProcFinish,
+    ProcObservedSettlementOutcome,
     ProcReserve,
     ProcReserveOutcome,
     ProcSettlement,
@@ -56,6 +57,7 @@ __all__ = [
     "ProcFinish",
     "ProcLogRetentionEntry",
     "ProcLogRetentionResult",
+    "ProcObservedSettlementOutcome",
     "ProcPruneOutcome",
     "ProcPrunedStateRetention",
     "ProcReserve",

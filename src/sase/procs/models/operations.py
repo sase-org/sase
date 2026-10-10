@@ -155,19 +155,81 @@ class ProcStopRequest:
 
 
 @dataclass(frozen=True)
+class ProcObservedSettlementOutcome:
+    """Frozen command observation captured when settlement begins."""
+
+    status: str
+    termination_reason: str
+    command_ended_at: str
+    exit_code: int | None = None
+    message: str | None = None
+
+    @classmethod
+    def from_dict(
+        cls, data: Mapping[str, Any] | None
+    ) -> ProcObservedSettlementOutcome | None:
+        if not isinstance(data, Mapping):
+            return None
+        status = data.get("status")
+        reason = data.get("termination_reason")
+        ended = data.get("command_ended_at")
+        if not isinstance(status, str) or not status.strip():
+            return None
+        if not isinstance(reason, str) or not reason.strip():
+            return None
+        if not isinstance(ended, str) or not ended.strip():
+            return None
+        raw_exit = data.get("exit_code")
+        exit_code = None if raw_exit is None else int(raw_exit)
+        raw_message = data.get("message")
+        message = None if raw_message is None else str(raw_message)
+        return cls(
+            status=status.strip(),
+            termination_reason=reason.strip(),
+            command_ended_at=ended.strip(),
+            exit_code=exit_code,
+            message=message,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "termination_reason": self.termination_reason,
+            "command_ended_at": self.command_ended_at,
+            "exit_code": self.exit_code,
+            "message": self.message,
+        }
+
+    def is_known_command_result(self) -> bool:
+        return self.termination_reason not in {"supervisor-loss", "reboot"}
+
+
+@dataclass(frozen=True)
 class ProcSettlement:
     proc_id: str
     supervisor_id: str
     settling_at: str
     exit_code: int | None = None
     message: str | None = None
+    outcome: ProcObservedSettlementOutcome | None = None
+    sidecar: dict[str, Any] | None = None
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcSettlement:
-        return cls(**known_field_kwargs(cls, data))
+        values = known_field_kwargs(cls, data)
+        values["outcome"] = ProcObservedSettlementOutcome.from_dict(
+            data.get("outcome") if isinstance(data.get("outcome"), Mapping) else None
+        )
+        sidecar = data.get("sidecar")
+        values["sidecar"] = dict(sidecar) if isinstance(sidecar, Mapping) else None
+        return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:
-        return {name: getattr(self, name) for name in self.__dataclass_fields__}
+        payload = {name: getattr(self, name) for name in self.__dataclass_fields__}
+        payload["outcome"] = (
+            self.outcome.to_dict() if self.outcome is not None else None
+        )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -235,6 +297,7 @@ class ProcUpdate:
     settled_by: UpdateValue = UNSET
     settled_at: UpdateValue = UNSET
     finished_by: UpdateValue = UNSET
+    settlement_outcome: UpdateValue = UNSET
     result: UpdateValue = UNSET
     prompt_proc: UpdateValue = UNSET
 
@@ -290,6 +353,7 @@ class ProcUpdateOutcome:
 __all__ = [
     "UNSET",
     "ProcFinish",
+    "ProcObservedSettlementOutcome",
     "ProcReserve",
     "ProcReserveOutcome",
     "ProcSettlement",

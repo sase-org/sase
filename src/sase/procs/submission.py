@@ -42,7 +42,11 @@ from .runtime import (
     proc_request_sidecar_path,
     write_json_atomic,
 )
-from .settlement import is_named_proc_row, settle_named_proc
+from .settlement import (
+    is_named_proc_row,
+    observed_command_has_exited,
+    settle_named_proc,
+)
 from .spawn import (
     DetachedSupervisor,
     SupervisorSpawnError,
@@ -231,7 +235,11 @@ def _reconcile_named_proc(proc: Proc) -> Proc:
     if current.status in TERMINAL_PROC_STATUSES:
         return current
     reboot = supervisor_from_previous_boot(current.supervisor_id)
-    if not reboot and current.pgid is not None:
+    if (
+        not reboot
+        and current.pgid is not None
+        and not observed_command_has_exited(current)
+    ):
         _signal_leftover_group(current.pgid)
     if reboot:
         reason = "reboot"

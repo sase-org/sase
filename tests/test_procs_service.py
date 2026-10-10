@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import signal
 import stat
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -23,19 +25,22 @@ from sase.procs import (
     read_proc_log_tail,
     read_procs,
     reconcile_running_procs,
+    request_proc_stop,
     submit_detached_proc,
     submit_proc,
     submit_proc_request,
     wait_for_proc,
 )
-from sase.procs.models import Proc
+from sase.procs.models import Proc, ProcObservedSettlementOutcome, ProcStopRequest
 from sase.procs.runtime import (
     proc_settlement_sidecar_path,
     proc_started_path,
     read_json_object,
 )
+from sase.procs.spawn import spawn_detached_supervisor
 
 _SETTLEMENT_CRASH_CHECKPOINTS = (
+    "settlement_begun",
     "command_gone",
     "output_closed",
     "claim_settled",
@@ -309,8 +314,7 @@ def test_settlement_resumes_after_an_injected_crash(
     }
     if finished.status not in {"success", "error"}:
         finished = wait_for_proc(proc.proc_id, timeout=10)
-    assert finished.status in {"success", "error"}
-    assert finished.settled_at is not None
+    _assert_successful_command_result(finished)
     assert all(_settlement_checkpoints(proc.proc_id).values())
     assert "partial" in read_proc_log_tail(proc.proc_id, 20, log_path=finished.log_path)
 
@@ -344,8 +348,7 @@ def test_wait_for_proc_recovers_after_an_early_settlement_reconcile(
     finished = wait_for_proc(proc.proc_id, timeout=5)
 
     assert probes >= 2
-    assert finished.status in {"success", "error"}
-    assert finished.settled_at is not None
+    _assert_successful_command_result(finished)
     assert all(_settlement_checkpoints(proc.proc_id).values())
     assert "partial" in read_proc_log_tail(proc.proc_id, 20, log_path=finished.log_path)
 
@@ -375,8 +378,7 @@ def test_settlement_recovers_every_injected_crash_checkpoint_repeatedly(
             if finished.status not in {"success", "error", "killed"}:
                 finished = wait_for_proc(proc.proc_id, timeout=5)
 
-            assert finished.status in {"success", "error"}
-            assert finished.settled_at is not None
+            _assert_successful_command_result(finished)
             assert all(_settlement_checkpoints(proc.proc_id).values())
             assert marker in read_proc_log_tail(
                 proc.proc_id,
@@ -498,3 +500,235 @@ def _wait_for_process_exit(pid: int) -> None:
             return
         time.sleep(min(0.025, max(0.0, deadline - time.monotonic())))
     pytest.fail(f"process {pid} did not exit")
+
+
+def _assert_successful_command_result(proc: Proc) -> None:
+    assert proc.status == "success"
+    assert proc.exit_code == 0
+    assert proc.settled_at is not None
+    assert (proc.result or {}).get("termination_reason") == "success"
+    outcome = ProcObservedSettlementOutcome.from_dict(proc.settlement_outcome)
+    assert outcome is not None
+    assert outcome.status == "success"
+    assert outcome.termination_reason == "success"
+    assert outcome.exit_code == 0
+
+
+def test_supervisor_resume_keeps_frozen_success_after_settlement_crash(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", "output_closed")
+    proc = submit_proc(
+        [sys.executable, "-c", "print('resume', flush=True)"],
+        label="Resume settling",
+        cwd=tmp_path,
+        origin="test",
+    )
+    _wait_for_settlement_supervisor_exit(proc.proc_id)
+    monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+
+    spawn_detached_supervisor(proc.proc_id)
+    finished = wait_for_proc(proc.proc_id, timeout=15)
+
+    _assert_successful_command_result(finished)
+    assert "resume" in read_proc_log_tail(proc.proc_id, 20, log_path=finished.log_path)
+
+
+def test_two_recovery_observers_publish_one_successful_result(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", "output_closed")
+    proc = submit_proc(
+        [sys.executable, "-c", "print('once', flush=True)"],
+        label="Two observers",
+        cwd=tmp_path,
+        origin="test",
+    )
+    settling = _wait_for_settlement_supervisor_exit(proc.proc_id)
+    monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+    signaled: list[int] = []
+    monkeypatch.setattr(
+        "sase.procs.submission._signal_leftover_group",
+        lambda pgid: signaled.append(pgid),
+    )
+
+    def recover() -> None:
+        reconcile_running_procs()
+
+    workers = [threading.Thread(target=recover) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+
+    finished = get_proc(proc.proc_id)
+    assert finished is not None
+    if finished.status not in {"success", "error", "killed"}:
+        finished = wait_for_proc(proc.proc_id, timeout=10)
+    _assert_successful_command_result(finished)
+    assert signaled == []
+    if settling.pgid is not None:
+        assert settling.pgid not in signaled
+
+
+def test_known_outcome_survives_reboot_fallback(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", "output_closed")
+    proc = submit_proc(
+        [sys.executable, "-c", "print('frozen', flush=True)"],
+        label="Reboot preserve",
+        cwd=tmp_path,
+        origin="test",
+    )
+    _wait_for_settlement_supervisor_exit(proc.proc_id)
+    monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+    monkeypatch.setattr(
+        "sase.procs.submission.supervisor_from_previous_boot",
+        lambda _supervisor_id: True,
+    )
+
+    reconcile_running_procs()
+    finished = get_proc(proc.proc_id)
+    assert finished is not None
+    if finished.status not in {"success", "error", "killed"}:
+        finished = wait_for_proc(proc.proc_id, timeout=10)
+    _assert_successful_command_result(finished)
+    assert "reboot" not in (finished.message or "").lower()
+
+
+def test_nonzero_timeout_and_stop_survive_settlement_crash(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+
+    monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", "output_closed")
+    failed = submit_proc(
+        [sys.executable, "-c", "raise SystemExit(3)"],
+        label="Nonzero crash",
+        cwd=tmp_path,
+        origin="test",
+    )
+    _wait_for_settlement_supervisor_exit(failed.proc_id)
+    monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+    reconcile_running_procs()
+    failed_done = get_proc(failed.proc_id)
+    assert failed_done is not None
+    if failed_done.status not in {"success", "error", "killed"}:
+        failed_done = wait_for_proc(failed.proc_id, timeout=10)
+    assert failed_done.status == "error"
+    assert failed_done.exit_code == 3
+    assert (failed_done.result or {}).get("termination_reason") == "error"
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "timeout-home"))
+    monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", "output_closed")
+    timed = submit_proc(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        label="Timeout crash",
+        cwd=tmp_path,
+        origin="test",
+        timeout_seconds=1,
+    )
+    _wait_for_settlement_supervisor_exit(timed.proc_id)
+    monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+    reconcile_running_procs()
+    timed_done = get_proc(timed.proc_id)
+    assert timed_done is not None
+    if timed_done.status not in {"success", "error", "killed"}:
+        timed_done = wait_for_proc(timed.proc_id, timeout=10)
+    assert timed_done.status == "error"
+    assert (timed_done.result or {}).get("termination_reason") == "total-timeout"
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "stop-home"))
+    monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", "output_closed")
+    stopped = submit_detached_proc(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        label="Stop crash",
+        cwd=tmp_path,
+        origin="test",
+    )
+    running = _wait_for_running(stopped.proc_id)
+    request_proc_stop(
+        ProcStopRequest(
+            proc_id=stopped.proc_id,
+            requested_by="test",
+            requested_at=running.created_at,
+            reason="stop",
+        )
+    )
+    assert running.pid is not None
+    os.kill(running.pid, signal.SIGTERM)
+    _wait_for_settlement_supervisor_exit(stopped.proc_id)
+    monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+    reconcile_running_procs()
+    stopped_done = get_proc(stopped.proc_id)
+    assert stopped_done is not None
+    if stopped_done.status not in {"success", "error", "killed"}:
+        stopped_done = wait_for_proc(stopped.proc_id, timeout=10)
+    assert stopped_done.status == "killed"
+    assert (stopped_done.result or {}).get("termination_reason") == "stop"
+
+
+def test_unobserved_same_boot_loss_does_not_claim_reboot(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    proc = submit_proc(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        label="Unknown same boot",
+        cwd=tmp_path,
+        origin="test",
+    )
+    running = _wait_for_running(proc.proc_id)
+    assert running.pid is not None
+    os.kill(running.pid, signal.SIGKILL)
+    _wait_for_process_exit(running.pid)
+
+    reconcile_running_procs()
+    finished = get_proc(proc.proc_id)
+    assert finished is not None
+    if finished.status not in {"success", "error", "killed"}:
+        finished = wait_for_proc(proc.proc_id, timeout=10)
+    assert finished.status == "error"
+    assert (finished.result or {}).get("termination_reason") == "supervisor-loss"
+    assert "reboot" not in (finished.message or "").lower()
+
+
+def test_unobserved_pre_reboot_command_stays_unknown(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    proc = submit_proc(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        label="Unknown reboot",
+        cwd=tmp_path,
+        origin="test",
+    )
+    running = _wait_for_running(proc.proc_id)
+    assert running.pid is not None
+    os.kill(running.pid, signal.SIGKILL)
+    _wait_for_process_exit(running.pid)
+    monkeypatch.setattr(
+        "sase.procs.submission.supervisor_from_previous_boot",
+        lambda _supervisor_id: True,
+    )
+
+    try:
+        reconcile_running_procs()
+        finished = get_proc(proc.proc_id)
+        assert finished is not None
+        if finished.status not in {"success", "error", "killed"}:
+            finished = wait_for_proc(proc.proc_id, timeout=10)
+        assert finished.status == "error"
+        assert (finished.result or {}).get("termination_reason") == "reboot"
+        assert "unknown" in (finished.message or "").lower()
+    finally:
+        leftover = get_proc(proc.proc_id)
+        if leftover is not None and leftover.pgid is not None:
+            try:
+                os.killpg(leftover.pgid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass

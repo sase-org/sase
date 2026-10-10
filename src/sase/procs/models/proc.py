@@ -63,6 +63,7 @@ class Proc:
     settled_by: str | None = None
     settled_at: str | None = None
     finished_by: str | None = None
+    settlement_outcome: dict[str, Any] | None = None
     result: Any | None = None
     prompt_proc: dict[str, Any] | None = None
     service: ProcServiceBlock | None = None
@@ -143,6 +144,15 @@ class Proc:
             "idle_timeout_seconds",
         ):
             values[name] = None if data.get(name) is None else int(data[name])
+        raw_outcome = data.get("settlement_outcome")
+        from .operations import ProcObservedSettlementOutcome
+
+        parsed_outcome = ProcObservedSettlementOutcome.from_dict(
+            raw_outcome if isinstance(raw_outcome, Mapping) else None
+        )
+        values["settlement_outcome"] = (
+            parsed_outcome.to_dict() if parsed_outcome is not None else None
+        )
         values["result"] = data.get("result")
         from sase.legacy_xprompt_names import (
             prompt_proc_origin_matches,
@@ -257,6 +267,7 @@ class Proc:
                 "settled_by",
                 "settled_at",
                 "finished_by",
+                "settlement_outcome",
                 "result",
                 "service",
             )

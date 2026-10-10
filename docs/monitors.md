@@ -545,10 +545,14 @@ a monitor is stopped but not yet settled.
 A failing `just check` shows up as a Failed member with its exit code visible, and the
 follow-up agent still launches so it can fix what broke. A timed-out command is killed
 (its whole process group, not just the shell), and the follow-up is told plainly which
-budget fired: total runtime or no-output idle time. A `lost` monitor means the
-supervisor belongs to a previous boot, so SASE cannot know whether the command finished
-or what it changed. Lost monitors are not automatically re-run, and their recorded
-follow-up action is not launched.
+budget fired: total runtime or no-output idle time. A `lost` monitor means the command
+outcome is unknown: the supervisor died or belongs to a previous boot without a frozen
+command result. Lost monitors are not automatically re-run, and their recorded follow-up
+action is not launched. A known command result that survived a later bookkeeping crash
+is not lost: settlement resumes the frozen status, exit code, reason, and command-end
+time, finishes remaining artifacts and follow-up work, and does not rerun the command.
+`sase monitor resume` still rejects `lost`; this repair does not scan or rewrite
+historical monitors that were already terminalized as lost.
 
 ## The follow-up agent
 
@@ -725,11 +729,20 @@ carries `code` and `suggested_command` fields.
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
 sase's TUI Agents tab refresh path, and the axe scheduler look for running monitor turns
-whose supervisor identity is no longer alive. Same-boot dead supervisors are reconciled
-to `failed`: SASE kills the recorded process group, finalizes the log, disposes the
-workspace claim, and launches or records the follow-up disposition. Pre-reboot
-supervisors reconcile to `lost`; their command effects are unknown, so the follow-up is
-recorded as not launched.
+whose supervisor identity is no longer alive. Shared outcome freeze lives in the Rust
+proc store: `begin_proc_settlement` persists the observed status, reason, exit code, and
+command-end time under the same lock that moves the proc into `settling`. Python keeps
+process control and settlement side effects and must consume that frozen observation.
+Same-boot dead supervisors whose command was never observed are reconciled to `failed`
+on the legacy artifact path, or `lost` on the proc-backed path: SASE kills a leftover
+process group only when no frozen or sidecar evidence shows the command has already
+exited, finalizes the log, disposes the workspace claim, and launches or records the
+follow-up disposition. A same-boot supervisor that already froze a command result
+resumes that result and applies the original continuation policy once. Pre-reboot
+supervisors without a frozen observation reconcile to `lost`; their command effects are
+unknown, so the follow-up is recorded as not launched. A frozen observation survives
+reboot without changing its facts. The follow-up error for an unknown outcome does not
+claim a reboot unless the persisted termination reason is `reboot`.
 
 ## In sase's TUI
 

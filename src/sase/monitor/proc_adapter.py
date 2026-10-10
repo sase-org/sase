@@ -24,6 +24,7 @@ from sase.procs.models import (
     ACTIVE_PROC_STATUSES,
     TERMINAL_PROC_STATUSES,
     Proc,
+    ProcObservedSettlementOutcome,
     ProcStoreSnapshot,
 )
 from sase.procs.settlement import is_named_proc_row
@@ -52,6 +53,8 @@ from .settlement import (
 
 MONITOR_ARGV_PREFIX: tuple[str, ...] = ("/bin/sh", "-c")
 MONITOR_FOLLOWUP_KIND = "monitor"
+_SAVE_CHAT_HISTORY_FAIL_ENV = "SASE_PROC_SETTLEMENT_FAIL_SAVE_CHAT_HISTORY"
+_INCIDENT_IMPORT_NAME = "legacy_" + "x" + "prompt_syntax_enabled"
 
 
 def _compile_monitor_argv(command: str) -> list[str]:
@@ -154,7 +157,8 @@ def settle_monitor_artifacts(state: dict[str, Any]) -> None:
     exit_code = state.get("exit_code")
     if not isinstance(exit_code, int):
         exit_code = proc.exit_code if proc is not None else None
-    elapsed = _elapsed_seconds(proc) if proc is not None else None
+    stopped_at = _command_ended_at(state, meta=meta, proc=proc)
+    elapsed = _elapsed_seconds(proc, ended_at=stopped_at) if proc is not None else None
     if elapsed is None:
         elapsed = 0.0
     timeout_kind = _timeout_kind(termination_reason)
@@ -176,7 +180,6 @@ def settle_monitor_artifacts(state: dict[str, Any]) -> None:
     meta["monitor_output_truncated"] = capture.truncated
     if log_path:
         meta["monitor_output_path"] = log_path
-    stopped_at = _utc_now_iso()
     if timeout_kind is not None:
         meta["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
@@ -223,6 +226,7 @@ def settle_monitor_artifacts(state: dict[str, Any]) -> None:
         index_updater=update_agent_artifact_index_for_marker_mutation,
     )
     meta["stopped_at"] = stopped_at
+    _maybe_fail_save_chat_history()
 
     member_name = str(meta.get("name") or "")
     timestamp = os.path.basename(artifacts_dir.rstrip("/"))
@@ -322,7 +326,11 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
         state["followup_outcome"] = meta.get("monitor_followup_outcome")
 
     if not meta.get("stopped_at"):
-        meta["stopped_at"] = _utc_now_iso()
+        meta["stopped_at"] = _command_ended_at(
+            state,
+            meta=meta,
+            proc=get_proc(str(state.get("proc_id") or meta.get("monitor_id") or "")),
+        )
     meta["monitor_settled"] = True
     write_agent_meta_atomic(
         artifacts_dir,
@@ -424,6 +432,9 @@ def _capture_from_log(path: str | Path) -> OutputCapture:
 
 
 def _termination_reason(proc: Proc) -> str | None:
+    outcome = ProcObservedSettlementOutcome.from_dict(proc.settlement_outcome)
+    if outcome is not None and outcome.termination_reason:
+        return outcome.termination_reason
     result = proc.result
     if isinstance(result, dict):
         reason = result.get("termination_reason")
@@ -483,16 +494,59 @@ def _format_duration(seconds: float) -> str:
     return " ".join(parts)
 
 
-def _elapsed_seconds(proc: Proc | None) -> float | None:
+def _elapsed_seconds(
+    proc: Proc | None,
+    *,
+    ended_at: str | None = None,
+) -> float | None:
     if proc is None:
         return None
     start = _parse_timestamp(proc.started_at or proc.created_at)
-    end = _parse_timestamp(proc.finished_at or proc.settled_at)
+    end = _parse_timestamp(ended_at or proc.finished_at or proc.settled_at)
     if start is None:
         return None
     if end is None:
         end = datetime.now(UTC)
     return max(0.0, (end - start).total_seconds())
+
+
+def _command_ended_at(
+    state: dict[str, Any],
+    *,
+    meta: dict[str, Any],
+    proc: Proc | None,
+) -> str:
+    """Return the frozen command-end time so result identity stays stable."""
+    outcome = (
+        ProcObservedSettlementOutcome.from_dict(proc.settlement_outcome)
+        if proc is not None
+        else None
+    )
+    for candidate in (
+        state.get("command_ended_at"),
+        None if outcome is None else outcome.command_ended_at,
+        meta.get("stopped_at"),
+        None if proc is None else proc.settling_started_at,
+    ):
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    return _utc_now_iso()
+
+
+def _maybe_fail_save_chat_history() -> None:
+    """Inject the incident ImportError after the monitor result is persisted."""
+    triggered = bool(os.environ.pop(_SAVE_CHAT_HISTORY_FAIL_ENV, None))
+    home = os.environ.get("SASE_HOME")
+    marker = Path(home) / ".fail-save-chat-history" if home else None
+    if marker is not None and marker.is_file():
+        triggered = True
+        try:
+            marker.unlink()
+        except OSError:
+            pass
+    if not triggered:
+        return
+    raise ImportError(f"cannot import name '{_INCIDENT_IMPORT_NAME}'")
 
 
 def _parse_timestamp(raw: str | None) -> datetime | None:

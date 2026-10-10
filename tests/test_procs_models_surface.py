@@ -25,6 +25,7 @@ def test_models_all_matches_legacy_surface() -> None:
         "ProcFinish",
         "ProcLogRetentionEntry",
         "ProcLogRetentionResult",
+        "ProcObservedSettlementOutcome",
         "ProcPruneOutcome",
         "ProcPrunedStateRetention",
         "ProcReserve",
@@ -48,3 +49,63 @@ def test_models_names_resolve_to_single_definitions() -> None:
     assert models.UNSET is operations_unset
     for name in models.__all__:
         assert getattr(models, name) is not None
+
+
+def test_observed_settlement_outcome_round_trip_and_known_result() -> None:
+    from sase.procs.models import ProcObservedSettlementOutcome, ProcSettlement
+
+    success = ProcObservedSettlementOutcome.from_dict(
+        {
+            "status": "success",
+            "termination_reason": "success",
+            "command_ended_at": "2026-10-10T12:12:19Z",
+            "exit_code": 0,
+            "message": "completed successfully",
+        }
+    )
+    assert success is not None
+    assert success.is_known_command_result()
+    assert success.to_dict()["command_ended_at"] == "2026-10-10T12:12:19Z"
+
+    loss = ProcObservedSettlementOutcome.from_dict(
+        {
+            "status": "error",
+            "termination_reason": "supervisor-loss",
+            "command_ended_at": "2026-10-10T12:12:30Z",
+            "exit_code": 0,
+        }
+    )
+    assert loss is not None
+    assert not loss.is_known_command_result()
+    reboot = ProcObservedSettlementOutcome.from_dict(
+        {
+            "status": "error",
+            "termination_reason": "reboot",
+            "command_ended_at": "2026-10-10T12:12:30Z",
+        }
+    )
+    assert reboot is not None
+    assert not reboot.is_known_command_result()
+    assert ProcObservedSettlementOutcome.from_dict({"status": "success"}) is None
+
+    settlement = ProcSettlement.from_dict(
+        {
+            "proc_id": "abc",
+            "supervisor_id": "sup",
+            "settling_at": "2026-10-10T12:12:19Z",
+            "exit_code": 0,
+            "message": "done",
+            "outcome": success.to_dict(),
+        }
+    )
+    assert settlement.outcome is not None
+    assert settlement.outcome.termination_reason == "success"
+    legacy = ProcSettlement.from_dict(
+        {
+            "proc_id": "abc",
+            "supervisor_id": "sup",
+            "settling_at": "2026-10-10T12:12:19Z",
+        }
+    )
+    assert legacy.outcome is None
+    assert legacy.sidecar is None

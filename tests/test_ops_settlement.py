@@ -221,7 +221,44 @@ def test_result_before_terminal_crash_after_publication(
         finished = wait_for_proc(proc.proc_id, timeout=10)
     assert finished.status == "success"
     assert finished.settled_at is not None
+    assert (finished.result or {}).get("termination_reason") == "success"
     assert all(_settlement_checkpoints(proc.proc_id).values())
+
+
+def test_crash_does_not_bypass_missing_operation_result(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", "output_closed")
+    result_path = tmp_path / "missing-after-crash.json"
+    proc = submit_proc_request(
+        ProcSubmitRequest(
+            argv=[sys.executable, "-c", "print('ok', flush=True)"],
+            label="Crash missing result",
+            cwd=tmp_path,
+            origin="test",
+            operation="patch.status",
+            operation_payload={"name": "demo"},
+            result_path=result_path,
+        )
+    )
+    _wait_for_supervisor_exit(proc.proc_id)
+    monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+
+    reconcile_running_procs()
+    finished = get_proc(proc.proc_id)
+    assert finished is not None
+    if finished.status not in {"success", "error"}:
+        finished = wait_for_proc(proc.proc_id, timeout=10)
+    assert finished.status == "error"
+    assert finished.result is not None
+    assert finished.result["termination_reason"] == "missing-result"
+    result = read_operation_result(
+        result_path,
+        expected_operation="patch.status",
+        expected_proc_id=proc.proc_id,
+    )
+    assert result.success is False
 
 
 def test_overlapping_concurrency_keys_conflict(

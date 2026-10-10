@@ -17,6 +17,7 @@ from sase.continuation_capture.rollout import (
 )
 from sase.monitor.followup import FollowupLaunchResult
 from sase.monitor.proc_adapter import settle_monitor_artifacts, settle_monitor_followup
+from sase.monitor.settlement import LOST_FOLLOWUP_ERROR
 from sase.running_field import WorkspaceClaim
 
 from ._fixtures import make_starter_agent, write_project_file
@@ -208,3 +209,49 @@ def test_settle_monitor_followup_publishes_deferred_epic_completion_after_done(
     assert action_data["raw_suffix"] == Path(artifacts_dir).name
     assert action_data["agent_session_root_suffix"] == Path(root_dir).name
     assert action_data["agent_root_timestamp"] == Path(root_dir).name
+
+
+def test_lost_followup_error_does_not_claim_a_reboot() -> None:
+    assert "reboot" not in LOST_FOLLOWUP_ERROR.lower()
+    assert "unknown" in LOST_FOLLOWUP_ERROR.lower()
+
+
+def test_settle_monitor_artifacts_reuses_frozen_command_ended_at(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _make_proc_monitor(tmp_path)
+    state = _settlement_state(artifacts_dir)
+    state["command_ended_at"] = "2026-10-10T12:12:19Z"
+
+    settle_monitor_artifacts(state)
+    first_meta = state["monitor_meta"]
+    assert isinstance(first_meta, dict)
+    assert first_meta["stopped_at"] == "2026-10-10T12:12:19Z"
+    first_id = first_meta["continuation_monitor_result_id"]
+
+    settle_monitor_artifacts(state)
+    second_meta = state["monitor_meta"]
+    assert isinstance(second_meta, dict)
+    assert second_meta["stopped_at"] == "2026-10-10T12:12:19Z"
+    assert second_meta["continuation_monitor_result_id"] == first_id
+
+
+def test_save_chat_history_failure_after_persist_raises_incident_import_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts_dir = _make_proc_monitor(tmp_path)
+    state = _settlement_state(artifacts_dir)
+    state["command_ended_at"] = "2026-10-10T12:12:19Z"
+    monkeypatch.setenv("SASE_PROC_SETTLEMENT_FAIL_SAVE_CHAT_HISTORY", "1")
+
+    with pytest.raises(ImportError, match="legacy_" + "x" + "prompt_syntax_enabled"):
+        settle_monitor_artifacts(state)
+
+    on_disk = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert on_disk["continuation_monitor_result_id"].startswith("result:")
+    result_path = Path(on_disk["continuation_monitor_result_path"])
+    assert result_path.is_file()
+    result = json.loads(result_path.read_text())
+    assert result["outcome"] == "completed"
+    assert result["exit_code"] == 0
+    assert result["ended_at"] == "2026-10-10T12:12:19Z"

@@ -27,7 +27,7 @@ from .output import OutputCapture
 from .worktree_recovery import snapshot_worktree_recovery_diff
 
 LOST_FOLLOWUP_ERROR = (
-    "follow-up not launched because the monitor was marked lost after a reboot"
+    "follow-up not launched because the monitor command outcome is unknown"
 )
 
 FollowupLauncher = Callable[..., bool | FollowupLaunchResult]
