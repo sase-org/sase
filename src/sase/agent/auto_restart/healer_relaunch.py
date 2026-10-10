@@ -45,10 +45,21 @@ def relaunch_claimed(
     skip: SkipDecision = apply_skip_rules(target, done=fresh_done, meta=fresh_meta)
     if skip.skip:
         stored = ledger_mod.advance_ledger_record(
-            stored, "decline", note=skip.decline_reason
+            stored,
+            "decline",
+            note=skip.decline_reason,
+            at=ledger_mod.timestamp_for(now),
         )
         stored = annotate_record(stored, decline_reason=skip.decline_reason)
-        write_recovery(target, "declined", skip.reason_text, now=now)
+        write_recovery(
+            target,
+            "declined",
+            skip.reason_text,
+            now=now,
+            ledger_key=key,
+            episode_id=stored.record.episode_id or episode_id,
+            decline_reason=skip.decline_reason,
+        )
         return HealerOutcome(
             action="declined",
             reason=skip.decline_reason,
@@ -63,10 +74,21 @@ def relaunch_claimed(
         return defer_heal(stored, target, f"restart planning refused: {exc}", now=now)
     if _wipe_reaches_others(plan, target):
         stored = ledger_mod.advance_ledger_record(
-            stored, "decline", note="wipe_reaches_others"
+            stored,
+            "decline",
+            note="wipe_reaches_others",
+            at=ledger_mod.timestamp_for(now),
         )
         stored = annotate_record(stored, decline_reason="wipe_reaches_others")
-        write_recovery(target, "declined", "wipe reaches other agents", now=now)
+        write_recovery(
+            target,
+            "declined",
+            "wipe reaches other agents",
+            now=now,
+            ledger_key=key,
+            episode_id=stored.record.episode_id or episode_id,
+            decline_reason="wipe_reaches_others",
+        )
         return HealerOutcome(
             action="declined",
             reason="wipe_reaches_others",
@@ -78,9 +100,9 @@ def relaunch_claimed(
         "begin_launch",
         note=f"launching {target.agent_name}",
         extra={"python_plan_digest": _plan_digest(plan)},
+        at=ledger_mod.timestamp_for(now),
     )
     stored = annotate_record(stored, planned_name=target.agent_name)
-    write_recovery(target, "launching", "relaunching", now=now)
     evidence_dir, evidence_files = _write_evidence(
         target, verdict=verdict, assembled=assembled, episode_id=episode_id
     )
@@ -94,15 +116,36 @@ def relaunch_claimed(
         lineage_root=lineage_root,
         ledger_key=key,
         evidence_dir=evidence_dir,
+        witnesses=assembled.witnesses,
+        facts=assembled.facts,
+    )
+    write_recovery(
+        target,
+        "launching",
+        "relaunching",
+        now=now,
+        ledger_key=key,
+        episode_id=episode_id,
     )
     outcome = (execute_restart or _execute_default)(plan, evidence_files)
     if outcome is None or getattr(outcome, "status", "") != "ok":
         error = getattr(outcome, "error", None) or "execute failed"
         stored = ledger_mod.advance_ledger_record(
-            stored, "settled_failed", note=str(error)[:200]
+            stored,
+            "settled_failed",
+            note=str(error)[:200],
+            at=ledger_mod.timestamp_for(now),
         )
         stored = annotate_record(stored, decline_reason="execute_failed")
-        write_recovery(target, "declined", str(error)[:300], now=now)
+        write_recovery(
+            target,
+            "declined",
+            str(error)[:300],
+            now=now,
+            ledger_key=key,
+            episode_id=episode_id,
+            decline_reason="execute_failed",
+        )
         resurface_healer(target, str(error)[:300])
         return HealerOutcome(
             action="declined",
@@ -112,7 +155,9 @@ def relaunch_claimed(
             evidence_dir=evidence_dir,
         )
     launched_dir = getattr(outcome, "launched_artifacts_dir", None)
-    stored = ledger_mod.advance_ledger_record(stored, "launched")
+    stored = ledger_mod.advance_ledger_record(
+        stored, "launched", at=ledger_mod.timestamp_for(now)
+    )
     stored = annotate_record(stored, launched_artifacts_dir=launched_dir)
     # No done.json write here: execute wiped the failed row, and the ledger
     # owns ``launched`` — writing would recreate a phantom artifacts dir.
@@ -191,6 +236,8 @@ def _attach_provenance(
     lineage_root: str,
     ledger_key: str,
     evidence_dir: str | None,
+    witnesses: Any,
+    facts: Any,
 ) -> None:
     import datetime
 
@@ -213,11 +260,38 @@ def _attach_provenance(
         "culprit_commit": None,
         "culprit_subject": None,
         "restarted_at": datetime.datetime.now(get_timezone()).isoformat(),
+        "broke_detail": None,
     }
-    file_proof = getattr(getattr(verdict, "witnesses", None), "file_proof", None)
+    refresh = getattr(witnesses, "refresh_log_line", None)
+    if refresh is not None:
+        provenance["from_rev"] = getattr(refresh, "from_rev", None) or None
+        provenance["to_rev"] = getattr(refresh, "to_rev", None) or None
+    provenance["from_rev"] = provenance["from_rev"] or _identity_revision(
+        getattr(witnesses, "boot_identity", None)
+    )
+    provenance["to_rev"] = provenance["to_rev"] or _identity_revision(
+        getattr(witnesses, "current_identity", None)
+    )
+    file_proof = getattr(witnesses, "file_proof", None)
     if file_proof is not None:
         provenance["culprit_commit"] = getattr(file_proof, "culprit_commit", None)
         provenance["culprit_subject"] = getattr(file_proof, "culprit_subject", None)
+        provenance["to_rev"] = provenance["to_rev"] or provenance["culprit_commit"]
+    phase = getattr(facts, "lifecycle_phase", None) or getattr(
+        verdict, "phase_class", None
+    )
+    if phase:
+        provenance["broke_detail"] = f"failed during {phase}"
+    if refresh is not None:
+        from_rev = getattr(refresh, "from_rev", None)
+        to_rev = getattr(refresh, "to_rev", None)
+        if from_rev and to_rev:
+            detail = f"refresh moved sase from {from_rev} to {to_rev}"
+            provenance["broke_detail"] = (
+                f"{provenance['broke_detail']}; {detail}"
+                if provenance["broke_detail"]
+                else detail
+            )
     env = provenance_segment_env(provenance)
     try:
         segment_envs = plan.force_reuse_plan.segment_envs
@@ -227,6 +301,21 @@ def _attach_provenance(
             segment_envs[index] = merged
     except AttributeError:
         pass
+
+
+def _identity_revision(identity: Any) -> str | None:
+    if not isinstance(identity, str) or not identity:
+        return None
+    parts = identity.split("|")
+    for part in parts:
+        name, separator, revision = part.partition("@")
+        if separator and name == "sase" and revision:
+            return revision
+    for part in parts:
+        _, separator, revision = part.partition("@")
+        if separator and revision:
+            return revision
+    return None
 
 
 def _write_evidence(

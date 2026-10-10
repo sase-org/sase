@@ -45,10 +45,21 @@ def heal_claimed(
     if skip.skip:
         if not dry_run:
             stored = ledger_mod.advance_ledger_record(
-                stored, "decline", note=skip.decline_reason
+                stored,
+                "decline",
+                note=skip.decline_reason,
+                at=ledger_mod.timestamp_for(now),
             )
             stored = annotate_record(stored, decline_reason=skip.decline_reason)
-            write_recovery(target, "declined", skip.reason_text, now=now)
+            write_recovery(
+                target,
+                "declined",
+                skip.reason_text,
+                now=now,
+                ledger_key=key,
+                episode_id=stored.record.episode_id,
+                decline_reason=skip.decline_reason,
+            )
             with contextlib.suppress(Exception):
                 ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
             if skip.loud:
@@ -82,77 +93,76 @@ def heal_claimed(
             now=now,
             dry_run=dry_run,
         )
-    verdict = (classify or _classify_default)(assembled)
+    classifier = classify or _classify_default
+    verdict = classifier(assembled)
     _store_verdict(stored, verdict, assembled, dry_run=dry_run)
-    if verdict.mode == "decline":
-        return decline_heal(
+    episode_id = _episode_id(verdict, assembled, derive_episode)
+    if episode_id is not None and not dry_run:
+        stored = annotate_record(stored, episode_id=episode_id)
+    terminal = _terminal_verdict(
+        stored, target, verdict, now=now, dry_run=dry_run, silenced=silenced
+    )
+    if terminal is not None:
+        return terminal
+
+    if verdict.mode == "defer" and verdict.reason != "probe_pending":
+        return defer_heal(
             stored,
             target,
-            verdict.reason or "declined",
-            verdict.reason_text or "not an update-skew failure",
+            verdict.reason_text or "classifier deferred",
             now=now,
             dry_run=dry_run,
-            escalate=silenced,
-            silenced=silenced,
-        )
-    if verdict.mode in ("notify_post_provider", "ask"):
-        return decline_heal(
-            stored,
-            target,
-            verdict.reason or verdict.mode,
-            verdict.reason_text or "not relaunched by policy",
-            now=now,
-            dry_run=dry_run,
-            escalate=silenced,
-            escalate_kind=(
-                "post_provider" if verdict.mode == "notify_post_provider" else "decline"
-            ),
-            silenced=silenced,
-        )
-    if verdict.mode != "relaunch" and verdict.mode != "defer":
-        return decline_heal(
-            stored,
-            target,
-            verdict.reason or "declined",
-            verdict.reason_text or "classifier declined",
-            now=now,
-            dry_run=dry_run,
-            escalate=silenced,
-            silenced=silenced,
         )
 
-    episode_id = verdict.episode_id
-    if episode_id is None and derive_episode is not None:
-        try:
-            episode_id = derive_episode(assembled.witnesses).id or None
-        except Exception:
-            episode_id = None
+    quiescence = (check_quiescence or _quiescence_default)()
+    if not quiescence.ok:
+        return defer_heal(
+            stored,
+            target,
+            quiescence.reason or "managed code is not quiescent",
+            now=now,
+            dry_run=dry_run,
+        )
+
+    if verdict.mode == "defer" and verdict.reason == "probe_pending":
+        probe_ok, probe_failures = _probe_for_verdict(
+            verdict, assembled, run_probe=run_probe
+        )
+        assembled = _with_probe_result(assembled, ok=probe_ok, failures=probe_failures)
+        verdict = classifier(assembled)
+        _store_verdict(stored, verdict, assembled, dry_run=dry_run)
+        episode_id = _episode_id(verdict, assembled, derive_episode) or episode_id
+        if episode_id is not None and not dry_run:
+            stored = annotate_record(stored, episode_id=episode_id)
+        terminal = _terminal_verdict(
+            stored, target, verdict, now=now, dry_run=dry_run, silenced=silenced
+        )
+        if terminal is not None:
+            return terminal
+        if verdict.mode == "defer":
+            detail = verdict.reason_text or "classifier deferred after probe"
+            if not probe_ok and probe_failures:
+                detail = f"{detail}; probe failed: {'; '.join(probe_failures)[:300]}"
+            return defer_heal(stored, target, detail, now=now, dry_run=dry_run)
+        if verdict.mode != "relaunch":
+            return _terminal_verdict(
+                stored, target, verdict, now=now, dry_run=dry_run, silenced=silenced
+            ) or decline_heal(
+                stored,
+                target,
+                verdict.reason or "declined",
+                verdict.reason_text or "classifier declined after probe",
+                now=now,
+                dry_run=dry_run,
+                escalate=silenced,
+                silenced=silenced,
+            )
+
+    episode_id = _episode_id(verdict, assembled, derive_episode) or episode_id
     if episode_id is not None and not dry_run:
         stored = annotate_record(stored, episode_id=episode_id)
 
-    quiescence = (check_quiescence or _quiescence_default)()
-    probe_ok, probe_failures = _probe_for_verdict(
-        verdict, assembled, run_probe=run_probe
-    )
-    if verdict.mode == "defer" or not quiescence.ok or not probe_ok:
-        detail = "; ".join(
-            part
-            for part in [
-                "classifier deferred" if verdict.mode == "defer" else "",
-                quiescence.reason if not quiescence.ok else "",
-                (
-                    f"probe failed: {'; '.join(probe_failures)[:300]}"
-                    if not probe_ok
-                    else ""
-                ),
-            ]
-            if part
-        )
-        return defer_heal(
-            stored, target, detail or "deferred", now=now, dry_run=dry_run
-        )
-
-    storm = _storm_decision(episode_id)
+    storm = _storm_decision(episode_id, now=now)
     if not storm.allowed:
         from sase.agent.auto_restart import storm as storm_mod
 
@@ -200,6 +210,18 @@ def heal_claimed(
     )
 
 
+def _episode_id(
+    verdict: Any, assembled: Any, derive_episode: Callable | None
+) -> str | None:
+    episode_id = getattr(verdict, "episode_id", None)
+    if episode_id is None and derive_episode is not None:
+        try:
+            episode_id = derive_episode(assembled.witnesses).id or None
+        except Exception:
+            episode_id = None
+    return episode_id
+
+
 def _assemble(target: HealerTarget, *, done: Mapping, meta: Mapping) -> Any:
     from sase.agent.auto_restart.history import candidate_log_tail
     from sase.agent.auto_restart.inputs import assemble_done_row_input
@@ -208,6 +230,13 @@ def _assemble(target: HealerTarget, *, done: Mapping, meta: Mapping) -> Any:
     log_tail = ""
     try:
         from sase.agent.auto_restart.history import FailedCandidate
+        from sase.agent.auto_restart.inputs import find_runner_log
+
+        output_path = done.get("output_path")
+        log_path = find_runner_log(
+            target.artifacts_dir.name,
+            output_path if isinstance(output_path, str) else None,
+        )
 
         candidate = FailedCandidate(
             source="done",
@@ -219,7 +248,7 @@ def _assemble(target: HealerTarget, *, done: Mapping, meta: Mapping) -> Any:
             done=dict(done),
             meta=dict(meta),
             bundle=None,
-            log_path=None,
+            log_path=log_path,
         )
         log_tail = candidate_log_tail(candidate)
     except Exception:
@@ -233,6 +262,48 @@ def _assemble(target: HealerTarget, *, done: Mapping, meta: Mapping) -> Any:
         died_at=target.died_at,
         log_tail=log_tail,
     )
+
+
+def _terminal_verdict(
+    stored: Any,
+    target: HealerTarget,
+    verdict: Any,
+    *,
+    now: float,
+    dry_run: bool,
+    silenced: bool,
+) -> HealerOutcome | None:
+    """Apply the notification policy for verdicts that do not relaunch."""
+    mode = getattr(verdict, "mode", "decline")
+    if mode in ("relaunch", "defer"):
+        return None
+    reason = getattr(verdict, "reason", None) or mode or "declined"
+    reason_text = getattr(verdict, "reason_text", None) or "classifier declined"
+    escalate_kind = "post_provider" if mode == "notify_post_provider" else "decline"
+    return decline_heal(
+        stored,
+        target,
+        reason,
+        reason_text,
+        now=now,
+        dry_run=dry_run,
+        escalate=silenced,
+        episode_id=getattr(verdict, "episode_id", None),
+        escalate_kind=escalate_kind,
+        silenced=silenced,
+    )
+
+
+def _with_probe_result(assembled: Any, *, ok: bool, failures: tuple[str, ...]) -> Any:
+    """Attach the fresh-interpreter witness before classifying again."""
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    witnesses = replace(
+        assembled.witnesses,
+        probe=SimpleNamespace(ok=ok, failures=failures),
+    )
+    return replace(assembled, witnesses=witnesses)
 
 
 def _classify_default(assembled: Any) -> Any:
@@ -278,7 +349,7 @@ def _probe_for_verdict(
     return bool(result.ok), tuple(result.failures)
 
 
-def _storm_decision(episode_id: str | None) -> Any:
+def _storm_decision(episode_id: str | None, *, now: float | None = None) -> Any:
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart import storm as storm_mod
     from sase.config._settings_system import (
@@ -296,6 +367,7 @@ def _storm_decision(episode_id: str | None) -> Any:
         episode_id=episode_id,
         max_per_episode=get_agent_auto_restart_storm_max_per_episode(),
         max_per_30m=get_agent_auto_restart_storm_max_per_30m(),
+        now=now,
     )
 
 

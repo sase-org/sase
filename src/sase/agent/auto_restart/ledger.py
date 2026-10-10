@@ -98,6 +98,16 @@ def _join_stored(record: AutoRestartLedgerRecordWire, extra: dict[str, Any]) -> 
     return payload
 
 
+def timestamp_for(at: float | None = None) -> str:
+    """Format an epoch timestamp as ISO-8601 in the configured timezone."""
+    from datetime import datetime
+
+    from sase.core.time import get_timezone
+
+    stamp = time.time() if at is None else at
+    return datetime.fromtimestamp(stamp, tz=get_timezone()).isoformat()
+
+
 def load_ledger_record(key: str) -> StoredLedgerRecord | None:
     """Load one ledger record, or ``None`` when no claim exists."""
     import json
@@ -124,6 +134,7 @@ def claim_ledger_record(
     agent_name: str | None = None,
     project: str | None = None,
     failed_artifacts_dir: str | None = None,
+    at: str | None = None,
 ) -> StoredLedgerRecord | None:
     """Claim a lineage exactly once; ``None`` when another claim owns it.
 
@@ -138,7 +149,7 @@ def claim_ledger_record(
     existing = load_ledger_record(key)
     if existing is not None:
         return existing
-    record = claim_auto_restart_ledger(key, lineage_root)
+    record = claim_auto_restart_ledger(key, lineage_root, at=at or timestamp_for())
     pid = os.getpid()
     try:
         identity: str | None = process_identity_token(pid)
@@ -194,11 +205,14 @@ def advance_ledger_record(
     *,
     note: str | None = None,
     extra: dict[str, Any] | None = None,
+    at: str | None = None,
 ) -> StoredLedgerRecord:
     """Advance one record through the core state machine and persist it."""
     from sase.core.agent_auto_restart_facade import advance_auto_restart_ledger
 
-    advanced = advance_auto_restart_ledger(stored.record, event)
+    advanced = advance_auto_restart_ledger(
+        stored.record, event, at=at or timestamp_for()
+    )
     merged = dict(stored.extra)
     if extra:
         for key in _EXTRA_KEYS:
@@ -207,6 +221,28 @@ def advance_ledger_record(
     if note is not None:
         merged["python_last_note"] = {"event": event, "note": note}
     return store_ledger_record(StoredLedgerRecord(record=advanced, extra=merged))
+
+
+def take_over_ledger_claim(
+    stored: StoredLedgerRecord, *, at: str | None = None
+) -> StoredLedgerRecord:
+    """Assign a stale claimed/deferred row to this healer process."""
+    if stored.record.state == "deferred":
+        stored = advance_ledger_record(stored, "reclaim", at=at)
+    elif stored.record.state != "claimed":
+        return stored
+
+    from sase.core.process_identity import process_identity_token
+
+    pid = os.getpid()
+    try:
+        identity = process_identity_token(pid)
+    except Exception:
+        identity = None
+    extra = dict(stored.extra)
+    extra["python_claimer_pid"] = pid
+    extra["python_claimer_identity"] = identity
+    return store_ledger_record(StoredLedgerRecord(record=stored.record, extra=extra))
 
 
 def claimer_is_live(stored: StoredLedgerRecord) -> bool:

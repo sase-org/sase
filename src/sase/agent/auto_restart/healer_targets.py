@@ -357,13 +357,33 @@ def _order_targets(targets: list[HealerTarget]) -> list[HealerTarget]:
     Correctness never depends on this order (waiters stay parked on a
     failed dependency); it only makes the sweep read sensibly.
     """
+    import heapq
 
-    def depth(target: HealerTarget) -> int:
-        meta = read_json(target.artifacts_dir / "agent_meta.json") or {}
-        waits = meta.get("wait_for") or meta.get("depends_on") or []
-        if isinstance(waits, (list, tuple)):
-            return len(waits)
-        return 0
+    names: dict[str, int] = {}
+    for index, target in enumerate(targets):
+        names.setdefault(target.agent_name, index)
+
+    dependencies: list[set[int]] = []
+    dependents: list[set[int]] = [set() for _ in targets]
+    for index, target in enumerate(targets):
+        waiting = read_json(target.artifacts_dir / "waiting.json") or {}
+        raw_waits = waiting.get("waiting_for")
+        if not isinstance(raw_waits, list):
+            meta = read_json(target.artifacts_dir / "agent_meta.json") or {}
+            raw_waits = meta.get("waiting_for") or meta.get("wait_for") or []
+        waits = (
+            {
+                names[name]
+                for name in raw_waits
+                if isinstance(name, str) and name in names
+            }
+            if isinstance(raw_waits, (list, tuple))
+            else set()
+        )
+        waits.discard(index)
+        dependencies.append(waits)
+        for dependency in waits:
+            dependents[dependency].add(index)
 
     def progress(target: HealerTarget) -> float:
         try:
@@ -371,7 +391,35 @@ def _order_targets(targets: list[HealerTarget]) -> list[HealerTarget]:
         except OSError:
             return 0.0
 
-    return sorted(targets, key=lambda t: (depth(t), progress(t)))
+    ready = [
+        (progress(target), index)
+        for index, target in enumerate(targets)
+        if not dependencies[index]
+    ]
+    heapq.heapify(ready)
+    ordered: list[HealerTarget] = []
+    emitted: set[int] = set()
+    while ready:
+        _, index = heapq.heappop(ready)
+        if index in emitted:
+            continue
+        emitted.add(index)
+        ordered.append(targets[index])
+        for dependent in dependents[index]:
+            dependencies[dependent].discard(index)
+            if not dependencies[dependent]:
+                heapq.heappush(ready, (progress(targets[dependent]), dependent))
+
+    # A malformed or cyclic wait graph must not hide healer targets.
+    ordered.extend(
+        target
+        for _, _, target in sorted(
+            (progress(target), index, target)
+            for index, target in enumerate(targets)
+            if index not in emitted
+        )
+    )
+    return ordered
 
 
 __all__ = [

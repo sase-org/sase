@@ -52,21 +52,21 @@ def classify_agent_failure(
 
 
 def claim_auto_restart_ledger(
-    key: str, lineage_root: str
+    key: str, lineage_root: str, *, at: str | None = None
 ) -> AutoRestartLedgerRecordWire:
     """Create a freshly claimed ledger record through ``sase_core_rs``."""
     binding = require_rust_binding("claim_auto_restart_ledger")
-    raw: dict[str, object] = binding(key, lineage_root)
+    raw: dict[str, object] = binding(key, lineage_root, at=at)
     return ledger_record_from_dict(raw)
 
 
 def advance_auto_restart_ledger(
-    record: AutoRestartLedgerRecordWire, event: str
+    record: AutoRestartLedgerRecordWire, event: str, *, at: str | None = None
 ) -> AutoRestartLedgerRecordWire:
     """Advance one ledger record; illegal transitions raise ``ValueError``."""
     binding = require_rust_binding("advance_auto_restart_ledger")
     try:
-        raw: dict[str, object] = binding(ledger_record_to_dict(record), event)
+        raw: dict[str, object] = binding(ledger_record_to_dict(record), event, at=at)
     except ValueError as exc:
         raise ValueError(
             f"illegal auto-restart ledger transition: {record.state} + {event}"

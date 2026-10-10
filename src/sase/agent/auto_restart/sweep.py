@@ -411,6 +411,14 @@ def _resurface_for_disabled(
         if not isinstance(done, dict) or str(done.get("outcome", "")) != "failed":
             continue
         recovery = done.get("recovery")
+        try:
+            meta = json.loads(
+                (target.artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            meta = {}
+        auto_restart = meta.get("auto_restart") if isinstance(meta, dict) else None
+        auto_restart = auto_restart if isinstance(auto_restart, dict) else {}
         silenced = str(target.artifacts_dir) in doorbell_dirs or (
             isinstance(recovery, dict) and recovery.get("state") == "pending"
         )
@@ -424,7 +432,14 @@ def _resurface_for_disabled(
                 reason_text=f"auto-restart {reason}; the failure needs a manual ,x",
                 artifacts_dir=str(target.artifacts_dir),
             )
-            write_recovery(target, "declined", f"auto-restart {reason}", now=at)
+            write_recovery(
+                target,
+                "declined",
+                f"auto-restart {reason}",
+                now=at,
+                ledger_key=auto_restart.get("ledger_key"),
+                episode_id=auto_restart.get("episode_id"),
+            )
             ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
             _mark_disabled_resurfaced(target, at)
             resurfaced += 1

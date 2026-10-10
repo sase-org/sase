@@ -175,6 +175,27 @@ def test_preserved_agent_metadata_keeps_model_alias_provenance(
     assert preserved["model_alias_origin"] == "directive"
 
 
+def test_preserved_agent_metadata_keeps_auto_restart_provenance(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    auto_restart = {
+        "of_artifacts_dir": "/tmp/failed",
+        "lineage_root": "20261009T120000",
+        "ledger_key": "sase__20261009T120000",
+        "episode_id": "sase@9fd8a08",
+    }
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"auto_restart": auto_restart}),
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert preserved["auto_restart"] == auto_restart
+
+
 def test_preserved_agent_metadata_keeps_vcs_ref(tmp_path: Path) -> None:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()

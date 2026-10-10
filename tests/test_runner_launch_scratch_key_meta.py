@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ import pytest
 
 from sase.axe import run_agent_markers, run_agent_runner_bootstrap
 from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
+from sase.agent.auto_restart.provenance import PROVENANCE_ENV
 
 
 def _bootstrap_meta(tmp_path: Path) -> dict[str, Any]:
@@ -38,6 +40,22 @@ def test_bootstrap_meta_omits_the_key_when_the_launch_set_none(
     monkeypatch.delenv(SASE_LAUNCH_SCRATCH_KEY_ENV, raising=False)
 
     assert "launch_scratch_key" not in _bootstrap_meta(tmp_path)
+
+
+def test_bootstrap_consumes_auto_restart_provenance_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provenance = {
+        "of_artifacts_dir": "/tmp/failed",
+        "ledger_key": "sase__lineage",
+        "episode_id": "sase@9fd8a08",
+    }
+    monkeypatch.setenv(PROVENANCE_ENV, json.dumps(provenance))
+
+    meta = _bootstrap_meta(tmp_path)
+
+    assert meta["auto_restart"] == provenance
+    assert PROVENANCE_ENV not in os.environ
 
 
 def _marker_meta(pid: int, tmp_path: Path) -> dict[str, Any]:

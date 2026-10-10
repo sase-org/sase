@@ -212,8 +212,18 @@ def defer_heal(
     from sase.agent.auto_restart import ledger as ledger_mod
 
     if not dry_run:
-        stored = ledger_mod.advance_ledger_record(stored, "defer", note=detail)
-    write_recovery(target, "deferred", detail, now=now, dry_run=dry_run)
+        stored = ledger_mod.advance_ledger_record(
+            stored, "defer", note=detail, at=ledger_mod.timestamp_for(now)
+        )
+    write_recovery(
+        target,
+        "deferred",
+        detail,
+        now=now,
+        dry_run=dry_run,
+        ledger_key=stored.record.key,
+        episode_id=stored.record.episode_id,
+    )
     return HealerOutcome(
         action="deferred",
         reason="deferred",
@@ -247,9 +257,18 @@ def decline_heal(
     from sase.agent.auto_restart import ledger as ledger_mod
 
     if not dry_run:
-        stored = ledger_mod.advance_ledger_record(stored, "decline", note=reason)
+        stored = ledger_mod.advance_ledger_record(
+            stored, "decline", note=reason, at=ledger_mod.timestamp_for(now)
+        )
         stored = annotate_record(stored, decline_reason=reason)
-        write_recovery(target, "declined", reason_text, now=now)
+        write_recovery(
+            target,
+            "declined",
+            reason_text,
+            now=now,
+            ledger_key=stored.record.key,
+            episode_id=episode_id or stored.record.episode_id,
+        )
         with contextlib.suppress(Exception):
             ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
         if silenced:
@@ -291,9 +310,10 @@ def escalate_healer(
         )
         detail = reason_text
     elif kind == "already_restarted":
-        episode = f" after sase update {episode_id}" if episode_id else ""
+        update_ref = episode_id.removeprefix("sase@") if episode_id else "a sase update"
         title = (
-            f"This was its automatic restart{episode} — not retrying. "
+            f"This was its automatic restart after sase update {update_ref} — "
+            "not retrying. "
             f"Press ,x on {target.agent_name} to retry by hand."
         )
         detail = reason_text
@@ -354,6 +374,9 @@ def write_recovery(
     *,
     now: float | None = None,
     dry_run: bool = False,
+    ledger_key: str | None = None,
+    episode_id: str | None = None,
+    decline_reason: str | None = None,
 ) -> None:
     """Write the ``recovery`` object on the failed row's ``done.json``.
 
@@ -373,14 +396,18 @@ def write_recovery(
         return
     at = time.time() if now is None else now
     done = read_json(path) or {}
-    try:
-        previous = done.get("recovery")
-        episode_id = previous.get("episode_id") if isinstance(previous, dict) else None
-    except AttributeError:
-        episode_id = None
+    if not isinstance(done, dict):
+        return
+    previous = done.get("recovery")
+    previous_episode = (
+        previous.get("episode_id") if isinstance(previous, dict) else None
+    )
+    previous_ledger_key = (
+        previous.get("ledger_key") if isinstance(previous, dict) else None
+    )
     done["recovery"] = {
         "state": state,
-        "reason": note[:200] if state == "declined" else None,
+        "reason": (decline_reason or note[:200] if state == "declined" else None),
         "reason_text": note,
         "requested_at": (
             previous.get("requested_at")
@@ -390,7 +417,8 @@ def write_recovery(
         "updated_at": datetime.datetime.fromtimestamp(
             at, tz=get_timezone()
         ).isoformat(),
-        "episode_id": episode_id,
+        "episode_id": episode_id or previous_episode,
+        "ledger_key": ledger_key or previous_ledger_key,
     }
     try:
         from sase.notification_gates.durability import atomic_write_json
