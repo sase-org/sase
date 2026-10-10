@@ -1861,10 +1861,11 @@ Source: `src/sase/ace/tui/agent_decks_settings.py`
 
 #### `ace.agent_header`
 
-Controls how many rows of the agent's `AGENT MACRO` the collapsed Agents-tab header
-panel previews below its two chip rows. The preview shows at most
-`collapsed_preview_max_rows` rows, and fewer when `collapsed_max_share` leaves less room
-on a short column.
+Controls how many rows of the selected agent's `RAW PROMPT` the collapsed Agents-tab
+header previews. Session headers also show distinct recorded models while collapsed;
+those model rows use the share budget before the optional prompt preview. The preview
+shows at most `collapsed_preview_max_rows` rows and can use zero rows when identity and
+model metadata need the available space.
 
 ```yaml
 ace:
@@ -1873,10 +1874,10 @@ ace:
     collapsed_preview_max_rows: 3
 ```
 
-| Field                        | Type    | Default | Description                                                                                                                                                                                      |
-| ---------------------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `collapsed_max_share`        | number  | `0.35`  | Share of the detail-column height the collapsed header may take (0 to 0.6). The preview gets that cap minus the border, chip rows, and MACRO tab row, at least 1 row. `0` turns the preview off. |
-| `collapsed_preview_max_rows` | integer | `3`     | Most macro preview rows the collapsed header shows (at least 1). The `collapsed_max_share` budget can lower it on short columns. `d` expands to the full prompt.                                 |
+| Field                        | Type    | Default | Description                                                                                                                                                                                                                 |
+| ---------------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collapsed_max_share`        | number  | `0.35`  | Target share of the detail-column height for the collapsed header (0 to 0.6). Session identity and one or two model rows are counted before prompt preview rows. `0` disables the preview but keeps session models visible. |
+| `collapsed_preview_max_rows` | integer | `3`     | Maximum RAW PROMPT preview rows. The share budget can reduce this to zero when session metadata uses the available height. `d` expands to the full prompt and complete model list.                                          |
 
 Source: `src/sase/ace/tui/agent_header_settings.py`
 

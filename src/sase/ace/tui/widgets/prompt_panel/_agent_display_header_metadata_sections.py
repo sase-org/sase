@@ -40,6 +40,7 @@ from ._helpers import (
 )
 
 if TYPE_CHECKING:
+    from sase.core.agent_models import AgentModelSummary
     from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 
@@ -124,10 +125,17 @@ def append_turn_or_model_fields(
     text: Text,
     agent: Agent,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
+    *,
+    model_summary: AgentModelSummary | None = None,
+    session_turn_rows: Sequence[Agent] | None = None,
 ) -> ResponsiveTurnSection | None:
     """Append agent_session ``Turns:`` lanes or a concrete-turn ``Model:`` field."""
     if agent.is_agent_session_container_row:
-        lanes = build_agent_session_turn_lanes(agent)
+        if model_summary is not None:
+            from ._session_model_strip import expanded_session_model_summary
+
+            text.append_text(expanded_session_model_summary(model_summary))
+        lanes = build_agent_session_turn_lanes(agent, turn_rows=session_turn_rows)
         section = ResponsiveTurnSection(
             lanes=lanes[:TURN_LANE_LIMIT],
             hidden_count=max(0, len(lanes) - TURN_LANE_LIMIT),

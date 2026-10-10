@@ -507,13 +507,13 @@ ace:
     #     order: 0
     #     description: "SASE project agents."
   agent_header:
-    # Fraction of the Agents tab detail column's height that the collapsed
-    # header may occupy in total (border, chip rows, and the RAW PROMPT tab row
-    # included). The rows left over preview the selected agent's prompt.
-    # Range 0 to 0.6; 0 turns the collapsed preview off.
+    # Target share of the Agents detail column used by the collapsed header,
+    # including model rows and borders. Session models keep one row even at 0;
+    # when space is tight, models take room before the optional RAW PROMPT card.
+    # Range 0 to 0.6; 0 turns the prompt preview off.
     collapsed_max_share: 0.35
-    # Most raw-prompt preview rows the collapsed header shows, and fewer when
-    # collapsed_max_share leaves less room. Minimum 1. d shows the whole prompt.
+    # Most RAW PROMPT preview rows. The share budget may reduce this to zero
+    # when session identity/model metadata needs the available space. d expands.
     collapsed_preview_max_rows: 3
   tool_calls:
     slow_threshold_seconds: 20

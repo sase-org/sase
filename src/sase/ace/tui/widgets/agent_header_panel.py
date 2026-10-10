@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+import math
+from typing import TYPE_CHECKING, Any
 
 from rich.console import RenderableType
 from rich.text import Text
@@ -26,6 +27,9 @@ from ._sticky_panel_scroll import (
     sticky_panel_can_scroll,
 )
 from .prompt_panel._identity_header import IdentityHeader
+
+if TYPE_CHECKING:
+    from .prompt_panel._session_model_strip import SessionModelStripFit
 
 # Width used before the first layout, when the content widget has no size yet.
 _FALLBACK_CONTENT_WIDTH = 76
@@ -146,32 +150,104 @@ class AgentHeaderPanel(VerticalScroll):
         return min(self._last_preview_rows, budget)
 
     def _collapsed_content(
-        self, identity: IdentityHeader, width: int, budget: int
-    ) -> tuple[RenderableType, MacroPreviewFit | None, int]:
-        """Return the collapsed renderable, its fit, and shown preview body rows.
+        self,
+        identity: IdentityHeader,
+        width: int,
+        budget: int,
+        *,
+        compact_rows: int = 2,
+        model_fit: SessionModelStripFit | None = None,
+    ) -> tuple[RenderableType, MacroPreviewFit | None, int, int]:
+        """Return collapsed content, prompt fit, and actual metadata row counts.
 
         The preview is an ``RAW PROMPT`` card: the returned row count covers its
         body only, not the tab row above it.
         """
         collapsed = identity.compact.copy()
+        if compact_rows == 1:
+            newline = collapsed.plain.find("\n")
+            if newline >= 0:
+                collapsed = collapsed[:newline]
+        if model_fit is not None:
+            collapsed.append("\n")
+            collapsed.append_text(model_fit.text)
         if budget <= 0:
-            return collapsed, None, 0
+            return collapsed, None, 0, model_fit.rows if model_fit is not None else 0
         if identity.raw_prompt_pending and identity.raw_prompt is None:
             hold = self._pending_hold_rows(budget)
             if hold <= 0:
-                return collapsed, None, 0
+                return (
+                    collapsed,
+                    None,
+                    0,
+                    model_fit.rows if model_fit is not None else 0,
+                )
             collapsed.append("\n")
             collapsed.append_text(preview_card(pending_preview_rows(hold), width=width))
-            return collapsed, None, hold
+            return collapsed, None, hold, model_fit.rows if model_fit is not None else 0
         raw_prompt = identity.raw_prompt
         if raw_prompt is None or not raw_prompt.plain.strip():
-            return collapsed, None, 0
+            return collapsed, None, 0, model_fit.rows if model_fit is not None else 0
         fit = fit_raw_prompt_preview(raw_prompt, width=width, max_rows=budget)
         if fit.rows <= 0:
-            return collapsed, fit, 0
+            return collapsed, fit, 0, model_fit.rows if model_fit is not None else 0
         collapsed.append("\n")
         collapsed.append_text(preview_card(fit.text, width=width))
-        return collapsed, fit, fit.rows
+        return collapsed, fit, fit.rows, model_fit.rows if model_fit is not None else 0
+
+    def _session_model_layout(
+        self,
+        identity: IdentityHeader,
+        width: int,
+    ) -> tuple[int, SessionModelStripFit | None, int, int]:
+        """Fit session metadata before assigning any remaining prompt rows."""
+        summary = identity.model_summary
+        if summary is None:
+            return 2, None, self._preview_budget(), 0
+
+        from .prompt_panel._session_model_strip import fit_session_model_strip
+
+        settings = agent_header_settings_for(self)
+        column_rows = self._column_rows if self._column_rows > 0 else 14
+        actual_total_cap = max(4, math.floor(column_rows * 0.5))
+        if settings.collapsed_max_share > 0:
+            share_cap = math.floor(column_rows * settings.collapsed_max_share + 1e-9)
+            # The normal floor covers two compact rows, one model row, and
+            # borders. On a short actual panel, optional context is reduced.
+            total_cap = min(actual_total_cap, max(7, share_cap))
+        else:
+            total_cap = actual_total_cap
+        inner_rows = max(2, total_cap - 2)
+        compact_rows = 2 if inner_rows >= 3 else 1
+        model_row_limit = min(2, max(1, inner_rows - compact_rows))
+        model_fit = fit_session_model_strip(
+            summary,
+            width=width,
+            max_rows=1,
+        )
+        if model_fit.omitted_count and model_row_limit > 1:
+            two_row_fit = fit_session_model_strip(
+                summary,
+                width=width,
+                max_rows=model_row_limit,
+            )
+            if two_row_fit.omitted_count < model_fit.omitted_count:
+                model_fit = two_row_fit
+
+        preview_budget = 0
+        if settings.collapsed_max_share > 0:
+            metadata_rows = 2 + compact_rows + model_fit.rows + PREVIEW_TAB_ROWS
+            by_share = preview_row_budget(
+                column_rows,
+                settings.collapsed_max_share,
+                max_rows=settings.collapsed_preview_max_rows,
+                metadata_rows=metadata_rows,
+                minimum_rows=0,
+                total_floor=7,
+            )
+            by_actual_height = max(0, actual_total_cap - metadata_rows)
+            preview_budget = min(by_share, by_actual_height)
+        return compact_rows, model_fit, preview_budget, total_cap
 
     @staticmethod
     def _expanded_row_estimate(
@@ -232,6 +308,8 @@ class AgentHeaderPanel(VerticalScroll):
         width = self._content_width()
         budget = self._preview_budget()
         pending = bool(header.raw_prompt_pending and header.raw_prompt is None)
+        total_cap = self._column_rows
+        model_rows = 0
         if shown_expanded:
             shown: RenderableType = header.expanded_renderable()
             fit: MacroPreviewFit | None = None
@@ -240,17 +318,33 @@ class AgentHeaderPanel(VerticalScroll):
             subtitle = self._subtitle_for(True)
             self._rendered_rows = self._expanded_row_estimate(shown, header)
         else:
-            shown, fit, preview_rows = self._collapsed_content(header, width, budget)
+            compact_rows = 2
+            model_fit = None
+            total_cap = self._column_rows
+            if header.model_summary is not None:
+                compact_rows, model_fit, budget, total_cap = self._session_model_layout(
+                    header, width
+                )
+            shown, fit, preview_rows, model_rows = self._collapsed_content(
+                header,
+                width,
+                budget,
+                compact_rows=compact_rows,
+                model_fit=model_fit,
+            )
             hidden_lines = fit.hidden_lines if fit is not None and fit.truncated else 0
             subtitle = self._subtitle_for(False, hidden_lines=hidden_lines)
             card_rows = PREVIEW_TAB_ROWS + preview_rows if preview_rows else 0
-            self._rendered_rows = _COMPACT_ROW_COUNT + card_rows
+            self._rendered_rows = compact_rows + model_rows + card_rows
         self._last_preview_rows = preview_rows
         try:
             digest = renderable_content_digest(shown)
             digest += (
                 f"|{header.kind_label}|{subtitle}|{header.accent}|{shown_expanded}"
                 f"|{width}|{budget}|{pending}|{preview_rows}|{hidden_lines}"
+                f"|{self._column_rows}|{total_cap}|{model_rows}|"
+                f"{model_fit.omitted_count if model_fit is not None else 0}|"
+                f"{header.model_summary!r}"
             )
         except Exception:
             digest = None

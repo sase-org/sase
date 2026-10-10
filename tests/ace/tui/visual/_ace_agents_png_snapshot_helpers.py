@@ -222,7 +222,8 @@ def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> Non
         _loading_finalize,
         node_finder_rendering,
     ):
-        monkeypatch.setattr(module, "local_now", lambda: now)
+        if hasattr(module, "local_now"):
+            monkeypatch.setattr(module, "local_now", lambda: now)
 
 
 def assert_page_svg_contains(page: AcePage, text: str) -> None:

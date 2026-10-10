@@ -2553,14 +2553,14 @@
           "properties": {
             "collapsed_max_share": {
               "type": "number",
-              "description": "Fraction of the Agents tab detail column's height that the collapsed header may occupy in total, including its border, two chip rows, and RAW PROMPT tab row. The rest of the budget is used to preview the selected agent's prompt, stopping at collapsed_preview_max_rows. 0 turns the collapsed preview off.",
+              "description": "Target share of the Agents detail column used by the collapsed header, including its border, session model rows, and RAW PROMPT tab row. Session model metadata keeps a required row and takes space before the optional prompt preview. 0 turns the prompt preview off while keeping session models visible.",
               "minimum": 0,
               "maximum": 0.6,
               "default": 0.35
             },
             "collapsed_preview_max_rows": {
               "type": "integer",
-              "description": "Most raw-prompt preview rows the collapsed header shows (at least 1). The collapsed_max_share budget can lower it on short columns. d expands to the full prompt.",
+              "description": "Most RAW PROMPT preview rows the collapsed header shows. The share budget can reduce this to zero when session identity and model rows use the available space. d expands to the full prompt.",
               "minimum": 1,
               "default": 3
             }

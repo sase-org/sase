@@ -187,7 +187,7 @@ def main_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.open_artifact_files), "Artifact files (or marked set)"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
-                (d(a.toggle_agent_header), "Expand / collapse agent header"),
+                (d(a.toggle_agent_header), "Show full session model list"),
                 (d(a.toggle_agent_jump_panel), "Expand / collapse jump panel"),
                 (d(a.toggle_hide_non_run_agents), "Show/hide non-run agents"),
                 (d(a.start_tmux_mode), "Tmux chooser (mark many)"),
@@ -215,6 +215,14 @@ def main_sections(km: KeymapRegistry) -> Sections:
             "Agent Query",
             [
                 (filter_query_keys, "Filter agents by query"),
+            ],
+        ),
+        (
+            "Agent Header",
+            [
+                ("SESSION", "Provider/model pairs appear once"),
+                ("+N more", "d opens the full, uncapped list"),
+                ("Height", "Models fit before prompt preview"),
             ],
         ),
         (

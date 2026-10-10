@@ -14,6 +14,7 @@ from sase.ace.tui.llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
 from ...models.agent_session_members import agent_session_roster_container
+from ...models.agent_session_members import concrete_agent_session_turn_rows
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.fold_scale import (
     AGENT_SESSION_FOLD_SCALE,
@@ -73,6 +74,7 @@ from ._identity_header import (
 from ._identity_header_compact import build_agent_compact_lines
 
 if TYPE_CHECKING:
+    from sase.core.agent_models import AgentModelSummary, AgentModelTurnFact
     from sase.core.wait_dependency_resolution import TribeWaitBinding
 
     from ...models._agent_clan_sections import ClanSectionSnapshot
@@ -128,6 +130,31 @@ def build_header_text(
                 clan_neighbor_agents=clan_neighbor_agents,
             ),
             None,
+        )
+
+    session_turn_rows: tuple[Agent, ...] | None = None
+    session_model_summary: AgentModelSummary | None = None
+    if agent.is_agent_session_container_row:
+        from sase.core.agent_models import AgentModelTurnFact, summarize_agent_models
+
+        session_turn_rows = concrete_agent_session_turn_rows(agent)
+        session_model_summary = summarize_agent_models(
+            tuple(
+                AgentModelTurnFact(
+                    kind=(
+                        "monitor"
+                        if turn.is_monitor
+                        else "gate"
+                        if turn.is_gate
+                        else "agent"
+                        if turn.is_agent_entry
+                        else "other"
+                    ),
+                    provider=turn.llm_provider,
+                    model=turn.model,
+                )
+                for turn in session_turn_rows
+            )
         )
 
     header_text = Text()
@@ -195,6 +222,8 @@ def build_header_text(
             ),
             responsive_ranges=identity_ranges,
             detach_identity=True,
+            session_model_summary=session_model_summary,
+            session_turn_rows=session_turn_rows,
         )
         if agent_session_fold_enabled:
             append_fold_header_line(
@@ -225,6 +254,8 @@ def build_header_text(
                 queue_selection.ahead_count if queue_selection is not None else None
             ),
             responsive_ranges=responsive_ranges,
+            session_model_summary=session_model_summary,
+            session_turn_rows=session_turn_rows,
         )
     meta_fields = metadata.meta_fields
     page_section = metadata.page_section
@@ -496,6 +527,7 @@ def build_header_text(
                 if agent_session_fold_enabled
                 else None,
             ),
+            model_summary=session_model_summary,
         )
         body_text, removed_chars = strip_leading_document_chrome(header_text)
         shifted_ranges = {

@@ -31,6 +31,7 @@ from ._agent_wait_section import ResponsiveWaitSection
 from ._helpers import extract_meta_fields
 
 if TYPE_CHECKING:
+    from sase.core.agent_models import AgentModelSummary
     from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 
@@ -58,6 +59,8 @@ def append_agent_metadata_fields(
     runner_queue_ahead_count: int | None = None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None = None,
     detach_identity: bool = False,
+    session_model_summary: AgentModelSummary | None = None,
+    session_turn_rows: Sequence[Agent] | None = None,
 ) -> _AgentMetadataFields:
     """Append core metadata and return workflow fields plus responsive lanes."""
     page_section = append_identity_fields(
@@ -86,7 +89,13 @@ def append_agent_metadata_fields(
     append_fleet_fields(text, agent)
 
     append_auto_approve_field(text, agent)
-    turn_section = append_turn_or_model_fields(text, agent, responsive_ranges)
+    turn_section = append_turn_or_model_fields(
+        text,
+        agent,
+        responsive_ranges,
+        model_summary=session_model_summary,
+        session_turn_rows=session_turn_rows,
+    )
 
     if (
         not agent.is_named_proc

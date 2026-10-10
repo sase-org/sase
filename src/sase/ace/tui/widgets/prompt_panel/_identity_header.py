@@ -22,6 +22,8 @@ from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 from ._helpers import append_major_section_divider, append_section_heading
 
 if TYPE_CHECKING:
+    from sase.core.agent_models import AgentModelSummary
+
     from ._member_roster import MemberJumpMap
 
 # Must match the light rule in ``append_major_section_divider`` (``_helpers``).
@@ -43,6 +45,7 @@ class IdentityHeader:
     accent: str
     expanded: AgentHeader
     compact: Text
+    model_summary: AgentModelSummary | None = None
     raw_prompt: Text | None = None
     raw_prompt_pending: bool = False
 

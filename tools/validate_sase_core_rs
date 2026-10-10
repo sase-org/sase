@@ -55,6 +55,7 @@ REQUIRED_BINDINGS = (
     "update_commit_footer",
     "scan_agent_artifacts",
     "scan_agent_artifact_dirs",
+    "summarize_agent_models",
     "rebuild_agent_artifact_index",
     "query_agent_output_variable_history",
     "agent_output_variable_history_wire_schema_version",

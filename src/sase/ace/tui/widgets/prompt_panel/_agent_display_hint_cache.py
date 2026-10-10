@@ -261,12 +261,21 @@ def agent_hint_render_cache_key(
         raw_prompt = None
     else:
         roster_container = agent_session_roster_container(agent)
-        if roster_container is not None:
-            member_states = tuple(
-                (member.identity, member.display_status)
-                for member in concrete_agent_session_turn_rows(roster_container)
+        if roster_container is not None or agent.is_agent_session_container_row:
+            model_container = roster_container or agent
+            session_member_states = tuple(
+                (
+                    member.identity,
+                    member.display_status,
+                    member.is_agent_entry,
+                    member.is_monitor,
+                    member.is_gate,
+                    member.llm_provider,
+                    member.model,
+                )
+                for member in concrete_agent_session_turn_rows(model_container)
             )
-            agent_state_digest = _digest_parts(agent, member_states)
+            agent_state_digest = _digest_parts(agent, session_member_states)
         else:
             agent_state_digest = _digest_parts(agent)
         source_digest = _source_digest_cached(widget, agent)

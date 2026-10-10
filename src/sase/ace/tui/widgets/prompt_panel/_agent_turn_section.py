@@ -94,11 +94,17 @@ class _MonitorSelection:
     continuation_style: str
 
 
-def build_agent_session_turn_lanes(agent: Agent) -> tuple[TurnLane, ...]:
+def build_agent_session_turn_lanes(
+    agent: Agent,
+    *,
+    turn_rows: Sequence[Agent] | None = None,
+) -> tuple[TurnLane, ...]:
     """Build one labelled turn lane per concrete agent_session turn."""
     agent_session_name = agent.presented_agent_name or ""
     lanes: list[TurnLane] = []
-    for member in concrete_agent_session_turn_rows(agent):
+    for member in (
+        concrete_agent_session_turn_rows(agent) if turn_rows is None else turn_rows
+    ):
         label = agent_session_member_label(member, agent_session_name)
         if member.is_monitor:
             lanes.append(

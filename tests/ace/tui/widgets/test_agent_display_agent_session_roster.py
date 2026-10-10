@@ -44,6 +44,8 @@ def test_agent_session_roster_numbers_real_chain_rows_in_order(
     assert [entry.kind for entry in entries] == ["AGENT (plan)", "AGENT (code)"]
     assert_kind_header(header, "SESSION", "#00AFFF", before="SESSION TURNS")
     assert header.plain.startswith("SESSION\nName:")
+    assert "Models: claude/opus · claude/sonnet\n" in header.plain
+    assert header.plain.index("Models:") < header.plain.index("SESSION TURNS")
     assert header.plain.index("Name:") < header.plain.index("Fold: 1/2\n")
     assert header.plain.index("Fold: 1/2\n") < header.plain.index("SESSION TURNS")
     assert "▾ ❖ SESSION TURNS · 2\n" in header.plain
@@ -184,6 +186,8 @@ def test_loaded_plan_agent_session_roster_uses_concrete_member_state_and_content
     assert "ws 22" in header.plain
     assert "✓ DONE" in header.plain
     assert "▶ WORKING TALE" in header.plain
+    assert "Models: claude/opus · codex/gpt-5\n" in header.plain
+    assert "aggregate/model" not in header.plain
 
     panel = FakePromptPanel()
     panel._update_agent_session_display(
@@ -221,3 +225,44 @@ def test_agent_session_header_maps_shared_shallow_levels_to_preview(
     assert "▾ OUTPUT VARIABLES · 2\n" in expanded.plain
     assert "plan_path: /tmp/plan.md" in expanded.plain
     assert "code_path: /tmp/code.md" in expanded.plain
+
+
+def test_session_models_use_the_full_projection_beyond_turn_lane_limit() -> None:
+    started = datetime(2026, 7, 20, 9, 0, 0)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="long-session",
+        project_file="/tmp/session.sase",
+        status="DONE",
+        start_time=started,
+        stop_time=started + timedelta(minutes=2),
+        raw_suffix="20260720090000",
+        agent_name="long-session",
+        agent_session="long-session",
+        agent_session_role="root",
+        plan_chain_root=True,
+    )
+    children = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"long-session-{index}",
+            project_file="/tmp/session.sase",
+            status="DONE",
+            start_time=started + timedelta(minutes=index),
+            raw_suffix=f"20260720{90000 + index:06d}",
+            agent_name=f"long-session--turn-{index}",
+            agent_session="long-session",
+            agent_session_role=f"turn-{index}",
+            model=f"codex/model-{index}",
+            llm_provider="codex",
+        )
+        for index in range(1, 14)
+    ]
+    root.followup_agents = children
+    for child in children:
+        child.agent_session_container = root
+
+    header, _ = build_header_text(root, cheap=True)
+
+    assert "Models:" in header.plain
+    assert "codex/model-13" in header.plain

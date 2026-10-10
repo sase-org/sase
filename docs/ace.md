@@ -5963,13 +5963,18 @@ the preferred card.
   members of a nested sequential session are indented under its aggregate row. `Ctrl+J`
   / `Ctrl+K` move between the Main deck's cards, and pressing the row's number jumps to
   that member in the Agents list. At most 100 members receive numbers.
-- **SESSION**: Shown when a real multi-member session root is selected. The cyan kind
-  label renders as the header panel title and the cyan `Name:` value matches the session
-  row's identity block. The title is header chrome, not a card; the `SESSION TURNS`
-  roster lives in the jump panel and is not a navigable section. On a session container,
-  its `SASE CONTEXT` heading opens the Context card region; its per-lane sub-headings
-  (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) stay fold
-  anchors only.
+- **SESSION**: Shown when a real multi-member session root is selected. The collapsed
+  identity includes a `Models:` strip with each distinct recorded provider/model pair
+  once, in first-use order. It uses one row normally and a second row before omitting
+  entries; `+N more` counts hidden distinct models, and `d` expands to the complete
+  uncapped list. Missing model facts have a separate unknown count. The share budget
+  gives model rows space before the optional RAW PROMPT preview, including when the
+  preview setting is `0`. The cyan kind label renders as the header panel title and the
+  cyan `Name:` value matches the session row's identity block. The title is header
+  chrome, not a card; the `SESSION TURNS` roster lives in the jump panel and is not a
+  navigable section. On a session container, its `SASE CONTEXT` heading opens the
+  Context card region; its per-lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`,
+  `GLOSSARY`, `SKILLS`, `WORKSPACES`) stay fold anchors only.
 - **AGENT TURN**: Shown when a standalone sase agent or session member row is selected.
   The gold kind label renders as the header panel title and the gold `Name:` value
   matches the list-row name annotation. The title is header chrome, not a card. Monitor
@@ -5979,34 +5984,35 @@ the preferred card.
   through Timestamps, plus Fold where present) renders in its own always-visible panel
   at the top of the detail column, above the deck panels in every deck layout.
   Collapsed, it keeps the two chip rows — who and how on row 1, what and state on row 2
-  — and previews the agent's `AGENT MACRO` below them as a card: an `MACRO` tab row over
-  a rectangle on the Monokai code surface, so the prompt reads as one block apart from
-  the metadata chips. Every card row carries the `▎` quote bar in the MACRO accent,
+  — and previews the agent's `RAW PROMPT` below them as a card: a `RAW PROMPT` tab row
+  over a rectangle on the Monokai code surface, so the prompt reads as one block apart
+  from the metadata chips. Every card row carries the `▎` quote bar in the MACRO accent,
   which acts as the card's accent edge; hard-wrapped prose reflows into wrapped rows,
   hard breaks render as a dim `¶`, and the highlighting matches the expanded prompt. The
   card fills the panel width and shows at most three rows
   (`ace.agent_header.collapsed_preview_max_rows`), fewer when the
   `ace.agent_header.collapsed_max_share` height budget of a short column is tighter (`0`
-  still turns the preview off and shows no tab). The tab row counts against that budget,
-  next to the border and the chip rows. On overflow the last row ends in `…` and the
-  border subtitle becomes `+N lines · ▾ d more` (`+1 line` when one line is hidden). `d`
-  expands the panel to the full field list plus the complete `AGENT MACRO` under its own
-  heading (or collapses it back). The kind label moves into the panel's border title in
-  the node's accent color — `AGENT`, `AGENT TURN`, `SESSION`, `CLAN`, `WORKFLOW`,
-  `STEP`, `GATE TURN`, `MONITOR TURN`, `NAMED PROC`, or, for a selected whole tribe
-  panel, `TRIBE` — and the border subtitle shows what `d` will do (`▾ d more` /
-  `▴ d less`, naming the configured `toggle_agent_header` key). The panel is hidden only
-  for "No agent selected". `AGENT MACRO` no longer renders in the scrolling body and is
-  not a `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words through
-  `AGENT PROMPT`. A clan's collapsed rows mirror the tribe layout: name, status, and
-  count chip on row 1; tribes, member totals, runtime, and the fold chip on row 2.
-  Collapsed/expanded state is per session and holds across row moves, tribe focus, and
-  layout changes. Hint mode never changes the panel's state: expanded, its fields and
-  `AGENT MACRO` carry hint markers numbered first; collapsed, it keeps its normal
-  preview, header content gets no markers, and numbering starts in the deck body.
-  Attempt-pinned views never rendered `AGENT MACRO` and show no preview, and nodes
-  without a macro show exactly the two chip rows inside the border. Deck search (`,/`)
-  covers the focused panel's deck only, since header fields stay on screen.
+  still turns the preview off and shows no tab). Session model rows count against the
+  target before optional preview rows, and the tab appears only when at least one body
+  row fits. On overflow the last prompt row ends in `…` and the border subtitle becomes
+  `+N lines · ▾ d more` (`+1 line` when one line is hidden). `d` expands the panel to
+  the full field list, complete model list, and `RAW PROMPT` under its own heading (or
+  collapses it back). The kind label moves into the panel's border title in the node's
+  accent color — `AGENT`, `AGENT TURN`, `SESSION`, `CLAN`, `WORKFLOW`, `STEP`,
+  `GATE TURN`, `MONITOR TURN`, `NAMED PROC`, or, for a selected whole tribe panel,
+  `TRIBE` — and the border subtitle shows what `d` will do (`▾ d more` / `▴ d less`,
+  naming the configured `toggle_agent_header` key). The panel is hidden only for "No
+  agent selected". `AGENT MACRO` no longer renders in the scrolling body and is not a
+  `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words through `AGENT PROMPT`. A
+  clan's collapsed rows mirror the tribe layout: name, status, and count chip on row 1;
+  tribes, member totals, runtime, and the fold chip on row 2. Collapsed/expanded state
+  is per session and holds across row moves, tribe focus, and layout changes. Hint mode
+  never changes the panel's state: expanded, its fields and `AGENT MACRO` carry hint
+  markers numbered first; collapsed, it keeps its normal preview, header content gets no
+  markers, and numbering starts in the deck body. Attempt-pinned views never rendered
+  `AGENT MACRO` and show no preview, and nodes without a macro show exactly the two chip
+  rows inside the border. Deck search (`,/`) covers the focused panel's deck only, since
+  header fields stay on screen.
 - **Jump panel**: Every live numbered roster target (session turns, neighbors, clan
   members, tribe members) lives in its own always-visible panel at the bottom of the
   detail column, below the deck panels in every deck layout; the Main deck body does not

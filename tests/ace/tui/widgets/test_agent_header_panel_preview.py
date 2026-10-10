@@ -14,6 +14,11 @@ from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from sase.ace.tui.widgets.agent_header_preview import preview_row_budget
 from sase.ace.tui.agent_header_settings import AgentHeaderSettings
+from sase.ace.tui.widgets.prompt_panel._identity_header import IdentityHeader
+from sase.ace.tui.widgets.prompt_panel._session_model_strip import (
+    expanded_session_model_summary,
+)
+from sase.core.agent_models import AgentModelIdentity, AgentModelSummary
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_header_panel_shared import (
     LONG_RAW_PROMPT,
@@ -233,6 +238,44 @@ async def test_share_zero_hides_preview_but_expanded_keeps_raw_prompt(
         assert detail.toggle_header_expanded() is True
         await pilot.pause()
         assert "AGENT RAW PROMPT" in header_text(panel)
+
+
+async def test_session_models_stay_visible_when_prompt_preview_is_disabled() -> None:
+    models = tuple(
+        AgentModelIdentity("codex", f"model-{index}") for index in range(1, 9)
+    )
+    summary = AgentModelSummary(models=models, latest=models[-1], unknown_turn_count=1)
+    expanded = expanded_session_model_summary(summary)
+    expanded.append("Name: session\n")
+    identity = IdentityHeader(
+        kind_label="SESSION",
+        accent="#00AFFF",
+        expanded=expanded,
+        compact=Text("session · 8 turns\ncontext · running"),
+        model_summary=summary,
+        raw_prompt=Text("prompt preview text"),
+    )
+    app = DetailApp()
+    app._agent_header_settings = AgentHeaderSettings(collapsed_max_share=0.0)  # noqa: SLF001
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = header_panel(detail)
+        panel.show_identity(identity)
+        await pilot.pause()
+
+        collapsed = header_text(panel)
+        assert "Models:" in collapsed
+        assert "model-8" in collapsed
+        assert "RAW PROMPT" not in collapsed
+        assert panel.rendered_row_count >= 3
+
+        assert detail.toggle_header_expanded() is True
+        await pilot.pause()
+        expanded_text = header_text(panel)
+        assert "model-1" in expanded_text
+        assert "model-8" in expanded_text
+        assert "8 turns have no recorded model" not in expanded_text
+        assert "1 turn has no recorded model" in expanded_text
 
 
 async def test_column_resize_changes_budget(tmp_path: Any) -> None:
