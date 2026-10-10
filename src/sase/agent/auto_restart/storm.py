@@ -109,9 +109,8 @@ def storm_check(
         return StormDecision(
             allowed=False,
             reason=(
-                f"{len(windowed)} agents broke within 30 minutes "
-                "(limit "
-                f"{max_per_30m}) — this looks like a real bug, not an update race"
+                f"{len(windowed) + 1} agents broke within 30 minutes — "
+                "this looks like a real bug, not an update race"
             ),
         )
     if episode_id:
@@ -120,9 +119,8 @@ def storm_check(
             return StormDecision(
                 allowed=False,
                 reason=(
-                    f"{len(episodic)} agents broke within one update "
-                    f"(episode {episode_id}, limit {max_per_episode}) — this "
-                    "looks like a real bug, not an update race"
+                    f"{len(episodic) + 1} agents broke within one update — "
+                    "this looks like a real bug, not an update race"
                 ),
             )
     return StormDecision(allowed=True, reason="within storm budget")

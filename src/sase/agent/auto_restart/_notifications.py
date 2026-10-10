@@ -28,6 +28,15 @@ def _episode_dedup_key(episode_id: str) -> str:
     return f"agent-auto-restart:{episode_id}"
 
 
+def _is_episode_row_key(dedup_key: str | None, base: str) -> bool:
+    """Return whether a dedup key is the episode row or its ``#N`` rollover."""
+    if not dedup_key:
+        return False
+    if dedup_key == base:
+        return True
+    return dedup_key.startswith(f"{base}#")
+
+
 def _artifacts_stamp(artifacts_dir: str | None) -> str:
     """Return the failed row's artifacts timestamp for per-death dedup keys."""
     if not artifacts_dir:
@@ -52,18 +61,29 @@ def _episode_notes(episode_id: str, records: list[Any]) -> list[str]:
     ``notes[0]`` is the calm title (never "fail"/"error"); exception text
     appears only in note 2 or later.
     """
-    display = display_episode(episode_id)
+    from sase.agent.auto_restart._notify_report import update_phrase
+    from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
+
+    phrase = update_phrase(episode_id)
     relaunched = [r for r in records if is_relaunched(r)]
     count = len(relaunched)
     if count == 1:
         name = str(getattr(relaunched[0].record, "agent_name", "") or "1 agent")
-        title = f"↻ Restarted {name} after sase update {display}"
+        title = f"{UPDATE_RECOVERY_GLYPH} Restarted {name} after {phrase}"
         lowered = title.lower()
         if "fail" in lowered or "error" in lowered:
-            title = f"↻ Restarted 1 agent after sase update {display}"
+            title = f"{UPDATE_RECOVERY_GLYPH} Restarted 1 agent after {phrase}"
         notes = [title]
+    elif count == 0:
+        fallback = "1 agent"
+        if records:
+            try:
+                fallback = str(getattr(records[0].record, "agent_name", "") or fallback)
+            except AttributeError:
+                pass
+        notes = [f"{UPDATE_RECOVERY_GLYPH} Restarted {fallback} after {phrase}"]
     else:
-        notes = [f"↻ Restarted {count} agents after sase update {display}"]
+        notes = [f"{UPDATE_RECOVERY_GLYPH} Restarted {count} agents after {phrase}"]
 
     symbols = sorted(
         {
@@ -183,7 +203,7 @@ def _resolve_dedup_key(episode_id: str) -> str:
     except Exception:
         return base
     owned = [
-        r for r in rows if r.sender == SENDER and (r.dedup_key or "").startswith(base)
+        r for r in rows if r.sender == SENDER and _is_episode_row_key(r.dedup_key, base)
     ]
     if not owned:
         return base
@@ -263,7 +283,7 @@ def _refresh_row_content(dedup_key: str, episode_id: str) -> None:
         dedup_key=current.dedup_key,
     )
     try:
-        reconcile_notification_rows([refreshed])
+        reconcile_notification_rows([refreshed], refresh_files=True)
     except Exception:
         pass
 
@@ -283,7 +303,7 @@ def refresh_episode_rows(episode_id: str) -> int:
     base = _episode_dedup_key(episode_id)
     refreshed = 0
     for row in rows:
-        if row.sender != SENDER or not (row.dedup_key or "").startswith(base):
+        if row.sender != SENDER or not _is_episode_row_key(row.dedup_key, base):
             continue
         if row.dismissed:
             continue
@@ -323,11 +343,12 @@ def _guarded_upsert(notification: Any, *, plus_one_note: str) -> Any:
 
 def publish_relaunch(
     *,
-    episode_id: str,
+    episode_id: str | None,
     agent_name: str,
     update_ref: str,
     reason_text: str,
     evidence_files: list[str] | None = None,
+    artifacts_stamp: str | None = None,
 ) -> Any:
     """Upsert the episode row for one relaunch (plus-one within it).
 
@@ -336,27 +357,50 @@ def publish_relaunch(
     refresh the title, notes, and inline report snapshot in place without
     moving delivery cursors.
     """
+    from sase.agent.auto_restart._notify_report import update_phrase
+    from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
     from sase.notifications.models import Notification
 
-    raw_ref = (update_ref or "").strip()
-    if not raw_ref or raw_ref == "unknown" or "unknown" in raw_ref:
-        raw_ref = ""
-    elif raw_ref.startswith("sase@"):
-        raw_ref = raw_ref.removeprefix("sase@")
-    ref = raw_ref or display_episode(episode_id)
-    dedup_key = _resolve_dedup_key(episode_id)
-    records = episode_records(episode_id)
+    effective_episode = episode_id
+    if (
+        not effective_episode
+        or effective_episode == "unknown"
+        or "unknown" in effective_episode
+    ):
+        effective_episode = None
+    phrase = update_phrase(effective_episode)
+    if effective_episode is None:
+        stamp = (artifacts_stamp or "").strip() or "row"
+        safe_agent = (
+            "".join(
+                ch if ch.isalnum() or ch in ("-", "_", ".") else "_"
+                for ch in agent_name
+            ).strip("._")
+            or "agent"
+        )
+        safe_stamp = (
+            "".join(
+                ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in stamp
+            ).strip("._")
+            or "row"
+        )
+        dedup_key = f"agent-auto-restart:{safe_agent}:{safe_stamp}"
+        records: list[Any] = []
+    else:
+        dedup_key = _resolve_dedup_key(effective_episode)
+        records = episode_records(effective_episode)
     notes = (
-        _episode_notes(episode_id, records)
+        _episode_notes(effective_episode or "", records)
         if records
-        else [f"↻ Restarted {agent_name} after sase update {ref}"]
+        else [f"{UPDATE_RECOVERY_GLYPH} Restarted {agent_name} after {phrase}"]
     )
     files = _expand_evidence_files(evidence_files)
     for candidate in _episode_evidence_files(records):
         if candidate not in files:
             files.append(candidate)
     files = files[:40]
-    path = episode_report_path(episode_id)
+    report_episode = effective_episode or dedup_key
+    path = episode_report_path(report_episode)
     action_data = {"report_path": str(path), "report_title": notes[0][:64]}
     notification = Notification(
         id=str(uuid4()),
@@ -373,11 +417,11 @@ def publish_relaunch(
     )
     outcome = _guarded_upsert(notification, plus_one_note=f"Restarted {agent_name}")
     try:
-        refresh_episode_report(episode_id)
+        refresh_episode_report(report_episode)
     except Exception:
         pass
     try:
-        _refresh_row_content(dedup_key, episode_id)
+        _refresh_row_content(dedup_key, report_episode)
     except Exception:
         pass
     return outcome

@@ -342,9 +342,11 @@ def escalate_healer(
         )
         detail = reason_text
     elif kind == "already_restarted":
-        update_ref = episode_id.removeprefix("sase@") if episode_id else "a sase update"
+        from sase.agent.auto_restart._notify_report import update_phrase
+
+        phrase = update_phrase(episode_id)
         title = (
-            f"This was its automatic restart after sase update {update_ref} — "
+            f"This was its automatic restart after {phrase} — "
             "not retrying. "
             f"Press ,x on {target.agent_name} to retry by hand."
         )
@@ -391,11 +393,12 @@ def publish_relaunch_event(
     files = [evidence_dir] if evidence_dir else []
     with contextlib.suppress(Exception):
         publish_relaunch(
-            episode_id=episode_id or "unknown",
+            episode_id=episode_id,
             agent_name=target.agent_name,
             update_ref=_short_episode_ref(episode_id),
             reason_text=getattr(verdict, "reason_text", "") or "",
             evidence_files=files,
+            artifacts_stamp=target.artifacts_dir.name,
         )
 
 

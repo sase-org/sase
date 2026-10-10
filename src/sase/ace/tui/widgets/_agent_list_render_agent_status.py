@@ -8,14 +8,6 @@ from datetime import datetime
 
 from rich.text import Text
 
-from sase.agent.auto_restart.ux import (
-    RESTARTING_HINT_STYLE,
-    RESTARTING_STATUS,
-    RESTARTING_STYLE,
-    STALE_PENDING_HINT,
-    declined_hint,
-    restarting_hint,
-)
 from sase.agent.status_buckets import (
     QUEUED_STATUS,
     QUEUED_STATUS_COLOR,
@@ -75,6 +67,8 @@ from sase.core.time import local_now
 
 def _failed_recovery_hint(agent: Agent) -> Text:
     """Return the dim auto-restart hint for a ``FAILED`` row, if any."""
+    from sase.agent.auto_restart.ux import STALE_PENDING_HINT, declined_hint
+
     hint = Text()
     if agent.recovery_stale_pending:
         hint.append(f" · {STALE_PENDING_HINT}", style="dim")
@@ -157,6 +151,13 @@ def append_agent_row_status(
     has_unresolvable_wait_target: bool = False,
 ) -> None:
     """Append the status parenthetical and adjacent outcome badges."""
+    from sase.agent.auto_restart.ux import (
+        RESTARTING_HINT_STYLE,
+        RESTARTING_STATUS,
+        RESTARTING_STYLE,
+        restarting_hint,
+    )
+
     # Status (wrapped in parentheses, parens are dim)
     append_agent_queue_badges(text, agent)
     display_status = agent.display_status

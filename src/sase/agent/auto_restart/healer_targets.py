@@ -125,7 +125,12 @@ def target_was_silenced(target: HealerTarget, done: Mapping[str, Any]) -> bool:
 
 def resolve_pending_targets(*, now: float | None = None) -> list[HealerTarget]:
     """Enumerate healer candidates: doorbells plus recent skew-shaped rows."""
-    from sase.agent.auto_restart.ledger import delete_doorbell, list_doorbells
+    from sase.agent.auto_restart.ledger import (
+        claimer_is_live,
+        delete_doorbell,
+        iter_ledger_records_cached,
+        list_doorbells,
+    )
 
     at = time.time() if now is None else now
     targets: list[HealerTarget] = []
@@ -174,6 +179,46 @@ def resolve_pending_targets(*, now: float | None = None) -> list[HealerTarget]:
                 project=row.project,
                 agent_name=row.agent_name,
                 died_at=row.died_at,
+            )
+        )
+    try:
+        records = iter_ledger_records_cached()
+    except Exception:
+        records = []
+    for stored in records:
+        try:
+            state = stored.record.state
+            failed = stored.record.failed_artifacts_dir
+        except AttributeError:
+            continue
+        if state not in ("claimed", "deferred", "launching"):
+            continue
+        if not isinstance(failed, str) or not failed:
+            continue
+        if failed in seen:
+            continue
+        if state in ("claimed", "launching"):
+            try:
+                if claimer_is_live(stored):
+                    continue
+            except Exception:
+                pass
+        try:
+            if (Path(failed) / "done.json").is_file():
+                continue
+        except OSError:
+            pass
+        seen.add(failed)
+        try:
+            project = stored.record.project or "sase"
+            name = stored.record.agent_name or Path(failed).name
+        except AttributeError:
+            continue
+        targets.append(
+            HealerTarget(
+                artifacts_dir=Path(failed),
+                project=str(project),
+                agent_name=str(name),
             )
         )
     return _order_targets(targets)
@@ -342,11 +387,11 @@ def _max_defer_seconds() -> float:
 
 
 def _target_for_artifacts_dir(artifacts_dir: Path) -> HealerTarget:
-    from sase.agent.auto_restart.history import project_for_done
-
-    done = read_json(artifacts_dir / "done.json") or {}
     meta = read_json(artifacts_dir / "agent_meta.json") or {}
-    project = project_for_done(done, artifacts_dir)
+    try:
+        project = artifacts_dir.parents[1].name
+    except IndexError:
+        project = artifacts_dir.parent.name
     name = str(meta.get("name") or meta.get("workflow_name") or artifacts_dir.name)
     return HealerTarget(artifacts_dir=artifacts_dir, project=project, agent_name=name)
 

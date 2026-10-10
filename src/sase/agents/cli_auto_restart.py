@@ -29,6 +29,7 @@ from sase.agent.auto_restart.history import (
     candidate_log_tail,
     collect_failed_candidates,
 )
+from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
 from sase.agent.auto_restart.inputs import (
     AssembledInput,
     assemble_bundle_input,
@@ -247,7 +248,11 @@ def _handle_list(args: argparse.Namespace) -> int:
                 ),
             )
         console.print(
-            Panel(table, title=f"↻ {episode} ({len(group)})", border_style="yellow")
+            Panel(
+                table,
+                title=f"{UPDATE_RECOVERY_GLYPH} {episode} ({len(group)})",
+                border_style="yellow",
+            )
         )
     return 0
 
@@ -442,7 +447,7 @@ def _print_record_card(stored: Any) -> None:
     console.print(
         Panel(
             "\n".join(lines),
-            title=f"↻ {record.key}",
+            title=f"{UPDATE_RECOVERY_GLYPH} {record.key}",
             border_style="yellow",
         )
     )

@@ -108,7 +108,7 @@ def project_for_done(done: Mapping[str, Any], artifacts_dir: Path) -> str:
     if isinstance(cl_name, str) and cl_name:
         return cl_name
     try:
-        return artifacts_dir.parents[2].name
+        return artifacts_dir.parents[1].name
     except IndexError:
         return artifacts_dir.parent.name
 

@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
 from sase.dev_update import (
     DevReconcileStep,
     DevUpdateOutcome,
@@ -273,7 +274,8 @@ def _auto_restart_hint_line() -> Text | None:
         return None
     noun = "agent is" if count == 1 else "agents are"
     return Text(
-        f"↻ {count} running {noun} still on pre-update code. If this update "
+        f"{UPDATE_RECOVERY_GLYPH} {count} running {noun} still on pre-update code. "
+        "If this update "
         "breaks one, sase restarts it once automatically "
         "(sase agent auto-restart list).",
         style="dim",

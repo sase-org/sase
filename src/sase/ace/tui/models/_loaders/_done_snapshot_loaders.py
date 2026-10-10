@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from sase.agent.auto_restart.ux import RESTARTING_STATUS, apply_recovery_to_agent
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS
 from sase.core.agent_scan_wire import (
     DONE_WORKFLOW_DIR_NAMES,
@@ -57,6 +56,8 @@ def _apply_snapshot_auto_restart(
     recovery = getattr(done, "recovery", None)
     if recovery is None:
         return
+    from sase.agent.auto_restart.ux import RESTARTING_STATUS, apply_recovery_to_agent
+
     restarted = apply_recovery_to_agent(
         agent,
         state=getattr(recovery, "state", None),

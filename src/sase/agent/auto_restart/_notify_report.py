@@ -6,8 +6,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sase.agent.auto_restart.constants import (
+    _FAILED_REPLACEMENT_OUTCOMES as _FAILED_REPLACEMENT_OUTCOMES,
+)
+from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
+
 SENDER = "agent.auto-restart"
-ICON = "↻"
+ICON = UPDATE_RECOVERY_GLYPH
 COLOR = "#FFAF5F"
 
 EPISODES_DIRNAME = "episodes"
@@ -37,6 +42,19 @@ def episode_report_path(episode_id: str) -> Path:
         / EPISODES_DIRNAME
         / f"{_episode_slug(episode_id)}{REPORT_SUFFIX}"
     )
+
+
+def update_phrase(episode_id: str | None) -> str:
+    """Return the honest update phrase for an episode.
+
+    A known episode reads ``sase update 9fd8a08``; anything else reads
+    ``a sase update``. Use this in every "after …" phrase so unknown
+    episodes never render "sase update a sase update".
+    """
+    display = display_episode(episode_id or "")
+    if display == "a sase update":
+        return "a sase update"
+    return f"sase update {display}"
 
 
 def display_episode(episode_id: str) -> str:
@@ -127,26 +145,24 @@ def _update_ref(stored: Any) -> str:
     return ""
 
 
-_FAILED_REPLACEMENT_OUTCOMES = frozenset(
-    {
-        "failed",
-        "killed",
-        "stopped",
-        "epic_launch_failed",
-        "timeout",
-        "lost",
-    }
-)
-
-
 def _replacement_outcome(stored: Any) -> str:
     """Return the live Now-cell for one record: RUNNING, DONE, or FAILED.
 
-    Any present ``done.json`` outcome settles the cell: failure-shaped
-    outcomes read FAILED, every other recorded outcome reads DONE. Only a
-    missing or unreadable replacement row still reads RUNNING, so a
-    finished replacement never shows RUNNING.
+    The ledger state wins when settled: ``settled_failed`` reads FAILED
+    and ``settled_ok`` reads DONE even when the replacement's ``done.json``
+    is gone. Otherwise any present ``done.json`` outcome settles the cell:
+    failure-shaped outcomes read FAILED, every other recorded outcome reads
+    DONE. Only a missing or unreadable replacement row still reads RUNNING,
+    so a finished replacement never shows RUNNING.
     """
+    try:
+        state = str(getattr(stored.record, "state", "") or "")
+    except AttributeError:
+        state = ""
+    if state == "settled_failed":
+        return "FAILED"
+    if state == "settled_ok":
+        return "DONE"
     launched_dir = getattr(stored.record, "launched_artifacts_dir", None)
     if not launched_dir:
         return "RUNNING" if is_relaunched(stored) else "—"
@@ -192,7 +208,7 @@ def build_episode_report(
     in_flight = [r for r in records if _is_in_flight(r)]
     display = display_episode(episode_id)
 
-    title = f"↻ Auto-restart report · {display}"
+    title = f"{UPDATE_RECOVERY_GLYPH} Auto-restart report · {display}"
     report = ChopReport(title=title[:64])
     n_left = len(left)
     report.headline(

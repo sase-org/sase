@@ -35,8 +35,10 @@ def relaunch_claimed(
     plan_restart: Callable | None,
     execute_restart: Callable | None,
     now: float,
+    silenced: bool = True,
 ) -> HealerOutcome:
     from sase.agent.auto_restart import ledger as ledger_mod
+    from sase.agent.auto_restart._healer_common import decline_heal
 
     key = stored.record.key
     # Re-validate skip rules against fresh state immediately before mutating.
@@ -44,27 +46,23 @@ def relaunch_claimed(
     fresh_meta = read_json(target.artifacts_dir / "agent_meta.json") or {}
     skip: SkipDecision = apply_skip_rules(target, done=fresh_done, meta=fresh_meta)
     if skip.skip:
-        stored = ledger_mod.advance_ledger_record(
-            stored,
-            "decline",
-            note=skip.decline_reason,
-            at=ledger_mod.timestamp_for(now),
+        effective_silenced = silenced or skip.decline_reason == "already_restarted"
+        kind = (
+            "already_restarted"
+            if skip.decline_reason == "already_restarted"
+            else "decline"
         )
-        stored = annotate_record(stored, decline_reason=skip.decline_reason)
-        write_recovery(
+        return decline_heal(
+            stored,
             target,
-            "declined",
+            skip.decline_reason,
             skip.reason_text,
             now=now,
-            ledger_key=key,
+            dry_run=False,
+            escalate=skip.loud,
             episode_id=stored.record.episode_id or episode_id,
-            decline_reason=skip.decline_reason,
-        )
-        return HealerOutcome(
-            action="declined",
-            reason=skip.decline_reason,
-            reason_text=skip.reason_text,
-            ledger_key=key,
+            escalate_kind=kind,
+            silenced=effective_silenced,
         )
     try:
         plan = (plan_restart or _plan_default)(
@@ -73,27 +71,16 @@ def relaunch_claimed(
     except Exception as exc:
         return defer_heal(stored, target, f"restart planning refused: {exc}", now=now)
     if _wipe_reaches_others(plan, target):
-        stored = ledger_mod.advance_ledger_record(
+        return decline_heal(
             stored,
-            "decline",
-            note="wipe_reaches_others",
-            at=ledger_mod.timestamp_for(now),
-        )
-        stored = annotate_record(stored, decline_reason="wipe_reaches_others")
-        write_recovery(
             target,
-            "declined",
-            "wipe reaches other agents",
+            "wipe_reaches_others",
+            "not restarted — the name wipe would reach other agents",
             now=now,
-            ledger_key=key,
+            dry_run=False,
+            escalate=False,
             episode_id=stored.record.episode_id or episode_id,
-            decline_reason="wipe_reaches_others",
-        )
-        return HealerOutcome(
-            action="declined",
-            reason="wipe_reaches_others",
-            reason_text="not restarted — the name wipe would reach other agents",
-            ledger_key=key,
+            silenced=silenced,
         )
     stored = ledger_mod.advance_ledger_record(
         stored,
@@ -116,6 +103,7 @@ def relaunch_claimed(
         lineage_root=lineage_root,
         ledger_key=key,
         evidence_dir=evidence_dir,
+        evidence_files=evidence_files,
         witnesses=assembled.witnesses,
         facts=assembled.facts,
     )
@@ -129,6 +117,8 @@ def relaunch_claimed(
     )
     outcome = (execute_restart or _execute_default)(plan, evidence_files)
     if outcome is None or getattr(outcome, "status", "") != "ok":
+        import contextlib as _contextlib
+
         error = getattr(outcome, "error", None) or "execute failed"
         stored = ledger_mod.advance_ledger_record(
             stored,
@@ -146,7 +136,19 @@ def relaunch_claimed(
             episode_id=episode_id,
             decline_reason="execute_failed",
         )
-        resurface_healer(target, str(error)[:300])
+        if isinstance(episode_id, str) and episode_id:
+            with _contextlib.suppress(Exception):
+                from sase.agent.auto_restart.notify import (
+                    refresh_episode_report,
+                    refresh_episode_rows,
+                )
+
+                refresh_episode_report(episode_id)
+                refresh_episode_rows(episode_id)
+        with _contextlib.suppress(Exception):
+            ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
+        if silenced:
+            resurface_healer(target, str(error)[:300])
         return HealerOutcome(
             action="declined",
             reason="execute_failed",
@@ -236,6 +238,7 @@ def _attach_provenance(
     lineage_root: str,
     ledger_key: str,
     evidence_dir: str | None,
+    evidence_files: dict[str, Any] | None = None,
     witnesses: Any,
     facts: Any,
 ) -> None:
@@ -247,6 +250,10 @@ def _attach_provenance(
     )
     from sase.core.time import get_timezone
 
+    try:
+        file_names = sorted(str(k) for k in (evidence_files or {}).keys())
+    except Exception:
+        file_names = []
     provenance = {
         "of_artifacts_dir": str(target.artifacts_dir),
         "of_timestamp": target.artifacts_dir.name,
@@ -254,6 +261,7 @@ def _attach_provenance(
         "episode_id": episode_id,
         "ledger_key": ledger_key,
         "evidence_dir": evidence_dir,
+        "evidence_files": file_names,
         "signature": getattr(verdict, "signature", None),
         "from_rev": None,
         "to_rev": None,

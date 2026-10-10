@@ -239,6 +239,7 @@ def test_refresh_path_imports_no_new_sase_modules(
     sase_home.mkdir()
     child_env = dict(os.environ)
     child_env.pop("PYTEST_CURRENT_TEST", None)
+    child_env.pop("PYTEST_VERSION", None)
     child_env["SASE_HOME"] = str(sase_home)
     script = textwrap.dedent(
         """
@@ -248,6 +249,7 @@ def test_refresh_path_imports_no_new_sase_modules(
         from unittest.mock import patch
 
         from sase.axe import run_agent_runner_refresh as refresh
+        from sase.macro.models import Macro
 
         class Firewall(importlib.abc.MetaPathFinder):
             def __init__(self):
@@ -276,6 +278,7 @@ def test_refresh_path_imports_no_new_sase_modules(
                     submitted_prompt="%wait:builder\\nDo work",
                     agent_name="builder.w0",
                     artifacts_dir=artifacts_dir,
+                    local_macros={"_x": Macro(name="_x", content="body")},
                 )
             finally:
                 sys.meta_path.remove(firewall)

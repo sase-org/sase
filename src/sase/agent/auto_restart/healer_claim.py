@@ -82,6 +82,12 @@ def heal_one(
             dry_run=dry_run,
             lineage_root=lineage_root,
             now=at,
+            classify=classify,
+            check_quiescence=check_quiescence,
+            run_probe=run_probe,
+            plan_restart=plan_restart,
+            execute_restart=execute_restart,
+            derive_episode=derive_auto_restart_episode,
         )
 
     # Fresh lineage: re-check the candidate rule before claiming anything.
@@ -109,7 +115,7 @@ def heal_one(
             now=at,
         )
     except Exception:
-        candidate = True
+        candidate = False
     if not candidate:
         if not dry_run:
             with contextlib.suppress(Exception):
@@ -159,6 +165,12 @@ def heal_one(
     # The ledger owns this failure now: the doorbell is handled, and the
     # runner's ``pending`` stays in place until the pass writes
     # ``deferred``, ``launching``, or ``declined`` (never ``claimed``).
+    silenced_value = True if silenced is None else silenced
+    if not dry_run:
+        with contextlib.suppress(Exception):
+            stored = ledger_mod.store_ledger_record(
+                stored, extra={"python_silenced": bool(silenced_value)}
+            )
     with contextlib.suppress(Exception):
         ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
     return heal_claimed(
@@ -175,7 +187,7 @@ def heal_one(
         execute_restart=execute_restart,
         derive_episode=derive_auto_restart_episode,
         now=at,
-        silenced=True if silenced is None else silenced,
+        silenced=silenced_value,
     )
 
 
@@ -222,9 +234,26 @@ def _recover_existing_claim(
     dry_run: bool,
     lineage_root: str | None = None,
     now: float,
+    classify: Callable | None = None,
+    check_quiescence: Callable | None = None,
+    run_probe: Callable | None = None,
+    plan_restart: Callable | None = None,
+    execute_restart: Callable | None = None,
+    derive_episode: Callable | None = None,
 ) -> HealerOutcome:
     """Handle a ledger record left by an earlier pass; never launch twice."""
     from sase.agent.auto_restart import ledger as ledger_mod
+    from sase.agent.auto_restart.healer_targets import target_was_silenced
+
+    raw_silenced = stored.extra.get("python_silenced")
+    if isinstance(raw_silenced, bool):
+        retake_silenced = raw_silenced
+    else:
+        try:
+            maybe = target_was_silenced(target, done)
+            retake_silenced = True if maybe is None else bool(maybe)
+        except Exception:
+            retake_silenced = True
 
     state = stored.record.state
     key = stored.record.key
@@ -264,45 +293,45 @@ def _recover_existing_claim(
             reason_text="another live claim owns this lineage",
             ledger_key=key,
         )
+    try:
+        row_gone = not (target.artifacts_dir / "done.json").is_file()
+    except OSError:
+        row_gone = True
+    if row_gone and state in ("claimed", "deferred"):
+        from sase.agent.auto_restart._healer_common import decline_heal
+
+        return decline_heal(
+            stored,
+            target,
+            "row_gone",
+            "failed row is gone; nothing to restart",
+            now=now,
+            dry_run=dry_run,
+            escalate=False,
+            episode_id=stored.record.episode_id,
+            silenced=False,
+        )
     if state == "deferred":
         max_age = _max_defer_seconds()
-        claimed_at = _parse_epoch(stored.record.claimed_at)
-        if claimed_at is not None and now - claimed_at > max_age:
-            if not dry_run:
-                stored = ledger_mod.advance_ledger_record(
-                    stored,
-                    "decline",
-                    note="max_defer_seconds elapsed",
-                    at=ledger_mod.timestamp_for(now),
-                )
-                stored = annotate_record(stored, decline_reason="deferred_expired")
-            write_recovery(
-                target,
-                "declined",
-                "deferred too long without settling; not retrying",
-                now=now,
-                dry_run=dry_run,
-                ledger_key=key,
-                episode_id=stored.record.episode_id,
-                decline_reason="deferred_expired",
-            )
-            if not dry_run:
-                from sase.agent.auto_restart._healer_common import escalate_healer
+        first_claim = ledger_mod.lineage_first_claim_epoch(stored)
+        if first_claim is None:
+            first_claim = _parse_epoch(stored.record.claimed_at)
+        if first_claim is not None and now - first_claim > max_age:
+            from sase.agent.auto_restart._healer_common import decline_heal
 
-                escalate_healer(
-                    target,
-                    "deferred too long without settling; not retrying",
-                    episode_id=stored.record.episode_id,
-                    kind="decline",
-                )
-            return HealerOutcome(
-                action="declined",
-                reason="deferred_expired",
-                reason_text=(
+            return decline_heal(
+                stored,
+                target,
+                "deferred_expired",
+                (
                     f"Couldn't restart {target.agent_name} automatically — "
                     "deferred too long without settling; not retrying"
                 ),
-                ledger_key=key,
+                now=now,
+                dry_run=dry_run,
+                escalate=True,
+                episode_id=stored.record.episode_id,
+                silenced=retake_silenced,
             )
         # Stale deferred with a dead claimer: re-attempt in a fresh pass.
         if not dry_run:
@@ -316,7 +345,14 @@ def _recover_existing_claim(
             meta=meta,
             dry_run=dry_run,
             lineage_root=lineage_root,
+            classify=classify,
+            check_quiescence=check_quiescence,
+            run_probe=run_probe,
+            plan_restart=plan_restart,
+            execute_restart=execute_restart,
+            derive_episode=derive_episode,
             now=now,
+            silenced=retake_silenced,
         )
     # Stale claimed with a dead claimer: adopt the claim and proceed.
     if not dry_run:
@@ -330,7 +366,14 @@ def _recover_existing_claim(
         meta=meta,
         dry_run=dry_run,
         lineage_root=lineage_root,
+        classify=classify,
+        check_quiescence=check_quiescence,
+        run_probe=run_probe,
+        plan_restart=plan_restart,
+        execute_restart=execute_restart,
+        derive_episode=derive_episode,
         now=now,
+        silenced=retake_silenced,
     )
 
 
@@ -343,7 +386,17 @@ def _adopt_or_settle(
     key = stored.record.key
     planned = stored.record.planned_name
     claimed_at = _parse_epoch(stored.record.claimed_at) or 0.0
-    replacement = _find_replacement_dir(planned, since=claimed_at) if planned else None
+    failed_dir = stored.record.failed_artifacts_dir
+    replacement = (
+        _find_replacement_dir(
+            planned,
+            since=claimed_at,
+            failed_dir=failed_dir if isinstance(failed_dir, str) else None,
+            expected_key=key,
+        )
+        if planned
+        else None
+    )
     if dry_run:
         return HealerOutcome(
             action="dry_run",
@@ -367,6 +420,15 @@ def _adopt_or_settle(
             ledger_key=key,
             episode_id=stored.record.episode_id,
         )
+        if isinstance(stored.record.episode_id, str) and stored.record.episode_id:
+            with contextlib.suppress(Exception):
+                from sase.agent.auto_restart.notify import (
+                    refresh_episode_report,
+                    refresh_episode_rows,
+                )
+
+                refresh_episode_report(stored.record.episode_id)
+                refresh_episode_rows(stored.record.episode_id)
         return HealerOutcome(
             action="relaunched",
             reason="adopted",
@@ -389,7 +451,21 @@ def _adopt_or_settle(
         ledger_key=key,
         episode_id=stored.record.episode_id,
     )
-    resurface_healer(target, "the restart attempt died before relaunching")
+    if isinstance(stored.record.episode_id, str) and stored.record.episode_id:
+        with contextlib.suppress(Exception):
+            from sase.agent.auto_restart.notify import (
+                refresh_episode_report,
+                refresh_episode_rows,
+            )
+
+            refresh_episode_report(stored.record.episode_id)
+            refresh_episode_rows(stored.record.episode_id)
+    with contextlib.suppress(Exception):
+        ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
+    raw_silenced = stored.extra.get("python_silenced")
+    silenced = raw_silenced if isinstance(raw_silenced, bool) else True
+    if silenced:
+        resurface_healer(target, "the restart attempt died before relaunching")
     return HealerOutcome(
         action="declined",
         reason="launch_aborted",
@@ -398,7 +474,13 @@ def _adopt_or_settle(
     )
 
 
-def _find_replacement_dir(planned_name: str, *, since: float) -> str | None:
+def _find_replacement_dir(
+    planned_name: str,
+    *,
+    since: float,
+    failed_dir: str | None = None,
+    expected_key: str | None = None,
+) -> str | None:
     try:
         from sase.agent.names._lookup_named import find_named_agent
     except Exception:
@@ -410,11 +492,28 @@ def _find_replacement_dir(planned_name: str, *, since: float) -> str | None:
     if agent is None:
         return None
     artifacts = Path(str(agent.artifacts_dir))
+    if failed_dir:
+        try:
+            if artifacts.resolve() == Path(failed_dir).resolve():
+                return None
+        except OSError:
+            if str(artifacts) == failed_dir:
+                return None
     try:
         if artifacts.stat().st_mtime < since:
             return None
     except OSError:
         return None
+    if expected_key:
+        try:
+            meta = read_json(artifacts / "agent_meta.json") or {}
+        except Exception:
+            meta = {}
+        auto_restart = meta.get("auto_restart") if isinstance(meta, dict) else None
+        if isinstance(auto_restart, Mapping):
+            recorded = auto_restart.get("ledger_key")
+            if isinstance(recorded, str) and recorded and recorded != expected_key:
+                return None
     return str(artifacts)
 
 
@@ -461,9 +560,10 @@ def _handle_replacement_failure(
     episode_id = _opt_str(auto_restart.get("episode_id")) or (
         stored.record.episode_id if stored is not None else None
     )
+    from sase.agent.auto_restart._notify_report import update_phrase
+
     reason_text = (
-        f"This was its automatic restart after sase update "
-        f"{episode_id.removeprefix('sase@') if episode_id else 'a sase update'} "
+        f"This was its automatic restart after {update_phrase(episode_id)} "
         "— not retrying."
     )
     recovery = done.get("recovery")
@@ -494,6 +594,15 @@ def _handle_replacement_failure(
         )
         with contextlib.suppress(Exception):
             ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
+        if isinstance(episode_id, str) and episode_id:
+            with contextlib.suppress(Exception):
+                from sase.agent.auto_restart.notify import (
+                    refresh_episode_report,
+                    refresh_episode_rows,
+                )
+
+                refresh_episode_report(episode_id)
+                refresh_episode_rows(episode_id)
         escalate_healer(
             target,
             reason_text,

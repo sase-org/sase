@@ -7,9 +7,11 @@ best-effort breadcrumb for out-of-process readers.
 
 ``boot_code_identity`` snapshots the code this process image imported. Only
 module-scope imports here are stdlib: every ``sase.*`` import below is
-function-local so importing this module at runner boot adds no deferred
-import surface of its own. When multiple install records share a distribution
-name, the first record yielded from ``sys.path`` wins.
+function-local so importing this module at runner boot stays stdlib-only.
+Those function-local imports are deferred surface on first use, so refresh-path
+callers warm them at module scope before the identity check. When multiple
+install records share a distribution name, the first record yielded from
+``sys.path`` wins.
 """
 
 from __future__ import annotations

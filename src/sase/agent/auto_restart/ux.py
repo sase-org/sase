@@ -224,8 +224,8 @@ def apply_provenance_to_agent(agent: Any, provenance: object) -> None:
     """Project an ``agent_meta`` auto-restart record onto a TUI agent row.
 
     A set record marks the row as a same-name replacement and registers
-    the preserved evidence bundle directory as a ``v`` file hint. Render
-    paths never stat the bundle.
+    the preserved evidence files as ``v`` file hints. Render paths never
+    stat the bundle.
     """
     if not isinstance(provenance, Mapping):
         return
@@ -239,8 +239,18 @@ def apply_provenance_to_agent(agent: Any, provenance: object) -> None:
     extra = getattr(agent, "extra_files", None)
     if not isinstance(extra, list):
         return
-    if evidence_dir not in extra:
-        extra.append(evidence_dir)
+    raw_names = record.get("evidence_files")
+    names = (
+        [str(n) for n in raw_names if isinstance(n, str) and n]
+        if isinstance(raw_names, list)
+        else []
+    )
+    if "error_report.md" not in names:
+        names = ["error_report.md", *names]
+    for name in names:
+        path = f"{evidence_dir}/{name}"
+        if path not in extra:
+            extra.append(path)
 
 
 __all__ = [

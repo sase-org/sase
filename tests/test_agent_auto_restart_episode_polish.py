@@ -32,6 +32,7 @@ def tmp_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _seed(
+    base: Path,
     name: str,
     *,
     episode: str = EPISODE,
@@ -44,7 +45,9 @@ def _seed(
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.core.agent_auto_restart_wire import AutoRestartLedgerRecordWire
 
-    launched_dir = Path(tempfile.mkdtemp(prefix=f"launched-{name}-{index}-"))
+    launched_dir = Path(
+        tempfile.mkdtemp(prefix=f"launched-{name}-{index}-", dir=str(base))
+    )
     if launched_outcome is not None:
         (launched_dir / "done.json").write_text(
             json.dumps({"outcome": launched_outcome}), encoding="utf-8"
@@ -101,11 +104,10 @@ def _live_episode_rows() -> list[Any]:
 
 
 def test_titles_never_show_raw_episode_or_unknown(tmp_home: Path) -> None:
-    _ = tmp_home
     assert display_episode(EPISODE) == SHORT
     assert display_episode("unknown") == "a sase update"
     assert display_episode("") == "a sase update"
-    _seed("alpha", index=0)
+    _seed(tmp_home, "alpha", index=0)
     notify.publish_relaunch(
         episode_id=EPISODE,
         agent_name="alpha",
@@ -152,10 +154,9 @@ def test_now_column_maps_every_terminal_outcome(tmp_path: Path) -> None:
 
 
 def test_settlement_refreshes_report_and_row_snapshot(tmp_home: Path) -> None:
-    _ = tmp_home
     from sase.agent.auto_restart import sweep as sweep_mod
 
-    stored = _seed("alpha", index=0)
+    stored = _seed(tmp_home, "alpha", index=0)
     notify.publish_relaunch(
         episode_id=EPISODE, agent_name="alpha", update_ref=SHORT, reason_text="skew"
     )
@@ -182,12 +183,11 @@ def test_settlement_refreshes_report_and_row_snapshot(tmp_home: Path) -> None:
 
 
 def test_reused_name_escalation_creates_new_row(tmp_home: Path) -> None:
-    _ = tmp_home
     import tempfile
 
     from sase.notifications.store import load_notifications, mark_dismissed
 
-    first_dir = Path(tempfile.mkdtemp(prefix="failed-bead-1-"))
+    first_dir = Path(tempfile.mkdtemp(prefix="failed-bead-1-", dir=str(tmp_home)))
     (first_dir / "error_report.md").write_text("# boom\n", encoding="utf-8")
     notify.resurface_failure(
         agent_name="bead.agent",
@@ -202,7 +202,7 @@ def test_reused_name_escalation_creates_new_row(tmp_home: Path) -> None:
     assert len(rows) == 1
     assert mark_dismissed(rows[0].id)
 
-    second_dir = Path(tempfile.mkdtemp(prefix="failed-bead-2-"))
+    second_dir = Path(tempfile.mkdtemp(prefix="failed-bead-2-", dir=str(tmp_home)))
     (second_dir / "error_report.md").write_text("# boom\n", encoding="utf-8")
     notify.resurface_failure(
         agent_name="bead.agent",

@@ -50,12 +50,20 @@ def test_probe_modules_src_layout_editable(
         lambda: (_root(checkout),),
     )
 
+    from sase.agent.auto_restart.probe import _path_to_module
+
+    assert _path_to_module(str(frame), str(checkout)) == "sase.axe.x"
     modules = probe_modules_for_frames(
         [SimpleNamespace(file=str(frame))],
         target_module="sase.axe.x",
     )
     assert modules == ["sase.axe.x"]
     assert "src.sase.axe.x" not in modules
+    frame_only = probe_modules_for_frames(
+        [SimpleNamespace(file=str(frame))],
+        target_module=None,
+    )
+    assert frame_only == ["sase.axe.x"]
 
 
 def test_probe_modules_flat_plugin_layout(
@@ -72,11 +80,19 @@ def test_probe_modules_flat_plugin_layout(
         lambda: (_root(checkout, name="sase-telegram", role="plugin"),),
     )
 
+    from sase.agent.auto_restart.probe import _path_to_module
+
+    assert _path_to_module(str(frame), str(checkout)) == "sase_telegram.notify"
     modules = probe_modules_for_frames(
         [{"file": str(frame)}],
         target_module="sase_telegram.notify",
     )
     assert modules == ["sase_telegram.notify"]
+    frame_only = probe_modules_for_frames(
+        [{"file": str(frame)}],
+        target_module=None,
+    )
+    assert frame_only == ["sase_telegram.notify"]
 
 
 def test_probe_modules_src_layout_init_and_unmanaged(

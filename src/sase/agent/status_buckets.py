@@ -27,6 +27,11 @@ AGENT_STATUS_BUCKET_GLYPHS: dict[str, str] = {
     "Done": "✓",
 }
 
+#: Amber recovery glyph for update-skew auto-restart surfaces. Defined here
+#: (a leaf module already in the TUI closure) so TUI code need not import
+#: the auto-restart package at module scope; that package re-exports it.
+UPDATE_RECOVERY_GLYPH = "↻"
+
 QUEUED_STATUS = "QUEUED"
 QUEUED_STATUS_BUCKET = "Queued"
 QUEUED_STATUS_COLOR = "#5F87FF"

@@ -20,7 +20,6 @@ from sase.env_contracts import (
     SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV,
     SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV,
 )
-from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from ._instruction_boundary import invoke_with_instructions
 from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
@@ -436,6 +435,8 @@ def invoke_agent(
             ):
                 context.metadata_model = metadata_model
         if artifacts_dir:
+            from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
+
             mark_lifecycle_phase(artifacts_dir, "provider_running")
         invoke_result = invoke_with_instructions(
             provider,

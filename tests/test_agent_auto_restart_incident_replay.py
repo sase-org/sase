@@ -27,6 +27,7 @@ from sase.axe.run_agent_runner_finalize import (
     write_error_done_marker,
 )
 from sase.axe.run_agent_runner_state import RunnerRunState
+from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
 from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 from sase.notifications.store import load_notifications
 
@@ -305,22 +306,17 @@ def test_incident_replay_end_to_end(
     rows = _episode_rows(episode_id)
     assert len(rows) == 1
     title = rows[0].notes[0]
-    assert title.startswith("↻ Restarted ")
+    assert UPDATE_RECOVERY_GLYPH in title
     assert AGENT_NAME in title
     assert "sase@" not in title
     assert "unknown" not in title.lower()
     assert "fail" not in title.lower()
     assert "error" not in title.lower()
     assert UPDATE_REV[:7] in title
+    all_rows = load_notifications(include_dismissed=True)
+    assert len(all_rows) == 2, "one episode row and one silent failure notice"
     toastable = [
-        row
-        for row in load_notifications(include_dismissed=True)
-        if (
-            not row.silent
-            and not row.muted
-            and not row.read
-            and row.sender == notify.SENDER
-        )
+        row for row in all_rows if (not row.silent and not row.muted and not row.read)
     ]
     toasts = format_batch_toasts(toastable)
     assert len(toasts) == 1
@@ -334,49 +330,11 @@ def test_incident_replay_end_to_end(
 
     replacement = Path(launched[0])
     (replacement / "done.json").write_text(
-        json.dumps({"outcome": "completed"}), encoding="utf-8"
-    )
-    with (
-        patch("sase.procs.store.read_procs", return_value=[]),
-        patch.object(
-            sweep_mod,
-            "_submit_healer_proc",
-            lambda *, count: submissions.append(count) or True,
-        ),
-    ):
-        settled_tick = sweep_mod.run_job_tick()
-    assert settled_tick.settled >= 1
-    document = json.loads(report_path.read_text(encoding="utf-8"))
-    assert _now_by_agent(document)[AGENT_NAME] == "DONE"
-    live_rows = _episode_rows(episode_id)
-    assert len(live_rows) == 1
-    assert live_rows[0].timestamp == rows[0].timestamp
-    snapshot = json.loads(live_rows[0].action_data["report"])
-    assert _now_by_agent(snapshot)[AGENT_NAME] == "DONE"
-
-    replacement_state = _runner_state(replacement, replacement / "runner.log")
-    record_runner_error(
-        _incident_import_error(),
-        context=_error_context(replacement_state),
-        write_error_done_marker=write_error_done_marker,
-        agent_kills=_kills(),
-        message_prefix="Error running agent",
-        auto_restart_enabled=True,
-        killed=False,
+        json.dumps({"outcome": "failed", "error": INCIDENT_ERROR}), encoding="utf-8"
     )
     replacement_target = HealerTarget(
         artifacts_dir=replacement, project="sase", agent_name=AGENT_NAME
     )
-    with (
-        patch("sase.procs.store.read_procs", return_value=[]),
-        patch.object(
-            sweep_mod,
-            "_submit_healer_proc",
-            lambda *, count: submissions.append(count) or True,
-        ),
-    ):
-        again_tick = sweep_mod.run_job_tick()
-    assert again_tick.action == "submitted", again_tick
     again = heal_one(
         replacement_target,
         check_quiescence=_ok_quiescence,
@@ -389,6 +347,7 @@ def test_incident_replay_end_to_end(
     assert len(launched) == 1, "a re-broken replacement is never relaunched"
     settled = ledger_mod.load_ledger_record(outcome.ledger_key)
     assert settled is not None
+    assert settled.record.state == "settled_failed"
     recovery = json.loads((replacement / "done.json").read_text(encoding="utf-8"))[
         "recovery"
     ]

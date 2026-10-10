@@ -178,6 +178,7 @@ class NotificationReconcileRequestWire:
 
     notifications: tuple[Notification, ...] = ()
     reversible_dismiss_marker_key: str | None = None
+    refresh_files: bool = False
 
 
 @dataclass(frozen=True)
@@ -266,6 +267,8 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
             payload["reversible_dismiss_marker_key"] = (
                 record.reversible_dismiss_marker_key
             )
+        if record.refresh_files:
+            payload["refresh_files"] = True
         return payload
     if hasattr(record, "__dataclass_fields__"):
         return asdict(record)

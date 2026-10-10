@@ -46,6 +46,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "through write_recovery."
         ),
     ),
+    "src/sase/agent/auto_restart/healer_claim.py:_find_replacement_dir": PathPassingReview(
+        exemption=(
+            "Read-only replacement adoption: agent_meta.json is read to "
+            "verify the candidate's ledger_key provenance before adopting; "
+            "no done.json or marker writes occur here."
+        ),
+    ),
     "src/sase/agent/auto_restart/healer_relaunch.py:_runner_log_tail": PathPassingReview(
         exemption=(
             "Read-only evidence collection: done.json and agent_meta.json are "

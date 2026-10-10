@@ -266,6 +266,8 @@ def test_collect_journal_updates_needs_launch_bound(tmp_path: Path) -> None:
 
 def test_collect_journal_updates_bundle_window(tmp_path: Path) -> None:
     """A bundle matches updates between launch and its dismissal bound."""
+    from sase.core.time import get_timezone
+
     journal = tmp_path / "dev_update.jsonl"
     _write_journal(
         journal,
@@ -275,7 +277,9 @@ def test_collect_journal_updates_bundle_window(tmp_path: Path) -> None:
             "2026-10-09T12:30:00-04:00",
         ],
     )
-    dismissal = datetime.datetime(2026, 10, 9, 11, 58, 33).astimezone().timestamp()
+    dismissal = datetime.datetime(
+        2026, 10, 9, 11, 58, 33, tzinfo=get_timezone()
+    ).timestamp()
     updates = _collect_journal_updates(
         journal_path=journal,
         booted_at=None,

@@ -148,7 +148,30 @@ def test_apply_provenance_registers_evidence_directory_hint() -> None:
     apply_provenance_to_agent(agent, PROVENANCE)
     assert agent.auto_restart_provenance is not None
     assert agent.auto_restart_provenance["ledger_key"] == "sase__20261009120000"
-    assert "/home/user/.sase/restarts/20261009-test" in agent.extra_files
+    assert (
+        "/home/user/.sase/restarts/20261009-test/error_report.md" in agent.extra_files
+    )
+    assert not any(
+        entry == "/home/user/.sase/restarts/20261009-test"
+        or entry.endswith("/20261009-test")
+        for entry in agent.extra_files
+    )
+
+
+def test_apply_provenance_registers_no_directory() -> None:
+    agent = _agent(status="DONE")
+    provenance = {
+        **PROVENANCE,
+        "evidence_files": ["error_report.md", "verdict.json", "witnesses.json"],
+    }
+    apply_provenance_to_agent(agent, provenance)
+    assert agent.extra_files
+    for entry in agent.extra_files:
+        assert not entry.rstrip("/").endswith("20261009-test")
+    assert (
+        "/home/user/.sase/restarts/20261009-test/error_report.md" in agent.extra_files
+    )
+    assert "/home/user/.sase/restarts/20261009-test/verdict.json" in agent.extra_files
 
 
 def test_provenance_lines_render_update_range() -> None:
@@ -223,7 +246,9 @@ def test_fs_loader_projects_meta_provenance(tmp_path: Path) -> None:
     agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
     assert agent is not None
     assert agent.auto_restart_provenance is not None
-    assert "/home/user/.sase/restarts/20261009-test" in agent.extra_files
+    assert (
+        "/home/user/.sase/restarts/20261009-test/error_report.md" in agent.extra_files
+    )
 
 
 def _snapshot_record(

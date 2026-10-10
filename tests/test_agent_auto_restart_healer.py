@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -221,7 +222,8 @@ def test_storm_breaker_trips_and_resume_rearms(
         records, episode_id="sase@abc", max_per_episode=2, max_per_30m=20
     )
     assert not decision.allowed
-    assert "sase@abc" in decision.reason
+    assert "sase@abc" not in decision.reason
+    assert decision.reason.startswith("4 agents broke within one update")
     storm_mod.trip_pause(reason=decision.reason, episode="sase@abc")
     paused, state = storm_mod.is_paused()
     assert paused
@@ -550,6 +552,9 @@ def test_expired_deferred_claim_escalates_loudly(
     monkeypatch.setattr(
         settings, "get_agent_auto_restart_max_defer_seconds", lambda: 30
     )
+    done_payload = json.loads((failed_row / "done.json").read_text(encoding="utf-8"))
+    done_payload["recovery"] = {"state": "pending"}
+    (failed_row / "done.json").write_text(json.dumps(done_payload), encoding="utf-8")
     target = _target(failed_row)
     base = 1_791_633_600.0
     first = heal_one(
@@ -733,6 +738,9 @@ def test_dead_launching_claim_settles_without_relaunching(
     _ = tmp_home
     import sase.agent.auto_restart.ledger as ledger_mod
 
+    done_payload = json.loads((failed_row / "done.json").read_text(encoding="utf-8"))
+    done_payload["recovery"] = {"state": "pending"}
+    (failed_row / "done.json").write_text(json.dumps(done_payload), encoding="utf-8")
     target = _target(failed_row)
     first = heal_one(
         target,
@@ -816,3 +824,172 @@ def test_live_launching_claim_defers(
     )
     assert outcome.action == "deferred"
     assert outcome.reason == "launch_in_flight"
+
+
+def test_deferral_expires_from_first_claim_across_retakes(
+    tmp_home: Path,
+    failed_row: Path,
+    quiet_notifications: dict[str, list],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated 20s passes with max_defer 30s expire once since first claim."""
+    _ = tmp_home
+    import sase.config._settings_system as settings
+    from sase.agent.auto_restart import ledger as ledger_mod
+
+    monkeypatch.setattr(
+        settings, "get_agent_auto_restart_max_defer_seconds", lambda: 30
+    )
+    done_payload = json.loads((failed_row / "done.json").read_text(encoding="utf-8"))
+    done_payload["recovery"] = {"state": "pending"}
+    (failed_row / "done.json").write_text(json.dumps(done_payload), encoding="utf-8")
+    target = _target(failed_row)
+    base = 1_791_633_600.0
+
+    def _quiescence_no() -> SimpleNamespace:
+        return SimpleNamespace(
+            ok=False, reason="managed code is changing", quiet_seconds=0.0
+        )
+
+    first = heal_one(
+        target,
+        classify=lambda assembled: _relaunch_verdict(),
+        check_quiescence=_quiescence_no,
+        now=base,
+    )
+    assert first.action == "deferred"
+    stored = ledger_mod.load_ledger_record(first.ledger_key)
+    assert stored is not None
+    ledger_mod.store_ledger_record(
+        ledger_mod.StoredLedgerRecord(
+            record=stored.record,
+            extra={**stored.extra, "python_claimer_pid": 2**30},
+        )
+    )
+    second = heal_one(
+        target,
+        classify=lambda assembled: _relaunch_verdict(),
+        check_quiescence=_quiescence_no,
+        now=base + 20,
+    )
+    assert second.action == "deferred"
+    stored = ledger_mod.load_ledger_record(second.ledger_key)
+    assert stored is not None
+    ledger_mod.store_ledger_record(
+        ledger_mod.StoredLedgerRecord(
+            record=stored.record,
+            extra={**stored.extra, "python_claimer_pid": 2**30},
+        )
+    )
+    third = heal_one(
+        target,
+        classify=lambda assembled: _relaunch_verdict(),
+        check_quiescence=_quiescence_no,
+        now=base + 40,
+    )
+    assert third.action == "declined"
+    assert third.reason == "deferred_expired"
+    assert len(quiet_notifications["escalation"]) == 1
+    stored = ledger_mod.load_ledger_record(third.ledger_key)
+    assert stored is not None
+    assert stored.record.state == "declined"
+
+
+def test_attach_provenance_fills_from_identity_and_file_proof(
+    tmp_path: Path,
+) -> None:
+    """Provenance falls back to W1 identity revs and W3 file proof."""
+    from types import SimpleNamespace
+
+    from sase.agent.auto_restart.healer_relaunch import _attach_provenance
+    from sase.agent.auto_restart.provenance import PROVENANCE_ENV
+
+    target = HealerTarget(
+        artifacts_dir=tmp_path / "20261009T120000",
+        project="sase",
+        agent_name="prov-agent",
+    )
+    witnesses = SimpleNamespace(
+        refresh_log_line=None,
+        boot_identity="sase@aaa111|other@zzz",
+        current_identity="sase@bbb222|other@zzz",
+        file_proof=SimpleNamespace(
+            culprit_commit="ccc333",
+            culprit_subject="remove symbol",
+        ),
+    )
+    facts = SimpleNamespace(lifecycle_phase="waiting")
+    verdict = SimpleNamespace(signature="ImportError: x", phase_class="pre_provider")
+    plan = SimpleNamespace(
+        force_reuse_plan=SimpleNamespace(segment_envs=[{}]),
+    )
+    import json as _json
+
+    _attach_provenance(
+        plan,
+        target,
+        verdict=verdict,
+        episode_id=None,
+        lineage_root="20261009T120000",
+        ledger_key="sase__20261009T120000",
+        evidence_dir=None,
+        evidence_files={},
+        witnesses=witnesses,
+        facts=facts,
+    )
+    provenance = _json.loads(plan.force_reuse_plan.segment_envs[0][PROVENANCE_ENV])
+    assert provenance["from_rev"] == "aaa111"
+    assert provenance["to_rev"] == "bbb222"
+    assert provenance["culprit_commit"] == "ccc333"
+    assert provenance["culprit_subject"] == "remove symbol"
+    assert "waiting" in (provenance["broke_detail"] or "")
+
+
+@pytest.mark.parametrize(
+    "reason", ["killed", "deferred_expired", "execute_failed", "wipe_reaches_others"]
+)
+@pytest.mark.parametrize("silenced", [True, False])
+def test_decline_matrix_silenced_vs_quiet(
+    tmp_home: Path,
+    failed_row: Path,
+    quiet_notifications: dict[str, list],
+    reason: str,
+    silenced: bool,
+) -> None:
+    """Silenced declines are visible once; not-silenced declines stay quiet."""
+    _ = tmp_home
+    from sase.agent.auto_restart import ledger as ledger_mod
+    from sase.agent.auto_restart._healer_common import decline_heal
+
+    if silenced:
+        done_payload = json.loads(
+            (failed_row / "done.json").read_text(encoding="utf-8")
+        )
+        done_payload["recovery"] = {"state": "pending"}
+        (failed_row / "done.json").write_text(
+            json.dumps(done_payload), encoding="utf-8"
+        )
+    target = _target(failed_row)
+    stored = ledger_mod.claim_ledger_record(
+        key=f"test__matrix-{reason}-{silenced}-{uuid.uuid4().hex[:6]}",
+        lineage_root=f"matrix-{reason}-{silenced}",
+        failed_artifacts_dir=str(failed_row),
+    )
+    assert stored is not None
+    outcome = decline_heal(
+        stored,
+        target,
+        reason,
+        f"matrix {reason}",
+        now=time.time(),
+        dry_run=False,
+        escalate=True,
+        silenced=silenced,
+    )
+    assert outcome.reason == reason
+    if silenced:
+        assert len(quiet_notifications["escalation"]) == 1
+        assert not quiet_notifications["resurface"]
+    else:
+        assert quiet_notifications["escalation"] == []
+        assert quiet_notifications["resurface"] == []

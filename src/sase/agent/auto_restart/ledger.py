@@ -38,6 +38,8 @@ _EXTRA_KEYS = (
     "python_plan_digest",
     "python_last_note",
     "python_updated_at",
+    "python_first_claimed_at",
+    "python_silenced",
 )
 
 
@@ -149,7 +151,8 @@ def claim_ledger_record(
     existing = load_ledger_record(key)
     if existing is not None:
         return existing
-    record = claim_auto_restart_ledger(key, lineage_root, at=at or timestamp_for())
+    claimed_at = at or timestamp_for()
+    record = claim_auto_restart_ledger(key, lineage_root, at=claimed_at)
     pid = os.getpid()
     try:
         identity: str | None = process_identity_token(pid)
@@ -161,6 +164,7 @@ def claim_ledger_record(
             "python_claimer_pid": pid,
             "python_claimer_identity": identity,
             "python_updated_at": time.time(),
+            "python_first_claimed_at": claimed_at,
         },
     )
     payload = _join_stored(record, stored.extra)
@@ -174,6 +178,9 @@ def claim_ledger_record(
         atomic_write_json(_ledger_record_path(key), payload, exclusive=True)
     except FileExistsError:
         return load_ledger_record(key)
+    # See store_ledger_record: this process's cached listing must not survive
+    # its own write, since directory mtime can freeze across rapid rewrites.
+    _clear_ledger_records_cache()
     stored = _split_stored(payload)
     return StoredLedgerRecord(record=stored.record, extra=dict(stored.extra))
 
@@ -196,6 +203,10 @@ def store_ledger_record(
             atomic_write_json(path, payload)
     except Exception:
         atomic_write_json(path, payload)
+    # Directory mtime is too coarse to gate this process's own reads (tmpfs
+    # can report identical mtimes across rapid rewrites), so drop the cached
+    # listing: the next read re-parses once instead of serving this write.
+    _clear_ledger_records_cache()
     return StoredLedgerRecord(record=stored.record, extra=merged)
 
 
@@ -227,6 +238,9 @@ def take_over_ledger_claim(
     stored: StoredLedgerRecord, *, at: str | None = None
 ) -> StoredLedgerRecord:
     """Assign a stale claimed/deferred row to this healer process."""
+    first_claimed = stored.extra.get("python_first_claimed_at")
+    if not isinstance(first_claimed, str) or not first_claimed:
+        first_claimed = stored.record.claimed_at
     if stored.record.state == "deferred":
         stored = advance_ledger_record(stored, "reclaim", at=at)
     elif stored.record.state != "claimed":
@@ -242,7 +256,52 @@ def take_over_ledger_claim(
     extra = dict(stored.extra)
     extra["python_claimer_pid"] = pid
     extra["python_claimer_identity"] = identity
+    if isinstance(first_claimed, str) and first_claimed:
+        extra.setdefault("python_first_claimed_at", first_claimed)
     return store_ledger_record(StoredLedgerRecord(record=stored.record, extra=extra))
+
+
+def lineage_first_claim_epoch(stored: StoredLedgerRecord) -> float | None:
+    """Return the lineage's first-claim epoch for deferral expiry.
+
+    The earliest ledger ``history[].at`` wins when present; otherwise the
+    ``python_first_claimed_at`` extra kept across takeovers; otherwise
+    ``claimed_at``. ``None`` when nothing parses.
+    """
+    from datetime import datetime
+
+    candidates: list[float] = []
+    try:
+        history = stored.record.history or ()
+    except AttributeError:
+        history = ()
+    for entry in history:
+        raw = getattr(entry, "at", None)
+        if not isinstance(raw, str) or not raw:
+            continue
+        try:
+            candidates.append(datetime.fromisoformat(raw).timestamp())
+        except (ValueError, TypeError):
+            continue
+    raw_first = stored.extra.get("python_first_claimed_at")
+    if isinstance(raw_first, str) and raw_first:
+        try:
+            from datetime import datetime as _dt
+
+            candidates.append(_dt.fromisoformat(raw_first).timestamp())
+        except (ValueError, TypeError):
+            pass
+    raw_claimed = stored.record.claimed_at
+    if isinstance(raw_claimed, str) and raw_claimed:
+        try:
+            from datetime import datetime as _dt2
+
+            candidates.append(_dt2.fromisoformat(raw_claimed).timestamp())
+        except (ValueError, TypeError):
+            pass
+    if not candidates:
+        return None
+    return min(candidates)
 
 
 def claimer_is_live(stored: StoredLedgerRecord) -> bool:
@@ -350,10 +409,11 @@ def iter_ledger_records_cached() -> list[StoredLedgerRecord]:
 
     Idle job ticks must stay at a handful of ``stat()`` calls: the ledger
     directory's mtime gates the parse, so an unchanged ledger costs one
-    ``stat()`` instead of one read per record. Callers that mutate the
-    ledger must go through this module's writers (which change the
-    directory mtime) or out-of-band mutation (tests use
-    :func:`_clear_ledger_records_cache`).
+    ``stat()`` instead of one read per record. This process's own writers
+    (claim/store) invalidate the cache on every write, because directory
+    mtime can freeze across rapid rewrites; the mtime gate only guards
+    against other processes. Out-of-band mutation (tests writing files by
+    hand) must use :func:`_clear_ledger_records_cache`.
     """
     directory = _ledger_dir()
     try:
@@ -384,7 +444,10 @@ __all__ = [
     "iter_ledger_records",
     "iter_ledger_records_cached",
     "ledger_key",
+    "lineage_first_claim_epoch",
     "list_doorbells",
     "load_ledger_record",
     "store_ledger_record",
+    "take_over_ledger_claim",
+    "timestamp_for",
 ]

@@ -15,8 +15,6 @@ from sase.agent.auto_restart._healer_common import (
     decline_heal,
     defer_heal,
     escalate_healer,
-    resurface_healer,
-    write_recovery,
 )
 from sase.agent.auto_restart.healer_relaunch import relaunch_claimed
 
@@ -43,44 +41,23 @@ def heal_claimed(
     key = stored.record.key
     skip: SkipDecision = apply_skip_rules(target, done=done, meta=meta)
     if skip.skip:
-        if not dry_run:
-            stored = ledger_mod.advance_ledger_record(
-                stored,
-                "decline",
-                note=skip.decline_reason,
-                at=ledger_mod.timestamp_for(now),
-            )
-            stored = annotate_record(stored, decline_reason=skip.decline_reason)
-            write_recovery(
-                target,
-                "declined",
-                skip.reason_text,
-                now=now,
-                ledger_key=key,
-                episode_id=stored.record.episode_id,
-                decline_reason=skip.decline_reason,
-            )
-            with contextlib.suppress(Exception):
-                ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
-            if skip.loud:
-                kind = (
-                    "already_restarted"
-                    if skip.decline_reason == "already_restarted"
-                    else "decline"
-                )
-                escalate_healer(
-                    target,
-                    skip.reason_text,
-                    episode_id=stored.record.episode_id,
-                    kind=kind,
-                )
-            else:
-                resurface_healer(target, skip.reason_text)
-        return HealerOutcome(
-            action="declined",
-            reason=skip.decline_reason,
-            reason_text=skip.reason_text,
-            ledger_key=key,
+        effective_silenced = silenced or skip.decline_reason == "already_restarted"
+        kind = (
+            "already_restarted"
+            if skip.decline_reason == "already_restarted"
+            else "decline"
+        )
+        return decline_heal(
+            stored,
+            target,
+            skip.decline_reason,
+            skip.reason_text,
+            now=now,
+            dry_run=dry_run,
+            escalate=skip.loud,
+            episode_id=stored.record.episode_id,
+            escalate_kind=kind,
+            silenced=effective_silenced,
         )
 
     try:
@@ -144,19 +121,6 @@ def heal_claimed(
             if not probe_ok and probe_failures:
                 detail = f"{detail}; probe failed: {'; '.join(probe_failures)[:300]}"
             return defer_heal(stored, target, detail, now=now, dry_run=dry_run)
-        if verdict.mode != "relaunch":
-            return _terminal_verdict(
-                stored, target, verdict, now=now, dry_run=dry_run, silenced=silenced
-            ) or decline_heal(
-                stored,
-                target,
-                verdict.reason or "declined",
-                verdict.reason_text or "classifier declined after probe",
-                now=now,
-                dry_run=dry_run,
-                escalate=silenced,
-                silenced=silenced,
-            )
 
     episode_id = _episode_id(verdict, assembled, derive_episode) or episode_id
     if episode_id is not None and not dry_run:
@@ -207,6 +171,7 @@ def heal_claimed(
         plan_restart=plan_restart,
         execute_restart=execute_restart,
         now=now,
+        silenced=silenced,
     )
 
 

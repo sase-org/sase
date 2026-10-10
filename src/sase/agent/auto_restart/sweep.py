@@ -25,6 +25,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from sase.agent.auto_restart.constants import (
+    _FAILED_REPLACEMENT_OUTCOMES as _FAILED_REPLACEMENT_OUTCOMES,
+)
 from sase.agent.auto_restart.healer import HealerTarget
 
 CONCURRENCY_KEY = "agent-auto-restart"
@@ -264,6 +267,7 @@ def _submit_healer_proc(*, count: int) -> bool:
     """Submit the durable healer proc; True once submission succeeds."""
     from pathlib import Path as _Path
 
+    from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
     from sase.ops.names import AGENT_AUTO_RESTART
     from sase.procs import ProcSubmitRequest, submit_proc_request
 
@@ -271,7 +275,7 @@ def _submit_healer_proc(*, count: int) -> bool:
         submit_proc_request(
             ProcSubmitRequest(
                 argv=list(HEALER_ARGV),
-                label=f"↻ Auto-restart {count} agent(s)",
+                label=f"{UPDATE_RECOVERY_GLYPH} Auto-restart {count} agent(s)",
                 cwd=str(_Path.home()),
                 origin="agent-auto-restart-job",
                 operation=AGENT_AUTO_RESTART,
@@ -284,18 +288,6 @@ def _submit_healer_proc(*, count: int) -> bool:
         return True
     except Exception:
         return False
-
-
-_FAILED_REPLACEMENT_OUTCOMES = frozenset(
-    {
-        "failed",
-        "killed",
-        "stopped",
-        "epic_launch_failed",
-        "timeout",
-        "lost",
-    }
-)
 
 
 def _settle_launched_records(*, now: float | None = None) -> int:
@@ -313,8 +305,9 @@ def _settle_launched_records(*, now: float | None = None) -> int:
 
     settled = 0
     settled_episodes: set[str] = set()
+    at = time.time() if now is None else now
     try:
-        records = ledger_mod.iter_ledger_records()
+        records = ledger_mod.iter_ledger_records_cached()
     except Exception:
         return 0
     for stored in records:
@@ -345,7 +338,9 @@ def _settle_launched_records(*, now: float | None = None) -> int:
             # stays RUNNING.
             event, note = "settled_ok", f"replacement {outcome}"
         with contextlib.suppress(Exception):
-            ledger_mod.advance_ledger_record(stored, event, note=note)
+            ledger_mod.advance_ledger_record(
+                stored, event, note=note, at=ledger_mod.timestamp_for(at)
+            )
             settled += 1
             try:
                 episode_id = stored.record.episode_id
@@ -367,12 +362,15 @@ def _settle_launched_records(*, now: float | None = None) -> int:
 
 def _disabled_resurface_stamp(target: HealerTarget) -> Path:
     """Return the once-only stamp for the disabled/paused resurface path."""
+    import hashlib
+
     from sase.agent.auto_restart.ledger import auto_restart_root
 
+    digest = hashlib.sha256(str(target.artifacts_dir).encode("utf-8")).hexdigest()[:16]
     return (
         auto_restart_root()
         / "resurfaced"
-        / f"disabled-{target.artifacts_dir.name}.stamp"
+        / f"disabled-{target.artifacts_dir.name}-{digest}.stamp"
     )
 
 

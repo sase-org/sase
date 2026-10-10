@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.agent.auto_restart.constants import UPDATE_RECOVERY_GLYPH
+from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
 
 UPDATE_GLYPH = "⬆"
 UPDATES_SURFACE = "#244A14"

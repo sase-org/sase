@@ -32,9 +32,11 @@ run the agent's task or its tests.
 
 The healer also waits for **quiescence**: no update holds the code-swap writer lock and
 the tree has been quiet for `quiescence_seconds`. A pass that cannot act yet defers.
-Deferral expiry uses the ledger's real `claimed_at` timestamp: once `max_defer_seconds`
-have elapsed since the claim, the healer declines the lineage, escalates with "Couldn't
-restart \<name> automatically", and does not loop forever.
+Deferral expiry is measured from the lineage's first claim (the earliest ledger
+`history[].at`, else `first_claimed_at`, else `claimed_at`): once `max_defer_seconds`
+have elapsed since the first claim, the healer declines the lineage and does not loop
+forever. A silenced row escalates with "Couldn't restart \<name> automatically"; a row
+that was not silenced declines quietly.
 
 For a Python or binding failure whose first verdict is `defer` (`probe_pending`), the
 healer runs the import probe and classifies again with that W4 witness. It relaunches
@@ -103,8 +105,11 @@ The state machine is `claimed → deferred | declined | launching`, then
 `launching → launched | settled_failed` and `launched → settled_ok | settled_failed`. A
 replacement that fails again is reported and never retried. When a claimer died
 mid-launch, a later pass adopts the replacement it finds or settles the record as failed
-— it never launches twice, because forced name reuse would wipe the replacement it just
-started.
+(`launch_aborted`) — it never launches twice, because forced name reuse would wipe the
+replacement it just started. Ledger-only orphan records whose failed `done.json` is gone
+resolve without touching the row: stale `claimed`/`deferred` records decline quietly as
+`row_gone` (no `done.json` write, no notification, doorbell deleted), while stale
+`launching` records go through the adopt-or-settle path.
 
 Update episodes are grouped by culprit commit (for example `sase@9fd8a08`), so one
 update that breaks five agents produces one story, not five.
@@ -179,9 +184,11 @@ without moving delivery cursors, so **Now** settles without a re-toast.
 A row was **silenced** when its runner dropped a doorbell or wrote
 `recovery.state = "pending"` (the failure notification went out `silent=True`). Every
 terminal outcome of a silenced row is made visible exactly once, with the escalation
-copy below. A row that was not silenced already notified the user: a skew-shaped decline
-records the ledger and shows only the dim Agents-tab hint (`quiet_declines = quiet`). It
-does not get a second `resurface_failure` or escalation.
+copy below (escalation where the plan specifies one, otherwise `resurface_failure`). A
+row that was not silenced already notified the user: a skew-shaped decline records the
+ledger and shows only the dim Agents-tab hint (`quiet_declines = quiet`). It does not
+get a second `resurface_failure` or escalation. Two exceptions stay loud regardless:
+`already_restarted` for a replacement's second failure, and the single storm escalation.
 
 Escalations are loud and land in the Errors bucket: post-provider deaths name the held
 workspace, declined relaunches name the reason, re-broken replacements say sase will not
@@ -192,8 +199,9 @@ for the episode; later targets while paused decline quietly as `paused`.
 
 In the Agents tab, in-flight recoveries render as amber `↻ RESTARTING` with a dim reason
 instead of red `FAILED`. The replacement keeps the same name with a `↻` chip and a
-provenance block naming the update, the signature, and the preserved `error_report.md`
-(opened with the existing `v` key).
+provenance block naming the update, the signature, and the preserved evidence files
+(`error_report.md` plus the bundle's individual files, opened with the existing `v` key;
+no directory is registered).
 
 Dependency waits remain parked while recovery is `pending`, `deferred`, or `launching`.
 Name-based waits find the replacement by name; waits pinned to the old artifacts
@@ -209,9 +217,10 @@ the replacement's actual outcome.
   quiescence gate declined. Press `,x` on the row to retry by hand.
 - **"This was its automatic restart — not retrying."** The replacement broke again. Its
   one restart is spent; investigate it as a real failure.
-- **"Auto-restart paused: N agents broke within one update."** The storm breaker
-  tripped. If the update really is that breaking, run `sase agent auto-restart resume`
-  to re-arm.
+- **"Auto-restart paused: N agents broke within one update — this looks like a real bug,
+  not an update race."** The storm breaker tripped (N counts the already-launched
+  records plus the current target). If the update really is that breaking, run
+  `sase agent auto-restart resume` to re-arm.
 - **`sase agent auto-restart scan -s 120d`** replays the classifier over history
   read-only. Zero `relaunch` verdicts among non-skew failures means the classifier is
   not over-eager.

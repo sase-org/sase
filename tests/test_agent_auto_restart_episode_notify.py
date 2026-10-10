@@ -42,8 +42,7 @@ def _seed_record(
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.core.agent_auto_restart_wire import AutoRestartLedgerRecordWire
 
-    _ = tmp_home
-    launched_dir = tmp_path_launched_dir(name, index)
+    launched_dir = tmp_path_launched_dir(tmp_home, name, index)
     if launched_outcome is not None:
         launched_dir.mkdir(parents=True, exist_ok=True)
         (launched_dir / "done.json").write_text(
@@ -93,10 +92,10 @@ def _seed_record(
     )
 
 
-def tmp_path_launched_dir(name: str, index: int) -> Path:
+def tmp_path_launched_dir(base: Path, name: str, index: int) -> Path:
     import tempfile
 
-    return Path(tempfile.mkdtemp(prefix=f"launched-{name}-{index}-"))
+    return Path(tempfile.mkdtemp(prefix=f"launched-{name}-{index}-", dir=str(base)))
 
 
 def _expected_report_path() -> Path:
@@ -156,6 +155,90 @@ def test_five_agents_one_row_four_plus_ones(tmp_home: Path) -> None:
     assert message.startswith("↻ Restarted 5 agents")
 
 
+def test_files_union_keeps_both_evidence_sets(tmp_home: Path) -> None:
+    """Two relaunches leave both agents' evidence files; cursors hold."""
+    _seed_record(tmp_home, "alpha", index=0)
+    first = notify.publish_relaunch(
+        episode_id=EPISODE,
+        agent_name="alpha",
+        update_ref=EPISODE,
+        reason_text="skew",
+    )
+    assert first is not None
+    before = _episode_rows()[0]
+    first_timestamp = before.timestamp
+    first_resurfaced = before.resurfaced_at
+    _seed_record(tmp_home, "bravo", index=1)
+    notify.publish_relaunch(
+        episode_id=EPISODE,
+        agent_name="bravo",
+        update_ref=EPISODE,
+        reason_text="skew",
+    )
+    row = _episode_rows()[0]
+    reports = [f for f in (row.files or []) if f.endswith("error_report.md")]
+    assert len(reports) >= 2
+    assert row.timestamp == first_timestamp
+    assert row.resurfaced_at == first_resurfaced
+
+
+def test_no_unknown_copy_in_titles_notes_keys(tmp_home: Path) -> None:
+    """No title, note, or key contains unknown, sase@, or duplicated update."""
+    from sase.notifications.store import load_notifications
+
+    notify.publish_relaunch(
+        episode_id=None,
+        agent_name="solo",
+        update_ref="unknown",
+        reason_text="skew",
+        artifacts_stamp="20261009T120000",
+    )
+    rows = [
+        r
+        for r in load_notifications(include_dismissed=True)
+        if r.sender == notify.SENDER
+    ]
+    assert rows
+    for row in rows:
+        assert "unknown" not in (row.dedup_key or "").lower()
+        assert "sase@" not in (row.dedup_key or "")
+        for note in row.notes:
+            assert "unknown" not in note.lower()
+            assert "sase@" not in note
+            assert "sase update a sase update" not in note
+            assert "sase@" not in note
+
+
+def test_settlement_tick_leaves_storm_row_notes(tmp_home: Path) -> None:
+    """A settlement tick never rewrites a storm row's notes."""
+    from sase.agent.auto_restart import sweep as sweep_mod
+
+    _seed_record(tmp_home, "alpha", index=0)
+    notify.publish_relaunch(
+        episode_id=EPISODE, agent_name="alpha", update_ref=EPISODE, reason_text="skew"
+    )
+    notify.publish_escalation(
+        agent_name="alpha",
+        title="Auto-restart paused: 2 agents broke within one update",
+        detail="storm",
+        episode_id=EPISODE,
+        kind="storm",
+    )
+    from sase.notifications.store import load_notifications
+
+    storm_before = next(
+        r
+        for r in load_notifications(include_dismissed=True)
+        if (r.dedup_key or "").endswith(":storm") or ":storm:" in (r.dedup_key or "")
+    )
+    notes_before = list(storm_before.notes)
+    sweep_mod._settle_launched_records()
+    storm_after = next(
+        r for r in load_notifications(include_dismissed=True) if r.id == storm_before.id
+    )
+    assert list(storm_after.notes) == notes_before
+
+
 def test_live_report_settles_with_replacements(tmp_home: Path) -> None:
     _seed_record(tmp_home, "alpha", index=0, launched_outcome="completed")
     launched = _seed_record(tmp_home, "bravo", index=1)
@@ -191,13 +274,15 @@ def test_live_report_settles_with_replacements(tmp_home: Path) -> None:
     now_by_agent = {r["cells"][0]: r["cells"][5] for r in rows_block["rows"]}
     assert now_by_agent["alpha"] == "DONE"
     assert now_by_agent["bravo"] == "RUNNING"
-    # The replacement settles: the Now column follows without a new row.
+    # The replacement settles via the tick: the Now column follows.
     launched_dir = Path(str(launched.record.launched_artifacts_dir))
     launched_dir.mkdir(parents=True, exist_ok=True)
     (launched_dir / "done.json").write_text(
         json.dumps({"outcome": "failed"}), encoding="utf-8"
     )
-    notify.refresh_episode_report(EPISODE)
+    from sase.agent.auto_restart import sweep as sweep_mod
+
+    assert sweep_mod._settle_launched_records() >= 1
     document = json.loads(path.read_text(encoding="utf-8"))
     rows_block = next(b for b in document["blocks"] if b.get("kind") == "rows")
     now_by_agent = {r["cells"][0]: r["cells"][5] for r in rows_block["rows"]}
@@ -286,13 +371,12 @@ def test_single_agent_title_and_notes0_rule(tmp_home: Path) -> None:
 def test_healer_escalation_copy_per_situation(
     tmp_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _ = tmp_home
     import sase.agent.auto_restart._healer_common as healer_common
 
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(notify, "publish_escalation", lambda **kw: calls.append(kw))
     target = HealerTarget(
-        artifacts_dir=tmp_path_launched_dir("copy", 99),
+        artifacts_dir=tmp_path_launched_dir(tmp_home, "copy", 99),
         project="sase",
         agent_name="research.46.final",
     )

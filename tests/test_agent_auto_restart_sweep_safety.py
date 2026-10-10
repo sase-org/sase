@@ -124,6 +124,48 @@ def test_candidate_rule_matrix(tmp_home: Path) -> None:
     )
 
 
+def test_recent_non_skew_row_untouched(
+    tmp_home: Path, quiet_notifications: dict[str, list]
+) -> None:
+    """A recent provider-429 row: no ledger, no write, no ping via both paths."""
+    import datetime
+
+    from sase.agent.auto_restart import ledger as ledger_mod
+    from sase.agent.auto_restart import sweep as sweep_mod
+    from sase.agent.auto_restart.healer_targets import resolve_pending_targets
+    from sase.core.time import get_timezone
+
+    stamp = datetime.datetime.now(get_timezone()).strftime("%Y%m%d%H%M%S")
+    row = _projects_row(
+        tmp_home,
+        stamp,
+        {"outcome": "failed", "error": PROVIDER_429},
+    )
+    before = (row / "done.json").read_text(encoding="utf-8")
+    now = time.time()
+    assert resolve_pending_targets(now=now) == []
+    outcome = heal_one(_target(row), now=now)
+    assert outcome.action == "skipped"
+    assert outcome.reason == "not_update_skew"
+    assert ledger_mod.iter_ledger_records() == []
+    assert (row / "done.json").read_text(encoding="utf-8") == before
+    assert quiet_notifications == {"relaunch": [], "escalation": [], "resurface": []}
+    with (
+        patch(
+            "sase.agent.auto_restart.gate.auto_restart_automatic_enabled",
+            return_value=True,
+        ),
+        patch.object(sweep_mod, "_proc_already_queued", return_value=True),
+        patch.object(sweep_mod, "_submit_healer_proc") as submit,
+    ):
+        tick = sweep_mod.run_job_tick(now=now)
+    assert tick.action == "idle"
+    assert ledger_mod.iter_ledger_records() == []
+    assert (row / "done.json").read_text(encoding="utf-8") == before
+    assert quiet_notifications == {"relaunch": [], "escalation": [], "resurface": []}
+    submit.assert_not_called()
+
+
 def test_non_skew_row_and_dismissed_bundle_untouched(
     tmp_home: Path, quiet_notifications: dict[str, list]
 ) -> None:
@@ -223,6 +265,41 @@ def test_recent_legacy_skew_row_is_candidate(tmp_home: Path) -> None:
 
 
 # --- doorbells -----------------------------------------------------------------
+
+
+def test_orphan_ledger_records_resolve_and_next_tick_idle(
+    tmp_home: Path, quiet_notifications: dict[str, list]
+) -> None:
+    """Ledger-only orphans (missing done.json) resolve; next tick is idle."""
+    from sase.agent.auto_restart import ledger as ledger_mod
+    from sase.agent.auto_restart import sweep as sweep_mod
+    from sase.agent.auto_restart.healer_targets import resolve_pending_targets
+
+    missing = str(tmp_home / "projects" / "sase" / "artifacts" / "gone-row")
+    stored = ledger_mod.claim_ledger_record(
+        key="sase__gone-row",
+        lineage_root="gone-row",
+        agent_name="orphan-worker",
+        project="sase",
+        failed_artifacts_dir=missing,
+    )
+    assert stored is not None
+    stored = ledger_mod.advance_ledger_record(stored, "defer", note="wait")
+    dead = ledger_mod.StoredLedgerRecord(
+        record=stored.record,
+        extra={**stored.extra, "python_claimer_pid": 2**30},
+    )
+    ledger_mod.store_ledger_record(dead)
+    targets = resolve_pending_targets(now=time.time())
+    assert any(str(t.artifacts_dir) == missing for t in targets)
+    for target in targets:
+        if str(target.artifacts_dir) == missing:
+            outcome = heal_one(target, now=time.time())
+            assert outcome.action == "declined"
+            assert outcome.reason == "row_gone"
+    assert quiet_notifications == {"relaunch": [], "escalation": [], "resurface": []}
+    work = sweep_mod._collect_job_work(now=time.time())
+    assert work.actionable is False
 
 
 def test_handled_doorbell_deleted_and_next_tick_idle(
@@ -450,3 +527,73 @@ def test_idle_tick_skips_ledger_parse(tmp_home: Path) -> None:
     ):
         sweep_mod._collect_job_work(now=1002.0)
     assert calls == ["parse"]
+
+
+def test_cached_ledger_listing_sees_record_rewrites(tmp_home: Path) -> None:
+    """Rewriting an existing record invalidates the cached listing.
+
+    Directory mtime can freeze across rapid rewrites (no new dentries), so
+    the writers invalidate the cache directly; otherwise a collect right
+    after a decline still reports the pre-decline state.
+    """
+    from sase.agent.auto_restart import ledger as ledger_mod
+
+    _ = tmp_home
+    stored = ledger_mod.claim_ledger_record(
+        key=f"safety__rewrite-{uuid.uuid4().hex[:6]}",
+        lineage_root="rewrite-lineage",
+    )
+    assert stored is not None
+    assert [
+        (entry.record.key, entry.record.state)
+        for entry in ledger_mod.iter_ledger_records_cached()
+        if entry.record.key == stored.record.key
+    ] == [(stored.record.key, "claimed")]
+    stored = ledger_mod.advance_ledger_record(stored, "defer", note="wait")
+    assert [
+        (entry.record.key, entry.record.state)
+        for entry in ledger_mod.iter_ledger_records_cached()
+        if entry.record.key == stored.record.key
+    ] == [(stored.record.key, "deferred")]
+
+
+def test_idle_job_tick_bounds_filesystem_calls(tmp_home: Path) -> None:
+    """An idle run_job_tick (not a full sweep) stays at a handful of stats."""
+    import os as _os
+    import unittest.mock as _mock
+
+    from sase.agent.auto_restart import sweep as sweep_mod
+
+    _ = tmp_home
+    sweep_mod._collect_job_work(now=1000.0)
+    counts = {"stat": 0, "open": 0, "scandir": 0}
+    real_stat = _os.stat
+    real_open = open
+    real_scandir = _os.scandir
+    import builtins as _builtins
+
+    def _stat(*args: Any, **kwargs: Any) -> Any:
+        counts["stat"] += 1
+        return real_stat(*args, **kwargs)
+
+    def _open(*args: Any, **kwargs: Any) -> Any:
+        counts["open"] += 1
+        return real_open(*args, **kwargs)
+
+    def _scandir(*args: Any, **kwargs: Any) -> Any:
+        counts["scandir"] += 1
+        return real_scandir(*args, **kwargs)
+
+    with (
+        patch(
+            "sase.agent.auto_restart.gate.auto_restart_automatic_enabled",
+            return_value=True,
+        ),
+        patch.object(sweep_mod, "_proc_already_queued", return_value=True),
+        _mock.patch.object(_os, "stat", _stat),
+        _mock.patch.object(_builtins, "open", _open),
+        _mock.patch.object(_os, "scandir", _scandir),
+    ):
+        tick = sweep_mod.run_job_tick(now=1001.0)
+    assert tick.action == "idle"
+    assert counts["stat"] + counts["open"] + counts["scandir"] <= 60

@@ -328,6 +328,7 @@ def reconcile_notification_rows(
     notifications: list[Notification],
     *,
     reversible_dismiss_marker_key: str | None = None,
+    refresh_files: bool = False,
 ) -> Any:
     """Create or refresh only ``notifications`` through the Rust store.
 
@@ -337,6 +338,8 @@ def reconcile_notification_rows(
     ``reversible_dismiss_marker_key`` names the ``action_data`` key whose
     ``"true"`` value marks a dismissal this caller owns (and may resurface
     or re-apply); without it every dismissal stays as it is on disk.
+    ``refresh_files`` merges the input row's ``files`` union when true;
+    older cores never see the field because the wire omits it when false.
     Returns the core outcome with created/updated/dismissed/resurfaced
     counts.
     """
@@ -347,6 +350,7 @@ def reconcile_notification_rows(
     request = NotificationReconcileRequestWire(
         notifications=tuple(notifications),
         reversible_dismiss_marker_key=reversible_dismiss_marker_key,
+        refresh_files=refresh_files,
     )
     outcome = notification_store_facade.reconcile_notification_rows(
         _notifications_path(), request
