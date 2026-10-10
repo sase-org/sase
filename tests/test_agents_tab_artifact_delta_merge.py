@@ -254,7 +254,6 @@ def test_artifact_delta_under_committed_query_removes_stale_match() -> None:
     app._agents_seen_complete_history = True
     app._agents_complete_history_query_key = agents_history_query_key(
         "cl:target",
-        use_unified_query=False,
     )
 
     app._apply_loaded_agents_prepared(

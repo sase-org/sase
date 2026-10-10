@@ -17,7 +17,7 @@ from ._loading_compute import (
 from ._loading_helpers import TabName
 
 if TYPE_CHECKING:
-    from ....agent_query import QueryExpr
+    from sase.ace.query.types import QueryExpr
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_content_search import (

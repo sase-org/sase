@@ -23,7 +23,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.agent_tab_index import build_agent_tab_index
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY
-from sase.feature_flags import override_flags
 
 from ._agent_tab_cross_nav_helpers import (
     SASE,
@@ -400,19 +399,17 @@ def test_node_finder_off_tab_chip_survives_other_hidden_reasons() -> None:
     app = prepare_cross_tab_app(rows, harness_cls=_Harness)
     app._agent_search_query = ""
     app.hide_non_run_agents = False
-    with override_flags(agents_unified_query=False):
-        app._agents = _scoped_agents_for_owner(app, list(rows))
-        app._panel_group = AgentPanelGroup.from_agents(app._agents)
-        # A search query that only "a" matches gives "b" a QUERY hidden
-        # reason on top of already being off-tab.
-        app._agent_search_query = "agent-a"
+    app._agents = _scoped_agents_for_owner(app, list(rows))
+    app._panel_group = AgentPanelGroup.from_agents(app._agents)
+    # A search query that only "a" matches gives "b" a QUERY hidden
+    # reason on top of already being off-tab.
+    app._agent_search_query = "agent-a"
 
-        snap = build_node_finder_snapshot(app)
-        finder = next(
-            finder
-            for finder in snap.rows
-            if finder.role is NodeFinderRole.NODE
-            and finder.identity == rows[1].identity
-        )
-        assert NodeFinderReason.QUERY in finder.reasons
-        assert finder.tab_label == "sase"
+    snap = build_node_finder_snapshot(app)
+    finder = next(
+        finder
+        for finder in snap.rows
+        if finder.role is NodeFinderRole.NODE and finder.identity == rows[1].identity
+    )
+    assert NodeFinderReason.QUERY in finder.reasons
+    assert finder.tab_label == "sase"

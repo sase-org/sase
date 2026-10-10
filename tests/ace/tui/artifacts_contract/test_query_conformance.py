@@ -348,6 +348,7 @@ def test_patch_artifacts_query_path_no_longer_uses_query_edit_modal() -> None:
     guarded_roots = (
         repo_root / "src/sase/ace/tui/actions/patch",
         repo_root / "src/sase/ace/tui/widgets/artifacts",
+        repo_root / "src/sase/ace/tui/actions/agents",
     )
     offenders = {
         path.relative_to(repo_root).as_posix(): path.read_text(encoding="utf-8")
@@ -356,8 +357,3 @@ def test_patch_artifacts_query_path_no_longer_uses_query_edit_modal() -> None:
         if "QueryEditModal" in path.read_text(encoding="utf-8")
     }
     assert offenders == {}
-
-    agents_filter_actions = (
-        repo_root / "src/sase/ace/tui/actions/agents/_filter_actions.py"
-    )
-    assert "QueryEditModal" in agents_filter_actions.read_text(encoding="utf-8")

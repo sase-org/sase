@@ -8,13 +8,12 @@ from copy import copy
 from typing import TYPE_CHECKING, Any, cast
 
 from ._loading_compute import PreparedFinalizePlan
-from ._loading_finalize import finalize_agent_list, get_or_parse_agent_query
+from ._loading_finalize import finalize_agent_list
 from ._loading_state import AgentLoadingStateMixin
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 
 if TYPE_CHECKING:
-    from ....agent_query import QueryExpr
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_runner_slots import RunnerCapacitySnapshot
@@ -136,10 +135,6 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
     def _snapshot_agents_for_local_display(self) -> list[Agent]:
         """Return shallow row snapshots for local display diffs."""
         return [copy(agent) for agent in getattr(self, "_agents", [])]
-
-    def _get_or_parse_agent_query(self) -> QueryExpr | None:
-        """Return the parsed AST for the active agent search query."""
-        return get_or_parse_agent_query(cast(Any, self))
 
     def _refilter_agents(
         self,
@@ -303,30 +298,27 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
 
         live_facade = None
         from ...models.agent_live_query_engine import (
-            agents_unified_query_enabled,
             build_agents_live_query_index,
             evaluate_agents_live_query,
         )
 
-        if agents_unified_query_enabled():
+        def _build_and_evaluate() -> tuple[Any, str | None]:
+            live_index = build_agents_live_query_index(
+                agents,
+                generation=generation,
+                content_index=index,
+                unread_agent_ids=unread_agent_ids,
+            )
+            return evaluate_agents_live_query(query, live_index)
 
-            def _build_and_evaluate() -> tuple[Any, str | None]:
-                live_index = build_agents_live_query_index(
-                    agents,
-                    generation=generation,
-                    content_index=index,
-                    unread_agent_ids=unread_agent_ids,
-                )
-                return evaluate_agents_live_query(query, live_index)
-
-            try:
-                live_facade, _ = await asyncio.to_thread(_build_and_evaluate)
-            except Exception:
-                log.debug(
-                    "background agents-live query index refresh failed",
-                    exc_info=True,
-                )
-                live_facade = None
+        try:
+            live_facade, _ = await asyncio.to_thread(_build_and_evaluate)
+        except Exception:
+            log.debug(
+                "background agents-live query index refresh failed",
+                exc_info=True,
+            )
+            live_facade = None
 
         if generation != getattr(self, "_agent_content_search_refresh_generation", 0):
             return

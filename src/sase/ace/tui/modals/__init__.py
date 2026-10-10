@@ -199,7 +199,6 @@ __all__ = [
     "PromptSubmitChoice",
     "PromptSubmitChoiceModal",
     "PostWriteActionsModal",
-    "QueryEditModal",
     "SavedQueryPickerModal",
     "QuitOption",
     "QuitOptionsModal",

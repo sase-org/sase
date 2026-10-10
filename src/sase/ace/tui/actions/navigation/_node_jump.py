@@ -54,15 +54,12 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
         if not query.strip():
             return None
 
-        from ...models.agent_live_query_engine import agents_unified_query_enabled
-
-        if agents_unified_query_enabled():
-            close_session = getattr(self, "_close_agents_filter_session", None)
-            if callable(close_session):
-                close_session()
-            record = getattr(self, "_record_agents_live_query_transition", None)
-            if callable(record):
-                record(query, "")
+        close_session = getattr(self, "_close_agents_filter_session", None)
+        if callable(close_session):
+            close_session()
+        record = getattr(self, "_record_agents_live_query_transition", None)
+        if callable(record):
+            record(query, "")
 
         commit = getattr(self, "_record_explicit_agents_query_commit", None)
         if callable(commit):
@@ -149,17 +146,12 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
 
     def _notify_query_clear(self, name: str, query: str) -> None:
         """Toast the one persistent view-state mutation made by this ladder."""
-        from ...models.agent_live_query_engine import agents_unified_query_enabled
-
         quoted = _truncate_query(query)
-        if agents_unified_query_enabled():
-            previous, next_ = self._agents_query_history_keys()
-            message = (
-                f"Cleared Agents query ‹{quoted}› to reach {name} — "
-                f"{previous} then {next_} restores it"
-            )
-        else:
-            message = f"Cleared Agents query ‹{quoted}› to reach {name}"
+        previous, next_ = self._agents_query_history_keys()
+        message = (
+            f"Cleared Agents query ‹{quoted}› to reach {name} — "
+            f"{previous} then {next_} restores it"
+        )
         self.notify(message)  # type: ignore[attr-defined]
 
     def _agents_query_history_keys(self) -> tuple[str, str]:

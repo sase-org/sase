@@ -12,7 +12,6 @@ from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
 from sase.ace.tui.models.node_finder import NodeFinderReason
-from sase.feature_flags.snapshot import override_flags
 from tests.ace.tui._member_jump_navigation_helpers import (
     make_agent,
     make_agent_session,
@@ -34,7 +33,7 @@ __all__ = [
     "test_folded_and_query_hidden_at_once",
     "test_i_hidden_rows_use_the_pre_hide_roster_and_keep_tree_position",
     "test_i_hidden_snapshot_omits_dismissed_and_explicitly_removed_rows",
-    "test_query_hidden_on_both_flag_branches",
+    "test_query_hidden_marks_nonmatching_rows",
     "test_remote_fleet_row_is_listed",
     "test_visible_row_carries_here_and_no_reasons",
 ]
@@ -160,31 +159,28 @@ def test_collapsed_panel_marks_rows() -> None:
     assert snapshot_row_by_name(snap, "b1").reasons == frozenset()
 
 
-def test_query_hidden_on_both_flag_branches() -> None:
+def test_query_hidden_marks_nonmatching_rows() -> None:
     alpha1 = make_agent("alpha-one", tribe="alpha")
     beta = make_agent("beta-one", tribe="beta")
     complete = [alpha1, beta]
-    for unified in (True, False):
-        app = NodeFinderHarness(complete, alpha1)
-        app._agent_search_query = "tribe:alpha"
-        with override_flags(agents_unified_query=unified):
-            app._refilter_agents()
-            snap = build_node_finder_snapshot(app)
-        assert snap.query == "tribe:alpha"
-        assert snapshot_row_by_name(snap, "alpha-one").reasons == frozenset()
-        assert snapshot_row_by_name(snap, "beta-one").reasons == frozenset(
-            {NodeFinderReason.QUERY}
-        )
-        assert snap.query_hidden_count == 1
+    app = NodeFinderHarness(complete, alpha1)
+    app._agent_search_query = "tribe:alpha"
+    app._refilter_agents()
+    snap = build_node_finder_snapshot(app)
+    assert snap.query == "tribe:alpha"
+    assert snapshot_row_by_name(snap, "alpha-one").reasons == frozenset()
+    assert snapshot_row_by_name(snap, "beta-one").reasons == frozenset(
+        {NodeFinderReason.QUERY}
+    )
+    assert snap.query_hidden_count == 1
 
 
 def test_folded_and_query_hidden_at_once() -> None:
     projected, container = make_clan(2)
     app = NodeFinderHarness(projected, container)
     app._agent_search_query = "tribe:alpha"
-    with override_flags(agents_unified_query=False):
-        app._refilter_agents()
-        snap = build_node_finder_snapshot(app)
+    app._refilter_agents()
+    snap = build_node_finder_snapshot(app)
     member = snapshot_row_by_name(snap, "member-0")
     assert member.reasons == frozenset(
         {NodeFinderReason.FOLDED, NodeFinderReason.QUERY}

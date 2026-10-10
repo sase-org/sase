@@ -3,7 +3,7 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -507,32 +507,14 @@ def load_tiered_agents(
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
-    from .agent_live_query_engine import (
-        agents_history_query_key,
-        agents_unified_query_enabled,
-    )
+    from .agent_live_query_engine import agents_history_query_key
+    from .agent_live_query_pushdown import compile_agents_live_query_pushdown
 
-    use_unified_query = agents_unified_query_enabled()
-    if use_unified_query:
-        from .agent_live_query_pushdown import compile_agents_live_query_pushdown
-
-        live_query_plan = compile_agents_live_query_pushdown(search_query)
-        raw_query = live_query_plan.raw_query
-        window_safe = live_query_plan.window_safe
-        candidate_filter = live_query_plan.candidate_filter
-        legacy_parsed_query = None
-    else:
-        from sase.ace.agent_query.pushdown import compile_agent_query_pushdown
-
-        legacy_query_plan = compile_agent_query_pushdown(search_query)
-        raw_query = legacy_query_plan.raw_query
-        window_safe = legacy_query_plan.window_safe
-        candidate_filter = legacy_query_plan.candidate_filter
-        legacy_parsed_query = legacy_query_plan.parsed_query
-    history_query_key = agents_history_query_key(
-        raw_query,
-        use_unified_query=use_unified_query,
-    )
+    live_query_plan = compile_agents_live_query_pushdown(search_query)
+    raw_query = live_query_plan.raw_query
+    window_safe = live_query_plan.window_safe
+    candidate_filter = live_query_plan.candidate_filter
+    history_query_key = agents_history_query_key(raw_query)
     pushdown_miss = bool(raw_query) and not window_safe
     defer_pushdown_miss = pushdown_miss and not full_history
     effective_full_history = full_history
@@ -568,18 +550,15 @@ def load_tiered_agents(
     ):
         state = replace(state, query_incomplete=True)
     if effective_limit is not None and result.state.bounded_prefix:
-        if use_unified_query and raw_query:
+        if raw_query:
             agents, filtered_count = _filter_and_cap_windowed_agents_live(
                 agents,
                 raw_query,
                 effective_limit,
             )
         else:
-            agents, filtered_count = _filter_and_cap_windowed_agents(
-                agents,
-                legacy_parsed_query,
-                effective_limit,
-            )
+            filtered_count = len(agents)
+            agents = agents[: max(1, effective_limit)]
         state = replace(
             state,
             returned_count=len(agents),
@@ -587,30 +566,6 @@ def load_tiered_agents(
         )
         return agents, state
     return agents, state
-
-
-def _filter_and_cap_windowed_agents(
-    agents: list[Agent],
-    parsed_query: object | None,
-    requested_limit: int,
-) -> tuple[list[Agent], int]:
-    """Apply exact Python query semantics and cap a bounded provider prefix."""
-
-    filtered = list(agents)
-    if parsed_query is not None:
-        from sase.ace.agent_query import QueryExpr, evaluate_agent_query
-        from sase.core.time import local_now
-        from sase.project_display_names import attach_project_display_names
-
-        attach_project_display_names(filtered)
-        now = local_now()
-        query_expr = cast(QueryExpr, parsed_query)
-        filtered = [
-            agent
-            for agent in filtered
-            if evaluate_agent_query(query_expr, agent, now=now, content_cache=None)
-        ]
-    return filtered[: max(1, requested_limit)], len(filtered)
 
 
 def _filter_and_cap_windowed_agents_live(

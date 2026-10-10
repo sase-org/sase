@@ -20,8 +20,6 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models import _agent_loader_artifacts as loader_artifacts
-from sase.feature_flags import override_flags
-
 from tests.perf.agent_load_tiering_fixture import (
     build_synthetic_agent_archive,
     delete_artifact,
@@ -36,9 +34,6 @@ from tests.perf.agent_load_tiering_harness import (
     VisibleAgentRow,
 )
 
-# Both agents-live query dialects: legacy (flag off) and unified (flag on).
-_DIALECTS = (False, True)
-
 
 def test_production_oracle_query_battery_matches_source_scan(tmp_path: Path) -> None:
     """Regression: the real TUI loader matches the authoritative scan today.
@@ -48,14 +43,8 @@ def test_production_oracle_query_battery_matches_source_scan(tmp_path: Path) -> 
     source/owner values per :mod:`agent_load_tiering_fixture`), so both
     production paths should be clean for the whole committed-query battery.
 
-    Deliberately not parametrized over both query dialects: the harness's
-    ``source_scan``/``index_*`` "authoritative" paths always filter through
-    the unified agents-live engine regardless of the ``agents_unified_query``
-    flag, so forcing the legacy dialect here would compare production's
-    legacy-language output against a unified-language reference for queries
-    whose AST semantics genuinely differ between the two languages (the two
-    dialect-specific defect tests below use only queries proven equivalent
-    under both).
+    The harness's ``source_scan``/``index_*`` authoritative paths and the
+    production loader both filter through the agents-live engine.
     """
     fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
     oracle = AgentLoadTieringOracle(fixture)
@@ -68,9 +57,8 @@ def test_production_oracle_query_battery_matches_source_scan(tmp_path: Path) -> 
             assert diff.visible_extra == (), (name, case.query)
 
 
-@pytest.mark.parametrize("unified_query", _DIALECTS)
 def test_production_full_history_oracle_discovers_artifact_added_after_index_build(
-    tmp_path: Path, unified_query: bool
+    tmp_path: Path,
 ) -> None:
     """Post-rebuild artifacts arrive on the production full-history path.
 
@@ -84,8 +72,7 @@ def test_production_full_history_oracle_discovers_artifact_added_after_index_bui
     )
 
     oracle = AgentLoadTieringOracle(fixture)
-    with override_flags(agents_unified_query=unified_query):
-        result = oracle.evaluate("", requested_limit=None)
+    result = oracle.evaluate("", requested_limit=None)
 
     assert new_artifact_dir.name in {
         Path(row.artifact_dir).name for row in result.source_scan.visible_rows.values()
@@ -107,16 +94,10 @@ def _visible_dir_names(rows: Iterable[VisibleAgentRow]) -> set[str]:
     return {Path(row.artifact_dir).name for row in rows}
 
 
-@pytest.mark.parametrize("unified_query", _DIALECTS)
 def test_production_machine_query_oracle_keeps_conflicting_provenance_row(
-    tmp_path: Path, unified_query: bool
+    tmp_path: Path,
 ) -> None:
-    """Conflicting source/owner machines stay visible to live ``machine:apollo``.
-
-    Legacy matching does not read ``imported_source_owner.machine_name``, so
-    the bounded legacy path may still exclude the row after exact filtering.
-    Full history is re-filtered through the live engine in this oracle.
-    """
+    """Conflicting source/owner machines stay visible to ``machine:apollo``."""
     fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
     conflicting_dir = write_completed_artifact(
         fixture.projects_root,
@@ -127,8 +108,7 @@ def test_production_machine_query_oracle_keeps_conflicting_provenance_row(
     rebuild_index(fixture)
 
     oracle = AgentLoadTieringOracle(fixture)
-    with override_flags(agents_unified_query=unified_query):
-        result = oracle.evaluate("machine:apollo", requested_limit=400)
+    result = oracle.evaluate("machine:apollo", requested_limit=400)
 
     assert conflicting_dir.name in _visible_dir_names(
         result.source_scan.visible_rows.values()
@@ -140,12 +120,9 @@ def test_production_machine_query_oracle_keeps_conflicting_provenance_row(
     assert result.diff_for("production_full_history").ok
 
     bounded_missing = _visible_dir_names(result.diff_for("production_bounded").missing)
-    if unified_query:
-        assert result.pushdown_window_safe is True
-        assert conflicting_dir.name not in bounded_missing
-        assert result.diff_for("production_bounded").ok
-    else:
-        assert conflicting_dir.name in bounded_missing
+    assert result.pushdown_window_safe is True
+    assert conflicting_dir.name not in bounded_missing
+    assert result.diff_for("production_bounded").ok
 
 
 @pytest.mark.parametrize("query", ("machine:apollo", "not machine:apollo"))
@@ -173,8 +150,7 @@ def test_production_machine_query_oracle_keeps_mixed_provenance_tree(
     rebuild_index(fixture)
 
     oracle = AgentLoadTieringOracle(fixture)
-    with override_flags(agents_unified_query=True):
-        result = oracle.evaluate(query, requested_limit=400)
+    result = oracle.evaluate(query, requested_limit=400)
 
     assert result.pushdown_window_safe is True
     source_dirs = _visible_dir_names(result.source_scan.visible_rows.values())
@@ -204,8 +180,7 @@ def test_production_machine_query_oracle_repairs_owner_after_index(
     )
 
     oracle = AgentLoadTieringOracle(fixture)
-    with override_flags(agents_unified_query=True):
-        result = oracle.evaluate("machine:apollo", requested_limit=None)
+    result = oracle.evaluate("machine:apollo", requested_limit=None)
 
     assert target_dir.name in _visible_dir_names(
         result.source_scan.visible_rows.values()
@@ -231,9 +206,8 @@ def test_production_machine_query_oracle_uses_meta_over_done_source(
     rebuild_index(fixture)
 
     oracle = AgentLoadTieringOracle(fixture)
-    with override_flags(agents_unified_query=True):
-        apollo = oracle.evaluate("machine:apollo", requested_limit=400)
-        zeus = oracle.evaluate("machine:zeus", requested_limit=400)
+    apollo = oracle.evaluate("machine:apollo", requested_limit=400)
+    zeus = oracle.evaluate("machine:zeus", requested_limit=400)
 
     assert target_dir.name in _visible_dir_names(
         apollo.source_scan.visible_rows.values()

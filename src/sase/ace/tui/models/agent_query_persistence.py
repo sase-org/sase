@@ -66,10 +66,8 @@ class _AgentQueryPersistenceError(ValueError):
 
 
 def active_agent_query_dialect() -> AgentQueryDialect:
-    """Return the active Agents-tab query dialect."""
-    from .agent_live_query_engine import agents_unified_query_enabled
-
-    return DIALECT_UNIFIED if agents_unified_query_enabled() else DIALECT_LEGACY
+    """Return the active Agents-tab query dialect (always the live dialect)."""
+    return DIALECT_UNIFIED
 
 
 def _agent_query_state_path() -> Path:
@@ -254,7 +252,7 @@ def _validate_for_active_dialect(
         raise _AgentQueryPersistenceError(
             "Saved Agents query was written by the "
             f"{stored_label} dialect, but {active_label} is active; "
-            "switch the flag back or submit a new query to replace it."
+            "submit a new query to replace it."
         )
     if active_dialect == DIALECT_UNIFIED:
         current_digest = current_profile_digest(DIALECT_UNIFIED)
@@ -297,9 +295,18 @@ def _canonical_for_dialect(source: str, dialect: AgentQueryDialect) -> str:
 
         return canonical_query_for_profile(source, agents_live_query_profile())
     if dialect == DIALECT_LEGACY:
-        from sase.ace.agent_query import parse_agent_query, to_canonical_string
+        # Retired dialect: no new legacy snapshots are written. Keep decode
+        # compatibility for stored files (dialect mismatch warns before this
+        # is consulted); canonicalize through the live profile so no second
+        # evaluator is retained.
+        from sase.ace.query.profile_reference import canonical_query_for_profile
 
-        return to_canonical_string(parse_agent_query(source))
+        from .agent_live_query_engine import agents_live_query_profile
+
+        try:
+            return canonical_query_for_profile(source, agents_live_query_profile())
+        except Exception:
+            return source
     raise _AgentQueryPersistenceError("unknown Agents query dialect")
 
 

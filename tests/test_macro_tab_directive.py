@@ -98,21 +98,6 @@ def test_tab_plus_proc_is_rejected() -> None:
         extract_prompt_directives('%tab:sase %proc("echo hi")')
 
 
-def test_tab_query_legacy_dialect() -> None:
-    from sase.ace.agent_query.evaluator import _match_tab
-    from sase.ace.agent_query.types import PropertyMatch
-
-    class _Agent:
-        def __init__(self, tab: str | None) -> None:
-            self.agent_tab = tab
-
-    assert _match_tab(PropertyMatch(key="tab", value="main"), _Agent(None)) is True
-    assert _match_tab(PropertyMatch(key="tab", value="main"), _Agent("blog")) is False
-    assert _match_tab(PropertyMatch(key="tab", value="blog"), _Agent("blog")) is True
-    assert _match_tab(PropertyMatch(key="tab", value="BLOG"), _Agent("blog")) is True
-    assert _match_tab(PropertyMatch(key="tab", value="other"), _Agent("blog")) is False
-
-
 def test_tab_live_query_projection() -> None:
     from sase.ace.tui.models.agent_live_query import _tab_values
 

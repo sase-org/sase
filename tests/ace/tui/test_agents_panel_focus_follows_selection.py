@@ -20,7 +20,6 @@ from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.fold_state import FoldStateManager
-from sase.feature_flags import override_flags
 from tests.ace.tui.test_agent_panel_index_integration import (
     _Bare as _PanelBare,
 )
@@ -437,16 +436,15 @@ def test_refresh_prior_pos_lands_on_visually_below_row() -> None:
     app._agents_with_children = [zeta, alpha]
     app._invalidate_agent_panel_cache()
 
-    with override_flags(agents_unified_query=False):
-        app._finalize_agent_list(
-            True,
-            removed_identity,
-            save_unfiltered=False,
-            fold_filter_already_applied=True,
-            prior_pos=prior_pos,
-            previous_agents=agents,
-            refresh_display=False,
-        )
+    app._finalize_agent_list(
+        True,
+        removed_identity,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+        prior_pos=prior_pos,
+        previous_agents=agents,
+        refresh_display=False,
+    )
 
     # Visually below beta was zeta; the global-index clamp would land on alpha.
     assert app._agents[app.current_idx].agent_name == "z1"

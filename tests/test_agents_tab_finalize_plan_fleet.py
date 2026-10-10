@@ -11,7 +11,7 @@ occupied).
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -42,17 +42,9 @@ from sase.ace.tui.models.agent_group_fold import (
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import panel_keys_for
 from sase.ace.tui.util import trace
-from sase.feature_flags import override_flags
 
 from tests._agents_tab_graph_isolation_helpers import clan_graph
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
-
-
-@pytest.fixture(autouse=True)
-def _pin_legacy_agent_query_dialect() -> Iterator[None]:
-    """Default to the legacy dialect; tests that need the unified engine opt in."""
-    with override_flags(agents_unified_query=False):
-        yield
 
 
 class _FleetFakeAgentApp(
@@ -131,21 +123,17 @@ def _apply_with_plan(
     _commit(app, *_prepare_with_plan(app, local_rows))
 
 
-@pytest.mark.parametrize("unified_query", [False, True])
-def test_plan_apply_keeps_fleet_rows_and_their_tribe_panel(
-    unified_query: bool,
-) -> None:
+def test_plan_apply_keeps_fleet_rows_and_their_tribe_panel() -> None:
     """A non-drifting plan apply must publish the projected mixed roster."""
     local = [
         _make_agent(cl_name="alpha", status="RUNNING", raw_suffix="20260917090000"),
         _make_agent(cl_name="beta", status="DONE", raw_suffix="20260917090100"),
     ]
     fleet = _fleet_epic_row()
-    with override_flags(agents_unified_query=unified_query):
-        app = _FleetFakeAgentApp()
-        app._agents_fleet_rows = [fleet]
+    app = _FleetFakeAgentApp()
+    app._agents_fleet_rows = [fleet]
 
-        _apply_with_plan(app, local)
+    _apply_with_plan(app, local)
 
     assert fleet in app._agents
     assert fleet in app._agents_with_children
@@ -166,8 +154,7 @@ def test_plan_apply_keeps_fold_registry_entries_of_fleet_only_tribes() -> None:
     epic_registry = app._group_fold_registry.for_panel("epic")
     epic_registry.collapse(("Done",))
 
-    with override_flags(agents_unified_query=True):
-        _apply_with_plan(app, local)
+    _apply_with_plan(app, local)
 
     assert fleet in app._agents
     assert AgentPanelFoldScope("epic") in app._group_fold_registry._registries

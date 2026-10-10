@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
-from sase.ace.agent_query import project_query_term
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
+from sase.ace.tui.models.agent_live_query_engine import (
+    agents_live_property_query_term,
+)
 from sase.ace.tui.actions.agents._query_persistence import AgentQueryPersistenceMixin
 from sase.ace.tui.actions.agents._loading_helpers import _AgentDiskLoadResult
 from sase.ace.tui.actions.agents._prospective_clan import _apply_active_agent_query
@@ -95,8 +97,11 @@ class _SeedLoadApp(AgentQueryPersistenceMixin, AgentLoadingMixin):
 
 
 def test_project_query_term_uses_display_name_through_grammar() -> None:
-    assert project_query_term("sase") == "project:sase"
-    assert project_query_term("Internal Tools") == 'project:"Internal Tools"'
+    assert agents_live_property_query_term("project", "sase") == "project:sase"
+    assert (
+        agents_live_property_query_term("project", "Internal Tools")
+        == 'project:"Internal Tools"'
+    )
 
 
 def test_seed_agents_query_default_leaves_query_empty() -> None:

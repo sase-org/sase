@@ -19,7 +19,6 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
 )
-from sase.feature_flags import override_flags
 
 
 def _snapshot(*, has_more: bool) -> AgentArtifactScanWire:
@@ -194,8 +193,7 @@ def _pushdown_miss_states(
         "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
         lambda agents, _steps: list(agents),
     )
-    with override_flags(agents_unified_query=False):
-        _, out = load_tiered_agents(search_query="(((", requested_limit=None)
+    _, out = load_tiered_agents(search_query="(((", requested_limit=None)
     return out
 
 

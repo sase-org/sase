@@ -24,7 +24,6 @@ class FeatureFlag(StrEnum):
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
     axe_routine_job_contract = "axe_routine_job_contract"
-    agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
     grok_rules_delivery = "grok_rules_delivery"
@@ -67,16 +66,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "internal AXE model."
         ),
         bead="sase-11f",
-    ),
-    FeatureFlag.agents_unified_query: FeatureFlagDefinition(
-        key=FeatureFlag.agents_unified_query,
-        kind="sunset",
-        description=(
-            "The Agents tab parses, evaluates, and edits its filter with the "
-            "shared agents-live boolean query profile through the Rust corpus "
-            "engine and the FilterBar chrome."
-        ),
-        bead="sase-zg",
     ),
     FeatureFlag.agent_sudo_requests: FeatureFlagDefinition(
         key=FeatureFlag.agent_sudo_requests,

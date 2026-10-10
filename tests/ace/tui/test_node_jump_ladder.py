@@ -11,7 +11,6 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions.navigation._agent_reveal import AgentRevealFailure
 from sase.ace.tui.actions.navigation._node_jump import NodeJumpNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.feature_flags import override_flags
 from tests.ace.tui.visual._ace_png_snapshot_startup import (
     patch_startup_loaders,
     wait_for_startup,
@@ -105,21 +104,18 @@ class _HiddenNodeJumpHarness(NodeJumpNavigationMixin, JumpHarness):
         callback()
 
 
-@pytest.mark.parametrize("unified", [False, True])
-def test_query_hidden_identity_clears_once_then_reveals(unified: bool) -> None:
+def test_query_hidden_identity_clears_once_then_reveals() -> None:
     app = _NodeJumpHarness()
 
-    with override_flags(agents_unified_query=unified):
-        assert app._jump_to_node_identity(app.target.identity, name="member-1")
+    assert app._jump_to_node_identity(app.target.identity, name="member-1")
 
     assert app._agent_search_query == ""
     assert app.commits == [""]
-    assert app.transitions == ([("status:FAILED", "")] if unified else [])
+    assert app.transitions == [("status:FAILED", "")]
     assert app.refresh_sources == ["filter"]
     assert app._agents[app.current_idx].identity == app.target.identity
     assert "Cleared Agents query" in app.notifications[-1]
-    if unified:
-        assert "f then ^ restores it" in app.notifications[-1]
+    assert "f then ^ restores it" in app.notifications[-1]
 
 
 def test_i_hidden_identity_flips_then_reveals() -> None:
@@ -205,8 +201,7 @@ async def test_real_ace_page_query_clear_retry_records_the_live_transition(
             return AgentRevealFailure.TARGET_FILTERED if attempts == 1 else None
 
         monkeypatch.setattr(app, "_try_reveal_agent_row", try_reveal)
-        with override_flags(agents_unified_query=True):
-            assert app._jump_to_node_identity(agents[0].identity, name="visible")
+        assert app._jump_to_node_identity(agents[0].identity, name="visible")
         await page.pause()
 
         assert attempts == 2

@@ -123,11 +123,7 @@ class ArtifactsQueryHistoryActionsMixin:
 
     def _active_query_history_contract(self) -> _QueryHistoryContract | None:
         if self.current_tab == "agents":
-            from ..models.agent_live_query_engine import agents_unified_query_enabled
-
-            if not agents_unified_query_enabled() or not getattr(
-                self, "_agents_filter_session_open", False
-            ):
+            if not getattr(self, "_agents_filter_session_open", False):
                 return None
             return _agents_live_history_contract()
         if self.current_tab != ARTIFACTS_TAB:

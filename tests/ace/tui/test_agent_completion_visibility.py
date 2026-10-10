@@ -19,7 +19,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 from sase.core.time import local_now
-from sase.feature_flags import override_flags
 
 
 class _FakeAgentList:
@@ -291,8 +290,7 @@ def test_visible_agent_completion_agents_preserves_non_clan_visibility(
     app = _CompletionApp([clan], None)
     app._agents_with_children = complete
     app._fold_manager = FoldStateManager()
-    app._agent_search_query = "name:eligible"
+    app._agent_search_query = "eligible"
     app._dismissed_agents = {dismissed.identity}
 
-    with override_flags(agents_unified_query=False):
-        assert visible_agent_completion_agents(app) == [clan, visible]
+    assert visible_agent_completion_agents(app) == [clan, visible]

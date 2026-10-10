@@ -149,50 +149,18 @@ def _apply_active_agent_query(owner: Any, agents: list[Agent]) -> list[Agent]:
     if not raw_query:
         return agents
 
-    from ...models.agent_live_query_engine import agents_unified_query_enabled
+    from ...models.agent_live_query_engine import apply_agents_live_query_filter
 
-    if agents_unified_query_enabled():
-        from ...models.agent_live_query_engine import apply_agents_live_query_filter
-
-        filtered, facade, _error = apply_agents_live_query_filter(
-            raw_query,
-            agents,
-            content_index=getattr(owner, "_agent_content_search_index", None),
-            unread_agent_ids=getattr(owner, "_unread_completed_agent_ids", ()),
-            cached_facade=getattr(owner, "_agents_live_query_facade", None),
-        )
-        if facade is not None:
-            owner._agents_live_query_facade = facade
-        return filtered
-
-    cached = getattr(owner, "_agent_query_cache", None)
-    parsed = cached[1] if cached is not None and cached[0] == raw_query else None
-    if parsed is None:
-        from ....agent_query import AgentQueryParseError, parse_agent_query
-
-        try:
-            parsed = parse_agent_query(raw_query)
-        except AgentQueryParseError:
-            # The real finalize pipeline treats a bad query as unfiltered
-            # after surfacing its parse error, so the projection must agree.
-            return agents
-
-    from sase.core.time import local_now
-
-    from ....agent_query import evaluate_agent_query
-    from ...models._agent_tree import filter_tree_rows
-
-    content_index = getattr(owner, "_agent_content_search_index", None)
-    now = local_now()
-    return filter_tree_rows(
+    filtered, facade, _error = apply_agents_live_query_filter(
+        raw_query,
         agents,
-        lambda agent: evaluate_agent_query(
-            parsed,
-            agent,
-            now=now,
-            content_cache=content_index,
-        ),
+        content_index=getattr(owner, "_agent_content_search_index", None),
+        unread_agent_ids=getattr(owner, "_unread_completed_agent_ids", ()),
+        cached_facade=getattr(owner, "_agents_live_query_facade", None),
     )
+    if facade is not None:
+        owner._agents_live_query_facade = facade
+    return filtered
 
 
 def prospective_clan_projection(

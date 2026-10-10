@@ -224,15 +224,9 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         machine_name = "local" if row.kind == "here" else row.alias
         from sase.ace.tui.models.agent_live_query_engine import (
             agents_live_property_query_term,
-            agents_unified_query_enabled,
         )
 
-        if agents_unified_query_enabled():
-            query = agents_live_property_query_term("machine", machine_name)
-        else:
-            from sase.ace.agent_query import machine_query_term
-
-            query = machine_query_term(machine_name)
+        query = agents_live_property_query_term("machine", machine_name)
         app: Any = self.app
         app.current_tab = "agents"
         record_query = getattr(app, "_record_explicit_agents_query_commit", None)

@@ -98,9 +98,8 @@ def test_prepared_snapshot_complete_history_is_keyed_by_load_query() -> None:
     app = FakeAgentApp(query="status:FAILED")
     failed_key = agents_history_query_key(
         "status:FAILED",
-        use_unified_query=True,
     )
-    model_key = agents_history_query_key("model:gpt-5", use_unified_query=True)
+    model_key = agents_history_query_key("model:gpt-5")
     app._agents_seen_complete_history = True
     app._agents_complete_history_query_key = failed_key
 
@@ -138,7 +137,6 @@ def test_same_query_incomplete_load_after_reconcile_does_not_rearm() -> None:
     app = FakeAgentApp(query="status:FAILED")
     query_key = agents_history_query_key(
         "status:FAILED",
-        use_unified_query=True,
     )
     apply_load(
         app,
@@ -181,9 +179,8 @@ def test_changed_query_incomplete_load_after_reconcile_rearms() -> None:
     app = FakeAgentApp(query="status:FAILED")
     failed_key = agents_history_query_key(
         "status:FAILED",
-        use_unified_query=True,
     )
-    model_key = agents_history_query_key("model:gpt-5", use_unified_query=True)
+    model_key = agents_history_query_key("model:gpt-5")
     app._agents_seen_complete_history = True
     app._agents_complete_history_query_key = failed_key
     app._agents_history_reconcile_pending = False

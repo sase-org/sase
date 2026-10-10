@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 
 from sase import project_display_names as pdn
@@ -13,16 +11,8 @@ from sase.ace.tui.actions.agents._loading_compute import (
     prepare_loaded_agents_apply_boundary,
 )
 from sase.ace.tui.models.agent import AgentType
-from sase.feature_flags import override_flags
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
-
-
-@pytest.fixture(autouse=True)
-def _pin_legacy_agent_query_dialect() -> Iterator[None]:
-    """sase-zf.2: these tests exercise the legacy agent_query dialect explicitly."""
-    with override_flags(agents_unified_query=False):
-        yield
 
 
 def test_compute_apply_attaches_project_display_names_to_dismissed_loader_objects(

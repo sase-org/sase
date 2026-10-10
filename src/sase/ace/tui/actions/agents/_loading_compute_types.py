@@ -23,7 +23,7 @@ from ..._proc_observer_models import ProcProjection
 from ...models.agent_runner_slots import RunnerCapacitySnapshot
 
 if TYPE_CHECKING:
-    from ....agent_query import QueryExpr
+    from sase.ace.query.types import QueryExpr
     from ...agent_tabs_settings import AgentTabsViewConfig
     from ...models import Agent
     from ...models.agent import AgentType

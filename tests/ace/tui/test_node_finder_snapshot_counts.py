@@ -8,7 +8,6 @@ from sase.ace.tui.actions.agents._node_finder_snapshot import (
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.node_finder import NodeFinderReason, NodeFinderRole
-from sase.feature_flags.snapshot import override_flags
 from tests.ace.tui._member_jump_navigation_helpers import (
     make_agent,
     make_agent_session,
@@ -53,9 +52,8 @@ def test_snapshot_header_counts_match_brute_force_with_mixed_hidden_reasons() ->
     app._hideable_agents = [hidden]
     app.hide_non_run_agents = True
     app._agent_search_query = "member-0"
-    with override_flags(agents_unified_query=False):
-        app._refilter_agents()
-        snap = build_node_finder_snapshot(app)
+    app._refilter_agents()
+    snap = build_node_finder_snapshot(app)
 
     rows = list(snap.rows)
     assert sum(1 for row in rows if row.role is not NodeFinderRole.NODE) >= 2
@@ -148,9 +146,8 @@ def test_fused_facets_keep_counts_ancestors_and_reasons_across_grouping_modes() 
         app.hide_non_run_agents = True
         app._dismissed_agents = {gone.identity}
         app._agent_search_query = "member-0"
-        with override_flags(agents_unified_query=False):
-            app._refilter_agents()
-            snaps[mode] = build_node_finder_snapshot(app)
+        app._refilter_agents()
+        snaps[mode] = build_node_finder_snapshot(app)
 
     base = snaps[GroupingMode.STANDARD]
     base_nodes = {row.identity: row for row in snapshot_node_rows(base)}

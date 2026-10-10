@@ -17,7 +17,7 @@ from ..models.agent_runner_slots import RunnerCapacitySnapshot
 from ..models.fold_state import FoldStateManager, SectionFoldStateManager
 
 if TYPE_CHECKING:
-    from ...agent_query import QueryExpr as AgentQueryExpr
+    from sase.ace.query.types import QueryExpr as AgentQueryExpr
     from ..models import Agent
     from ..models.agent import AgentType
     from ..models.agent_fold_persistence import AgentsFoldStateSnapshot
@@ -211,21 +211,21 @@ def init_agent_state(self: Any) -> None:
     self._agents_query_last_save_warning_mono = 0.0
     self._agents_provider_snapshot = None
 
-    # Cached parsed agent-query AST keyed by raw query string so
-    # re-renders skip the parse. ``None`` AST means "no filter".
+    # Retired parsed-query AST cache (always ``None``); kept so older
+    # state shapes still initialize.
     self._agent_query_cache = None
-    # Last agent-query parse error, surfaced by the filter modal.
+    # Last agents-live parse error, surfaced inline by the FilterBar.
     self._agent_query_parse_error = None
     # Cached mask facade from the last successful agents-live engine
-    # evaluation (sase-zf.2, behind the agents_unified_query flag).
+    # evaluation.
     self._agents_live_query_facade = None
-    # ``(matched, loaded)`` for the last committed query (sase-zf.4).
+    # ``(matched, loaded)`` for the last committed query.
     self._agents_committed_match_count = None
 
-    # Auto-hiding FilterBar editing session (sase-zf.4, on-flag only): the
-    # live/uncommitted text and its off-thread-evaluated preview facade
-    # never touch ``_agent_search_query``/``_agents_live_query_facade``
-    # until the session commits.
+    # Auto-hiding FilterBar editing session: the live/uncommitted text and
+    # its off-thread-evaluated preview facade never touch
+    # ``_agent_search_query``/``_agents_live_query_facade`` until the session
+    # commits.
     self._agents_filter_session_open = False
     self._agents_filter_restore_query = None
     self._agents_filter_restore_focus = None

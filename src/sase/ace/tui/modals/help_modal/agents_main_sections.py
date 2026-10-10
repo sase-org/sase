@@ -1,7 +1,6 @@
 """Navigation and action keybinding sections for the Agents help tab."""
 
 from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
-from ...models.agent_live_query_engine import agents_unified_query_enabled
 from ...widgets.decks.spec import active_deck_cycle
 from ...widgets.decks.titles import DECK_PICKER_KEYS
 from .binding_common import Sections, key_sequence_display, sk
@@ -14,12 +13,7 @@ def main_sections(km: KeymapRegistry) -> Sections:
     bm = km.bang_mode
 
     link_follow_row = _link_follow_row(d(a.follow_artifact_link))
-    unified_query = agents_unified_query_enabled()
-    filter_query_keys = (
-        f"{d(a.edit_query)} / {d(a.agents_filters)}"
-        if unified_query
-        else d(a.edit_query)
-    )
+    filter_query_keys = f"{d(a.edit_query)} / {d(a.agents_filters)}"
     deck_capitals = "/".join(
         DECK_PICKER_KEYS[deck].upper() for deck in active_deck_cycle()
     )

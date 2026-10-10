@@ -1267,11 +1267,11 @@ PatchList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTribeModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, InputCollectionModal {
+StatusModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTribeModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, InputCollectionModal {
     align: center middle;
 }
 
-StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container {
+StatusModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container {
     width: 60;
     height: auto;
     max-height: 80%;
@@ -3617,33 +3617,6 @@ MentorProfileSelectModal {
 StatusModal OptionList {
     height: auto;
     max-height: 15;
-}
-
-QueryEditModal Input {
-    width: 100%;
-    margin: 1 0;
-}
-
-QueryEditModal #query-hint {
-    color: $text-muted;
-    width: 100%;
-    margin-bottom: 1;
-}
-
-QueryEditModal #query-error {
-    color: $error;
-    width: 100%;
-    margin-bottom: 1;
-}
-
-QueryEditModal Horizontal {
-    align: center middle;
-    height: auto;
-    margin-top: 1;
-}
-
-QueryEditModal Button {
-    margin: 0 1;
 }
 
 /* Input Collection Modal styling */

@@ -1,16 +1,13 @@
-"""Integration tests for the sase-zf.2 agents-live query engine.
+"""Integration tests for the agents-live query engine.
 
-Mirrors ``tests/test_agents_tab_query_filter.py`` (the legacy-dialect "Off
-state sweep") but drives :class:`AgentLoadingMixin._finalize_agent_list` and
-:func:`_compute_finalize_plan` with the ``agents_unified_query`` sunset flag
-forced on: Rust-backed committed-query filtering, hierarchy preservation,
-parse-error fallback with the legacy-token hint, and mask-facade reuse
-across renders.
+Drives :class:`AgentLoadingMixin._finalize_agent_list` and
+:func:`_compute_finalize_plan` through Rust-backed committed-query filtering,
+hierarchy preservation, parse-error fallback with the legacy-token hint, and
+mask-facade reuse across renders.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -21,15 +18,8 @@ from sase.ace.tui.actions.agents._loading_compute_finalize import (
 )
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchIndex
-from sase.feature_flags import override_flags
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
-
-
-@pytest.fixture(autouse=True)
-def _force_unified_agent_query_dialect() -> Iterator[None]:
-    with override_flags(agents_unified_query=True):
-        yield
 
 
 def test_property_query_filters_correctly_unified() -> None:

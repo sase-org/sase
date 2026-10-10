@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 
@@ -19,7 +18,6 @@ from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.util.nav_gate import NavigationGate
-from sase.feature_flags import override_flags
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 
@@ -42,13 +40,6 @@ class _InfoMetricsHarness(AgentInfoDisplayMixin):
 
     def _agent_panel_index(self):
         return build_agent_panel_index(self._agents, dismissable_statuses=())
-
-
-@pytest.fixture(autouse=True)
-def _pin_legacy_agent_query_dialect() -> Iterator[None]:
-    """sase-zf.2: these tests exercise the legacy agent_query dialect explicitly."""
-    with override_flags(agents_unified_query=False):
-        yield
 
 
 def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:
@@ -480,7 +471,6 @@ async def test_async_full_history_discarded_when_query_changes_after_disk_load(
                 used_artifact_index=True,
                 history_query_key=agents_history_query_key(
                     "cl:old",
-                    use_unified_query=False,
                 ),
             ),
         )

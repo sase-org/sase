@@ -83,8 +83,6 @@ def _pin_agent_list_clock_for_visual_snapshots(
     for target in (
         "sase.core.time.local_now",
         "sase.ace.tui.actions.agents._display_panel_patches.local_now",
-        "sase.ace.tui.actions.agents._loading_compute_finalize.local_now",
-        "sase.ace.tui.actions.agents._loading_finalize.local_now",
         "sase.ace.tui.models.agent_groups._keys.local_now",
         "sase.ace.tui.models.agent_groups._tree_build.local_now",
         "sase.ace.tui.models.agent_groups._tree_keys.local_now",

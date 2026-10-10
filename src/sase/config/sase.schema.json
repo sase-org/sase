@@ -6045,12 +6045,6 @@
           "default": true,
           "deprecated": true
         },
-        "agents_unified_query": {
-          "type": "boolean",
-          "description": "The Agents tab parses, evaluates, and edits its filter with the shared agents-live boolean query profile through the Rust corpus engine and the FilterBar chrome.",
-          "default": true,
-          "deprecated": true
-        },
         "autonomy_record_only": {
           "type": "boolean",
           "description": "Only agent_meta.autonomy carries %auto state: launches and autonomy mutations write no legacy approve/auto_approve_plan_action/auto_approve_argument/plan meta keys and the runner exports no SASE_AGENT_AUTO_APPROVE.",

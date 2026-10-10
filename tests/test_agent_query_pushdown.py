@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from sase.ace.agent_query.pushdown import compile_agent_query_pushdown
 from sase.ace.query_profile.profiles._agents_live import agents_live_query_schema
 from sase.ace.tui.models.agent_live_query_pushdown import (
     KNOWN_FALLBACK_FIELDS,
@@ -17,88 +16,6 @@ _PUSHABLE_FIELDS = (
     | _PUSHABLE_EXACT_FIELDS
     | {_PUSHABLE_KIND_FIELD, _PUSHABLE_PROJECT_FIELD, _PUSHABLE_MACHINE_FIELD}
 )
-
-
-def test_compile_agent_query_pushdown_builds_exact_scalar_filter(
-    monkeypatch,
-) -> None:
-    monkeypatch.setattr(
-        "sase.ace.agent_query.pushdown.project_display_name_map_signature",
-        lambda: (("gh_example__internal_tools", "Internal Tools"),),
-    )
-
-    plan = compile_agent_query_pushdown(
-        'project:"Internal Tools" AND (model:opus OR provider:anthropic) '
-        "AND NOT type:workflow"
-    )
-
-    assert plan.window_safe is True
-    assert plan.candidate_filter == {
-        "kind": "all",
-        "filters": [
-            {
-                "kind": "any",
-                "filters": [
-                    {
-                        "kind": "contains",
-                        "field": "project",
-                        "value": "Internal Tools",
-                    },
-                    {
-                        "kind": "equals",
-                        "field": "project",
-                        "value": "gh_example__internal_tools",
-                    },
-                ],
-            },
-            {
-                "kind": "any",
-                "filters": [
-                    {"kind": "contains", "field": "model", "value": "opus"},
-                    {
-                        "kind": "contains",
-                        "field": "provider",
-                        "value": "anthropic",
-                    },
-                ],
-            },
-            {
-                "kind": "not",
-                "filter": {"kind": "equals", "field": "type", "value": "workflow"},
-            },
-        ],
-    }
-
-
-def test_compile_agent_query_pushdown_keeps_unsupported_queries_unbounded() -> None:
-    plan = compile_agent_query_pushdown("status:failed")
-
-    assert plan.raw_query == "status:failed"
-    assert plan.window_safe is False
-    assert plan.candidate_filter is None
-    assert plan.unsupported_reason == "unsupported_query"
-
-
-def test_compile_agent_query_pushdown_builds_machine_filter() -> None:
-    plan = compile_agent_query_pushdown("machine:apollo")
-
-    assert plan.window_safe is True
-    assert plan.candidate_filter == {
-        "kind": "equals",
-        "field": "machine",
-        "value": "apollo",
-    }
-
-
-def test_compile_agent_query_pushdown_maps_run_type_alias() -> None:
-    plan = compile_agent_query_pushdown("type:run")
-
-    assert plan.window_safe is True
-    assert plan.candidate_filter == {
-        "kind": "equals",
-        "field": "type",
-        "value": "agent",
-    }
 
 
 def test_compile_agents_live_query_pushdown_builds_exact_profile_filter(
@@ -144,22 +61,6 @@ def test_compile_agents_live_query_pushdown_builds_exact_profile_filter(
     }
 
 
-def test_compile_agents_live_query_pushdown_matches_legacy_equivalent_filters() -> None:
-    pairs = (
-        ("cl:target", "cl:target"),
-        ("model:opus", "model:opus"),
-        ("type:workflow", "kind:workflow"),
-        ("type:run", "kind:agent"),
-    )
-
-    for legacy_query, live_query in pairs:
-        legacy = compile_agent_query_pushdown(legacy_query)
-        live = compile_agents_live_query_pushdown(live_query)
-
-        assert live.window_safe is legacy.window_safe
-        assert live.candidate_filter == legacy.candidate_filter
-
-
 def test_compile_agents_live_query_pushdown_keeps_unsupported_queries_unbounded() -> (
     None
 ):
@@ -194,9 +95,6 @@ def test_compile_machine_pushdown_builds_exact_machine_filters() -> None:
     live_compound = compile_agents_live_query_pushdown(
         "cl:feature AND not machine:apollo"
     )
-    legacy_match = compile_agent_query_pushdown("machine:apollo")
-    legacy_not = compile_agent_query_pushdown("NOT machine:apollo")
-    legacy_compound = compile_agent_query_pushdown("cl:feature AND NOT machine:apollo")
 
     assert live_match.window_safe is True
     assert live_match.candidate_filter == machine_equals
@@ -210,34 +108,21 @@ def test_compile_machine_pushdown_builds_exact_machine_filters() -> None:
             {"kind": "not", "filter": machine_equals},
         ],
     }
-    assert legacy_match.candidate_filter == live_match.candidate_filter
-    # Legacy matching does not read imported_source_owner.machine_name, so the
-    # shared index machine set is a superset. Negating it would under-select.
-    assert legacy_not.window_safe is False
-    assert legacy_not.candidate_filter is None
-    assert legacy_compound.window_safe is False
-    assert legacy_compound.candidate_filter is None
 
 
 def test_compile_machine_pushdown_normalizes_local_to_here() -> None:
     here_equals = {"kind": "equals", "field": "machine", "value": "here"}
     live = compile_agents_live_query_pushdown("machine:local")
-    legacy = compile_agent_query_pushdown("machine:local")
 
     assert live.window_safe is True
     assert live.candidate_filter == here_equals
-    assert legacy.window_safe is True
-    assert legacy.candidate_filter == here_equals
 
 
 def test_compile_machine_pushdown_leaves_bare_machine_unpushable() -> None:
     live = compile_agents_live_query_pushdown("machine:")
-    legacy = compile_agent_query_pushdown("machine:")
 
     assert live.window_safe is False
     assert live.candidate_filter is None
-    assert legacy.window_safe is False
-    assert legacy.candidate_filter is None
 
 
 def test_compile_agents_live_query_pushdown_still_rejects_non_machine_negation() -> (

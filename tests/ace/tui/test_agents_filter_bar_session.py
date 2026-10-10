@@ -373,38 +373,15 @@ def test_validator_appends_legacy_token_hint_without_typing_races() -> None:
     assert "until:2h" in error
 
 
-async def test_flag_off_f_does_not_open_the_bar(
+async def test_f_opens_the_filter_bar(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.feature_flags import override_flags
-
     patch_startup_loaders(monkeypatch, agents=_fixture_agents())
 
     async with AcePage(initial_tab="agents") as page:
         await wait_for_startup(page)
-        with override_flags(agents_unified_query=False):
-            await page.press("f")
-            await page.pause()
-            bar = page.app.query_one(AgentsFilterBar)
-            assert bar.display is False
-            assert page.app._agents_filter_session_open is False
-
-
-async def test_flag_off_slash_opens_the_legacy_query_modal_and_commits(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from sase.feature_flags import override_flags
-
-    patch_startup_loaders(monkeypatch, agents=_fixture_agents())
-
-    async with AcePage(initial_tab="agents") as page:
-        await wait_for_startup(page)
-        with override_flags(agents_unified_query=False):
-            await page.press("slash")
-            await page.pause()
-            await page.expect_modal("QueryEditModal")
-            await _type(page, "status:FAILED")
-            await page.press("enter")
-            await page.pause()
-            await page.expect_no_modal()
-            assert page.app._agent_search_query == "status:FAILED"
+        await page.press("f")
+        await page.pause()
+        bar = page.app.query_one(AgentsFilterBar)
+        assert bar.display is True
+        assert page.app._agents_filter_session_open is True

@@ -155,13 +155,11 @@ class AgentInfoDisplayMixin:
     ) -> tuple[str, Any | None, tuple[int, int] | None]:
         """Return ``(plain_query, highlighted_rich_text, match_count)``.
 
-        Off-flag, or with no active query, ``highlighted_rich_text`` and
-        ``match_count`` are ``None`` and the info panel falls back to its
-        legacy plain-gold rendering. On-flag with a non-empty query
-        (sase-zf.4), the canonical query is rendered with the shared
-        profile syntax highlighting plus the last known ``(matched,
-        loaded)`` pair -- the live preview count while the FilterBar is
-        open, else the last committed count.
+        With no active query, ``highlighted_rich_text`` and ``match_count``
+        are ``None``. With a non-empty query, the canonical query is rendered
+        with the shared profile syntax highlighting plus the last known
+        ``(matched, loaded)`` pair -- the live preview count while the
+        FilterBar is open, else the last committed count.
         """
         session_open = getattr(self, "_agents_filter_session_open", False)
         display_query = (
@@ -170,11 +168,6 @@ class AgentInfoDisplayMixin:
             else self._agent_search_query
         )
         if not display_query.strip():
-            return display_query, None, None
-
-        from ...models.agent_live_query_engine import agents_unified_query_enabled
-
-        if not agents_unified_query_enabled():
             return display_query, None, None
 
         from ....query.profile_highlighting import highlight_query

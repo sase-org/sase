@@ -1,11 +1,9 @@
-"""Rust-backed committed-query engine for the live Agents tab (sase-zf.2).
+"""Rust-backed committed-query engine for the live Agents tab.
 
-Behind the ``agents_unified_query`` sunset flag, the Agents tab parses and
-evaluates its committed filter through the ``agents-live``
-:class:`~sase.ace.query_profile.compiler.CompiledQueryProfile` and the same
-Rust ``compile_query_with_profile`` / ``evaluate_many`` bindings the
-Artifacts panes use (:mod:`sase.core.query_profile_corpus_facade`), instead
-of the legacy :mod:`sase.ace.agent_query` parser/evaluator.
+The Agents tab parses and evaluates its committed filter through the
+``agents-live`` :class:`~sase.ace.query_profile.compiler.CompiledQueryProfile`
+and the same Rust ``compile_query_with_profile`` / ``evaluate_many`` bindings
+the Artifacts panes use (:mod:`sase.core.query_profile_corpus_facade`).
 
 :func:`build_agents_live_query_index` compiles the Rust corpus for one
 agents snapshot. Full/delta reloads and the content-index refresh worker
@@ -13,13 +11,11 @@ build it off the Textual event loop (``actions/agents/_loading_compute_finalize.
 and ``actions/agents/_loading_filter.py``); the in-memory sync refilter path
 (``actions/agents/_loading_finalize.py``) prefers a cached
 :class:`AgentsLiveQueryFacade` from one of those workers but falls back to
-building inline on a cache miss. This phase's query editing is
-commit-only — the modal validates on Apply/Enter, not per keystroke — so an
-inline rebuild there fires at committed-query-change/list-mutation
-frequency, the same order of work as the legacy per-row Python loop it
-replaces, not a per-keystroke hot path. A future live-typing preview
-(filter-bar-ui phase) must route every build off-thread before it can rely
-on per-keystroke evaluation.
+building inline on a cache miss. Query editing is commit-only — the
+FilterBar validates on Apply/Enter, not per keystroke — so an inline rebuild
+fires at committed-query-change/list-mutation frequency, not a
+per-keystroke hot path. A future live-typing preview must route every build
+off-thread before it can rely on per-keystroke evaluation.
 
 The resulting :class:`AgentsLiveQueryFacade` is deliberately keyed on
 ``(canonical_query, profile_digest)`` only, not a snapshot generation:
@@ -50,7 +46,6 @@ from sase.core.query_profile_corpus_facade import (
     compile_artifact_query_index,
     evaluate_artifact_query_many,
 )
-from sase.feature_flags import FeatureFlag, current_flags
 
 from .agent_live_query import agent_live_query_entry, agent_live_query_row_id
 
@@ -59,13 +54,7 @@ if TYPE_CHECKING:
     from .agent_content_search import AgentContentSearchIndex
 
 AGENTS_LIVE_PANE_ID = "agents-live"
-LEGACY_AGENTS_QUERY_HISTORY_DIGEST = "legacy-agents-query-v1"
 AgentsHistoryQueryKey = tuple[str, str]
-
-
-def agents_unified_query_enabled() -> bool:
-    """Return whether the Agents tab should use the unified query engine."""
-    return current_flags().enabled(FeatureFlag.agents_unified_query)
 
 
 def agents_live_query_profile() -> CompiledQueryProfile:
@@ -77,37 +66,17 @@ def agents_live_query_profile() -> CompiledQueryProfile:
 
 def agents_history_query_key(
     raw_query: str | None,
-    *,
-    use_unified_query: bool | None = None,
 ) -> AgentsHistoryQueryKey:
     """Return the full-history reuse key for one committed Agents query."""
 
     raw = (raw_query or "").strip()
-    use_unified = (
-        agents_unified_query_enabled()
-        if use_unified_query is None
-        else use_unified_query
-    )
-    if use_unified:
-        profile = agents_live_query_profile()
-        try:
-            raw = _normalize_session_query(raw, profile)
-            canonical = canonical_query_for_profile(raw, profile)
-        except ProfileQueryError:
-            canonical = raw
-        return canonical, profile.digest
-
-    if not raw:
-        return "", LEGACY_AGENTS_QUERY_HISTORY_DIGEST
-
-    from ...agent_query import AgentQueryParseError, parse_agent_query
-    from ...agent_query import to_canonical_string as legacy_canonical_string
-
+    profile = agents_live_query_profile()
     try:
-        canonical = legacy_canonical_string(parse_agent_query(raw))
-    except AgentQueryParseError:
+        raw = _normalize_session_query(raw, profile)
+        canonical = canonical_query_for_profile(raw, profile)
+    except ProfileQueryError:
         canonical = raw
-    return canonical, LEGACY_AGENTS_QUERY_HISTORY_DIGEST
+    return canonical, profile.digest
 
 
 def build_agents_live_query_index(
@@ -295,7 +264,6 @@ __all__ = [
     "agents_live_property_query_term",
     "agents_live_query_profile",
     "agents_history_query_key",
-    "agents_unified_query_enabled",
     "apply_agents_live_query_filter",
     "augment_error_with_legacy_hint",
     "build_agents_live_query_index",

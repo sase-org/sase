@@ -1,7 +1,6 @@
 """Query syntax and legend reference sections for the Agents help tab."""
 
 from ...keymaps import KeymapRegistry, key_display_name
-from ...models.agent_live_query_engine import agents_unified_query_enabled
 from ...widgets._agent_list_render_rail import RAIL_LEGEND
 from .binding_common import Sections, key_sequence_display
 
@@ -11,7 +10,6 @@ def reference_sections(km: KeymapRegistry) -> Sections:
     d = key_display_name
     a = km.app
 
-    unified_query = agents_unified_query_enabled()
     grouping_opener_rows = (
         [(d(a.choose_agent_grouping), "Choose grouping")]
         if d(a.choose_agent_grouping)
@@ -59,28 +57,6 @@ def reference_sections(km: KeymapRegistry) -> Sections:
                     ("AND OR NOT ( )", "Boolean ops; juxtapose = AND"),
                     ("legacy type:run", "Use kind:agent"),
                     ("legacy age>2h", "Use until:2h / since:5m"),
-                ]
-                if unified_query
-                else [
-                    ("status:VAL", "Substring on status (e.g. queued)"),
-                    ("cl:VAL", "Substring on Patch name"),
-                    ("project:VAL", "Substring on project basename"),
-                    ("name:VAL", "Substring on agent name"),
-                    ("model:VAL", "Substring on model"),
-                    ("provider:VAL", "Substring on llm provider"),
-                    ("machine:VAL  machine:", "Exact machine/here / any remote"),
-                    ("type:VAL", "workflow | run | running"),
-                    ("source:VAL", "axe | manual"),
-                    ("needs:input", "Question / waiting input"),
-                    ("attention:BOOL", "true | false (needs attention)"),
-                    ("pinned:BOOL", "true | false (sugar tribe:pinned)"),
-                    ("hidden:BOOL", "true | false (show hidden)"),
-                    ("tribe:VAL  tribe:", "Exact tribe / any tribe"),
-                    ("age>=2h", "Op: > >= < <= = ; unit s|m|h|d"),
-                    ("age:2h", "Sugar for age>=2h"),
-                    ('text:"..."', "Quoted substring (whole hay)"),
-                    ('c"FAILED"', "Case-sensitive quoted"),
-                    ("AND OR NOT ( )", "Boolean ops; juxtapose = AND"),
                 ]
             ),
         ),

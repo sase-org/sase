@@ -198,19 +198,20 @@ def test_by_date_patch_grouping_reference_uses_configured_tz(
 
 
 def test_age_query_filter_uses_configured_now(tz_divergence: None) -> None:
-    from sase.ace.agent_query import parse_agent_query
-    from sase.ace.tui.actions.agents._loading_compute_finalize import (
-        _filter_agents_by_query,
+    from sase.ace.tui.models.agent_live_query_engine import (
+        apply_agents_live_query_filter,
     )
 
     start = local_now() - timedelta(minutes=3)
     agent = _running_agent(start=start)
 
-    assert _filter_agents_by_query([agent], parse_agent_query("age>2m"), None) == [
-        agent
-    ]
+    filtered, _, error = apply_agents_live_query_filter("min:2m", [agent])
+    assert error is None
+    assert filtered == [agent]
     # A system-clock reference would inflate the age to ~4h and wrongly match.
-    assert _filter_agents_by_query([agent], parse_agent_query("age>10m"), None) == []
+    filtered, _, error = apply_agents_live_query_filter("min:10m", [agent])
+    assert error is None
+    assert filtered == []
 
 
 # --- Part C: display conversions -----------------------------------------

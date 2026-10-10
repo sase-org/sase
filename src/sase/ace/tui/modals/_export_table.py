@@ -293,7 +293,6 @@ _LAZY_EXPORTS = {
     "PropertyPickerModal": (".property_picker_modal", "PropertyPickerModal"),
     "PropertyPickerRecord": (".property_picker_modal", "PropertyPickerRecord"),
     "PurgeRequested": (".trash_pane", "PurgeRequested"),
-    "QueryEditModal": (".query_edit_modal", "QueryEditModal"),
     "QuitOption": (".quit_options_modal", "QuitOption"),
     "QuitOptionsModal": (".quit_options_modal", "QuitOptionsModal"),
     "RecursiveFileFinderModal": (

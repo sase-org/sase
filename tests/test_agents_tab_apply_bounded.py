@@ -2,24 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
-import pytest
-
 from sase.ace.tui.actions.agents._loading_compute import PreparedApplyData
 from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.models.agent_panels import panel_keys_for
-from sase.feature_flags import override_flags
-
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
-
-
-@pytest.fixture(autouse=True)
-def _pin_legacy_agent_query_dialect() -> Iterator[None]:
-    """sase-zf.2: these tests exercise the legacy agent_query dialect explicitly."""
-    with override_flags(agents_unified_query=False):
-        yield
 
 
 def test_bounded_prefix_apply_patches_over_cached_history() -> None:
@@ -69,7 +56,7 @@ def test_bounded_prefix_apply_patches_over_cached_history() -> None:
 def test_same_query_bounded_prefix_preserves_visible_roster_and_panels() -> None:
     """After Tier 2, a same-query bounded prefix patches without rearming."""
     query = "cl:focus"
-    query_key = agents_history_query_key(query, use_unified_query=False)
+    query_key = agents_history_query_key(query)
     broad = [
         _make_agent(
             cl_name="focus-chop",
@@ -257,7 +244,7 @@ def _apply_empty(app: FakeAgentApp, load_state: AgentLoadState) -> None:
 def _seed_two_tribe_complete_history(
     query: str,
 ) -> tuple[FakeAgentApp, tuple[str, str]]:
-    query_key = agents_history_query_key(query, use_unified_query=False)
+    query_key = agents_history_query_key(query)
     app = FakeAgentApp(query=query)
     app._schedule_agents_async_refresh = lambda **kw: None  # type: ignore[attr-defined]
     app._apply_loaded_agents_prepared(
@@ -326,7 +313,7 @@ def test_bounded_zero_without_latch_keeps_cache_and_revalidates_once() -> None:
 
 def test_mismatched_incomplete_key_does_not_reset_latch() -> None:
     app, query_key = _seed_two_tribe_complete_history("cl:focus")
-    other_key = agents_history_query_key("cl:other", use_unified_query=False)
+    other_key = agents_history_query_key("cl:other")
     assert other_key != query_key
     app._agent_search_query = "cl:focus"
 
@@ -338,7 +325,7 @@ def test_mismatched_incomplete_key_does_not_reset_latch() -> None:
 
 def test_changed_query_bounded_zero_may_empty_the_tab() -> None:
     app, _ = _seed_two_tribe_complete_history("cl:focus")
-    new_key = agents_history_query_key("cl:nothing", use_unified_query=False)
+    new_key = agents_history_query_key("cl:nothing")
     app._agent_search_query = "cl:nothing"
 
     _apply_empty(app, _bounded_zero_load_state(new_key))
@@ -350,7 +337,7 @@ def test_changed_query_bounded_zero_may_empty_the_tab() -> None:
 
 def test_revalidate_shaped_load_keeps_larger_cache_identity_and_panels() -> None:
     """A small tier1_index_revalidate result cannot shrink a large cache."""
-    query_key = agents_history_query_key("", use_unified_query=False)
+    query_key = agents_history_query_key("")
     app = FakeAgentApp()
     app._schedule_agents_async_refresh = lambda **kw: None  # type: ignore[attr-defined]
     cached = [

@@ -12,8 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from sase.core.time import local_now
-
 from ._loading_compute_types import (
     PreparedApplyBoundary,
     PreparedApplySelectionInputs,
@@ -27,7 +25,7 @@ from ._loading_helpers import (
 )
 
 if TYPE_CHECKING:
-    from ....agent_query import QueryExpr
+    from sase.ace.query.types import QueryExpr
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_content_search import AgentContentSearchIndex
@@ -44,9 +42,9 @@ class PreparedQueryFilter:
     parsed_ast: QueryExpr | None
     parse_error: str | None
     filtered_agents: list[Agent]
-    # Set only by the agents-live engine (sase-zf.2), so a later sync
-    # refilter can reuse this committed query's mask without rebuilding the
-    # Rust corpus inline on the UI thread. ``None`` under the legacy dialect.
+    # Set by the agents-live engine, so a later sync refilter can reuse this
+    # committed query's mask without rebuilding the Rust corpus inline on
+    # the UI thread.
     live_facade: AgentsLiveQueryFacade | None = None
     # Pre-filter row count, used by the info-panel ``N/M`` readout
     # (sase-zf.4). Only meaningful alongside ``live_facade``.
@@ -111,39 +109,19 @@ def attach_finalize_plan_to_boundary(
     return replace(boundary, finalize=finalize_plan)
 
 
-def _filter_agents_by_query(
-    agents: list[Agent],
-    parsed_ast: QueryExpr,
-    content_index: AgentContentSearchIndex | None,
-) -> list[Agent]:
-    """Filter *agents* by *parsed_ast*, preserving children of matching parents."""
-    from ....agent_query import evaluate_agent_query
-
-    now = local_now()
-
-    def _matches(agent: Agent) -> bool:
-        return evaluate_agent_query(
-            parsed_ast, agent, now=now, content_cache=content_index
-        )
-
-    from ...models._agent_tree import filter_tree_rows
-
-    return filter_tree_rows(agents, _matches)
-
-
 def _compute_live_query_plan(
     agents: list[Agent],
     raw: str,
     content_index: AgentContentSearchIndex | None,
     unread_agent_ids: frozenset[tuple[AgentType, str, str | None]],
 ) -> PreparedQueryFilter:
-    """Build the Rust corpus and evaluate *raw* off-thread (sase-zf.2).
+    """Build the Rust corpus and evaluate *raw* off-thread.
 
     The index is built fresh every call. This function only ever runs
     inside an already off-event-loop worker (``attach_finalize_plan_to_boundary``
     is always invoked via ``asyncio.to_thread``), so a per-reload corpus
-    build here costs the same order of work as the per-row Python loop it
-    replaces — no separate index cache is needed for this call site.
+    build here costs the same order of work as the row count — no separate
+    index cache is needed for this call site.
     """
     from ...models.agent_live_query_engine import (
         agents_live_query_profile,
@@ -188,13 +166,9 @@ def _compute_query_plan(
 ) -> PreparedQueryFilter:
     """Parse + evaluate the structured query off the UI thread.
 
-    Cached AST entries from prior renders are honored when the raw query
-    is unchanged so the worker mirrors the UI-thread caching behavior.
     Parse errors are surfaced as ``parse_error`` so the UI thread can
     notify and persist the message — they don't filter the list.
     """
-    from ....agent_query import AgentQueryParseError, parse_agent_query
-
     raw = snapshot.agent_search_query or ""
     if not raw:
         return PreparedQueryFilter(
@@ -204,39 +178,8 @@ def _compute_query_plan(
             filtered_agents=list(agents),
         )
 
-    from ...models.agent_live_query_engine import agents_unified_query_enabled
-
-    if agents_unified_query_enabled():
-        return _compute_live_query_plan(
-            agents, raw, content_index, snapshot.unread_agent_ids
-        )
-
-    cached = snapshot.agent_query_cache
-    parsed: QueryExpr | None = None
-    parse_error: str | None = None
-    if cached is not None and cached[0] == raw:
-        parsed = cached[1]
-    else:
-        try:
-            parsed = parse_agent_query(raw)
-        except AgentQueryParseError as e:
-            parse_error = str(e)
-            parsed = None
-
-    if parsed is None:
-        return PreparedQueryFilter(
-            raw_query=raw,
-            parsed_ast=None,
-            parse_error=parse_error,
-            filtered_agents=list(agents),
-        )
-
-    filtered = _filter_agents_by_query(agents, parsed, content_index)
-    return PreparedQueryFilter(
-        raw_query=raw,
-        parsed_ast=parsed,
-        parse_error=None,
-        filtered_agents=filtered,
+    return _compute_live_query_plan(
+        agents, raw, content_index, snapshot.unread_agent_ids
     )
 
 

@@ -21,10 +21,7 @@ class AgentFilterActionsMixin:
 
     def action_agents_filters(self) -> None:
         """Open the auto-hiding Agents-tab filter bar directly (bound to ``f``)."""
-        from ...models.agent_live_query_engine import agents_unified_query_enabled
-
-        if agents_unified_query_enabled():
-            self.show_agents_filters()  # type: ignore[attr-defined]
+        self.show_agents_filters()  # type: ignore[attr-defined]
 
     def _toggle_hide_non_run_agents(self) -> None:
         """Toggle visibility of non-run agents and refresh the display."""
@@ -47,45 +44,5 @@ class AgentFilterActionsMixin:
         )
 
     def _edit_agent_search_query(self) -> None:
-        """Edit the agent search/filter query.
-
-        On-flag (``agents_unified_query``), this opens the auto-hiding
-        ``AgentsFilterBar`` (sase-zf.4) instead of the legacy modal below --
-        that entry point, and the modal it opens, are the Off-flag rollback
-        lever and stay untouched.
-        """
-        from ...models.agent_live_query_engine import agents_unified_query_enabled
-
-        if agents_unified_query_enabled():
-            self.show_agents_filters()  # type: ignore[attr-defined]
-            return
-
-        from ...modals import QueryEditModal
-        from ....agent_query import parse_agent_query
-
-        def on_dismiss(new_query: str | None) -> None:
-            if new_query is None:
-                return
-            self._record_explicit_agents_query_commit(new_query)  # type: ignore[attr-defined]
-            self._refilter_agents()  # type: ignore[attr-defined]
-            self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
-
-        def _validator(value: str) -> None:
-            if value:
-                parse_agent_query(value)
-
-        hint = (
-            "status:foo  cl:bar  project:baz  age>2h  attention:true  "
-            "AND/OR/NOT  (?: help)"
-        )
-        initial_error = getattr(self, "_agent_query_parse_error", None)
-        self.push_screen(  # type: ignore[attr-defined]
-            QueryEditModal(
-                self._agent_search_query,
-                title="Filter Agents",
-                hint=hint,
-                validator=_validator,
-                initial_error=initial_error,
-            ),
-            on_dismiss,
-        )
+        """Edit the agent search/filter query via the auto-hiding filter bar."""
+        self.show_agents_filters()  # type: ignore[attr-defined]

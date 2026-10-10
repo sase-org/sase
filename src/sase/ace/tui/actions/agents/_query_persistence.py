@@ -8,7 +8,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ....agent_query import QueryExpr
+    from sase.ace.query.types import QueryExpr
     from ...models.agent_query_persistence import (
         AgentQueryDialect,
         AgentQueryLoadResult,
