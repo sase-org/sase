@@ -236,13 +236,25 @@ def artifact_is_resolved(
     meta: dict[str, Any],
     outcome: str | None,
 ) -> bool:
+    """Return whether this member counts as finished for wait resolution.
+
+    A successful ``done.json`` outcome is always resolved. Markerless
+    completion (completed workflow and prompt-step markers, no
+    ``done.json``) counts as resolved only after the runner that wrote
+    those markers has exited. A still-live runner is unfinished, covering
+    in-process plan handoffs and the coder's finalizer window. Legacy
+    artifacts without a verifiable process identity keep the fail-open
+    behavior: they resolve once the markers say completed.
+    """
     if outcome is not None:
         return outcome in WAIT_SUCCESS_OUTCOMES
     if not is_plan_chain_artifact_meta(meta):
         return False
     if _is_agent_session_turn_member_meta(meta):
         return False
-    return _completed_handoff_workflow_state(artifact_dir)
+    if not _completed_handoff_workflow_state(artifact_dir):
+        return False
+    return not _member_runner_is_live(artifact_dir, meta)
 
 
 def _is_agent_session_turn_member_meta(meta: Mapping[str, Any]) -> bool:
@@ -285,7 +297,40 @@ def _str_or_none(value: object) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _verifiable_process_identity(value: object) -> bool:
+    """Return whether *value* is a ``"<boot_id>:<start_ticks>"`` identity token."""
+    if not isinstance(value, str) or not value:
+        return False
+    _boot_id, separator, start_ticks = value.partition(":")
+    if not separator:
+        return False
+    try:
+        int(start_ticks)
+    except ValueError:
+        return False
+    return True
+
+
+def _member_runner_is_live(artifact_dir: Path, meta: Mapping[str, Any]) -> bool:
+    """Return whether the runner that wrote *meta* is provably still alive."""
+    try:
+        if not isinstance(meta.get("pid"), int):
+            return False
+        if not _verifiable_process_identity(meta.get("process_identity")):
+            return False
+        from sase.agent.names import is_process_alive
+
+        return is_process_alive(dict(meta), artifact_dir)
+    except Exception:  # noqa: BLE001 - liveness uncertainty keeps legacy resolution
+        return False
+
+
 def _completed_handoff_workflow_state(artifact_dir: Path) -> bool:
+    """Return whether workflow and prompt-step markers all read completed.
+
+    This is necessary but not sufficient for markerless resolution: the
+    caller must also confirm the runner that wrote the markers has exited.
+    """
     state_data = read_json_dict(artifact_dir / "workflow_state.json")
     if state_data is None or state_data.get("status") != SUCCESS_OUTCOME:
         return False

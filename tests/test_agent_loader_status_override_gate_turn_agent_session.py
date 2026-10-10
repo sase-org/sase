@@ -18,12 +18,14 @@ from sase.ace.tui.models._loaders._meta_enrichment_wire import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models.finalizer_row_state import presented_status_label
 from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
     AgentSessionTurnGateWire,
     AgentSessionTurnWire,
 )
+from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
 
 _AGENT_SESSION = "alpha"
 _ROOT_SUFFIX = "20260812090000"
@@ -319,3 +321,101 @@ def test_settled_gate_with_completed_coder_is_tale_done() -> None:
 
     assert root.status == "TALE DONE"
     assert coder.status == "TALE DONE"
+
+
+def test_live_markerless_handoff_without_gate_shows_running() -> None:
+    """W1: a live planner whose workflow markers already say DONE stays RUNNING."""
+    root = _root()
+    root.runner_is_live = True
+    root.plan_times = [_PLAN_TIME]
+    planner = _planner_step()
+
+    _apply_status_overrides([root], [planner])
+
+    assert root.status == "RUNNING"
+    assert agent_status_bucket(root) == "Running"
+    assert planner.status == "DONE"
+
+
+def test_markerless_handoff_with_dead_runner_keeps_done() -> None:
+    """W1 with the runner not live keeps the workflow-marker DONE."""
+    root = _root()
+    root.plan_times = [_PLAN_TIME]
+    planner = _planner_step()
+
+    _apply_status_overrides([root], [planner])
+
+    assert root.status == "DONE"
+    assert agent_status_bucket(root) == "Done"
+
+
+def test_settled_gate_still_shows_tale_approved() -> None:
+    """W2: a settled gate still publishes TALE APPROVED onto the container."""
+    root = _root()
+    root.runner_is_live = True
+    planner = _planner_step()
+    gate = _gate_member(
+        state="answered", start_status="TALE", stop_status="TALE APPROVED"
+    )
+
+    _apply_status_overrides([root, gate], [planner])
+
+    assert root.status == "TALE APPROVED"
+    assert agent_status_bucket(root) == "Running"
+
+
+def test_running_coder_still_shows_working_tale() -> None:
+    root = _root(plan_action="tale")
+    root.runner_is_live = True
+    planner = _planner_step()
+    gate = _gate_member(
+        state="answered", start_status="TALE", stop_status="TALE APPROVED"
+    )
+    coder = _coder(status="RUNNING")
+    coder.runner_is_live = True
+
+    _apply_status_overrides([root, gate, coder], [planner])
+
+    assert root.status == "WORKING TALE"
+    assert coder.status == "WORKING TALE"
+
+
+def test_done_json_backed_root_keeps_done_even_when_runner_live() -> None:
+    root = _root()
+    root.agent_type = AgentType.RUNNING
+    root.runner_is_live = True
+    root.plan_times = [_PLAN_TIME]
+    planner = _planner_step()
+
+    _apply_status_overrides([root], [planner])
+
+    assert root.status == "DONE"
+    assert agent_status_bucket(root) == "Done"
+
+
+def test_coder_in_finalizer_phase_still_renders_finalizing() -> None:
+    root = _root(plan_action="tale")
+    root.runner_is_live = True
+    planner = _planner_step()
+    gate = _gate_member(
+        state="answered", start_status="TALE", stop_status="TALE APPROVED"
+    )
+    coder = _coder(status="RUNNING")
+    coder.runner_is_live = True
+    coder.finalizer_status = finalizer_status_from_mapping(
+        {
+            "schema_version": 1,
+            "phase": "executing",
+            "run_id": "abc123",
+            "started_at": 1.0,
+            "updated_at": 2.0,
+            "instance_count": 1,
+            "instances": [{"id": "commit", "status": "running"}],
+        }
+    )
+
+    _apply_status_overrides([root, gate, coder], [planner])
+
+    assert root.status == "WORKING TALE"
+    assert coder.status == "WORKING TALE"
+    assert presented_status_label(coder) == "FINALIZING"

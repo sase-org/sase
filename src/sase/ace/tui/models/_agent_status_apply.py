@@ -26,6 +26,7 @@ from ._agent_status_agent_session import (
     is_completed_epic_followup_child,
     is_completed_plan_handoff_child,
     is_agent_session_child,
+    is_main_workflow_agent_step,
     is_root_plan_workflow,
     mark_derived_plan_agent_session_roots,
     merge_feedback_plan_paths,
@@ -39,6 +40,7 @@ from .agent_session_members import (
     monitor_row_lane_bucket,
     row_is_agent_session_turn,
 )
+from .finalizer_row_state import row_status_is_finalizing
 
 
 DiffBadgeClassifier = Callable[[list[Agent]], None]
@@ -140,6 +142,75 @@ def _descendant_agent_session_turns(
         for child in children_by_parent.get(suffix, ()):
             visit(child)
     return found
+
+
+def _is_markerless_done(agent: Agent) -> bool:
+    """Return whether *agent*'s ``DONE`` came from workflow markers, not ``done.json``.
+
+    ``done.json`` loaders stamp ``AgentType.RUNNING``; workflow-state loaders
+    stamp ``AgentType.WORKFLOW``. A completed plan-handoff child is relabeled
+    to ``TALE DONE`` / ``PLAN DONE`` before this check runs, so those rows
+    are not markerless ``DONE``.
+    """
+    return agent.status == "DONE" and agent.agent_type == AgentType.WORKFLOW
+
+
+def _is_done_json_backed(agent: Agent) -> bool:
+    """Return whether *agent* is a ``done.json``-backed terminal row."""
+    return agent.status == "DONE" and agent.agent_type == AgentType.RUNNING
+
+
+def _live_handoff_frontier(parent: Agent, children: list[Agent]) -> Agent:
+    """Return the newest non-turn row among *parent* and its session members.
+
+    Gate and monitor turn rows do not count. The root's ``main`` workflow-step
+    child represents the root's own run and is already in *children* via
+    :func:`is_agent_session_child`.
+    """
+    pool = [parent]
+    for child in children:
+        if not row_is_agent_session_turn(child):
+            pool.append(child)
+    return max(pool, key=child_launch_time)
+
+
+def _frontier_runner_is_live(parent: Agent, frontier: Agent) -> bool:
+    """Return whether the frontier's runner is live, including the root's own run."""
+    if frontier.runner_is_live:
+        return True
+    return (
+        frontier is not parent
+        and is_main_workflow_agent_step(frontier)
+        and parent.runner_is_live
+    )
+
+
+def _override_live_handoff_done_status(
+    parent_by_suffix: dict[str, Agent],
+    children_by_parent: dict[str, list[Agent]],
+) -> None:
+    """Keep a live markerless handoff from presenting its session node as ``DONE``."""
+    for parent in parent_by_suffix.values():
+        if not parent.raw_suffix:
+            continue
+        if agent_status_bucket(parent) != "Done":
+            continue
+        children = [
+            child
+            for child in children_by_parent.get(parent.raw_suffix, [])
+            if child is not parent and is_agent_session_child(child, parent)
+        ]
+        frontier = _live_handoff_frontier(parent, children)
+        if _is_done_json_backed(parent) or _is_done_json_backed(frontier):
+            continue
+        if not _is_markerless_done(frontier):
+            continue
+        if not _frontier_runner_is_live(parent, frontier):
+            continue
+        if row_status_is_finalizing(frontier):
+            continue
+        parent.status = "RUNNING"
+        parent.status_bucket = "Running"
 
 
 def apply_status_overrides(
@@ -412,6 +483,8 @@ def apply_status_overrides(
         newest = max(newest_pool, key=child_launch_time)
         if is_plan_root or row_is_agent_session_turn(newest):
             _mirror_root_from_child(parent, newest)
+
+    _override_live_handoff_done_status(parent_by_suffix, children_by_parent)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a
     # backward pointer (retry_of_timestamp) to its immediate parent; we
