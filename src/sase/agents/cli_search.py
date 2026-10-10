@@ -16,7 +16,11 @@ from rich.text import Text
 
 from sase.ace.query.limit_token import LimitTokenError, apply_limit, extract_limit
 from sase.ace.query.profile_reference_support import ProfileQueryError
-from sase.ace.query.scope_token import ScopeTokenError, extract_scope
+from sase.ace.query.scope_token import (
+    ScopeTokenError,
+    check_scope_fields,
+    extract_scope,
+)
 from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
 from sase.agents.catalog import (
     AgentCatalogLinkFacets,
@@ -50,6 +54,25 @@ def handle_agents_search(args: argparse.Namespace) -> int:
     project = getattr(args, "project", None)
     as_json = bool(getattr(args, "json", False))
 
+    try:
+        remainder, scope = extract_scope(query)
+    except (ScopeTokenError, ProfileQueryError, ValueError) as exc:
+        Console(stderr=True).print(f"[bold red]error:[/bold red] {exc}")
+        return 2
+
+    if scope == "archive":
+        try:
+            check_scope_fields(remainder, scope)
+            return _handle_archive_search(
+                remainder,
+                limit=limit,
+                project=project,
+                as_json=as_json,
+            )
+        except (LimitTokenError, ScopeTokenError, ProfileQueryError, ValueError) as exc:
+            Console(stderr=True).print(f"[bold red]error:[/bold red] {exc}")
+            return 2
+
     project_ref_display = load_project_ref_display_snapshot()
     snapshot = build_agent_catalog_snapshot()
     for diagnostic in snapshot.diagnostics:
@@ -60,6 +83,7 @@ def handle_agents_search(args: argparse.Namespace) -> int:
     rows = tuple(
         row
         for row in snapshot.rows
+        if (scope != "inbox" or not row.dismissed)
         if _row_matches_project(row, project, project_ref_display)
     )
     link_snapshot = load_artifact_links_snapshot(project)
@@ -89,6 +113,191 @@ def handle_agents_search(args: argparse.Namespace) -> int:
         project_ref_display=project_ref_display,
     )
     return 0
+
+
+def _handle_archive_search(
+    query: str,
+    *,
+    limit: int | None,
+    project: str | None,
+    as_json: bool,
+) -> int:
+    """Render archive matches from the shared compiled corpus."""
+    project_ref_display = load_project_ref_display_snapshot()
+    remainder, query_cap = extract_limit(query)
+    has_query_limit = remainder != query
+    match_query = _archive_project_query(remainder, project, project_ref_display)
+    cap = _effective_limit(
+        limit,
+        query_cap=query_cap,
+        has_query_limit=has_query_limit,
+    )
+
+    cached = _get_archive_corpus()
+    corpus = cached.corpus
+    profile = cached.profile
+    summary = corpus.summary(match_query, group_by="day", profile=profile)
+    total = int(summary.get("total", 0))
+
+    matching_rows: list[dict[str, Any]] = []
+    remaining = total if cap is None else min(total, cap)
+    for group in summary.get("groups", ()):
+        if remaining <= 0:
+            break
+        group_count = int(group.get("count", 0))
+        window = corpus.rows(
+            match_query,
+            group_by="day",
+            group_key=str(group.get("key", "")),
+            offset=0,
+            limit=min(group_count, remaining),
+            profile=profile,
+        )
+        page = window.get("rows", ())
+        matching_rows.extend(dict(row) for row in page if isinstance(row, Mapping))
+        remaining -= len(page)
+
+    _print_archive_index_notice(corpus.status, corpus.wire.get("status"))
+    if as_json:
+        json.dump(matching_rows, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
+    _print_archive_pretty(
+        matching_rows,
+        total=total,
+        cap=cap,
+        query=query,
+    )
+    return 0
+
+
+def _get_archive_corpus() -> Any:
+    """Use the same lazy, process-wide corpus accessor as the Archive view."""
+    from sase.ace import dismissed_agents
+    from sase.ace.dismissed_bundle_index import dismissed_bundle_index_progress
+    from sase.core.agent_archive_corpus_cache import get_agent_archive_corpus
+
+    root = dismissed_agents.dismissed_bundles_dir()
+    progress = dismissed_bundle_index_progress(root)
+    # With no explicit facets, the shared cache builds them through
+    # build_agent_catalog_link_facets before compiling the corpus.
+    return get_agent_archive_corpus(root=root, progress=progress)
+
+
+def _archive_project_query(
+    query: str,
+    project: str | None,
+    project_ref_display: ProjectRefDisplaySnapshot,
+) -> str:
+    if not project:
+        return query
+    project_key = project_ref_display.project_key_for_ref(project)
+    candidates = [project_key, project]
+    if project_key:
+        candidates.append(project_ref_display.label_for_ref(project_key))
+    values = tuple(
+        dict.fromkeys(
+            value for value in candidates if isinstance(value, str) and value.strip()
+        )
+    )
+    project_filter = " OR ".join(
+        f"project:{_quote_query_string(value)}" for value in values
+    )
+    if len(values) > 1:
+        project_filter = f"({project_filter})"
+    if not query.strip():
+        return project_filter
+    return f"({query}) AND {project_filter}"
+
+
+def _quote_query_string(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _print_archive_index_notice(status: str, details: object) -> None:
+    if status == "ok":
+        return
+    if status == "missing":
+        message = "archive index is missing; no archive rows were available"
+    elif status == "rebuilding":
+        indexed_rows = (
+            details.get("indexed_rows", 0) if isinstance(details, Mapping) else 0
+        )
+        message = f"archive index is rebuilding ({indexed_rows} indexed rows)"
+    elif status == "unsupported":
+        error = details.get("error", {}) if isinstance(details, Mapping) else {}
+        actual = (
+            error.get("actual_schema_version") if isinstance(error, Mapping) else None
+        )
+        expected = (
+            error.get("expected_schema_version") if isinstance(error, Mapping) else None
+        )
+        message = (
+            f"archive index schema {actual!r} is unsupported (expected {expected})"
+        )
+    else:
+        message = f"archive index status is {status!r}"
+    Console(stderr=True).print(f"[yellow]notice:[/yellow] {message}")
+
+
+def _print_archive_pretty(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    total: int,
+    cap: int | None,
+    query: str,
+) -> None:
+    shown = len(rows)
+    count_label = str(shown)
+    if cap is not None:
+        count_label = f"{shown} of {total}"
+    title = f"Agent Archive Search ({count_label})"
+    if not rows:
+        hint = (
+            "No archived agent rows matched."
+            if query.strip()
+            else "No archived agent rows."
+        )
+        Console().print(
+            Panel(Text(hint, style="dim"), title=title, border_style="cyan")
+        )
+        return
+
+    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+    table.add_column("TIME")
+    table.add_column("OUTCOME")
+    table.add_column("NAME", style="bold")
+    table.add_column("MODEL")
+    table.add_column("RUNTIME", justify="right")
+    outcome_styles = {"done": "green", "failed": "bold red", "interrupted": "yellow"}
+    for row in rows:
+        outcome = str(row.get("outcome") or "interrupted")
+        table.add_row(
+            _short_date(_optional_string(row.get("last_activity_at"))),
+            Text(outcome, style=outcome_styles.get(outcome, "")),
+            _optional_string(row.get("agent_name")) or "-",
+            _optional_string(row.get("model")) or "-",
+            _format_runtime(row.get("runtime_seconds")),
+        )
+    Console().print(Panel(table, title=title, border_style="cyan"))
+
+
+def _optional_string(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _format_runtime(value: object) -> str:
+    if not isinstance(value, int):
+        return "-"
+    if value < 60:
+        return f"{value}s"
+    minutes, seconds = divmod(value, 60)
+    if minutes < 60:
+        return f"{minutes}m {seconds:02d}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes:02d}m"
 
 
 def _evaluate_rows(

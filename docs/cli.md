@@ -175,15 +175,18 @@ current probe/deferral limitation.
 
 ### `sase agent search`
 
-`sase agent search [QUERY ...]` browses the complete historical catalog used by
-Artifacts → Agent, rather than the live operational rows returned by `agent list`.
-Queries use `AND`, `OR`, `NOT`, parentheses, free text, and the Agent pane's identity,
-lineage, lifecycle, time/runtime, and artifact-link fields. For example:
+`sase agent search [QUERY ...]` searches the historical agent catalog used by Artifacts
+→ Agent, rather than the live operational rows returned by `agent list`. Without an
+`in:` token it keeps the current catalog behavior. Queries use `AND`, `OR`, `NOT`,
+parentheses, free text, and the Agent pane's identity, lineage, lifecycle, time/runtime,
+and artifact-link fields. For example:
 
 ```bash
 sase agent search 'revivable:true AND project:sase AND role:code'
 sase agent search 'provider:codex AND status:FAILED AND since:7d'
 sase agent search 'linked:true AND relation:read'
+sase agent search 'in:inbox AND status:FAILED'
+sase agent search 'in:archive AND outcome:failed AND project:sase'
 ```
 
 A bare search applies the default presentation scope: hidden rows and
@@ -192,6 +195,13 @@ default cap is 40; `-l 0`, `--limit 0`, or `limit:all` removes it, and an explic
 `-l/--limit` overrides a `limit:` token inside the query. `-p/--project` accepts a
 project key, alias, or display name. Options may appear before or after the query, and
 `-j/--json` emits a stable array.
+
+`in:inbox` keeps the catalog query path and restricts matches to non-dismissed rows.
+`in:archive` searches hidden archive rows through the shared archive corpus; it supports
+the archive profile fields `outcome`, `restorable`, `tab`, `tribe`, `clan_tribe`,
+`linked`, `relation`, and `artifact`. Archive output is ordered by last activity, and
+JSON contains the corpus's light derived rows. The token is host-owned, may appear once
+at top level, and cannot be negated or appear inside `OR` or parentheses.
 
 ### `sase agent wait`
 

@@ -22,17 +22,33 @@ cannot be negated and may appear only once. Do not add `limit` as a filterable p
 field on Beads, Plans, Files, Patches, or provider dialects; Stitches already treats it
 as a cap and strips it before row eval.
 
+## Host-owned `in:` scope
+
+`in:inbox` and `in:archive` are host-owned scope tokens for Agents-tab and
+`sase agent search` queries. The CLI keeps its catalog behavior when the token is
+absent; `in:inbox` searches non-dismissed catalog rows, while `in:archive` searches the
+shared hidden archive corpus with the `agents-archive` profile. That profile adds
+`outcome`, `restorable`, `tab`, `tribe`, `clan_tribe`, `linked`, `relation`, and
+`artifact` to the shared agent fields. Inbox-only fields such as `unread`, `pinned`,
+`needs`, `source`, `cl`, and `machine` do not belong to the archive profile.
+
+The token is extracted before profile evaluation. It may appear once at top level and
+cannot be negated or appear inside `OR` or parentheses. On the Agents tab it validates
+the query and provides field-scope hints; it does not switch the visible view. An
+archive-only field without `in:archive`, or an inbox-only field with `in:archive`, gives
+a hint naming the required scope.
+
 Normal query surfaces use enabled-project Patch discovery. Disabled projects are omitted
 from CLI search and day-to-day sase's TUI/axe scans. Views that are specifically about
 agent history or old artifacts opt into all project lifecycle states explicitly.
 
 This page documents Patch queries. Agent filtering uses the shared Boolean profile
 dialect instead: the top-level Agents tab uses the live `agents-live` profile, while
-Artifacts -> Agent and `sase agent search` use the catalog profile with archive and
-artifact-link fields. The grammar is the same across both Agent profiles; the live tab
-adds operational fields such as `machine`, `pinned`, `unread`, `needs`, and `source` and
-deliberately omits archive-only fields such as `state`, `dismissed`, `relation`, and
-`artifact`. See [sase's TUI: Agent Pane](ace.md#agent-pane) and
+Artifacts -> Agent and the default `sase agent search` path use the catalog profile. The
+CLI's `in:archive` path uses `agents-archive` against the compiled archive corpus. The
+live profile includes operational fields such as `machine`, `pinned`, `unread`, `needs`,
+and `source`; the archive profile adds `outcome`, `restorable`, `tab`, `clan_tribe`, and
+archive link facets. See [sase's TUI: Agent Pane](ace.md#agent-pane) and
 [sase's TUI: Agent Search](ace.md#agent-search).
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a

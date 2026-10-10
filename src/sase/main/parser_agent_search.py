@@ -23,11 +23,12 @@ def register_agent_search_parser(agents_sub: argparse._SubParsersAction) -> None
     """Register the 'sase agent search' subcommand."""
     search_parser = agents_sub.add_parser(
         "search",
-        help="Search the historical agent catalog",
+        help="Search the agent catalog or archive",
         description=(
             "Search the historical agent catalog using the same boolean query "
-            "dialect as the Artifacts -> Agent pane. A bare invocation lists "
-            "the default presentation scope."
+            "dialect as the Artifacts -> Agent pane. Without an in: token, "
+            "search keeps the catalog behavior. Use in:inbox for non-dismissed "
+            "catalog rows or in:archive for the shared dismissed archive corpus."
         ),
         epilog=(
             "examples:\n"
@@ -38,6 +39,12 @@ def register_agent_search_parser(agents_sub: argparse._SubParsersAction) -> None
             "  sase agent search 'state:active AND (attention:true OR status:WAITING)'\n"
             "  sase agent search 'linked:true AND relation:read'\n"
             "  sase agent search 'retry:true AND model:\"gpt-6.1-sol\" AND min:5m'\n"
+            "  sase agent search 'in:archive AND outcome:failed AND project:sase'\n"
+            "  sase agent search 'in:inbox AND status:FAILED'\n"
+            "\n"
+            "in:inbox and in:archive are host-owned scope tokens. They may appear "
+            "once at top level, outside NOT, OR, and parentheses. Archive-only "
+            "fields such as outcome and restorable require in:archive.\n"
             "\n"
             "date bounds since/until/after/before accept Nh/Nd/Nw/Nm, today, "
             "and YYYY-MM-DD; Nm means months there. Runtime bounds min/max "
