@@ -871,6 +871,25 @@ restarts and project-spec archival without re-firing. The sender suppresses the
 notification on the same axe cycle that just wrote the `MENTORS` field for the latest
 entry, preventing premature firing on `Draft → Ready` transitions.
 
+### Auto-Restart Episode Notifications
+
+The update-skew healer (`sase agent auto-restart run`) posts one upserted amber `↻` row
+per update episode under sender `agent.auto-restart` (`action: "ViewReport"`). The first
+relaunch in an episode creates the row — and its single information toast. Every further
+relaunch in the episode appends one `+1` note (which never toasts) and refreshes the
+title, notes, and inline report snapshot in place without moving delivery cursors, so
+the refresh never re-toasts or re-pushes. `notes[0]` is the calm title
+(`↻ Restarted 5 agents after sase update 9fd8a08`, or the single-agent form) and never
+contains "fail" or "error"; exception text appears only in note 2 or later. The live
+report at `~/.sase/agent_auto_restart/episodes/<slug>.report.json` is a projection of
+the episode's ledger records (headline, update/culprit/witness kv, per-agent rows with a
+live Now column, left-alone bullets, why-text, prevention line) and is re-rendered on
+every ledger change. A dismissed episode row is never revived: the next restart in that
+episode opens `<episode>#2`. Declined, post-provider, and re-broken replacements
+re-surface the agent's own failure notification (`sender=user-agent`, `ViewErrorReport`,
+Errors bucket) with the escalation sentence appended; only the storm breaker posts as
+`agent.auto-restart` at error severity.
+
 ### Report Notifications
 
 Any producer — a job, a hook, or an agent — may attach a structured report to a

@@ -267,6 +267,8 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
         return _bead_gate_toast(n)
 
     if action == "ViewErrorReport":
+        if n.sender == "agent.auto-restart":
+            return (_markup_safe(note) if note else "Auto-restart paused", "error")
         return (f"Axe: {_markup_safe(note)}" if note else "Axe errors", "error")
 
     if action == "ViewReport":

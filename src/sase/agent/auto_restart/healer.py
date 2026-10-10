@@ -501,7 +501,17 @@ def _heal_claimed(
             stored = _annotate(stored, decline_reason=skip.decline_reason)
             write_recovery(target, "declined", skip.reason_text, now=now)
             if skip.loud:
-                _escalate(target, skip.reason_text, episode_id=None)
+                kind = (
+                    "already_restarted"
+                    if skip.decline_reason == "already_restarted"
+                    else "decline"
+                )
+                _escalate(
+                    target,
+                    skip.reason_text,
+                    episode_id=stored.record.episode_id,
+                    kind=kind,
+                )
             else:
                 _resurface(target, skip.reason_text)
         return HealerOutcome(
@@ -535,6 +545,9 @@ def _heal_claimed(
             now=now,
             dry_run=dry_run,
             escalate=True,
+            escalate_kind=(
+                "post_provider" if verdict.mode == "notify_post_provider" else "decline"
+            ),
         )
     if verdict.mode != "relaunch" and verdict.mode != "defer":
         return _decline(
@@ -581,7 +594,7 @@ def _heal_claimed(
 
         if not dry_run:
             storm_mod.trip_pause(reason=storm.reason, episode=episode_id)
-            _escalate(target, storm.reason, episode_id=episode_id)
+            _escalate(target, storm.reason, episode_id=episode_id, kind="storm")
         return _decline(
             stored, target, "paused", storm.reason, now=now, dry_run=dry_run
         )
@@ -1171,6 +1184,7 @@ def _decline(
     dry_run: bool,
     escalate: bool = False,
     episode_id: str | None = None,
+    escalate_kind: str = "decline",
 ) -> HealerOutcome:
     from sase.agent.auto_restart import ledger as ledger_mod
 
@@ -1179,7 +1193,7 @@ def _decline(
         stored = _annotate(stored, decline_reason=reason)
         write_recovery(target, "declined", reason_text, now=now)
         if escalate:
-            _escalate(target, reason_text, episode_id=episode_id)
+            _escalate(target, reason_text, episode_id=episode_id, kind=escalate_kind)
         else:
             _resurface(target, reason_text)
     return HealerOutcome(
@@ -1213,21 +1227,51 @@ def _parse_epoch(value: Any) -> float | None:
 
 
 def _escalate(
-    target: HealerTarget, reason_text: str, *, episode_id: str | None
+    target: HealerTarget,
+    reason_text: str,
+    *,
+    episode_id: str | None,
+    kind: str = "decline",
 ) -> None:
+    """Escalate one declined restart with the per-situation loud copy."""
     from sase.agent.auto_restart.notify import publish_escalation
 
-    title = f"Couldn't restart {target.agent_name} automatically — {reason_text[:160]}"
-    detail = (
-        f"{target.agent_name} broke during a sase update but was left alone: "
-        f"{reason_text} Press ,x on it to retry by hand."
-    )
+    if kind == "storm":
+        title = f"Auto-restart paused: {reason_text[:200]}"
+        detail = (
+            f"Episode {episode_id or 'unknown'}. Triage the failures, then run "
+            "`sase agent auto-restart resume` to re-arm."
+        )
+    elif kind == "post_provider":
+        title = (
+            f"{target.agent_name} broke after its model turn during a sase "
+            "update — workspace held with its changes. "
+            "Review, then ,x to relaunch."
+        )
+        detail = reason_text
+    elif kind == "already_restarted":
+        episode = f" after sase update {episode_id}" if episode_id else ""
+        title = (
+            f"This was its automatic restart{episode} — not retrying. "
+            f"Press ,x on {target.agent_name} to retry by hand."
+        )
+        detail = reason_text
+    else:
+        title = (
+            f"Couldn't restart {target.agent_name} automatically — {reason_text[:160]}"
+        )
+        detail = (
+            f"{target.agent_name} broke during a sase update but was left alone: "
+            f"{reason_text} Press ,x on it to retry by hand."
+        )
     with contextlib.suppress(Exception):
         publish_escalation(
             agent_name=target.agent_name,
             title=title,
             detail=detail,
             episode_id=episode_id,
+            kind=kind if kind == "storm" else "decline",
+            artifacts_dir=str(target.artifacts_dir),
         )
 
 
