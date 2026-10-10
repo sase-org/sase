@@ -21,15 +21,46 @@ from sase.ace.tui.modals.config_hub_session import (
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.feature_flags_pane import FeatureFlagsPane
 from sase.feature_flags import FeatureFlag, current_flags, override_flags
+from sase.feature_flags import snapshot as snapshot_mod
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
 from sase.feature_flags.state import (
     feature_flag_state_path,
     load_saved_feature_flags,
 )
 from tests._conftest_runtime import reset_process_feature_flags
+from tests.feature_flags._helpers import demo_flag
 
-KEY = "ref_sync_gesture"
+KEY = "demo_sunset_flag"
 ROLLOUT = "admin_center_flags"
+
+
+def _install_synthetic_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Add a synthetic sunset flag alongside the live registry.
+
+    Generic toggle coverage addresses only this key, so later
+    flag-retirement phases can delete production keys without breaking
+    these journeys. The live registry stays because the booted TUI still
+    consumes production flags (owned by their own retirement phases).
+    """
+    from sase.feature_flags.registry import feature_flag_definitions
+
+    test_definitions = dict(feature_flag_definitions())
+    test_definitions[KEY] = demo_flag(KEY, kind="sunset")
+    monkeypatch.setattr(
+        "sase.feature_flags.registry.feature_flag_definitions",
+        lambda: test_definitions,
+    )
+    monkeypatch.setattr(
+        snapshot_mod, "feature_flag_definitions", lambda: test_definitions
+    )
+    # NOTE: ``cli_views`` holds its own direct registry import, which the
+    # Flags pane uses to build rows; patch it too or the synthetic flag
+    # never appears in the pane.
+    monkeypatch.setattr(
+        "sase.feature_flags.cli_views.feature_flag_definitions",
+        lambda: test_definitions,
+    )
+    reset_process_feature_flags()
 
 
 @pytest.fixture(autouse=True)
@@ -64,7 +95,10 @@ def _select_flag(pane: FeatureFlagsPane, key: str) -> None:
     pane._flag_list().highlighted = idx
 
 
-async def test_flags_pane_enable_and_disable_write_state_and_request_restart() -> None:
+async def test_flags_pane_enable_and_disable_write_state_and_request_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_synthetic_flag(monkeypatch)
     restarts: list[bool] = []
     async with AcePage(initial_tab="agents") as page:
         page.app._restart_tui = (  # type: ignore[method-assign]
@@ -158,7 +192,10 @@ async def test_config_catalog_omits_flags_when_rollout_is_off() -> None:
             )
 
 
-async def test_toggle_commits_saved_state_before_restart_runs() -> None:
+async def test_toggle_commits_saved_state_before_restart_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_synthetic_flag(monkeypatch)
     restarts: list[bool] = []
 
     def capture(*, restart_axe: bool) -> None:

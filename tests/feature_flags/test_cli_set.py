@@ -28,8 +28,26 @@ from sase.service.actions import ServiceProcActionError, ServiceProcActionOutcom
 from tests.main.parser_cli_helpers import parse_sase_args
 from tests._conftest_runtime import reset_process_feature_flags
 
+from ._helpers import definitions, demo_flag
 
-KEY = "ref_sync_gesture"
+
+KEY = "demo_sunset_flag"
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve CLI set coverage from synthetic defs, never live keys."""
+    test_definitions = definitions(
+        demo_flag(KEY, kind="sunset"),
+        demo_flag("demo_beta_flag", kind="beta"),
+    )
+    monkeypatch.setattr(
+        "sase.feature_flags.registry.feature_flag_definitions",
+        lambda: test_definitions,
+    )
+    monkeypatch.setattr(
+        snapshot_mod, "feature_flag_definitions", lambda: test_definitions
+    )
 
 
 def _console() -> tuple[Console, io.StringIO]:

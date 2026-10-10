@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import importlib
+import json
 import logging
 import os
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -15,7 +17,11 @@ from sase.feature_flags import FeatureFlagError
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
 from sase.feature_flags.models import FeatureFlagDiagnostic
 from sase.feature_flags.resolver import FeatureFlagLayerInput
-from sase.feature_flags.state import SavedFeatureFlagReconcileOutcome
+from sase.feature_flags.state import (
+    FEATURE_FLAG_STATE_WIRE_SCHEMA_VERSION,
+    SavedFeatureFlagReconcileOutcome,
+    feature_flag_state_path,
+)
 from sase.feature_flags import snapshot as snapshot_mod
 
 from tests._conftest_runtime import reset_process_feature_flags
@@ -405,6 +411,48 @@ def test_process_snapshot_applies_saved_state_before_overrides(
     assert resolved.state_path == "/tmp/feature_flags.json"
     with pytest.raises(TypeError):
         resolved.saved["demo_flag"] = False  # type: ignore[index]
+
+
+def test_empty_registry_startup_cleans_stale_saved_and_env_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Startup with an empty registry tolerates retired saved/env keys.
+
+    Old saved preferences and an inherited ``SASE_FEATURE_FLAGS`` payload
+    naming removed flags must not fail startup, and child snapshots must
+    stop exporting the unregistered keys.
+    """
+    monkeypatch.setattr(snapshot_mod, "feature_flag_definitions", lambda: {})
+    monkeypatch.setattr(snapshot_mod, "_project_layer_inputs", lambda: ((), ()))
+    # NOTE: ``_saved_state_input`` stays real so the stale state file below
+    # flows through the Rust-backed load and reconciliation path.
+    state_path = Path(feature_flag_state_path())
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps(
+            {
+                "version": FEATURE_FLAG_STATE_WIRE_SCHEMA_VERSION,
+                "flags": {"retired_beta": True, "retired_sunset": False},
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(
+        SASE_FEATURE_FLAGS_ENV, '{"retired_beta":true,"retired_sunset":false}'
+    )
+    reset_process_feature_flags()
+
+    installed = snapshot_mod.install_process_feature_flags()
+
+    assert dict(installed.decisions) == {}
+    assert dict(installed.saved) == {}
+    assert "unknown_key" in [item.code for item in installed.diagnostics]
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["flags"] == {}
+    assert parse_feature_flags_env(os.environ[SASE_FEATURE_FLAGS_ENV]) == {}
 
 
 def test_sync_saved_feature_flag_merges_env_and_invalidates(

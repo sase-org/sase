@@ -48,14 +48,14 @@ def test_flag_enable_and_disable_help_document_persistence_and_restart() -> None
 
 def test_flag_enable_and_disable_parse_key_and_json() -> None:
     parser = create_parser()
-    enable = parser.parse_args(["flag", "enable", "ref_sync_gesture", "-j"])
-    disable = parser.parse_args(["flag", "disable", "ref_sync_gesture"])
+    enable = parser.parse_args(["flag", "enable", "demo_flag", "-j"])
+    disable = parser.parse_args(["flag", "disable", "demo_flag"])
 
     assert enable.flag_subcommand == "enable"
-    assert enable.flag_key == "ref_sync_gesture"
+    assert enable.flag_key == "demo_flag"
     assert enable.json is True
     assert disable.flag_subcommand == "disable"
-    assert disable.flag_key == "ref_sync_gesture"
+    assert disable.flag_key == "demo_flag"
     assert disable.json is False
 
 

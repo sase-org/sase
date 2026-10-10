@@ -12,6 +12,7 @@ import pytest
 
 from sase.config import core as config_core
 from sase.feature_flags.cli_set import ACE_RESTART_NOTICE, SET_JSON_SCHEMA_VERSION
+from sase.feature_flags import snapshot as snapshot_mod
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
 from sase.feature_flags.snapshot import current_flags
 from sase.feature_flags.state import (
@@ -24,8 +25,10 @@ from sase.main.entry import main as sase_main
 from sase.main.update_types import RestartInfo
 from tests._conftest_runtime import reset_process_feature_flags
 
-KEY = "ref_sync_gesture"
-ROLLOUT = "admin_center_flags"
+from ._helpers import definitions, demo_flag
+
+KEY = "demo_sunset_flag"
+OTHER_KEY = "demo_beta_flag"
 _PYTEST_SANDBOX_DIR_ENV_VAR = "SASE_PYTEST_SANDBOX_DIR"
 
 
@@ -35,6 +38,22 @@ def _clean_flag_process(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     reset_process_feature_flags()
     yield
     reset_process_feature_flags()
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run CLI journeys against synthetic defs, never live rollout keys."""
+    test_definitions = definitions(
+        demo_flag(KEY, kind="sunset"),
+        demo_flag(OTHER_KEY, kind="beta"),
+    )
+    monkeypatch.setattr(
+        "sase.feature_flags.registry.feature_flag_definitions",
+        lambda: test_definitions,
+    )
+    monkeypatch.setattr(
+        snapshot_mod, "feature_flag_definitions", lambda: test_definitions
+    )
 
 
 def _fingerprint(path: Path) -> tuple[bytes, int]:
@@ -73,7 +92,7 @@ def _seed_portable_config(config_dir: Path) -> dict[Path, tuple[bytes, int]]:
     config_dir.mkdir(parents=True, exist_ok=True)
     user = config_dir / "sase.yml"
     overlay = config_dir / "sase_extra.yml"
-    user.write_text("feature_flags:\n  ref_sync_gesture: true\n", encoding="utf-8")
+    user.write_text("feature_flags:\n  demo_sunset_flag: true\n", encoding="utf-8")
     overlay.write_text("timezone: UTC\n", encoding="utf-8")
     return {path: _fingerprint(path) for path in (user, overlay)}
 
@@ -229,11 +248,11 @@ def test_public_restart_failure_keeps_saved_preference(
     assert "daemon refused" in out or "failed" in out
 
 
-def test_public_cli_works_when_flags_pane_rollout_is_off(
+def test_public_cli_works_when_an_unrelated_flag_is_saved_off_default(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    set_saved_feature_flag(ROLLOUT, False)
+    set_saved_feature_flag(OTHER_KEY, True)
     reset_process_feature_flags()
 
     code, out, _err = _run_public(
@@ -246,5 +265,5 @@ def test_public_cli_works_when_flags_pane_rollout_is_off(
     assert code == 0
     assert payload["mutation"]["enabled"] is True
     loaded = load_saved_feature_flags()
-    assert loaded.flags[ROLLOUT] is False
+    assert loaded.flags[OTHER_KEY] is True
     assert loaded.flags[KEY] is True

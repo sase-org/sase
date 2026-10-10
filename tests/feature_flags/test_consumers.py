@@ -1,141 +1,104 @@
-"""Both-states coverage for registered consumer feature flags."""
+"""Both-states coverage for generic beta/sunset flag resolution.
+
+These tests deliberately use synthetic ``demo_*`` definitions instead of
+production rollout keys so later flag-retirement phases can delete registry
+members without breaking generic framework assumptions.
+"""
 
 from __future__ import annotations
 
 import pytest
 
-from sase.feature_flags import FeatureFlag, current_flags, override_flags
-from sase.feature_flags.registry import feature_flag_definitions
+from sase.feature_flags import current_flags, override_flags
+from sase.feature_flags import snapshot as snapshot_mod
 from sase.feature_flags.resolver import resolve_feature_flags
+from tests._conftest_runtime import reset_process_feature_flags
 
-from ._helpers import layer
-
-
-def test_registered_consumer_flags_have_expected_kinds() -> None:
-    definitions = feature_flag_definitions()
-
-    flags_pane = definitions[FeatureFlag.admin_center_flags]
-    ref_sync = definitions[FeatureFlag.ref_sync_gesture]
-    refresh_panel = definitions[FeatureFlag.refresh_panel]
-    typed_launch = definitions[FeatureFlag.typed_launch_units]
-    refresh_tokens = definitions[FeatureFlag.ace_refresh_tokens]
-    continuation_records = definitions[FeatureFlag.monitor_continuation_records]
-
-    assert flags_pane.kind == "sunset"
-    assert flags_pane.default is True
-    assert flags_pane.bead == "sase-rx"
-    assert refresh_tokens.kind == "sunset"
-    assert refresh_tokens.default is True
-    assert refresh_tokens.bead == "sase-wr"
-    assert ref_sync.kind == "sunset"
-    assert ref_sync.default is True
-    assert ref_sync.bead == "sase-qu"
-    assert refresh_panel.kind == "sunset"
-    assert refresh_panel.default is True
-    assert refresh_panel.bead == "sase-105"
-    assert continuation_records.kind == "sunset"
-    assert continuation_records.default is True
-    assert continuation_records.bead == "sase-102"
-    assert typed_launch.kind == "beta"
-    assert typed_launch.default is False
-    assert typed_launch.bead == "sase-s7"
+from ._helpers import definitions, demo_flag, layer
 
 
-def test_consumer_flags_resolve_from_every_layer() -> None:
-    definitions = feature_flag_definitions()
+BETA_KEY = "demo_beta_flag"
+SUNSET_KEY = "demo_sunset_flag"
 
-    default = resolve_feature_flags(definitions=definitions, layers=[])
-    assert default.enabled(FeatureFlag.admin_center_flags) is True
-    assert default.enabled(FeatureFlag.ref_sync_gesture) is True
-    assert default.enabled(FeatureFlag.refresh_panel) is True
-    assert default.enabled(FeatureFlag.ace_refresh_tokens) is True
-    assert default.enabled(FeatureFlag.monitor_continuation_records) is True
-    assert default.enabled(FeatureFlag.typed_launch_units) is False
+
+@pytest.fixture(autouse=True)
+def _synthetic_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve the process snapshot from synthetic defs, never live keys."""
+    test_definitions = definitions(
+        demo_flag(BETA_KEY, kind="beta"),
+        demo_flag(SUNSET_KEY, kind="sunset"),
+    )
+    monkeypatch.setattr(
+        "sase.feature_flags.registry.feature_flag_definitions",
+        lambda: test_definitions,
+    )
+    monkeypatch.setattr(
+        snapshot_mod, "feature_flag_definitions", lambda: test_definitions
+    )
+    monkeypatch.setattr(snapshot_mod, "_project_layer_inputs", lambda: ((), ()))
+    monkeypatch.setattr(snapshot_mod, "_saved_state_input", lambda: ({}, (), ""))
+    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+    reset_process_feature_flags()
+
+
+def test_synthetic_beta_and_sunset_flags_have_expected_kinds() -> None:
+    beta = demo_flag(BETA_KEY, kind="beta")
+    sunset = demo_flag(SUNSET_KEY, kind="sunset")
+
+    assert beta.kind == "beta"
+    assert beta.default is False
+    assert beta.bead == "sase-nb.test"
+    assert sunset.kind == "sunset"
+    assert sunset.default is True
+    assert sunset.bead == "sase-nb.test"
+
+
+def test_synthetic_flags_resolve_from_every_layer() -> None:
+    synthetic = definitions(
+        demo_flag(BETA_KEY, kind="beta"),
+        demo_flag(SUNSET_KEY, kind="sunset"),
+    )
+
+    default = resolve_feature_flags(definitions=synthetic, layers=[])
+    assert default.enabled(BETA_KEY) is False
+    assert default.enabled(SUNSET_KEY) is True
 
     user = resolve_feature_flags(
-        definitions=definitions,
+        definitions=synthetic,
         layers=[
             layer(
                 "user",
-                {
-                    "admin_center_flags": False,
-                    "ref_sync_gesture": False,
-                    "refresh_panel": False,
-                    "ace_refresh_tokens": False,
-                    "monitor_continuation_records": False,
-                    "typed_launch_units": True,
-                },
+                {BETA_KEY: True, SUNSET_KEY: False},
                 detail="user.yml",
             )
         ],
     )
-    assert user.enabled(FeatureFlag.admin_center_flags) is False
-    assert user.decision(FeatureFlag.admin_center_flags).source == "user"
-    assert user.enabled(FeatureFlag.ref_sync_gesture) is False
-    assert user.decision(FeatureFlag.ref_sync_gesture).source == "user"
-    assert user.enabled(FeatureFlag.refresh_panel) is False
-    assert user.decision(FeatureFlag.refresh_panel).source == "user"
-    assert user.enabled(FeatureFlag.ace_refresh_tokens) is False
-    assert user.decision(FeatureFlag.ace_refresh_tokens).source == "user"
-    assert user.enabled(FeatureFlag.monitor_continuation_records) is False
-    assert user.decision(FeatureFlag.monitor_continuation_records).source == "user"
-    assert user.enabled(FeatureFlag.typed_launch_units) is True
-    assert user.decision(FeatureFlag.typed_launch_units).source == "user"
+    assert user.enabled(BETA_KEY) is True
+    assert user.decision(BETA_KEY).source == "user"
+    assert user.enabled(SUNSET_KEY) is False
+    assert user.decision(SUNSET_KEY).source == "user"
 
     env = resolve_feature_flags(
-        definitions=definitions,
+        definitions=synthetic,
         layers=[],
-        env_value=(
-            '{"admin_center_flags":false,"ref_sync_gesture":false,'
-            '"refresh_panel":false,"ace_refresh_tokens":false,'
-            '"monitor_continuation_records":false,"typed_launch_units":true}'
-        ),
+        env_value='{"demo_beta_flag":true,"demo_sunset_flag":false}',
     )
-    assert env.enabled(FeatureFlag.admin_center_flags) is False
-    assert env.decision(FeatureFlag.admin_center_flags).source == "env"
-    assert env.enabled(FeatureFlag.ref_sync_gesture) is False
-    assert env.decision(FeatureFlag.ref_sync_gesture).source == "env"
-    assert env.enabled(FeatureFlag.refresh_panel) is False
-    assert env.decision(FeatureFlag.refresh_panel).source == "env"
-    assert env.enabled(FeatureFlag.ace_refresh_tokens) is False
-    assert env.decision(FeatureFlag.ace_refresh_tokens).source == "env"
-    assert env.enabled(FeatureFlag.monitor_continuation_records) is False
-    assert env.decision(FeatureFlag.monitor_continuation_records).source == "env"
-    assert env.enabled(FeatureFlag.typed_launch_units) is True
-    assert env.decision(FeatureFlag.typed_launch_units).source == "env"
+    assert env.enabled(BETA_KEY) is True
+    assert env.decision(BETA_KEY).source == "env"
+    assert env.enabled(SUNSET_KEY) is False
+    assert env.decision(SUNSET_KEY).source == "env"
 
 
-def test_consumer_flags_both_states_via_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+def test_synthetic_flags_both_states_via_override() -> None:
     with override_flags(
-        admin_center_flags=False,
-        ref_sync_gesture=False,
-        refresh_panel=False,
-        ace_refresh_tokens=False,
-        monitor_continuation_records=False,
-        typed_launch_units=True,
+        demo_beta_flag=True,
+        demo_sunset_flag=False,
     ) as snapshot:
-        assert snapshot.enabled(FeatureFlag.admin_center_flags) is False
-        assert current_flags().enabled(FeatureFlag.admin_center_flags) is False
-        assert snapshot.enabled(FeatureFlag.ref_sync_gesture) is False
-        assert current_flags().enabled(FeatureFlag.ref_sync_gesture) is False
-        assert snapshot.enabled(FeatureFlag.refresh_panel) is False
-        assert current_flags().enabled(FeatureFlag.refresh_panel) is False
-        assert snapshot.enabled(FeatureFlag.ace_refresh_tokens) is False
-        assert current_flags().enabled(FeatureFlag.ace_refresh_tokens) is False
-        assert snapshot.enabled(FeatureFlag.monitor_continuation_records) is False
-        assert (
-            current_flags().enabled(FeatureFlag.monitor_continuation_records) is False
-        )
-        assert snapshot.enabled(FeatureFlag.typed_launch_units) is True
-        assert current_flags().enabled(FeatureFlag.typed_launch_units) is True
+        assert snapshot.enabled(BETA_KEY) is True
+        assert current_flags().enabled(BETA_KEY) is True
+        assert snapshot.enabled(SUNSET_KEY) is False
+        assert current_flags().enabled(SUNSET_KEY) is False
 
     restored = current_flags()
-    assert restored.enabled(FeatureFlag.admin_center_flags) is True
-    assert restored.enabled(FeatureFlag.ref_sync_gesture) is True
-    assert restored.enabled(FeatureFlag.refresh_panel) is True
-    assert restored.enabled(FeatureFlag.ace_refresh_tokens) is True
-    assert restored.enabled(FeatureFlag.monitor_continuation_records) is True
-    assert restored.enabled(FeatureFlag.typed_launch_units) is False
+    assert restored.enabled(BETA_KEY) is False
+    assert restored.enabled(SUNSET_KEY) is True
