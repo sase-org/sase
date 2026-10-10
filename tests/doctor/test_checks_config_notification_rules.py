@@ -204,7 +204,24 @@ def test_rule_that_sets_nothing_is_flagged(
 def test_toast_alone_or_sound_alone_is_enough(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _use_rules(monkeypatch, [{"toast": True}, {"toast": False}, {"sound": "none"}])
+    _use_rules(
+        monkeypatch,
+        [
+            {"toast": True},
+            {"toast": False},
+            {"sound": "none"},
+            {"telegram": False},
+            {"telegram": True},
+        ],
+    )
+
+    assert check_config_notification_rules().status == "OK"
+
+
+def test_telegram_only_rule_is_not_reported_as_ineffective(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_rules(monkeypatch, [{"name": "tg-only", "telegram": False}])
 
     assert check_config_notification_rules().status == "OK"
 

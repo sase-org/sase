@@ -165,6 +165,14 @@ def _toast_style(toast: bool) -> str:
     return "green" if toast else "red"
 
 
+def _telegram_text(telegram: bool) -> str:
+    return "allowed" if telegram else "suppressed"
+
+
+def _telegram_style(telegram: bool) -> str:
+    return "green" if telegram else "red"
+
+
 def _sound_style(sound: str) -> str:
     """Style a sound word: ``bell`` and ``none`` are reserved, anything else is a file."""
     return {"bell": "green", "none": "red"}.get(sound.lower(), "blue")
@@ -181,6 +189,8 @@ def _print_rules(
         (_toast_text(defaults.toast), _toast_style(defaults.toast)),
         ", sound ",
         (_sound_text(defaults.sound), _sound_style(defaults.sound.kind)),
+        ", telegram ",
+        (_telegram_text(defaults.telegram), _telegram_style(defaults.telegram)),
         ".",
     )
     if not applied:
@@ -196,8 +206,8 @@ def _print_rules(
         out.print(
             Text(
                 "Rules are consulted in this order (highest priority first, then "
-                "config order); for toast and for sound separately, the first "
-                "matching rule that sets the field decides it.",
+                "config order); for toast, sound, and telegram separately, the "
+                "first matching rule that sets the field decides it.",
                 style="dim",
             ),
             soft_wrap=True,
@@ -261,6 +271,14 @@ def _print_rule(out: Console, position: int, entry: ConfiguredNotificationRule) 
             Text.assemble(("      sound  ", "dim"), (sound, _sound_style(sound))),
             soft_wrap=True,
         )
+    if "telegram" in rule:
+        telegram = bool(rule["telegram"])
+        out.print(
+            Text.assemble(
+                ("      telegram  ", "dim"),
+                (_telegram_text(telegram), _telegram_style(telegram)),
+            )
+        )
 
 
 def _print_explanation(
@@ -296,9 +314,17 @@ def _print_explanation(
             _sound_style(delivery.sound.kind),
             delivery.sound_rule,
         ),
+        (
+            "telegram",
+            _telegram_text(delivery.telegram),
+            _telegram_style(delivery.telegram),
+            delivery.telegram_rule,
+        ),
     ]
     for name, value, style, rule_label in rows:
-        line = Text.assemble((f"  {name:<8}", "dim"), (value, style))
+        # Delivery names vary in length ("toast"/"sound" vs "telegram"), so a
+        # fixed separator keeps every row as "<name>   <value>".
+        line = Text.assemble((f"  {name}   ", "dim"), (value, style))
         line.append("  <- ", style="dim")
         if rule_label is None:
             line.append(f"default (no matching rule sets {name})", style="dim")
@@ -331,7 +357,11 @@ def _print_json(payload: dict[str, Any]) -> None:
 
 def _defaults_json() -> dict[str, Any]:
     defaults = DEFAULT_NOTIFICATION_DELIVERY
-    return {"toast": defaults.toast, "sound": _sound_text(defaults.sound)}
+    return {
+        "toast": defaults.toast,
+        "sound": _sound_text(defaults.sound),
+        "telegram": defaults.telegram,
+    }
 
 
 def _rules_json(
@@ -353,6 +383,7 @@ def _rules_json(
                 "match": rule.get("match", {}),
                 "toast": rule.get("toast"),
                 "sound": rule.get("sound") if _sets_sound(rule) else None,
+                "telegram": rule.get("telegram"),
             }
         )
     return {
@@ -395,6 +426,11 @@ def _explain_json(
                 "value": _sound_text(delivery.sound),
                 "kind": delivery.sound.kind,
                 **decided_by(delivery.sound_rule),
+            },
+            "telegram": {
+                "value": delivery.telegram,
+                "permission": _telegram_text(delivery.telegram),
+                **decided_by(delivery.telegram_rule),
             },
         },
     }

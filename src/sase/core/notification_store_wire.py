@@ -54,8 +54,10 @@ class NotificationSoundWire:
 class NotificationDeliveryWire:
     """The resolved delivery of one notification, plus the rules that decided it.
 
-    ``toast_rule`` and ``sound_rule`` name the deciding rule (its ``name``, else
-    ``rule[<index>]``) and are ``None`` when the built-in default applied.
+    ``toast_rule``, ``sound_rule``, and ``telegram_rule`` name the deciding
+    rule (its ``name``, else ``rule[<index>]``) and are ``None`` when the
+    built-in default applied. ``telegram`` permits Telegram delivery but never
+    bypasses the transport's own eligibility checks.
     """
 
     schema_version: int
@@ -63,6 +65,8 @@ class NotificationDeliveryWire:
     sound: NotificationSoundWire
     toast_rule: str | None = None
     sound_rule: str | None = None
+    telegram: bool = True
+    telegram_rule: str | None = None
 
 
 @dataclass(frozen=True)
@@ -354,7 +358,12 @@ def _notification_sound_from_dict(data: dict[str, Any]) -> NotificationSoundWire
 def notification_deliveries_from_list(
     data: list[dict[str, Any]],
 ) -> list[NotificationDeliveryWire]:
-    """Rehydrate the per-notification deliveries returned by Rust, in input order."""
+    """Rehydrate the per-notification deliveries returned by Rust, in input order.
+
+    Old wire responses missing ``telegram`` read as permitted (``True``);
+    actual Telegram rules require the updated core. Incompatible-core errors
+    are never swallowed: a schema mismatch still raises.
+    """
     deliveries: list[NotificationDeliveryWire] = []
     for item in data:
         schema = int(item["schema_version"])
@@ -365,6 +374,13 @@ def notification_deliveries_from_list(
             )
         toast_rule = item.get("toast_rule")
         sound_rule = item.get("sound_rule")
+        telegram_rule = item.get("telegram_rule")
+        telegram = item.get("telegram", True)
+        if not isinstance(telegram, bool):
+            raise ValueError(
+                f"notification delivery telegram must be true or false, "
+                f"got {telegram!r}"
+            )
         deliveries.append(
             NotificationDeliveryWire(
                 schema_version=schema,
@@ -372,6 +388,8 @@ def notification_deliveries_from_list(
                 sound=_notification_sound_from_dict(item["sound"]),
                 toast_rule=None if toast_rule is None else str(toast_rule),
                 sound_rule=None if sound_rule is None else str(sound_rule),
+                telegram=telegram,
+                telegram_rule=None if telegram_rule is None else str(telegram_rule),
             )
         )
     return deliveries

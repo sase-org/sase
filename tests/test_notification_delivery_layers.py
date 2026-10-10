@@ -150,7 +150,7 @@ def test_dropped_entries_carry_reasons_and_do_not_consume_an_index(
     assert bad.label == "bad"
     assert bad.problems == (
         "unknown rule key 'bogus' (expected one of description, match, name, "
-        "priority, sound, toast)",
+        "priority, sound, telegram, toast)",
         "toast must be true or false",
         "unknown match criterion 'nope' (expected one of action, note, sender, "
         "tab, tags, title)",

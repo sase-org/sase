@@ -173,6 +173,9 @@ def test_null_valued_optional_fields_read_as_unset(
         pytest.param({"match": {"tags": ["ok", 7]}}, id="non-string-list-item"),
         pytest.param({"toast": "no"}, id="string-toast"),
         pytest.param({"toast": 0}, id="int-toast"),
+        pytest.param({"telegram": "no"}, id="string-telegram"),
+        pytest.param({"telegram": 0}, id="int-telegram"),
+        pytest.param({"telegram": 1}, id="int-true-telegram"),
         pytest.param({"sound": 3}, id="non-string-sound"),
         pytest.param({"name": 3}, id="non-string-name"),
         pytest.param({"description": ["x"]}, id="non-string-description"),
@@ -326,18 +329,98 @@ def test_configured_rules_resolve_through_the_core(
         NotificationDelivery(
             toast=False,
             sound=NotificationSound(kind="none"),
+            telegram=True,
             toast_rule="quiet-task-beads",
             sound_rule="quiet-task-beads",
+            telegram_rule=None,
         ),
         NotificationDelivery(
             toast=True,
             sound=NotificationSound(
                 kind="file", path="/System/Library/Sounds/Glass.aiff"
             ),
+            telegram=True,
             toast_rule=None,
             sound_rule="mbp-chime",
+            telegram_rule=None,
         ),
     ]
+
+
+def test_telegram_only_rule_suppresses_telegram_and_preserves_tui(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_rules(
+        monkeypatch,
+        [
+            {
+                "name": "quiet-task-beads-telegram",
+                "match": {"tab": "beads"},
+                "telegram": False,
+            }
+        ],
+    )
+
+    deliveries = resolve_notification_deliveries([_task_triage(), _axe_error()])
+
+    assert deliveries[0].telegram is False
+    assert deliveries[0].telegram_rule == "quiet-task-beads-telegram"
+    assert deliveries[0].toast is True
+    assert deliveries[0].sound == NotificationSound(kind="bell")
+    assert deliveries[1].telegram is True
+    assert deliveries[1].telegram_rule is None
+
+
+def test_toast_only_suppression_still_allows_telegram(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_rules(
+        monkeypatch,
+        [{"name": "quiet", "match": {"tab": "beads"}, "toast": False}],
+    )
+
+    [triage] = resolve_notification_deliveries([_task_triage()])
+
+    assert triage.toast is False
+    assert triage.telegram is True
+    assert triage.telegram_rule is None
+
+
+def test_global_tui_rule_plus_athena_telegram_rule_resolve_independently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_rules(
+        monkeypatch,
+        [
+            {
+                "name": "quiet-task-beads",
+                "match": {"tab": "beads"},
+                "toast": False,
+                "sound": "none",
+            },
+            {
+                "name": "quiet-task-beads-telegram",
+                "match": {"tab": "beads"},
+                "telegram": False,
+            },
+        ],
+    )
+
+    [triage] = resolve_notification_deliveries([_task_triage()])
+
+    assert triage.toast is False
+    assert triage.toast_rule == "quiet-task-beads"
+    assert triage.telegram is False
+    assert triage.telegram_rule == "quiet-task-beads-telegram"
+
+
+def test_null_telegram_reads_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    _use_rules(
+        monkeypatch,
+        [{"name": "x", "telegram": None, "sound": "none"}],
+    )
+
+    assert notification_delivery_rules() == ({"name": "x", "sound": "none"},)
 
 
 def test_unnamed_rule_label_counts_the_surviving_list(
@@ -394,6 +477,58 @@ def test_deliveries_rehydrate_every_sound_kind() -> None:
             "rule[2]",
         ),
     ]
+    # Old wire payloads missing telegram read as permitted.
+    for wire in notification_deliveries_from_list(payload):
+        assert wire.telegram is True
+        assert wire.telegram_rule is None
+
+
+def test_deliveries_rehydrate_telegram_fields() -> None:
+    payload = [
+        {
+            "schema_version": 1,
+            "toast": True,
+            "sound": {"kind": "bell"},
+            "telegram": False,
+            "telegram_rule": "quiet-task-beads-telegram",
+        },
+        {
+            "schema_version": 1,
+            "toast": True,
+            "sound": {"kind": "bell"},
+            "telegram": True,
+            "telegram_rule": "allow",
+        },
+    ]
+
+    assert notification_deliveries_from_list(payload) == [
+        NotificationDeliveryWire(
+            1,
+            True,
+            NotificationSoundWire("bell"),
+            None,
+            None,
+            False,
+            "quiet-task-beads-telegram",
+        ),
+        NotificationDeliveryWire(
+            1, True, NotificationSoundWire("bell"), None, None, True, "allow"
+        ),
+    ]
+
+
+def test_non_boolean_telegram_in_wire_is_rejected() -> None:
+    with pytest.raises(ValueError, match="telegram must be true or false"):
+        notification_deliveries_from_list(
+            [
+                {
+                    "schema_version": 1,
+                    "toast": True,
+                    "sound": {"kind": "bell"},
+                    "telegram": "no",
+                }
+            ]
+        )
 
 
 def test_delivery_schema_mismatch_is_rejected() -> None:

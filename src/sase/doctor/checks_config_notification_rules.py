@@ -100,9 +100,9 @@ def _rule_problems(rule: dict[str, Any]) -> list[str]:
     problems: list[str] = []
     sound = rule.get("sound")
     sets_sound = isinstance(sound, str) and bool(sound.strip())
-    if "toast" not in rule and not sets_sound:
+    if "toast" not in rule and not sets_sound and "telegram" not in rule:
         problems.append(
-            "sets neither toast nor sound, so it never changes a delivery"
+            "sets neither toast, sound, nor telegram, so it never changes a delivery"
             + (" (a blank sound sets nothing)" if sound is not None else "")
         )
     match = rule.get("match")

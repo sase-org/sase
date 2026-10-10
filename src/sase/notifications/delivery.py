@@ -1,14 +1,17 @@
-"""Client-side notification delivery: which arrivals toast and how they sound.
+"""Client-side notification delivery: which arrivals toast, sound, and Telegram.
 
 ``ace.notification_rules`` is an ordered list of rules that each match a
 notification by tab, sender, action, tag, title, or note text and set whether a
-TUI toast is shown and how the arrival is announced. The matcher lives in the
-Rust core; this module reads the configured rules, reduces them to the core's
-wire shape, and resolves a batch of notifications through one binding call.
+TUI toast is shown, how the arrival is announced, and whether the row may be
+delivered to Telegram. The matcher lives in the Rust core; this module reads
+the configured rules, reduces them to the core's wire shape, and resolves a
+batch of notifications through one binding call.
 
 Delivery is an announcement decision only. A rule never changes whether a
 notification is created, stored, read, muted, or snoozed, and with no rules
-configured every notification resolves to today's behavior: toast and bell.
+configured every notification resolves to today's behavior: toast, bell, and
+Telegram permitted. A Telegram ``true`` never bypasses the transport's own
+read/mute/silent, first-run, cursor, or other eligibility checks.
 """
 
 from __future__ import annotations
@@ -33,7 +36,9 @@ SOUND_BELL = "bell"
 SOUND_NONE = "none"
 SOUND_FILE = "file"
 
-_RULE_KEYS = frozenset({"name", "description", "priority", "match", "toast", "sound"})
+_RULE_KEYS = frozenset(
+    {"name", "description", "priority", "match", "toast", "sound", "telegram"}
+)
 _MATCH_KEYS = frozenset({"tab", "sender", "action", "tags", "title", "note"})
 # Mirrors the ``ace.notification_rules[].priority`` bounds in the config schema.
 _MIN_RULE_PRIORITY = -1000
@@ -50,23 +55,27 @@ class NotificationSound:
 
 @dataclass(frozen=True)
 class NotificationDelivery:
-    """Whether one notification toasts and how it sounds, plus what decided that.
+    """Whether one notification toasts, sounds, and may go to Telegram.
 
-    ``toast_rule`` and ``sound_rule`` name the deciding rule (its ``name``, else
-    ``rule[<index>]`` counting :func:`notification_delivery_rules`) and are
-    ``None`` when the built-in default applied.
+    ``toast_rule``, ``sound_rule``, and ``telegram_rule`` name the deciding
+    rule (its ``name``, else ``rule[<index>]`` counting
+    :func:`notification_delivery_rules`) and are ``None`` when the built-in
+    default applied. ``telegram`` permits Telegram delivery but never bypasses
+    the transport's own eligibility checks.
     """
 
     toast: bool
     sound: NotificationSound
+    telegram: bool = True
     toast_rule: str | None = None
     sound_rule: str | None = None
+    telegram_rule: str | None = None
 
 
 # What every notification did before rules existed; the core resolves an empty
 # rule list to exactly this.
 DEFAULT_NOTIFICATION_DELIVERY = NotificationDelivery(
-    toast=True, sound=NotificationSound(kind=SOUND_BELL)
+    toast=True, sound=NotificationSound(kind=SOUND_BELL), telegram=True
 )
 
 
@@ -127,6 +136,8 @@ def _rule_problems(raw: object) -> list[str]:
             problems.append(f"{key} must be a string")
     if raw.get("toast") is not None and not isinstance(raw["toast"], bool):
         problems.append("toast must be true or false")
+    if raw.get("telegram") is not None and not isinstance(raw["telegram"], bool):
+        problems.append("telegram must be true or false")
     priority = raw.get("priority")
     if priority is not None and (
         not isinstance(priority, int)
@@ -148,7 +159,7 @@ def _sanitize_rule(raw: object) -> dict[str, Any] | None:
         return None
     rule = {
         key: raw[key]
-        for key in ("name", "description", "sound", "toast", "priority")
+        for key in ("name", "description", "sound", "toast", "telegram", "priority")
         if raw.get(key) is not None
     }
     if "match" in raw:
@@ -288,8 +299,10 @@ def _delivery_from_wire(wire: NotificationDeliveryWire) -> NotificationDelivery:
     return NotificationDelivery(
         toast=wire.toast,
         sound=_sound_from_wire(wire.sound),
+        telegram=wire.telegram,
         toast_rule=wire.toast_rule,
         sound_rule=wire.sound_rule,
+        telegram_rule=wire.telegram_rule,
     )
 
 

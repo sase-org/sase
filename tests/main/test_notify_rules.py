@@ -158,7 +158,7 @@ def test_no_rules_prints_the_defaults(
 
     out = capsys.readouterr().out
     assert "No notification delivery rules are configured." in out
-    assert "keeps the default: toast shown, sound bell." in out
+    assert "keeps the default: toast shown, sound bell, telegram allowed." in out
     assert "Ignored" not in out
 
 
@@ -180,7 +180,7 @@ def test_rules_print_in_evaluation_order_with_layer_and_behaviors(
     assert "sound  none" in out
     assert "match  every notification" in out
     assert "sound  /tmp/Glass.aiff" in out
-    assert "keeps the default: toast shown, sound bell." in out
+    assert "keeps the default: toast shown, sound bell, telegram allowed." in out
 
 
 def test_priority_reorders_the_listing_but_not_the_rule_labels(
@@ -263,7 +263,7 @@ def test_rules_json_lists_rules_in_evaluation_order(
     handle_notify_rules(_args(json=True))
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["defaults"] == {"toast": True, "sound": "bell"}
+    assert payload["defaults"] == {"toast": True, "sound": "bell", "telegram": True}
     assert payload["rules"] == [
         {
             "order": 1,
@@ -276,6 +276,7 @@ def test_rules_json_lists_rules_in_evaluation_order(
             "match": {"tab": "beads"},
             "toast": False,
             "sound": "none",
+            "telegram": None,
         },
         {
             "order": 2,
@@ -288,6 +289,7 @@ def test_rules_json_lists_rules_in_evaluation_order(
             "match": {},
             "toast": None,
             "sound": "/tmp/Glass.aiff",
+            "telegram": None,
         },
     ]
     assert payload["ignored"] == [
@@ -296,7 +298,7 @@ def test_rules_json_lists_rules_in_evaluation_order(
             "layer_index": 1,
             "problems": [
                 "unknown rule key 'bogus' (expected one of description, match, "
-                "name, priority, sound, toast)"
+                "name, priority, sound, telegram, toast)"
             ],
         }
     ]
@@ -323,6 +325,7 @@ def test_explain_attributes_both_fields_to_the_global_rule(
     assert "title   Triage task sase-1" in out
     assert "toast   hidden  <- quiet-task-beads  [user]" in out
     assert "sound   none  <- quiet-task-beads  [user]" in out
+    assert "telegram   allowed  <- default (no matching rule sets telegram)" in out
 
 
 def test_explain_reports_defaults_and_the_catch_all_for_other_rows(
@@ -340,6 +343,7 @@ def test_explain_reports_defaults_and_the_catch_all_for_other_rows(
     assert "tab     errors" in out
     assert "toast   shown  <- default (no matching rule sets toast)" in out
     assert "sound   /tmp/Glass.aiff  <- mac-chime  [overlay:sase_mac.yml]" in out
+    assert "telegram   allowed  <- default (no matching rule sets telegram)" in out
 
 
 def test_explain_with_no_rules_is_all_defaults_and_action_less_rows_show_dash(
@@ -358,6 +362,7 @@ def test_explain_with_no_rules_is_all_defaults_and_action_less_rows_show_dash(
     assert "title   -" in out
     assert "toast   shown  <- default (no matching rule sets toast)" in out
     assert "sound   bell  <- default (no matching rule sets sound)" in out
+    assert "telegram   allowed  <- default (no matching rule sets telegram)" in out
 
 
 def test_explain_json(
@@ -392,6 +397,12 @@ def test_explain_json(
                 "rule": "quiet-task-beads",
                 "layers": ["user"],
             },
+            "telegram": {
+                "value": True,
+                "permission": "allowed",
+                "rule": None,
+                "layers": [],
+            },
         },
     }
     assert axe["delivery"] == {
@@ -401,6 +412,12 @@ def test_explain_json(
             "kind": "file",
             "rule": "mac-chime",
             "layers": ["overlay:sase_mac.yml"],
+        },
+        "telegram": {
+            "value": True,
+            "permission": "allowed",
+            "rule": None,
+            "layers": [],
         },
     }
 

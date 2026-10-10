@@ -404,14 +404,17 @@ audible for every notification class, including a snoozed tale or epic review. A
 delivery rule that matches the resurfaced row still applies to it.
 
 Every toast and arrival sound described here is the default. `ace.notification_rules`
-overrides either per notification; see [Delivery Rules](#delivery-rules).
+overrides TUI behavior per notification and may suppress Telegram delivery; see
+[Delivery Rules](#delivery-rules).
 
 ### Delivery Rules
 
 `ace.notification_rules` is an ordered list of rules that decide, per new notification,
-whether sase's TUI shows a toast and how the arrival is announced: the terminal bell, a
-sound file of your choosing, or silence. With no rules configured every notification
-toasts and rings the bell once per poll, exactly as described above.
+whether sase's TUI shows a toast, how the arrival is announced (the terminal bell, a
+sound file of your choosing, or silence), and whether the row may be delivered to
+Telegram. With no rules configured every notification toasts and rings the bell once per
+poll, exactly as described above, and Telegram delivery is permitted (subject to the
+transport's own eligibility checks).
 
 ```yaml
 ace:
@@ -434,6 +437,7 @@ ace:
 | `match`       | mapping | Criteria. Omitted or `{}` matches every notification          |
 | `toast`       | boolean | Whether a TUI toast is shown                                  |
 | `sound`       | string  | `bell`, `none`, or the path of a sound file                   |
+| `telegram`    | boolean | Whether Telegram delivery is permitted (`false` suppresses)   |
 
 Every key is optional, and an unknown key drops the whole rule rather than being
 ignored: a rule applies exactly as written or not at all. A rule with no `name` is
@@ -471,10 +475,12 @@ is stored now, so a muted or snoozed row reports `__muted__` or `__snoozed__`.
 #### Resolution
 
 Rules are consulted in descending `priority`, with ties broken by position in the merged
-list. For `toast` and for `sound` **independently**, the first matching rule that sets
-that field decides it. A field no matching rule sets keeps the default: toast shown,
-sound `bell`. A rule that sets only `toast` therefore never blocks a later rule from
-choosing the sound.
+list. For `toast`, `sound`, and `telegram` **independently**, the first matching rule
+that sets that field decides it. A field no matching rule sets keeps the default: toast
+shown, sound `bell`, Telegram permitted. A rule that sets only `toast` therefore never
+blocks a later rule from choosing the sound or suppressing Telegram. `telegram: true`
+permits Telegram delivery but never bypasses the transport's read/mute/silent,
+first-run, cursor, or other eligibility checks.
 
 The merged list follows config layering: rules from `~/.config/sase/sase.yml` come
 first, then rules from machine overlays such as `sase_<machine>.yml`, then project-local
@@ -544,19 +550,40 @@ is created, read, muted, or snoozed. Suppressed rows are also left out of groupe
 toasts: a batch of six with three suppressed produces three individual toasts rather
 than one group of six.
 
+`telegram: false` suppresses only the Telegram announcement (including its attachments
+and keyboards). The row stays stored and unread, gate requests and TUI access are
+unchanged, direct Telegram command replies still work, and already-sent messages are
+left alone. Suppression is evaluated at each outbound poll: it does not mutate the
+notification or advance the delivery cursor, so a later eligible row still advances the
+cursor normally and removing the rule may make older unread rows ahead of the cursor
+eligible again. There is no suppression ledger or backfill.
+
+Example: keep Beads rows in SASE without sending them to Telegram:
+
+```yaml
+ace:
+  notification_rules:
+    - name: quiet-task-beads-telegram
+      description: Keep Beads notifications in SASE without sending them to Telegram.
+      match:
+        tab: beads
+      telegram: false
+```
+
 #### Inspecting rules
 
 - `sase notify rules` prints the merged rules in the order they are consulted, with the
   config layer each came from, its criteria, and the behaviors it sets. Entries that
   were dropped as malformed are listed with the reason.
 - `sase notify rules --explain <id>` (`-e`) takes a stored notification ID or unique
-  prefix and prints the fields the rules match on, then for `toast` and `sound` the rule
-  that decided it or that the default applied. Add `-j/--json` to either form for
-  machine-readable output.
+  prefix and prints the fields the rules match on, then for `toast`, `sound`, and
+  `telegram` the rule that decided it or that the default applied. Telegram is reported
+  as rule permission/suppression, not a guarantee that Telegram is enabled or that a
+  message was sent. Add `-j/--json` to either form for machine-readable output.
 - `sase doctor -C config.notification_rules` flags unknown keys, a `match` that is not a
   mapping, a glob with an unclosed `[`, an empty criterion list, a `sound` file that
   does not exist, a sound file with no audio player available on this platform, and a
-  rule that sets neither `toast` nor `sound`.
+  rule that sets neither `toast`, `sound`, nor `telegram`.
 
 ## Notification Types
 
