@@ -14,7 +14,7 @@ from rich.console import Group
 from rich.text import Text
 
 from sase.agent.artifact_files_cache import get_global_cache
-from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_session_members import (
     agent_row_is_in_flight,
     current_agent_session_turn_row,
@@ -208,7 +208,7 @@ def _snapshot_renderables(snapshot: _LiveReplySnapshot) -> tuple[Any, ...]:
 
 
 def is_live_reply_agent(agent: Agent) -> bool:
-    if agent.agent_type != AgentType.RUNNING or not agent_row_is_in_flight(agent):
+    if not agent.is_agent_entry or not agent_row_is_in_flight(agent):
         return False
     return not (agent.is_workflow_child and agent.step_type in ("bash", "python"))
 
