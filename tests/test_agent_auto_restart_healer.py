@@ -12,9 +12,9 @@ from typing import Any
 import pytest
 
 from sase.agent.auto_restart import healer
+from sase.agent.auto_restart._healer_common import apply_skip_rules
 from sase.agent.auto_restart.healer import (
     HealerTarget,
-    _apply_skip_rules,
     heal_one,
 )
 from sase.agent.auto_restart.probe import run_probe
@@ -134,14 +134,14 @@ def test_skip_already_restarted(failed_row: Path) -> None:
     meta["auto_restart"] = {"ledger_key": "sase__abc"}
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     done = json.loads((failed_row / "done.json").read_text(encoding="utf-8"))
-    decision = _apply_skip_rules(_target(failed_row), done=done, meta=meta)
+    decision = apply_skip_rules(_target(failed_row), done=done, meta=meta)
     assert decision.skip
     assert decision.decline_reason == "already_restarted"
 
 
 def test_skip_killed_outcome(failed_row: Path) -> None:
     done = {"outcome": "killed", "kill_source": "user"}
-    decision = _apply_skip_rules(_target(failed_row), done=done, meta={})
+    decision = apply_skip_rules(_target(failed_row), done=done, meta={})
     assert decision.skip
     assert decision.decline_reason == "killed"
     assert not decision.loud
@@ -149,21 +149,21 @@ def test_skip_killed_outcome(failed_row: Path) -> None:
 
 def test_skip_non_failed_row(failed_row: Path) -> None:
     done = {"outcome": "done"}
-    decision = _apply_skip_rules(_target(failed_row), done=done, meta={})
+    decision = apply_skip_rules(_target(failed_row), done=done, meta={})
     assert decision.skip
     assert decision.decline_reason == "no_longer_failed"
 
 
 def test_skip_remote_row(failed_row: Path) -> None:
     done = {"outcome": "failed", "is_remote": True}
-    decision = _apply_skip_rules(_target(failed_row), done=done, meta={})
+    decision = apply_skip_rules(_target(failed_row), done=done, meta={})
     assert decision.skip
     assert decision.decline_reason == "remote"
 
 
 def test_no_skip_for_plain_failed_row(failed_row: Path) -> None:
     done = json.loads((failed_row / "done.json").read_text(encoding="utf-8"))
-    decision = _apply_skip_rules(_target(failed_row), done=done, meta={})
+    decision = apply_skip_rules(_target(failed_row), done=done, meta={})
     assert not decision.skip
 
 

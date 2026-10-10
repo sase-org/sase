@@ -123,7 +123,7 @@ def test_incident_replay_end_to_end(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _ = tmp_home
-    import sase.agent.auto_restart.healer as healer_mod
+    import sase.agent.auto_restart._healer_common as healer_common
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart import sweep as sweep_mod
 
@@ -306,7 +306,7 @@ def test_incident_replay_end_to_end(
     settled = ledger_mod.load_ledger_record(outcome.ledger_key)
     assert settled is not None and settled.record.state == "settled_failed"
 
-    healer_mod._escalate(
+    healer_common.escalate_healer(
         replacement_target,
         "replacement broke again with the same skew error",
         episode_id=EPISODE,

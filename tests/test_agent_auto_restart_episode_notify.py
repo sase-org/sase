@@ -287,7 +287,7 @@ def test_healer_escalation_copy_per_situation(
     tmp_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _ = tmp_home
-    import sase.agent.auto_restart.healer as healer_mod
+    import sase.agent.auto_restart._healer_common as healer_common
 
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(notify, "publish_escalation", lambda **kw: calls.append(kw))
@@ -296,12 +296,18 @@ def test_healer_escalation_copy_per_situation(
         project="sase",
         agent_name="research.46.final",
     )
-    healer_mod._escalate(target, "no witness", episode_id=EPISODE, kind="decline")
-    healer_mod._escalate(target, "post turn", episode_id=EPISODE, kind="post_provider")
-    healer_mod._escalate(
+    healer_common.escalate_healer(
+        target, "no witness", episode_id=EPISODE, kind="decline"
+    )
+    healer_common.escalate_healer(
+        target, "post turn", episode_id=EPISODE, kind="post_provider"
+    )
+    healer_common.escalate_healer(
         target, "already spent", episode_id=EPISODE, kind="already_restarted"
     )
-    healer_mod._escalate(target, "13 in flight", episode_id=EPISODE, kind="storm")
+    healer_common.escalate_healer(
+        target, "13 in flight", episode_id=EPISODE, kind="storm"
+    )
     assert len(calls) == 4
 
     decline, post, spent, storm = calls
