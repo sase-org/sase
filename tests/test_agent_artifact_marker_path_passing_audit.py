@@ -39,6 +39,52 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "~/.sase/restarts, not into a live artifact directory."
         ),
     ),
+    "src/sase/agent/auto_restart/healer_claim.py:heal_one": PathPassingReview(
+        exemption=(
+            "Read-only healer admission: done.json and agent_meta.json are "
+            "read to classify the row before any ledger claim; writes go "
+            "through write_recovery."
+        ),
+    ),
+    "src/sase/agent/auto_restart/healer_relaunch.py:_runner_log_tail": PathPassingReview(
+        exemption=(
+            "Read-only evidence collection: done.json and agent_meta.json are "
+            "read to locate the runner log tail copied into the ledger "
+            "evidence bundle."
+        ),
+    ),
+    "src/sase/agent/auto_restart/healer_relaunch.py:_write_evidence": PathPassingReview(
+        exemption=(
+            "Ledger evidence snapshot: a copy of done.json is written under "
+            "~/.sase/agent_auto_restart/evidence, not into a live artifact "
+            "directory."
+        ),
+    ),
+    "src/sase/agent/auto_restart/healer_relaunch.py:relaunch_claimed": PathPassingReview(
+        exemption=(
+            "Read-only skip re-check: done.json and agent_meta.json are read "
+            "immediately before relaunch; live recovery writes go through "
+            "write_recovery."
+        ),
+    ),
+    "src/sase/agent/auto_restart/healer_targets.py:_order_targets": PathPassingReview(
+        exemption=(
+            "Read-only topological sort: waiting.json and agent_meta.json are "
+            "inspected only to order pending healer targets."
+        ),
+    ),
+    "src/sase/agent/auto_restart/healer_targets.py:_rows_via_scan": PathPassingReview(
+        exemption=(
+            "Read-only candidate enumeration: done.json is read to decide "
+            "whether a scanned row is a healer candidate."
+        ),
+    ),
+    "src/sase/agent/auto_restart/healer_targets.py:_target_for_artifacts_dir": PathPassingReview(
+        exemption=(
+            "Read-only target construction: done.json and agent_meta.json are "
+            "read to recover project and agent name for one artifacts dir."
+        ),
+    ),
     "src/sase/continuation_capture/agent_delta.py:_parent_node_ids": PathPassingReview(
         exemption=(
             "Read-only continuation capture ancestry merge: agent_meta.json is "

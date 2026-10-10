@@ -105,21 +105,29 @@ def test_stale_verdict_schema_raises(
 def test_facade_ledger_claim_and_advance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_claim(key: str, lineage_root: str) -> dict[str, object]:
+    def fake_claim(
+        key: str, lineage_root: str, *, at: str | None = None
+    ) -> dict[str, object]:
         return {
             "schema_version": AGENT_AUTO_RESTART_WIRE_SCHEMA_VERSION,
             "key": key,
             "lineage_root": lineage_root,
             "state": "claimed",
+            "claimed_at": at,
             "deferrals": 0,
-            "history": [{"state": "claimed", "at": None, "note": "claimed"}],
+            "history": [{"state": "claimed", "at": at, "note": "claimed"}],
         }
 
-    def fake_advance(record: dict[str, object], event: str) -> dict[str, object]:
+    def fake_advance(
+        record: dict[str, object], event: str, *, at: str | None = None
+    ) -> dict[str, object]:
         assert event == "defer"
         updated = dict(record)
         updated["state"] = "deferred"
         updated["deferrals"] = 1
+        updated["history"] = list(record.get("history") or []) + [
+            {"state": "deferred", "at": at, "note": "deferred"}
+        ]
         return updated
 
     install_fake_rust_extension(
@@ -128,9 +136,10 @@ def test_facade_ledger_claim_and_advance(
         advance_auto_restart_ledger=fake_advance,
     )
 
-    record = claim_auto_restart_ledger("k", "root")
+    record = claim_auto_restart_ledger("k", "root", at="2026-10-10T12:00:00Z")
     assert record.state == "claimed"
-    deferred = advance_auto_restart_ledger(record, "defer")
+    assert record.claimed_at == "2026-10-10T12:00:00Z"
+    deferred = advance_auto_restart_ledger(record, "defer", at="2026-10-10T12:00:01Z")
     assert deferred.state == "deferred"
     assert deferred.deferrals == 1
 
@@ -138,7 +147,10 @@ def test_facade_ledger_claim_and_advance(
 def test_facade_advance_surfaces_value_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_advance(record: dict[str, object], event: str) -> dict[str, object]:
+    def fake_advance(
+        record: dict[str, object], event: str, *, at: str | None = None
+    ) -> dict[str, object]:
+        del at
         raise ValueError("illegal auto-restart ledger transition")
 
     install_fake_rust_extension(monkeypatch, advance_auto_restart_ledger=fake_advance)

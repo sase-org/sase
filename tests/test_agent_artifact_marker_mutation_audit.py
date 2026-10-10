@@ -163,6 +163,15 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
             "and is not Tier 1 indexed from this context."
         ),
     ),
+    "src/sase/agent/auto_restart/healer_relaunch.py:_write_evidence": Review(
+        mutation_calls=("write_text", "write_text"),
+        exemption=(
+            "Copies done.json (and other evidence) into the auto-restart "
+            "ledger evidence directory under ~/.sase/agent_auto_restart/; the "
+            "live artifact tree is not rewritten and is not Tier 1 indexed "
+            "from this context."
+        ),
+    ),
     "src/sase/agent/running.py:_remove_agent_state_markers": Review(
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),

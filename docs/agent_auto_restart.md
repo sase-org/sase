@@ -2,9 +2,7 @@
 
 SASE has a recovery service for agents interrupted by a live update. It classifies the
 failure, records its evidence, and can relaunch an eligible agent under the same name.
-It is enabled by default and runs through the scheduler's `agent_auto_restart` job. The
-[current limitations](#current-limitations) below affect which failures actually reach
-relaunch.
+It is enabled by default and runs through the scheduler's `agent_auto_restart` job.
 
 An automatic restart uses the same stop, wipe, and relaunch machinery as
 [`sase agent restart NAME`](cli.md), with preserved failure evidence and the live
@@ -33,8 +31,36 @@ data-format verdict. A successful import checks that current modules load; it do
 run the agent's task or its tests.
 
 The healer also waits for **quiescence**: no update holds the code-swap writer lock and
-the tree has been quiet for `quiescence_seconds`. A pass that cannot act yet defers (up
-to `max_defer_seconds`) instead of giving up.
+the tree has been quiet for `quiescence_seconds`. A pass that cannot act yet defers.
+Deferral expiry uses the ledger's real `claimed_at` timestamp: once `max_defer_seconds`
+have elapsed since the claim, the healer declines the lineage, escalates with "Couldn't
+restart \<name> automatically", and does not loop forever.
+
+For a Python or binding failure whose first verdict is `defer` (`probe_pending`), the
+healer runs the import probe and classifies again with that W4 witness. It relaunches
+only when the second verdict is `relaunch`.
+
+## Who the healer considers
+
+A failed row is a healer candidate only when at least one of these holds:
+
+1. It has a doorbell.
+2. Its `done.json` `recovery.state` is in flight (`pending`, `deferred`, or
+   `launching`).
+3. Its `failure_facts.skew_suspect` is true.
+4. It is a **legacy** row: no `failure_facts` and no `recovery`, it died within
+   `max_defer_seconds` of the tick, and its error, traceback, or runner-log tail matches
+   the Tier 1–3 prefilter.
+
+Dismissed bundles are never healer candidates; `scan` may still read them. Rows that are
+not candidates get no ledger record, no `done.json` write, and no notification.
+`write_recovery` and every other `done.json` writer in this feature write only when
+`done.json` already exists — they never recreate a wiped or dismissed artifacts
+directory.
+
+`sase agent auto-restart run -p` and the scheduler job share this candidate rule.
+`--dry-run` (`-n`) is read-only: it claims nothing, writes no ledger or `done.json`, and
+does not notify.
 
 ## Phases and modes
 
@@ -47,10 +73,10 @@ Current runners write lifecycle markers. A known death **before the model turn**
 | After the model turn (`provider_running` and later) | `notify_post_provider` | Not relaunched; you are notified with held-workspace guidance |
 | Plan, question, monitor, gate, or pipe handoff      | `ask`                  | Not relaunched; you are asked to decide                       |
 
-Older records without lifecycle markers use traceback and log heuristics. The current
-classifier also allows an `unknown` phase to reach a relaunch verdict when its signature
-and witness checks pass; it does not require affirmative proof of a pre-provider phase
-for those records.
+Older records without lifecycle markers use traceback and log heuristics. An `unknown`
+phase never relaunches: frames without `run_execution_loop`, `invoke_agent`, or
+finalizer frames, or a refresh log line with no provider start, count as `pre_provider`;
+otherwise the classifier asks with reason `phase_unknown`.
 
 Never restarted: provider errors, rate limits, auth, kills and cancels,
 OOM/timeout/disk-full, directive or macro errors, tool and test failures, and any
@@ -137,23 +163,6 @@ See the [configuration reference](configuration.md#agent_auto_restart) for field
 and defaults. `resume` clears a storm pause; it does not turn a disabled setting back on
 or reset a lineage's record.
 
-## Current limitations
-
-- **Python and binding skew can stay deferred after a passing probe.** Input assembly
-  supplies W1–W3 but no W4. The classifier returns `defer` for eligible Python/binding
-  failures, and the healer runs the probe without updating the witnesses or
-  reclassifying. It retains the original `defer` verdict even if imports pass. These
-  claims can remain deferred until `max_defer_seconds` expires. Inspect `show TARGET`
-  and use `sase agent restart NAME` or the TUI's `,x` when manual recovery is needed.
-- **`run --dry-run` is not a full eligibility preview.** For an unclaimed lineage it
-  returns before signature, witness, probe, or restart-planning checks. For an existing
-  stale claim it can enter recovery paths that write a deferred ledger record or update
-  the failed row's recovery marker. Use `scan`, `list`, and `show` for read-only
-  inspection.
-- **Legacy phase and JSON behavior have limits.** Unknown phases are not categorically
-  excluded, and JSON behavior is as described above. Inspect the verdict and evidence
-  rather than treating command success as proof of relaunch.
-
 ## Notifications
 
 One upserted amber `↻` row per update episode (`sender=agent.auto-restart`,
@@ -163,11 +172,23 @@ refreshes the title and the inline report snapshot in place. The title never con
 "fail" or "error"; exception text appears only in note 2 or later.
 
 The live report (headline, update/culprit/witness facts, per-agent rows with a live
-**Now** column, left-alone bullets, why-text, prevention line) is linked from the row.
+**Now** column, left-alone bullets, why-text, prevention line) is linked from the row. A
+settlement tick refreshes both the report file and the episode row's inline snapshot
+without moving delivery cursors, so **Now** settles without a re-toast.
+
+A row was **silenced** when its runner dropped a doorbell or wrote
+`recovery.state = "pending"` (the failure notification went out `silent=True`). Every
+terminal outcome of a silenced row is made visible exactly once, with the escalation
+copy below. A row that was not silenced already notified the user: a skew-shaped decline
+records the ledger and shows only the dim Agents-tab hint (`quiet_declines = quiet`). It
+does not get a second `resurface_failure` or escalation.
+
 Escalations are loud and land in the Errors bucket: post-provider deaths name the held
 workspace, declined relaunches name the reason, re-broken replacements say sase will not
 retry, and a tripped storm breaker pauses the feature until
-`sase agent auto-restart resume`.
+`sase agent auto-restart resume`. The storm row is `sender=agent.auto-restart` at error
+severity so it routes to the Errors tab. The pass that trips sends one storm escalation
+for the episode; later targets while paused decline quietly as `paused`.
 
 In the Agents tab, in-flight recoveries render as amber `↻ RESTARTING` with a dim reason
 instead of red `FAILED`. The replacement keeps the same name with a `↻` chip and a
