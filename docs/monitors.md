@@ -141,8 +141,9 @@ and records the wait output where the follow-up can inspect it.
 - `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as a deprecated alias),
   `--cwd` / `-C`, and `--tail-lines` / `-T` are optional; see
   `sase monitor start --help` for the full list.
-- `-k`, `-P`, `-p`, and `-f` need the `monitor_continuation_records` feature flag, which
-  is on by default.
+- `-k`, `-P`, `-p`, and `-f` are always available: every new monitor persists versioned
+  continuation records, so checkpoint, outcome-policy, profile, and host-completion
+  controls work unconditionally.
 
 `--cwd` may name any directory inside a managed checkout, including a repository opened
 with `sase repo open`. The command runs in that directory, but the monitor records and

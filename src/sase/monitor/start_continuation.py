@@ -12,24 +12,6 @@ from .start_lane import LaneStart, StartIdentity
 from .start_metadata import read_start_meta
 
 
-def reject_versioned_start_controls_when_disabled(
-    request: StartMonitorRequest,
-) -> None:
-    if not (
-        request.checkpoint_ref
-        or request.checkpoint_document
-        or request.completion_ref
-        or request.outcome_policy
-        or request.policy_digest
-        or request.profile
-    ):
-        return
-    raise MonitorError(
-        "checkpoint, outcome-policy, profile, and host-completion monitor "
-        "controls require feature flag monitor_continuation_records"
-    )
-
-
 def persist_monitor_start_intent_after_ack(
     request: StartMonitorRequest,
     record: MonitorRecord,
@@ -37,10 +19,7 @@ def persist_monitor_start_intent_after_ack(
     lane_start: LaneStart,
     request_fingerprint: str,
     starter_artifacts_dir: str | None,
-    records_enabled: bool,
 ) -> None:
-    if not records_enabled:
-        return
     parent_node_ids = list(request.parent_node_ids) or _continuation_parent_node_ids(
         lane_start.member_meta
     )
@@ -125,5 +104,4 @@ __all__ = [
     "inherited_route",
     "peek_continuation_parents",
     "persist_monitor_start_intent_after_ack",
-    "reject_versioned_start_controls_when_disabled",
 ]

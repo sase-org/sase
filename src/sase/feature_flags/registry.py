@@ -23,7 +23,6 @@ class FeatureFlag(StrEnum):
 
     agent_sudo_requests = "agent_sudo_requests"
     grok_rules_delivery = "grok_rules_delivery"
-    monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
     claude_helper_channel = "claude_helper_channel"
@@ -40,16 +39,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "skill guard, and SSH relay phases land."
         ),
         bead="sase-111",
-    ),
-    FeatureFlag.monitor_continuation_records: FeatureFlagDefinition(
-        key=FeatureFlag.monitor_continuation_records,
-        kind="sunset",
-        description=(
-            "New monitor starts persist versioned continuation records, frozen "
-            "outcome policy, checkpoints, and durable delivery/adoption state "
-            "for production continuation routing."
-        ),
-        bead="sase-102",
     ),
     FeatureFlag.muse_synchronous_shell: FeatureFlagDefinition(
         key=FeatureFlag.muse_synchronous_shell,

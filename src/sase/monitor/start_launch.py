@@ -64,7 +64,6 @@ class MonitorLaunchContext:
     request: StartMonitorRequest
     lane_start: LaneStart
     label: str
-    records_enabled: bool
     starter_artifacts_dir: str | None
     request_fingerprint: str
     monitor_id: str
@@ -223,7 +222,6 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
     request = context.request
     lane_start = context.lane_start
     label = context.label
-    records_enabled = context.records_enabled
     starter_artifacts_dir = context.starter_artifacts_dir
     request_fingerprint = context.request_fingerprint
     monitor_id = context.monitor_id
@@ -461,7 +459,7 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
         next_model=request.next_model or None,
         completion_ref=request.completion_ref or None,
         profile=request.profile or None,
-        policy_digest=request.policy_digest if records_enabled else None,
+        policy_digest=request.policy_digest,
         pid=proc.pid or claim_holder.get("pid"),
         supervisor_identity=proc.supervisor_id,
         request_fingerprint=request_fingerprint,
@@ -475,7 +473,6 @@ def launch_monitor(context: MonitorLaunchContext, timer: StartTimer) -> MonitorR
         lane_start=lane_start,
         request_fingerprint=request_fingerprint,
         starter_artifacts_dir=starter_artifacts_dir,
-        records_enabled=records_enabled,
     )
     timer.mark("persist_intent")
     timer.log(durable_lane)

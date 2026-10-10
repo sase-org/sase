@@ -16,7 +16,6 @@ from typing import Any
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture.rollout import (
     monitor_continuation_protocol_for_new_start,
-    monitor_continuation_records_enabled,
 )
 from sase.finalizers.owned_turn import (
     finalizer_owned_turn_is_active,
@@ -41,7 +40,6 @@ from .request import (
 from .start_continuation import (
     inherited_route,
     peek_continuation_parents,
-    reject_versioned_start_controls_when_disabled,
 )
 from .start_claim import preflight_monitor_workspace_claim
 from .start_lane import (
@@ -137,38 +135,30 @@ def _start_monitor_locked(
     the snapshot is shared by every question this start asks about them.
     """
     label = request.label or default_label(request.command)
-    records_enabled = monitor_continuation_records_enabled()
-    continuation_protocol = monitor_continuation_protocol_for_new_start(records_enabled)
-    if not records_enabled:
-        reject_versioned_start_controls_when_disabled(request)
-        parent_node_ids: list[str] = []
-        starter_run_id = None
-        starter_artifacts_dir = None
-    else:
-        parent_node_ids, starter_run_id, starter_artifacts_dir = (
-            peek_continuation_parents(request, identity)
-        )
+    continuation_protocol = monitor_continuation_protocol_for_new_start()
+    parent_node_ids, starter_run_id, starter_artifacts_dir = peek_continuation_parents(
+        request, identity
+    )
     request = replace(
         request,
         parent_node_ids=tuple(parent_node_ids),
         starter_run_id=starter_run_id,
     )
+    inherited_model, inherited_effort = inherited_route(starter_artifacts_dir)
     frozen_policy: dict[str, Any] | None = None
-    if records_enabled:
-        inherited_model, inherited_effort = inherited_route(starter_artifacts_dir)
-        try:
-            from sase.monitor.outcome_policy import freeze_start_outcome_policy
+    try:
+        from sase.monitor.outcome_policy import freeze_start_outcome_policy
 
-            frozen_policy = freeze_start_outcome_policy(
-                request,
-                inherited_model=inherited_model,
-                inherited_effort=inherited_effort,
-                prepared_completion_accept=_prepared_completion_accept(
-                    request, starter_artifacts_dir
-                ),
-            )
-        except (TypeError, ValueError, AttributeError) as exc:
-            raise MonitorError(str(exc)) from exc
+        frozen_policy = freeze_start_outcome_policy(
+            request,
+            inherited_model=inherited_model,
+            inherited_effort=inherited_effort,
+            prepared_completion_accept=_prepared_completion_accept(
+                request, starter_artifacts_dir
+            ),
+        )
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise MonitorError(str(exc)) from exc
     if frozen_policy is not None:
         request = replace(
             request,
@@ -263,12 +253,12 @@ def _start_monitor_locked(
         request_fingerprint=request_fingerprint,
         starter_agent=lane_start.starter_agent,
         execution_argv=request.execution_argv,
-        completion_ref=request.completion_ref if records_enabled else None,
-        profile=request.profile if records_enabled else None,
-        policy_digest=request.policy_digest if records_enabled else None,
-        checkpoint_ref=request.checkpoint_ref if records_enabled else None,
-        starter_artifacts_dir=starter_artifacts_dir if records_enabled else None,
-        parent_node_ids=request.parent_node_ids if records_enabled else (),
+        completion_ref=request.completion_ref,
+        profile=request.profile,
+        policy_digest=request.policy_digest,
+        checkpoint_ref=request.checkpoint_ref,
+        starter_artifacts_dir=starter_artifacts_dir,
+        parent_node_ids=request.parent_node_ids,
         continuation_protocol=continuation_protocol,
         queue_weight_override=request.queue_weight_override,
     )
@@ -299,7 +289,6 @@ def _start_monitor_locked(
             request=request,
             lane_start=lane_start,
             label=label,
-            records_enabled=records_enabled,
             starter_artifacts_dir=starter_artifacts_dir,
             request_fingerprint=request_fingerprint,
             monitor_id=monitor_id,

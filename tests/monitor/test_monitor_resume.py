@@ -10,7 +10,6 @@ from typing import Any
 import pytest
 
 import sase.monitor.followup as followup_module
-from sase.feature_flags import override_flags
 from sase.monitor.continuation_delivery import claim_ordinary_continuation_dispatch
 from sase.monitor.delivery import load_delivery_record
 from sase.monitor.models import MonitorRecord
@@ -55,7 +54,7 @@ def test_resume_uses_the_frozen_result_delivery_key(
     assert on_disk["monitor_followup_outcome"] == "launched"
 
 
-def test_resume_uses_persisted_record_protocol_when_rollout_disabled(
+def test_resume_uses_persisted_record_protocol(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -65,8 +64,7 @@ def test_resume_uses_persisted_record_protocol_when_rollout_disabled(
         followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
     )
 
-    with override_flags(monitor_continuation_records=False):
-        result = resume_monitor(record)
+    result = resume_monitor(record)
 
     assert result.spawned is True
     assert result.agent_name == "acme--1"

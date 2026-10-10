@@ -22,7 +22,6 @@ from ._storage import (
     update_agent_meta_fields,
     record_capture_error,
 )
-from .rollout import monitor_continuation_capture_enabled
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec_types import AgentExecContext, LoopState
@@ -34,8 +33,6 @@ def persist_workspace_facts_best_effort(
 ) -> str | None:
     """Persist host/workspace facts before an agent turn can terminate."""
 
-    if not monitor_continuation_capture_enabled():
-        return None
     try:
         return persist_workspace_facts(ctx, state)
     except Exception as exc:

@@ -1,4 +1,9 @@
-"""Continuation-record rollout tests for :mod:`sase.monitor.followup`."""
+"""Persisted-protocol tests for :mod:`sase.monitor.followup`.
+
+Every new monitor starts with versioned continuation records; these tests
+prove each stored monitor keeps its own persisted protocol for result
+publication and follow-up delivery.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +24,6 @@ from sase.continuation_capture.rollout import (
     MONITOR_CONTINUATION_PROTOCOL_LEGACY,
     MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
 )
-from sase.feature_flags import override_flags
 from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
 
 from ._followup_fixtures import (
@@ -30,40 +34,80 @@ from ._followup_fixtures import (
     _sandbox_home as _sandbox_home,
 )
 
+#: Versioned-continuation meta fields stripped when downgrading a started
+#: monitor to a legacy-protocol record. Mirrors the sentinel set in
+#: ``sase.continuation_capture.rollout`` without importing its private name.
+_LEGACY_DOWNGRADE_STRIP_FIELDS = (
+    "continuation_intent_id",
+    "continuation_intent_ref",
+    "continuation_intent_manifest_ref",
+    "continuation_monitor_result_id",
+    "continuation_monitor_result_ref",
+    "continuation_monitor_result_path",
+    "continuation_monitor_result_node_ref",
+    "continuation_monitor_result_manifest_ref",
+    "continuation_outcome_policy_ref",
+    "continuation_parent_node_ids",
+    "monitor_completion_ref",
+    "monitor_policy_digest",
+    "monitor_profile",
+)
 
-def test_launch_followup_agent_uses_legacy_launcher_when_records_disabled(
+
+def _downgrade_to_legacy_protocol(
+    monitor_dir: str, meta: dict[str, Any]
+) -> dict[str, Any]:
+    """Rewrite a started monitor's meta as a legacy-protocol record.
+
+    Returns the downgraded meta after persisting it, so the monitor reads
+    like an older record that predates versioned continuation records.
+    """
+
+    legacy = {
+        key: value
+        for key, value in meta.items()
+        if key not in _LEGACY_DOWNGRADE_STRIP_FIELDS
+    }
+    legacy[MONITOR_CONTINUATION_PROTOCOL_FIELD] = MONITOR_CONTINUATION_PROTOCOL_LEGACY
+    (Path(monitor_dir) / "agent_meta.json").write_text(
+        json.dumps(legacy), encoding="utf-8"
+    )
+    return legacy
+
+
+def test_launch_followup_agent_uses_legacy_launcher_for_legacy_protocol(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    with override_flags(monitor_continuation_records=False):
-        monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
-            tmp_path, monkeypatch
-        )
-        meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
-        assert (
-            meta[MONITOR_CONTINUATION_PROTOCOL_FIELD]
-            == MONITOR_CONTINUATION_PROTOCOL_LEGACY
-        )
-        meta["stopped_at"] = "2026-08-12T14:19:48+00:00"
-        capture = _capture_with_output(monitor_dir, "hello world\n")
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    assert (
+        meta[MONITOR_CONTINUATION_PROTOCOL_FIELD]
+        == MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1
+    )
+    meta = _downgrade_to_legacy_protocol(monitor_dir, meta)
+    meta["stopped_at"] = "2026-08-12T14:19:48+00:00"
+    capture = _capture_with_output(monitor_dir, "hello world\n")
 
-        captured: dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
-        def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
-            captured.update(kwargs)
-            return _fake_result()
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
 
-        monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
 
-        result = followup_module.launch_followup_agent(
-            monitor_dir,
-            meta,
-            monitor_state="completed",
-            exit_code=0,
-            elapsed_seconds=1.5,
-            capture=capture,
-            project_name="proj",
-            settle_timeout_seconds=_SETTLE_TIMEOUT,
-        )
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
 
     assert result.launched is True
     assert meta["monitor_followup_agent"] == "acme--1"
@@ -72,7 +116,7 @@ def test_launch_followup_agent_uses_legacy_launcher_when_records_disabled(
     assert not (Path(monitor_dir) / "continuation" / "delivery").exists()
 
 
-def test_enabled_start_keeps_versioned_records_after_rollout_disabled(
+def test_versioned_start_keeps_versioned_records_without_flag(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -94,39 +138,38 @@ def test_enabled_start_keeps_versioned_records_after_rollout_disabled(
 
     monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
 
-    with override_flags(monitor_continuation_records=False):
-        published = persist_monitor_result_best_effort(
-            artifacts_dir=monitor_dir,
-            meta=meta,
-            monitor_state="failed",
-            exit_code=1,
-            elapsed_seconds=1.5,
-            stopped_at=meta["stopped_at"],
-            diagnostic_manifest=None,
-            retained_log={
-                "log_ref": "file:explicit:frozen-log",
-                "local_locator": "diagnostics/retained_logs/frozen.log",
-                "total_observed_bytes": 17,
-                "retained_ranges": [{"start": 0, "end": 17}],
-                "complete": True,
-                "drain_confirmed": True,
-            },
-            project_name="proj",
-            update_meta=False,
-        )
-        assert published is not None
-        meta["monitor_command"] = "echo MUTABLE COMMAND"
+    published = persist_monitor_result_best_effort(
+        artifacts_dir=monitor_dir,
+        meta=meta,
+        monitor_state="failed",
+        exit_code=1,
+        elapsed_seconds=1.5,
+        stopped_at=meta["stopped_at"],
+        diagnostic_manifest=None,
+        retained_log={
+            "log_ref": "file:explicit:frozen-log",
+            "local_locator": "diagnostics/retained_logs/frozen.log",
+            "total_observed_bytes": 17,
+            "retained_ranges": [{"start": 0, "end": 17}],
+            "complete": True,
+            "drain_confirmed": True,
+        },
+        project_name="proj",
+        update_meta=False,
+    )
+    assert published is not None
+    meta["monitor_command"] = "echo MUTABLE COMMAND"
 
-        result = followup_module.launch_followup_agent(
-            monitor_dir,
-            meta,
-            monitor_state="completed",
-            exit_code=99,
-            elapsed_seconds=999.0,
-            capture=capture,
-            project_name="proj",
-            settle_timeout_seconds=_SETTLE_TIMEOUT,
-        )
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=99,
+        elapsed_seconds=999.0,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
 
     assert result.launched is True
     assert captured["extra_env"][MONITOR_CONTINUATION_ENV] == "1"
@@ -136,19 +179,19 @@ def test_enabled_start_keeps_versioned_records_after_rollout_disabled(
     assert "MUTABLE" not in captured["prompt"]
 
 
-def test_disabled_start_stays_legacy_after_rollout_enabled(
+def test_legacy_records_keep_legacy_semantics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    with override_flags(monitor_continuation_records=False):
-        monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
-            tmp_path, monkeypatch
-        )
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
     meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert (
         meta[MONITOR_CONTINUATION_PROTOCOL_FIELD]
-        == MONITOR_CONTINUATION_PROTOCOL_LEGACY
+        == MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1
     )
+    meta = _downgrade_to_legacy_protocol(monitor_dir, meta)
     meta["stopped_at"] = "2026-08-12T14:19:48+00:00"
     capture = _capture_with_output(monitor_dir, "hello world\n")
     captured: dict[str, Any] = {}

@@ -56,15 +56,14 @@ def test_flag_candidates_come_from_the_in_process_registry() -> None:
     result = candidates_for("flag", "", project=None, limit=200)
 
     keys = {candidate.value for candidate in result}
-    assert "monitor_continuation_records" in keys
+    assert "muse_synchronous_shell" in keys
+    assert "monitor_continuation_records" not in keys
     assert "coder_inherits_planner_chat" not in keys
     assert "completion_refresh_on_update" not in keys
-    records = next(
-        candidate
-        for candidate in result
-        if candidate.value == "monitor_continuation_records"
+    shell = next(
+        candidate for candidate in result if candidate.value == "muse_synchronous_shell"
     )
-    assert records.description.startswith("sunset:")
+    assert shell.description.startswith("sunset:")
 
 
 def test_model_candidates_are_the_builtin_size_aliases() -> None:
