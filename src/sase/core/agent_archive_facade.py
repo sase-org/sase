@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Collection, Mapping
 from dataclasses import asdict, dataclass
-from typing import Any
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.rust import require_rust_binding
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from sase.ace.query_profile import CompiledQueryProfile
 
 ARCHIVE_VISIBILITIES = frozenset({"hidden", "visible", "pinned"})
 
@@ -209,12 +216,182 @@ def _text(value: object) -> str | None:
     return None
 
 
+@dataclass(frozen=True, slots=True)
+class AgentArchiveCorpus:
+    """An immutable compiled archive corpus handle.
+
+    Wraps the ``compile_agent_archive_corpus`` Rust binding payload. Query
+    methods canonicalize relative dates in Python first, the same way
+    :mod:`sase.core.query_profile_corpus_facade` does, then hand the
+    already-literal query to Rust for batch matching.
+    """
+
+    wire: dict[str, Any]
+    status: str
+    timezone: str
+
+    def summary(
+        self,
+        query: str,
+        *,
+        group_by: str,
+        profile: CompiledQueryProfile | None = None,
+    ) -> dict[str, Any]:
+        """Group matching presentation roots, omitting empty groups."""
+        resolved = profile if profile is not None else agents_archive_profile()
+        binding = require_rust_binding("summarize_agent_archive_corpus")
+        return binding(
+            dict(self.wire),
+            {
+                "query": _canonical_archive_query(query, resolved),
+                "profile": resolved.to_wire(),
+                "group_by": group_by,
+            },
+        )
+
+    def rows(
+        self,
+        query: str,
+        *,
+        group_by: str,
+        group_key: str,
+        offset: int,
+        limit: int,
+        expanded_container_keys: Collection[str] = (),
+        profile: CompiledQueryProfile | None = None,
+    ) -> dict[str, Any]:
+        """Return one offset/limit window of light rows inside *group_key*."""
+        resolved = profile if profile is not None else agents_archive_profile()
+        binding = require_rust_binding("rows_agent_archive_corpus")
+        return binding(
+            dict(self.wire),
+            {
+                "query": _canonical_archive_query(query, resolved),
+                "profile": resolved.to_wire(),
+                "group_by": group_by,
+                "group_key": group_key,
+                "offset": offset,
+                "limit": limit,
+                "expanded_container_keys": list(expanded_container_keys),
+            },
+        )
+
+    def lookup(self, name: str) -> dict[str, Any] | None:
+        """Resolve one exact archive name to its owner's light row, if any."""
+        binding = require_rust_binding("lookup_agent_archive_corpus")
+        payload = binding(dict(self.wire), {"name": name})
+        row = payload.get("row")
+        return dict(row) if isinstance(row, Mapping) else None
+
+    def count(
+        self,
+        query: str,
+        *,
+        profile: CompiledQueryProfile | None = None,
+    ) -> int:
+        """Count matching presentation roots for *query*."""
+        resolved = profile if profile is not None else agents_archive_profile()
+        binding = require_rust_binding("count_agent_archive_corpus")
+        payload = binding(
+            dict(self.wire),
+            {
+                "query": _canonical_archive_query(query, resolved),
+                "profile": resolved.to_wire(),
+            },
+        )
+        return int(payload.get("count", 0))
+
+
+def agents_archive_profile() -> CompiledQueryProfile:
+    """Compile the current ``agents-archive`` query profile."""
+    from sase.ace.query_profile import compile_query_profile
+    from sase.ace.query_profile.profiles._agents_archive import (
+        agents_archive_query_schema,
+    )
+
+    return compile_query_profile(agents_archive_query_schema())
+
+
+def compile_agent_archive_corpus(
+    *,
+    root: Path | str,
+    index_status: Mapping[str, Any],
+    timezone: str | None = None,
+    link_facets: Mapping[str, Any] | None = None,
+) -> AgentArchiveCorpus:
+    """Compile the v3 archive index at *root* into an immutable corpus.
+
+    *index_status* is the ``AgentArchiveIndexProbeStatusWire`` mapping the
+    caller already probed (``missing``, ``rebuilding`` with a count, or
+    ``ok``). This never creates or rebuilds the index; a missing file
+    compiles to an empty corpus.
+    """
+    binding = require_rust_binding("compile_agent_archive_corpus")
+    payload = binding(
+        {
+            "root": str(root),
+            "index_status": dict(index_status),
+            "timezone": timezone or _default_archive_timezone_name(),
+            "link_facets": _link_facets_wire(link_facets),
+        }
+    )
+    wire = json.loads(json.dumps(payload))
+    status = wire.get("status")
+    status_name = status.get("status") if isinstance(status, Mapping) else None
+    return AgentArchiveCorpus(
+        wire=wire,
+        status=str(status_name or "missing"),
+        timezone=str(wire.get("timezone") or ""),
+    )
+
+
+def _canonical_archive_query(query: str, profile: CompiledQueryProfile) -> str:
+    from sase.ace.query.profile_reference import canonical_query_for_profile
+
+    return canonical_query_for_profile(query, profile)
+
+
+def _default_archive_timezone_name() -> str:
+    from sase.core.time import get_timezone, local_timezone_name
+
+    name = local_timezone_name()
+    if name:
+        return name
+    return f"UTC{datetime.now(get_timezone()).strftime('%z')}"
+
+
+def _link_facets_wire(
+    link_facets: Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    if not link_facets:
+        return {}
+    wire: dict[str, dict[str, Any]] = {}
+    for name, facets in link_facets.items():
+        if isinstance(facets, Mapping):
+            relations = facets.get("relations", ())
+            artifacts = facets.get("artifacts", ())
+            count = facets.get("count", 0)
+        else:
+            relations = facets.relations
+            artifacts = facets.artifacts
+            count = facets.count
+        wire[str(name)] = {
+            "relations": [str(value) for value in relations],
+            "artifacts": [str(value) for value in artifacts],
+            "count": int(count),
+        }
+    return wire
+
+
 __all__ = [
     "ARCHIVE_VISIBILITIES",
     "AgentArchiveCapabilities",
+    "AgentArchiveCorpus",
+    "agents_archive_profile",
     "archive_key_from_bundle",
     "archive_key_from_owner",
     "capabilities_from_bundle",
     "capabilities_from_v2_run",
+    "compile_agent_archive_corpus",
     "validate_archive_visibility",
 ]
