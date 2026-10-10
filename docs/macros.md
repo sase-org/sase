@@ -3038,14 +3038,24 @@ no `%auto` were present — the token is still stripped from the cleaned prompt,
 `agent_meta.json` carries a Manual record.
 
 Every launch resolves its `%auto` into one revisioned `agent_meta.autonomy` record, and
-one core evaluator decides every automatic gate from that record. The four built-in
-profiles are `manual` (everything waits), `standard` (the default: tale plans approve
-and archive, epic plans approve and launch, questions take the first option), `tale`
-(`:plan`/`:tale`: tale plans approve and archive, epic plans wait), and `epic` (`:epic`:
-epic plans approve and launch, tale plans wait). Host-composed successors — coders,
-replanners, pipe/handoff, monitor and gate follow-ups, and the coder after a manual plan
-approval — inherit the live record structurally, and an explicit `%auto` in
-agent-authored follow-up text can only narrow it.
+one core evaluator decides every automatic gate from that record. A fresh user launch
+without `%auto` is **manual**. `standard` is the profile selected by bare `%auto`, not a
+global default for every launch:
+
+| Profile    | Prompt selection                           | Tale plan                          | Epic plan                       | Questions                      |
+| ---------- | ------------------------------------------ | ---------------------------------- | ------------------------------- | ------------------------------ |
+| `manual`   | No `%auto`, `%auto:manual`, or `%auto:off` | Wait for review                    | Wait for review                 | Wait for answers               |
+| `standard` | `%auto`, `%auto+`, or `%auto:true`         | Approve, archive, and launch coder | Approve and launch epic workers | First option for each question |
+| `tale`     | `%auto:tale` or `%auto:plan`               | Approve, archive, and launch coder | Wait for review                 | First option for each question |
+| `epic`     | `%auto:epic`                               | Wait for review                    | Approve and launch epic workers | First option for each question |
+
+These four profiles are built in. `standard` is a profile name for inspection and role
+configuration; `%auto:standard` is not accepted by the prompt grammar.
+
+Host-composed successors — coders, replanners, pipe/handoff, monitor and gate
+follow-ups, and the coder after a manual plan approval — inherit the live record
+structurally, and an explicit `%auto` in agent-authored follow-up text can only narrow
+it.
 
 Bare `%auto` (`%auto+` and `%auto:true` normalize to it) approves and archives tale
 plans — the same path as pressing Enter — approves and launches epic plans, and answers

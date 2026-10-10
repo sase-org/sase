@@ -102,7 +102,7 @@ If SASE is already installed, install plugins interactively from the TUI:
 
 1. Run `sase tui`.
 2. Press `#` to open the **SASE Admin Center**.
-3. Switch to the **Updates** tab (press `7` or select it in the numbered tab strip).
+3. Switch to the **Updates** tab (press `8` or select it in the numbered tab strip).
 4. Highlight the plugin (`j` / `k`, or `/` to filter the list).
 5. Press `i` to install and confirm the preview modal. The preview shows the exact `uv`
    command and the resolved package set before anything runs.
@@ -144,7 +144,7 @@ See the [sase-nvim README](https://github.com/sase-org/sase-nvim).
 ### Recommended: the SASE Admin Center Updates tab
 
 The **Updates** tab is also the recommended way to keep SASE current. In `sase tui`,
-press `#` to open Admin Center **home**, then `7` to enter Updates. For a faster
+press `#` to open Admin Center **home**, then `8` to enter Updates. For a faster
 snapshot-only update of SASE, providers, and agents without opening Admin Center, press
 `,U` in sase's TUI to open the [Update panel](https://sase.sh/ace/#updates-tab). Plugin
 install and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.

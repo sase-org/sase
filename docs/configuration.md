@@ -13,6 +13,7 @@ sections, environment variables, and CLI flags.
   - [Machines tab](#machines-tab)
   - [Projects tab](#projects-tab)
   - [Statistics tab](#statistics-tab)
+  - [Tools tab](#tools-tab)
   - [Updates tab](#updates-tab)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
@@ -48,6 +49,7 @@ sections, environment variables, and CLI flags.
   - [max_agent_pipe_chain](#max_agent_pipe_chain)
   - [runner_slots](#runner_slots)
   - [agent_scope_teardown](#agent_scope_teardown)
+  - [agent_auto_restart](#agent_auto_restart)
   - [agent hold limits](#agent-hold-limits)
   - [procs](#procs)
   - [service](#service)
@@ -174,19 +176,19 @@ import/publication commands, and recovery.
 
 Press `#` in the `sase tui` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
-**Machines**, **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced
-without loading their data. Config's nested catalog is alphabetized. With the default-on
-`admin_center_flags` sunset flag it is **All**, **Flags**, **Holds**, **Launch**,
-**Memory**, **Snippets**, and **Macros**, labeled `01` through `07`. Disabling that flag
-omits Flags and numbers the remaining six children `01` through `06`. While home is
-visible, press `#` again to resume the last section that was successfully active in this
-sase's TUI process. Before the first section visit, the repeated key leaves home
-unchanged and constructs no pane. Press `1`–`7` or click the numbered tab strip to enter
-a section: `1` Config, `2` Logs, `3` Machines, `4` Procs, `5` Projects, `6` Statistics,
-and `7` Updates. From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a
-working section they wrap across the same tabs. Pane-local `[` / `]` keys switch
-sub-tabs or views where the active pane provides them, including Config's nested
-catalog.
+**Machines**, **Procs**, **Projects**, **Statistics**, **Tools**, and **Updates**—are
+introduced without loading their data. Config's nested catalog is alphabetized. With the
+default-on `admin_center_flags` sunset flag it is **All**, **Flags**, **Holds**,
+**Launch**, **Memory**, **Snippets**, and **Macros**, labeled `01` through `07`.
+Disabling that flag omits Flags and numbers the remaining six children `01` through
+`06`. While home is visible, press `#` again to resume the last section that was
+successfully active in this sase's TUI process. Before the first section visit, the
+repeated key leaves home unchanged and constructs no pane. Press `1`–`8` or click the
+numbered tab strip to enter a section: `1` Config, `2` Logs, `3` Machines, `4` Procs,
+`5` Projects, `6` Statistics, `7` Tools, and `8` Updates. From home, `Tab` enters Config
+and `Shift+Tab` enters Updates; within a working section they wrap across the same tabs.
+Pane-local `[` / `]` keys switch sub-tabs or views where the active pane provides them,
+including Config's nested catalog.
 
 Inside a working section, the same opener key takes on a second meaning: it jumps to the
 section you were in immediately before the current one, and pressing it again toggles
@@ -202,11 +204,11 @@ actions still open their requested pane immediately and make that successfully m
 section the next resume target. Closing and reopening with one `#` still returns to
 home; only a second press while home is visible resumes. The top-level resume target and
 alternate are persisted machine-locally and survive sase's TUI process restarts. Entry
-bookmarks for Config, Logs, Machines, Projects, Procs, and Updates last only for the
-current sase's TUI process. They restore by stable identity, along with minimal scope or
-sub-tab context when needed, but reset when sase's TUI restarts. Filters, marks, scroll
-positions, loaded data, pane instances, Statistics controls, and other pane-local state
-are never carried between modal lifetimes.
+bookmarks for Config, Logs, Machines, Projects, Procs, Tools, and Updates last only for
+the current sase's TUI process. They restore by stable identity, along with minimal
+scope or sub-tab context when needed, but reset when sase's TUI restarts. Filters,
+marks, scroll positions, loaded data, pane instances, Statistics controls, and other
+pane-local state are never carried between modal lifetimes.
 
 ### Config tab
 
@@ -376,6 +378,13 @@ values even when a project is selected; see
 the view contents, range syntax, and project-filter caveats, and
 [Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
 for Perf data sources and retention.
+
+### Tools tab
+
+Press `7` in Admin Center to inspect recorded command runs, grouped failure signatures,
+and the configured tool catalog. The pane has **Runs**, **Failures**, and **Catalog**
+views, with project filters and links to output and diagnostics. See the
+[Tools tab guide](ace.md#tools-tab) and [Named Tools and ToolRuns](tool.md).
 
 ### Updates tab
 
@@ -4161,8 +4170,9 @@ Source: `src/sase/default_config.yml`, `src/sase/gate_turn/reclaim.py`
 Autonomy profile each generated epic worker launches with. Values are built-in profile
 names from `sase autonomy list`: `standard` (tale plans approve + archive, epic plans
 approve + launch, questions take the first option), `tale` (epic plans wait for you),
-`epic` (tale plans wait for you), or `manual` (everything waits). E3 will widen role
-values to config profile names.
+`epic` (tale plans wait for you), or `manual` (everything waits). Custom profile names
+are not supported. This setting controls generated workers; a fresh user launch without
+`%auto` remains manual. See the [profile matrix](macros.md#auto-directive).
 
 ```yaml
 autonomy:
@@ -4172,8 +4182,7 @@ autonomy:
 ```
 
 To restore "nested epics wait for me", set both roles to `tale` in your user-level
-`~/.config/sase/sase.yml` (chezmoi-managed for this user) or in the project-level
-`sase/sase.yml`:
+`~/.config/sase/sase.yml` or in the project-level `sase/sase.yml`:
 
 ```yaml
 autonomy:
@@ -4185,6 +4194,10 @@ autonomy:
 The setting is read when the epic's worker prompts are rendered, so already launched
 workers keep the profile in their prompt. `sase autonomy list` shows the effective role
 assignments.
+
+An unknown profile name logs a warning and falls back to `standard`; missing, empty, or
+non-string role values also use `standard`. Check `sase autonomy list` after editing the
+setting to see the effective profiles and their sources.
 
 | Field                       | Type   | Default    | Description                                                                               |
 | --------------------------- | ------ | ---------- | ----------------------------------------------------------------------------------------- |
@@ -4355,6 +4368,41 @@ ignored. The sweep is Linux/cgroup-v2 only and a no-op elsewhere.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`,
 `src/sase/agent/scope_sweep.py`
+
+### agent_auto_restart
+
+Controls recovery of agents interrupted by a live SASE update. It is enabled by default
+and requires the scheduler's `agent_auto_restart` job. It keeps a separate restart
+ledger and allows at most one automatic relaunch per lineage. See
+[Agent Auto-Restart](agent_auto_restart.md) for eligibility, evidence, and current
+healer limitations.
+
+```yaml
+agent_auto_restart:
+  enabled: true
+  quiescence_seconds: 30
+  max_defer_seconds: 1800
+  pending_resurface_seconds: 600
+  storm_max_per_episode: 12
+  storm_max_per_30m: 20
+```
+
+| Field                       | Type   | Default | Description                                                                                                                 |
+| --------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                   | bool   | `true`  | Allow the healer to act. While disabled, the scheduler resurfaces pending failures and does not claim their ledger records. |
+| `quiescence_seconds`        | number | `30`    | Required period of code quiet before relaunch; an active code-swap writer lock also prevents relaunch.                      |
+| `max_defer_seconds`         | number | `1800`  | Maximum age of a deferred claim before it is declined.                                                                      |
+| `pending_resurface_seconds` | number | `600`   | Age at which an unclaimed pending recovery is surfaced with a scheduler hint.                                               |
+| `storm_max_per_episode`     | int    | `12`    | Maximum automatic launches for one update episode before recovery pauses.                                                   |
+| `storm_max_per_30m`         | int    | `20`    | Maximum automatic launches in a rolling 30-minute window before recovery pauses.                                            |
+
+All fields are under `agent_auto_restart`. Numeric values are non-negative numbers of
+seconds or integer counts, not duration strings; malformed values use their defaults.
+`enabled` requires a YAML boolean. This is a persistent configuration choice with no
+feature flag. `sase agent auto-restart resume` clears the storm pause; it does not
+override `enabled: false` or reset spent lineage records.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`
 
 ### agent hold limits
 
@@ -7382,18 +7430,20 @@ Use the Proposed row's plan name as the selector for `sase plan approve` or
 `sase plan reject` (the row's `id_prefix` still works); omitting the selector is valid
 only when exactly one pending proposal exists. The Rejected rows are inferred from
 archived proposal files that are not represented by current proposed or approved state,
-so they are useful for history but are not actionable selectors. Omitting `--kind` uses
-the plan's authored tier; explicit choices override it and tale/epic targets are
-validated before the proposal is consumed. Approval kind `approve` runs the coder
-without asking the runner to commit an SDD plan, `tale` commits the plan as an SDD tale
-and then runs the coder, `epic` commits the matching SDD tier and launches the bead
-follow-up, and `commit` records the approved plan in SDD without launching a coder. The
-`-m/--model` flag applies to the follow-up agent; `-p/--prompt` adds extra coder
-instructions only for the `approve` and `tale` paths. Use `-w/--wait` with
-comma-separated agent names and `bead=<id>` entries to hold the approved coder or
-launched epic phases until those dependencies finish. `sase plan reject` writes the
-rejection response first, then attempts the same durable cleanup path as TUI no-feedback
-rejection when the matching planner row is still discoverable.
+so they are useful for history but are not actionable selectors. Omitting `--kind`
+defaults to `tale`; an epic-authored plan requires an explicit `--kind epic` or
+`--kind tale`. A gateless epic must be launched with `sase bead work <plan-file>`; the
+direct approval route does not launch epics. Tale/epic targets are validated before the
+proposal is consumed. Approval kind `approve` runs the coder without asking the runner
+to commit an SDD plan, `tale` commits the plan as an SDD tale and then runs the coder,
+`epic` commits the matching SDD tier and launches the bead follow-up, and `commit`
+records the approved plan in SDD without launching a coder. The `-m/--model` flag
+applies to the follow-up agent; `-p/--prompt` adds extra coder instructions only for the
+`approve` and `tale` paths. Use `-w/--wait` with comma-separated agent names and
+`bead=<id>` entries to hold the approved coder or launched epic phases until those
+dependencies finish. `sase plan reject` writes the rejection response first, then
+attempts the same durable cleanup path as TUI no-feedback rejection when the matching
+planner row is still discoverable.
 
 `sase plan search [query]` scans plans in the resolved SDD store (the `repo` source) and
 the machine-local `~/.sase/plans/` archive. The query is a literal case-insensitive

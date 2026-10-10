@@ -43,6 +43,7 @@ printed invocation omits only the root print switch. See the
 | `sase agent kill`                    | Terminate a running agent by name (`-n/--name` is required; a bare name is usage error). If the name resolves to a live monitor member or its owner, stop that monitor through the monitor path; stopped monitors do not launch their recorded follow-up.                                                                                                                                                                                                                                                                                                                                            | [sase's TUI](ace.md), [Monitors](monitors.md)                              |
 | `sase agent drain`                   | Relaunch agents stranded by one hard-disabled provider. The command refuses enabled and soft-disabled providers, previews with `-n/--dry-run`, confirms before discarding live in-flight work unless `-y/--yes` or `-j/--json` is used, accepts `-m/--model` for pinned agents, and reports `-l/--limit` drops. Exit `0` means drained or previewed, `2` refused with nothing changed, and `1` means at least one move failed after execution started.                                                                                                                                               | [LLM providers](llms.md#temporary-provider-disables)                       |
 | `sase agent restart`                 | Stop a named agent and immediately relaunch its stored prompt under the same name. Deletes the previous run's artifacts (the chat transcript under `~/.sase/chats` is kept). A failed wipe or relaunch writes a recovery directory under `~/.sase/restarts/`. `-n/--dry-run` previews only, `-y/--yes` skips confirmation, `-m/--model` overrides the model, `-j/--json` emits one envelope and skips confirmation. Exit `0` restarted or previewed, `2` refused (nothing changed), `1` for both `partial` (name released, relaunch failed) and `wipe_failed` (stopped but the name is still taken). | [sase's TUI `,x`](ace.md#leader-mode-prefix_1)                             |
+| `sase agent auto-restart`            | Inspect update-skew recovery or run the one-restart healer. Bare invocation lists pending claims; `-a` on `list` includes the full ledger.                                                                                                                                                                                                                                                                                                                                                                                                                                                           | [Agent Auto-Restart](agent_auto_restart.md)                                |
 | `sase agent tribe`                   | Set, clear, or list user-defined agent tribes used for grouping.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | [Agent tribes](agent_sessions.md#agent-tribes)                             |
 | `sase agent tab`                     | Move an agent's whole presentation root between Agents-tab placements (`set -n/--name -t/--tab`, `unset -n/--name`, `list [-j/--json]`). Bare `sase agent tab` defaults to `list`.                                                                                                                                                                                                                                                                                                                                                                                                                   | [Moving agents between tabs](agent_sessions.md#moving-agents-between-tabs) |
 | `sase agent wait`                    | Block until named agents, sessions, clans, or workflows settle; `-a/--all` snapshots every currently running eligible agent. Exits non-zero when a target failed, is blocked on a human, or timed out.                                                                                                                                                                                                                                                                                                                                                                                               | [Agent wait](#sase-agent-wait)                                             |
@@ -117,6 +118,51 @@ agent name or provider is positional), and `sase monitor start -n` is `--next`.
 Likewise, `sase agent wait -a` is `--all`: it snapshots the eligible agents running when
 the wait starts, while `sase agent list -a` means include recent completed agents in a
 list view. `sase agent hold create -p` is `--pending`, not `--project`.
+
+### `sase autonomy`
+
+Autonomy controls automatic resolution of plan and question gates. A fresh user launch
+without `%auto` is manual; bare `%auto` selects `standard`. The `tale` and `epic`
+profiles restrict which plan tier resolves automatically, while both still choose the
+first option for each question. See the [profile matrix](macros.md#auto-directive).
+
+```bash
+sase autonomy list
+sase autonomy show tale
+sase autonomy explain --prompt '%auto:tale'
+sase autonomy explain my-agent
+sase autonomy explain --gate plan/REQUEST_ID
+sase autonomy log my-agent --since 1h --kind plan --outcome auto
+```
+
+All four subcommands accept `-j/--json`; bare `sase autonomy` delegates to `list`.
+`list` includes effective epic phase/land role assignments. `show PROFILE` accepts
+`manual`, `standard`, `tale`, or `epic`. `explain` reads an agent's live record,
+dry-runs prompt text with `-p/--prompt` (leaving `$(...)` unexpanded), or reads the
+policy revision that decided a settled gate with `-g/--gate`. A gate can be named as
+`KIND/REQUEST_ID` or by its gate-turn short ID, member name, or owning agent. `--prompt`
+and `--gate` cannot be combined. Prediction does not launch work or answer a gate.
+
+`log [AGENT]` reads host decisions newest first. `-k/--kind` accepts `plan`,
+`epic_plan`, or `question`; `-o/--outcome` accepts `auto` or `ask`, and `-s/--since`
+accepts a date or relative bound such as `1h`. Manual evaluations leave no log rows.
+Launch, sudo, custom, and other privileged gates require human action regardless of
+profile. The live TUI `A` toggle applies to the next gate and is inherited by later
+successors; see [Auto-Approve Toggle](ace.md#auto-approve-toggle).
+
+### `sase agent auto-restart`
+
+The scheduler's recovery service classifies update-skew failures and can relaunch an
+eligible agent once per lineage. Use `list` for pending claims, `list -a` for the full
+ledger, `show TARGET` for one record's evidence, and `scan` for read-only historical
+classification. `run NAME`, `run -a DIR`, or `run -p` invokes the healer; `resume`
+clears a storm pause. The configuration switch is
+[`agent_auto_restart.enabled`](configuration.md#agent_auto_restart).
+
+A bare invocation delegates to `list`. `run --dry-run` can write recovery state for
+existing stale claims, and a successful `run -j` exit does not guarantee a relaunch. See
+[Agent Auto-Restart](agent_auto_restart.md#cli) for the options, output contracts, and
+current probe/deferral limitation.
 
 ### `sase agent search`
 
@@ -517,34 +563,34 @@ Pass the plan name to `sase plan approve <name>` or `sase plan reject <name>` (a
 `<shard>/<name>` path, filesystem path, `plan:` ref, planner agent, or notification
 ID/prefix works too; names TAB-complete). Proposed `--json` rows carry the same `name`
 field. If the selector is omitted, exactly one pending proposal must exist. When
-`--kind` is omitted, approval follows the plan's authored `tier`; an explicit kind
-overrides it. The Rejected section is inferred from archived proposal files that are not
-represented by the proposed or approved state; it is a history aid, not the selector
-source for new actions. The approval kind is the workflow choice: `approve` runs the
-coder without asking the runner to commit an SDD plan, `tale` commits the plan as an SDD
-tale and then runs the coder, `epic` commits the matching SDD tier and launches the bead
-follow-up, and `commit` records the approved plan in SDD without launching a coder. Use
-`-m/--model` to pick the follow-up agent's model. Use `-p/--prompt` to add extra coder
-instructions for the `approve` and `tale` paths. A plan with no live gate can be named
-by path, `plan:` reference, archive name, or unavailable gate ID: it is approved
-directly and starts a `#coder` in the planner's agent session when it can safely attach,
-otherwise as a standalone agent. The coder launch runs a ladder: it relocates to a pool
-workspace when the planner's workspace is taken, falls back to standalone when the agent
-session cannot be joined, and retries once on transient claim errors. Only
-unlaunchable-machine errors (missing owner identity, unknown project tag, hard-disabled
-provider, or an unspawnable process) fail the launch. On failure the card prints
-`sase plan approve <local plan path>` to re-run every fallback and record the receipt.
-`-n/--dry-run` renders that decision without changing state, and `-P/--project` supplies
-project context for the direct route. Re-approving an already-approved plan relaunches
-its coder when that coder failed, was killed, or never launched, and refuses when the
-coder is still running or has finished. Tale and epic approvals validate against their
-target schema before writing a response; a failure prints the diagnostics and expected
-schema and leaves the proposal pending for retry. Plans can also declare typed choices
-and toggles as Plan Decisions. Ordinary approval accepts their effective defaults; pass
-`-D/--decide ID=VALUE` to approve with different values, or use `sase gate answer` with
-`--set decision_<id>=<value>` to override them on a pending gate. See
-[Plan Decisions](sdd.md#plan-decisions) for the grammar, memory-consent rules, and
-current interface limits.
+`--kind` is omitted, approval defaults to `tale`; epic-authored plans require an
+explicit `--kind epic` or `--kind tale`. The Rejected section is inferred from archived
+proposal files that are not represented by the proposed or approved state; it is a
+history aid, not the selector source for new actions. The approval kind is the workflow
+choice: `approve` runs the coder without asking the runner to commit an SDD plan, `tale`
+commits the plan as an SDD tale and then runs the coder, `epic` commits the matching SDD
+tier and launches the bead follow-up, and `commit` records the approved plan in SDD
+without launching a coder. Use `-m/--model` to pick the follow-up agent's model. Use
+`-p/--prompt` to add extra coder instructions for the `approve` and `tale` paths. A plan
+with no live gate can be named by path, `plan:` reference, archive name, or unavailable
+gate ID: it is approved directly and starts a `#coder` in the planner's agent session
+when it can safely attach, otherwise as a standalone agent. The coder launch runs a
+ladder: it relocates to a pool workspace when the planner's workspace is taken, falls
+back to standalone when the agent session cannot be joined, and retries once on
+transient claim errors. Only unlaunchable-machine errors (missing owner identity,
+unknown project tag, hard-disabled provider, or an unspawnable process) fail the launch.
+On failure the card prints `sase plan approve <local plan path>` to re-run every
+fallback and record the receipt. `-n/--dry-run` renders that decision without changing
+state, and `-P/--project` supplies project context for the direct route. Re-approving an
+already-approved plan relaunches its coder when that coder failed, was killed, or never
+launched, and refuses when the coder is still running or has finished. Tale and epic
+approvals validate against their target schema before writing a response; a failure
+prints the diagnostics and expected schema and leaves the proposal pending for retry.
+Plans can also declare typed choices and toggles as Plan Decisions. Ordinary approval
+accepts their effective defaults; pass `-D/--decide ID=VALUE` to approve with different
+values, or use `sase gate answer` with `--set decision_<id>=<value>` to override them on
+a pending gate. See [Plan Decisions](sdd.md#plan-decisions) for the grammar,
+memory-consent rules, and current interface limits.
 
 `sase plan reject` writes the rejection response first, then uses the same durable
 cleanup path as the TUI no-feedback rejection action when the matching planner row is

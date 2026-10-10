@@ -112,7 +112,7 @@ title: Structured Agentic Software Engineering
     Use Macros for reusable prompt templates and workflow specs for repeatable multi-step automation.
   </p>
 
-<a href="macro/">Build with Macros</a>
+<a href="macros/">Build with Macros</a>
 
   </article>
 
@@ -162,7 +162,8 @@ title: Structured Agentic Software Engineering
     <li><strong>Goals</strong> record outcomes a person creates and settles, with a status and a timeline, independently of beads and plans. Agents can read and cite them.</li>
     <li><strong>Macros</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>sase's TUI</strong> is the interactive control surface for daily work.</li>
-    <li><strong>Scheduler and Service Host</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
+    <li><strong>Scheduler and Service Host</strong> run background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
+    <li><strong>Autonomy profiles</strong> select which plan and question checkpoints resolve automatically. <a href="macros/#auto-directive">Learn about <code>%auto</code></a> before enabling it.</li>
     <li><strong>Provider and workspace abstractions</strong> route agent launches, VCS operations, and workspace setup through plugin-backed boundaries.</li>
   </ul>
   </div>
@@ -193,6 +194,15 @@ title: Structured Agentic Software Engineering
   <p>Use the CLI index to route from a command to its detailed owner page.</p>
 
 <a href="cli/">Open the CLI reference</a>
+
+  </article>
+
+  <article class="sase-card sase-card--compact">
+  <h3>Recover an interrupted agent</h3>
+
+  <p>Inspect update-skew recovery, its one-restart limit, and cases that need manual action.</p>
+
+<a href="agent_auto_restart/">Open agent auto-restart</a>
 
   </article>
 

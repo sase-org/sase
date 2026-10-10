@@ -148,6 +148,10 @@ already-approved plan relaunches a failed, killed, or never-launched coder and r
 one that is running or finished. The selected target schema is validated before the
 response, SDD copy, or notification dismissal, and failures leave the proposal pending.
 
+For a saved epic file with no live approval gate, use `sase bead work <plan-file>`. The
+direct `sase plan approve` route does not launch gateless epics. An explicit
+`--kind tale` instead runs that plan as a single tale after tale-schema validation.
+
 Tale approval promotes the plan and launches its coder through the agent runner. Every
 epic approval surface — sase's TUI, the CLI, Telegram, or a bare gate response — instead
 hands `sase bead work <plan-file> --yes-to-all` to a durable supervisor, because

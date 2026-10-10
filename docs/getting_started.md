@@ -312,7 +312,7 @@ without depending on chat history or a recycled workspace path.
 ## Step 7 — Reuse The Prompt As A Macro
 
 A one-off prompt is fine once. The second time you find yourself reaching for it, wrap
-it as an **Macro** so you're not retyping the same paragraph forever. Create
+it as a **Macro** so you're not retyping the same paragraph forever. Create
 `sase/macros/til.md` at the project root where you run `sase`:
 
 ```markdown
@@ -371,6 +371,27 @@ final land agent. Dependency waits require both the blocking agent to finish
 successfully and its bead to close; the land agent waits for every phase bead. You can
 still run `sase bead work <epic-id>` manually to retry remaining work.
 
+For human CLI approval, use `sase plan approve <plan-name>` for a tale and
+`sase plan approve <plan-name> --kind epic` for a pending epic. The CLI requires the
+explicit kind for epic-authored plans; the TUI's primary approval follows the authored
+tier. A saved epic file with no live approval gate launches through
+`sase bead work <plan-file>`.
+
+A fresh user launch without `%auto` waits for plan and question review. Add `%auto:tale`
+to auto-approve tales while keeping epic plans for human review, or bare `%auto` to
+cover both tiers. Both also answer questions with their first option. Preview the
+profile before launching:
+
+```bash
+sase autonomy explain --prompt '%auto:tale'
+```
+
+Generated epic phase and land workers use `standard` by default, so they can launch
+nested epics automatically. To keep nested epics for your review, set
+`autonomy.roles.epic_phase` and `autonomy.roles.epic_land` to `tale`; see
+[worker autonomy configuration](configuration.md#autonomy) and the
+[`%auto` profile matrix](macros.md#auto-directive).
+
 **What you just did.** Stepped from one-shot prompts into
 [Spec-Driven Development](sdd.md) with [Beads](beads.md) as dependency-aware work units.
 
@@ -412,6 +433,11 @@ The names you'll keep bumping into, in one place:
   [Snippets panel](ace.md#snippets-panel).
 - **[Macros](macros.md)** — reusable prompt templates and YAML workflows with typed
   inputs and multi-agent fan-out. See also [workflow specs](workflow_spec.md).
+- **[Autonomy](macros.md#auto-directive)** — built-in profiles for automatic plan and
+  question resolution. Inspect the live policy with `sase autonomy explain`, or toggle
+  it for an active agent with `A` in the Agents tab.
+- **[Agent Auto-Restart](agent_auto_restart.md)** — scheduler-driven update-skew
+  recovery with evidence and a one-restart limit; the guide lists current limitations.
 - **[SDD](sdd.md)** — Spec-Driven Development. Plans and epics as first-class artifacts
   on disk.
 - **Procs** — durable records for background operations such as a sync, an accept, or a

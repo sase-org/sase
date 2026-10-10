@@ -3004,6 +3004,14 @@ the Agents header's "stopped" attention bucket for rows paused on user action.
 The CLI equivalent of `,x` without the edit pause is `sase agent restart NAME`: it stops
 the named agent and immediately relaunches the stored prompt under the same name.
 
+SASE also has a scheduler-driven [Agent Auto-Restart](agent_auto_restart.md) service for
+update-skew failures. An in-flight recovery appears as amber `↻ RESTARTING` with a dim
+reason. A replacement keeps the same name and shows a `↻` chip plus provenance
+describing the update and preserved error report (`v`). It allows at most one automatic
+restart per lineage; see the guide's current probe/deferral limitation before assuming
+that an eligible failure will relaunch. Inspect recovery with
+`sase agent auto-restart list -a` and `sase agent auto-restart show NAME`.
+
 If any agents are marked, `,x` acts on that marked set instead of the focused row. Stale
 marks are ignored; if any remaining marked agent has no recoverable prompt, sase's TUI
 warns and leaves the set untouched. After confirmation, sase's TUI kills or dismisses
@@ -6519,17 +6527,19 @@ proposals, recent approvals, and inferred rejected archived plans; run
 `sase plan approve <name> --kind approve|commit|epic|tale` or `sase plan reject <name>`
 to write the same response protocol used by the TUI modal. Use the plan name from a
 Proposed row (the `id_prefix` still works); if the selector is omitted, the CLI acts
-only when exactly one proposal is pending. Omitting `--kind` uses the plan's authored
-tier. In the Plan Review modal, `enter` uses that same authored-tier default; use
-[Custom Approval](#custom-approval) to pick a different outcome. `approve` starts the
-coder without committing an SDD plan, `tale` commits the plan as an SDD tale and starts
-the coder, `epic` commits the matching SDD tier and launches the bead follow-up, and
-`commit` records the approved plan in SDD without launching a coder. `-m/--model` picks
-the follow-up agent's model, while `-p/--prompt` adds extra coder instructions for the
-`approve` and `tale` paths. Tale and epic choices validate the plan against the target
-schema before consuming the approval; failures surface an error and keep the
-notification actionable. CLI rejection also attempts the durable planner cleanup used by
-no-feedback TUI rejection.
+only when exactly one proposal is pending. CLI approval defaults to `tale`; an
+epic-authored plan requires `--kind epic` or `--kind tale`. In the Plan Review modal,
+`enter` follows the authored tier; use [Custom Approval](#custom-approval) to pick a
+different outcome. `approve` starts the coder without committing an SDD plan, `tale`
+commits the plan as an SDD tale and starts the coder, `epic` commits the matching SDD
+tier and launches the bead follow-up, and `commit` records the approved plan in SDD
+without launching a coder. `-m/--model` picks the follow-up agent's model, while
+`-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths. Tale and
+epic choices validate the plan against the target schema before consuming the approval;
+failures surface an error and keep the notification actionable. CLI rejection also
+attempts the durable planner cleanup used by no-feedback TUI rejection.
+
+### Auto-Approve Toggle
 
 On an active agent, `A` changes the selected agent's autonomy record from its next gate.
 If any auto-approval is on (including a launch-time `%auto:tale` / `%auto:epic`), it
@@ -6538,14 +6548,16 @@ review. If auto-approval is off, turning it back on restores the last non-manual
 (else `standard`): a `%auto:tale` agent comes back as tale, not bare. Later successors
 inherit the toggled record.
 
-The agent's next submitted plan is approved at its authored tier. A `tier: tale` plan is
-approved and committed as a tale; a `tier: epic` plan is approved as an epic and follows
-the epic follow-up path.
+The enabled profile determines which plans auto-resolve. `standard` covers both tiers;
+`tale` covers tale plans and `epic` covers epic plans. The other tier parks for human
+review. Covered plans use their authored tier for the archive and follow-up path. Use
+`sase autonomy explain NAME` to inspect the agent's live policy and predicted decisions.
 
 The row shows `⚡` while enabled, and the footer label switches between `auto-approve`
 and `unapprove`.
 
-Like bare `%auto`, it also auto-settles question gates.
+Every enabled built-in profile also chooses the first option for each question. See the
+[profile matrix](macros.md#auto-directive).
 
 ### Plan Approval Keybindings
 

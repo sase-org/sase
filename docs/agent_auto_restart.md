@@ -1,28 +1,36 @@
 # Agent Auto-Restart
 
-If a sase update breaks a running agent before it did any model work, sase puts it back
-once, under the same name, and tells you exactly what it did and why.
+SASE has a recovery service for agents interrupted by a live update. It classifies the
+failure, records its evidence, and can relaunch an eligible agent under the same name.
+It is enabled by default and runs through the scheduler's `agent_auto_restart` job. The
+[current limitations](#current-limitations) below affect which failures actually reach
+relaunch.
 
-An automatic restart is `,x` plus an unmodified submit, run headlessly. Each lineage
-gets one automatic restart. Every other update-shaped failure is surfaced with its
-reason and never silently swallowed.
+An automatic restart uses the same stop, wipe, and relaunch machinery as
+[`sase agent restart NAME`](cli.md), with preserved failure evidence and the live
+autonomy profile. Each lineage (the original run and its retry chain) gets at most one
+automatic restart. A claimed lineage that is later declined cannot be automatically
+retried. Manual restart remains available.
 
 ## When a restart happens
 
-Three things must all hold before sase relaunches anything:
+The classifier recognizes specific update-skew signatures and checks corroborating
+evidence. W1 means the runner's boot code identity differs from the current tree; W2
+means an update journal entry falls between boot and failure; W3 is file-level evidence
+of a changed symbol or culprit commit; W4 is a successful fresh-interpreter import
+probe.
 
-1. **Signature.** The error belongs to a known update-skew family: a torn `ImportError`
-   / `ModuleNotFoundError` / module `AttributeError` in sase's own code, a stale
-   `sase_core_rs` binding or wire schema, or a data-format skew ("written by a newer
-   sase version"). A matching error pattern alone is never enough. `TypeError` /
-   `NameError` signature mismatches are always treated as real bugs and only annotated.
-2. **Witness.** At least one independent witness must corroborate the update: the
-   runner's boot code identity no longer matches the current tree (W1), a `sase update`
-   journal row falls between boot and the failure (W2), or file-level proof names the
-   culprit commit (W3).
-3. **Probe.** A fresh interpreter must import the current versions of every managed
-   module on the failing traceback (W4), proving the new tree is healthy and the death
-   was the swap, not the code.
+| Failure family                                                | Core classifier requirement for a relaunch verdict                                |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Torn Python imports or module attributes in SASE-managed code | Matching signature, W1 or W2, and W4                                              |
+| Stale `sase_core_rs` binding or wire schema                   | Matching signature and W4; without a probe, W1 or W2 permits deferral for probing |
+| Data-format skew, such as "written by a newer sase version"   | Matching signature and W1 or W2                                                   |
+| Managed-code `TypeError` signature mismatch or `NameError`    | Annotate only; never automatically relaunch                                       |
+
+W3 helps explain and group the incident; it does not independently authorize a relaunch.
+The healer also runs an import probe before executing a relaunch, including for a
+data-format verdict. A successful import checks that current modules load; it does not
+run the agent's task or its tests.
 
 The healer also waits for **quiescence**: no update holds the code-swap writer lock and
 the tree has been quiet for `quiescence_seconds`. A pass that cannot act yet defers (up
@@ -30,8 +38,8 @@ to `max_defer_seconds`) instead of giving up.
 
 ## Phases and modes
 
-Only deaths **before the model turn** are relaunched (`booting`, `waiting`,
-`preparing`):
+Current runners write lifecycle markers. A known death **before the model turn**
+(`booting`, `waiting`, `preparing`) is eligible; a known later phase is not:
 
 | Death phase                                         | Mode                   | What happens                                                  |
 | --------------------------------------------------- | ---------------------- | ------------------------------------------------------------- |
@@ -39,10 +47,15 @@ Only deaths **before the model turn** are relaunched (`booting`, `waiting`,
 | After the model turn (`provider_running` and later) | `notify_post_provider` | Not relaunched; you are notified with held-workspace guidance |
 | Plan, question, monitor, gate, or pipe handoff      | `ask`                  | Not relaunched; you are asked to decide                       |
 
+Older records without lifecycle markers use traceback and log heuristics. The current
+classifier also allows an `unknown` phase to reach a relaunch verdict when its signature
+and witness checks pass; it does not require affirmative proof of a pre-provider phase
+for those records.
+
 Never restarted: provider errors, rate limits, auth, kills and cancels,
 OOM/timeout/disk-full, directive or macro errors, tool and test failures, and any
-`ImportError` from workspace or third-party code. Anything the restart planner refuses
-is also left alone.
+`ImportError` from workspace or third-party code. Remote rows are also excluded.
+Anything the restart planner refuses is also left alone.
 
 Skipped on purpose, every time: killed or dismissed agents, agents mid-`,x`, and agents
 holding a question or gate. User intent wins.
@@ -72,15 +85,35 @@ update that breaks five agents produces one story, not five.
 
 ## CLI
 
-A bare `sase agent auto-restart` lists ledger records, newest first, grouped by episode.
+A bare `sase agent auto-restart` delegates to `list`, which shows pending claims, newest
+first and grouped by update episode. Use `list -a` to include launched, settled, and
+declined records.
 
-| Command                                                                           | Purpose                                                                                     |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `list [-a/--all] [-j/--json]`                                                     | Ledger records, newest first, grouped by episode                                            |
-| `resume`                                                                          | Re-arm after the storm breaker trips                                                        |
-| `run (NAME \| -a/--artifacts-dir DIR \| -p/--pending) [-n/--dry-run] [-j/--json]` | Run the healer; `-p` is the scheduler job's target and a manual run still honors the ledger |
-| `scan [-j/--json] [-l/--limit N] [-s/--since DURATION]`                           | Read-only replay of the classifier over history; never writes the ledger                    |
-| `show TARGET [-j/--json]`                                                         | One card: verdict, witness checklist, state timeline, evidence paths                        |
+| Command                                                                           | Purpose                                                                                                           |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `list [-a/--all] [-j/--json]`                                                     | Pending ledger claims (`claimed`, `deferred`, `launching`); `-a` includes launched, settled, and declined records |
+| `resume`                                                                          | Re-arm after the storm breaker trips                                                                              |
+| `run (NAME \| -a/--artifacts-dir DIR \| -p/--pending) [-n/--dry-run] [-j/--json]` | Run the healer; `-p` is the scheduler job's target and a manual run still honors the ledger                       |
+| `scan [-j/--json] [-l/--limit N] [-s/--since DURATION]`                           | Read-only replay of the classifier over history; never writes the ledger                                          |
+| `show TARGET [-j/--json]`                                                         | One card: verdict, witness checklist, state timeline, evidence paths                                              |
+
+```bash
+sase agent auto-restart list -a
+sase agent auto-restart show my-agent
+sase agent auto-restart scan -s 7d -l 50
+```
+
+`show` accepts a ledger key, lineage root, or agent name. `scan` defaults to the last
+seven days and 50 displayed rows; `-l` must be positive and limits only the human table.
+The summary and `-j` output cover the entire matching set. A scan collects evidence and
+classifies history without running W4, so `defer` can mean that the import probe is
+still needed.
+
+For a non-empty resolved target set, `run -j` returns one JSON envelope and currently
+exits `0` even when an individual outcome is `error`. Inspect every `outcomes[].action`
+and `reason`. Without `-j`, an `error` outcome exits `1`. An empty target set prints
+`No pending failures to heal.` even with `-j`; a disabled healer exits `3` without a
+JSON envelope.
 
 ## Configuration
 
@@ -94,9 +127,32 @@ agent_auto_restart:
   storm_max_per_30m: 20 # storm breaker: launches per 30 minutes
 ```
 
-Set `enabled: false` to turn the feature off permanently. While off or paused, pending
-failures are re-surfaced loudly instead of healed, and the ledger is never written —
-disabling never swallows a failure and never spends a lineage's one restart.
+Set `enabled: false` to disable automatic recovery. `run` then refuses before claiming
+or relaunching anything. While disabled or paused, the scheduler resurfaces pending
+failures instead of submitting healer work, so that scheduler path does not spend a
+lineage's restart. A manual `run` during a storm pause can still claim or decline a
+record; clear the pause with `resume` before requesting recovery.
+
+See the [configuration reference](configuration.md#agent_auto_restart) for field types
+and defaults. `resume` clears a storm pause; it does not turn a disabled setting back on
+or reset a lineage's record.
+
+## Current limitations
+
+- **Python and binding skew can stay deferred after a passing probe.** Input assembly
+  supplies W1–W3 but no W4. The classifier returns `defer` for eligible Python/binding
+  failures, and the healer runs the probe without updating the witnesses or
+  reclassifying. It retains the original `defer` verdict even if imports pass. These
+  claims can remain deferred until `max_defer_seconds` expires. Inspect `show TARGET`
+  and use `sase agent restart NAME` or the TUI's `,x` when manual recovery is needed.
+- **`run --dry-run` is not a full eligibility preview.** For an unclaimed lineage it
+  returns before signature, witness, probe, or restart-planning checks. For an existing
+  stale claim it can enter recovery paths that write a deferred ledger record or update
+  the failed row's recovery marker. Use `scan`, `list`, and `show` for read-only
+  inspection.
+- **Legacy phase and JSON behavior have limits.** Unknown phases are not categorically
+  excluded, and JSON behavior is as described above. Inspect the verdict and evidence
+  rather than treating command success as proof of relaunch.
 
 ## Notifications
 
@@ -117,6 +173,11 @@ In the Agents tab, in-flight recoveries render as amber `↻ RESTARTING` with a 
 instead of red `FAILED`. The replacement keeps the same name with a `↻` chip and a
 provenance block naming the update, the signature, and the preserved `error_report.md`
 (opened with the existing `v` key).
+
+Dependency waits remain parked while recovery is `pending`, `deferred`, or `launching`.
+Name-based waits find the replacement by name; waits pinned to the old artifacts
+directory can follow the ledger's replacement mapping after the wipe. They then wait for
+the replacement's actual outcome.
 
 ## Troubleshooting
 
