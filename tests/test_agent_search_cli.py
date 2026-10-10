@@ -425,6 +425,39 @@ def test_agent_search_filters_artifact_link_facets(
         assert {row["name"] for row in payload} == expected
 
 
+def test_agent_search_strips_in_archive_without_changing_catalog_eval(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    snapshot = _snapshot(_row("visible"), _row("hidden", hidden=True))
+    _patch_sources(monkeypatch, snapshot)
+
+    code = handle_agents_search(
+        argparse.Namespace(json=True, limit=0, project=None, query=["in:archive"])
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [row["name"] for row in payload] == ["visible"]
+
+
+def test_agent_search_rejects_invalid_in_token(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    snapshot = _snapshot(_row("visible"))
+    _patch_sources(monkeypatch, snapshot)
+
+    code = handle_agents_search(
+        argparse.Namespace(json=True, limit=0, project=None, query=["in:history"])
+    )
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "in:" in err
+    assert "inbox" in err or "archive" in err
+
+
 def test_agent_search_pretty_output_smoke(monkeypatch: Any, capsys: Any) -> None:
     snapshot = _snapshot(_row("visible", status="RUNNING", model="gpt-5"))
     _patch_sources(monkeypatch, snapshot)

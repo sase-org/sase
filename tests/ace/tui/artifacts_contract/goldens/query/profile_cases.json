@@ -850,6 +850,152 @@
         }
       }
     },
+    "agents-archive": {
+      "rows": [
+        {
+          "stable_id": "archive-failed-code",
+          "fields": {
+            "name": "sase-r8.9.land",
+            "kind": [
+              "agent"
+            ],
+            "session": "sase-r8.9",
+            "clan": "athena.sase-8t",
+            "project": [
+              "gh_sase-org__sase",
+              "sase"
+            ],
+            "role": "code",
+            "workflow": "review",
+            "model": "gpt-5.6-sol",
+            "provider": "codex",
+            "status": "FAILED",
+            "attempt": 2,
+            "retry": true,
+            "outcome": "failed",
+            "restorable": true,
+            "tab": "main",
+            "tribe": "pinned",
+            "clan_tribe": "epic",
+            "linked": true,
+            "relation": "read",
+            "artifact": "plan:202608/example.md",
+            "since": 1787580000,
+            "until": 1787580000,
+            "after": 1787580600,
+            "before": 1787580600,
+            "min": 600,
+            "max": 600
+          }
+        },
+        {
+          "stable_id": "archive-done-plan",
+          "fields": {
+            "name": "handoff-plan",
+            "kind": [
+              "member"
+            ],
+            "session": "handoff",
+            "clan": "athena.sase-zf",
+            "project": "sase",
+            "role": "plan",
+            "model": "muse-spark-1.2",
+            "provider": "muse",
+            "status": "DONE",
+            "attempt": 1,
+            "retry": false,
+            "outcome": "done",
+            "restorable": false,
+            "tab": "main",
+            "tribe": "planning",
+            "clan_tribe": "chop",
+            "linked": false,
+            "since": 1787227200,
+            "until": 1787227200,
+            "after": 1787230800,
+            "before": 1787230800,
+            "min": 3600,
+            "max": 3600
+          }
+        },
+        {
+          "stable_id": "archive-interrupted-tab",
+          "fields": {
+            "name": "remote-run",
+            "kind": [
+              "workflow"
+            ],
+            "session": "research.12",
+            "project": [
+              "remote-proj",
+              "Remote Project"
+            ],
+            "role": "plan",
+            "workflow": "literature",
+            "model": "claude-opus-4-7",
+            "provider": "claude",
+            "status": "RUNNING",
+            "attempt": 0,
+            "retry": false,
+            "outcome": "interrupted",
+            "restorable": true,
+            "tab": "research",
+            "tribe": "reviewed",
+            "clan_tribe": "research",
+            "linked": false,
+            "since": 1787666400,
+            "until": 1787666400,
+            "min": 7200,
+            "max": 7200
+          }
+        }
+      ],
+      "queries": {
+        "outcome:failed": {
+          "canonical": "outcome:failed",
+          "matches": [
+            "archive-failed-code"
+          ]
+        },
+        "restorable:true": {
+          "canonical": "restorable:true",
+          "matches": [
+            "archive-failed-code",
+            "archive-interrupted-tab"
+          ]
+        },
+        "clan_tribe:epic": {
+          "canonical": "clan_tribe:epic",
+          "matches": [
+            "archive-failed-code"
+          ]
+        },
+        "linked:true": {
+          "canonical": "linked:true",
+          "matches": [
+            "archive-failed-code"
+          ]
+        },
+        "relation:read": {
+          "canonical": "relation:read",
+          "matches": [
+            "archive-failed-code"
+          ]
+        },
+        "artifact:plan:202608/example.md": {
+          "canonical": "artifact:\"plan:202608/example.md\"",
+          "matches": [
+            "archive-failed-code"
+          ]
+        }
+      },
+      "errors": {
+        "unread:true": {
+          "position": 0,
+          "message": "Unknown filter key 'unread' (valid keys: after, artifact, attempt, before, clan, clan_tribe, kind, linked, max, min, model, name, outcome, project, provider, relation, restorable, retry, role, session, since, status, tab, tribe, until, workflow) (at position 0)"
+        }
+      }
+    },
     "files": {
       "rows": [
         {

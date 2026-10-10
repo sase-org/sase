@@ -67,7 +67,7 @@ class ArtifactIndexRecord:
     retry_chain_root_timestamp: str | None
 
 
-class ArtifactIndexProjection(dict[str, ArtifactIndexRecord]):
+class _ArtifactIndexProjection(dict[str, ArtifactIndexRecord]):
     """Catalog rows plus a report when artifact-index enrichment degraded."""
 
     def __init__(
@@ -82,7 +82,7 @@ class ArtifactIndexProjection(dict[str, ArtifactIndexRecord]):
 
 def load_artifact_index_projection(
     index_path: Path | str | None = None,
-) -> ArtifactIndexProjection:
+) -> _ArtifactIndexProjection:
     """Return ``{artifact_dir: ArtifactIndexRecord}`` for the whole index.
 
     Returns an empty mapping and a diagnostic when the index is absent, has
@@ -95,7 +95,7 @@ def load_artifact_index_projection(
         else default_agent_artifact_index_path()
     )
     if not path.is_file():
-        return ArtifactIndexProjection(diagnostic="agent artifact index is missing")
+        return _ArtifactIndexProjection(diagnostic="agent artifact index is missing")
     columns_sql = ", ".join(_ARTIFACT_INDEX_COLUMNS)
     try:
         connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.25)
@@ -105,7 +105,7 @@ def load_artifact_index_projection(
                 "SELECT value FROM meta WHERE key = 'schema_version'"
             ).fetchone()
             if schema_row is None:
-                return ArtifactIndexProjection(
+                return _ArtifactIndexProjection(
                     diagnostic="agent artifact index has no schema version"
                 )
             schema_version = int(schema_row[0])
@@ -116,7 +116,7 @@ def load_artifact_index_projection(
                         SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
                     )
                 )
-                return ArtifactIndexProjection(
+                return _ArtifactIndexProjection(
                     diagnostic=(
                         f"agent artifact index schema {schema_version} is unsupported "
                         f"(supported: {supported})"
@@ -128,7 +128,7 @@ def load_artifact_index_projection(
         finally:
             connection.close()
     except (OSError, sqlite3.DatabaseError, TypeError, ValueError) as exc:
-        return ArtifactIndexProjection(
+        return _ArtifactIndexProjection(
             diagnostic=f"agent artifact index could not be read ({type(exc).__name__})"
         )
 
@@ -159,7 +159,7 @@ def load_artifact_index_projection(
             retried_as_timestamp=values["retried_as_timestamp"],
             retry_chain_root_timestamp=values["retry_chain_root_timestamp"],
         )
-    return ArtifactIndexProjection(records)
+    return _ArtifactIndexProjection(records)
 
 
 def load_dismissed_top_level() -> list[DismissedBundleSummary]:

@@ -201,28 +201,27 @@ class AgentsFilterBarSessionMixin:
             )
 
     def _validate_agents_live_query(self, text: str) -> str | None:
-        from ....query.profile_reference import canonical_query_for_profile
         from ....query.profile_reference_support import ProfileQueryError
+        from ....query.scope_token import ScopeTokenError
         from ...models.agent_live_query_engine import (
-            agents_live_query_profile,
             augment_error_with_legacy_hint,
+            canonical_agents_tab_query,
         )
 
         if not text.strip():
             return None
         try:
-            canonical_query_for_profile(text, agents_live_query_profile())
-        except ProfileQueryError as exc:
+            canonical_agents_tab_query(text)
+        except (ProfileQueryError, ScopeTokenError) as exc:
             return augment_error_with_legacy_hint(str(exc), text)
         return None
 
     def _agents_history_canonical(self, source: str) -> str:
-        from ....query.profile_reference import canonical_query_for_profile
-        from ...models.agent_live_query_engine import agents_live_query_profile
+        from ...models.agent_live_query_engine import canonical_agents_tab_query
 
         if not source.strip():
             return ""
-        return canonical_query_for_profile(source, agents_live_query_profile())
+        return canonical_agents_tab_query(source)
 
     def _agents_live_profile_digest(self) -> str | None:
         from ...models.agent_live_query_engine import agents_live_query_profile

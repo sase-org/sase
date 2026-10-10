@@ -371,6 +371,14 @@ def test_validator_appends_legacy_token_hint_without_typing_races() -> None:
     error = mixin._validate_agents_live_query("age>2h")
     assert error is not None
     assert "until:2h" in error
+    assert mixin._validate_agents_live_query("in:archive") is None
+    assert mixin._validate_agents_live_query("in:archive restorable:true") is None
+    hint = mixin._validate_agents_live_query("restorable:true")
+    assert hint is not None
+    assert "Archive field" in hint
+    mirror = mixin._validate_agents_live_query("in:archive unread:true")
+    assert mirror is not None
+    assert "Inbox field" in mirror
 
 
 async def test_f_opens_the_filter_bar(

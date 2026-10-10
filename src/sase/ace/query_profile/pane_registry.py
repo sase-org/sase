@@ -20,6 +20,7 @@ _BUILTIN_SCHEMA_BUILDERS: dict[str, tuple[str, str]] = {
     "ref:plan": (".profiles._plans", "plans_query_schema"),
     "agents": (".profiles._agents", "agents_query_schema"),
     "agents-live": (".profiles._agents_live", "agents_live_query_schema"),
+    "agents-archive": (".profiles._agents_archive", "agents_archive_query_schema"),
     "files": (".profiles._files", "files_query_schema"),
     "procs": (".profiles._procs", "procs_query_schema"),
 }

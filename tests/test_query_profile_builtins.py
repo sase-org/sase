@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.query_profile import (
     CompiledQueryProfile,
+    agents_archive_query_schema,
     agents_live_query_schema,
     agents_query_schema,
     beads_query_schema,
@@ -28,6 +29,7 @@ from sase.core.rust import require_rust_binding
         plans_query_schema,
         agents_query_schema,
         agents_live_query_schema,
+        agents_archive_query_schema,
         files_query_schema,
         procs_query_schema,
     ],
@@ -52,8 +54,9 @@ def test_every_builtin_profile_has_a_unique_pane_id() -> None:
             plans_query_schema,
             agents_query_schema,
             agents_live_query_schema,
+            agents_archive_query_schema,
             files_query_schema,
             procs_query_schema,
         )
     ]
-    assert len(all_ids) == len(set(all_ids)) == 8
+    assert len(all_ids) == len(set(all_ids)) == 9

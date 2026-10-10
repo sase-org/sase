@@ -54,6 +54,7 @@ if TYPE_CHECKING:
     from .agent_content_search import AgentContentSearchIndex
 
 AGENTS_LIVE_PANE_ID = "agents-live"
+_AGENTS_ARCHIVE_PANE_ID = "agents-archive"
 AgentsHistoryQueryKey = tuple[str, str]
 
 
@@ -64,17 +65,25 @@ def agents_live_query_profile() -> CompiledQueryProfile:
     return profile
 
 
+def _agents_archive_query_profile() -> CompiledQueryProfile:
+    """Return the compiled ``agents-archive`` query profile."""
+    profile = compiled_profile_for_builtin_pane(_AGENTS_ARCHIVE_PANE_ID)
+    assert profile is not None
+    return profile
+
+
 def agents_history_query_key(
     raw_query: str | None,
 ) -> AgentsHistoryQueryKey:
     """Return the full-history reuse key for one committed Agents query."""
 
+    from sase.ace.query.scope_token import ScopeTokenError
+
     raw = (raw_query or "").strip()
     profile = agents_live_query_profile()
     try:
-        raw = _normalize_session_query(raw, profile)
-        canonical = canonical_query_for_profile(raw, profile)
-    except ProfileQueryError:
+        canonical = canonical_agents_tab_query(raw)
+    except (ProfileQueryError, ScopeTokenError):
         canonical = raw
     return canonical, profile.digest
 
@@ -178,11 +187,24 @@ def evaluate_agents_live_query(
     parse failure — exactly one of the two is not ``None``. The error
     message is enriched with the legacy-token hint when applicable.
     """
+    from sase.ace.query.scope_token import ScopeTokenError, inbox_membership_query
+
     try:
-        query = _normalize_session_query(query, index.profile)
-        canonical = canonical_query_for_profile(query, index.profile)
-        result = evaluate_artifact_query_many(query, index, canonical_query=canonical)
-    except ProfileQueryError as exc:
+        membership, _scope = inbox_membership_query(query)
+        if not membership.strip():
+            facade = AgentsLiveQueryFacade(
+                canonical_query=canonical_agents_tab_query(query),
+                profile_digest=index.profile.digest,
+                source_row_ids=frozenset(index.row_ids),
+                matched_row_ids=frozenset(index.row_ids),
+            )
+            return facade, None
+        membership = _normalize_session_query(membership, index.profile)
+        canonical = canonical_query_for_profile(membership, index.profile)
+        result = evaluate_artifact_query_many(
+            membership, index, canonical_query=canonical
+        )
+    except (ProfileQueryError, ScopeTokenError) as exc:
         return None, augment_error_with_legacy_hint(str(exc), query)
     facade = AgentsLiveQueryFacade(
         canonical_query=result.cache_key.canonical_query,
@@ -191,6 +213,35 @@ def evaluate_agents_live_query(
         matched_row_ids=frozenset(result.matched_row_ids),
     )
     return facade, None
+
+
+def canonical_agents_tab_query(query: str) -> str:
+    """Return the stored Agents-tab canonical form, including ``in:`` scope."""
+
+    from sase.ace.query.scope_token import check_scope_fields, extract_scope
+
+    raw = (query or "").strip()
+    if not raw:
+        return ""
+    remainder, scope = extract_scope(raw)
+    check_scope_fields(remainder, scope)
+    remainder_canonical = _canonical_remainder(remainder, scope)
+    if scope is None:
+        return remainder_canonical
+    token = f"in:{scope}"
+    return f"{token} {remainder_canonical}" if remainder_canonical else token
+
+
+def _canonical_remainder(remainder: str, scope: str | None) -> str:
+    if not remainder.strip():
+        return ""
+    profile = (
+        _agents_archive_query_profile()
+        if scope == "archive"
+        else agents_live_query_profile()
+    )
+    normalized = _normalize_session_query(remainder, profile)
+    return canonical_query_for_profile(normalized, profile)
 
 
 def _normalize_session_query(raw: str, profile: CompiledQueryProfile) -> str:
@@ -224,11 +275,17 @@ def apply_agents_live_query_filter(
     if not raw:
         return materialized, None, None
 
+    from sase.ace.query.scope_token import ScopeTokenError, inbox_membership_query
+
     compiled_profile = profile if profile is not None else agents_live_query_profile()
     try:
-        raw = _normalize_session_query(raw, compiled_profile)
-        canonical = canonical_query_for_profile(raw, compiled_profile)
-    except ProfileQueryError as exc:
+        membership, _scope = inbox_membership_query(raw)
+        if not membership.strip():
+            return materialized, None, None
+        membership = _normalize_session_query(membership, compiled_profile)
+        canonical = canonical_query_for_profile(membership, compiled_profile)
+        raw = membership
+    except (ProfileQueryError, ScopeTokenError) as exc:
         return (
             materialized,
             None,
@@ -267,5 +324,6 @@ __all__ = [
     "apply_agents_live_query_filter",
     "augment_error_with_legacy_hint",
     "build_agents_live_query_index",
+    "canonical_agents_tab_query",
     "evaluate_agents_live_query",
 ]

@@ -39,6 +39,7 @@ def test_configure_from_profile_derives_dialect_without_class_declarations() -> 
         dict(bar.KEY_COMPLETIONS)["id"] == "bead id; id:<epic>.* lists an epic's phases"
     )
     assert dict(bar.KEY_COMPLETIONS)["limit"] == "row cap; all removes it"
+    assert "in" not in dict(bar.KEY_COMPLETIONS)
     assert bar.STATIC_VALUE_COMPLETIONS["limit"] == ("40", "100", "200", "all")
     assert set(bar.STATIC_VALUE_COMPLETIONS["type"]) == set(BEAD_FILTER_TYPE_VALUES)
     assert "assignee" not in bar.STATIC_VALUE_COMPLETIONS  # plain string field

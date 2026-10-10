@@ -13,6 +13,7 @@ from sase.ace.query_profile import (
     HOST_PREDICATES,
     ArtifactQuerySchema,
     QueryFieldSpec,
+    agents_archive_query_schema,
     agents_live_query_schema,
     agents_query_schema,
     compile_query_profile,
@@ -339,6 +340,74 @@ def test_agents_live_profile_removed_legacy_spellings_stay_rejected() -> None:
         parse_query_for_profile("!!!", profile)
     with pytest.raises(ProfileQueryError):
         parse_query_for_profile("tribe:", profile)
+
+
+def test_agents_archive_profile_filterable_fields_are_all_accepted_by_parser() -> None:
+    profile = compile_query_profile(agents_archive_query_schema())
+    assert profile.pane_id == "agents-archive"
+    assert profile.boolean is True
+    assert profile.sigils == () and profile.shorthands == ()
+    assert profile.predicates == ()
+    assert profile.any_special is False
+    sample_values = {
+        "name": "sase-r8.9.land",
+        "kind": "workflow-child",
+        "session": "research.12",
+        "clan": "athena.sase-8t",
+        "project": "sase",
+        "role": "code",
+        "workflow": "review",
+        "model": "gpt-5.6-sol",
+        "provider": "codex",
+        "status": "FAILED",
+        "attempt": "2",
+        "retry": "true",
+        "outcome": "failed",
+        "restorable": "true",
+        "tab": "main",
+        "tribe": "pinned",
+        "clan_tribe": "epic",
+        "linked": "true",
+        "relation": "read",
+        "artifact": "plan:202608/example.md",
+        "since": "7d",
+        "until": "2026-08-01",
+        "after": "2h",
+        "before": "today",
+        "min": "5m",
+        "max": "2h",
+    }
+    filterable_keys = {item.key for item in profile.fields if item.filterable}
+    assert filterable_keys == set(sample_values)
+    for key, value in sample_values.items():
+        parse_query_for_profile(f"{key}:{value}", profile)  # must not raise
+
+
+def test_agents_archive_profile_owns_archive_fields_not_inbox_fields() -> None:
+    profile = compile_query_profile(agents_archive_query_schema())
+    live = compile_query_profile(agents_live_query_schema())
+    archive_keys = {item.key for item in profile.fields}
+    live_keys = {item.key for item in live.fields}
+    assert {
+        "outcome",
+        "restorable",
+        "clan_tribe",
+        "linked",
+        "relation",
+        "artifact",
+    } <= (archive_keys - live_keys)
+    for inbox_only in ("unread", "pinned", "needs", "source", "cl", "machine", "text"):
+        assert profile.field(inbox_only) is None
+        with pytest.raises(ProfileQueryError):
+            parse_query_for_profile(f"{inbox_only}:true", profile)
+    with pytest.raises(ProfileQueryError):
+        parse_query_for_profile("in:archive", profile)
+
+
+def test_agents_catalog_profile_rejects_in_token() -> None:
+    profile = compile_query_profile(agents_query_schema())
+    with pytest.raises(ProfileQueryError, match="Unknown filter key 'in'"):
+        parse_query_for_profile("in:archive", profile)
 
 
 def test_agents_live_profile_search_only_fields_match_the_free_text_hint() -> None:

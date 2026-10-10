@@ -49,6 +49,10 @@ from .compiler import CompiledQueryProfile, QueryProfileError, compile_query_pro
 from .pane_registry import compiled_profile_for_builtin_pane
 
 _LAZY_EXPORTS = {
+    "agents_archive_query_schema": (
+        ".profiles._agents_archive",
+        "agents_archive_query_schema",
+    ),
     "agents_live_query_schema": (
         ".profiles._agents_live",
         "agents_live_query_schema",
@@ -79,6 +83,7 @@ __all__ = [
     "QueryShorthandSpec",
     "QueryProfileError",
     "QuerySigilSpec",
+    "agents_archive_query_schema",
     "agents_live_query_schema",
     "agents_query_schema",
     "beads_query_schema",

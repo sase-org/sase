@@ -79,6 +79,26 @@ def test_compile_agents_live_query_pushdown_keeps_unsupported_queries_unbounded(
         assert plan.unsupported_reason == "unsupported_query"
 
 
+def test_compile_agents_live_query_pushdown_strips_in_token() -> None:
+    empty = compile_agents_live_query_pushdown("in:archive")
+    assert empty.window_safe is True
+    assert empty.candidate_filter is None
+    assert empty.unsupported_reason is None
+
+    mixed = compile_agents_live_query_pushdown("in:archive provider:codex")
+    assert mixed.window_safe is True
+    assert mixed.candidate_filter is not None
+    assert mixed.unsupported_reason is None
+
+    invalid = compile_agents_live_query_pushdown("in:history")
+    assert invalid.window_safe is False
+    assert invalid.candidate_filter is None
+    assert invalid.unsupported_reason is not None
+    assert (
+        "inbox" in invalid.unsupported_reason or "archive" in invalid.unsupported_reason
+    )
+
+
 def test_compile_agents_live_query_pushdown_reports_legacy_parse_hint() -> None:
     plan = compile_agents_live_query_pushdown("age>2h")
 

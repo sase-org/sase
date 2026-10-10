@@ -155,6 +155,8 @@ async def test_key_completions_derive_from_the_agents_live_profile() -> None:
         assert "kind" in keys
         assert "cl" in keys
         assert "tribe" in keys
+        assert "in" in keys
+        assert bar.STATIC_VALUE_COMPLETIONS["in"] == ("inbox", "archive")
         # Removed legacy spellings (age/type) never appear in completions.
         assert "age" not in keys
         assert "type" not in keys

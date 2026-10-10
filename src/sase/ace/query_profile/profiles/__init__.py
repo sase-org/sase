@@ -18,6 +18,8 @@ the public schema constructors.
 
 from __future__ import annotations
 
+from typing import Any
+
 from ._agents import agents_query_schema
 from ._agents_live import agents_live_query_schema
 from ._beads import beads_query_schema
@@ -29,6 +31,7 @@ from ._provider import provider_query_schema
 from ._stitches import stitches_query_schema
 
 __all__ = [
+    "agents_archive_query_schema",
     "agents_query_schema",
     "agents_live_query_schema",
     "beads_query_schema",
@@ -39,3 +42,12 @@ __all__ = [
     "provider_query_schema",
     "stitches_query_schema",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "agents_archive_query_schema":
+        from ._agents_archive import agents_archive_query_schema as value
+
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

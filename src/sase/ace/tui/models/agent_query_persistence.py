@@ -289,22 +289,18 @@ def _canonical_for_dialect(source: str, dialect: AgentQueryDialect) -> str:
     if not source.strip():
         return ""
     if dialect == DIALECT_UNIFIED:
-        from sase.ace.query.profile_reference import canonical_query_for_profile
+        from .agent_live_query_engine import canonical_agents_tab_query
 
-        from .agent_live_query_engine import agents_live_query_profile
-
-        return canonical_query_for_profile(source, agents_live_query_profile())
+        return canonical_agents_tab_query(source)
     if dialect == DIALECT_LEGACY:
         # Retired dialect: no new legacy snapshots are written. Keep decode
         # compatibility for stored files (dialect mismatch warns before this
-        # is consulted); canonicalize through the live profile so no second
-        # evaluator is retained.
-        from sase.ace.query.profile_reference import canonical_query_for_profile
-
-        from .agent_live_query_engine import agents_live_query_profile
+        # is consulted); canonicalize through the live Agents-tab query so no
+        # second evaluator is retained.
+        from .agent_live_query_engine import canonical_agents_tab_query
 
         try:
-            return canonical_query_for_profile(source, agents_live_query_profile())
+            return canonical_agents_tab_query(source)
         except Exception:
             return source
     raise _AgentQueryPersistenceError("unknown Agents query dialect")

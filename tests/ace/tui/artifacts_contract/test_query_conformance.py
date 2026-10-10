@@ -30,6 +30,7 @@ _GOLDEN = Path(__file__).resolve().parent / "goldens" / "query" / "profile_cases
 _FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0)
 _REQUIRED_PROFILE_PANES = {
     "agents",
+    "agents-archive",
     "agents-live",
     "patches",
     "stitches",
@@ -104,6 +105,7 @@ def _profiles() -> Iterator[tuple[str, CompiledQueryProfile]]:
         "ref:plan",
         "agents",
         "agents-live",
+        "agents-archive",
         "files",
     }
     builtins = [

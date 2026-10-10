@@ -58,3 +58,30 @@ class AgentsFilterBar(FilterBar):
 
     class Dismissed(Message):
         """The user dismissed the bar after closing any completion menu."""
+
+    def _inject_host_limit_completions(self) -> None:
+        super()._inject_host_limit_completions()
+        self._inject_host_scope_completions()
+
+    def _inject_host_scope_completions(self) -> None:
+        """Expose the host-owned ``in:`` token on the Agents-tab filter bar."""
+
+        from sase.ace.query.scope_token import (
+            HOST_SCOPE_HINT,
+            HOST_SCOPE_KEY,
+            HOST_SCOPE_VALUE_HINT,
+            HOST_SCOPE_VALUES,
+        )
+
+        if not any(key == HOST_SCOPE_KEY for key, _hint in self.KEY_COMPLETIONS):
+            items = [*(self.KEY_COMPLETIONS), (HOST_SCOPE_KEY, HOST_SCOPE_HINT)]
+            items.sort(key=lambda item: item[0])
+            self.KEY_COMPLETIONS = tuple(items)
+        static = dict(self.STATIC_VALUE_COMPLETIONS)
+        if not static.get(HOST_SCOPE_KEY):
+            static[HOST_SCOPE_KEY] = HOST_SCOPE_VALUES
+            self.STATIC_VALUE_COMPLETIONS = static
+        hints = dict(self.VALUE_HINTS)
+        if HOST_SCOPE_KEY not in hints:
+            hints[HOST_SCOPE_KEY] = HOST_SCOPE_VALUE_HINT
+            self.VALUE_HINTS = hints

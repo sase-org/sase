@@ -338,6 +338,46 @@ def test_agent_live_query_row_id_falls_back_to_agent_identity() -> None:
     assert agent_live_query_row_id(agent) == "run:sase-zf:20260824100000"
 
 
+def test_in_archive_does_not_change_inbox_matches() -> None:
+    agents = [
+        _agent(status="FAILED", start_time=None, run_start_time=None),
+        _agent(agent_name="ok", status="RUNNING", start_time=None, run_start_time=None),
+    ]
+
+    filtered, _facade, error = apply_agents_live_query_filter("in:archive", agents)
+
+    assert error is None
+    assert {agent.status for agent in filtered} == {"FAILED", "RUNNING"}
+
+    filtered, _facade, error = apply_agents_live_query_filter(
+        "in:archive status:FAILED",
+        agents,
+    )
+    assert error is None
+    assert [agent.status for agent in filtered] == ["FAILED"]
+
+
+def test_archive_only_field_without_in_archive_is_a_scope_hint() -> None:
+    agents = [_agent()]
+    _filtered, _facade, error = apply_agents_live_query_filter(
+        "restorable:true",
+        agents,
+    )
+    assert error is not None
+    assert "Archive field" in error
+    assert "in:archive" in error
+
+
+def test_inbox_only_field_with_in_archive_is_a_scope_hint() -> None:
+    agents = [_agent()]
+    _filtered, _facade, error = apply_agents_live_query_filter(
+        "in:archive unread:true",
+        agents,
+    )
+    assert error is not None
+    assert "Inbox field" in error
+
+
 def test_agents_live_profile_rejects_removed_legacy_row_adapter_terms() -> None:
     profile = compile_query_profile(agents_live_query_schema())
 

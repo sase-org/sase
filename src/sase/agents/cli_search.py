@@ -16,6 +16,7 @@ from rich.text import Text
 
 from sase.ace.query.limit_token import LimitTokenError, apply_limit, extract_limit
 from sase.ace.query.profile_reference_support import ProfileQueryError
+from sase.ace.query.scope_token import ScopeTokenError, extract_scope
 from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
 from sase.agents.catalog import (
     AgentCatalogLinkFacets,
@@ -71,7 +72,7 @@ def handle_agents_search(args: argparse.Namespace) -> int:
             project_ref_display=project_ref_display,
             link_facets=link_facets,
         )
-    except (LimitTokenError, ProfileQueryError, ValueError) as exc:
+    except (LimitTokenError, ScopeTokenError, ProfileQueryError, ValueError) as exc:
         Console(stderr=True).print(f"[bold red]error:[/bold red] {exc}")
         return 2
 
@@ -99,9 +100,10 @@ def _evaluate_rows(
     link_facets: Mapping[str, AgentCatalogLinkFacets] | None,
 ) -> tuple[tuple[AgentCatalogRow, ...], int, int | None, bool]:
     profile = _agents_profile()
-    query = _normalize_legacy_family_query(query, profile)
     remainder, query_cap = extract_limit(query)
     has_query_limit = remainder != query
+    remainder, _scope = extract_scope(remainder)
+    remainder = _normalize_legacy_family_query(remainder, profile)
     match_query = _presentation_scoped_query(remainder)
     index = compile_artifact_query_index(
         pane_id="agents",

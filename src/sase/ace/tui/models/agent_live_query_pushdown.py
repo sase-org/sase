@@ -83,6 +83,8 @@ def compile_agents_live_query_pushdown(
 ) -> _AgentsLiveQueryPushdownPlan:
     """Return an exact indexed-candidate filter for ``agents-live`` when possible."""
 
+    from sase.ace.query.scope_token import ScopeTokenError, inbox_membership_query
+
     raw = (raw_query or "").strip()
     if not raw:
         return _AgentsLiveQueryPushdownPlan(
@@ -93,9 +95,17 @@ def compile_agents_live_query_pushdown(
         )
 
     try:
-        raw = _normalize_session_query(raw)
-        parsed = parse_query_for_profile(raw, agents_live_query_profile())
-    except ProfileQueryError as exc:
+        membership, _scope = inbox_membership_query(raw)
+        if not membership.strip():
+            return _AgentsLiveQueryPushdownPlan(
+                raw_query=raw,
+                parsed_query=None,
+                candidate_filter=None,
+                window_safe=True,
+            )
+        membership = _normalize_session_query(membership)
+        parsed = parse_query_for_profile(membership, agents_live_query_profile())
+    except (ProfileQueryError, ScopeTokenError) as exc:
         return _AgentsLiveQueryPushdownPlan(
             raw_query=raw,
             parsed_query=None,
@@ -109,14 +119,14 @@ def compile_agents_live_query_pushdown(
     candidate_filter = _candidate_filter_for_expr(parsed)
     if candidate_filter is None:
         return _AgentsLiveQueryPushdownPlan(
-            raw_query=raw,
+            raw_query=membership,
             parsed_query=parsed,
             candidate_filter=None,
             window_safe=False,
             unsupported_reason="unsupported_query",
         )
     return _AgentsLiveQueryPushdownPlan(
-        raw_query=raw,
+        raw_query=membership,
         parsed_query=parsed,
         candidate_filter=candidate_filter,
         window_safe=True,
