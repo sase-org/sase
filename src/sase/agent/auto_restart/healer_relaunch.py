@@ -114,7 +114,8 @@ def relaunch_claimed(
     launched_dir = getattr(outcome, "launched_artifacts_dir", None)
     stored = ledger_mod.advance_ledger_record(stored, "launched")
     stored = annotate_record(stored, launched_artifacts_dir=launched_dir)
-    write_recovery(target, "launched", "relaunched", now=now)
+    # No done.json write here: execute wiped the failed row, and the ledger
+    # owns ``launched`` — writing would recreate a phantom artifacts dir.
     publish_relaunch_event(
         target, verdict=verdict, episode_id=episode_id, evidence_dir=evidence_dir
     )

@@ -56,6 +56,48 @@ def heal_one(
             now=at,
         )
 
+    # Fresh lineage: re-check the candidate rule before claiming anything.
+    # Non-candidates return with no ledger record, no done.json write, and
+    # no notification.
+    from sase.agent.auto_restart.healer_targets import (
+        is_healer_candidate,
+        target_was_silenced,
+    )
+
+    try:
+        doorbell_dirs = {
+            str(entry.get("artifacts_dir"))
+            for entry in ledger_mod.list_doorbells()
+            if entry.get("artifacts_dir")
+        }
+    except Exception:
+        doorbell_dirs = set()
+    has_doorbell = str(target.artifacts_dir) in doorbell_dirs
+    try:
+        candidate = is_healer_candidate(
+            artifacts_dir=target.artifacts_dir,
+            done=done,
+            has_doorbell=has_doorbell,
+            now=at,
+        )
+    except Exception:
+        candidate = True
+    if not candidate:
+        if not dry_run:
+            with contextlib.suppress(Exception):
+                ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
+        return HealerOutcome(
+            action="skipped",
+            reason="not_update_skew",
+            reason_text="not an update-skew candidate: no doorbell, in-flight "
+            "recovery, skew suspect, or recent skew-shaped legacy row",
+            ledger_key=None,
+        )
+    try:
+        silenced: bool | None = target_was_silenced(target, done)
+    except Exception:
+        silenced = None
+
     if dry_run:
         return HealerOutcome(
             action="dry_run",
@@ -85,7 +127,11 @@ def heal_one(
             ledger_key=key,
         )
 
-    write_recovery(target, "claimed", "healer claimed this lineage", now=at)
+    # The ledger owns this failure now: the doorbell is handled, and the
+    # runner's ``pending`` stays in place until the pass writes
+    # ``deferred``, ``launching``, or ``declined`` (never ``claimed``).
+    with contextlib.suppress(Exception):
+        ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
     return heal_claimed(
         stored,
         target,
@@ -100,6 +146,7 @@ def heal_one(
         execute_restart=execute_restart,
         derive_episode=derive_auto_restart_episode,
         now=at,
+        silenced=True if silenced is None else silenced,
     )
 
 
@@ -152,18 +199,23 @@ def _recover_existing_claim(
 
     state = stored.record.state
     key = stored.record.key
-    if state in ("declined", "settled_ok", "settled_failed"):
+    if state in ("declined", "settled_ok", "settled_failed", "launched"):
+        # Already spent: the doorbell is handled whether or not an earlier
+        # pass deleted it, so the job goes idle on the next tick.
+        if not dry_run:
+            with contextlib.suppress(Exception):
+                ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
+        if state == "launched":
+            return HealerOutcome(
+                action="declined",
+                reason="already_launched",
+                reason_text="this lineage already relaunched",
+                ledger_key=key,
+            )
         return HealerOutcome(
             action="declined",
             reason=stored.record.decline_reason or state,
             reason_text="this lineage already spent its automatic restart",
-            ledger_key=key,
-        )
-    if state == "launched":
-        return HealerOutcome(
-            action="declined",
-            reason="already_launched",
-            reason_text="this lineage already relaunched",
             ledger_key=key,
         )
     if state == "launching":
@@ -192,7 +244,9 @@ def _recover_existing_claim(
                     stored, "decline", note="max_defer_seconds elapsed"
                 )
                 stored = annotate_record(stored, decline_reason="deferred_expired")
-            write_recovery(target, "declined", "deferred too long", now=now)
+            write_recovery(
+                target, "declined", "deferred too long", now=now, dry_run=dry_run
+            )
             return HealerOutcome(
                 action="declined",
                 reason="deferred_expired",

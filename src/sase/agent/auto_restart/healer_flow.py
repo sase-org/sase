@@ -36,6 +36,7 @@ def heal_claimed(
     execute_restart: Callable | None = None,
     derive_episode: Callable | None = None,
     now: float,
+    silenced: bool = True,
 ) -> HealerOutcome:
     from sase.agent.auto_restart import ledger as ledger_mod
 
@@ -48,6 +49,8 @@ def heal_claimed(
             )
             stored = annotate_record(stored, decline_reason=skip.decline_reason)
             write_recovery(target, "declined", skip.reason_text, now=now)
+            with contextlib.suppress(Exception):
+                ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
             if skip.loud:
                 kind = (
                     "already_restarted"
@@ -72,7 +75,13 @@ def heal_claimed(
     try:
         assembled = _assemble(target, done=done, meta=meta)
     except Exception as exc:
-        return defer_heal(stored, target, f"could not assemble inputs: {exc}", now=now)
+        return defer_heal(
+            stored,
+            target,
+            f"could not assemble inputs: {exc}",
+            now=now,
+            dry_run=dry_run,
+        )
     verdict = (classify or _classify_default)(assembled)
     _store_verdict(stored, verdict, assembled, dry_run=dry_run)
     if verdict.mode == "decline":
@@ -83,6 +92,8 @@ def heal_claimed(
             verdict.reason_text or "not an update-skew failure",
             now=now,
             dry_run=dry_run,
+            escalate=silenced,
+            silenced=silenced,
         )
     if verdict.mode in ("notify_post_provider", "ask"):
         return decline_heal(
@@ -92,10 +103,11 @@ def heal_claimed(
             verdict.reason_text or "not relaunched by policy",
             now=now,
             dry_run=dry_run,
-            escalate=True,
+            escalate=silenced,
             escalate_kind=(
                 "post_provider" if verdict.mode == "notify_post_provider" else "decline"
             ),
+            silenced=silenced,
         )
     if verdict.mode != "relaunch" and verdict.mode != "defer":
         return decline_heal(
@@ -105,6 +117,8 @@ def heal_claimed(
             verdict.reason_text or "classifier declined",
             now=now,
             dry_run=dry_run,
+            escalate=silenced,
+            silenced=silenced,
         )
 
     episode_id = verdict.episode_id
@@ -134,17 +148,34 @@ def heal_claimed(
             ]
             if part
         )
-        return defer_heal(stored, target, detail or "deferred", now=now)
+        return defer_heal(
+            stored, target, detail or "deferred", now=now, dry_run=dry_run
+        )
 
     storm = _storm_decision(episode_id)
     if not storm.allowed:
         from sase.agent.auto_restart import storm as storm_mod
 
         if not dry_run:
-            storm_mod.trip_pause(reason=storm.reason, episode=episode_id)
-            escalate_healer(target, storm.reason, episode_id=episode_id, kind="storm")
+            try:
+                already_paused, _ = storm_mod.is_paused()
+            except Exception:
+                already_paused = False
+            if not already_paused:
+                # The pass that trips sends the one storm escalation for the
+                # episode; every later target while paused declines quietly.
+                storm_mod.trip_pause(reason=storm.reason, episode=episode_id)
+                escalate_healer(
+                    target, storm.reason, episode_id=episode_id, kind="storm"
+                )
         return decline_heal(
-            stored, target, "paused", storm.reason, now=now, dry_run=dry_run
+            stored,
+            target,
+            "paused",
+            storm.reason,
+            now=now,
+            dry_run=dry_run,
+            silenced=False,
         )
 
     if dry_run:

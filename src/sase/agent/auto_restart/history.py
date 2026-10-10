@@ -54,13 +54,17 @@ class FailedCandidate:
     mtime: float | None = None
 
 
-def _parse_local_stamp(text: str) -> float | None:
+def parse_artifact_stamp(text: str) -> float | None:
     """Parse artifact/bundle timestamps into epoch seconds.
 
     Accepts 14-digit ``YYYYmmddHHMMSS`` directory names, 12-digit
     ``YYmmdd_HHMMSS`` legacy stamps, and bare epoch numbers. Naive
     values are local-time constructions.
     """
+    return _parse_local_stamp(text)
+
+
+def _parse_local_stamp(text: str) -> float | None:
     if not isinstance(text, str):
         return None
     stripped = text.strip()
@@ -307,4 +311,5 @@ __all__ = [
     "FailedCandidate",
     "candidate_log_tail",
     "collect_failed_candidates",
+    "parse_artifact_stamp",
 ]

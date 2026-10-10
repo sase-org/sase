@@ -207,12 +207,13 @@ def annotate_record(
 
 
 def defer_heal(
-    stored: Any, target: HealerTarget, detail: str, *, now: float
+    stored: Any, target: HealerTarget, detail: str, *, now: float, dry_run: bool = False
 ) -> HealerOutcome:
     from sase.agent.auto_restart import ledger as ledger_mod
 
-    stored = ledger_mod.advance_ledger_record(stored, "defer", note=detail)
-    write_recovery(target, "deferred", detail, now=now)
+    if not dry_run:
+        stored = ledger_mod.advance_ledger_record(stored, "defer", note=detail)
+    write_recovery(target, "deferred", detail, now=now, dry_run=dry_run)
     return HealerOutcome(
         action="deferred",
         reason="deferred",
@@ -232,19 +233,32 @@ def decline_heal(
     escalate: bool = False,
     episode_id: str | None = None,
     escalate_kind: str = "decline",
+    silenced: bool = True,
 ) -> HealerOutcome:
+    """Decline one claimed lineage, notifying only for silenced rows.
+
+    A silenced row (doorbell or ``pending`` recovery) gets the loud path —
+    escalation copy when ``escalate`` else a re-surface — because its
+    terminal outcome would otherwise stay invisible. A row that was not
+    silenced already notified the user at failure time, so the decline
+    records the ledger and the dim Agents-tab hint only (decision
+    ``quiet_declines = quiet``): no ``resurface_failure`` or escalation.
+    """
     from sase.agent.auto_restart import ledger as ledger_mod
 
     if not dry_run:
         stored = ledger_mod.advance_ledger_record(stored, "decline", note=reason)
         stored = annotate_record(stored, decline_reason=reason)
         write_recovery(target, "declined", reason_text, now=now)
-        if escalate:
-            escalate_healer(
-                target, reason_text, episode_id=episode_id, kind=escalate_kind
-            )
-        else:
-            resurface_healer(target, reason_text)
+        with contextlib.suppress(Exception):
+            ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
+        if silenced:
+            if escalate:
+                escalate_healer(
+                    target, reason_text, episode_id=episode_id, kind=escalate_kind
+                )
+            else:
+                resurface_healer(target, reason_text)
     return HealerOutcome(
         action="declined",
         reason=reason,
@@ -334,15 +348,30 @@ def publish_relaunch_event(
 
 
 def write_recovery(
-    target: HealerTarget, state: str, note: str, *, now: float | None = None
+    target: HealerTarget,
+    state: str,
+    note: str,
+    *,
+    now: float | None = None,
+    dry_run: bool = False,
 ) -> None:
-    """Write the ``recovery`` object on the failed row's ``done.json``."""
+    """Write the ``recovery`` object on the failed row's ``done.json``.
+
+    Never creates anything: when ``done.json`` is missing (a dismissed or
+    wiped row, or the just-wiped pre-relaunch row) it returns without
+    writing, so no phantom artifacts directory is recreated. Dry runs
+    never write.
+    """
     import datetime
 
     from sase.core.time import get_timezone
 
-    at = time.time() if now is None else now
+    if dry_run:
+        return
     path = target.artifacts_dir / "done.json"
+    if not path.is_file():
+        return
+    at = time.time() if now is None else now
     done = read_json(path) or {}
     try:
         previous = done.get("recovery")

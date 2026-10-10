@@ -286,6 +286,57 @@ def delete_doorbell(path: str | Path) -> None:
         pass
 
 
+def delete_doorbells_for(artifacts_dir: str | Path) -> None:
+    """Remove every doorbell naming *artifacts_dir*.
+
+    Called once a ledger record owns the failure (at claim) and when the
+    target is skipped or declined, so the job's ``actionable`` turns false
+    after one healer pass over a handled doorbell.
+    """
+    wanted = str(artifacts_dir)
+    try:
+        doorbells = list_doorbells()
+    except Exception:
+        return
+    for doorbell in doorbells:
+        try:
+            if str(doorbell.get("artifacts_dir")) == wanted:
+                delete_doorbell(str(doorbell.get("doorbell_path", "")))
+        except Exception:
+            continue
+
+
+_records_cache: dict[str, Any] = {"dir": None, "mtime_ns": None, "records": []}
+
+
+def iter_ledger_records_cached() -> list[StoredLedgerRecord]:
+    """Load every ledger record, reusing the last read while quiet.
+
+    Idle job ticks must stay at a handful of ``stat()`` calls: the ledger
+    directory's mtime gates the parse, so an unchanged ledger costs one
+    ``stat()`` instead of one read per record. Callers that mutate the
+    ledger must go through this module's writers (which change the
+    directory mtime) or out-of-band mutation (tests use
+    :func:`_clear_ledger_records_cache`).
+    """
+    directory = _ledger_dir()
+    try:
+        mtime_ns: int | None = directory.stat().st_mtime_ns
+    except OSError:
+        mtime_ns = None
+    key = str(directory)
+    if _records_cache.get("dir") == key and _records_cache.get("mtime_ns") == mtime_ns:
+        return list(_records_cache["records"])
+    records = iter_ledger_records()
+    _records_cache.update({"dir": key, "mtime_ns": mtime_ns, "records": records})
+    return list(records)
+
+
+def _clear_ledger_records_cache() -> None:
+    """Forget the cached ledger read (tests, or out-of-band mutation)."""
+    _records_cache.update({"dir": None, "mtime_ns": None, "records": []})
+
+
 __all__ = [
     "StoredLedgerRecord",
     "advance_ledger_record",
@@ -293,7 +344,9 @@ __all__ = [
     "claim_ledger_record",
     "claimer_is_live",
     "delete_doorbell",
+    "delete_doorbells_for",
     "iter_ledger_records",
+    "iter_ledger_records_cached",
     "ledger_key",
     "list_doorbells",
     "load_ledger_record",

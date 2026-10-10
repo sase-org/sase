@@ -106,7 +106,9 @@ def _collect_job_work(*, now: float | None = None) -> _JobWork:
     except Exception:
         work.doorbells = []
     try:
-        records = ledger_mod.iter_ledger_records()
+        # Mtime-gated: an unchanged ledger costs one stat(), not one read
+        # per record, so idle ticks stay at a handful of stat() calls.
+        records = ledger_mod.iter_ledger_records_cached()
     except Exception:
         records = []
     owned_dirs: set[str] = set()
@@ -143,7 +145,7 @@ def _collect_job_work(*, now: float | None = None) -> _JobWork:
     if cheap_signal or _full_sweep_due(at):
         work.full_scan = True
         try:
-            work.targets = resolve_pending_targets()
+            work.targets = resolve_pending_targets(now=at)
         except Exception:
             work.targets = []
         _record_full_sweep(at)
@@ -328,26 +330,66 @@ def _settle_launched_records(*, now: float | None = None) -> int:
     return settled
 
 
-def _resurface_for_disabled(work: _JobWork, *, reason: str) -> int:
-    """Loudly re-surface pending failures while the feature cannot act.
+def _disabled_resurface_stamp(target: HealerTarget) -> Path:
+    """Return the once-only stamp for the disabled/paused resurface path."""
+    from sase.agent.auto_restart.ledger import auto_restart_root
 
-    Clears doorbells and marks ``done.json`` recovery ``declined``. Never
-    writes the ledger: disabling the feature never swallows a failure, and
-    no lineage budget is spent on this path.
+    return (
+        auto_restart_root()
+        / "resurfaced"
+        / f"disabled-{target.artifacts_dir.name}.stamp"
+    )
+
+
+def _disabled_already_resurfaced(target: HealerTarget) -> bool:
+    try:
+        return _disabled_resurface_stamp(target).is_file()
+    except OSError:
+        return False
+
+
+def _mark_disabled_resurfaced(target: HealerTarget, now: float) -> None:
+    try:
+        stamp = _disabled_resurface_stamp(target)
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(f"{now}\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _resurface_for_disabled(
+    work: _JobWork, *, reason: str, now: float | None = None
+) -> int:
+    """Loudly re-surface silenced failures while the feature cannot act.
+
+    Only silenced rows (a doorbell, or ``recovery.state == "pending"``)
+    are handled — every other failed row already notified the user, so it
+    is never touched here. Each silenced failure is re-surfaced exactly
+    once (a ``resurfaced/disabled-<stamp>.stamp`` file gates repeats),
+    its ``done.json`` recovery is marked ``declined``, and its doorbell is
+    cleared. Never writes the ledger: disabling the feature never swallows
+    a failure, and no lineage budget is spent on this path.
     """
+    import json
+
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart.healer import HealerTarget as _Target
     from sase.agent.auto_restart.healer import write_recovery
     from sase.agent.auto_restart.notify import resurface_failure
 
+    at = time.time() if now is None else now
     resurfaced = 0
     seen: set[str] = set()
     targets: list[_Target] = list(work.targets)
     for target in targets:
         seen.add(str(target.artifacts_dir))
+    doorbell_dirs: set[str] = set()
     for doorbell in work.doorbells:
         raw = doorbell.get("artifacts_dir")
-        if not raw or str(raw) in seen:
+        if not raw:
+            continue
+        doorbell_dirs.add(str(raw))
+        if str(raw) in seen:
             continue
         seen.add(str(raw))
         name = doorbell.get("agent_name")
@@ -362,17 +404,35 @@ def _resurface_for_disabled(work: _JobWork, *, reason: str) -> int:
     for target in targets:
         if not (target.artifacts_dir / "done.json").is_file():
             continue
+        try:
+            done = json.loads((target.artifacts_dir / "done.json").read_text())
+        except (OSError, ValueError):
+            continue
+        if not isinstance(done, dict) or str(done.get("outcome", "")) != "failed":
+            continue
+        recovery = done.get("recovery")
+        silenced = str(target.artifacts_dir) in doorbell_dirs or (
+            isinstance(recovery, dict) and recovery.get("state") == "pending"
+        )
+        if not silenced:
+            continue
+        if _disabled_already_resurfaced(target):
+            continue
         with contextlib.suppress(Exception):
             resurface_failure(
                 agent_name=target.agent_name,
                 reason_text=f"auto-restart {reason}; the failure needs a manual ,x",
                 artifacts_dir=str(target.artifacts_dir),
             )
-            write_recovery(target, "declined", f"auto-restart {reason}")
+            write_recovery(target, "declined", f"auto-restart {reason}", now=at)
+            ledger_mod.delete_doorbells_for(str(target.artifacts_dir))
+            _mark_disabled_resurfaced(target, at)
             resurfaced += 1
     for doorbell in work.doorbells:
-        with contextlib.suppress(Exception):
-            ledger_mod.delete_doorbell(str(doorbell.get("doorbell_path", "")))
+        raw = doorbell.get("artifacts_dir")
+        if raw and not (Path(str(raw)) / "done.json").is_file():
+            with contextlib.suppress(Exception):
+                ledger_mod.delete_doorbell(str(doorbell.get("doorbell_path", "")))
     return resurfaced
 
 
@@ -397,14 +457,14 @@ def run_job_tick(*, now: float | None = None) -> _TickResult:
     if not enabled:
         resurfaced = 0
         with contextlib.suppress(Exception):
-            resurfaced = _resurface_for_disabled(work, reason="is disabled")
+            resurfaced = _resurface_for_disabled(work, reason="is disabled", now=at)
         return _TickResult(
             action="disabled", reason="disabled", settled=settled, resurfaced=resurfaced
         )
     if paused:
         resurfaced = 0
         with contextlib.suppress(Exception):
-            resurfaced = _resurface_for_disabled(work, reason="is paused")
+            resurfaced = _resurface_for_disabled(work, reason="is paused", now=at)
         return _TickResult(
             action="paused", reason="paused", settled=settled, resurfaced=resurfaced
         )

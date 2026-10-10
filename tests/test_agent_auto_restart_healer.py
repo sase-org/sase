@@ -44,6 +44,13 @@ def failed_row(tmp_path: Path) -> Path:
                 "outcome": "failed",
                 "error": "ImportError: cannot import name 'auto_launch_prefix'",
                 "finished_at": 1720000000.0,
+                # Skew-suspect so the row passes the healer candidate
+                # pre-check (sweep-safety); the stale timestamp proves the
+                # suspect path does not depend on legacy recency.
+                "failure_facts": {
+                    "lifecycle_phase": "waiting",
+                    "skew_suspect": True,
+                },
             }
         ),
         encoding="utf-8",
