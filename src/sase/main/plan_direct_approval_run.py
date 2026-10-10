@@ -95,7 +95,17 @@ def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
         )
 
         launched: CoderLaunch = launch_coder_with_fallbacks(
-            plan, local_plan, plan_ref or str(local_plan), launch=launch_coder_once
+            plan,
+            local_plan,
+            plan_ref or str(local_plan),
+            launch_with_placement=lambda prompt, launch_plan, placement: (
+                launch_coder_once(
+                    prompt,
+                    launch_plan,
+                    project_name=plan.project,
+                    placement=placement,
+                )
+            ),
         )
         coder = launched.coder  # type: ignore[assignment]
         coder_error = launched.error
@@ -464,7 +474,14 @@ def execute_coder_recovery(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
                 plan,
                 local_plan,
                 plan.predicted_plan_ref or str(local_plan),
-                launch=launch_coder_once,
+                launch_with_placement=lambda prompt, launch_plan, placement: (
+                    launch_coder_once(
+                        prompt,
+                        launch_plan,
+                        project_name=plan.project,
+                        placement=placement,
+                    )
+                ),
             )
             coder = launched.coder  # type: ignore[assignment]
             coder_error = launched.error

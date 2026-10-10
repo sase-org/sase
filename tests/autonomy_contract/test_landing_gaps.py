@@ -133,18 +133,216 @@ def test_host_composed_unreadable_predecessor_fails_closed(tmp_path: Path) -> No
     assert record["profile"] == "manual"
 
 
-def test_direct_approval_host_composed_env_inherits(tmp_path: Path) -> None:
-    """Direct-approval session coders carry a trusted host-composed attach."""
-    from sase.main.plan_direct_approval_launch import _host_composed_attach_env
+def _direct_approval_plan(tmp_path: Path, *, recovery: bool = False):
+    from sase.main.plan_direct_approval import (
+        CoderPlacement,
+        DirectApprovalPlan,
+        DirectApprovalRequest,
+    )
+
+    source = tmp_path / "approved-plan.md"
+    source.write_text("# Approved plan\n", encoding="utf-8")
+    fields: dict[str, Any] = {}
+    if recovery:
+        from sase.main.plan_direct_approval_recovery import CoderRecovery
+
+        fields["recovery"] = CoderRecovery(
+            verdict="recover",
+            approved_action="approve",
+            approved_age="1m ago",
+            plan_argument="plan:202610/approved-plan.md",
+        )
+    return DirectApprovalPlan(
+        request=DirectApprovalRequest(selector=str(source), project="contract-proj"),
+        kind="approve",
+        source_path=source,
+        location="proposal",
+        name="approved-plan",
+        title="Approved plan",
+        size="small",
+        project="contract-proj",
+        project_tag="+contract-proj",
+        planner="contract-agent",
+        gate=None,
+        placement=CoderPlacement(
+            mode="session",
+            parent="contract-agent",
+            member_name="contract-agent--code",
+            agent_session="contract-agent",
+        ),
+        model_directive="@small",
+        predicted_plan_ref="plan:202610/approved-plan.md",
+        **fields,
+    )
+
+
+@pytest.mark.parametrize("caller", ["direct", "recovery"])
+@pytest.mark.parametrize("cwd_project", ["contract-proj", "other-proj", None])
+@pytest.mark.parametrize("parent_mode", ["tale", "off"])
+@pytest.mark.parametrize("flag_on", [True, False])
+def test_direct_approval_and_recovery_inherit_from_target_project(
+    tmp_path: Path,
+    monkeypatch,
+    caller: str,
+    cwd_project: str | None,
+    parent_mode: str,
+    flag_on: bool,
+) -> None:
+    """Direct approval and recovery retain inheritance across unrelated CWDs."""
+    from types import SimpleNamespace
+
+    from sase.agent._agent_session_attach_launch import (
+        load_agent_session_attach_plan_from_env,
+        prepare_agent_session_attach_launch,
+    )
+    from sase.agent import _agent_session_attach_resolution as attach_resolution
+    from sase.agent.launch_types import AgentLaunchResult
+    from sase.axe.run_agent_directive_metadata import build_agent_meta
+    from sase.macro.directives import extract_prompt_directives
+    from sase.main.plan_direct_approval_run import (
+        execute_coder_recovery,
+        execute_direct_approval,
+    )
+
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    with override_flags(autonomy_record_only=flag_on):
+        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", workdir)
+        if parent_mode == "off":
+            harness.adapt_a_off(parent_dir)
+        parent_meta = harness.read_meta(parent_dir)
+        parent_record = read_record(parent_meta)
+        assert parent_record is not None
+
+        unresolved_plan = replace(
+            _host_composed_plan(parent_dir, parent_meta), host_composed=False
+        )
+        resolved_projects: list[str] = []
+
+        def _resolve(directive, *, project_name: str, **_kwargs):
+            resolved_projects.append(project_name)
+            if project_name != "contract-proj":
+                raise RuntimeError(f"unrecognized session project: {project_name}")
+            return unresolved_plan
+
+        monkeypatch.setattr(
+            attach_resolution, "resolve_agent_session_attach_plan", _resolve
+        )
+        monkeypatch.setattr(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            lambda **_kwargs: (None, 0, cwd_project),
+        )
+        monkeypatch.setattr(
+            "sase.config._owner.require_agent_owner_identity", lambda: object()
+        )
+        built: list[dict[str, Any]] = []
+
+        def _fake_process_launch(prompt: str, extra_env=None, **_kwargs):
+            context = SimpleNamespace(project_name="contract-proj", is_home_mode=True)
+            pre_resolved = load_agent_session_attach_plan_from_env(
+                dict(extra_env or {})
+            )
+            assert pre_resolved is not None and pre_resolved.host_composed is True
+            _context, child_env = prepare_agent_session_attach_launch(
+                prompt,
+                context,
+                dict(extra_env or {}),
+                resolve_agent_session_attach_plan=_resolve,
+            )
+            attach_plan = load_agent_session_attach_plan_from_env(child_env)
+            assert attach_plan is not None and attach_plan.host_composed is True
+            _, directives = extract_prompt_directives(prompt)
+            child_meta = build_agent_meta(
+                _inputs(workdir),
+                directives=directives,
+                agent_name=attach_plan.agent_name,
+                agent_tribe=None,
+                agent_session_attach_plan=attach_plan,
+                clan_membership_plan=None,
+            )
+            built.append(child_meta)
+            return [
+                AgentLaunchResult(
+                    pid=123,
+                    workspace_num=0,
+                    workspace_dir=str(workdir),
+                    output_path=str(tmp_path / "coder.out"),
+                    agent_name=attach_plan.agent_name,
+                )
+            ]
+
+        monkeypatch.setattr(
+            "sase.agent.launch_cwd.launch_agents_from_cwd", _fake_process_launch
+        )
+        plan = _direct_approval_plan(tmp_path, recovery=caller == "recovery")
+        outcome = (
+            execute_coder_recovery(plan)
+            if caller == "recovery"
+            else execute_direct_approval(plan)
+        )
+
+        assert outcome.coder is not None
+        assert len(built) == 1
+        child_record = read_record(built[0])
+        assert child_record is not None
+        assert child_record["profile"] == parent_record["profile"]
+        assert child_record["selection"] == parent_record["selection"]
+        assert child_record["policy"] == parent_record["policy"]
+        assert child_record["source"] == "inherited"
+        assert child_record["revision"] == parent_record["revision"]
+        assert child_record["last"] == parent_record["last"]
+        assert child_record["digest"] == parent_record["digest"]
+        assert set(resolved_projects) == {"contract-proj"}
+
+
+def test_human_session_attach_uses_its_prompt_and_standalone_stays_standalone(
+    tmp_path: Path,
+) -> None:
+    """Human attaches resolve their prompt; standalone coders need no attach."""
+    from types import SimpleNamespace
+
+    from sase.agent._agent_session_attach_launch import (
+        load_agent_session_attach_plan_from_env,
+        prepare_agent_session_attach_launch,
+    )
+    from sase.main.plan_direct_approval_launch import launch_coder_once
+    from sase.main.plan_direct_approval_types import CoderPlacement
 
     _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
-    parent_meta = harness.read_meta(parent_dir)
-    prompt = (
-        f"%id(code, session={parent_meta.get('name', 'contract-agent')})\n#coder(plan)"
+    prompt = "%id(code, session=contract-agent)\n%auto:manual\nHuman work"
+    context = SimpleNamespace(project_name="contract-proj", is_home_mode=True)
+    _context, env = prepare_agent_session_attach_launch(
+        prompt,
+        context,
+        None,
+        resolve_agent_session_attach_plan=lambda _directive, **_kwargs: replace(
+            _host_composed_plan(parent_dir, {"name": "contract-agent"}),
+            host_composed=False,
+        ),
     )
-    env = _host_composed_attach_env(prompt)
-    # Without a resolvable session the helper fails closed with no env.
-    assert isinstance(env, dict)
+    human_meta = _build_with_prompt(
+        prompt, tmp_path, plan=load_agent_session_attach_plan_from_env(env)
+    )
+    human_record = read_record(human_meta)
+    assert human_record is not None
+    assert human_record["profile"] == "manual"
+    assert human_record["source"] == "prompt"
+
+    seen: list[dict[str, str]] = []
+
+    def _launch(_prompt: str, extra_env=None, **_kwargs):
+        seen.append(dict(extra_env or {}))
+        return [object()]
+
+    with patch("sase.agent.launch_cwd.launch_agents_from_cwd", _launch):
+        launch_coder_once(
+            "+contract-proj #coder(plan)",
+            tmp_path / "standalone.md",
+            project_name="contract-proj",
+            placement=CoderPlacement(mode="standalone"),
+        )
+    assert seen and "SASE_AGENT_SESSION_ATTACH" not in seen[0]
 
 
 def test_in_process_explicit_narrowing_via_real_helper(tmp_path: Path) -> None:
@@ -263,24 +461,61 @@ def test_human_mutation_source_truthful(tmp_path: Path) -> None:
     assert outcome_cli["record"]["source"] == "cli"
 
 
-def test_refresh_preserves_live_record(tmp_path: Path, monkeypatch) -> None:
-    """A-off then refresh then A-on restores tale with revision intact."""
-    import os
-
+@pytest.mark.parametrize("flag_on", [True, False])
+def test_refresh_preserves_live_record(
+    tmp_path: Path, monkeypatch, flag_on: bool
+) -> None:
+    """A-off, refreshed metadata build, and A-on retain the tale restore state."""
     from sase.axe.run_agent_directive_metadata import preserved_agent_metadata
     from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+    from sase.axe.run_agent_runner_refresh import reconcile_prompt_with_live_auto_state
+    from sase.macro.directives import extract_prompt_directives
 
-    _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
-    harness.adapt_a_off(parent_dir)
-    live = harness.read_meta(parent_dir)
-    assert read_record(live)["profile"] == "manual"
-    assert read_record(live)["last"] is not None
-    monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
-    preserved = preserved_agent_metadata(str(parent_dir))
-    assert preserved.get("autonomy") == read_record(live)
-    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
-    fresh_preserved = preserved_agent_metadata(str(parent_dir))
-    assert "autonomy" not in fresh_preserved
+    with override_flags(autonomy_record_only=flag_on):
+        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
+        harness.adapt_a_off(parent_dir)
+        live = harness.read_meta(parent_dir)
+        live_record = read_record(live)
+        assert live_record is not None
+        assert live_record["profile"] == "manual"
+        assert live_record["revision"] == 2
+        assert live_record["last"] == {"profile": "tale", "selection": "tale"}
+
+        monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
+        preserved = preserved_agent_metadata(str(parent_dir))
+        assert preserved.get("autonomy") == live_record
+        submitted_prompt = "%auto:tale\nDo the work"
+        refreshed_prompt = reconcile_prompt_with_live_auto_state(
+            submitted_prompt, str(parent_dir)
+        )
+        assert refreshed_prompt == "Do the work"
+        _, directives = extract_prompt_directives(refreshed_prompt)
+        from sase.axe.run_agent_directive_metadata import build_agent_meta
+
+        rebuilt = build_agent_meta(
+            _inputs(tmp_path, preserved),
+            directives=directives,
+            agent_name="contract-agent",
+            agent_tribe=None,
+            agent_session_attach_plan=None,
+            clan_membership_plan=None,
+        )
+        harness.write_meta(parent_dir, rebuilt)
+        rebuilt_record = read_record(rebuilt)
+        assert rebuilt_record == live_record
+        assert rebuilt_record["revision"] == 2
+        assert rebuilt_record["last"] == {"profile": "tale", "selection": "tale"}
+
+        monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+        fresh_preserved = preserved_agent_metadata(str(parent_dir))
+        assert "autonomy" not in fresh_preserved
+
+        restored = harness.adapt_a_on_bare(parent_dir)
+        restored_record = read_record(restored)
+        assert restored_record is not None
+        assert restored_record["profile"] == "tale"
+        assert restored_record["selection"] == "tale"
+        assert restored_record["revision"] == 3
 
 
 def test_single_evaluation_per_creation(tmp_path: Path, monkeypatch) -> None:
@@ -356,9 +591,12 @@ def test_empty_adapter_capabilities_ask(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_idempotent_creation_reuses_snapshot(tmp_path: Path, monkeypatch) -> None:
-    """Creating the same request id twice logs once and returns the same."""
+    """Repeated and recovered creation preserve one decision and policy snapshot."""
+    import json
+
     from sase.autonomy.record import read_decision_log
-    from sase.core.paths import sase_home
+    from sase.notification_gates.durability import read_json_object
+    from sase.notification_gates.paths import bundle_paths
     from sase.plan_gate import build_plan_approval_gate_spec
     from tests.plan_validation_helpers import VALID_TALE_PLAN
 
@@ -392,8 +630,52 @@ def test_idempotent_creation_reuses_snapshot(tmp_path: Path, monkeypatch) -> Non
         auto_argument=auto_argument,
     )
     first = harness.create_plan_gate_isolated(spec, parent_dir, "idem-1")
-    second = harness.create_plan_gate_isolated(spec, parent_dir, "idem-1")
-    assert first.to_dict()["request_id"] == second.to_dict()["request_id"]
+    expected_policy = first.to_dict()["auto_resolution"]["policy"]
+    assert expected_policy["profile"] == "tale"
+    paths = bundle_paths("plan", "idem-1")
+    request = read_json_object(paths.request)
+    response = read_json_object(paths.response)
+    assert request["auto"]["policy"] == expected_policy
+    assert response["policy"] == expected_policy
+
+    # Simulate interruption after the request/journal snapshot was committed
+    # but before the public creation result was written.
+    paths.creation_result.unlink()
+    journal = read_json_object(paths.journal)
+    journal["state"] = "bundle_written"
+    paths.journal.write_text(json.dumps(journal), encoding="utf-8")
+    recovered = harness.create_plan_gate_isolated(spec, parent_dir, "idem-1")
+    repeated = harness.create_plan_gate_isolated(spec, parent_dir, "idem-1")
+    assert recovered.to_dict()["request_id"] == repeated.to_dict()["request_id"]
+    assert recovered.to_dict()["auto_resolution"]["policy"] == expected_policy
+    assert read_json_object(paths.response)["policy"] == expected_policy
+
+    rows = read_decision_log({"limit": 1000})
+    explicit_rows = [row for row in rows if row.get("gate_id") == "idem-1"]
+    assert len(explicit_rows) == 1
+    assert {
+        key: explicit_rows[0]["decision"].get(key) for key in expected_policy
+    } == expected_policy
+
+    # A service-generated request id must also be the id in the one decision
+    # row, instead of the empty input id.
+    generated_spec = dict(spec)
+    generated_spec["request_id"] = None
+    generated = harness.create_plan_gate_isolated(
+        generated_spec, parent_dir, "generated"
+    )
+    generated_id = generated.to_dict()["request_id"]
+    assert generated_id and generated_id != "generated"
+    generated_rows = [
+        row
+        for row in read_decision_log({"limit": 1000})
+        if row.get("gate_id") == generated_id
+    ]
+    assert len(generated_rows) == 1
+    generated_policy = generated.to_dict()["auto_resolution"]["policy"]
+    assert {
+        key: generated_rows[0]["decision"].get(key) for key in generated_policy
+    } == generated_policy
 
 
 def test_log_since_normalization(tmp_path: Path, monkeypatch) -> None:
@@ -421,38 +703,112 @@ def test_log_agent_shorthand_resolves(tmp_path: Path) -> None:
 
 
 def test_contract_suite_publishes_nothing(tmp_path: Path, monkeypatch) -> None:
-    """The contract driver publishes no plans/prompts and launches nothing.
+    """Automatic contract gates run while durable publication/launch stay fenced."""
+    from types import SimpleNamespace
 
-    Temporary SASE/SDD roots plus fail-fast spies at the durable
-    publication and launch boundaries prove isolation without mocking
-    policy decisions. Historical fixture escape ``sase-1ir`` stays the
-    only evidenced leak; no current leak is claimed.
-    """
     import sase._plan_archive_approval as _archive_mod
-    import sase._plan_approval_side_effects as _side_effects_mod
+    import sase.bead.epic_launch as _epic_launch_mod
     import sase.agent.launch_cwd as _launch_mod
+    from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
     harness.isolated_gate_dirs(monkeypatch, tmp_path)
-    workdir = tmp_path / "iso-work"
-    workdir.mkdir()
+    home = tmp_path / "sase-home"
+    plans_root = tmp_path / "sdd-plans"
+    beads_root = tmp_path / "sdd-beads"
+    home.mkdir()
+    monkeypatch.setenv("SASE_HOME", str(home))
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SASE_SDD_PLANS_DIR", str(plans_root))
+    monkeypatch.setenv("SASE_SDD_BEADS_DIR", str(beads_root))
+
+    forbidden_calls: list[str] = []
 
     def _forbidden(name: str):
         def _raise(*args: Any, **kwargs: Any):
+            forbidden_calls.append(name)
             raise AssertionError(f"contract suite must not call {name}")
 
         return _raise
 
     monkeypatch.setattr(
-        _archive_mod, "archive_approved_plan", _forbidden("archive_approved_plan")
+        _archive_mod,
+        "archive_approved_plan",
+        _forbidden("archive_approved_plan"),
     )
     monkeypatch.setattr(
-        _side_effects_mod,
-        "preflight_plan_archive_credential",
-        _forbidden("preflight_plan_archive_credential"),
+        _epic_launch_mod,
+        "start_epic_launch_monitor",
+        _forbidden("start_epic_launch_monitor"),
     )
     monkeypatch.setattr(
-        _launch_mod, "launch_agents_from_cwd", _forbidden("launch_agents_from_cwd")
+        _launch_mod,
+        "launch_agents_from_cwd",
+        _forbidden("launch_agents_from_cwd"),
     )
-    _, live_meta, _ = harness.launch_meta("%auto:tale\nDo the work", workdir)
-    successor = harness.adapt_followup_artifacts(live_meta, tmp_path, suffix="--iso")
-    assert read_record(successor)["profile"] == "tale"
+
+    archive_calls: list[tuple[Any, ...]] = []
+    launch_calls: list[tuple[Any, ...]] = []
+
+    def _archive_stub(*args: Any, **_kwargs: Any) -> str:
+        archive_calls.append(args)
+        return str(tmp_path / "blocked-archive.md")
+
+    def _epic_stub(*args: Any, **_kwargs: Any):
+        launch_calls.append(args)
+        return SimpleNamespace(monitor_id="blocked-monitor")
+
+    workdir = tmp_path / "iso-work"
+    workdir.mkdir()
+    tale_work = workdir / "tale"
+    tale_work.mkdir()
+    epic_work = workdir / "epic"
+    epic_work.mkdir()
+    tale_plan = harness.write_plan_file(tale_work, "tale.md", VALID_TALE_PLAN)
+    epic_plan = harness.write_plan_file(epic_work, "epic.md", VALID_EPIC_PLAN)
+
+    _, tale_meta, tale_artifacts = harness.launch_meta(
+        "%auto:tale\nDo the work", tale_work
+    )
+    assert read_record(tale_meta)["profile"] == "tale"
+    assert (
+        harness.plan_outcome(
+            tale_meta,
+            tale_artifacts,
+            tale_plan,
+            monkeypatch=monkeypatch,
+            request_id="isolated-tale",
+            archive_plan=_archive_stub,
+            epic_launch=_epic_stub,
+        )
+        == harness.APPROVE_ARCHIVE
+    )
+    assert (
+        harness.question_outcome(
+            tale_artifacts, monkeypatch=monkeypatch, request_id="isolated-question"
+        )
+        == harness.FIRST
+    )
+
+    _, epic_meta, epic_artifacts = harness.launch_meta(
+        "%auto:epic\nDo the work", epic_work
+    )
+    assert read_record(epic_meta)["profile"] == "epic"
+    assert (
+        harness.plan_outcome(
+            epic_meta,
+            epic_artifacts,
+            epic_plan,
+            monkeypatch=monkeypatch,
+            request_id="isolated-epic",
+            archive_plan=_archive_stub,
+            epic_launch=_epic_stub,
+        )
+        == harness.APPROVE_LAUNCH
+    )
+
+    # These assertions prove the intended creation operations actually ran;
+    # the matching high-level aliases were stubbed while every lower-level
+    # durable publication and real launch boundary remained fail-fast.
+    assert len(archive_calls) == 1
+    assert len(launch_calls) == 1
+    assert forbidden_calls == []

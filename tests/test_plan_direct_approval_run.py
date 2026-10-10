@@ -66,6 +66,27 @@ def _launch_result(tmp_path: Path) -> AgentLaunchResult:
     )
 
 
+def _resolved_attach_plan(directive, *, project_name: str):
+    """Supply an existing session for launch-ladder tests without a live index."""
+    from sase.agent._agent_session_attach_types import AgentSessionAttachLaunchPlan
+
+    return AgentSessionAttachLaunchPlan(
+        parent_arg=directive.parent,
+        suffix_arg=directive.suffix,
+        parent_name="bob",
+        parent_base="bob",
+        parent_timestamp="20260901120000",
+        parent_artifacts_dir="/tmp/bob-artifacts",
+        role_suffix="--code",
+        agent_name="bob--code",
+        agent_session_role="coder",
+        parent_agent_session_member_name="bob",
+        parent_agent_session_role_suffix="--0",
+        parent_needs_rename=False,
+        parent_project_name=project_name,
+    )
+
+
 def test_agent_process_refuses(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("SASE_AGENT", "1")
@@ -303,6 +324,10 @@ class _GateRace:
                 planner_artifacts_dir=str(tmp_path / "planner"),
             ),
         )
+        monkeypatch.setattr(
+            "sase.agent._agent_session_attach_resolution.resolve_agent_session_attach_plan",
+            _resolved_attach_plan,
+        )
 
     def run(self):
         patches = [
@@ -536,6 +561,10 @@ def test_standalone_fallback_writes_standalone_receipt(
         patch(
             "sase._plan_archive_approval.archive_approved_plan",
             return_value=archived,
+        ),
+        patch(
+            "sase.agent._agent_session_attach_resolution.resolve_agent_session_attach_plan",
+            _resolved_attach_plan,
         ),
         patch("sase.agent.launch_cwd.launch_agents_from_cwd", side_effect=_fake_launch),
     ):

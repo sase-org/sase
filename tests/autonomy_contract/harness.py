@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -50,17 +51,11 @@ QUESTIONS: list[dict[str, Any]] = [
 ]
 
 
-def launch_meta(
-    prompt: str, workdir: Path, *, agent_name: str = "contract-agent"
-) -> tuple[Any, dict[str, Any], Path]:
-    """Run the real launch path and write ``agent_meta.json``.
-
-    Returns ``(directives, meta, artifacts_dir)``. Raises
-    :class:`DirectiveError` for invalid ``%auto`` spellings, which the
-    contract maps to ``launch_error`` on every gate column.
-    """
-    _, directives = extract_prompt_directives(prompt)
-    inputs = AgentMetadataInputs(
+def metadata_inputs(
+    workdir: Path, *, preserved: dict[str, Any] | None = None
+) -> AgentMetadataInputs:
+    """Build the same launch-input shape used by the contract launch adapter."""
+    return AgentMetadataInputs(
         workspace_dir=str(workdir),
         workspace_num=0,
         output_path=None,
@@ -80,17 +75,46 @@ def launch_meta(
         model_alias_overrides={},
         vcs_provider=None,
         auto_dismiss=None,
-        preserved={},
+        preserved=dict(preserved or {}),
         epic_work={},
         cl_name=None,
     )
-    meta = build_agent_meta(
-        inputs,
+
+
+def build_meta_for_prompt(
+    prompt: str,
+    workdir: Path,
+    *,
+    agent_name: str,
+    attach_plan: Any = None,
+    preserved: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build metadata through production launch parsing and assembly."""
+    _, directives = extract_prompt_directives(prompt)
+    return build_agent_meta(
+        metadata_inputs(workdir, preserved=preserved),
         directives=directives,
         agent_name=agent_name,
         agent_tribe=None,
-        agent_session_attach_plan=None,
+        agent_session_attach_plan=attach_plan,
         clan_membership_plan=None,
+    )
+
+
+def launch_meta(
+    prompt: str, workdir: Path, *, agent_name: str = "contract-agent"
+) -> tuple[Any, dict[str, Any], Path]:
+    """Run the real launch path and write ``agent_meta.json``.
+
+    Returns ``(directives, meta, artifacts_dir)``. Raises
+    :class:`DirectiveError` for invalid ``%auto`` spellings, which the
+    contract maps to ``launch_error`` on every gate column.
+    """
+    _, directives = extract_prompt_directives(prompt)
+    meta = build_meta_for_prompt(
+        prompt,
+        workdir,
+        agent_name=agent_name,
     )
     artifacts_dir = workdir / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -148,6 +172,8 @@ def plan_outcome(
     *,
     monkeypatch: Any,
     request_id: str,
+    archive_plan: Callable[..., Any] | None = None,
+    epic_launch: Callable[..., Any] | None = None,
 ) -> str:
     """Build the real plan spec from live meta and create the gate.
 
@@ -178,7 +204,13 @@ def plan_outcome(
     )
     from sase.notification_gates.service import create_gate
 
-    gate = create_plan_gate_isolated(spec, artifacts_dir, request_id)
+    gate = create_plan_gate_isolated(
+        spec,
+        artifacts_dir,
+        request_id,
+        archive_plan=archive_plan,
+        epic_launch=epic_launch,
+    )
     resolved = gate.to_dict().get("auto_resolution") or {}
     if resolved.get("state") == "resolved":
         selected = tuple(resolved.get("selected_option_ids") or ())
@@ -252,7 +284,14 @@ def row_outcomes(
     }
 
 
-def create_plan_gate_isolated(spec: Any, artifacts_dir: Path, request_id: str) -> Any:
+def create_plan_gate_isolated(
+    spec: Any,
+    artifacts_dir: Path,
+    request_id: str,
+    *,
+    archive_plan: Callable[..., Any] | None = None,
+    epic_launch: Callable[..., Any] | None = None,
+) -> Any:
     """Run :func:`create_gate` with execution side effects stubbed.
 
     Stub the execution side effects only (plan archive, epic launch). The
@@ -266,14 +305,18 @@ def create_plan_gate_isolated(spec: Any, artifacts_dir: Path, request_id: str) -
     from sase.notification_gates.service import create_gate
 
     stub_archive = artifacts_dir / f"archived-{request_id}.md"
+    archive_callback = archive_plan or (lambda *_args, **_kwargs: str(stub_archive))
+    epic_callback = epic_launch or (
+        lambda *_args, **_kwargs: SimpleNamespace(monitor_id="mon-contract")
+    )
     with (
         patch(
             "sase.plan_approval_actions._archive_plan_for_approval",
-            return_value=str(stub_archive),
+            side_effect=archive_callback,
         ),
         patch(
             "sase.plan_approval_actions.prepare_epic_launch",
-            return_value=SimpleNamespace(monitor_id="mon-contract"),
+            side_effect=epic_callback,
         ),
     ):
         return create_gate(spec)

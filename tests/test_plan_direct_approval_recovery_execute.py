@@ -138,16 +138,41 @@ def test_executor_launches_one_coder_and_writes_receipt(
 def test_executor_launch_failure_records_error(
     sase_home_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from sase.agent._agent_session_attach_types import AgentSessionAttachLaunchPlan
     from sase.main.plan_direct_approval_run import execute_coder_recovery
 
     monkeypatch.setattr(
         "sase.config._owner.require_agent_owner_identity", lambda: object()
     )
     plan = _recovery_plan(sase_home_dir)
-    with patch(
-        "sase.agent.launch_cwd.launch_agents_from_cwd",
-        side_effect=RuntimeError("boom"),
-    ) as launch:
+
+    def resolve_attach(directive, *, project_name: str, **_kwargs):
+        return AgentSessionAttachLaunchPlan(
+            parent_arg=directive.parent,
+            suffix_arg=directive.suffix,
+            parent_name="0sk",
+            parent_base="0sk",
+            parent_timestamp="20260901120000",
+            parent_artifacts_dir=str(sase_home_dir / "parent"),
+            role_suffix="--2",
+            agent_name="0sk--2",
+            agent_session_role="coder",
+            parent_agent_session_member_name="0sk",
+            parent_agent_session_role_suffix="--0",
+            parent_needs_rename=False,
+            parent_project_name=project_name,
+        )
+
+    with (
+        patch(
+            "sase.agent._agent_session_attach_resolution.resolve_agent_session_attach_plan",
+            side_effect=resolve_attach,
+        ),
+        patch(
+            "sase.agent.launch_cwd.launch_agents_from_cwd",
+            side_effect=RuntimeError("boom"),
+        ) as launch,
+    ):
         outcome = execute_coder_recovery(plan)
 
     assert outcome.coder is None

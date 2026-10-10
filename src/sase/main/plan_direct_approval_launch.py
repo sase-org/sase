@@ -21,47 +21,53 @@ class CoderLaunch:
     notes: tuple[str, ...] = ()
 
 
-def _host_composed_attach_env(prompt: str) -> dict[str, str]:
+def _host_composed_attach_env(
+    prompt: str,
+    *,
+    project_name: str,
+    placement: CoderPlacement,
+) -> dict[str, str]:
     """Return a trusted host-composed attach env for a session coder prompt.
 
     Direct approval and coder recovery launch a host-composed coder when a
     planner/session exists: the prompt's own ``%id(suffix, session=parent)``
     resolves through the existing session placement, but the child must
     inherit the planner's live autonomy record instead of resolving from
-    its own prompt. Human-authored session attaches never pass through
-    this helper and keep resolving from their own prompt. Failures return
-    no env so the launch falls back to the historical path.
+    its own prompt. Resolve against the already-selected target project,
+    rather than the shell's current project. Human-authored session
+    attaches never pass through this helper and keep resolving from their
+    own prompt. An expected session attach that cannot be resolved raises
+    so the launch ladder records the failure instead of quietly dropping
+    inheritance.
     """
-    try:
-        from dataclasses import replace as _replace
-
-        from sase.agent._agent_session_attach_directives import (
-            extract_agent_session_attach_directive,
-        )
-        from sase.agent._agent_session_attach_resolution import (
-            resolve_agent_session_attach_plan,
-        )
-        from sase.agent.detached_child import agent_session_attach_env
-        from sase.main.utils import ensure_project_file_and_get_workspace_num
-    except Exception:
+    if placement.mode != "session":
         return {}
-    try:
-        directive = extract_agent_session_attach_directive(prompt)
-        if directive is None:
-            return {}
-        _, _, project_name = ensure_project_file_and_get_workspace_num(
-            create_missing=False
+    from dataclasses import replace as _replace
+
+    from sase.agent._agent_session_attach_directives import (
+        extract_agent_session_attach_directive,
+    )
+    from sase.agent._agent_session_attach_resolution import (
+        resolve_agent_session_attach_plan,
+    )
+    from sase.agent.detached_child import agent_session_attach_env
+
+    directive = extract_agent_session_attach_directive(prompt)
+    if directive is None:
+        raise RuntimeError(
+            "direct-approval session placement has no agent-session attach directive"
         )
-        if not project_name:
-            return {}
-        plan = resolve_agent_session_attach_plan(directive, project_name=project_name)
-        plan = _replace(plan, host_composed=True)
-        return agent_session_attach_env(plan)
-    except Exception:
-        return {}
+    plan = resolve_agent_session_attach_plan(directive, project_name=project_name)
+    return agent_session_attach_env(_replace(plan, host_composed=True))
 
 
-def launch_coder_once(prompt: str, local_plan: Path) -> object:
+def launch_coder_once(
+    prompt: str,
+    local_plan: Path,
+    *,
+    project_name: str | None = None,
+    placement: CoderPlacement | None = None,
+) -> object:
     """Launch one coder exactly as the historical direct-approval path did."""
     from sase.agent.launch_cwd import launch_agents_from_cwd
     from sase.agent.launch_executor_workspace import (
@@ -72,7 +78,14 @@ def launch_coder_once(prompt: str, local_plan: Path) -> object:
         "SASE_PLAN": str(local_plan),
         SASE_AGENT_PINNED_WORKSPACE_FALLBACK: "pool",
     }
-    extra_env.update(_host_composed_attach_env(prompt))
+    if project_name is not None and placement is not None:
+        extra_env.update(
+            _host_composed_attach_env(
+                prompt,
+                project_name=project_name,
+                placement=placement,
+            )
+        )
     results = launch_agents_from_cwd(
         prompt,
         extra_env=extra_env,
@@ -88,12 +101,26 @@ def launch_coder_with_fallbacks(
     local_plan: Path,
     plan_argument: str,
     *,
-    launch: Callable[[str, Path], object] = launch_coder_once,
+    launch: Callable[[str, Path], object] | None = None,
+    launch_with_placement: Callable[[str, Path, CoderPlacement], object] | None = None,
 ) -> CoderLaunch:
     """Launch a coder through the planned → standalone → transient ladder."""
     from sase.main.plan_direct_approval import compose_coder_prompt
 
     notes: list[str] = []
+
+    def _launch(prompt: str, launch_plan: Path, placement: CoderPlacement) -> object:
+        if launch_with_placement is not None:
+            return launch_with_placement(prompt, launch_plan, placement)
+        if launch is not None:
+            return launch(prompt, launch_plan)
+        return launch_coder_once(
+            prompt,
+            launch_plan,
+            project_name=plan.project,
+            placement=placement,
+        )
+
     # 1. Precheck: the only cheap unlaunchable-machine signal.
     try:
         from sase.config._owner import require_agent_owner_identity
@@ -120,7 +147,7 @@ def launch_coder_with_fallbacks(
         placement=plan.placement,
     )
     try:
-        coder = launch(prompt, local_plan)
+        coder = _launch(prompt, local_plan, plan.placement)
         relocation = getattr(coder, "workspace_relocation", None)
         if relocation:
             notes.append(str(relocation))
@@ -173,7 +200,7 @@ def launch_coder_with_fallbacks(
             placement=standalone,
         )
         try:
-            coder = launch(standalone_prompt, local_plan)
+            coder = _launch(standalone_prompt, local_plan, standalone)
             relocation = getattr(coder, "workspace_relocation", None)
             if relocation:
                 notes.append(str(relocation))
@@ -207,7 +234,7 @@ def launch_coder_with_fallbacks(
     if _is_transient(last_error):
         time.sleep(2)
         try:
-            coder = launch(last_prompt, local_plan)
+            coder = _launch(last_prompt, local_plan, effective_placement)
             relocation = getattr(coder, "workspace_relocation", None)
             if relocation:
                 notes.append(str(relocation))
