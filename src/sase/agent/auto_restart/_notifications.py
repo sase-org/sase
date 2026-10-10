@@ -28,6 +28,16 @@ def _episode_dedup_key(episode_id: str) -> str:
     return f"agent-auto-restart:{episode_id}"
 
 
+def _artifacts_stamp(artifacts_dir: str | None) -> str:
+    """Return the failed row's artifacts timestamp for per-death dedup keys."""
+    if not artifacts_dir:
+        return ""
+    try:
+        return Path(str(artifacts_dir)).name.strip()
+    except Exception:
+        return ""
+
+
 def _timestamp() -> str:
     from datetime import datetime
 
@@ -124,19 +134,38 @@ def _episode_tags(records: list[Any]) -> list[str]:
 
 
 def _episode_evidence_files(records: list[Any]) -> list[str]:
-    """Collect preserved evidence paths for one episode's records."""
+    """Collect preserved evidence paths for one episode's records.
+
+    Every relaunched agent contributes its ``error_report.md`` and its
+    evidence bundle directory, so the episode row carries the full set.
+    """
     files: list[str] = []
     for stored in records:
         evidence = getattr(stored.record, "evidence_dir", None)
         if evidence and str(evidence) not in files:
-            files.append(str(evidence))
             report = Path(str(evidence)) / "error_report.md"
             try:
                 if report.is_file() and str(report) not in files:
-                    files.insert(len(files) - 1, str(report))
+                    files.append(str(report))
             except OSError:
                 pass
+            files.append(str(evidence))
     return files[:20]
+
+
+def _expand_evidence_files(evidence_files: list[str] | None) -> list[str]:
+    """Expand evidence dirs to include their ``error_report.md`` copies."""
+    expanded: list[str] = []
+    for raw in evidence_files or []:
+        if raw and str(raw) not in expanded:
+            expanded.append(str(raw))
+        report = Path(str(raw)) / "error_report.md"
+        try:
+            if report.is_file() and str(report) not in expanded:
+                expanded.append(str(report))
+        except OSError:
+            pass
+    return expanded
 
 
 def _resolve_dedup_key(episode_id: str) -> str:
@@ -207,6 +236,11 @@ def _refresh_row_content(dedup_key: str, episode_id: str) -> None:
         action_data["report"] = json.dumps(snapshot)
     except Exception:
         pass
+    merged_files = list(current.files or [])
+    for candidate in _episode_evidence_files(records):
+        if candidate not in merged_files:
+            merged_files.append(candidate)
+    merged_files = merged_files[:40]
     refreshed = Notification(
         id=current.id,
         timestamp=current.timestamp,
@@ -214,7 +248,7 @@ def _refresh_row_content(dedup_key: str, episode_id: str) -> None:
         icon=current.icon,
         color=current.color,
         notes=notes,
-        files=list(current.files),
+        files=merged_files,
         tags=list(current.tags),
         action=current.action,
         action_data=action_data,
@@ -232,6 +266,33 @@ def _refresh_row_content(dedup_key: str, episode_id: str) -> None:
         reconcile_notification_rows([refreshed])
     except Exception:
         pass
+
+
+def refresh_episode_rows(episode_id: str) -> int:
+    """Refresh every live episode row for one settled episode id.
+
+    Re-renders notes and the inline report snapshot through the reconcile
+    path without moving delivery cursors. Returns the refreshed row count.
+    """
+    from sase.notifications.store import load_notifications
+
+    try:
+        rows = load_notifications(include_dismissed=True)
+    except Exception:
+        return 0
+    base = _episode_dedup_key(episode_id)
+    refreshed = 0
+    for row in rows:
+        if row.sender != SENDER or not (row.dedup_key or "").startswith(base):
+            continue
+        if row.dismissed:
+            continue
+        try:
+            _refresh_row_content(row.dedup_key or base, episode_id)
+            refreshed += 1
+        except Exception:
+            continue
+    return refreshed
 
 
 def _guarded_upsert(notification: Any, *, plus_one_note: str) -> Any:
@@ -277,7 +338,12 @@ def publish_relaunch(
     """
     from sase.notifications.models import Notification
 
-    ref = update_ref or display_episode(episode_id)
+    raw_ref = (update_ref or "").strip()
+    if not raw_ref or raw_ref == "unknown" or "unknown" in raw_ref:
+        raw_ref = ""
+    elif raw_ref.startswith("sase@"):
+        raw_ref = raw_ref.removeprefix("sase@")
+    ref = raw_ref or display_episode(episode_id)
     dedup_key = _resolve_dedup_key(episode_id)
     records = episode_records(episode_id)
     notes = (
@@ -285,7 +351,11 @@ def publish_relaunch(
         if records
         else [f"↻ Restarted {agent_name} after sase update {ref}"]
     )
-    files = list(evidence_files or []) or _episode_evidence_files(records)
+    files = _expand_evidence_files(evidence_files)
+    for candidate in _episode_evidence_files(records):
+        if candidate not in files:
+            files.append(candidate)
+    files = files[:40]
     path = episode_report_path(episode_id)
     action_data = {"report_path": str(path), "report_title": notes[0][:64]}
     notification = Notification(
@@ -341,12 +411,19 @@ def publish_escalation(
 
     storm_title = title or (
         f"Auto-restart paused: agents kept breaking during episode "
-        f"{display_episode(episode_id or 'unknown')} — this looks like a real "
+        f"{display_episode(episode_id or '')} — this looks like a real "
         "bug, not an update race."
     )
     notes = [storm_title]
     if detail:
         notes.append(detail)
+    stamp = _artifacts_stamp(artifacts_dir)
+    if episode_id:
+        storm_key = f"{_episode_dedup_key(episode_id)}:{agent_name}:storm"
+    else:
+        storm_key = f"agent-auto-restart:{agent_name}:storm"
+    if stamp:
+        storm_key = f"{storm_key}:{stamp}"
     notification = Notification(
         id=str(uuid4()),
         timestamp=_timestamp(),
@@ -356,11 +433,7 @@ def publish_escalation(
         notes=notes,
         tags=normalize_notification_tags(["sase-update", "auto-restart", "error"]),
         action="ViewErrorReport",
-        dedup_key=(
-            f"{_episode_dedup_key(episode_id)}:{agent_name}:storm"
-            if episode_id
-            else f"agent-auto-restart:{agent_name}:storm"
-        ),
+        dedup_key=storm_key,
     )
     outcome = _guarded_upsert(notification, plus_one_note=storm_title)
     if episode_id:
@@ -396,6 +469,10 @@ def resurface_failure(
                 files.append(str(report))
         except OSError:
             pass
+    stamp = _artifacts_stamp(artifacts_dir)
+    dedup_key = f"agent-auto-restart-resurfaced:{agent_name}"
+    if stamp:
+        dedup_key = f"{dedup_key}:{stamp}"
     notification = Notification(
         id=str(uuid4()),
         timestamp=_timestamp(),
@@ -404,7 +481,7 @@ def resurface_failure(
         files=files,
         tags=normalize_notification_tags(["auto-restart", "resurfaced"]),
         action="ViewErrorReport",
-        dedup_key=f"agent-auto-restart-resurfaced:{agent_name}",
+        dedup_key=dedup_key,
     )
     return _guarded_upsert(
         notification, plus_one_note=f"{agent_name} still needs attention"

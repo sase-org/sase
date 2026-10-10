@@ -286,18 +286,33 @@ def _submit_healer_proc(*, count: int) -> bool:
         return False
 
 
+_FAILED_REPLACEMENT_OUTCOMES = frozenset(
+    {
+        "failed",
+        "killed",
+        "stopped",
+        "epic_launch_failed",
+        "timeout",
+        "lost",
+    }
+)
+
+
 def _settle_launched_records(*, now: float | None = None) -> int:
     """Settle ``launched`` records from their replacement's outcome.
 
     Keeps the report's **Now** column live: a replacement that finished
     settles its record ``settled_ok`` (or ``settled_failed``), so later
-    ticks stop treating it as in flight.
+    ticks stop treating it as in flight. Every settlement refreshes the
+    episode's live report file and the episode row's inline snapshot
+    through the reconcile path, without moving delivery cursors.
     """
     import json
 
     from sase.agent.auto_restart import ledger as ledger_mod
 
     settled = 0
+    settled_episodes: set[str] = set()
     try:
         records = ledger_mod.iter_ledger_records()
     except Exception:
@@ -318,15 +333,35 @@ def _settle_launched_records(*, now: float | None = None) -> int:
         if not isinstance(done, dict):
             continue
         outcome = done.get("outcome")
-        if outcome == "completed":
-            event, note = "settled_ok", "replacement completed"
-        elif outcome in ("failed", "killed"):
+        if not isinstance(outcome, str) or not outcome.strip():
+            continue
+        outcome = outcome.strip()
+        if outcome in _FAILED_REPLACEMENT_OUTCOMES:
             event, note = "settled_failed", f"replacement {outcome}"
         else:
-            continue
+            # Every other recorded outcome is terminal success-shaped
+            # (completed, noop, epic_approved, plan_committed, and any
+            # other non-running outcome): a finished replacement never
+            # stays RUNNING.
+            event, note = "settled_ok", f"replacement {outcome}"
         with contextlib.suppress(Exception):
             ledger_mod.advance_ledger_record(stored, event, note=note)
             settled += 1
+            try:
+                episode_id = stored.record.episode_id
+            except AttributeError:
+                episode_id = None
+            if isinstance(episode_id, str) and episode_id:
+                settled_episodes.add(episode_id)
+    for episode_id in settled_episodes:
+        with contextlib.suppress(Exception):
+            from sase.agent.auto_restart.notify import (
+                refresh_episode_report,
+                refresh_episode_rows,
+            )
+
+            refresh_episode_report(episode_id)
+            refresh_episode_rows(episode_id)
     return settled
 
 

@@ -138,7 +138,7 @@ def test_five_agents_one_row_four_plus_ones(tmp_home: Path) -> None:
     assert len(rows) == 1
     row = rows[0]
     assert row.plus_one_count == 4
-    assert row.notes[0] == f"↻ Restarted 5 agents after sase update {EPISODE}"
+    assert row.notes[0] == "↻ Restarted 5 agents after sase update 9fd8a08"
     assert "fail" not in row.notes[0].lower()
     assert "error" not in row.notes[0].lower()
     # Title refreshes must not move delivery cursors: only the create toasts.
@@ -278,7 +278,7 @@ def test_single_agent_title_and_notes0_rule(tmp_home: Path) -> None:
     )
     rows = [r for r in _episode_rows() if not r.dismissed]
     assert len(rows) == 1
-    assert rows[0].notes[0] == f"↻ Restarted solo after sase update {EPISODE}"
+    assert rows[0].notes[0] == "↻ Restarted solo after sase update 9fd8a08"
     assert "fail" not in rows[0].notes[0].lower()
     assert "error" not in rows[0].notes[0].lower()
 
@@ -318,7 +318,8 @@ def test_healer_escalation_copy_per_situation(
         "research.46.final broke after its model turn during a sase update"
     )
     assert "This was its automatic restart" in spent["title"]
-    assert EPISODE in spent["title"]
+    assert "9fd8a08" in spent["title"]
+    assert "sase@" not in spent["title"]
     assert storm["kind"] == "storm"
     assert storm["title"].startswith("Auto-restart paused:")
     assert all(c["kind"] != "storm" for c in (decline, post, spent))

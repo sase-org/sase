@@ -40,9 +40,17 @@ def episode_report_path(episode_id: str) -> Path:
 
 
 def display_episode(episode_id: str) -> str:
-    if len(episode_id) <= 32:
-        return episode_id
-    return episode_id[:12] + "…"
+    """Return the short human ref for one episode id (never ``sase@…``)."""
+    if not episode_id or episode_id == "unknown":
+        return "a sase update"
+    short = episode_id
+    if "@" in short:
+        short = short.split("@")[-1]
+    if not short or short == "unknown":
+        return "a sase update"
+    if len(short) <= 32:
+        return short
+    return short[:12] + "…"
 
 
 def episode_records(episode_id: str) -> list[Any]:
@@ -119,8 +127,26 @@ def _update_ref(stored: Any) -> str:
     return ""
 
 
+_FAILED_REPLACEMENT_OUTCOMES = frozenset(
+    {
+        "failed",
+        "killed",
+        "stopped",
+        "epic_launch_failed",
+        "timeout",
+        "lost",
+    }
+)
+
+
 def _replacement_outcome(stored: Any) -> str:
-    """Return the live Now-cell for one record: RUNNING, DONE, or FAILED."""
+    """Return the live Now-cell for one record: RUNNING, DONE, or FAILED.
+
+    Any present ``done.json`` outcome settles the cell: failure-shaped
+    outcomes read FAILED, every other recorded outcome reads DONE. Only a
+    missing or unreadable replacement row still reads RUNNING, so a
+    finished replacement never shows RUNNING.
+    """
     launched_dir = getattr(stored.record, "launched_artifacts_dir", None)
     if not launched_dir:
         return "RUNNING" if is_relaunched(stored) else "—"
@@ -132,12 +158,12 @@ def _replacement_outcome(stored: Any) -> str:
         return "RUNNING"
     if not isinstance(done, dict):
         return "RUNNING"
-    outcome = str(done.get("outcome") or "")
-    if outcome == "failed":
+    outcome = str(done.get("outcome") or "").strip()
+    if not outcome:
+        return "RUNNING"
+    if outcome in _FAILED_REPLACEMENT_OUTCOMES:
         return "FAILED"
-    if outcome in ("completed", "success", "done"):
-        return "DONE"
-    return "RUNNING"
+    return "DONE"
 
 
 def _action_cell(stored: Any) -> str:

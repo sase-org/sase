@@ -286,6 +286,38 @@ def decline_heal(
     )
 
 
+def _short_episode_ref(episode_id: str | None) -> str:
+    """Return the short display ref for an episode id (never ``sase@…``)."""
+    if not episode_id or episode_id == "unknown":
+        return "a sase update"
+    short = episode_id.split("@")[-1] if "@" in episode_id else episode_id
+    if not short or short == "unknown":
+        return "a sase update"
+    return short
+
+
+def _held_workspace_suffix(target: HealerTarget) -> str:
+    """Return the held-workspace phrase, naming the number when known."""
+    number: int | None = None
+    for filename in ("done.json", "agent_meta.json"):
+        try:
+            payload = read_json(target.artifacts_dir / filename)
+        except Exception:
+            payload = None
+        if isinstance(payload, Mapping):
+            raw = payload.get("workspace_num")
+            try:
+                candidate = int(raw) if raw is not None else 0
+            except (TypeError, ValueError):
+                candidate = 0
+            if candidate > 0:
+                number = candidate
+                break
+    if number is not None:
+        return f"workspace #{number} held with its changes. "
+    return "workspace held with its changes. "
+
+
 def escalate_healer(
     target: HealerTarget,
     reason_text: str,
@@ -299,13 +331,13 @@ def escalate_healer(
     if kind == "storm":
         title = f"Auto-restart paused: {reason_text[:200]}"
         detail = (
-            f"Episode {episode_id or 'unknown'}. Triage the failures, then run "
-            "`sase agent auto-restart resume` to re-arm."
+            f"Episode {_short_episode_ref(episode_id)}. Triage the failures, "
+            "then run `sase agent auto-restart resume` to re-arm."
         )
     elif kind == "post_provider":
         title = (
             f"{target.agent_name} broke after its model turn during a sase "
-            "update — workspace held with its changes. "
+            f"update — {_held_workspace_suffix(target)}"
             "Review, then ,x to relaunch."
         )
         detail = reason_text
@@ -361,7 +393,7 @@ def publish_relaunch_event(
         publish_relaunch(
             episode_id=episode_id or "unknown",
             agent_name=target.agent_name,
-            update_ref=episode_id or "unknown",
+            update_ref=_short_episode_ref(episode_id),
             reason_text=getattr(verdict, "reason_text", "") or "",
             evidence_files=files,
         )

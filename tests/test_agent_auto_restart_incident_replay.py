@@ -235,7 +235,7 @@ def test_incident_replay_end_to_end(
     ]
     assert len(rows) == 1
     row = rows[0]
-    assert row.notes[0] == f"↻ Restarted {AGENT_NAME} after sase update {EPISODE}"
+    assert row.notes[0] == f"↻ Restarted {AGENT_NAME} after sase update 9fd8a08"
     assert "fail" not in row.notes[0].lower()
     assert "error" not in row.notes[0].lower()
 
@@ -319,7 +319,9 @@ def test_incident_replay_end_to_end(
     ]
     assert surfaced, "the re-broken replacement must be re-surfaced loudly"
     assert any(
-        "This was its automatic restart" in (note or "") and EPISODE in (note or "")
+        "This was its automatic restart" in (note or "")
+        and "9fd8a08" in (note or "")
+        and "sase@" not in (note or "")
         for r in surfaced
         for note in r.notes
     )
