@@ -89,6 +89,11 @@ agent_scope_teardown:
   enabled: true
   term_grace_seconds: 3
   reaper_min_scope_age_seconds: 120
+  spare_process_patterns:
+    - "^ssh-agent$"
+    - "^gpg-agent$"
+    - "^tmux: server$"
+    - '^ssh: .*\[mux\]$'
 
 # Automatic one-time relaunch of agents broken by a live sase update. This is
 # a permanent user choice (config field, not a feature flag): `enabled: false`
@@ -105,11 +110,6 @@ agent_auto_restart:
   pending_resurface_seconds: 600
   storm_max_per_episode: 12
   storm_max_per_30m: 20
-  spare_process_patterns:
-    - "^ssh-agent$"
-    - "^gpg-agent$"
-    - "^tmux: server$"
-    - '^ssh: .*\[mux\]$'
 
 # TTL bounds for `sase agent hold create`/`run`. A hold armed without --ttl
 # uses the default; an explicit --ttl above the maximum is rejected. Both

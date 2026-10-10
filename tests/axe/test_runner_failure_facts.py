@@ -91,6 +91,22 @@ def test_chain_follows_cause_and_context_outermost_first() -> None:
     assert facts["skew_suspect"] is False
 
 
+def test_frames_come_from_innermost_exception() -> None:
+    def root_failure() -> None:
+        raise ImportError("root failure")
+
+    try:
+        try:
+            root_failure()
+        except ImportError as root:
+            raise RuntimeError("wrapper") from root
+    except RuntimeError as exc:
+        facts = facts_mod.capture_failure_facts(exc, phase="waiting")
+
+    assert facts["frames"][-1]["function"] == "root_failure"
+    assert facts["last_frame_file"] == facts["frames"][-1]["file"]
+
+
 def test_chain_is_bounded_at_eight_links() -> None:
     exc: BaseException = ValueError("link-0")
     for index in range(1, 20):
@@ -393,6 +409,58 @@ def test_boot_code_identity_is_memoized(
     assert first[0] is second[0]
 
 
+def test_boot_code_identity_uses_first_distribution_record_on_sys_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import importlib.metadata
+
+    class _Distribution:
+        def __init__(self, name: str, version: str) -> None:
+            self.metadata = {"Name": name, "Version": version}
+
+    first_host = _Distribution("sase", "first-host")
+    first_core = _Distribution("sase-core-rs", "first-core")
+    first_plugin = _Distribution("sase-plugin-example", "first-plugin")
+    records = [
+        first_host,
+        _Distribution("sase", "later-host"),
+        first_core,
+        _Distribution("sase-core-rs", "later-core"),
+        first_plugin,
+        _Distribution("sase-plugin-example", "later-plugin"),
+    ]
+    selected: list[tuple[str, str]] = []
+
+    def package_record(
+        dist: _Distribution,
+        distribution_name: str,
+        *,
+        role: str,
+        **_kwargs: object,
+    ) -> dict[str, str]:
+        selected.append((role, dist.metadata["Version"]))
+        return {
+            "name": distribution_name,
+            "role": role,
+            "version": dist.metadata["Version"],
+        }
+
+    monkeypatch.setattr(importlib.metadata, "distributions", lambda: records)
+    monkeypatch.setattr(lifecycle_mod, "_package_root_from_dist", package_record)
+    monkeypatch.setattr(lifecycle_mod, "_boot_cache", None)
+    try:
+        identity = lifecycle_mod._capture_boot_code_identity(startup_commit=None)
+    finally:
+        monkeypatch.setattr(lifecycle_mod, "_boot_cache", None)
+
+    assert selected == [
+        ("host", "first-host"),
+        ("core", "first-core"),
+        ("plugin", "first-plugin"),
+    ]
+    assert len(identity["roots"]) == 3
+
+
 def test_preserved_metadata_keeps_identity_and_breadcrumbs(
     tmp_path: Path,
 ) -> None:
@@ -514,6 +582,78 @@ def test_finalize_loop_failed_outcome_writes_phase_facts(
     assert done["outcome"] == "failed"
     assert done["failure_facts"]["lifecycle_phase"] == "finalizing"
     assert done["failure_facts"]["skew_suspect"] is False
+
+
+def test_finalize_loop_handoff_finalizer_failure_keeps_handoff_facts(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    Path(ctx.artifacts_dir, "finalizer_result.json").write_text(
+        json.dumps({"status": "failed"}), encoding="utf-8"
+    )
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="monitored",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+    )
+    lifecycle_mod.mark_lifecycle_phase(None, "handoff")
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(tmp_path / "chat.md"),
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_image_paths",
+            return_value=[],
+        ),
+    ):
+        _finalize_loop(ctx, state, RetryTracker(retry_cfg=None), None)
+
+    done = json.loads(
+        (Path(ctx.artifacts_dir) / "done.json").read_text(encoding="utf-8")
+    )
+    assert done["outcome"] == "failed"
+    assert done["failure_facts"]["lifecycle_phase"] == "handoff"
+
+
+def test_nonfailure_finalize_outcome_omits_failure_facts(tmp_path: Path) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="stopped",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+    )
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(tmp_path / "chat.md"),
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_image_paths",
+            return_value=[],
+        ),
+    ):
+        _finalize_loop(ctx, state, RetryTracker(retry_cfg=None), None)
+
+    done = json.loads(
+        (Path(ctx.artifacts_dir) / "done.json").read_text(encoding="utf-8")
+    )
+    assert done["outcome"] == "stopped"
+    assert "failure_facts" not in done
 
 
 def test_build_done_marker_omits_facts_by_default() -> None:

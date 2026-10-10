@@ -24,6 +24,7 @@ from sase.ace.tui.widgets._agent_list_render_agent_prefix import (
 from sase.ace.tui.widgets._agent_list_render_agent_status import (
     append_agent_row_status,
 )
+from sase.agent.auto_restart.constants import UPDATE_RECOVERY_GLYPH
 from sase.agent.auto_restart.ux import (
     _is_stale_pending,
     _recovery_is_in_flight,
@@ -88,7 +89,9 @@ def test_restarting_hint_names_episode_for_pending() -> None:
 
 
 def test_restarting_hint_for_deferred() -> None:
-    assert restarting_hint("deferred") == "↻ waiting for the sase update to finish"
+    assert restarting_hint("deferred") == (
+        f"{UPDATE_RECOVERY_GLYPH} waiting for the sase update to finish"
+    )
 
 
 def test_declined_hint_prefers_writer_copy() -> None:
@@ -140,19 +143,19 @@ def test_apply_recovery_keeps_declined_failed() -> None:
     assert "already restarted once" in (agent.recovery_reason_text or "")
 
 
-def test_apply_provenance_registers_error_report_hint() -> None:
+def test_apply_provenance_registers_evidence_directory_hint() -> None:
     agent = _agent(status="DONE")
     apply_provenance_to_agent(agent, PROVENANCE)
     assert agent.auto_restart_provenance is not None
     assert agent.auto_restart_provenance["ledger_key"] == "sase__20261009120000"
-    assert (
-        "/home/user/.sase/restarts/20261009-test/error_report.md" in agent.extra_files
-    )
+    assert "/home/user/.sase/restarts/20261009-test" in agent.extra_files
 
 
 def test_provenance_lines_render_update_range() -> None:
     lines = auto_restart_provenance_lines(PROVENANCE)
-    assert lines[0] == "↻ Auto-restarted after sase update 9c5000f → 9fd8a08"
+    assert lines[0] == (
+        f"{UPDATE_RECOVERY_GLYPH} Auto-restarted after sase update 9c5000f → 9fd8a08"
+    )
     assert any("auto_launch_prefix" in line for line in lines)
     assert lines[-1] == "  broke before its model turn · nothing lost"
 
@@ -220,9 +223,7 @@ def test_fs_loader_projects_meta_provenance(tmp_path: Path) -> None:
     agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
     assert agent is not None
     assert agent.auto_restart_provenance is not None
-    assert (
-        "/home/user/.sase/restarts/20261009-test/error_report.md" in agent.extra_files
-    )
+    assert "/home/user/.sase/restarts/20261009-test" in agent.extra_files
 
 
 def _snapshot_record(

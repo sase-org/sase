@@ -151,7 +151,9 @@ def test_lock_path_and_holder_match_sase(tmp_path: Path, monkeypatch: Any) -> No
     harness = Harness(tmp_path, monkeypatch)
     monkeypatch.setenv("SASE_HOME", str(harness.sase_home))
     assert install_run.LOCK_FILENAME == sase_lock.CODE_SWAP_LOCK_FILENAME
-    assert install_run.lock_path_for(harness.sase_home) == sase_lock._lock_path()
+    assert (
+        install_run.lock_path_for(harness.sase_home) == sase_lock.code_swap_lock_path()
+    )
     assert install_run.holders_dir_for(harness.sase_home) == sase_lock._holders_dir()
     shared = {
         "pid": 7,

@@ -172,8 +172,12 @@ def finalize_loop(
     result: Any,
 ) -> AgentExecResult:
     """Post-loop cleanup: retry state, done marker, result construction."""
-    from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
+    from sase.axe.runner_lifecycle_phase import (
+        current_lifecycle_phase,
+        mark_lifecycle_phase,
+    )
 
+    phase_before_finalizing = current_lifecycle_phase()
     mark_lifecycle_phase(ctx.artifacts_dir, "finalizing")
     RetryState.delete_from(ctx.artifacts_dir)
     fallback_model_override = os.environ.get("SASE_MODEL_OVERRIDE")
@@ -270,6 +274,18 @@ def finalize_loop(
             state.current_artifacts_dir
         ):
             completed_outcome = "failed"
+        handoff_failure_facts: dict[str, Any] | None = None
+        if completed_outcome == "failed":
+            from sase.axe.runner_failure_facts import capture_failure_facts
+
+            handoff_failure_facts = capture_failure_facts(
+                None,
+                phase=(
+                    phase_before_finalizing
+                    if phase_before_finalizing == "handoff"
+                    else "finalizing"
+                ),
+            )
         if state.loop_outcome == "completed" and _is_workflow_noop(
             state.current_artifacts_dir
         ):
@@ -300,6 +316,7 @@ def finalize_loop(
             video_paths=video_paths,
             retry_metadata=retry_meta,
             default_artifacts_persisted=default_artifacts_persisted,
+            failure_facts=handoff_failure_facts,
         )
         if continuation_projection is not None:
             done_marker["continuation"] = continuation_projection
@@ -326,10 +343,14 @@ def finalize_loop(
         from sase.axe.runner_lifecycle_phase import current_lifecycle_phase
 
         loop_failure_facts: dict[str, Any] | None = None
-        if actual_outcome != "completed":
+        if actual_outcome == "failed":
             loop_failure_facts = capture_failure_facts(
                 None,
-                phase=current_lifecycle_phase(),
+                phase=(
+                    phase_before_finalizing
+                    if phase_before_finalizing == "handoff"
+                    else current_lifecycle_phase()
+                ),
             )
         done_marker = build_done_marker(
             ctx.cl_name,

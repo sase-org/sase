@@ -452,6 +452,8 @@ def invoke_agent(
         if artifacts_dir:
             mark_lifecycle_phase(artifacts_dir, "provider_done")
         raise_if_gate_intent_lost(artifacts_dir)
+        if artifacts_dir:
+            mark_lifecycle_phase(artifacts_dir, "finalizing")
         from sase.finalizers import run_finalizers
 
         invoke_result = run_finalizers(

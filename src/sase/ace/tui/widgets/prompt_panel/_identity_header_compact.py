@@ -6,6 +6,7 @@ from pathlib import Path
 
 from rich.text import Text
 
+from sase.ace.tui.widgets.update_accents import UPDATE_RECOVERY_GLYPH
 from sase.agent.status_buckets import QUEUED_STATUS, QUEUED_STATUS_COLOR
 from sase.llm_provider.model_label import model_value_text
 from sase.plan_tier_presentation import PLAN_TIER_PRESENTATIONS
@@ -190,15 +191,15 @@ def _retry_chip(agent: Agent) -> Text | None:
 
 
 def _auto_restart_chip(agent: Agent) -> Text | None:
-    """Return the ↻ chip for same-name auto-restart replacements."""
+    """Return the update-recovery chip for same-name replacements."""
     provenance = agent.auto_restart_provenance
     if not provenance:
         return None
     culprit = provenance.get("culprit_commit")
     label = (
-        f"↻ auto-restarted {culprit[:12]}"
+        f"{UPDATE_RECOVERY_GLYPH} auto-restarted {culprit[:12]}"
         if isinstance(culprit, str) and culprit
-        else "↻ auto-restarted"
+        else f"{UPDATE_RECOVERY_GLYPH} auto-restarted"
     )
     chip = Text()
     chip.append(label, style="bold #FFAF5F")

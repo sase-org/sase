@@ -53,6 +53,13 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
     """
     parent.status = child.status
     parent.status_bucket = child.status_bucket
+    parent.recovery_state = child.recovery_state
+    parent.recovery_reason = child.recovery_reason
+    parent.recovery_reason_text = child.recovery_reason_text
+    parent.recovery_episode_id = child.recovery_episode_id
+    parent.recovery_requested_at = child.recovery_requested_at
+    parent.recovery_updated_at = child.recovery_updated_at
+    parent.recovery_stale_pending = child.recovery_stale_pending
     copy_missing_display_metadata(parent, child)
     if child.is_monitor:
         parent.status_bucket = monitor_row_lane_bucket(child)

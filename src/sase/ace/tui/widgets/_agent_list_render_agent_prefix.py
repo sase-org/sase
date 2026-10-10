@@ -8,6 +8,8 @@ from collections.abc import Mapping
 
 from rich.text import Text
 
+from sase.ace.tui.widgets.update_accents import UPDATE_RECOVERY_GLYPH
+
 from ..models._agent_tree import agent_is_tree_child, agent_tree_depth, agent_tree_title
 from ..models.agent import Agent, AgentType
 from ..models.tribe_display import (
@@ -191,7 +193,7 @@ def append_agent_row_prefix(
     elif agent.auto_restart_provenance:
         # Same-name replacement relaunched by update-skew auto-restart:
         # a bare ↻ chip in the retry-badge style (no new keymap).
-        text.append("↻ ", style="bold #FFAF00")
+        text.append(f"{UPDATE_RECOVERY_GLYPH} ", style="bold #FFAF00")
 
     if show_machine_chip:
         _append_machine_chip(text, agent)

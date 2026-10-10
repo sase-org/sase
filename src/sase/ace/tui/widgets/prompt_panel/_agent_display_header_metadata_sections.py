@@ -184,7 +184,7 @@ def append_auto_restart_fields(text: Text, agent: Agent) -> None:
     evidence_dir = provenance.get("evidence_dir")
     if isinstance(evidence_dir, str) and evidence_dir:
         text.append("  evidence: ", style="dim #FFAF5F")
-        text.append(f"{evidence_dir.rstrip('/')}/error_report.md", style="#FFAF5F")
+        text.append(evidence_dir.rstrip("/"), style="#FFAF5F")
         text.append(" (v)\n", style="dim #FFAF5F")
 
 

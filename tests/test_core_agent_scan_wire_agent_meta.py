@@ -542,7 +542,7 @@ def _agent_meta_with_status(raw: object) -> AgentMetaWire | None:
 def test_finalizer_status_is_trailing_wire_field() -> None:
     """Additive wire fields stay last so older payloads keep key order."""
     names = [field.name for field in fields(AgentMetaWire)]
-    assert names[-7:] == [
+    assert names[-8:] == [
         "proc_id",
         "finalizer_status",
         "created_epics",
@@ -550,6 +550,7 @@ def test_finalizer_status_is_trailing_wire_field() -> None:
         "wait_epic_follows",
         "auto_approve_argument",
         "autonomy",
+        "auto_restart",
     ]
     assert AgentMetaWire().finalizer_status is None
     assert AgentMetaWire().created_epics == []
@@ -557,6 +558,7 @@ def test_finalizer_status_is_trailing_wire_field() -> None:
     assert AgentMetaWire().wait_epic_follows == []
     assert AgentMetaWire().auto_approve_argument is None
     assert AgentMetaWire().autonomy is None
+    assert AgentMetaWire().auto_restart is None
 
 
 def test_autonomy_record_passes_through_wire() -> None:

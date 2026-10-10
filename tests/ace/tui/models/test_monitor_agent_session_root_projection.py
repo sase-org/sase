@@ -108,6 +108,29 @@ def test_direct_root_monitor_is_left_unchanged() -> None:
     assert monitor in root.followup_agents
 
 
+def test_session_root_mirrors_auto_restart_recovery_fields() -> None:
+    root = _root()
+    member = _code_child(root, raw_suffix="20260810091000")
+    member.status = "RESTARTING"
+    member.recovery_state = "launching"
+    member.recovery_reason = "probe-passed"
+    member.recovery_reason_text = "restarting after update"
+    member.recovery_episode_id = "sase@9fd8a08"
+    member.recovery_requested_at = "2026-08-10T09:10:00+00:00"
+    member.recovery_updated_at = "2026-08-10T09:10:01+00:00"
+
+    _apply_status_overrides([root, member])
+
+    assert root.status == "RESTARTING"
+    assert root.recovery_state == "launching"
+    assert root.recovery_reason == "probe-passed"
+    assert root.recovery_reason_text == "restarting after update"
+    assert root.recovery_episode_id == "sase@9fd8a08"
+    assert root.recovery_requested_at == "2026-08-10T09:10:00+00:00"
+    assert root.recovery_updated_at == "2026-08-10T09:10:01+00:00"
+    assert root.recovery_stale_pending is False
+
+
 def test_nested_monitor_renders_under_starter() -> None:
     root = _root()
     coder = _code_child(root, raw_suffix="20260810091000")

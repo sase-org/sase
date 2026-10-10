@@ -793,6 +793,410 @@
           },
           {
             "aliases": [],
+            "default_child": "list",
+            "description_digest": "b21205e84be2071b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "auto-restart",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "agent",
+              "auto-restart"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "7c62d578de5fd247",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "all",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-a",
+                      "--all"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "auto-restart",
+                  "list"
+                ],
+                "positionals": [],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "4d853839916efb26",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "resume",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "auto-restart",
+                  "resume"
+                ],
+                "positionals": [],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "6251a1716289f6b0",
+                "hidden": false,
+                "mutex_groups": [
+                  [
+                    "name",
+                    "artifacts_dir",
+                    "pending"
+                  ]
+                ],
+                "name": "run",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "artifacts_dir",
+                    "hidden": false,
+                    "kind": "dir",
+                    "metavar": "DIR",
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-a",
+                      "--artifacts-dir"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "path"
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "pending",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-p",
+                      "--pending"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "dry_run",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-n",
+                      "--dry-run"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "auto-restart",
+                  "run"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "name",
+                    "nargs": "?",
+                    "required": false,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "56e3b8ddb948172b",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "scan",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "limit",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": "N",
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-l",
+                      "--limit"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "int"
+                  },
+                  {
+                    "choices": null,
+                    "default": "7d",
+                    "dest": "since",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": "DURATION",
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-s",
+                      "--since"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "auto-restart",
+                  "scan"
+                ],
+                "positionals": [],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "e670bf8ee1f02a7f",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "show",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "auto-restart",
+                  "show"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "target",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "TARGET",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              }
+            ],
+            "writes": false
+          },
+          {
+            "aliases": [],
             "default_child": null,
             "description_digest": "84b0764fe73c9b17",
             "hidden": false,

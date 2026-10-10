@@ -227,6 +227,8 @@ def test_invoke_agent_records_provider_preprocess_shadow_measurement(
     provider.invoke.return_value = InvokeResult(content="response")
 
     def passthrough_finalizers(**kwargs: object) -> InvokeResult:
+        metadata = json.loads((artifacts / "agent_meta.json").read_text())
+        assert metadata["lifecycle_phase"] == "finalizing"
         result = kwargs["invoke_result"]
         assert isinstance(result, InvokeResult)
         return result

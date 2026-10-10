@@ -264,7 +264,11 @@ def _capture_failure_facts(
     links = [_chain_link(link) for link in chain]
     import_error = _extract_import_error(chain) if chain else None
     attribute_error = _extract_attribute_error(chain) if chain else None
-    frames = _extract_frames(exc) if exc is not None else []
+    # The top-level exception often only wraps the actual failure. Attribute
+    # source frames to the innermost captured exception for the same reason
+    # the structured ImportError/AttributeError fields use the root cause.
+    frame_exception = chain[-1] if chain else exc
+    frames = _extract_frames(frame_exception) if frame_exception is not None else []
     last_frame_file: str | None = None
     if frames:
         candidate = frames[-1].get("file")

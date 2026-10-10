@@ -2,6 +2,7 @@
 
 from ...keymaps import KeymapRegistry, key_display_name
 from ...widgets._agent_list_render_rail import RAIL_LEGEND
+from ...widgets.update_accents import UPDATE_RECOVERY_GLYPH
 from .binding_common import Sections, key_sequence_display
 
 
@@ -71,7 +72,7 @@ def reference_sections(km: KeymapRegistry) -> Sections:
                 ("⏳ Waiting", "Timer or dependency wait"),
                 ("▲ Stopped", "User must act"),
                 ("▶ Running", "Actively executing"),
-                ("↻ RESTARTING", "Auto-restart in flight"),
+                (f"{UPDATE_RECOVERY_GLYPH} RESTARTING", "Auto-restart in flight"),
                 ("✗ Failed", "Failed and retried"),
                 ("✓ Done", "Completed"),
             ],
@@ -117,7 +118,7 @@ def reference_sections(km: KeymapRegistry) -> Sections:
                 ("❯", "Bash / python step"),
                 ("◆", "Bead-linked agent"),
                 ("↺", "Reverted (changes undone)"),
-                ("↻", "Auto-restarted replacement"),
+                (UPDATE_RECOVERY_GLYPH, "Auto-restarted replacement"),
                 ("↻N", "N attempts / retry depth"),
                 ("≡", "Workflow row"),
                 ("❑", "Patch row"),

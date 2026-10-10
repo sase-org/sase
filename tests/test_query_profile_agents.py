@@ -280,6 +280,7 @@ def test_agents_live_profile_enum_fields_pin_static_vocabularies() -> None:
         "STARTING",
         "RUNNING",
         "RETRYING",
+        "RESTARTING",
         "ANSWERED",
         "WAITING",
         "QUEUED",

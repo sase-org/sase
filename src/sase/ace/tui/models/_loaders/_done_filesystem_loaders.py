@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
-from sase.agent.auto_restart.ux import RESTARTING_STATUS, apply_recovery_to_agent
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.paths import sase_projects_dir
@@ -78,6 +77,8 @@ def _apply_filesystem_auto_restart(agent: Agent, data: dict[str, Any]) -> None:
     ``RESTARTING``; declined and stale-pending rows keep ``FAILED`` with
     their dim hint in the ``recovery_*`` fields.
     """
+    from sase.agent.auto_restart.ux import RESTARTING_STATUS, apply_recovery_to_agent
+
     recovery = data.get("recovery")
     if not isinstance(recovery, dict):
         return

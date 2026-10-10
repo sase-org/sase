@@ -155,7 +155,7 @@ async def test_agents_auto_restart_provenance_png_snapshot(
         prompt_text = prompt_header_and_body_text(prompt) or ""
         assert "Auto-restarted after sase update 9c5000f → 9fd8a08" in prompt_text
         assert "auto_launch_prefix" in prompt_text
-        assert "error_report.md" in prompt_text
+        assert "/restarts/" in prompt_text
         ace_png_visual.assert_page_png(
             page,
             "agents_auto_restart_provenance_120x40",

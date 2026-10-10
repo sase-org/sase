@@ -8,8 +8,11 @@ stay free of per-keypress work and these helpers stay trivially testable.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 from collections.abc import Mapping
+from typing import Any
+
+from sase.agent.auto_restart.constants import UPDATE_RECOVERY_GLYPH
+from sase.core.time import get_timezone, parse_local
 
 RESTARTING_STATUS = "RESTARTING"
 RESTARTING_STYLE = "bold #FFAF5F"
@@ -23,7 +26,7 @@ RECOVERY_IN_FLIGHT_STATES: tuple[str, ...] = (
 )
 
 STALE_PENDING_HINT = "auto-restart never ran — is the sase scheduler running?"
-DEFERRED_HINT = "↻ waiting for the sase update to finish"
+DEFERRED_HINT = f"{UPDATE_RECOVERY_GLYPH} waiting for the sase update to finish"
 PENDING_HINT = "restarting once the update settles"
 
 
@@ -46,13 +49,7 @@ def _recovery_is_in_flight(state: object) -> bool:
 def _parse_requested_at(value: object) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
-    return parsed
+    return parse_local(value)
 
 
 def _is_stale_pending(
@@ -74,9 +71,9 @@ def _is_stale_pending(
     requested = _parse_requested_at(requested_at)
     if requested is None:
         return False
-    reference = now if now is not None else datetime.now().astimezone()
-    if reference.tzinfo is None:
-        reference = reference.replace(tzinfo=requested.tzinfo)
+    reference = parse_local(now) if now is not None else datetime.now(get_timezone())
+    if reference is None:
+        return False
     try:
         age = (reference - requested).total_seconds()
     except (OverflowError, TypeError):
@@ -126,13 +123,19 @@ def auto_restart_provenance_lines(provenance: Mapping[str, Any]) -> list[str]:
     from_rev = provenance.get("from_rev")
     to_rev = provenance.get("to_rev")
     if isinstance(from_rev, str) and isinstance(to_rev, str) and from_rev and to_rev:
-        first = f"↻ Auto-restarted after sase update {from_rev} → {to_rev}"
+        first = (
+            f"{UPDATE_RECOVERY_GLYPH} Auto-restarted after sase update "
+            f"{from_rev} → {to_rev}"
+        )
     else:
         culprit = provenance.get("culprit_commit")
         if isinstance(culprit, str) and culprit:
-            first = f"↻ Auto-restarted after sase update {culprit[:12]}"
+            first = (
+                f"{UPDATE_RECOVERY_GLYPH} Auto-restarted after sase update "
+                f"{culprit[:12]}"
+            )
         else:
-            first = "↻ Auto-restarted after a sase update"
+            first = f"{UPDATE_RECOVERY_GLYPH} Auto-restarted after a sase update"
     lines = [first]
     signature = provenance.get("signature")
     if isinstance(signature, str) and signature.strip():
@@ -148,12 +151,12 @@ def auto_restart_provenance_lines(provenance: Mapping[str, Any]) -> list[str]:
     return lines
 
 
-def _auto_restart_error_report_path(provenance: Mapping[str, Any]) -> str | None:
-    """Return the preserved ``error_report.md`` path for the ``v`` hint."""
+def _auto_restart_evidence_dir_path(provenance: Mapping[str, Any]) -> str | None:
+    """Return the preserved evidence bundle directory for the ``v`` hint."""
     evidence_dir = provenance.get("evidence_dir")
     if not isinstance(evidence_dir, str) or not evidence_dir:
         return None
-    return f"{evidence_dir.rstrip('/')}/error_report.md"
+    return evidence_dir.rstrip("/")
 
 
 def _pending_resurface_seconds(default: float = 600.0) -> float:
@@ -221,8 +224,8 @@ def apply_provenance_to_agent(agent: Any, provenance: object) -> None:
     """Project an ``agent_meta`` auto-restart record onto a TUI agent row.
 
     A set record marks the row as a same-name replacement and registers
-    the preserved ``error_report.md`` as a ``v`` file hint. Render paths
-    never stat: the path is a plain string join.
+    the preserved evidence bundle directory as a ``v`` file hint. Render
+    paths never stat the bundle.
     """
     if not isinstance(provenance, Mapping):
         return
@@ -230,14 +233,14 @@ def apply_provenance_to_agent(agent: Any, provenance: object) -> None:
     if not record:
         return
     agent.auto_restart_provenance = record
-    report = _auto_restart_error_report_path(record)
-    if report is None:
+    evidence_dir = _auto_restart_evidence_dir_path(record)
+    if evidence_dir is None:
         return
     extra = getattr(agent, "extra_files", None)
     if not isinstance(extra, list):
         return
-    if report not in extra:
-        extra.append(report)
+    if evidence_dir not in extra:
+        extra.append(evidence_dir)
 
 
 __all__ = [

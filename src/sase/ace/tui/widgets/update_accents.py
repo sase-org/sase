@@ -32,6 +32,8 @@ from __future__ import annotations
 
 from rich.text import Text
 
+from sase.agent.auto_restart.constants import UPDATE_RECOVERY_GLYPH
+
 UPDATE_GLYPH = "⬆"
 UPDATES_SURFACE = "#244A14"
 UPDATES_ACCENT = "#AFFF87"
@@ -41,7 +43,6 @@ CORE_TAG_INK = "#1a1a1a"
 UPDATE_CAUTION_ACCENT = "#FFAF5F"
 UPDATE_RESTART_ACCENT = "#FFC000"
 UPDATE_FAILED_ACCENT = "#FF5F5F"
-UPDATE_RECOVERY_GLYPH = "↻"
 
 
 def build_core_tag() -> Text:

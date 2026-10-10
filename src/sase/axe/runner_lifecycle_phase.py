@@ -8,7 +8,8 @@ best-effort breadcrumb for out-of-process readers.
 ``boot_code_identity`` snapshots the code this process image imported. Only
 module-scope imports here are stdlib: every ``sase.*`` import below is
 function-local so importing this module at runner boot adds no deferred
-import surface of its own.
+import surface of its own. When multiple install records share a distribution
+name, the first record yielded from ``sys.path`` wins.
 """
 
 from __future__ import annotations
@@ -203,6 +204,7 @@ def _capture_boot_code_identity(
     host_dist = None
     core_dist = None
     plugin_dists: list[Any] = []
+    seen_distribution_names: set[str] = set()
     for dist in distributions:
         try:
             name = dist.metadata["Name"]
@@ -211,6 +213,9 @@ def _capture_boot_code_identity(
         if not isinstance(name, str) or not name:
             continue
         lowered = name.lower().replace("_", "-")
+        if lowered in seen_distribution_names:
+            continue
+        seen_distribution_names.add(lowered)
         if lowered == "sase":
             host_dist = dist
         elif lowered == str(CORE_DISTRIBUTION_NAME).lower():

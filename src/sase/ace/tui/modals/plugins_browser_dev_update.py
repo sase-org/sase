@@ -28,6 +28,7 @@ from sase.uv_tool.render import PlannedPackage
 from sase.version._models import VersionPackageRecord
 from sase.version._utils import normalize_distribution_name
 from sase.version.inventory import collect_runtime_version_inventory
+from sase.ace.tui.widgets.update_accents import UPDATE_RECOVERY_GLYPH
 
 
 @dataclass(frozen=True)
@@ -260,7 +261,7 @@ def _dev_update_auto_restart_hint() -> str | None:
         return None
     noun = "agent is" if count == 1 else "agents are"
     return (
-        f"↻ {count} running {noun} still on pre-update code. If this update "
+        f"{UPDATE_RECOVERY_GLYPH} {count} running {noun} still on pre-update code. If this update "
         "breaks one, sase restarts it once automatically "
         "(sase agent auto-restart list)."
     )

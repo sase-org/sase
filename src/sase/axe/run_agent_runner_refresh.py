@@ -75,7 +75,9 @@ from sase.version._sources import (
 # torn tree can no longer satisfy them), so these must already sit in
 # ``sys.modules``; the import-firewall test pins that property.
 import sase.agent.names._registry_batch  # noqa: F401
+import sase.agent.launch_timing  # noqa: F401
 import sase.core.paths  # noqa: F401
+import sase.core.managed_tmp_roots  # noqa: F401
 
 RUNNER_CODE_REFRESHED_ENV = "SASE_RUNNER_CODE_REFRESHED"
 _PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"

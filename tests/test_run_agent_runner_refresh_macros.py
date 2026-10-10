@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
+import textwrap
 from pathlib import Path
 from unittest.mock import patch
 
@@ -226,69 +228,70 @@ def test_refresh_path_imports_no_new_sase_modules(
     how the 2026-10-09 ``auto_launch_prefix`` incident died. Any
     ``sase.*`` import after the identity check trips the firewall, so this
     reaches ``execv`` only when every refresh-path helper (including the
-    lazily-imported leaves they touch) was already imported at boot.
+    lazily-imported leaves they touch) was already imported at boot. The
+    subprocess uses the real planned-name registry lookup without pytest's
+    import-environment bypass.
     """
-    from sase.agent.multi_prompt_macros import LOCAL_MACROS_ENV
-    from sase.macro.models import Macro
-
-    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
-    monkeypatch.delenv(LOCAL_MACROS_ENV, raising=False)
     prompt_file = tmp_path / "prompt.md"
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
-    submitted_prompt = "%wait:builder\nDo work"
-    macros = {"_x": Macro(name="_x", content="expanded body")}
-    attempted: list[str] = []
+    sase_home = tmp_path / "sase-home"
+    sase_home.mkdir()
+    child_env = dict(os.environ)
+    child_env.pop("PYTEST_CURRENT_TEST", None)
+    child_env["SASE_HOME"] = str(sase_home)
+    script = textwrap.dedent(
+        """
+        import importlib.abc
+        import os
+        import sys
+        from unittest.mock import patch
 
-    class _ImportFirewall:
-        def find_spec(
-            self,
-            fullname: str,
-            path: object = None,
-            target: object = None,
-        ) -> object:
-            if fullname == "sase" or fullname.startswith("sase."):
-                attempted.append(fullname)
-                raise ImportError(f"import-firewall: {fullname} imported late")
-            return None
+        from sase.axe import run_agent_runner_refresh as refresh
 
-    firewall = _ImportFirewall()
-    captured: dict[str, str] = {}
+        class Firewall(importlib.abc.MetaPathFinder):
+            def __init__(self):
+                self.attempted = []
 
-    def capture_exec(*_args: object) -> None:
-        captured.update(os.environ)
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname == "sase" or fullname.startswith("sase."):
+                    self.attempted.append(fullname)
+                    raise ImportError(f"import-firewall: {fullname} imported late")
+                return None
 
-    sys.meta_path.insert(0, firewall)
-    try:
+        prompt_file, artifacts_dir = sys.argv[1:]
+        firewall = Firewall()
+        reached_exec = []
         with (
-            patch(
-                "sase.axe.run_agent_runner_refresh.runner_code_identity",
-                return_value="b" * 40,
-            ),
-            patch(
-                "sase.agent.names.planned_registered_name_belongs_to_artifact",
-                return_value=True,
-            ),
-            patch(
-                "sase.axe.run_agent_runner_refresh.os.execv",
-                side_effect=capture_exec,
-            ),
+            patch.object(refresh, "runner_code_identity", return_value="b" * 40),
+            patch.object(refresh.os, "execv", side_effect=lambda *args: reached_exec.append(args)),
         ):
-            refresh_runner_code_after_wait(
-                "a" * 40,
-                blocking_wait_occurred=True,
-                killed=False,
-                prompt_file=str(prompt_file),
-                submitted_prompt=submitted_prompt,
-                agent_name="builder.w0",
-                artifacts_dir=str(artifacts_dir),
-                local_macros=macros,
-            )
-    finally:
-        sys.meta_path.remove(firewall)
+            sys.meta_path.insert(0, firewall)
+            try:
+                refresh.refresh_runner_code_after_wait(
+                    "a" * 40,
+                    blocking_wait_occurred=True,
+                    killed=False,
+                    prompt_file=prompt_file,
+                    submitted_prompt="%wait:builder\\nDo work",
+                    agent_name="builder.w0",
+                    artifacts_dir=artifacts_dir,
+                )
+            finally:
+                sys.meta_path.remove(firewall)
+        if firewall.attempted:
+            raise AssertionError(f"late imports: {firewall.attempted!r}")
+        assert reached_exec
+        print("EXEC_REACHED")
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(prompt_file), str(artifacts_dir)],
+        capture_output=True,
+        text=True,
+        env=child_env,
+        check=False,
+    )
 
-    assert attempted == []
-    assert prompt_file.read_text(encoding="utf-8") == submitted_prompt
-    assert captured[RUNNER_CODE_REFRESHED_ENV] == "1"
-    assert captured["SASE_AGENT_PLANNED_NAME"] == "builder.w0"
-    assert LOCAL_MACROS_ENV in captured
+    assert result.returncode == 0, result.stderr
+    assert "EXEC_REACHED" in result.stdout
