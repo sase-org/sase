@@ -2,7 +2,6 @@
 
 import pytest
 
-from sase.feature_flags.snapshot import override_flags
 from sase.macro.load_issues import collect_macro_load_issues
 from sase.macro._loader_parsing_outputs import _parse_shortform_output
 from sase.macro.loader_parsing import (
@@ -204,25 +203,17 @@ def test_parse_macro_entries_isolates_invalid_enum_default_from_siblings() -> No
     assert "default `quick` is not one of fast | thorough" in issues[0].error
 
 
-def test_unknown_input_type_flag_controls_per_macro_fallback() -> None:
+def test_unknown_input_type_is_always_a_per_macro_error() -> None:
     entries = {
         "legacy": {"content": "legacy", "input": {"mode": {"type": "enmu"}}},
         "sibling": {"content": "sibling", "input": {"mode": "word"}},
     }
 
-    with override_flags(strict_macro_input_types=True):
-        with collect_macro_load_issues() as strict_issues:
-            strict = parse_macro_entries(entries, "config.yml")
-    assert set(strict) == {"sibling"}
-    assert strict_issues[0].kind == "input_type"
-    assert "enum" in strict_issues[0].error
-
-    with override_flags(strict_macro_input_types=False):
-        with collect_macro_load_issues() as legacy_issues:
-            legacy = parse_macro_entries(entries, "config.yml")
-    assert set(legacy) == {"legacy", "sibling"}
-    assert legacy["legacy"].inputs[0].type is InputType.LINE
-    assert legacy_issues == []
+    with collect_macro_load_issues() as issues:
+        parsed = parse_macro_entries(entries, "config.yml")
+    assert set(parsed) == {"sibling"}
+    assert issues[0].kind == "input_type"
+    assert "enum" in issues[0].error
 
 
 def test_deprecated_string_input_type_records_warning_without_skipping() -> None:

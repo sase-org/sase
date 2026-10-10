@@ -6099,12 +6099,6 @@
           "default": true,
           "deprecated": true
         },
-        "legacy_xprompt_syntax": {
-          "type": "boolean",
-          "description": "SASE silently accepts retired xprompt spellings as aliases of their macro replacements.",
-          "default": true,
-          "deprecated": true
-        },
         "monitor_continuation_records": {
           "type": "boolean",
           "description": "New monitor starts persist versioned continuation records, frozen outcome policy, checkpoints, and durable delivery/adoption state for production continuation routing.",
@@ -6137,12 +6131,6 @@
         "slim_agents_manifest": {
           "type": "boolean",
           "description": "Owner-manifest writes (fresh publish, digest repair, and manifest repair) omit each hood's per-hood files list, and reads use the dedicated larger manifest byte and hood-count caps with lenient old-reader skip for the omitted-files shape.",
-          "default": true,
-          "deprecated": true
-        },
-        "strict_macro_input_types": {
-          "type": "boolean",
-          "description": "Unknown macro input type names are a per-macro load error with suggestions.",
           "default": true,
           "deprecated": true
         }

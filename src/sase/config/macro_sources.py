@@ -41,10 +41,10 @@ def load_macros_by_source(
     resource_files: Callable[[Any], Any],
 ) -> list[tuple[str, dict[str, Any]]]:
     """Load macro entries from each config source in priority order."""
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
     from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
-    accept_legacy = legacy_xprompt_syntax_enabled()
+    # Retired spellings are always accepted.
+    accept_legacy = True
     results: list[tuple[str, dict[str, Any]]] = []
 
     default = default_loader()

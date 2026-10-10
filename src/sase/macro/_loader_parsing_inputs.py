@@ -42,9 +42,8 @@ def parse_input_type(
 ) -> ResolvedInputType:
     """Resolve a raw YAML type through the shared Rust catalog.
 
-    Unknown names keep their historical ``line`` fallback only while the
-    ``strict_macro_input_types`` sunset flag is disabled. Deprecated spellings
-    are accepted and surfaced as load warnings regardless of that flag.
+    Unknown names are a per-macro load error with suggestions. Deprecated
+    spellings are accepted and surfaced as load warnings.
     """
     request: dict[str, Any] = {"name": name, "raw": raw}
     registry = _plugin_registry_snapshot()
@@ -53,17 +52,7 @@ def parse_input_type(
     try:
         resolved = require_rust_binding("resolve_input_type")(request)
     except ValueError as exc:
-        message = str(exc)
-        if "unknown type" in message.casefold():
-            from sase.feature_flags import FeatureFlag, current_flags
-
-            if not current_flags().enabled(FeatureFlag.strict_macro_input_types):
-                return ResolvedInputType(
-                    base=InputType.LINE,
-                    named_type=None,
-                    value_role=None,
-                )
-        raise MacroValidationError(message) from None
+        raise MacroValidationError(str(exc)) from None
 
     choices = tuple(
         InputChoice(

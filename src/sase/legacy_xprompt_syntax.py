@@ -1,15 +1,14 @@
 """Compatibility normalizers for retired xprompt user syntax.
 
 Keep every temporary alias for the xprompt-to-macro terminology migration in
-this module. Durable readers live in :mod:`sase.legacy_xprompt_names` and are
-never flag-gated; authored input follows the ``legacy_xprompt_syntax``
-sunset flag through this host adapter.
+this module. Durable readers live in :mod:`sase.legacy_xprompt_names`;
+authored input always accepts the retired spellings as aliases of their
+macro replacements.
 
 This module never duplicates backend normalization: layer mapping policy is
 owned by ``sase_core::config::macro_syntax`` and reached through the
-``normalize_macro_config_layer`` binding with an explicit policy bit, so raw
-flag-bootstrap layers (read via ``load_config_layers()`` before any flag
-snapshot exists) cannot recurse into flag resolution.
+``normalize_macro_config_layer`` binding, whose retired policy bit is
+accepted and ignored.
 """
 
 from __future__ import annotations
@@ -58,8 +57,8 @@ RETIRED_PATH_TARGETS: tuple[tuple[str, str], ...] = (
 )
 
 #: Retired TUI keymap actions paired with their canonical replacements.
-#: Authored keymap aliases are flag-gated; both spellings in one mapping
-#: are an error in both flag states.
+#: Authored keymap aliases are always accepted; both spellings in one
+#: mapping are an error.
 RETIRED_KEYMAP_ACTIONS: tuple[tuple[str, str], ...] = (
     ("focus_xprompt", "focus_macro"),
     ("clear_xprompt_focus", "clear_macro_focus"),
@@ -77,13 +76,6 @@ def retired_config_key(canonical: str) -> str | None:
     return _RETIRED_CONFIG_KEY_BY_CANONICAL.get(canonical)
 
 
-def legacy_xprompt_syntax_enabled() -> bool:
-    """Return whether retired xprompt syntax is accepted."""
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.legacy_xprompt_syntax)
-
-
 def normalize_config_layer(
     layer: Mapping[str, Any],
     *,
@@ -92,17 +84,17 @@ def normalize_config_layer(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Normalize one authored config layer to canonical macro spellings.
 
-    The policy bit is explicit at the Rust boundary: callers that already
-    know the flag state (including raw flag-bootstrap readers) pass
-    ``accept_legacy`` directly, otherwise the current flag snapshot decides.
+    Retired xprompt spellings are always accepted as aliases; the retired
+    ``accept_legacy`` bit is accepted for compatibility and ignored.
     Returns the canonical mapping plus source-qualified diagnostics. Both
-    spellings in one mapping, or a legacy spelling while the flag is off,
-    raises ``ValueError`` naming the macro replacement.
+    spellings in one mapping raises ``ValueError`` naming the macro
+    replacement.
     """
     from sase.core.rust import require_rust_binding
 
-    if accept_legacy is None:
-        accept_legacy = legacy_xprompt_syntax_enabled()
+    # Retired switch kept for compatibility and ignored.
+    _ = accept_legacy
+    accept_legacy = True
     binding = require_rust_binding("normalize_macro_config_layer")
     result = binding(
         {
@@ -126,17 +118,17 @@ def normalize_keymap_actions(
 ) -> dict[str, Any]:
     """Rewrite retired keymap action keys to their canonical names.
 
-    Flag on accepts a legacy key as its macro action. Flag off rejects it
-    with an error that names the replacement. Both spellings in one mapping
-    are an error in both flag states. Presence (not truthiness) decides.
-    Resolve the flag only when a retired key is present so empty and
-    canonical-only mappings stay in-memory.
+    A legacy key is always accepted as its macro action; the retired
+    ``accept_legacy`` bit is accepted for compatibility and ignored. Both
+    spellings in one mapping are an error. Presence (not truthiness)
+    decides.
     """
+    # Retired switch kept for compatibility and ignored.
+    _ = accept_legacy
     if not isinstance(mapping, dict):
         return {}
     result = dict(mapping)
     suffix = f" ({source})" if source else ""
-    resolved_accept_legacy = accept_legacy
     for old, new in RETIRED_KEYMAP_ACTIONS:
         has_old = old in result
         has_new = new in result
@@ -146,10 +138,6 @@ def normalize_keymap_actions(
             )
         if not has_old:
             continue
-        if resolved_accept_legacy is None:
-            resolved_accept_legacy = legacy_xprompt_syntax_enabled()
-        if not resolved_accept_legacy:
-            raise ValueError(f"{old} is retired; use {new}{suffix}")
         result[new] = result.pop(old)
     return result
 
@@ -162,13 +150,16 @@ def normalize_frontmatter_macros(
 ) -> dict[str, Any]:
     """Return the local-helper entries from a frontmatter/workflow mapping.
 
-    Accepts canonical ``macros``, gates retired ``xprompts`` through the
-    ``legacy_xprompt_syntax`` flag, and rejects both spellings in one mapping
-    in both flag states. Presence (not truthiness) decides: a legacy key
-    holding null, an empty mapping, false, or an empty string still counts.
-    A retired-name failure raises ``ValueError`` naming the replacement and
-    must never be reduced to empty helpers by a broad caller catch.
+    Accepts canonical ``macros`` and always accepts retired ``xprompts`` as
+    an alias; the retired ``accept_legacy`` bit is accepted for
+    compatibility and ignored. Both spellings in one mapping are rejected.
+    Presence (not truthiness) decides: a legacy key holding null, an empty
+    mapping, false, or an empty string still counts. A both-spellings
+    failure raises ``ValueError`` naming the replacement and must never be
+    reduced to empty helpers by a broad caller catch.
     """
+    # Retired switch kept for compatibility and ignored.
+    _ = accept_legacy
     if not isinstance(mapping, dict):
         return {}
     has_legacy = RETIRED_FRONTMATTER_KEY in mapping
@@ -184,13 +175,6 @@ def normalize_frontmatter_macros(
         return entries if isinstance(entries, dict) else {}
     if not has_legacy:
         return {}
-    if accept_legacy is None:
-        accept_legacy = legacy_xprompt_syntax_enabled()
-    if not accept_legacy:
-        raise ValueError(
-            f"{RETIRED_FRONTMATTER_KEY} is retired; "
-            f"use {CANONICAL_FRONTMATTER_KEY}" + (f" ({source})" if source else "")
-        )
     entries = mapping[RETIRED_FRONTMATTER_KEY]
     return entries if isinstance(entries, dict) else {}
 
@@ -202,11 +186,9 @@ def normalize_legacy_root_args(argv: list[str] | None = None) -> None:
     command with ``sase.main.parser_root_args.root_command_index``, the same
     way ``parser_only_hint`` does. Rewrites a root ``xprompt`` to ``macro``,
     and rewrites the first positional after a root ``path`` from a retired
-    ``xprompts-*`` target to its ``macros-*`` replacement. With
-    ``legacy_xprompt_syntax`` off, prints ``<old> is retired; use <new>`` to
-    stderr and exits 2, matching the retired-branch messages. Never rewrites
-    any other token (for example ``sase run "xprompt ..."`` or
-    ``sase macro show xprompt``).
+    ``xprompts-*`` target to its ``macros-*`` replacement. Retired spellings
+    are always accepted. Never rewrites any other token (for example
+    ``sase run "xprompt ..."`` or ``sase macro show xprompt``).
 
     Mutates *argv* (default ``sys.argv``) in place.
     """
@@ -221,12 +203,6 @@ def normalize_legacy_root_args(argv: list[str] | None = None) -> None:
         return
     candidate = args[command_index]
     if candidate == RETIRED_ROOT_COMMAND:
-        if not legacy_xprompt_syntax_enabled():
-            print(
-                f"{RETIRED_ROOT_COMMAND} is retired; use {CANONICAL_ROOT_COMMAND}",
-                file=sys.stderr,
-            )
-            raise SystemExit(2)
         target[command_index + 1] = CANONICAL_ROOT_COMMAND
         return
     if candidate != "path":
@@ -240,9 +216,6 @@ def normalize_legacy_root_args(argv: list[str] | None = None) -> None:
         replacement = _RETIRED_PATH_TARGET_MAP.get(token)
         if replacement is None:
             return
-        if not legacy_xprompt_syntax_enabled():
-            print(f"{token} is retired; use {replacement}", file=sys.stderr)
-            raise SystemExit(2)
         target[offset + 1] = replacement
         return
 
@@ -260,7 +233,6 @@ __all__ = [
     "RETIRED_PATH_TARGETS",
     "RETIRED_PLUGIN_GROUP",
     "RETIRED_ROOT_COMMAND",
-    "legacy_xprompt_syntax_enabled",
     "normalize_config_layer",
     "normalize_frontmatter_macros",
     "normalize_keymap_actions",

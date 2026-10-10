@@ -225,9 +225,9 @@ def _normalize_layer(
 ) -> dict[str, Any]:
     """Normalize one authored layer to canonical macro spellings.
 
-    Policy errors (same-layer collisions, legacy spellings with the flag
-    off) propagate as actionable errors; they are never swallowed into an
-    empty contribution.
+    Same-layer collisions propagate as actionable errors; they are never
+    swallowed into an empty contribution. Retired spellings are always
+    accepted.
     """
     from sase.legacy_xprompt_syntax import normalize_config_layer
 
@@ -235,13 +235,6 @@ def _normalize_layer(
         data, source=source, accept_legacy=accept_legacy
     )
     return canonical
-
-
-def _resolve_normalization_policy() -> bool:
-    """Resolve the legacy-syntax policy bit without recursing into merge."""
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-    return legacy_xprompt_syntax_enabled()
 
 
 def merge_config_sources(
@@ -257,11 +250,13 @@ def merge_config_sources(
     """Load and merge the already-discovered config source chain.
 
     Each authored layer is normalized independently before merging, so a
-    canonical bundled default plus an old user override stays valid while
-    the flag is enabled and keeps existing layer precedence instead of
-    becoming a both-present error after merging.
+    canonical bundled default plus an old user override stays valid and
+    keeps existing layer precedence instead of becoming a both-present
+    error after merging.
     """
-    accept_legacy = _resolve_normalization_policy()
+    # Retired spellings are always accepted; no flag snapshot is consulted
+    # during the merge, so bootstrap layers cannot recurse.
+    accept_legacy = True
     default_contribution = _normalize_layer(
         _without_project_only_catalog(
             _without_owner_identity(default_config, source="default"),

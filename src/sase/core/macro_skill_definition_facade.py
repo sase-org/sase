@@ -107,8 +107,6 @@ def _require_macro_skill_definition_schema() -> None:
 
 
 def _catalog_options(root_dir: Path | None) -> dict[str, object]:
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
     package_root = Path(str(importlib.resources.files("sase")))
     return {
         "root_dir": None if root_dir is None else str(root_dir),
@@ -119,7 +117,8 @@ def _catalog_options(root_dir: Path | None) -> dict[str, object]:
         "plugin_macro_dirs": _plugin_macro_dirs(),
         "plugin_skill_dirs": _plugin_resource_dirs("skills"),
         "plugin_config_paths": _plugin_config_paths(),
-        "accept_legacy_xprompt_names": legacy_xprompt_syntax_enabled(),
+        # Retired switch: the binding accepts and ignores it.
+        "accept_legacy_xprompt_names": True,
     }
 
 

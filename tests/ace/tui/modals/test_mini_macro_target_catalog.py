@@ -501,9 +501,6 @@ def test_config_definitions_accept_legacy_key_and_reject_mixed_keys(
     tmp_path: Path, monkeypatch
 ) -> None:
     _empty_catalog_only(monkeypatch)
-    monkeypatch.setattr(
-        "sase.legacy_xprompt_syntax.legacy_xprompt_syntax_enabled", lambda: True
-    )
     config = tmp_path / "legacy.yml"
     row = _row(
         config,

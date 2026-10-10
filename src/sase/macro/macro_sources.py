@@ -217,9 +217,8 @@ def _plugin_source(module_name: str, *, filename: str, capability: str) -> Path 
 def _plugin_macro_source(module_name: str, filename: str) -> Path | None:
     """Resolve one plugin macro definition through consolidated discovery.
 
-    Probes the plugin's ``macros/`` resource directory first and the retired
-    ``xprompts/`` directory only while the ``legacy_xprompt_syntax`` flag
-    allows it.
+    Probes the plugin's ``macros/`` resource directory first and always
+    accepts the retired directory as an alias.
     """
     from sase.main.plugin_discovery import (
         discover_macro_plugin_modules,

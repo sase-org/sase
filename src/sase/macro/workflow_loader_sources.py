@@ -48,16 +48,13 @@ def discover_workflow_files(
         get_macro_search_paths() if project is None else get_macro_search_paths(project)
     )
     if not namespaced_dirs:
-        from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-        namespaced_dirs = set()
-        if legacy_xprompt_syntax_enabled():
-            cwd = Path.cwd()
-            namespaced_dirs = {
-                cwd / "sase" / "xprompts",
-                cwd / ".xprompts",
-                cwd / "xprompts",
-            }
+        # Retired directories are always accepted as aliases.
+        cwd = Path.cwd()
+        namespaced_dirs = {
+            cwd / "sase" / "xprompts",
+            cwd / ".xprompts",
+            cwd / "xprompts",
+        }
 
     results: list[tuple[Path, int, bool]] = []
     for priority, search_dir in enumerate(search_paths):
@@ -118,9 +115,8 @@ def load_workflows_from_internal() -> dict[str, Workflow]:
 def load_workflows_from_plugins() -> dict[str, Workflow]:
     """Load workflows from plugin ``sase_macros`` resources.
 
-    Probes each plugin's ``macros/`` directory first and the retired
-    ``xprompts/`` directory only while the ``legacy_xprompt_syntax`` flag
-    allows it.
+    Probes each plugin's ``macros/`` directory first and always accepts
+    the retired directory as an alias.
     """
     if macro_plugins_disabled():
         return {}

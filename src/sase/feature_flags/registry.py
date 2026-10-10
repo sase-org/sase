@@ -30,14 +30,12 @@ class FeatureFlag(StrEnum):
     grok_rules_delivery = "grok_rules_delivery"
     legacy_agent_family_syntax = "legacy_agent_family_syntax"
     legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
-    legacy_xprompt_syntax = "legacy_xprompt_syntax"
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
-    strict_macro_input_types = "strict_macro_input_types"
     agents_session_manifest_compat = "agents_session_manifest_compat"
     claude_helper_channel = "claude_helper_channel"
     instruction_shadow_render = "instruction_shadow_render"
@@ -115,15 +113,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "and the `gate.shell.reclaim_grace_seconds` config key."
         ),
         bead="sase-1ar",
-    ),
-    FeatureFlag.legacy_xprompt_syntax: FeatureFlagDefinition(
-        key=FeatureFlag.legacy_xprompt_syntax,
-        kind="sunset",
-        description=(
-            "SASE silently accepts retired xprompt spellings as aliases "
-            "of their macro replacements."
-        ),
-        bead="sase-1fj",
     ),
     FeatureFlag.bgcmd_legacy_slots: FeatureFlagDefinition(
         key=FeatureFlag.bgcmd_legacy_slots,
@@ -229,14 +218,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "set beside the current canonical set."
         ),
         bead="sase-1ft",
-    ),
-    FeatureFlag.strict_macro_input_types: FeatureFlagDefinition(
-        key=FeatureFlag.strict_macro_input_types,
-        kind="sunset",
-        description=(
-            "Unknown macro input type names are a per-macro load error with suggestions."
-        ),
-        bead="sase-1g9",
     ),
     FeatureFlag.instruction_shadow_render: FeatureFlagDefinition(
         key=FeatureFlag.instruction_shadow_render,

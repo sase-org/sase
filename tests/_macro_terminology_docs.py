@@ -52,11 +52,15 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
     ("docs/macros.md", "The old page `sase.sh/xprompt/` redirects here."),
     (
         "docs/macros.md",
-        "`legacy_xprompt_syntax` sunset flag while callers migrate; help, completion, examples,",
+        "now called **macros**. The retired syntax aliases below keep working as accepted",
     ),
     (
         "docs/macros.md",
-        "and output show only the macro spelling. `%xprompts_enabled` regions stay accepted",
+        "aliases; help, completion, examples, and output show only the macro spelling.",
+    ),
+    (
+        "docs/macros.md",
+        "`%xprompts_enabled` regions stay accepted permanently as an alias of `%macros_enabled`.",
     ),
     (
         "docs/macros.md",

@@ -217,8 +217,6 @@ def _project_macro_dirs(project: str) -> tuple[Path, ...]:
     the canonical user-facing project namespace, so a caller passing a
     ProjectSpec directory key or alias must still watch the same paths.
     """
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
     canonical = canonical_macro_project(project) or project
     resolved = tuple(
         source.path
@@ -229,8 +227,6 @@ def _project_macro_dirs(project: str) -> tuple[Path, ...]:
 
     configured_macros = CONFIG_DIR / MACROS_DIRNAME / canonical
     directories = (*resolved, configured_macros)
-    if not legacy_xprompt_syntax_enabled():
-        return tuple(dict.fromkeys(directories))
     from sase.legacy_xprompt_names import LEGACY_XPROMPTS_DIRNAME
 
     configured_legacy = CONFIG_DIR / LEGACY_XPROMPTS_DIRNAME / canonical

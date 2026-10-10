@@ -47,14 +47,15 @@ def _discovery_snapshot(
     *,
     accept_legacy: bool | None = None,
 ) -> tuple[tuple[Any, ...], list[dict[str, str]], bool]:
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
     from sase.main.plugin_discovery import (
         discover_macro_plugin_distributions,
         discover_macro_plugin_input_type_files,
     )
 
-    if accept_legacy is None:
-        accept_legacy = legacy_xprompt_syntax_enabled()
+    # Retired switch kept for compatibility and ignored: retired sources
+    # are always accepted.
+    _ = accept_legacy
+    accept_legacy = True
     if files is None:
         files = discover_macro_plugin_input_type_files(accept_legacy=accept_legacy)
     # Known distributions independently of manifests, for cache identity.

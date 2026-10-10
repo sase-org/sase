@@ -56,75 +56,35 @@ def test_bare_macro_still_delegates_to_list() -> None:
 
 
 def test_legacy_xprompt_normalizes_to_macro_parser() -> None:
-    """Root-position normalization rewrites ``xprompt`` to ``macro`` (flag on)."""
-    from sase.feature_flags import override_flags
+    """Root-position normalization always rewrites the retired spelling."""
     from sase.legacy_xprompt_syntax import normalize_legacy_root_args
 
-    with override_flags(legacy_xprompt_syntax=True):
-        argv = ["sase", "xprompt", "list"]
-        normalize_legacy_root_args(argv)
-        args = create_parser().parse_args(argv[1:])
+    argv = ["sase", "xprompt", "list"]
+    normalize_legacy_root_args(argv)
+    args = create_parser().parse_args(argv[1:])
 
     assert args.command == "macro"
     assert args.macro_subcommand == "list"
 
 
-def test_legacy_xprompt_off_exits_with_retirement_message(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """With the sunset flag off, a root ``xprompt`` exits 2 with a hint."""
-    import pytest
-
-    from sase.feature_flags import override_flags
+def test_legacy_path_target_normalizes() -> None:
+    """The retired path target behaves like its canonical form."""
     from sase.legacy_xprompt_syntax import normalize_legacy_root_args
 
-    with override_flags(legacy_xprompt_syntax=False):
-        with pytest.raises(SystemExit) as exc_info:
-            normalize_legacy_root_args(["sase", "xprompt", "list"])
-
-    assert exc_info.value.code == 2
-    assert "xprompt is retired; use macro" in capsys.readouterr().err
-
-
-def test_legacy_path_target_normalizes_with_flag_on() -> None:
-    """``sase path xprompts-dir`` behaves like its canonical form (flag on)."""
-    from sase.feature_flags import override_flags
-    from sase.legacy_xprompt_syntax import normalize_legacy_root_args
-
-    with override_flags(legacy_xprompt_syntax=True):
-        argv = ["sase", "path", "xprompts-dir"]
-        normalize_legacy_root_args(argv)
-        args = create_parser().parse_args(argv[1:])
+    argv = ["sase", "path", "xprompts-dir"]
+    normalize_legacy_root_args(argv)
+    args = create_parser().parse_args(argv[1:])
 
     assert args.command == "path"
     assert args.name == "macros-dir"
 
 
-def test_legacy_path_target_off_exits_with_retirement_message(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """With the sunset flag off, ``sase path xprompts-dir`` exits 2."""
-    import pytest
-
-    from sase.feature_flags import override_flags
-    from sase.legacy_xprompt_syntax import normalize_legacy_root_args
-
-    with override_flags(legacy_xprompt_syntax=False):
-        with pytest.raises(SystemExit) as exc_info:
-            normalize_legacy_root_args(["sase", "path", "xprompts-dir"])
-
-    assert exc_info.value.code == 2
-    assert "xprompts-dir is retired; use macros-dir" in capsys.readouterr().err
-
-
 def test_prompt_argument_containing_legacy_term_is_untouched() -> None:
     """A prompt payload containing the retired term is never rewritten."""
-    from sase.feature_flags import override_flags
     from sase.legacy_xprompt_syntax import normalize_legacy_root_args
 
-    with override_flags(legacy_xprompt_syntax=True):
-        argv = ["sase", "macro", "expand", "xprompt"]
-        normalize_legacy_root_args(argv)
+    argv = ["sase", "macro", "expand", "xprompt"]
+    normalize_legacy_root_args(argv)
 
     assert argv == ["sase", "macro", "expand", "xprompt"]
 

@@ -94,38 +94,35 @@ order.
 <a id="retired-macro-spellings"></a>
 
 SASE's reusable prompt definitions were called **xprompts** before this release and are
-now called **macros**. The retired syntax aliases below keep working behind the
-`legacy_xprompt_syntax` sunset flag while callers migrate; help, completion, examples,
-and output show only the macro spelling. `%xprompts_enabled` regions stay accepted
-permanently as an alias of `%macros_enabled`.
+now called **macros**. The retired syntax aliases below keep working as accepted
+aliases; help, completion, examples, and output show only the macro spelling.
+`%xprompts_enabled` regions stay accepted permanently as an alias of `%macros_enabled`.
 
-The sunset flag covers command, configuration, and discovery spellings. Python
-integrations must import `sase.macro`: the retired Python package and package source
-directories shown in the table were removed in either flag state. Those table entries
-record source moves rather than accepted aliases.
+The aliases cover command, configuration, and discovery spellings. Python integrations
+must import `sase.macro`: the retired Python package and package source directories
+shown in the table were removed. Those table entries record source moves rather than
+accepted aliases.
 
-Turning that flag off rejects a retired spelling in a new command, config key,
-frontmatter key, environment variable, or `sase path` target, and the error names the
-macro replacement. The retired entry-point group in the table is not loaded, a plugin's
-packaged copy of the retired definition directory is not read (a plugin that ships only
-that directory is skipped), and the retired definition directories in the table are
-invisible to expansion, workflow loading, completion, catalogs, and save choices. Config
-keys and frontmatter keys are an error when both spellings are present, in either flag
-state. A retired config or frontmatter value still counts when it is null, an empty
-mapping, false, or an empty string. The plugin-disable environment variable (macro form
+A retired spelling in a new command, config key, frontmatter key, environment variable,
+or `sase path` target is accepted as its macro replacement. The retired entry-point
+group in the table is loaded, a plugin's packaged copy of the retired definition
+directory is read, and the retired definition directories in the table are visible to
+expansion, workflow loading, completion, catalogs, and save choices. Config keys and
+frontmatter keys are an error when both spellings are present. A retired config or
+frontmatter value still counts when it is null, an empty mapping, false, or an empty
+string. The plugin-disable environment variable (macro form
 `SASE_DISABLE_PLUGIN_MACROS`) is the same kind of error: setting both names is an error
 even when both values are empty. The LSP command environment variable is different. A
 non-empty `SASE_MACRO_LSP_CMD` wins and the retired value is ignored. An empty or
 whitespace macro value does not count as set, so a retired command is then considered.
 State files and agent artifact filenames already written under the old names stay
-readable either way; new writes use only the macro spelling. Those files are separate
-from the definition directories above, which stay invisible while the flag is off. A
-default `sase doctor` run includes the config check for retired names in this rename, in
-either flag state. That check lists retired config keys, frontmatter keys, non-empty
-retired definition directories, keymap overrides, set retired environment variables
-(names only), and plugins still registered on the retired entry-point group. It does not
-report the state files or agent artifact filenames in the table, and it does not report
-the region alias above.
+readable; new writes use only the macro spelling. Those files are separate from the
+definition directories above, which stay visible as aliases. A default `sase doctor` run
+includes the config check for retired names in this rename. That check lists retired
+config keys, frontmatter keys, non-empty retired definition directories, keymap
+overrides, set retired environment variables (names only), and plugins still registered
+on the retired entry-point group. It does not report the state files or agent artifact
+filenames in the table, and it does not report the region alias above.
 
 | Retired spelling                                                                                                                      | Replacement                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -1040,8 +1037,7 @@ Plugin types use `<distribution>@<id>` (for example
 `input_type_warning`; new declarations should use `line`. `builtin@<name>` is an
 accepted alias of any bare builtin; hover, labels, and formatters always show the bare
 form. An unknown type name is a per-macro load error with suggestions (`enmu` suggests
-`enum`); only that macro is skipped. With the `strict_macro_input_types` sunset flag
-off, unknown names still fall back to `line`.
+`enum`); only that macro is skipped.
 
 A `code` input is not a plain string with a convention. Binding yields a structured
 `CodeValue` (source, language, digest, preview). Unlabelled values default to Bash;

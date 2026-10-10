@@ -379,12 +379,9 @@ def test_merged_config_cache_is_a_single_slot(tmp_path: Path) -> None:
         result = load_merged_config()
         cached = config_core._merged_config_cache
         assert cached is not None
-        # The key pairs the filesystem token with the legacy-syntax policy
-        # so a flag change recomputes instead of reusing stale values.
-        assert cached[0] == (
-            config_core.current_config_token(),
-            config_core._normalization_cache_policy(),
-        )
+        # The key pairs the filesystem token with the constant retired
+        # legacy-syntax policy bit.
+        assert cached[0] == (config_core.current_config_token(), True)
         assert cached[1] is result
 
         clear_config_cache()

@@ -12,12 +12,8 @@ from sase.completion.candidates.protocol import Candidate
 
 def snippet_source_path(_project: str | None) -> Path | None:
     """Return a cheap local invalidation path for snippet candidates."""
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
     root = Path.cwd() / "sase"
-    candidates = [root / "sase.yml", root / "macros"]
-    if legacy_xprompt_syntax_enabled():
-        candidates.append(root / "xprompts")
+    candidates = [root / "sase.yml", root / "macros", root / "xprompts"]
     candidates.append(root)
     for candidate in candidates:
         if candidate.exists():
@@ -28,13 +24,10 @@ def snippet_source_path(_project: str | None) -> Path | None:
 def snippet_candidates(project: str | None) -> list[Candidate]:
     """Return effective snippet triggers, including generated aliases."""
     from sase.core.rust import require_rust_binding
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
 
     try:
         load_catalog = require_rust_binding("load_editor_snippet_catalog")
-        payload: Any = load_catalog(
-            project, str(Path.cwd()), legacy_xprompt_syntax_enabled()
-        )
+        payload: Any = load_catalog(project, str(Path.cwd()), True)
     except Exception:
         return []
     if not isinstance(payload, Mapping):

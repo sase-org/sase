@@ -1,10 +1,10 @@
-"""Discovery policy for the macro syntax cutover (sase-1eq.4.1.3).
+"""Discovery policy for the retired macro syntax aliases.
 
 Covers the consolidated plugin discovery contract (canonical
-``sase_macros`` group first, retired ``sase_xprompts`` group only while the
-sunset flag allows it, deduplicated by entry-point value), the public env
-collision rules, legacy filesystem-directory gating in both flag states, and
-the LSP command/policy/resource-path propagation.
+``sase_macros`` group first, with the retired group always accepted as an
+alias, deduplicated by entry-point value), the public env collision
+rules, unconditional legacy filesystem-directory inclusion, and the LSP
+command/resource-path propagation.
 """
 
 from __future__ import annotations
@@ -15,8 +15,6 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-
-from sase.feature_flags import override_flags
 
 
 def _make_plugin_package(
@@ -75,50 +73,36 @@ class TestMacroPluginsDisabled:
                 }
             )
 
-    @pytest.mark.parametrize("enabled", [False, True])
-    def test_both_names_collide_in_both_flag_states(self, enabled: bool) -> None:
+    def test_both_names_collide(self) -> None:
         from sase.main.plugin_discovery import macro_plugins_disabled
 
-        with override_flags(legacy_xprompt_syntax=enabled):
-            with pytest.raises(ValueError, match="is retired; use"):
-                macro_plugins_disabled(
-                    environ={
-                        "SASE_DISABLE_PLUGIN_MACROS": "1",
-                        "SASE_DISABLE_PLUGIN_XPROMPTS": "1",
-                    }
-                )
-
-    def test_retired_name_with_flag_off_names_replacement(self) -> None:
-        from sase.main.plugin_discovery import macro_plugins_disabled
-
-        with override_flags(legacy_xprompt_syntax=False):
-            with pytest.raises(
-                ValueError, match="SASE_DISABLE_PLUGIN_XPROMPTS is retired"
-            ):
-                macro_plugins_disabled(environ={"SASE_DISABLE_PLUGIN_XPROMPTS": "1"})
-
-    def test_retired_name_honored_with_flag_on(self) -> None:
-        from sase.main.plugin_discovery import macro_plugins_disabled
-
-        with override_flags(legacy_xprompt_syntax=True):
-            assert (
-                macro_plugins_disabled(environ={"SASE_DISABLE_PLUGIN_XPROMPTS": "1"})
-                is True
+        with pytest.raises(ValueError, match="is retired; use"):
+            macro_plugins_disabled(
+                environ={
+                    "SASE_DISABLE_PLUGIN_MACROS": "1",
+                    "SASE_DISABLE_PLUGIN_XPROMPTS": "1",
+                }
             )
-            assert (
-                macro_plugins_disabled(environ={"SASE_DISABLE_PLUGIN_XPROMPTS": ""})
-                is False
-            )
+
+    def test_retired_name_is_always_honored_as_alias(self) -> None:
+        from sase.main.plugin_discovery import macro_plugins_disabled
+
+        assert (
+            macro_plugins_disabled(environ={"SASE_DISABLE_PLUGIN_XPROMPTS": "1"})
+            is True
+        )
+        assert (
+            macro_plugins_disabled(environ={"SASE_DISABLE_PLUGIN_XPROMPTS": ""})
+            is False
+        )
 
     def test_canonical_name_decides(self) -> None:
         from sase.main.plugin_discovery import macro_plugins_disabled
 
-        with override_flags(legacy_xprompt_syntax=False):
-            assert (
-                macro_plugins_disabled(environ={"SASE_DISABLE_PLUGIN_MACROS": "1"})
-                is True
-            )
-            assert macro_plugins_disabled(environ={}) is False
+        assert (
+            macro_plugins_disabled(environ={"SASE_DISABLE_PLUGIN_MACROS": "1"}) is True
+        )
+        assert macro_plugins_disabled(environ={}) is False
 
 
 class TestMacroPluginDiscovery:
@@ -145,15 +129,14 @@ class TestMacroPluginDiscovery:
                 ("dual", module.__name__, "sase_xprompts"),
             ],
         )
-        with override_flags(legacy_xprompt_syntax=True):
-            assert macro_plugin_definition_dirname(module) == "macros"
-            modules = discover_macro_plugin_modules()
-            assert [mod.__name__ for mod in modules].count(module.__name__) == 1
-            entry_points = _discover_macro_plugin_entry_points()
-            assert len(entry_points) == 1
-            assert entry_points[0].group == "sase_macros"
+        assert macro_plugin_definition_dirname(module) == "macros"
+        modules = discover_macro_plugin_modules()
+        assert [mod.__name__ for mod in modules].count(module.__name__) == 1
+        entry_points = _discover_macro_plugin_entry_points()
+        assert len(entry_points) == 1
+        assert entry_points[0].group == "sase_macros"
 
-    def test_retired_group_skipped_with_flag_off(
+    def test_retired_group_is_always_discovered(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from sase.main.plugin_discovery import discover_macro_plugin_modules
@@ -168,14 +151,11 @@ class TestMacroPluginDiscovery:
             monkeypatch,
             [("legacy", module.__name__, "sase_xprompts")],
         )
-        with override_flags(legacy_xprompt_syntax=True):
-            assert [mod.__name__ for mod in discover_macro_plugin_modules()] == [
-                module.__name__
-            ]
-        with override_flags(legacy_xprompt_syntax=False):
-            assert discover_macro_plugin_modules() == []
+        assert [mod.__name__ for mod in discover_macro_plugin_modules()] == [
+            module.__name__
+        ]
 
-    def test_legacy_only_resource_dir_supported_when_enabled(
+    def test_legacy_only_resource_dir_is_always_supported(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from sase.main.plugin_discovery import macro_plugin_definition_dirname
@@ -186,10 +166,7 @@ class TestMacroPluginDiscovery:
             "fake_legacy_only_plugin",
             legacy_body="# old\n\nOld body.\n",
         )
-        with override_flags(legacy_xprompt_syntax=True):
-            assert macro_plugin_definition_dirname(module) == "xprompts"
-        with override_flags(legacy_xprompt_syntax=False):
-            assert macro_plugin_definition_dirname(module) is None
+        assert macro_plugin_definition_dirname(module) == "xprompts"
 
 
 class TestPluginMacroLoading:
@@ -212,11 +189,10 @@ class TestPluginMacroLoading:
                 ("dual", module.__name__, "sase_xprompts"),
             ],
         )
-        with override_flags(legacy_xprompt_syntax=True):
-            macros = load_macros_from_plugins()
+        macros = load_macros_from_plugins()
         assert "New body." in macros["shared"].content
 
-    def test_legacy_only_plugin_gated_by_flag(
+    def test_legacy_only_plugin_is_always_loaded(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from sase.macro.loader_sources import load_macros_from_plugins
@@ -231,24 +207,22 @@ class TestPluginMacroLoading:
             monkeypatch,
             [("legacy", module.__name__, "sase_xprompts")],
         )
-        with override_flags(legacy_xprompt_syntax=True):
-            assert "shared" in load_macros_from_plugins()
-        with override_flags(legacy_xprompt_syntax=False):
-            assert "shared" not in load_macros_from_plugins()
+        assert "shared" in load_macros_from_plugins()
 
 
 class TestLegacyDirectoryGating:
-    def test_role_legacy_sources_hidden_with_flag_off(self) -> None:
+    def test_role_legacy_sources_are_always_included(self) -> None:
         from sase.content_layout import resolve_macro_file_sources
 
-        enabled = resolve_macro_file_sources(accept_legacy=True)
-        disabled = resolve_macro_file_sources(accept_legacy=False)
-        assert all(source.role != "legacy" for source in disabled)
-        assert {source.path for source in disabled} <= {
-            source.path for source in enabled
+        # The retired switch is accepted and ignored: both values return
+        # the same sources, with retired roles included unconditionally.
+        denied = resolve_macro_file_sources(accept_legacy=False)
+        accepted = resolve_macro_file_sources(accept_legacy=True)
+        assert {source.path for source in denied} == {
+            source.path for source in accepted
         }
 
-    def test_snippet_source_path_skips_legacy_with_flag_off(
+    def test_snippet_source_path_always_includes_legacy(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from sase.completion.candidates.catalog_snippets import snippet_source_path
@@ -256,47 +230,32 @@ class TestLegacyDirectoryGating:
         legacy_dir = tmp_path / "sase" / "xprompts"
         legacy_dir.mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
-        with override_flags(legacy_xprompt_syntax=True):
-            assert snippet_source_path(None) == legacy_dir
-        with override_flags(legacy_xprompt_syntax=False):
-            assert snippet_source_path(None) == tmp_path / "sase"
+        assert snippet_source_path(None) == legacy_dir
 
 
 class TestLspDiscoveryPolicy:
     def test_canonical_command_override_wins(self, tmp_path: Path) -> None:
         from sase.integrations.macro_lsp import _resolve_macro_lsp_command
 
-        with override_flags(legacy_xprompt_syntax=True):
-            command = _resolve_macro_lsp_command(
-                environ={
-                    "SASE_MACRO_LSP_CMD": "macro-server --flag",
-                    "SASE_XPROMPT_LSP_CMD": "legacy-server",
-                },
-                which=lambda name: None,
-                repo_root=tmp_path,
-            )
+        command = _resolve_macro_lsp_command(
+            environ={
+                "SASE_MACRO_LSP_CMD": "macro-server --flag",
+                "SASE_XPROMPT_LSP_CMD": "legacy-server",
+            },
+            which=lambda name: None,
+            repo_root=tmp_path,
+        )
         assert command == ("macro-server", "--flag")
 
-    def test_legacy_command_override_gated_by_flag(self, tmp_path: Path) -> None:
-        from sase.integrations.macro_lsp import (
-            MacroLspLaunchError,
-            _resolve_macro_lsp_command,
-        )
+    def test_legacy_command_override_is_always_accepted(self, tmp_path: Path) -> None:
+        from sase.integrations.macro_lsp import _resolve_macro_lsp_command
 
-        with override_flags(legacy_xprompt_syntax=True):
-            command = _resolve_macro_lsp_command(
-                environ={"SASE_XPROMPT_LSP_CMD": "legacy-server --flag"},
-                which=lambda name: None,
-                repo_root=tmp_path,
-            )
+        command = _resolve_macro_lsp_command(
+            environ={"SASE_XPROMPT_LSP_CMD": "legacy-server --flag"},
+            which=lambda name: None,
+            repo_root=tmp_path,
+        )
         assert command == ("legacy-server", "--flag")
-        with override_flags(legacy_xprompt_syntax=False):
-            with pytest.raises(MacroLspLaunchError, match="is retired; use"):
-                _resolve_macro_lsp_command(
-                    environ={"SASE_XPROMPT_LSP_CMD": "legacy-server"},
-                    which=lambda name: None,
-                    repo_root=tmp_path,
-                )
 
     def test_canonical_binary_preferred_over_newer_legacy(self, tmp_path: Path) -> None:
         from sase.integrations.macro_lsp import _newest_existing_macro_lsp_binary
@@ -321,15 +280,16 @@ class TestLspDiscoveryPolicy:
         )
         canonical.unlink()
         assert _newest_existing_macro_lsp_binary([bindir], accept_legacy=True) == legacy
-        assert _newest_existing_macro_lsp_binary([bindir], accept_legacy=False) is None
+        # The retired switch is accepted and ignored: denied lookups still
+        # find the legacy binary.
+        assert (
+            _newest_existing_macro_lsp_binary([bindir], accept_legacy=False) == legacy
+        )
 
-    def test_exec_wrapper_sets_policy_transport(
+    def test_exec_wrapper_exports_no_policy_transport(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from sase.integrations.macro_lsp import (
-            SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV,
-            _prepare_macro_lsp_environment,
-        )
+        from sase.integrations.macro_lsp import _prepare_macro_lsp_environment
 
         monkeypatch.setattr(
             "sase.integrations.macro_lsp._default_vcs_project_catalog_path",
@@ -355,26 +315,22 @@ class TestLspDiscoveryPolicy:
         (package_dir / "macros").mkdir(parents=True)
         (package_dir / "default_macros").mkdir(parents=True)
         (package_dir / "default_config.yml").write_text("{}\n", encoding="utf-8")
-        with override_flags(legacy_xprompt_syntax=True):
-            enabled_env: dict[str, str] = {}
-            _prepare_macro_lsp_environment(enabled_env, package_dir=package_dir)
-            assert enabled_env[SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV] == "1"
-        with override_flags(legacy_xprompt_syntax=False):
-            disabled_env: dict[str, str] = {}
-            _prepare_macro_lsp_environment(disabled_env, package_dir=package_dir)
-            assert disabled_env[SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV] == "0"
+        env: dict[str, str] = {}
+        _prepare_macro_lsp_environment(env, package_dir=package_dir)
+        # No retired policy transport is exported now that the switch retired.
+        assert all("ACCEPT_LEGACY" not in key for key in env)
+        from sase.integrations.macro_lsp import SASE_MACRO_PACKAGE_DIR_ENV
+
+        assert env[SASE_MACRO_PACKAGE_DIR_ENV] == str(package_dir)
 
 
 class TestRustCatalogPolicy:
     def test_skill_definition_options_use_canonical_dirs_and_policy(self) -> None:
         from sase.core.macro_skill_definition_facade import _catalog_options
 
-        with override_flags(legacy_xprompt_syntax=True):
-            enabled = _catalog_options(None)
-            assert enabled["accept_legacy_xprompt_names"] is True
-        with override_flags(legacy_xprompt_syntax=False):
-            disabled = _catalog_options(None)
-            assert disabled["accept_legacy_xprompt_names"] is False
-        assert str(enabled["package_macros_dir"]).endswith("macros")
-        assert str(enabled["default_macros_dir"]).endswith("default_macros")
-        assert "xprompts" not in str(enabled["package_macros_dir"])
+        # The retired switch is always accepted: options carry True.
+        options = _catalog_options(None)
+        assert options["accept_legacy_xprompt_names"] is True
+        assert str(options["package_macros_dir"]).endswith("macros")
+        assert str(options["default_macros_dir"]).endswith("default_macros")
+        assert "xprompts" not in str(options["package_macros_dir"])

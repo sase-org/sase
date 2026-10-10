@@ -270,16 +270,13 @@ def load_macros_from_files(project: str | None = None) -> dict[str, Macro]:
         get_macro_search_paths() if project is None else get_macro_search_paths(project)
     )
     if not namespaced_dirs:
-        from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-        namespaced_dirs = set()
-        if legacy_xprompt_syntax_enabled():
-            cwd = Path.cwd()
-            namespaced_dirs = {
-                cwd / "sase" / "xprompts",
-                cwd / ".xprompts",
-                cwd / "xprompts",
-            }
+        # Retired directories are always accepted as aliases.
+        cwd = Path.cwd()
+        namespaced_dirs = {
+            cwd / "sase" / "xprompts",
+            cwd / ".xprompts",
+            cwd / "xprompts",
+        }
     rank_by_path = {
         search_dir: source_rank(RANK_FILESYSTEM_BASE, index, len(search_paths))
         for index, search_dir in enumerate(search_paths)
@@ -452,9 +449,8 @@ def load_macros_from_plugins() -> dict[str, Macro]:
     """Load macros from plugin packages via ``sase_macros`` entry points.
 
     Each entry point should reference a module whose package contains an
-    ``macros/`` resource directory with ``.md`` files; a packaged
-    ``xprompts/`` directory is accepted only while the
-    ``legacy_xprompt_syntax`` flag allows it. Plugin skills live in
+    ``macros/`` resource directory with ``.md`` files; a retired packaged
+    directory is always accepted as an alias. Plugin skills live in
     a sibling ``skills/`` resource directory instead, so a ``skill:``
     declaration here is rejected with that migration destination.
 

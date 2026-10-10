@@ -560,18 +560,6 @@ def load_macros_by_source() -> list[tuple[str, dict[str, Any]]]:
     )
 
 
-def _normalization_cache_policy() -> bool:
-    """Return the legacy-syntax policy bit for the merged-config cache key.
-
-    A changed or overridden flag must never reuse a previously accepted
-    normalized value, so the flag state joins the filesystem token in the
-    cache key. Resolved from raw layers only, never through the merge.
-    """
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-    return legacy_xprompt_syntax_enabled()
-
-
 def load_merged_config() -> dict[str, Any]:
     """Load and cache the effective config from all source layers.
 
@@ -579,15 +567,16 @@ def load_merged_config() -> dict[str, Any]:
     replace), selected overlays (lists concatenate), and project-local config
     (lists concatenate).  The cache invalidates when candidate files, cwd, or
     local-config inclusion changes. Each authored layer is normalized to
-    canonical macro spellings before merging; the legacy-syntax policy joins
-    the cache key so a flag change recomputes instead of reusing stale values.
+    canonical macro spellings before merging; the constant retired
+    legacy-syntax policy bit joins the cache key for shape compatibility.
     """
     global _default_config_cache, _plugin_configs_cache
     global _merged_config_cache
 
     token = current_config_token()
-    policy = _normalization_cache_policy()
-    key = (token, policy)
+    # Retired spellings are always accepted; the constant policy bit stays
+    # in the cache key for shape compatibility.
+    key = (token, True)
     cached = _merged_config_cache
     if cached is not None and cached[0] == key:
         return cached[1]

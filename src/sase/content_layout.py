@@ -182,24 +182,14 @@ def resolve_macro_file_sources(
     project containing the current directory is used so commands launched
     below a checkout root still see that project's content.
 
-    Retired (``role == "legacy"``) macro definition directories are visible
-    only while the ``legacy_xprompt_syntax`` flag allows it: with the flag
-    off, old definition directories are invisible to expansion, workflow
-    loading, completion, catalogs, and save choices. Only the macro
-    definition role is gated here; the project's legacy ``sase.yml``
-    location is a separate content-layout compatibility surface and can
-    contain valid canonical ``macros``.
+    Retired (``role == "legacy"``) macro definition directories are always
+    visible to expansion, workflow loading, completion, catalogs, and save
+    choices. Only the macro definition role is handled here; the project's
+    legacy ``sase.yml`` location is a separate content-layout compatibility
+    surface and can contain valid canonical ``macros``.
     """
     if accept_legacy is None:
-        try:
-            from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-            accept_legacy = legacy_xprompt_syntax_enabled()
-        except Exception:
-            # A degraded host (for example a deleted cwd) cannot resolve the
-            # flag snapshot; fail open to the pre-cutover inclusive order so
-            # the existing no-project/cwd fallback below still applies.
-            accept_legacy = True
+        accept_legacy = True
     if project_root is None:
         root = discover_project_root()
         if root is None:
@@ -214,12 +204,14 @@ def resolve_macro_file_sources(
         home_root=home_root,
         project=project,
     )
+    # Retired switch kept for compatibility and ignored: retired
+    # ("legacy" role) sources are always included.
+    _ = accept_legacy
     return tuple(
         source
         for source in layout.macro_sources
         if source.path is not None
         and any(extension in source.formats for extension in ("md", "yml", "yaml"))
-        and (accept_legacy or source.role != "legacy")
     )
 
 

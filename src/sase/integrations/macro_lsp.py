@@ -26,7 +26,6 @@ from sase.macro.loader_skills import get_sase_package_skills_dir
 
 SASE_MACRO_LSP_CMD_ENV = "SASE_MACRO_LSP_CMD"
 SASE_XPROMPT_LSP_CMD_ENV = "SASE_XPROMPT_LSP_CMD"
-SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV = "SASE_ACCEPT_LEGACY_XPROMPT_NAMES"
 SASE_XPROMPT_PACKAGE_DIR_ENV = "SASE_XPROMPT_PACKAGE_DIR"
 SASE_MACRO_PACKAGE_DIR_ENV = "SASE_MACRO_PACKAGE_DIR"
 SASE_XPROMPT_BUILTIN_DIR_ENV = "SASE_XPROMPT_BUILTIN_DIR"
@@ -110,29 +109,19 @@ def resolve_macro_lsp_command(
     )
 
 
-def _macro_lsp_accept_legacy(environ: Mapping[str, str]) -> bool:
-    """Return whether retired LSP spellings are accepted for this launch."""
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-    return legacy_xprompt_syntax_enabled()
-
-
 def _resolve_macro_lsp_command(
     *,
     environ: Mapping[str, str],
     which: Callable[[str], str | None],
     repo_root: Path | None,
 ) -> tuple[str, ...]:
-    accept_legacy = _macro_lsp_accept_legacy(environ)
+    # Retired spellings are always accepted as aliases.
+    accept_legacy = True
     override = environ.get(SASE_MACRO_LSP_CMD_ENV, "").strip()
     legacy_override = environ.get(SASE_XPROMPT_LSP_CMD_ENV, "").strip()
     if override:
         return _parse_lsp_override(SASE_MACRO_LSP_CMD_ENV, override, which=which)
     if legacy_override:
-        if not accept_legacy:
-            raise MacroLspLaunchError(
-                f"{SASE_XPROMPT_LSP_CMD_ENV} is retired; use {SASE_MACRO_LSP_CMD_ENV}"
-            )
         return _parse_lsp_override(
             SASE_XPROMPT_LSP_CMD_ENV, legacy_override, which=which
         )
@@ -144,7 +133,7 @@ def _resolve_macro_lsp_command(
         return (str(venv_binary),)
 
     path = which(MACRO_LSP_BINARY)
-    if path is None and accept_legacy:
+    if path is None:
         path = which(XPROMPT_LSP_BINARY)
     if path:
         return (path,)
@@ -175,14 +164,9 @@ def _resolve_macro_lsp_command(
         )
 
     detail = (
-        "install `sase-macro-lsp` into the current venv, install it on PATH, "
-        f"or set {SASE_MACRO_LSP_CMD_ENV}"
+        "install `sase-macro-lsp` (or legacy `sase-xprompt-lsp`) into the "
+        f"current venv, install it on PATH, or set {SASE_MACRO_LSP_CMD_ENV}"
     )
-    if accept_legacy:
-        detail = (
-            "install `sase-macro-lsp` (or legacy `sase-xprompt-lsp`) into the "
-            f"current venv, install it on PATH, or set {SASE_MACRO_LSP_CMD_ENV}"
-        )
     raise MacroLspLaunchError(f"macro LSP binary not found; {detail}")
 
 
@@ -235,19 +219,19 @@ def _newest_existing_macro_lsp_binary(
     """Return the newest built binary, preferring usable canonical binaries.
 
     A usable canonical ``sase-macro-lsp`` binary always wins over a newer
-    legacy ``sase-xprompt-lsp`` binary; legacy candidates are considered
-    only while the sunset flag allows them.
+    legacy binary; retired candidates are always considered as aliases.
+    The retired ``accept_legacy`` bit is accepted for compatibility and
+    ignored.
     """
+    _ = accept_legacy
     canonical = [
-        candidate
+        directory / name
         for directory in directories
-        for candidate in _macro_lsp_binary_candidates(directory, accept_legacy=False)
-        if candidate.is_file()
+        for name in _canonical_binary_names()
+        if (directory / name).is_file()
     ]
     if canonical:
         return max(canonical, key=_mtime_ns)
-    if not accept_legacy:
-        return None
     legacy = [
         candidate
         for directory in directories
@@ -275,14 +259,20 @@ def _macro_lsp_binary_candidates(
 
 
 def _macro_lsp_binary_names(*, accept_legacy: bool = True) -> tuple[str, ...]:
+    """Return LSP binary names, always including retired aliases.
+
+    The retired ``accept_legacy`` bit is accepted for compatibility and
+    ignored.
+    """
+    _ = accept_legacy
     if os.name == "nt":
-        names = [f"{MACRO_LSP_BINARY}.exe", MACRO_LSP_BINARY]
-        if accept_legacy:
-            names += [f"{XPROMPT_LSP_BINARY}.exe", XPROMPT_LSP_BINARY]
-        return tuple(names)
-    if accept_legacy:
-        return (MACRO_LSP_BINARY, XPROMPT_LSP_BINARY)
-    return (MACRO_LSP_BINARY,)
+        return (
+            f"{MACRO_LSP_BINARY}.exe",
+            MACRO_LSP_BINARY,
+            f"{XPROMPT_LSP_BINARY}.exe",
+            XPROMPT_LSP_BINARY,
+        )
+    return (MACRO_LSP_BINARY, XPROMPT_LSP_BINARY)
 
 
 def _mtime_ns(path: Path) -> int:
@@ -342,16 +332,9 @@ def _prepare_macro_lsp_environment(
     """Expose package macro locations to the Rust LSP catalog loader.
 
     The ``sase lsp`` wrapper execs the server without owning the client's
-    initialize message, so the sunset policy travels on the server's
-    existing ``SASE_ACCEPT_LEGACY_XPROMPT_NAMES`` transport alongside the
-    initialization option.
+    initialize message. Retired spellings are always accepted by the
+    server, so no legacy policy transport is exported here.
     """
-    from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-    if SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV not in environ:
-        environ[SASE_ACCEPT_LEGACY_XPROMPT_NAMES_ENV] = (
-            "1" if legacy_xprompt_syntax_enabled() else "0"
-        )
     root = package_dir or Path(__file__).resolve().parents[1]
     defaults = {
         SASE_SKILL_BUILTIN_DIR_ENV: str(get_sase_package_skills_dir(root)),

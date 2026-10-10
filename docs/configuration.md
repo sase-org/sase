@@ -5223,7 +5223,6 @@ retired spelling, so its behavior is documented in
 | `ref_sync_gesture`               | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                                                                                 |
 | `refresh_panel`                  | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                                                                                                |
 | `slim_agents_manifest`           | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                                                                       |
-| `strict_macro_input_types`       | sunset | `true`  | Unknown macro input types are load errors with suggestions. Off keeps the legacy fallback to the single-line `line` type. See [Typed Inputs](macros.md#typed-inputs).                                                                     |
 
 `agent_decks` and `agent_tabs` are no longer registered. The Agents tab always shows
 [data decks and cards](ace.md#agent-data-decks-and-cards) and

@@ -115,9 +115,8 @@ def test_snippet_candidates_use_rust_loader(
     def fake_loader(
         project: str | None, root_dir: str, accept_legacy_xprompt_names: bool
     ) -> dict[str, object]:
-        from sase.legacy_xprompt_syntax import legacy_xprompt_syntax_enabled
-
-        assert accept_legacy_xprompt_names == legacy_xprompt_syntax_enabled()
+        # Retired aliases are always accepted.
+        assert accept_legacy_xprompt_names is True
         calls.append((project, root_dir))
         return {
             "entries": [
