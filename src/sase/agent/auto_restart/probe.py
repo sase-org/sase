@@ -116,14 +116,17 @@ def probe_modules_for_frames(
     """Derive probe modules from failing traceback frames.
 
     Only managed-origin modules are probed: frame files resolving under a
-    managed root contribute their module, plus the error's target module.
+    managed root contribute their importable module, plus the error's
+    target module. Mapping uses each root's Python package directory
+    (``<root>/src`` for a src-layout checkout, otherwise the checkout
+    root) so an editable ``src/sase/axe/x.py`` becomes ``sase.axe.x``.
     """
     try:
         from sase.agent.auto_restart.managed_roots import collect_managed_roots
     except Exception:
         return [target_module] if target_module else []
     try:
-        roots = [str(r.source_root) for r in collect_managed_roots()]
+        roots = [str(r.source_root) for r in collect_managed_roots() if r.source_root]
     except Exception:
         return [target_module] if target_module else []
     modules: list[str] = []
@@ -134,24 +137,97 @@ def probe_modules_for_frames(
         if not filename:
             continue
         for root in roots:
-            if root and str(filename).startswith(root.rstrip("/") + "/"):
-                module = _path_to_module(str(filename), root)
-                if module and module not in modules:
-                    modules.append(module)
-                break
+            if not _is_under(str(filename), root):
+                continue
+            module = _path_to_module(str(filename), root)
+            if module and module not in modules:
+                modules.append(module)
+            break
     if target_module and target_module not in modules:
         modules.append(target_module)
     return modules
 
 
 def _path_to_module(filename: str, root: str) -> str | None:
-    rel = filename[len(root.rstrip("/") + "/") :]
-    if not rel.endswith(".py"):
+    """Map a frame path to an importable name under one managed root."""
+    for package_dir in _package_directories(root):
+        module = _relative_module(filename, package_dir)
+        if module:
+            return module
+    return None
+
+
+def _package_directories(source_root: str) -> tuple[Path, ...]:
+    """Return sys.path-style package dirs for a managed checkout.
+
+    A src-layout editable root (``<root>/src/<package>/``) contributes
+    ``<root>/src``. A flat plugin layout contributes the checkout root.
+    The checkout root itself is never used when ``src/`` already holds
+    importable packages, because that would yield names like
+    ``src.sase.axe.x``.
+    """
+    root = Path(source_root)
+    src = root / "src"
+    if _has_importable_package(src):
+        return (src,)
+    if _has_importable_package(root):
+        return (root,)
+    return ()
+
+
+def _has_importable_package(parent: Path) -> bool:
+    if not parent.is_dir():
+        return False
+    try:
+        children = parent.iterdir()
+    except OSError:
+        return False
+    for child in children:
+        if not child.is_dir() or child.name.startswith("."):
+            continue
+        if _is_python_package_dir(child):
+            return True
+    return False
+
+
+def _is_python_package_dir(path: Path) -> bool:
+    if (path / "__init__.py").is_file() or (path / "__init__.pyi").is_file():
+        return True
+    try:
+        return any(
+            child.is_file() and child.suffix == ".py" for child in path.iterdir()
+        )
+    except OSError:
+        return False
+
+
+def _relative_module(filename: str, package_dir: Path) -> str | None:
+    try:
+        rel = (
+            Path(filename)
+            .resolve(strict=False)
+            .relative_to(package_dir.resolve(strict=False))
+        )
+    except (ValueError, OSError):
         return None
-    stem = rel[:-3].replace("/", ".")
-    if stem.endswith(".__init__"):
-        stem = stem[: -len(".__init__")]
-    return stem or None
+    if rel.suffix != ".py":
+        return None
+    parts = list(rel.with_suffix("").parts)
+    if parts and parts[-1] == "__init__":
+        parts = parts[:-1]
+    if not parts or any(part in {".", ".."} for part in parts):
+        return None
+    return ".".join(parts)
+
+
+def _is_under(filename: str, root: str) -> bool:
+    try:
+        Path(filename).resolve(strict=False).relative_to(
+            Path(root).resolve(strict=False)
+        )
+    except (ValueError, OSError):
+        return False
+    return True
 
 
 __all__ = [
