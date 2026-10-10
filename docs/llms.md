@@ -247,11 +247,9 @@ assistant text and token usage from the stream. A wait-guard continuation (see b
 replaces `--session-id <uuid>` with `--resume <uuid>` so the nudge lands in the same
 Claude session.
 
-When the `claude_helper_channel` sunset flag is on (the default), every cycle also
-passes `--settings <inline JSON>` carrying a PreToolUse guard on `Bash|Skill`, plus
-`--append-subagent-system-prompt-file <packaged helper template>` when the installed CLI
-parses that flag (see "Native helpers" below). With the flag off, the argv is exactly
-the form above.
+Every cycle also passes `--settings <inline JSON>` carrying a PreToolUse guard on
+`Bash|Skill`, plus `--append-subagent-system-prompt-file <packaged helper template>`
+when the installed CLI parses that flag (see "Native helpers" below).
 
 SASE also sets two Claude Code environment variables on the subprocess unless the caller
 already set them: `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, and `BASH_MAX_TIMEOUT_MS`
@@ -283,9 +281,8 @@ successful answer.
 
 Claude native subagents (general-purpose and Explore) inherit the root's environment, so
 without a stopgap they can act as roots: helpers have invoked `sase final` and two
-submissions were even accepted for their parent's turn. Two mechanisms, both gated by
-the `claude_helper_channel` sunset flag (kill switch:
-`sase flag disable claude_helper_channel`), keep helpers in their lane:
+submissions were even accepted for their parent's turn. Two mechanisms keep helpers in
+their lane:
 
 - **Helper template.** The packaged static file
   `src/sase/llm_provider/templates/claude_helper_instructions.md` (first line
@@ -800,10 +797,10 @@ Decisions inside that command:
   cannot answer them.
 - **No `-w/--worktree` and no `--subagent-worktree-isolation`.** SASE's workspace is the
   workspace, and subagent isolation is a documented no-op.
-- **`--enable-shell-tool` with the sunset flag on.** `muse_synchronous_shell` (default
-  on) switches Muse to its legacy `shell` tool, which runs every command synchronously
-  (see [Single-turn normalization](#single-turn-normalization)). SASE skips the flag
-  when the resolved extra-args string already carries it: a duplicate boolean flag is a
+- **`--enable-shell-tool`.** SASE switches Muse to its legacy `shell` tool, which runs
+  every command synchronously (see
+  [Single-turn normalization](#single-turn-normalization)). SASE skips the flag when the
+  resolved extra-args string already carries it: a duplicate boolean flag is a
   `muse exec` usage error (exit 2). Human interactive sessions (`llm_interactive_cli`)
   keep Muse's defaults.
 
@@ -817,34 +814,29 @@ with no other provider and is genuinely useful for read-only research agents, bu
 Muse runs every command synchronously inside its turn, and anything that can outlast
 Muse's synchronous ceiling goes to a SASE monitor, chosen before the command starts.
 
-- **Sunset flag `muse_synchronous_shell` (default on).** When on, SASE launches
-  `muse exec` with `--enable-shell-tool`: Muse runs every command synchronously in its
-  legacy `shell` tool, which has a hard 10-minute kill and no post-turn background wake.
-  Roll back with `sase flag disable muse_synchronous_shell`, which returns to Muse's
-  managed `bash` tool.
+- **Synchronous `shell` tool.** SASE launches `muse exec` with `--enable-shell-tool`:
+  Muse runs every command synchronously in its legacy `shell` tool, which has a hard
+  10-minute kill and no post-turn background wake.
 - **The legacy `shell` tool's 10-minute kill discards all output.** A command still
   running at 600 seconds is killed and returns only `tool timed out`, so final
   verification prefers prepared monitor completion and long commands start under
   `/sase_monitor` (see the directive).
 - **Synchronous-ceiling export.** Around every provider invocation SASE sets
-  `SASE_PROVIDER_SYNC_CEILING_SECONDS=600` (absent when the flag is off), so in-harness
-  tooling can read the kill ceiling instead of guessing it. The variable is scrubbed at
-  every agent, monitor, and proc boundary, so a child never inherits its starter's
-  ceiling. Beside it SASE exports `SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS` from
-  `tool_runs.soft_ceiling` (unset when none is configured); it kills nothing and names
-  the most time an agent should block on one `sase tool run` before escalating to a
-  monitor.
-- **Mode-aware single-turn directive.** Every Muse prompt carries a short prefix stating
-  the ceiling and the up-front routing rules: final verification prefers prepared
-  monitor completion (`/sase_final`), commands that can take longer than 10 minutes go
-  to `/sase_monitor` with `--next` before they start, and everything else runs inline,
-  with commands of uncertain length other than `sase tool run` wrapped as
+  `SASE_PROVIDER_SYNC_CEILING_SECONDS=600`, so in-harness tooling can read the kill
+  ceiling instead of guessing it. The variable is scrubbed at every agent, monitor, and
+  proc boundary, so a child never inherits its starter's ceiling. Beside it SASE exports
+  `SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS` from `tool_runs.soft_ceiling` (unset when
+  none is configured); it kills nothing and names the most time an agent should block on
+  one `sase tool run` before escalating to a monitor.
+- **Single-turn directive.** Every Muse prompt carries a short prefix stating the
+  ceiling and the up-front routing rules: final verification prefers prepared monitor
+  completion (`/sase_final`), commands that can take longer than 10 minutes go to
+  `/sase_monitor` with `--next` before they start, and everything else runs inline, with
+  commands of uncertain length other than `sase tool run` wrapped as
   `timeout 540 <cmd> > <log> 2>&1; ...` so a slow run still leaves evidence.
   `sase tool run` is the exception: it returns before the ceiling on its own and is
   never wrapped in `timeout`; when it escalates, the agent runs the printed
-  `sase monitor start -J ...` join next. With the flag off, the directive instead
-  forbids ending the turn or declaring while a backgrounded command is still running,
-  because SASE stops the Muse process about two minutes after the final declaration.
+  `sase monitor start -J ...` join next.
 - **Why managed `bash` is not used.** The managed tool backgrounds long commands and can
   wake the model after its turn ends. That wake is invisible to SASE: it never appears
   in the `--json` stream SASE reads, and it dies with the provider process.
@@ -1093,8 +1085,7 @@ Decisions inside that command:
   exactly once in SASE-managed projects (the directive alone elsewhere); the home layer
   and `CLAUDE.md` are never included. Payloads over 120 KiB raise an actionable error
   before exec. There is deliberately no `--trust` and no `GROK_CLAUDE_AGENTS_ENABLED`.
-  The sunset flag `grok_rules_delivery` restores the no-`--rules` argv when off. The
-  directive names Grok's own wait primitives (`block_until_ms`,
+  The directive names Grok's own wait primitives (`block_until_ms`,
   `get_command_or_subagent_output`, `spawn_subagent` with `background: false`), because
   `run_terminal_command` backgrounds anything slower than its 30-second default.
 - **Subagents stay enabled.** Subagent usage can set Grok's internal

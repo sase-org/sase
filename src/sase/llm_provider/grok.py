@@ -91,21 +91,6 @@ _GROK_SINGLE_TURN_DIRECTIVE = (
 _GROK_RULES_ARGV_BYTE_LIMIT = 120 * 1024
 
 
-def _grok_rules_delivery_enabled() -> bool:
-    """Return whether Grok runs should carry the `--rules` payload.
-
-    Falls back to the registry default (on) when the flag cannot be resolved,
-    so a broken flag snapshot fails closed toward delivering instructions.
-    """
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-        from sase.feature_flags.models import FeatureFlagError
-
-        return current_flags().enabled(FeatureFlag.grok_rules_delivery)
-    except FeatureFlagError:
-        return True
-
-
 def _grok_rules_text(cwd: Path | str | None = None) -> str:
     """Return the `--rules` payload for a Grok run from *cwd*.
 
@@ -137,8 +122,7 @@ def _grok_rules_text(cwd: Path | str | None = None) -> str:
             f"{_GROK_RULES_ARGV_BYTE_LIMIT}-byte guard. The project "
             f"instructions file {agents_path} is too large to pass as one "
             "argv element (Linux rejects a single argv element above 128 "
-            "KiB). Shrink that file, or run `sase flag disable "
-            "grok_rules_delivery` until E3 replaces this channel."
+            "KiB). Shrink that file."
         )
     return rules
 
@@ -431,8 +415,7 @@ class GrokProvider(LLMProvider):
                 *effort_args,
             ]
 
-            if _grok_rules_delivery_enabled():
-                command_args.extend(["--rules", _grok_rules_text(os.getcwd())])
+            command_args.extend(["--rules", _grok_rules_text(os.getcwd())])
 
             if extra_args_env:
                 for arg in extra_args_env.split():

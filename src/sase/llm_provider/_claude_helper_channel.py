@@ -3,9 +3,8 @@
 On every Claude invocation cycle SASE passes a packaged static helper
 template through the hidden ``--append-subagent-system-prompt-file`` flag
 (when the CLI supports it) and an inline ``--settings`` JSON blob carrying a
-stdlib-only PreToolUse guard on ``Bash|Skill``. Both are gated by the
-``claude_helper_channel`` sunset flag; the template flag is additionally
-gated by a cached no-API capability probe.
+stdlib-only PreToolUse guard on ``Bash|Skill``. The template flag is gated
+by a cached no-API capability probe.
 """
 
 from __future__ import annotations
@@ -29,28 +28,9 @@ HELPER_TEMPLATE_FIRST_LINE = "# SASE Helper Instructions"
 _HELPER_TEMPLATE_RESOURCE = "templates/claude_helper_instructions.md"
 _HELPER_GUARD_RESOURCE = "_claude_helper_guard.py"
 
-_CAPABILITY_PROVIDER = "claude_helper_channel"
+_CAPABILITY_PROVIDER = "claude_helper_template"
 _PROBE_TIMEOUT_SECONDS = 20.0
 _GUARD_HOOK_TIMEOUT_SECONDS = 10
-
-
-def claude_helper_channel_enabled() -> bool:
-    """Return whether the Claude helper channel flag is on.
-
-    Falls back to the registry default (on for a sunset flag) when the flag
-    cannot be resolved, so a broken flag snapshot fails toward the guarded
-    channel rather than silently dropping it.
-    """
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-        from sase.feature_flags.models import FeatureFlagError
-
-        return current_flags().enabled(FeatureFlag.claude_helper_channel)
-    except FeatureFlagError:
-        return True
-    except Exception:  # noqa: BLE001 - never let flag resolution break invoke.
-        log.debug("Claude helper channel flag lookup failed", exc_info=True)
-        return True
 
 
 def helper_template_path() -> Path:
@@ -204,7 +184,6 @@ def subagent_prompt_supported(executable: str | None = None) -> bool:
 __all__ = [
     "HELPER_TEMPLATE_FIRST_LINE",
     "SubagentPromptSupport",
-    "claude_helper_channel_enabled",
     "helper_channel_settings_json",
     "helper_template_path",
     "probe_subagent_prompt_uncached",

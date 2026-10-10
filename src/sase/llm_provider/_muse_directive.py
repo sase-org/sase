@@ -44,49 +44,21 @@ def muse_max_wait_continuations() -> int:
         return _DEFAULT_MUSE_MAX_WAIT_CONTINUATIONS
 
 
-def muse_synchronous_shell_enabled() -> bool:
-    """Return whether Muse runs commands in the legacy synchronous ``shell`` tool.
+def _muse_single_turn_directive() -> str:
+    """Return the single-turn prompt prefix for Muse.
 
-    Falls back to the registry default (on) when the flag cannot be resolved,
-    so a broken flag snapshot fails closed toward no post-turn wake.
+    Muse always runs in its legacy synchronous ``shell`` tool
+    (``muse exec --enable-shell-tool``).
     """
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-        from sase.feature_flags.models import FeatureFlagError
-
-        return current_flags().enabled(FeatureFlag.muse_synchronous_shell)
-    except FeatureFlagError:
-        return True
-
-
-def _muse_single_turn_directive(*, synchronous: bool) -> str:
-    """Return the mode-aware single-turn prompt prefix for Muse."""
-    if synchronous:
-        tool_sentence = (
-            "Your `shell` tool runs each command synchronously but kills any "
-            f"command still running after {_MUSE_SYNC_CEILING_MINUTES} minutes "
-            "and discards all of its output, so blocking for up to about "
-            f"{_MUSE_SYNC_COMMAND_TIMEOUT_SECONDS // 60} minutes is expected "
-            "and correct."
-        )
-    else:
-        tool_sentence = "Your `bash` tool may move a long command to the background."
-    if synchronous:
-        inline_rule = "Run everything else inline."
-    else:
-        inline_rule = (
-            "Run everything else inline, and read each backgrounded command's "
-            "result before finishing."
-        )
-    if synchronous:
-        wait_rule = "Never end your turn to wait."
-    else:
-        wait_rule = (
-            "Never submit your final declaration or end your turn while a "
-            "command you started is still running. SASE stops the Muse "
-            "process about two minutes after your final declaration, killing "
-            "anything still running."
-        )
+    tool_sentence = (
+        "Your `shell` tool runs each command synchronously but kills any "
+        f"command still running after {_MUSE_SYNC_CEILING_MINUTES} minutes "
+        "and discards all of its output, so blocking for up to about "
+        f"{_MUSE_SYNC_COMMAND_TIMEOUT_SECONDS // 60} minutes is expected "
+        "and correct."
+    )
+    inline_rule = "Run everything else inline."
+    wait_rule = "Never end your turn to wait."
     return (
         "SASE single-turn instructions for Muse Code: this session is exactly "
         "one turn, and nothing can wake you after you end it. "
@@ -118,13 +90,13 @@ def _muse_single_turn_directive(*, synchronous: bool) -> str:
     )
 
 
-def wrap_muse_prompt(prompt: str, *, synchronous: bool) -> str:
-    """Prefix *prompt* with the mode-aware single-turn directive.
+def wrap_muse_prompt(prompt: str) -> str:
+    """Prefix *prompt* with the single-turn directive.
 
     Muse has no append-system-prompt flag, so the directive travels as a
     prompt prefix the way ``agy.py`` wraps its print-mode prompt.
     """
-    directive = _muse_single_turn_directive(synchronous=synchronous)
+    directive = _muse_single_turn_directive()
     return f"{directive}\n\n--- User Prompt ---\n{prompt}"
 
 
@@ -133,6 +105,5 @@ __all__ = [
     "MUSE_SYNC_CEILING_SECONDS",
     "MUSE_WAIT_CONTINUATION_NUDGE",
     "muse_max_wait_continuations",
-    "muse_synchronous_shell_enabled",
     "wrap_muse_prompt",
 ]

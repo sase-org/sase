@@ -15,7 +15,6 @@ from typing import Any
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider._instruction_boundary import (
     AGENT_META_KEY,
     INSTRUCTIONS_DIR_NAME,
@@ -198,16 +197,15 @@ def test_ordinary_route_writes_bundle_manifest_meta_and_env(
 ) -> None:
     """The ordinary route records a shadow manifest and restores the env."""
     provider = _FakeProvider()
-    with override_flags(instruction_shadow_render=True):
-        result = invoke_with_instructions(
-            provider,
-            "hello",
-            purpose="ordinary",
-            artifacts_dir=shadow_env["artifacts_dir"],
-            provider_name="fakey",
-            agent_type="editor",
-            **_invoke_kwargs(),
-        )
+    result = invoke_with_instructions(
+        provider,
+        "hello",
+        purpose="ordinary",
+        artifacts_dir=shadow_env["artifacts_dir"],
+        provider_name="fakey",
+        agent_type="editor",
+        **_invoke_kwargs(),
+    )
     assert result.content == "fake-reply"
     assert len(provider.calls) == 1
     instructions = Path(shadow_env["artifacts_dir"]) / INSTRUCTIONS_DIR_NAME
@@ -249,24 +247,23 @@ def test_finalizer_purposes_sequence(
 ) -> None:
     """Recovery and repair renders record their purpose and sequence."""
     provider = _FakeProvider()
-    with override_flags(instruction_shadow_render=True):
-        if expected_seq == 1:
-            invoke_with_instructions(
-                provider,
-                "first",
-                purpose="declaration_recovery",
-                artifacts_dir=shadow_env["artifacts_dir"],
-                provider_name="fakey",
-                **_invoke_kwargs(),
-            )
+    if expected_seq == 1:
         invoke_with_instructions(
             provider,
-            "second",
-            purpose=purpose,
+            "first",
+            purpose="declaration_recovery",
             artifacts_dir=shadow_env["artifacts_dir"],
             provider_name="fakey",
             **_invoke_kwargs(),
         )
+    invoke_with_instructions(
+        provider,
+        "second",
+        purpose=purpose,
+        artifacts_dir=shadow_env["artifacts_dir"],
+        provider_name="fakey",
+        **_invoke_kwargs(),
+    )
     name = f"{expected_seq:02d}-fakey.json"
     manifest = _manifest(shadow_env["artifacts_dir"], name)
     assert manifest["facts"]["purpose"] == purpose
@@ -282,26 +279,24 @@ def test_fallback_provider_second_manifest_increments_attempt(
     """A retry under another provider records that provider with attempt 2."""
     artifacts = shadow_env["artifacts_dir"]
     first = _FakeProvider("fakey")
-    with override_flags(instruction_shadow_render=True):
-        invoke_with_instructions(
-            first,
-            "hello",
-            purpose="ordinary",
-            artifacts_dir=artifacts,
-            provider_name="fakey",
-            **_invoke_kwargs(),
-        )
+    invoke_with_instructions(
+        first,
+        "hello",
+        purpose="ordinary",
+        artifacts_dir=artifacts,
+        provider_name="fakey",
+        **_invoke_kwargs(),
+    )
     (Path(artifacts) / "attempts" / "0").mkdir(parents=True)
     second = _FakeProvider("codex")
-    with override_flags(instruction_shadow_render=True):
-        invoke_with_instructions(
-            second,
-            "hello",
-            purpose="ordinary",
-            artifacts_dir=artifacts,
-            provider_name="codex",
-            **_invoke_kwargs(model_override="codex-model"),
-        )
+    invoke_with_instructions(
+        second,
+        "hello",
+        purpose="ordinary",
+        artifacts_dir=artifacts,
+        provider_name="codex",
+        **_invoke_kwargs(model_override="codex-model"),
+    )
     manifest = _manifest(artifacts, "01-codex.json")
     assert manifest["facts"]["provider"] == "codex"
     assert manifest["delivery"]["attempt"] == 2
@@ -311,49 +306,17 @@ def test_fallback_provider_second_manifest_increments_attempt(
 def test_no_artifacts_dir_invokes_directly(shadow_env: dict[str, Any]) -> None:
     """Without an artifacts dir the provider runs with no files and no env."""
     provider = _FakeProvider()
-    with override_flags(instruction_shadow_render=True):
-        invoke_with_instructions(
-            provider,
-            "hello",
-            purpose="ordinary",
-            artifacts_dir=None,
-            provider_name="fakey",
-            **_invoke_kwargs(),
-        )
-    assert len(provider.calls) == 1
-    assert provider.seen_env == [None]
-    assert "SASE_INSTRUCTIONS_FILE" not in os.environ
-
-
-def test_flag_off_matches_today_behavior(shadow_env: dict[str, Any]) -> None:
-    """With the flag off there are no files, no meta key, and no env var."""
-    provider = _FakeProvider()
-    with override_flags(instruction_shadow_render=False):
-        invoke_with_instructions(
-            provider,
-            "hello",
-            purpose="ordinary",
-            artifacts_dir=shadow_env["artifacts_dir"],
-            provider_name="fakey",
-            agent_type="editor",
-            **_invoke_kwargs(),
-        )
-    assert len(provider.calls) == 1
-    assert not (Path(shadow_env["artifacts_dir"]) / INSTRUCTIONS_DIR_NAME).exists()
-    assert AGENT_META_KEY not in _meta(shadow_env["artifacts_dir"])
-    assert provider.seen_env == [None]
-    assert "SASE_INSTRUCTIONS_FILE" not in os.environ
-
-
-@pytest.mark.parametrize("flag_value", [True, False])
-def test_flag_both_states_read(shadow_env: dict[str, Any], flag_value: bool) -> None:
-    """The boundary enablement follows the flag in both states."""
-    from sase.llm_provider._instruction_boundary import (
-        _instruction_shadow_render_enabled,
+    invoke_with_instructions(
+        provider,
+        "hello",
+        purpose="ordinary",
+        artifacts_dir=None,
+        provider_name="fakey",
+        **_invoke_kwargs(),
     )
-
-    with override_flags(instruction_shadow_render=flag_value):
-        assert _instruction_shadow_render_enabled() is flag_value
+    assert len(provider.calls) == 1
+    assert provider.seen_env == [None]
+    assert "SASE_INSTRUCTIONS_FILE" not in os.environ
 
 
 def test_compiler_failure_still_invokes_and_writes_error(
@@ -366,15 +329,14 @@ def test_compiler_failure_still_invokes_and_writes_error(
 
     monkeypatch.setattr("sase.instructions.compile.compile_bundle", _boom)
     provider = _FakeProvider()
-    with override_flags(instruction_shadow_render=True):
-        result = invoke_with_instructions(
-            provider,
-            "hello",
-            purpose="ordinary",
-            artifacts_dir=shadow_env["artifacts_dir"],
-            provider_name="fakey",
-            **_invoke_kwargs(),
-        )
+    result = invoke_with_instructions(
+        provider,
+        "hello",
+        purpose="ordinary",
+        artifacts_dir=shadow_env["artifacts_dir"],
+        provider_name="fakey",
+        **_invoke_kwargs(),
+    )
     assert result.content == "fake-reply"
     instructions = Path(shadow_env["artifacts_dir"]) / INSTRUCTIONS_DIR_NAME
     error = _manifest(shadow_env["artifacts_dir"], "00-fakey.error.json")
@@ -397,10 +359,7 @@ def test_invoke_error_restores_env_and_propagates(
             raise RuntimeError("provider down")
 
     provider = _Failing()
-    with (
-        override_flags(instruction_shadow_render=True),
-        pytest.raises(RuntimeError, match="provider down"),
-    ):
+    with pytest.raises(RuntimeError, match="provider down"):
         invoke_with_instructions(
             provider,
             "hello",
@@ -426,14 +385,13 @@ def test_provider_name_falls_back_to_agent_meta(
             raise NotImplementedError("no name hook")
 
     provider = _Nameless()
-    with override_flags(instruction_shadow_render=True):
-        invoke_with_instructions(
-            provider,
-            "hello",
-            purpose="declaration_recovery",
-            artifacts_dir=shadow_env["artifacts_dir"],
-            **_invoke_kwargs(),
-        )
+    invoke_with_instructions(
+        provider,
+        "hello",
+        purpose="declaration_recovery",
+        artifacts_dir=shadow_env["artifacts_dir"],
+        **_invoke_kwargs(),
+    )
     manifest = _manifest(shadow_env["artifacts_dir"], "00-fakey.json")
     assert manifest["facts"]["provider"] == "fakey"
 
@@ -441,10 +399,7 @@ def test_provider_name_falls_back_to_agent_meta(
 def test_invalid_purpose_rejected(shadow_env: dict[str, Any]) -> None:
     """An unknown purpose is a programming error, raised before invoke."""
     provider = _FakeProvider()
-    with (
-        override_flags(instruction_shadow_render=True),
-        pytest.raises(ValueError, match="invalid shadow purpose"),
-    ):
+    with pytest.raises(ValueError, match="invalid shadow purpose"):
         invoke_with_instructions(
             provider,
             "hello",
@@ -460,15 +415,14 @@ def test_read_run_manifests_round_trip(shadow_env: dict[str, Any]) -> None:
     from sase.instructions.manifests import read_run_manifests
 
     provider = _FakeProvider()
-    with override_flags(instruction_shadow_render=True):
-        invoke_with_instructions(
-            provider,
-            "hello",
-            purpose="ordinary",
-            artifacts_dir=shadow_env["artifacts_dir"],
-            provider_name="fakey",
-            **_invoke_kwargs(),
-        )
+    invoke_with_instructions(
+        provider,
+        "hello",
+        purpose="ordinary",
+        artifacts_dir=shadow_env["artifacts_dir"],
+        provider_name="fakey",
+        **_invoke_kwargs(),
+    )
     records = read_run_manifests(shadow_env["artifacts_dir"])
     assert [(record.seq, record.provider) for record in records] == [(0, "fakey")]
     assert records[0].manifest is not None

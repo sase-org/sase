@@ -141,7 +141,7 @@ def test_provider_directive_texts_are_adapter_owned() -> None:
 
     assert provider_directive("claude") == claude
     assert provider_directive("grok") == grok
-    assert provider_directive("muse", synchronous=True) is not None
+    assert provider_directive("muse") is not None
     with pytest.raises(ValueError, match="unknown provider"):
         provider_directive("no_such_provider")
 

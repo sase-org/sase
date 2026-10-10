@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.env_contracts import SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV
-from sase.feature_flags import override_flags
 from sase.llm_provider._invoke import _provider_sync_ceiling_seconds, invoke_agent
 from sase.llm_provider._plugin_manager import _validate_sync_ceiling_seconds
 from sase.llm_provider.claude import ClaudeCodeProvider, _claude_sync_ceiling_seconds
@@ -18,16 +17,9 @@ from sase.llm_provider.registry import create_provider
 from sase.llm_provider.types import InvokeResult
 
 
-def test_muse_ceiling_is_600_with_sync_shell_on() -> None:
-    with override_flags(muse_synchronous_shell=True):
-        assert MuseProvider().sync_ceiling_seconds() == 600
-        assert MuseProvider().llm_sync_ceiling_seconds() == 600
-
-
-def test_muse_ceiling_is_none_with_sync_shell_off() -> None:
-    with override_flags(muse_synchronous_shell=False):
-        assert MuseProvider().sync_ceiling_seconds() is None
-        assert MuseProvider().llm_sync_ceiling_seconds() is None
+def test_muse_ceiling_is_always_600() -> None:
+    assert MuseProvider().sync_ceiling_seconds() == 600
+    assert MuseProvider().llm_sync_ceiling_seconds() == 600
 
 
 def test_claude_ceiling_defaults_to_four_hours(

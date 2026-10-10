@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 from sase.output import provider_timer
 
 from ._claude_helper_channel import (
-    claude_helper_channel_enabled,
     helper_channel_settings_json,
     helper_template_path,
     subagent_prompt_supported,
@@ -454,30 +453,28 @@ class ClaudeCodeProvider(LLMProvider):
                 for arg in extra_args_env.split():
                     base_args.append(arg)
 
-            # Native-helper channel (sunset flag ``claude_helper_channel``):
-            # the packaged helper template travels through the hidden
-            # ``--append-subagent-system-prompt-file`` flag when the CLI
-            # supports it, and the stdlib-only PreToolUse guard always
-            # travels as inline ``--settings`` JSON. Nothing is written
-            # under the workspace, so the ``test_claude_hooks`` contract
-            # (no ``<workspace>/.claude/`` mutation) still holds.
-            if claude_helper_channel_enabled():
-                base_args.extend(["--settings", helper_channel_settings_json()])
-                if subagent_prompt_supported():
-                    base_args.extend(
-                        [
-                            "--append-subagent-system-prompt-file",
-                            os.fspath(helper_template_path()),
-                        ]
-                    )
-                elif not helper_channel_warned:
-                    helper_channel_warned = True
-                    log.warning(
-                        "Omitting --append-subagent-system-prompt-file: the "
-                        "installed claude CLI did not report support; the "
-                        "helper guard is still active. Run `sase doctor -D "
-                        "-C providers.claude_helper_channel` for details."
-                    )
+            # Native-helper channel: the packaged helper template travels
+            # through the hidden ``--append-subagent-system-prompt-file``
+            # flag when the CLI supports it, and the stdlib-only PreToolUse
+            # guard always travels as inline ``--settings`` JSON. Nothing is
+            # written under the workspace, so the ``test_claude_hooks``
+            # contract (no ``<workspace>/.claude/`` mutation) still holds.
+            base_args.extend(["--settings", helper_channel_settings_json()])
+            if subagent_prompt_supported():
+                base_args.extend(
+                    [
+                        "--append-subagent-system-prompt-file",
+                        os.fspath(helper_template_path()),
+                    ]
+                )
+            elif not helper_channel_warned:
+                helper_channel_warned = True
+                log.warning(
+                    "Omitting --append-subagent-system-prompt-file: the "
+                    "installed claude CLI did not report support; the "
+                    "helper guard is still active. Run `sase doctor -D "
+                    "-C providers.claude_helper_channel` for details."
+                )
 
             wait_state = ClaudeTurnWaitState()
             if timer_context:

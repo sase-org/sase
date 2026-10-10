@@ -1,8 +1,8 @@
 """Tests for the Claude native-helper channel.
 
 Covers the packaged helper template, the inline ``--settings`` guard JSON,
-argv on first and ``--resume`` cycles, the sunset flag in both states, the
-no-API capability probe outcomes, and the doctor deep check.
+argv on first and ``--resume`` cycles, the no-API capability probe
+outcomes, and the doctor deep check.
 """
 
 from __future__ import annotations
@@ -16,11 +16,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider._claude_helper_channel import (
     HELPER_TEMPLATE_FIRST_LINE,
     _helper_guard_path,
-    claude_helper_channel_enabled,
     helper_channel_settings_json,
     helper_template_path,
     probe_subagent_prompt_uncached,
@@ -59,15 +57,12 @@ def _invoke(cli_args: dict | None = None) -> MagicMock:
             "sase.llm_provider.usage.claude.capture_claude_passive_usage_context",
             return_value=None,
         ),
+        patch(
+            "sase.llm_provider.claude.subagent_prompt_supported",
+            return_value=True,
+        ),
     ):
-        with override_flags(claude_helper_channel=True):
-            with patch(
-                "sase.llm_provider.claude.subagent_prompt_supported",
-                return_value=True,
-            ):
-                ClaudeCodeProvider().invoke(
-                    "hi", model_tier="small", suppress_output=True
-                )
+        ClaudeCodeProvider().invoke("hi", model_tier="small", suppress_output=True)
     return mock_popen
 
 
@@ -134,45 +129,17 @@ def test_helper_channel_argv_resume_cycle() -> None:
             "sase.llm_provider.usage.claude.capture_claude_passive_usage_context",
             return_value=None,
         ),
+        patch(
+            "sase.llm_provider.claude.subagent_prompt_supported",
+            return_value=True,
+        ),
     ):
-        with override_flags(claude_helper_channel=True):
-            with patch(
-                "sase.llm_provider.claude.subagent_prompt_supported",
-                return_value=True,
-            ):
-                ClaudeCodeProvider().invoke(
-                    "hi", model_tier="small", suppress_output=True
-                )
+        ClaudeCodeProvider().invoke("hi", model_tier="small", suppress_output=True)
     assert mock_popen.call_count == 2
     for argv in _popen_argvs(mock_popen):
         assert "--settings" in argv
         assert "--append-subagent-system-prompt-file" in argv
     assert "--resume" in _popen_argvs(mock_popen)[1]
-
-
-def test_helper_channel_flag_off_restores_today_argv() -> None:
-    """With the flag off there is no ``--settings`` and no subagent flag."""
-    from sase.llm_provider.claude import ClaudeCodeProvider
-
-    with (
-        patch(
-            "sase.llm_provider.claude.subprocess.Popen", return_value=MagicMock()
-        ) as mock_popen,
-        patch(
-            "sase.llm_provider.claude.stream_and_parse_json_output",
-            side_effect=_stream_ok,
-        ),
-        patch("sase.llm_provider.claude.provider_timer"),
-        patch(
-            "sase.llm_provider.usage.claude.capture_claude_passive_usage_context",
-            return_value=None,
-        ),
-    ):
-        with override_flags(claude_helper_channel=False):
-            ClaudeCodeProvider().invoke("hi", model_tier="small", suppress_output=True)
-    argv = _popen_argvs(mock_popen)[0]
-    assert "--settings" not in argv
-    assert "--append-subagent-system-prompt-file" not in argv
 
 
 def test_helper_channel_omits_template_when_unsupported() -> None:
@@ -192,41 +159,15 @@ def test_helper_channel_omits_template_when_unsupported() -> None:
             "sase.llm_provider.usage.claude.capture_claude_passive_usage_context",
             return_value=None,
         ),
+        patch(
+            "sase.llm_provider.claude.subagent_prompt_supported",
+            return_value=False,
+        ),
     ):
-        with override_flags(claude_helper_channel=True):
-            with patch(
-                "sase.llm_provider.claude.subagent_prompt_supported",
-                return_value=False,
-            ):
-                ClaudeCodeProvider().invoke(
-                    "hi", model_tier="small", suppress_output=True
-                )
+        ClaudeCodeProvider().invoke("hi", model_tier="small", suppress_output=True)
     argv = _popen_argvs(mock_popen)[0]
     assert "--settings" in argv
     assert "--append-subagent-system-prompt-file" not in argv
-
-
-@pytest.mark.parametrize(
-    ("flag_value", "expected"),
-    [(True, True), (False, False)],
-)
-def test_helper_channel_flag_reads_both_states(
-    flag_value: bool, expected: bool
-) -> None:
-    with override_flags(claude_helper_channel=flag_value):
-        assert claude_helper_channel_enabled() is expected
-
-
-def test_helper_channel_flag_falls_back_to_on_when_unresolvable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from sase.feature_flags.models import FeatureFlagError
-
-    def _raise() -> object:
-        raise FeatureFlagError("unknown feature flag: 'claude_helper_channel'")
-
-    monkeypatch.setattr("sase.feature_flags.current_flags", _raise)
-    assert claude_helper_channel_enabled() is True
 
 
 def _write_fake_claude(tmp_path: Path, body: str) -> str:
@@ -311,12 +252,11 @@ def _doctor_context(tmp_path: Path):
 def test_doctor_helper_channel_ok(tmp_path: Path) -> None:
     from sase.doctor.checks_deep_providers import check_claude_helper_channel
 
-    with override_flags(claude_helper_channel=True):
-        with patch(
-            "sase.llm_provider._claude_helper_channel.probe_subagent_prompt_uncached",
-            return_value=("supported", "Error: ... not found: ..."),
-        ):
-            check = check_claude_helper_channel(_doctor_context(tmp_path))
+    with patch(
+        "sase.llm_provider._claude_helper_channel.probe_subagent_prompt_uncached",
+        return_value=("supported", "Error: ... not found: ..."),
+    ):
+        check = check_claude_helper_channel(_doctor_context(tmp_path))
     assert check.id == "providers.claude_helper_channel"
     assert check.status == "OK"
 
@@ -324,18 +264,9 @@ def test_doctor_helper_channel_ok(tmp_path: Path) -> None:
 def test_doctor_helper_channel_error_when_unsupported(tmp_path: Path) -> None:
     from sase.doctor.checks_deep_providers import check_claude_helper_channel
 
-    with override_flags(claude_helper_channel=True):
-        with patch(
-            "sase.llm_provider._claude_helper_channel.probe_subagent_prompt_uncached",
-            return_value=("unsupported", "error: unknown option"),
-        ):
-            check = check_claude_helper_channel(_doctor_context(tmp_path))
-    assert check.status == "ERROR"
-
-
-def test_doctor_helper_channel_skips_when_flag_off(tmp_path: Path) -> None:
-    from sase.doctor.checks_deep_providers import check_claude_helper_channel
-
-    with override_flags(claude_helper_channel=False):
+    with patch(
+        "sase.llm_provider._claude_helper_channel.probe_subagent_prompt_uncached",
+        return_value=("unsupported", "error: unknown option"),
+    ):
         check = check_claude_helper_channel(_doctor_context(tmp_path))
-    assert check.status == "SKIP"
+    assert check.status == "ERROR"

@@ -22,11 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     agent_sudo_requests = "agent_sudo_requests"
-    grok_rules_delivery = "grok_rules_delivery"
-    muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
-    claude_helper_channel = "claude_helper_channel"
-    instruction_shadow_render = "instruction_shadow_render"
     autonomy_record_only = "autonomy_record_only"
 
 
@@ -40,26 +36,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         ),
         bead="sase-111",
     ),
-    FeatureFlag.muse_synchronous_shell: FeatureFlagDefinition(
-        key=FeatureFlag.muse_synchronous_shell,
-        kind="sunset",
-        description=(
-            "SASE launches `muse exec` with `--enable-shell-tool`. Muse then runs "
-            "every command synchronously in its legacy `shell` tool, which has a "
-            "hard 10-minute kill and no post-turn background wake. The Muse "
-            "directive states that ceiling and the up-front monitor routing rules."
-        ),
-        bead="sase-178",
-    ),
-    FeatureFlag.grok_rules_delivery: FeatureFlagDefinition(
-        key=FeatureFlag.grok_rules_delivery,
-        kind="sunset",
-        description=(
-            "Grok root runs receive the SASE single-turn directive plus the "
-            "project root AGENTS.md through --rules."
-        ),
-        bead="sase-1gv",
-    ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,
         kind="beta",
@@ -72,27 +48,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "automatically, toasting when it starts and when it finishes."
         ),
         bead="sase-sx",
-    ),
-    FeatureFlag.claude_helper_channel: FeatureFlagDefinition(
-        key=FeatureFlag.claude_helper_channel,
-        kind="sunset",
-        description=(
-            "Every Claude invocation cycle passes the packaged helper template "
-            "via --append-subagent-system-prompt-file (when the CLI supports "
-            "it) and a PreToolUse guard via inline --settings JSON."
-        ),
-        bead="sase-1gw",
-    ),
-    FeatureFlag.instruction_shadow_render: FeatureFlagDefinition(
-        key=FeatureFlag.instruction_shadow_render,
-        kind="sunset",
-        description=(
-            "Every root provider invocation shadow-renders its instruction "
-            "bundle and manifest into <artifacts>/instructions/, updates the "
-            "agent_meta instructions summary, and exports "
-            "SASE_INSTRUCTIONS_FILE during the call."
-        ),
-        bead="sase-1h4",
     ),
     FeatureFlag.autonomy_record_only: FeatureFlagDefinition(
         key=FeatureFlag.autonomy_record_only,

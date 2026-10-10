@@ -4,16 +4,15 @@ An instruction bundle collects the project, home, and SASE instructions for one 
 invocation. Its manifest records which sections were included and their digests, so you
 can inspect the intended context and compare it with what a provider actually loaded.
 
-The current implementation records bundles for diagnostics. With the default
-`instruction_shadow_render` flag enabled, root provider invocations render a bundle into
-the run's artifacts and export `SASE_INSTRUCTIONS_FILE` for that provider call, then
-restore the previous value. Current providers do not read that variable. Their argv,
-prompts, and the instruction files they already load stay the same. A successful render
-therefore does not prove delivery: use `sase instructions verify` to check observed
-loads. This stage is called **E2** in the implementation and migration inventory; later
-delivery stages have not replaced the current path. Shadow-render failures never fail an
-invocation. The env var and the shadow files are described under
-[Shadow manifests](#shadow-manifests).
+The current implementation records bundles for diagnostics. Root provider invocations
+render a bundle into the run's artifacts and export `SASE_INSTRUCTIONS_FILE` for that
+provider call, then restore the previous value. Current providers do not read that
+variable. Their argv, prompts, and the instruction files they already load stay the
+same. A successful render therefore does not prove delivery: use
+`sase instructions verify` to check observed loads. This stage is called **E2** in the
+implementation and migration inventory; later delivery stages have not replaced the
+current path. Shadow-render failures never fail an invocation. The env var and the
+shadow files are described under [Shadow manifests](#shadow-manifests).
 
 See also
 [Verifying instruction delivery](agent_providers.md#verifying-instruction-delivery).
@@ -127,23 +126,19 @@ modules, which keeps warm renders within the 250 ms p95 budget; every manifest r
 
 Every root provider invocation routes through one boundary,
 `sase.llm_provider._instruction_boundary.invoke_with_instructions`, which shadow-renders
-the bundle the agent _would_ get and records it without delivering anything. With the
-`instruction_shadow_render` sunset flag on and an artifacts dir, each invocation writes
-`<artifacts>/instructions/NN-<provider>.md` (the bundle) and `NN-<provider>.json` (the
-normalized manifest, `indent=2`, sorted keys), where `NN` is a two-digit per-run
-sequence allocated with `O_EXCL`. The `agent_meta.json` `instructions` summary counts
-the manifests and points at the latest (`seq`, `provider`, `purpose`, `sha256`,
-`common_digest`, `manifest`), and `SASE_INSTRUCTIONS_FILE` holds the bundle path during
-the call and is restored afterwards. The manifest's `attempt` is
-`1 + count(attempts/*)`.
+the bundle the agent _would_ get and records it without delivering anything. With an
+artifacts dir, each invocation writes `<artifacts>/instructions/NN-<provider>.md` (the
+bundle) and `NN-<provider>.json` (the normalized manifest, `indent=2`, sorted keys),
+where `NN` is a two-digit per-run sequence allocated with `O_EXCL`. The
+`agent_meta.json` `instructions` summary counts the manifests and points at the latest
+(`seq`, `provider`, `purpose`, `sha256`, `common_digest`, `manifest`), and
+`SASE_INSTRUCTIONS_FILE` holds the bundle path during the call and is restored
+afterwards. The manifest's `attempt` is `1 + count(attempts/*)`.
 
 Failure posture: the shadow render never fails an invocation. Any shadow exception is
 caught, logged once as a warning, recorded best-effort as `NN-<provider>.error.json`
-(exception type, message, `rendered_at`), and the call proceeds. Kill switch:
-`SASE_INSTRUCTIONS_FILE` is never exported and no shadow file is written with
-`sase flag disable instruction_shadow_render` (or no artifacts dir); remove the flag
-when E3 delivers the rendered bundle or the readout shows zero shadow failures and warm
-p95 within budget for 7 days.
+(exception type, message, `rendered_at`), and the call proceeds. With no artifacts dir,
+`SASE_INSTRUCTIONS_FILE` is never exported and no shadow file is written.
 
 ## Previewing bundles
 

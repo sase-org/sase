@@ -154,19 +154,9 @@ def _provider_cli_version_row(
 def check_claude_helper_channel(context: DoctorContext) -> DiagnosticCheck:
     """Probe the hidden Claude helper-template flag without an API call."""
     from sase.llm_provider._claude_helper_channel import (
-        claude_helper_channel_enabled,
         probe_subagent_prompt_uncached,
     )
 
-    if not claude_helper_channel_enabled():
-        return DiagnosticCheck(
-            id="providers.claude_helper_channel",
-            group="providers",
-            status="SKIP",
-            title="Claude helper channel",
-            summary="claude_helper_channel flag is off",
-            data={"flag": "off"},
-        )
     outcome, detail = probe_subagent_prompt_uncached()
     if outcome == "supported":
         return DiagnosticCheck(
@@ -191,8 +181,6 @@ def check_claude_helper_channel(context: DoctorContext) -> DiagnosticCheck:
         next_steps=(
             "Upgrade Claude Code to a build that supports "
             "--append-subagent-system-prompt-file.",
-            "To silence this channel entirely: "
-            "`sase flag disable claude_helper_channel`.",
         ),
         data={"outcome": outcome, "detail": detail},
     )

@@ -8,11 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider.grok import (
     _GROK_RULES_ARGV_BYTE_LIMIT,
     _GROK_SINGLE_TURN_DIRECTIVE,
-    _grok_rules_delivery_enabled,
     _grok_rules_text,
     GrokProvider,
 )
@@ -78,10 +76,6 @@ def test_grok_directive_names_grok_wait_primitives() -> None:
     assert "a yielded result" not in _GROK_SINGLE_TURN_DIRECTIVE
 
 
-def test_grok_rules_delivery_defaults_on() -> None:
-    assert _grok_rules_delivery_enabled() is True
-
-
 def test_grok_rules_carries_directive_and_project_agents_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -121,8 +115,7 @@ def test_grok_command_appends_rules_once_before_extra_args(
     _make_managed_project(tmp_path, monkeypatch)
     monkeypatch.setenv("SASE_GROK_LARGE_ARGS", "--disable-web-search")
 
-    with override_flags(grok_rules_delivery=True):
-        cmd, _, _ = invoke_and_capture(GrokProvider(), monkeypatch)
+    cmd, _, _ = invoke_and_capture(GrokProvider(), monkeypatch)
 
     assert cmd.count("--rules") == 1
     rules = cmd[cmd.index("--rules") + 1]
@@ -141,8 +134,7 @@ def test_grok_command_non_managed_project_sends_directive_only(
         lambda cwd=None: False,
     )
 
-    with override_flags(grok_rules_delivery=True):
-        cmd, _, _ = invoke_and_capture(GrokProvider(), monkeypatch)
+    cmd, _, _ = invoke_and_capture(GrokProvider(), monkeypatch)
 
     assert cmd.count("--rules") == 1
     assert cmd[cmd.index("--rules") + 1] == _GROK_SINGLE_TURN_DIRECTIVE
@@ -169,7 +161,6 @@ def test_grok_rules_reach_every_continuation_cycle(
         return ("second pass", "", 0, {"output_tokens": 3})
 
     with (
-        override_flags(grok_rules_delivery=True),
         patch("sase.llm_provider.grok.provider_timer"),
         patch.object(GrokProvider, "_run_subprocess", side_effect=_fake_run),
     ):
@@ -198,29 +189,16 @@ def test_grok_rules_over_limit_raises_actionable_error(
     assert "--rules" in message
 
 
-def test_grok_flag_off_omits_rules_entirely(
+def test_grok_command_always_carries_expected_argv(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _make_managed_project(tmp_path, monkeypatch)
 
-    with override_flags(grok_rules_delivery=False):
-        cmd, _, _ = invoke_and_capture(GrokProvider(), monkeypatch)
-
-    assert "--rules" not in cmd
-    assert "--trust" not in cmd
-
-
-def test_grok_flag_off_delivers_todays_argv(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _make_managed_project(tmp_path, monkeypatch)
-
-    with override_flags(grok_rules_delivery=False):
-        cmd, _, _ = invoke_and_capture(GrokProvider(), monkeypatch)
+    cmd, _, _ = invoke_and_capture(GrokProvider(), monkeypatch)
 
     assert cmd[:2] == ["/opt/grok/bin/grok", "--prompt-file"]
+    assert cmd.count("--rules") == 1
     for flag in (
         "--no-plan",
         "--no-ask-user",

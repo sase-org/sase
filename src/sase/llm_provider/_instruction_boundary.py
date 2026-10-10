@@ -1,12 +1,12 @@
 """Fail-open shadow instruction render around root provider invocations (E2).
 
 Every root ``provider.invoke`` call goes through
-:func:`invoke_with_instructions`. With the ``instruction_shadow_render``
-sunset flag on and an ``artifacts_dir``, the boundary renders the
-memory-built instruction bundle the agent *would* get, writes the bundle
-and its normalized manifest under ``<artifacts>/instructions/``, updates
-the ``agent_meta.json`` summary, and exports ``SASE_INSTRUCTIONS_FILE``
-for the duration of the call. Nothing is delivered to the provider.
+:func:`invoke_with_instructions`. With an ``artifacts_dir``, the boundary
+renders the memory-built instruction bundle the agent *would* get, writes
+the bundle and its normalized manifest under ``<artifacts>/instructions/``,
+updates the ``agent_meta.json`` summary, and exports
+``SASE_INSTRUCTIONS_FILE`` for the duration of the call. Nothing is
+delivered to the provider.
 
 The shadow render never fails an invocation: every exception from the
 shadow work is caught, logged once, recorded as ``NN-<provider>.error.json``,
@@ -48,26 +48,6 @@ _VALID_PURPOSES = ("ordinary", "declaration_recovery", "conflict_repair")
 _MAX_SEQ_ATTEMPTS = 25
 
 _SAFE_LABEL_RE = re.compile(r"[^A-Za-z0-9_-]+")
-
-
-def _instruction_shadow_render_enabled() -> bool:
-    """Return whether the shadow-render sunset flag is on.
-
-    Falls back to the registry default (on for a sunset flag) when the flag
-    cannot be resolved, so a broken flag snapshot fails toward recording
-    rather than silently dropping coverage. The render itself stays
-    fail-open either way.
-    """
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-        from sase.feature_flags.models import FeatureFlagError
-
-        return current_flags().enabled(FeatureFlag.instruction_shadow_render)
-    except FeatureFlagError:
-        return True
-    except Exception:  # noqa: BLE001 - never let flag resolution break invoke.
-        log.debug("instruction shadow flag lookup failed", exc_info=True)
-        return True
 
 
 def _utc_now_z() -> str:
@@ -316,18 +296,17 @@ def invoke_with_instructions(
     """Invoke *provider* with a shadow instruction render around the call.
 
     This is the only place that calls ``provider.invoke`` for a root
-    invocation. With the flag on and an ``artifacts_dir``, the bundle and
-    manifest are recorded and ``SASE_INSTRUCTIONS_FILE`` holds the bundle
-    path during the call; afterwards the previous value is restored. With
-    the flag off or no ``artifacts_dir``, ``provider.invoke`` runs
-    directly.
+    invocation. With an ``artifacts_dir``, the bundle and manifest are
+    recorded and ``SASE_INSTRUCTIONS_FILE`` holds the bundle path during
+    the call; afterwards the previous value is restored. With no
+    ``artifacts_dir``, ``provider.invoke`` runs directly.
     """
     if purpose not in _VALID_PURPOSES:
         raise ValueError(
             f"invalid shadow purpose {purpose!r}; "
             f"valid purposes: {', '.join(_VALID_PURPOSES)}"
         )
-    if not artifacts_dir or not _instruction_shadow_render_enabled():
+    if not artifacts_dir:
         return provider.invoke(prompt, **invoke_kwargs)
     label = _sanitize_label(
         _resolve_provider_label(provider, artifacts_dir, provider_name)
@@ -362,6 +341,5 @@ __all__ = [
     "AGENT_META_KEY",
     "INSTRUCTIONS_DIR_NAME",
     "MANIFEST_SCHEMA_VERSION",
-    "_instruction_shadow_render_enabled",
     "invoke_with_instructions",
 ]

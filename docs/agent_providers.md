@@ -34,13 +34,12 @@ still launch a hard-disabled CLI. See
 
 ## Instruction delivery
 
-The current bundle rollout records intended instructions for diagnostics. With the
-default `instruction_shadow_render` flag on, each root provider invocation renders its
-memory-built bundle and manifest into `<artifacts>/instructions/` and exports
-`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Current providers do not read
-that variable, so argv, prompts, and the files they already load stay the same. The
-manifest alone does not prove that a provider loaded the bundle's contents. This stage
-is called E2 in the implementation. See
+The current bundle rollout records intended instructions for diagnostics. Each root
+provider invocation renders its memory-built bundle and manifest into
+`<artifacts>/instructions/` and exports `SASE_INSTRUCTIONS_FILE` for that call, then
+restores it. Current providers do not read that variable, so argv, prompts, and the
+files they already load stay the same. The manifest alone does not prove that a provider
+loaded the bundle's contents. This stage is called E2 in the implementation. See
 [Instruction Bundles](instruction_bundles.md#shadow-manifests).
 
 ## Verifying instruction delivery
@@ -95,12 +94,12 @@ instead (decision `helpers-return-roots-declare`). Mechanical enforcement exists
 where a provider exposes a helper channel. Everything else relies on that contract
 sentence. Limits by provider capability, not hidden:
 
-| Provider  | Helper coverage                                                                                                                                                                                                                                                |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude    | Helper template plus PreToolUse guard; live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Kill switch: `sase flag disable claude_helper_channel`. Full surface list: [Instruction Inventory](instruction_inventory.md). |
-| Codex     | Children inherit the process-level `developer_instructions`, so the sentence covers them; 0 spawns observed so far. No guard.                                                                                                                                  |
-| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                                                                         |
-| Muse, agy | No helper coverage.                                                                                                                                                                                                                                            |
+| Provider  | Helper coverage                                                                                                                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Claude    | Helper template plus PreToolUse guard; live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Full surface list: [Instruction Inventory](instruction_inventory.md). |
+| Codex     | Children inherit the process-level `developer_instructions`, so the sentence covers them; 0 spawns observed so far. No guard.                                                                          |
+| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                 |
+| Muse, agy | No helper coverage.                                                                                                                                                                                    |
 
 ## Claude Code
 
@@ -128,8 +127,7 @@ Canonical docs: <https://code.claude.com/docs>
 Native subagents inherit the root's environment, so SASE delivers a packaged helper
 template (`# SASE Helper Instructions`) plus a PreToolUse guard that denies their
 root-only operations (`sase final …`, turn-ending commands, root-only skills); forked
-helpers carry `agent_id` and are covered too. Kill switch:
-`sase flag disable claude_helper_channel`. Details:
+helpers carry `agent_id` and are covered too. Details:
 [Claude Code Integration](llms.md#native-helpers).
 
 ## Codex CLI
@@ -332,10 +330,8 @@ is never sent, so the content is delivered once, not twice. The home layer is no
 delivered; that arrives with the E3 bundle.
 
 Rules payloads larger than 120 KiB fail fast with an actionable error instead of a
-silent exec failure (Linux rejects a single argv element above 128 KiB). To restore the
-no-`--rules` argv while investigating a regression, run
-`sase flag disable grok_rules_delivery` on the execution host. That sunset kill switch
-is superseded once E3's delivery cutover lands.
+silent exec failure (Linux rejects a single argv element above 128 KiB). Shrink the
+project instructions file when that happens.
 
 ### Privacy
 

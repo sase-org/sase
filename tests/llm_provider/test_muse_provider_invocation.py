@@ -9,11 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.feature_flags import override_flags
-from sase.llm_provider._muse_directive import (
-    _muse_single_turn_directive,
-    muse_synchronous_shell_enabled,
-)
+from sase.llm_provider._muse_directive import _muse_single_turn_directive
 from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.types import LLMInvocationError, LLMInvocationOptions
 
@@ -273,48 +269,17 @@ def test_muse_interrupt_reconstructs_the_continuation_prompt() -> None:
     assert result.content == "first pass\n\nsecond pass"
 
 
-@pytest.mark.parametrize(
-    ("flag_value", "expected"),
-    [(True, True), (False, False)],
-)
-def test_muse_sync_shell_flag_reads_both_states(
-    flag_value: bool, expected: bool
-) -> None:
-    with override_flags(muse_synchronous_shell=flag_value):
-        assert muse_synchronous_shell_enabled() is expected
-
-
-def test_muse_sync_shell_flag_falls_back_to_on_when_unresolvable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from sase.feature_flags.models import FeatureFlagError
-
-    def _raise() -> object:
-        raise FeatureFlagError("unknown feature flag: 'muse_synchronous_shell'")
-
-    monkeypatch.setattr("sase.feature_flags.current_flags", _raise)
-    assert muse_synchronous_shell_enabled() is True
-
-
-def test_muse_sync_shell_flag_adds_enable_shell_tool() -> None:
-    with override_flags(muse_synchronous_shell=True):
-        cmd, _ = _invoke_and_capture(MuseProvider())
+def test_muse_command_always_adds_enable_shell_tool() -> None:
+    cmd, _ = _invoke_and_capture(MuseProvider())
 
     assert "--enable-shell-tool" in cmd
-
-
-def test_muse_managed_bash_flag_omits_enable_shell_tool() -> None:
-    with override_flags(muse_synchronous_shell=False):
-        cmd, _ = _invoke_and_capture(MuseProvider())
-
-    assert "--enable-shell-tool" not in cmd
 
 
 @pytest.mark.parametrize(
     "env",
     ["SASE_LLM_LARGE_ARGS", "SASE_MUSE_LARGE_ARGS"],
 )
-def test_muse_sync_shell_flag_is_never_duplicated(
+def test_muse_enable_shell_tool_is_never_duplicated(
     env: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv(env, "--enable-shell-tool --max-model-steps 5")
@@ -325,8 +290,7 @@ def test_muse_sync_shell_flag_is_never_duplicated(
         raising=False,
     )
 
-    with override_flags(muse_synchronous_shell=True):
-        cmd, _ = _invoke_and_capture(MuseProvider())
+    cmd, _ = _invoke_and_capture(MuseProvider())
 
     assert cmd.count("--enable-shell-tool") == 1
 
@@ -354,12 +318,10 @@ def _invoke_and_capture_prompts(provider: MuseProvider) -> list[str]:
 
 
 def test_muse_sync_directive_prefixes_the_prompt() -> None:
-    with override_flags(muse_synchronous_shell=True):
-        (first,) = _invoke_and_capture_prompts(MuseProvider())
+    (first,) = _invoke_and_capture_prompts(MuseProvider())
 
     assert first == (
-        _muse_single_turn_directive(synchronous=True)
-        + "\n\n--- User Prompt ---\ndo the thing"
+        _muse_single_turn_directive() + "\n\n--- User Prompt ---\ndo the thing"
     )
     assert "`shell` tool runs each command synchronously" in first
     assert "10 minutes" in first
@@ -371,26 +333,8 @@ def test_muse_sync_directive_prefixes_the_prompt() -> None:
     assert "Never end your turn to wait." in first
 
 
-def test_muse_managed_directive_prefixes_the_prompt() -> None:
-    with override_flags(muse_synchronous_shell=False):
-        (first,) = _invoke_and_capture_prompts(MuseProvider())
+def test_muse_directive_states_single_turn_routing() -> None:
+    directive = _muse_single_turn_directive()
 
-    assert first == (
-        _muse_single_turn_directive(synchronous=False)
-        + "\n\n--- User Prompt ---\ndo the thing"
-    )
-    assert "`bash` tool may move a long command to the background" in first
-    assert "Never submit your final declaration" in first
-    assert "`shell` tool runs each command synchronously" not in first
-
-
-def test_muse_directives_share_routing_rules_but_differ_by_mode() -> None:
-    sync = _muse_single_turn_directive(synchronous=True)
-    managed = _muse_single_turn_directive(synchronous=False)
-
-    assert "nothing can wake you after you end it" in sync
-    assert "nothing can wake you after you end it" in managed
-    assert "/sase_monitor" in sync
-    assert "/sase_monitor" in managed
-    assert "about two minutes after your final declaration" in managed
-    assert "about two minutes after your final declaration" not in sync
+    assert "nothing can wake you after you end it" in directive
+    assert "/sase_monitor" in directive

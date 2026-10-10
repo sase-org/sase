@@ -25,7 +25,6 @@ from ._muse_directive import (
     MUSE_SYNC_CEILING_SECONDS,
     MUSE_WAIT_CONTINUATION_NUDGE,
     muse_max_wait_continuations,
-    muse_synchronous_shell_enabled,
     wrap_muse_prompt,
 )
 from ._muse_launch import (
@@ -70,10 +69,8 @@ class MuseProvider(LLMProvider):
         return provider_tier_model("muse", model_tier)
 
     def sync_ceiling_seconds(self) -> int | None:
-        """Return the legacy ``shell`` tool's hard kill ceiling, when active."""
-        if muse_synchronous_shell_enabled():
-            return MUSE_SYNC_CEILING_SECONDS
-        return None
+        """Return the legacy ``shell`` tool's hard kill ceiling."""
+        return MUSE_SYNC_CEILING_SECONDS
 
     @hookimpl
     def llm_sync_ceiling_seconds(self) -> int | None:
@@ -307,8 +304,7 @@ class MuseProvider(LLMProvider):
         )
         # Wrap once, at the top, so the interrupt path's reconstructed context
         # and the next phase's guard also carry the directive.
-        synchronous_shell = muse_synchronous_shell_enabled()
-        prompt = wrap_muse_prompt(prompt, synchronous=synchronous_shell)
+        prompt = wrap_muse_prompt(prompt)
 
         if model_tier == "large":
             extra_args_env = os.environ.get(
@@ -343,11 +339,10 @@ class MuseProvider(LLMProvider):
             ]
         )
 
-        if synchronous_shell:
-            # A duplicate boolean flag is a `muse exec` usage error (exit 2).
-            extra_tokens = extra_args_env.split() if extra_args_env else []
-            if MUSE_ENABLE_SHELL_TOOL_ARG not in extra_tokens:
-                base_args.append(MUSE_ENABLE_SHELL_TOOL_ARG)
+        # A duplicate boolean flag is a `muse exec` usage error (exit 2).
+        extra_tokens = extra_args_env.split() if extra_args_env else []
+        if MUSE_ENABLE_SHELL_TOOL_ARG not in extra_tokens:
+            base_args.append(MUSE_ENABLE_SHELL_TOOL_ARG)
 
         if extra_args_env:
             for arg in extra_args_env.split():

@@ -31,7 +31,7 @@ _DIRECTIVE_SYMBOLS = {
 }
 
 
-def _load_directive(provider: str, *, synchronous: bool | None) -> str:
+def _load_directive(provider: str) -> str:
     """Import the adapter symbol for *provider* and return its text."""
     import importlib
 
@@ -41,14 +41,6 @@ def _load_directive(provider: str, *, synchronous: bool | None) -> str:
         raise ValueError(f"provider {provider!r} has no directive symbol") from None
     module = importlib.import_module(module_name)
     value = getattr(module, symbol)
-    if provider == "muse":
-        if synchronous is None:
-            from sase.llm_provider.muse_provider import (
-                muse_synchronous_shell_enabled,
-            )
-
-            synchronous = muse_synchronous_shell_enabled()
-        return str(value(synchronous=bool(synchronous)))
     if callable(value):
         return str(value())
     return str(value)
@@ -59,16 +51,15 @@ def has_provider_directive(provider: str) -> bool:
     return provider in _DIRECTIVE_SYMBOLS
 
 
-def provider_directive(provider: str, *, synchronous: bool | None = None) -> str | None:
+def provider_directive(provider: str) -> str | None:
     """Return the adapter directive text for *provider*, or null.
 
     Raises :class:`ValueError` for a provider name no adapter owns; known
     providers without a directive (``fakey``, ``opencode``, ``qwen``) return
-    null. ``synchronous`` selects Muse's mode; null resolves it the way the
-    Muse adapter does.
+    null.
     """
     if provider in _DIRECTIVE_SYMBOLS:
-        return _load_directive(provider, synchronous=synchronous)
+        return _load_directive(provider)
     from sase.instructions.facts import registered_names
 
     if provider in registered_names():
