@@ -3071,7 +3071,9 @@ Later successors inherit the toggled record.
 `sase autonomy log` lists the decisions so far, and `sase autonomy list`/`show` print
 the built-in profiles. Generated epic workers take their profile from `autonomy.roles`
 (default `standard`), and `sase autonomy list` shows it. Autonomy covers host
-checkpoints only; the agent's shell is not restricted.
+checkpoints only; the agent's shell is not restricted. Agents are never told their
+profile: SASE adds no autonomy text to an agent's prompt, and the `%auto` token itself
+is stripped, so an agent learns only each gate's result.
 
 When an agent launched with `%auto:tale` later submits a tale plan with `/sase_plan` or
 `sase plan propose`, sase auto-approves and commits it as an SDD tale in the resolved

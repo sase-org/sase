@@ -217,7 +217,6 @@ def _disable_prettier_for_skill_generation(
                 "Plan Decisions",
                 "only when the answer changes the tier, size, phase graph, or architecture",
                 "Never embed a decision you should make yourself",
-                "Under `%auto`, embed only memory decisions",
                 "do not re-ask the epic's DECISIONS",
                 "sase plan validate sase_plan_<name>.md --explain",
                 "sase plan validate sase_plan_<name>.md",
@@ -346,6 +345,15 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
         rendered = collapse_whitespace(target.read_text(encoding="utf-8"))
         for phrase in expected_phrases:
             assert collapse_whitespace(phrase) in rendered
+
+
+def test_skill_sources_do_not_mention_auto_autonomy_policy() -> None:
+    """Agents are never told their autonomy through generated skills."""
+    skills_dir = get_sase_package_skills_dir()
+    for source in sorted(skills_dir.glob("*.md")):
+        assert "%auto" not in source.read_text(encoding="utf-8"), (
+            f"Agents are never told their autonomy: {source.name} contains `%auto`"
+        )
 
 
 def test_retired_artifact_file_skill_source_is_not_packaged() -> None:

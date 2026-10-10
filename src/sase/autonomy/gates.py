@@ -4,8 +4,7 @@ Every automatic gate outcome comes from one core ``evaluate()`` applied to
 the creator's record snapshot. Python never re-implements the schema, the
 profiles, or the decision algorithm: every function below delegates to
 ``sase_core_rs`` and only handles capability tables, meta-dict plumbing,
-the durable policy block, the host decision log, and the agent awareness
-block.
+the durable policy block, and the host decision log.
 """
 
 from __future__ import annotations
@@ -13,7 +12,6 @@ from __future__ import annotations
 import datetime
 import warnings
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
 #: Decision values each auto-allowable gate kind can execute. Every other
@@ -29,10 +27,6 @@ GATE_AUTO_CAPABILITIES: dict[str, frozenset[str]] = {
 #: kinds (launch, sudo, custom, triage, ...) never auto-resolve, so they
 #: carry no block.
 POLICY_BLOCK_KINDS = frozenset({"plan", "epic_plan", "question"})
-
-#: Marker identifying an appended awareness block, used to keep it to one
-#: copy per turn even if the hook ever runs twice on one prompt.
-AWARENESS_MARKER = "SASE autonomy:"
 
 
 def capabilities_for_kind(kind: str) -> frozenset[str]:
@@ -206,53 +200,7 @@ def append_decision_log(
         warnings.warn(f"autonomy decision log append failed: {exc}", stacklevel=2)
 
 
-def _awareness_block_for_record(record: Mapping[str, Any] | None) -> str | None:
-    """Return the advisory awareness block for *record*, if it has one.
-
-    The text comes only from core; manual records (and missing bindings)
-    give ``None``, so manual agents get no block.
-    """
-    if not isinstance(record, dict) or not record:
-        return None
-    try:
-        from sase.core.rust import require_rust_binding
-
-        text = require_rust_binding("autonomy_awareness_text")(dict(record))
-    except Exception:
-        return None
-    return text if isinstance(text, str) and text else None
-
-
-def _awareness_block_for_artifacts_dir(
-    artifacts_dir: str | Path | None,
-) -> str | None:
-    """Return the awareness block for the live record under *artifacts_dir*."""
-    if not artifacts_dir:
-        return None
-    try:
-        from sase.autonomy.record import live_record
-
-        return _awareness_block_for_record(live_record(artifacts_dir))
-    except Exception:
-        return None
-
-
-def with_awareness_block(prompt: str, artifacts_dir: str | Path | None) -> str:
-    """Append the live awareness block to *prompt* exactly once.
-
-    Prompts that already carry a block are returned unchanged, so the
-    block never accumulates across successors or retries.
-    """
-    if AWARENESS_MARKER in prompt:
-        return prompt
-    block = _awareness_block_for_artifacts_dir(artifacts_dir)
-    if not block:
-        return prompt
-    return f"{prompt}\n\n{block}"
-
-
 __all__ = [
-    "AWARENESS_MARKER",
     "GATE_AUTO_CAPABILITIES",
     "POLICY_BLOCK_KINDS",
     "append_decision_log",
@@ -261,5 +209,4 @@ __all__ = [
     "evaluate_gate",
     "policy_block_for_decision",
     "record_for_auto_block",
-    "with_awareness_block",
 ]

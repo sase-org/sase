@@ -180,21 +180,6 @@ class PromptStepMixin(PromptStepPrepareMixin):
         response_path: str | None = None
         diff_path: str | None = None
 
-        if self.workflow.is_anonymous_workflow:
-            # The anonymous workflow's single step is the top-level agent
-            # invocation: tell the agent its live autonomy policy. The
-            # block is read live from the turn's artifacts dir (so an ``A``
-            # toggle shows up on the next turn), lands in the saved prompt
-            # artifact, never enters continuation replay (which replays the
-            # prepared authored prompt plus segments), and never
-            # accumulates (each turn prepares a fresh prompt; the helper is
-            # idempotent anyway). Named helper workflows and direct
-            # ``invoke_agent`` callers (mentor, CRS, fix-hook,
-            # workflow-handler, standalone query) get no block.
-            from sase.autonomy.gates import with_awareness_block
-
-            expanded_prompt = with_awareness_block(expanded_prompt, self.artifacts_dir)
-
         try:
             self._agents_launched += 1
             response = invoke_agent(

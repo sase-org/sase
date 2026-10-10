@@ -119,6 +119,17 @@ def test_bead_worker_builtin_macros_do_not_author_wait_directives(
     _assert_no_wait_directives(name, task_instruction)
 
 
+@pytest.mark.parametrize(
+    "name",
+    ["bd/work_phase_bead", "bd/land_epic", "bd/work_task"],
+)
+def test_bead_worker_macros_do_not_mention_autonomy(name: str) -> None:
+    body = _builtin_prompt_body(name)
+
+    assert "autonomy" not in body.lower()
+    assert "%auto" not in body
+
+
 def test_builtin_land_prompt_does_not_author_queue_weight() -> None:
     body = _builtin_prompt_body("bd/land_epic")
     cleaned, directives = extract_prompt_directives(body)

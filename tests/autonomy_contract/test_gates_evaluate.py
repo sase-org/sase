@@ -5,7 +5,7 @@ to the creator's record snapshot. These tests pin the service surface:
 the policy block on auto, ask, and manual gates; one decision-log row
 per non-manual evaluation (including auto-answered questions); the
 hand-built legacy translation; missing options asking instead of
-partially executing; and the agent awareness block.
+partially executing; and prompt silence across autonomy profiles.
 """
 
 from __future__ import annotations
@@ -360,37 +360,6 @@ def _write_autonomy_meta(artifacts_dir: Path, selection: str | None) -> None:
     )
 
 
-def test_awareness_block_per_profile_once_and_live(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
-    """The block shows for auto profiles, never for manual, once per turn."""
-    from sase.autonomy.gates import AWARENESS_MARKER, with_awareness_block
-
-    harness.isolated_gate_dirs(monkeypatch, tmp_path)
-    artifacts_dir = tmp_path / "artifacts"
-    artifacts_dir.mkdir()
-
-    for selection in ("", "tale", "epic"):
-        _write_autonomy_meta(artifacts_dir, selection)
-        block_prompt = with_awareness_block("Do the work", artifacts_dir)
-        assert AWARENESS_MARKER in block_prompt
-        assert "covers host checkpoints only" in block_prompt
-        assert "shell is not restricted" in block_prompt
-        # Never accumulates across successors or retries.
-        assert with_awareness_block(block_prompt, artifacts_dir) == block_prompt
-
-    _write_autonomy_meta(artifacts_dir, None)
-    assert with_awareness_block("Do the work", artifacts_dir) == "Do the work"
-
-    # The block is read live: a toggle shows up on the next turn.
-    _write_autonomy_meta(artifacts_dir, None)
-    assert AWARENESS_MARKER not in with_awareness_block("Do x", artifacts_dir)
-    _write_autonomy_meta(artifacts_dir, "tale")
-    toggled = with_awareness_block("Do x", artifacts_dir)
-    assert AWARENESS_MARKER in toggled
-    assert "tale" in toggled
-
-
 def _run_prompt_step(tmp_path: Path, *, anonymous: bool, selection: str | None) -> str:
     """Run one real prompt step with a stubbed provider; return its prompt."""
     import sase.macro.workflow_executor_steps_prompt as prompt_module
@@ -463,19 +432,19 @@ def _run_prompt_step(tmp_path: Path, *, anonymous: bool, selection: str | None) 
     return seen["prompt"]
 
 
-def test_awareness_hook_only_on_root_agent_turns(tmp_path: Path) -> None:
-    """Anonymous (root) turns get the block; helper workflows get none."""
-    from sase.autonomy.gates import AWARENESS_MARKER
-
-    root_prompt = _run_prompt_step(tmp_path, anonymous=True, selection="tale")
-    assert AWARENESS_MARKER in root_prompt
+def test_agent_prompts_carry_no_autonomy_text(tmp_path: Path) -> None:
+    """Root and helper prompts stay unchanged across autonomy profiles."""
+    for index, selection in enumerate(("", "tale", "epic", None)):
+        root_dir = tmp_path / f"root-{index}"
+        root_dir.mkdir()
+        root_prompt = _run_prompt_step(root_dir, anonymous=True, selection=selection)
+        assert root_prompt == "Do the work"
+        assert "SASE autonomy" not in root_prompt
+        assert "autonomy" not in root_prompt
 
     helper_dir = tmp_path / "helper"
     helper_dir.mkdir()
     helper_prompt = _run_prompt_step(helper_dir, anonymous=False, selection="tale")
-    assert AWARENESS_MARKER not in helper_prompt
-
-    manual_dir = tmp_path / "manual"
-    manual_dir.mkdir()
-    manual_prompt = _run_prompt_step(manual_dir, anonymous=True, selection=None)
-    assert AWARENESS_MARKER not in manual_prompt
+    assert helper_prompt == "Do the work"
+    assert "SASE autonomy" not in helper_prompt
+    assert "autonomy" not in helper_prompt

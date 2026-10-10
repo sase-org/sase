@@ -2225,9 +2225,7 @@ macros:
       never use `--force` merely to make the close succeed, and never use `--force` to advance a successful nested
       landing. For the child-epic path: Do not include this epic's close, symvision pass, or plan-file status update
       as a child phase; the child epic's `parent_bead` link is the handoff that lets its land agent resume this
-      interrupted landing after the child lands. Whether such a child epic plan launches automatically or waits
-      for human approval depends on your autonomy profile; the SASE autonomy block in your
-      prompt says which.
+      interrupted landing after the child lands.
 
       After the current epic closes, inspect the linked `parent_bead` from `sase bead read {{ bead_id }} -r "Need the parent link"`. If there is
       no parent bead, finish normally. If the parent is a phase bead, verify this child plan completed the work required
@@ -2285,9 +2283,7 @@ macros:
       nothing relaunches a phase left open. Before planning, check the phase's notes: if an earlier agent already
       worked this phase and left it open with recorded remaining work, that remainder did not fit one agent, so author
       a child epic whose phases each fit one coding agent and whose land agent closes this phase instead of another
-      single-agent tale unless one coder can clearly finish everything left. Whether such a child epic plan launches automatically or waits
-      for human approval depends on your autonomy profile; the SASE autonomy block in your
-      prompt says which.
+      single-agent tale unless one coder can clearly finish everything left.
   bd/work_task:
     tags: work_task_bead
     input:
