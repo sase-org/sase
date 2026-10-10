@@ -117,6 +117,54 @@ to request path completion; otherwise only argparse `choices` produce candidates
 Disable switches: `SASE_DISABLE_PLUGINS` or `SASE_DISABLE_PLUGIN_COMMANDS` turns the
 whole group off. Both are permanent operational switches, not feature flags.
 
+### Where a command shows up
+
+Every surface that names a mounted command uses the same chip, `❯ sase <name>`. The chip
+means "a plugin gave you this command."
+
+**Help.** Compact `sase --help` lists mounted commands in a **Plugin commands** group:
+name, summary, and distribution. The group is omitted when none are mounted, and a
+broken plugin never breaks compact help. `sase --full-help` adds the chip, the summary,
+and `(distribution version)`. Problem rows (failed to load, shadowed by a built-in,
+invalid name, or two distributions claiming one name) are marked `⚠` with a one-line
+reason. The footer says to manage plugins with `sase plugin list` or the Updates tab.
+
+**Doctor.** `sase doctor` runs `plugins.commands` by default. It reports how many
+commands are mounted and which claims cannot mount. A load failure or a name collision
+is `ERROR`. A shadowed or invalid name is `WARN`. Add
+`sase doctor -D -C plugins.commands-parsers` to build each parser as well; a parser
+failure is `ERROR`. A load or parser failure's next step is `sase plugin update`
+followed by the command name. A collision's next step uninstalls the first owner.
+
+**Catalog.** `sase plugin list` prints each installed command's chip in that plugin's
+entry-point cell. `sase plugin show` adds a **Commands** row: one chip per installed
+command, with its summary, or a yellow problem note when the command cannot mount. An
+uninstalled plugin shows the upstream preview in dim, labeled
+`added on install · declared in pyproject.toml`, and only when that preview is known. An
+unknown preview omits the row. `sase plugin list -j` already includes the mounted names
+on each installed entry's `commands` array.
+
+**Updates tab.** An installed plugin row shows its chips in the row accent. An
+uninstalled row shows the cached declared preview in dim and does not fetch to draw that
+chip. The detail panel uses the same Commands row as `sase plugin show`.
+
+Confirmations say what will change, and they say nothing when the preview is unknown:
+
+- Install: `❯ Adds a new command: ❯ sase <name>` for each declared command. A batch row
+  gains ` (adds ❯ sase <name>, ...)`.
+- Update: `❯ Adds command:` and `❯ Removes command:` only when the upstream set differs
+  from the installed set. A command-steady update keeps the modal it had.
+- Uninstall: `❯ Removes command: ❯ sase <name>` for each command the plugin mounts now.
+
+A declared name that matches a built-in warns `sase <name> would be shadowed`. A name
+another installed plugin already mounts warns
+`sase <name> would conflict with <distribution> — both would be disabled`. Those
+warnings are yellow and appear before you confirm. After the change, the completion
+toast lists added commands as `new command` and removed commands as `removed`.
+
+Previews are best-effort. A failed upstream read renders no command lines rather than
+guessing.
+
 ### Migrating from the standalone `sase-listen`
 
 ```bash
@@ -195,9 +243,11 @@ sase plugin show github -r
   editable checkout renders its current dev version and, when its upstream tracking
   branch is ahead, `current → latest` with a dim `dev` tag.
 - **`show`** renders a detail panel: description, installed status and contributed entry
-  points, latest available version, repository, homepage, topics, stars, last update,
-  and license. Community plugins lead with a prominent third-party warning. An unknown
-  `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero.
+  points, a **Commands** row when the plugin mounts or declares commands, latest
+  available version, repository, homepage, topics, stars, last update, and license.
+  Community plugins lead with a prominent third-party warning. An unknown
+  `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero. See
+  [Where a command shows up](#where-a-command-shows-up) for the chip and preview rules.
 - Built-in vs. community is decided by the owning org: `sase-org` (case-insensitive) is
   built-in; anything else is community. Archived repos are surfaced with an archived
   marker rather than hidden.

@@ -453,13 +453,16 @@ The names you'll keep bumping into, in one place:
   workspace.
 - **[Plugins and providers](plugins.md)** — model and VCS providers behind a common
   boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode, Muse Code,
-  Grok Build for agents; bare git and GitHub for version control.
+  Grok Build for agents; bare git and GitHub for version control. A plugin can also
+  mount a top-level `sase <name>` command; `sase --help` lists the ones that are
+  installed.
 
 ## What To Read Next
 
 - [SASE: Structured Agentic Software Engineering](blog/posts/structured-agentic-software-engineering.md)
   — the launch post and conceptual front door.
 - [CLI reference](cli.md) — a discovery index of `sase` commands (compact `sase --help`
-  lists only the common ones; `sase --full-help` prints every command).
+  lists the common commands plus any plugin commands that are mounted;
+  `sase --full-help` prints every built-in command and plugin-command problems).
 - [The SASE repository](https://github.com/sase-org/sase) — source, issues, and project
   direction.

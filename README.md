@@ -145,7 +145,7 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Plan Decisions](https://sase.sh/sdd/#plan-decisions) — review choices, defaults, and
   memory-consent checks
 - [Plugins](https://sase.sh/plugins/) — GitHub, Telegram, editor, and provider
-  integrations
+  integrations, plus commands a plugin can mount on `sase`
 - [CLI Reference](https://sase.sh/cli/) — command index and links to detailed guides
 - [Shell Completion](https://sase.sh/completion/) — `<TAB>` completion for zsh, bash,
   and fish

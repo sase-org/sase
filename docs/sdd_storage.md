@@ -239,6 +239,14 @@ transactional.
 `sdd.push_after_commit` controls pushes after later SDD commits: `async` starts a
 detached background push, `true` pushes synchronously, and `false` skips the push.
 
+A store commit includes both worktree changes and paths already staged in the index
+under that commit's pathspecs. Only worktree changes are passed to `git add`.
+Already-staged paths, including staged deletions whose files are gone from disk, go into
+the commit as they stand. A repo-wide commit (no specific paths, or only the repo root)
+excludes `goals/`; that directory belongs to the goal write transaction. A commit that
+names specific paths includes those paths. When nothing in the worktree or the index
+matches, no commit is created.
+
 ### Network Git Operations
 
 SDD `git clone`, `git fetch`, and `git push` run with Git progress enabled so SASE can

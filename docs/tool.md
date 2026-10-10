@@ -426,7 +426,10 @@ executes the frozen invocation. The printed handle is durable from the reservati
 the run stays discoverable, followable, waitable, and stoppable through its id, and it
 settles to either an authoritative outcome or an explicit, typed uncertainty. One
 ToolRun links to exactly one proc; each `-H` invocation is a new request, and a run id
-executes at most once.
+executes at most once. The owner proc is attributed to a TUI session only when the
+process that submitted it is itself a live registered session. An agent escalation,
+`-d`, and a human shell `-H` leave it unattributed. See
+[Opening a row](ace.md#opening-a-row).
 
 ```bash
 sase tool run -H check     # returns at once with a run id; the shell may close
@@ -565,9 +568,11 @@ Calls rows, the slow-tool list, and monitor/proc Context cards link to the run i
 of copying it. Admin Center → Tools (tab `7`) covers project-wide runs, failure
 signatures, and the tool catalog. Stopping a run and starting a catalog tool are
 explicit, confirmed flows; when a hand-off settles, an `OpenToolRun` notification jumps
-back to the run. See [Agents Tab Tool Runs](ace.md#agents-tab-tool-runs) and the
-[Tools tab](ace.md#tools-tab) for the full surface. The TUI never reconciles: a silent
-run is shown in red and left for its owner (or a backend reconcile) to settle.
+back to the run. In the Procs tab, `Enter` on the owner proc or on a monitor that joined
+the run opens Tools focused on that run. See [Opening a row](ace.md#opening-a-row),
+[Agents Tab Tool Runs](ace.md#agents-tab-tool-runs), and the
+[Tools tab](ace.md#tools-tab). The TUI never reconciles: a silent run is shown in red
+and left for its owner (or a backend reconcile) to settle.
 
 ## Rerunnable harness
 

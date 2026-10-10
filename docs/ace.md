@@ -8914,6 +8914,27 @@ The tab uses a two-panel layout: a proc list on the left and an output pane on t
 right. Running procs refresh their output on the pane's 0.25 s tick while the Procs tab
 is visible.
 
+### Opening a row
+
+`Enter` or a click on the list follows one order. The hints line can list more than one
+`⏎:` token when a row qualifies for more than one jump; `Enter` still does only the
+first match below. Jump mode (`'`) does not use this order: its hints line switches to
+the jump prompt, and these actions stay put.
+
+1. **Command Line** (`command-line` tag). Admin Center closes and the
+   [Command Line](#command-line) opens on that block. The hint is `⏎: block`. A missing
+   record still opens the panel and says the record was pruned.
+2. **Tool run.** The row's `tool-run:<id>` tag wins. If that tag is absent, a
+   `tool-run-join:<id>` tag is used. Admin Center stays open and switches to **Tools**,
+   focused on that run. The hint is `⏎: run`. This is how a monitor that reserved a run,
+   and a monitor that joined one with `sase monitor start -J`, open the run. Those rows
+   show `⚒`.
+3. **Bare monitor.** When the monitor's agent row is loaded, Admin Center closes and the
+   Agents tab reveals that agent. The hint is `⏎: agent`, and only when the jump can
+   land. If the agent is not on the Agents tab, sase's TUI says so and stays put.
+
+A row that is none of these does not navigate.
+
 ### Proc Status Icons
 
 | Icon | Color  | Meaning                                                    |
@@ -8948,10 +8969,9 @@ it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
   `live_reply.md.1`. Until that log has text, the pane still shows `Working...`. On the
   Agents tab, the Reply card follows that same file in place when the live-reply follow
   is active; see [Agents Tab Main Deck](#agents-tab-main-deck).
-- **`<enter>` jumps to the agent.** On a monitor whose agent row is loaded, `<enter>`
-  (or a click) closes Admin Center and reveals that agent on the Agents tab. The hints
-  line shows `⏎: agent` only when that jump is possible. If the agent is not on the
-  Agents tab, sase's TUI says so and stays put.
+- **`<enter>`.** A monitor that owns or joined a tool run opens that run (`⏎: run`). A
+  bare monitor whose agent is loaded jumps to the Agents tab (`⏎: agent`). See
+  [Opening a row](#opening-a-row).
 - **Visible in both scopes.** Monitor procs are unattributed, so they appear in both
   **this session** and **all sessions**.
 - **`K` stops the supervisor.** Kill uses the named-proc stop path: it stops the
@@ -9001,13 +9021,19 @@ surface as `ace`, `telegram`, `cli`, or `axe`, with `api` retained as the fallba
 direct or unrecognized API callers.
 
 Session attribution is not delegation: a `command` proc always executes under its own
-supervisor, while its session id decides which TUI includes it by default. `--session`
-accepts a full session id, a unique id prefix or short handle, or `current`, `latest`,
-and `none`; the default is this process's sase's TUI session, then the newest live one,
-then no session. `sase proc run --session none` creates an unattributed command row.
-`sase proc list` scopes work to the resolved session plus unattributed rows by default,
-and widens to every session with `--all`. Rows from a session that has since exited
-render dim with a `†` marker.
+supervisor, while its session id decides which TUI includes it by default. A hand-off
+tool-run proc (`sase tool run -H`, `sase tool run -d`, or the automatic reservation
+path) is stamped only when the submitting process is itself a live registered TUI
+session, such as a catalog launch started inside sase's TUI. An agent escalation, a
+detached run, and a human shell `-H` leave the proc unattributed even when another TUI
+is open. There is no latest-session fallback, and a failed session lookup still submits
+the proc with no session. Unattributed rows stay visible in **this session**.
+`--session` accepts a full session id, a unique id prefix or short handle, or `current`,
+`latest`, and `none`; the default is this process's sase's TUI session, then the newest
+live one, then no session. `sase proc run --session none` creates an unattributed
+command row. `sase proc list` scopes work to the resolved session plus unattributed rows
+by default, and widens to every session with `--all`. Rows from a session that has since
+exited render dim with a `†` marker.
 
 **Retention.** [`procs.history_limit`](configuration.md#procs) caps how many _finished_
 procs are kept; pending and running work is never pruned for being old. Lowering the

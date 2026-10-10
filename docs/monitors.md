@@ -189,10 +189,14 @@ on any refusal.
 The join records atomically after the monitor member exists and before its proc submits;
 a refused or failed start tears the member down (releasing the join) and runs nothing.
 The monitor proc follows the run into the monitor log without a deadline, then renders a
-compact summary with the triage footer and exits with the run's mapped code. `stop`,
-timeout, and a lost joiner converge through the detached-run watchdog with the
-`stop_requested` reason preserved, and `sase tool stop RUN` on a joined run stops the
-active joining monitor (suppressing its follow-up) rather than the run's proc.
+compact summary with the triage footer and exits with the run's mapped code. In the
+Procs tab that proc carries a `tool-run-join:<id>` tag, so `Enter` opens Admin Center →
+Tools focused on the run (`⏎: run`) instead of jumping to the monitor's agent. A monitor
+that owns a reserved run uses `tool-run:<id>` and opens the same way. See
+[Opening a row](ace.md#opening-a-row). `stop`, timeout, and a lost joiner converge
+through the detached-run watchdog with the `stop_requested` reason preserved, and
+`sase tool stop RUN` on a joined run stops the active joining monitor (suppressing its
+follow-up) rather than the run's proc.
 
 ### Tool-run wrapping
 

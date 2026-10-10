@@ -400,7 +400,11 @@ section.
 - **Plugins** rows bring the full
   [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show)
   experience into the TUI: filter the catalog, inspect a plugin, and install, update,
-  uninstall, or switch install mode.
+  uninstall, or switch install mode. A plugin that mounts commands shows a
+  `❯ sase <name>` chip on the row and in the detail panel. Install, update, and
+  uninstall confirmations name commands that would be added or removed, and the
+  completion toast marks them `new command` or `removed`. See
+  [Where a command shows up](plugins.md#where-a-command-shows-up).
 - **Agent CLIs** rows are a provider-colored master/detail browser for Claude Code,
   Codex CLI, OpenCode, Qwen Code, Antigravity, Muse Code, and Grok Build. Rows show
   installed → latest versions, install method, `↑` availability, and update marks.
