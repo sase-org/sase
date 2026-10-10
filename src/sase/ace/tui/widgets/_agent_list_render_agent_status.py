@@ -8,12 +8,21 @@ from datetime import datetime
 
 from rich.text import Text
 
+from sase.agent.auto_restart.ux import (
+    RESTARTING_HINT_STYLE,
+    RESTARTING_STATUS,
+    RESTARTING_STYLE,
+    STALE_PENDING_HINT,
+    declined_hint,
+    restarting_hint,
+)
 from sase.agent.status_buckets import (
     QUEUED_STATUS,
     QUEUED_STATUS_COLOR,
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
 )
+from sase.ace.tui.widgets.update_accents import UPDATE_RECOVERY_GLYPH
 
 from ..agent_completion import WaitDependencyStatusCounts
 from ..models.agent import (
@@ -65,6 +74,19 @@ from sase.ace.tui.tool_runs.attribution import (
 from sase.ace.tui.tool_runs.row_chip import row_chip_for_runs
 from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 from sase.core.time import local_now
+
+
+def _failed_recovery_hint(agent: Agent) -> Text:
+    """Return the dim auto-restart hint for a ``FAILED`` row, if any."""
+    hint = Text()
+    if agent.recovery_stale_pending:
+        hint.append(f" · {STALE_PENDING_HINT}", style="dim")
+        return hint
+    if agent.recovery_state == "declined":
+        reason = declined_hint(agent.recovery_reason, agent.recovery_reason_text)
+        if reason:
+            hint.append(f" · {reason}", style="dim")
+    return hint
 
 
 def _append_finalizer_chip(text: Text, agent: Agent) -> None:
@@ -180,6 +202,7 @@ def append_agent_row_status(
         )
     elif agent.status == "FAILED":
         text.append(display_status, style="bold #FF5F5F")  # Red
+        text.append_text(_failed_recovery_hint(agent))
     elif agent.status == "FAILED (RETRIED)":
         # Spawn-on-retry: dim red + warm yellow ↻ glyph indicates a
         # terminal failure that handed off to a downstream retry, as
@@ -265,6 +288,16 @@ def append_agent_row_status(
                 )
             else:
                 text.append(f" (until {target_label})", style="#AF87FF")
+    elif agent.status == RESTARTING_STATUS:
+        text.append(
+            f"{UPDATE_RECOVERY_GLYPH} {RESTARTING_STATUS}", style=RESTARTING_STYLE
+        )
+        hint = restarting_hint(
+            agent.recovery_state,
+            reason_text=agent.recovery_reason_text,
+            episode_id=agent.recovery_episode_id,
+        )
+        text.append(f" · {hint}", style=RESTARTING_HINT_STYLE)
     elif agent.status == "RETRYING":
         countdown = ""
         retry_source = status_display_agent(agent).retry_next_at_epoch

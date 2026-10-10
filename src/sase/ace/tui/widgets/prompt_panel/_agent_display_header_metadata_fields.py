@@ -17,6 +17,7 @@ from ._agent_display_header_metadata_identity import (
 )
 from ._agent_display_header_metadata_remote import append_fleet_fields
 from ._agent_display_header_metadata_sections import (
+    append_auto_restart_fields,
     append_retry_fields,
     append_timestamp_fields,
     append_tool_runs_field,
@@ -129,5 +130,6 @@ def append_agent_metadata_fields(
             responsive_ranges,
         )
         append_retry_fields(text, agent)
+        append_auto_restart_fields(text, agent)
     append_timestamp_fields(text, agent, hint_state)
     return _AgentMetadataFields(meta_fields, page_section, wait_section, turn_section)

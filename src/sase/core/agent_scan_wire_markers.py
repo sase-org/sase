@@ -291,6 +291,12 @@ class AgentMetaWire:
     # from it, so fleet facts and the gateway keep working once Python
     # stops writing legacy keys.
     autonomy: dict[str, Any] | None = None
+    # Update-skew auto-restart provenance (`agent_meta.auto_restart`,
+    # written on replacement rows by the healer). Trailing for the same
+    # key-order stability; additive serde-default, so no schema bump is
+    # needed. Tolerant pass-through dict for the Agents-tab provenance
+    # block and the preserved error-report `v` file hint.
+    auto_restart: dict[str, Any] | None = None
 
     @property
     def agent_session_shell(self) -> AgentSessionTurnWire | None:

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.dev_update.code_swap_lock import (
+    code_swap_advisory_holder_count,
     code_swap_advisory_warning,
     code_swap_readers_active,
 )
@@ -236,7 +237,33 @@ def dev_update_preview_details(plan: DevUpdatePlan) -> tuple[str, ...]:
         lines.append(f"skip {len(plan.skipped) - 4} more editable checkouts")
     if advisory := code_swap_advisory_warning():
         lines.append(advisory)
+    if hint := _dev_update_auto_restart_hint():
+        lines.append(hint)
     return tuple(lines)
+
+
+def _dev_update_auto_restart_hint() -> str | None:
+    """Return the TUI auto-restart advisory hint while runners are exposed.
+
+    Shown only while advisory reader slots are held and the auto-restart
+    feature is enabled. Mirrors ``sase.main.update_render``.
+    """
+    try:
+        from sase.config._settings_system import get_agent_auto_restart_enabled
+
+        if not get_agent_auto_restart_enabled():
+            return None
+        count = code_swap_advisory_holder_count()
+    except Exception:
+        return None
+    if count <= 0:
+        return None
+    noun = "agent is" if count == 1 else "agents are"
+    return (
+        f"↻ {count} running {noun} still on pre-update code. If this update "
+        "breaks one, sase restarts it once automatically "
+        "(sase agent auto-restart list)."
+    )
 
 
 def dev_update_success_message(

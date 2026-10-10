@@ -172,6 +172,22 @@ def append_retry_fields(text: Text, agent: Agent) -> None:
         text.append(f"{agent.fallback_model}\n", style=style)
 
 
+def append_auto_restart_fields(text: Text, agent: Agent) -> None:
+    """Append the auto-restart provenance block for replacement rows."""
+    provenance = agent.auto_restart_provenance
+    if not provenance:
+        return
+    from sase.agent.auto_restart.ux import auto_restart_provenance_lines
+
+    for line in auto_restart_provenance_lines(provenance):
+        text.append(f"{line}\n", style="#FFAF5F")
+    evidence_dir = provenance.get("evidence_dir")
+    if isinstance(evidence_dir, str) and evidence_dir:
+        text.append("  evidence: ", style="dim #FFAF5F")
+        text.append(f"{evidence_dir.rstrip('/')}/error_report.md", style="#FFAF5F")
+        text.append(" (v)\n", style="dim #FFAF5F")
+
+
 def append_tool_runs_field(
     text: Text,
     agent: Agent,

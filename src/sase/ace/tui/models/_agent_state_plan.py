@@ -96,6 +96,22 @@ class AgentStatePlanFields:
     # Full traceback string for failed agents
     error_traceback: str | None = None
 
+    # Update-skew auto-restart recovery projection from ``done.json``. The
+    # loaders populate these without touching disk beyond the done wire, so
+    # render paths read them as plain fields (never stat/glob per keypress).
+    recovery_state: str | None = None
+    recovery_reason: str | None = None
+    recovery_reason_text: str | None = None
+    recovery_episode_id: str | None = None
+    recovery_requested_at: str | None = None
+    recovery_updated_at: str | None = None
+    recovery_stale_pending: bool = False
+
+    # Provenance for agents relaunched by auto-restart, sourced from
+    # ``agent_meta.json["auto_restart"]``. A set value marks the row as a
+    # replacement that kept its lineage name.
+    auto_restart_provenance: dict[str, Any] | None = None
+
     # Transient activity surfaced from workflow_state.json while finalization
     # work is still running (for example Markdown PDF construction). The
     # prompt/detail header renders this as a labeled Activity field.

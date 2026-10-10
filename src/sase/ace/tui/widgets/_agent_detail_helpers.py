@@ -30,5 +30,6 @@ _ACTIVE_STATUSES = frozenset(
         "QUESTION",
         "ANSWERED",
         "RETRYING",
+        "RESTARTING",
     }
 )

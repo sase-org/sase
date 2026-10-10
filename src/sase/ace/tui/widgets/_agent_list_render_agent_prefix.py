@@ -188,6 +188,10 @@ def append_agent_row_prefix(
     if agent.retry_attempt > 0:
         badge_color = "#FFAF00"  # warm yellow
         text.append(f"↻{agent.retry_attempt} ", style=f"bold {badge_color}")
+    elif agent.auto_restart_provenance:
+        # Same-name replacement relaunched by update-skew auto-restart:
+        # a bare ↻ chip in the retry-badge style (no new keymap).
+        text.append("↻ ", style="bold #FFAF00")
 
     if show_machine_chip:
         _append_machine_chip(text, agent)

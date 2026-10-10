@@ -36,6 +36,7 @@ AGENT_LIVE_STATUS_VALUES: tuple[str, ...] = (
     "STARTING",
     "RUNNING",
     "RETRYING",
+    "RESTARTING",
     "ANSWERED",
     "WAITING",
     "QUEUED",

@@ -2,8 +2,10 @@
 
 from concurrent.futures import CancelledError
 from pathlib import Path
+from typing import Any
 
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
+from sase.agent.auto_restart.ux import RESTARTING_STATUS, apply_recovery_to_agent
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.paths import sase_projects_dir
@@ -66,6 +68,30 @@ def iter_artifact_workflow_dirs(artifacts_dir: Path) -> list[Path]:
                     dirs.append(d)
                     break
     return dirs
+
+
+def _apply_filesystem_auto_restart(agent: Agent, data: dict[str, Any]) -> None:
+    """Project the done.json recovery object onto a filesystem agent row.
+
+    Mirrors :func:`_done_snapshot_loaders._apply_snapshot_auto_restart`:
+    an in-flight recovery promotes the row from ``FAILED`` to
+    ``RESTARTING``; declined and stale-pending rows keep ``FAILED`` with
+    their dim hint in the ``recovery_*`` fields.
+    """
+    recovery = data.get("recovery")
+    if not isinstance(recovery, dict):
+        return
+    restarted = apply_recovery_to_agent(
+        agent,
+        state=recovery.get("state"),
+        reason=recovery.get("reason"),
+        reason_text=recovery.get("reason_text"),
+        requested_at=recovery.get("requested_at"),
+        updated_at=recovery.get("updated_at"),
+        episode_id=recovery.get("episode_id"),
+    )
+    if restarted == RESTARTING_STATUS and agent.status == "FAILED":
+        agent.status = RESTARTING_STATUS
 
 
 def load_done_agent_for_dir(
@@ -276,6 +302,7 @@ def load_done_agent_for_dir(
                 gate_followup_degraded_reason=data.get("gate_followup_degraded_reason"),
                 gate_followup_prompt_path=data.get("gate_followup_prompt_path"),
             )
+        _apply_filesystem_auto_restart(agent, data)
         enrich_agent_from_prompt_markers(agent, str(artifact_dir))
         enrich_missing_commit_metadata(agent, artifact_dir)
         enrich_agent_revert_state(agent, artifact_dir)

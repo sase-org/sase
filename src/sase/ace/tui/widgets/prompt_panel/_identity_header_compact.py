@@ -189,6 +189,22 @@ def _retry_chip(agent: Agent) -> Text | None:
     return chip
 
 
+def _auto_restart_chip(agent: Agent) -> Text | None:
+    """Return the ↻ chip for same-name auto-restart replacements."""
+    provenance = agent.auto_restart_provenance
+    if not provenance:
+        return None
+    culprit = provenance.get("culprit_commit")
+    label = (
+        f"↻ auto-restarted {culprit[:12]}"
+        if isinstance(culprit, str) and culprit
+        else "↻ auto-restarted"
+    )
+    chip = Text()
+    chip.append(label, style="bold #FFAF5F")
+    return chip
+
+
 def _feed_error_chip(agent: Agent) -> Text | None:
     """Return the remote feed-error chip for fleet rows with diagnostics."""
     if not agent.fleet_diagnostic:
@@ -348,6 +364,9 @@ def build_agent_compact_lines(
     retry_chip = _retry_chip(agent)
     if retry_chip is not None:
         second.append(retry_chip)
+    auto_restart_chip = _auto_restart_chip(agent)
+    if auto_restart_chip is not None:
+        second.append(auto_restart_chip)
     feed_error_chip = _feed_error_chip(agent)
     if feed_error_chip is not None:
         second.append(feed_error_chip)

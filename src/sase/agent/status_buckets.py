@@ -92,6 +92,7 @@ ACTIVE_AGENT_STATUSES: frozenset[str] = frozenset(
         "STARTING",
         "RUNNING",
         "RETRYING",
+        "RESTARTING",
         "ANSWERED",
         WORKING_PLAN_STATUS,
         WORKING_TALE_STATUS,

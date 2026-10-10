@@ -45,5 +45,6 @@ _LIVE_FILE_REFRESH_STATUSES = frozenset(
         "QUESTION",
         "ANSWERED",
         "RETRYING",
+        "RESTARTING",
     }
 )

@@ -473,6 +473,10 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     kwargs["wait_epic_follows"] = wait_epic_follows_from_value(
         payload.get("wait_epic_follows")
     )
+    raw_auto_restart = payload.get("auto_restart")
+    kwargs["auto_restart"] = (
+        dict(raw_auto_restart) if isinstance(raw_auto_restart, dict) else None
+    )
     return AgentMetaWire(**kwargs)
 
 

@@ -61,6 +61,8 @@ def render_dev_update_dry_run(
     if (advisory := _advisory_warning_line()) is not None:
         body.append(Text(""))
         body.append(advisory)
+    if (restart_hint := _auto_restart_hint_line()) is not None:
+        body.append(restart_hint)
 
     body.append(Text(""))
     note = Text()
@@ -106,6 +108,8 @@ def render_dev_update_result(
     if (advisory := _advisory_warning_line()) is not None:
         body.append(Text(""))
         body.append(advisory)
+    if (restart_hint := _auto_restart_hint_line()) is not None:
+        body.append(restart_hint)
     body.append(Text(""))
     body.append(_dev_summary_line(result, elapsed, failed=failed))
     console.print(
@@ -245,6 +249,35 @@ def _advisory_warning_line() -> Text | None:
     if warning is None:
         return None
     return Text(f"⚠ {warning}", style="yellow")
+
+
+def _auto_restart_hint_line() -> Text | None:
+    """Return the auto-restart advisory hint when live runners are exposed.
+
+    Shown only while advisory reader slots are held (running agents are on
+    pre-update code) and the auto-restart feature is enabled.
+    """
+    from sase.dev_update.code_swap_lock import code_swap_advisory_holder_count
+
+    try:
+        from sase.config._settings_system import get_agent_auto_restart_enabled
+    except Exception:
+        return None
+    try:
+        if not get_agent_auto_restart_enabled():
+            return None
+        count = code_swap_advisory_holder_count()
+    except Exception:
+        return None
+    if count <= 0:
+        return None
+    noun = "agent is" if count == 1 else "agents are"
+    return Text(
+        f"↻ {count} running {noun} still on pre-update code. If this update "
+        "breaks one, sase restarts it once automatically "
+        "(sase agent auto-restart list).",
+        style="dim",
+    )
 
 
 def _dev_summary_line(result: DevUpdateResult, elapsed: float, *, failed: bool) -> Text:

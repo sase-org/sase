@@ -438,6 +438,14 @@ def _live_advisory_holders() -> tuple[dict[str, Any], ...]:
     return _live_holders(blocking=False)
 
 
+def code_swap_advisory_holder_count() -> int:
+    """Return the number of live advisory readers (running agent runners)."""
+    try:
+        return len(_live_advisory_holders())
+    except OSError:
+        return 0
+
+
 def _live_holders(*, blocking: bool) -> tuple[dict[str, Any], ...]:
     holders_dir = _holders_dir()
     try:

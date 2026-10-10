@@ -535,4 +535,8 @@ def enrich_agent_from_meta_wire(
 
     apply_finalizer_status(agent, meta.finalizer_status)
 
+    from sase.agent.auto_restart.ux import apply_provenance_to_agent
+
+    apply_provenance_to_agent(agent, meta.auto_restart)
+
     agent.refresh_raw_presented_agent_name()

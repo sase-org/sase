@@ -1,5 +1,8 @@
 """Snapshot-backed loaders for completed agents."""
 
+from typing import Any
+
+from sase.agent.auto_restart.ux import RESTARTING_STATUS, apply_recovery_to_agent
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS
 from sase.core.agent_scan_wire import (
     DONE_WORKFLOW_DIR_NAMES,
@@ -38,6 +41,33 @@ def is_done_record(record: AgentArtifactRecordWire) -> bool:
     if name in DONE_WORKFLOW_DIR_NAMES:
         return True
     return any(name.startswith(p) for p in DONE_WORKFLOW_DIR_PREFIXES)
+
+
+def _apply_snapshot_auto_restart(
+    agent: Agent,
+    done: AgentArtifactRecordWire | Any,
+) -> None:
+    """Project the done-wire recovery object onto a snapshot agent row.
+
+    An in-flight recovery promotes the row from ``FAILED`` to
+    ``RESTARTING``; declined and stale-pending rows keep ``FAILED`` and
+    carry their dim hint through the ``recovery_*`` fields. Provenance
+    for same-name replacements arrives through the meta wire.
+    """
+    recovery = getattr(done, "recovery", None)
+    if recovery is None:
+        return
+    restarted = apply_recovery_to_agent(
+        agent,
+        state=getattr(recovery, "state", None),
+        reason=getattr(recovery, "reason", None),
+        reason_text=getattr(recovery, "reason_text", None),
+        requested_at=getattr(recovery, "requested_at", None),
+        updated_at=getattr(recovery, "updated_at", None),
+        episode_id=getattr(recovery, "episode_id", None),
+    )
+    if restarted == RESTARTING_STATUS and agent.status == "FAILED":
+        agent.status = RESTARTING_STATUS
 
 
 def build_done_agent_from_record(
@@ -266,6 +296,7 @@ def build_done_agent_from_record(
                 else None
             ),
         )
+    _apply_snapshot_auto_restart(agent, done)
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
     enrich_missing_commit_metadata(agent, record.artifact_dir)
     enrich_agent_revert_state(agent, record.artifact_dir)
