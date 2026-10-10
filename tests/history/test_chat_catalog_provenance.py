@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 
 import pytest
 from sase.agents_sync.models import TargetSelection
+from sase.core.agent_scan_wire import SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
 from sase.history import chat_catalog
 from sase.history.chat_catalog_provenance import load_chat_catalog
 from sase.history.chat_catalog_provenance import (
@@ -370,3 +373,34 @@ def test_corrupt_catalog_cache_is_rebuilt(
     snapshot = load_chat_catalog()
 
     assert snapshot.entries[0].absolute_path == str(chat)
+
+
+@pytest.mark.parametrize(
+    "schema_version", sorted(SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS)
+)
+def test_agent_link_index_accepts_every_supported_schema(
+    tmp_path: Path,
+    schema_version: int,
+) -> None:
+    path = tmp_path / f"agent-index-{schema_version}.sqlite"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        conn.execute(
+            "INSERT INTO meta(key, value) VALUES ('schema_version', ?)",
+            (str(schema_version),),
+        )
+        conn.execute(
+            "CREATE TABLE agent_artifacts ("
+            "artifact_dir TEXT, project_name TEXT, workflow_dir_name TEXT, "
+            "timestamp TEXT, record_json TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO agent_artifacts VALUES (?, ?, ?, ?, ?)",
+            ("/artifacts/one", "proj", "ace-run", "20261010100000", "{}"),
+        )
+
+    records = artifacts._indexed_records(path)
+
+    assert records is not None
+    assert records[0]["artifact_dir"] == "/artifacts/one"
+    assert records[0]["project_name"] == "proj"

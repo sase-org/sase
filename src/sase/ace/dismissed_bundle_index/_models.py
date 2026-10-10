@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 INDEX_FILENAME = "index.sqlite"
 
 
@@ -52,6 +52,13 @@ class DismissedBundleSummary:
     retry_chain_root_timestamp: str | None
     retry_attempt: int
     meta_changespec: str | None  # legacy compatibility alias
+    agent_session: str | None = None
+    agent_session_role: str | None = None
+    agent_clan: str | None = None
+    agent_clan_generation: str | None = None
+    agent_tab: str | None = None
+    tribe: str | None = None
+    clan_tribe: str | None = None
 
     @property
     def meta_patch(self) -> str | None:
@@ -77,3 +84,11 @@ class DismissedBundleIndexRebuildResult:
 
     indexed_rows: int
     skipped_corrupt: int
+
+
+@dataclass(frozen=True)
+class DismissedBundleIndexProgress:
+    """Cheap in-process view of an active bundle-index rebuild."""
+
+    rebuilding: bool
+    indexed_rows: int

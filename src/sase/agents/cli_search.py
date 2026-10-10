@@ -51,6 +51,11 @@ def handle_agents_search(args: argparse.Namespace) -> int:
 
     project_ref_display = load_project_ref_display_snapshot()
     snapshot = build_agent_catalog_snapshot()
+    for diagnostic in snapshot.diagnostics:
+        Console(stderr=True).print(
+            "[yellow]warning:[/yellow] agent search enrichment degraded: "
+            f"{diagnostic}; results may have incomplete fields"
+        )
     rows = tuple(
         row
         for row in snapshot.rows

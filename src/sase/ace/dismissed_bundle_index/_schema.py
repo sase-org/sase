@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import closing, contextmanager
 from pathlib import Path
 
@@ -127,6 +127,13 @@ def _schema_compatible(conn: sqlite3.Connection) -> bool:
         "durably_revivable",
         "restartable",
         "missing_requirements",
+        "agent_session",
+        "agent_session_role",
+        "agent_clan",
+        "agent_clan_generation",
+        "agent_tab",
+        "tribe",
+        "clan_tribe",
         "mtime_ns",
         "size_bytes",
     }
@@ -176,6 +183,13 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             start_time TEXT,
             stop_time TEXT,
             dismissed_at TEXT,
+            agent_session TEXT,
+            agent_session_role TEXT,
+            agent_clan TEXT,
+            agent_clan_generation TEXT,
+            agent_tab TEXT,
+            tribe TEXT,
+            clan_tribe TEXT,
             revived_at TEXT,
             times_revived INTEGER NOT NULL DEFAULT 0,
             project_file TEXT,
@@ -251,16 +265,25 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
     )
 
 
-def rebuild_rows_from_bundles(conn: sqlite3.Connection, root: Path) -> int:
+def rebuild_rows_from_bundles(
+    conn: sqlite3.Connection,
+    root: Path,
+    *,
+    paths: Sequence[Path] | None = None,
+    on_progress: Callable[[int], None] | None = None,
+) -> int:
     indexed = 0
-    for path in iter_bundle_paths(root):
+    bundle_paths = paths if paths is not None else iter_bundle_paths(root)
+    for path in bundle_paths:
         try:
             bundle = read_bundle(path)
             summary = summary_from_bundle(root, path, bundle)
             upsert_summary(conn, summary, file_signature(path))
             indexed += 1
         except (OSError, json.JSONDecodeError, ValueError, TypeError):
-            continue
+            pass
+        if on_progress is not None:
+            on_progress(indexed)
     return indexed
 
 
@@ -278,6 +301,8 @@ def upsert_summary(
             archive_payload_sha256, historically_viewable, durably_revivable,
             restartable, missing_requirements, agent_type, cl_name, agent_name,
             status, start_time, stop_time, dismissed_at, revived_at,
+            agent_session, agent_session_role, agent_clan,
+            agent_clan_generation, agent_tab, tribe, clan_tribe,
             times_revived, project_file, project_name, model, runtime,
             llm_provider, vcs_provider, workflow, is_workflow_child,
             parent_timestamp, step_index, step_name, step_type,
@@ -291,6 +316,8 @@ def upsert_summary(
             :historically_viewable, :durably_revivable, :restartable,
             :missing_requirements, :agent_type, :cl_name, :agent_name,
             :status, :start_time, :stop_time, :dismissed_at, :revived_at,
+            :agent_session, :agent_session_role, :agent_clan,
+            :agent_clan_generation, :agent_tab, :tribe, :clan_tribe,
             :times_revived, :project_file, :project_name, :model, :runtime,
             :llm_provider, :vcs_provider, :workflow, :is_workflow_child,
             :parent_timestamp, :step_index, :step_name, :step_type,
@@ -319,6 +346,13 @@ def upsert_summary(
             start_time=excluded.start_time,
             stop_time=excluded.stop_time,
             dismissed_at=excluded.dismissed_at,
+            agent_session=excluded.agent_session,
+            agent_session_role=excluded.agent_session_role,
+            agent_clan=excluded.agent_clan,
+            agent_clan_generation=excluded.agent_clan_generation,
+            agent_tab=excluded.agent_tab,
+            tribe=excluded.tribe,
+            clan_tribe=excluded.clan_tribe,
             revived_at=excluded.revived_at,
             times_revived=excluded.times_revived,
             project_file=excluded.project_file,
@@ -469,6 +503,13 @@ def _summary_sql_params(
         "start_time": summary.start_time,
         "stop_time": summary.stop_time,
         "dismissed_at": summary.dismissed_at,
+        "agent_session": summary.agent_session,
+        "agent_session_role": summary.agent_session_role,
+        "agent_clan": summary.agent_clan,
+        "agent_clan_generation": summary.agent_clan_generation,
+        "agent_tab": summary.agent_tab,
+        "tribe": summary.tribe,
+        "clan_tribe": summary.clan_tribe,
         "revived_at": summary.revived_at,
         "times_revived": summary.times_revived,
         "project_file": summary.project_file,

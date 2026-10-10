@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlite3
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -22,7 +24,11 @@ from sase.agents.catalog._derive import (
     is_retrying,
 )
 from sase.agents.catalog._agent_session import agent_session_and_role
-from sase.agents.catalog._sources import ArtifactIndexRecord
+from sase.agents.catalog._sources import (
+    ArtifactIndexRecord,
+    load_artifact_index_projection,
+)
+from sase.core.agent_scan_wire import SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
 
 
 def _patch_sources(
@@ -502,3 +508,76 @@ class TestDeriveHelpers:
             agent_type=None,
             is_workflow_child=False,
         ) == ("other",)
+
+
+@pytest.mark.parametrize(
+    "schema_version", sorted(SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS)
+)
+def test_artifact_projection_accepts_every_supported_index_schema(
+    tmp_path: Path,
+    schema_version: int,
+) -> None:
+    path = tmp_path / f"index-{schema_version}.sqlite"
+    columns = (
+        "artifact_dir",
+        "project_name",
+        "workflow_name",
+        "agent_type",
+        "cl_name",
+        "model",
+        "llm_provider",
+        "status",
+        "workflow_status",
+        "hidden",
+        "started_at",
+        "finished_at",
+        "retry_attempt",
+        "agent_clan",
+        "clan_tribe",
+        "parent_timestamp",
+        "retry_of_timestamp",
+        "retried_as_timestamp",
+        "retry_chain_root_timestamp",
+    )
+    types = {
+        "artifact_dir": "TEXT",
+        "hidden": "INTEGER",
+        "finished_at": "REAL",
+        "retry_attempt": "INTEGER",
+    }
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        conn.execute(
+            "INSERT INTO meta(key, value) VALUES ('schema_version', ?)",
+            (str(schema_version),),
+        )
+        conn.execute(
+            "CREATE TABLE agent_artifacts ("
+            + ", ".join(f"{column} {types.get(column, 'TEXT')}" for column in columns)
+            + ")"
+        )
+        values = dict.fromkeys(columns)
+        values.update(artifact_dir="/artifacts/one", hidden=0, retry_attempt=0)
+        conn.execute(
+            f"INSERT INTO agent_artifacts ({', '.join(columns)}) "
+            f"VALUES ({', '.join('?' for _ in columns)})",
+            tuple(values[column] for column in columns),
+        )
+
+    projection = load_artifact_index_projection(path)
+
+    assert projection.diagnostic is None
+    assert projection["/artifacts/one"].artifact_dir == "/artifacts/one"
+
+
+def test_artifact_projection_reports_unsupported_schema(tmp_path: Path) -> None:
+    path = tmp_path / "index.sqlite"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        conn.execute("INSERT INTO meta(key, value) VALUES ('schema_version', '999')")
+
+    projection = load_artifact_index_projection(path)
+
+    assert projection == {}
+    assert projection.diagnostic is not None
+    assert "schema 999 is unsupported" in projection.diagnostic

@@ -16,7 +16,7 @@ from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     globalize_owned_agent_name,
 )
-from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
+from sase.core.agent_scan_wire import SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
 from sase.core.agent_scan_facade import default_agent_artifact_index_path
 from sase.core.paths import sase_projects_dir
 
@@ -103,7 +103,7 @@ def _indexed_records(index_path: Path) -> list[dict[str, object]] | None:
         ).fetchone()
         if (
             schema_row is None
-            or int(schema_row[0]) != AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
+            or int(schema_row[0]) not in SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
         ):
             return None
         rows = connection.execute(

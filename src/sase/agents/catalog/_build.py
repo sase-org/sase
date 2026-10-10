@@ -80,6 +80,8 @@ def build_agent_catalog_snapshot(
         if row.from_artifact_index or row.from_dismissed_archive:
             enriched_count += 1
 
+    artifact_index_diagnostic = getattr(artifact_index, "diagnostic", None)
+
     return AgentCatalogSnapshot(
         rows=tuple(rows),
         registry_entry_count=len(entries),
@@ -88,6 +90,11 @@ def build_agent_catalog_snapshot(
         enriched_count=enriched_count,
         thin_count=len(rows) - enriched_count,
         facets=_compute_facets(rows),
+        diagnostics=(
+            (artifact_index_diagnostic,)
+            if isinstance(artifact_index_diagnostic, str) and artifact_index_diagnostic
+            else ()
+        ),
     )
 
 

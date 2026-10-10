@@ -145,12 +145,13 @@ def load_dismissed_bundle_identities(ctx: Any) -> set[tuple[str, str, str | None
 
 
 def ensure_dismissed_archive_ready(ctx: Any) -> None:
-    """Run cold-start dismissed-bundle setup (migrations + index build)."""
-    from .dismissed_bundle_index import archive_index_exists, rebuild_index
+    """Run archive maintenance and fill a missing or outdated summary index."""
+    from .dismissed_bundle_index import SCHEMA_VERSION, index_signature, rebuild_index
 
     ctx._run_dismissed_archive_maintenance()
     bundles_dir = ctx.dismissed_bundles_dir()
-    if not archive_index_exists(bundles_dir):
+    signature = index_signature(bundles_dir)
+    if signature is None or signature[0] != SCHEMA_VERSION:
         rebuild_index(bundles_dir)
 
 
@@ -282,6 +283,8 @@ def _prepare_archive_bundle(bundle: dict[str, Any]) -> None:
     )
     from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
+    bundle["dismissed_at"] = _canonical_dismissed_at(bundle.get("dismissed_at"))
+
     has_archive_payload = (
         isinstance(bundle.get("archive_schema_version"), int)
         or isinstance(bundle.get("archive_payload_sha256"), str)
@@ -323,6 +326,19 @@ def _prepare_archive_bundle(bundle: dict[str, Any]) -> None:
     bundle["restartable"] = capabilities.restartable
     bundle["missing_requirements"] = list(capabilities.missing_requirements)
     bundle["archive_payload_sha256"] = _archive_payload_hash(bundle)
+
+
+def _canonical_dismissed_at(value: object) -> str:
+    """Keep an existing aware timestamp, or record dismissal time in UTC."""
+
+    if isinstance(value, str) and value:
+        try:
+            timestamp = datetime.fromisoformat(value)
+            if timestamp.tzinfo is not None and timestamp.utcoffset() is not None:
+                return timestamp.astimezone(UTC).isoformat()
+        except (OverflowError, TypeError, ValueError):
+            pass
+    return datetime.now(UTC).isoformat()
 
 
 def _archive_payload_hash(bundle: dict[str, Any]) -> str:

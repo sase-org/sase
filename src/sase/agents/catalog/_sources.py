@@ -14,7 +14,7 @@ import sqlite3
 
 from sase.ace.dismissed_bundle_index import DismissedBundleSummary
 from sase.core.agent_scan_facade import default_agent_artifact_index_path
-from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
+from sase.core.agent_scan_wire import SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
 from sase.core.dismissed_agents_facade import load_dismissed_bundle_summaries
 
 # Only the columns the catalog's kind/attribute derivation actually needs.
@@ -67,14 +67,27 @@ class ArtifactIndexRecord:
     retry_chain_root_timestamp: str | None
 
 
+class ArtifactIndexProjection(dict[str, ArtifactIndexRecord]):
+    """Catalog rows plus a report when artifact-index enrichment degraded."""
+
+    def __init__(
+        self,
+        records: dict[str, ArtifactIndexRecord] | None = None,
+        *,
+        diagnostic: str | None = None,
+    ) -> None:
+        super().__init__(records or {})
+        self.diagnostic = diagnostic
+
+
 def load_artifact_index_projection(
     index_path: Path | str | None = None,
-) -> dict[str, ArtifactIndexRecord]:
+) -> ArtifactIndexProjection:
     """Return ``{artifact_dir: ArtifactIndexRecord}`` for the whole index.
 
-    Returns an empty mapping (never raises) when the index is absent, the
-    wrong schema version, or otherwise unreadable — the same "degrade a
-    row, never drop it" posture the catalog applies everywhere else.
+    Returns an empty mapping and a diagnostic when the index is absent, has
+    an unsupported schema version, or is otherwise unreadable — the same
+    "degrade a row, never drop it" posture the catalog applies everywhere else.
     """
     path = (
         Path(index_path)
@@ -82,7 +95,7 @@ def load_artifact_index_projection(
         else default_agent_artifact_index_path()
     )
     if not path.is_file():
-        return {}
+        return ArtifactIndexProjection(diagnostic="agent artifact index is missing")
     columns_sql = ", ".join(_ARTIFACT_INDEX_COLUMNS)
     try:
         connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.25)
@@ -91,18 +104,33 @@ def load_artifact_index_projection(
             schema_row = connection.execute(
                 "SELECT value FROM meta WHERE key = 'schema_version'"
             ).fetchone()
-            if (
-                schema_row is None
-                or int(schema_row[0]) != AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
-            ):
-                return {}
+            if schema_row is None:
+                return ArtifactIndexProjection(
+                    diagnostic="agent artifact index has no schema version"
+                )
+            schema_version = int(schema_row[0])
+            if schema_version not in SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS:
+                supported = ", ".join(
+                    str(version)
+                    for version in sorted(
+                        SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
+                    )
+                )
+                return ArtifactIndexProjection(
+                    diagnostic=(
+                        f"agent artifact index schema {schema_version} is unsupported "
+                        f"(supported: {supported})"
+                    )
+                )
             rows = connection.execute(
                 f"SELECT {columns_sql} FROM agent_artifacts"
             ).fetchall()
         finally:
             connection.close()
-    except (OSError, sqlite3.DatabaseError, TypeError, ValueError):
-        return {}
+    except (OSError, sqlite3.DatabaseError, TypeError, ValueError) as exc:
+        return ArtifactIndexProjection(
+            diagnostic=f"agent artifact index could not be read ({type(exc).__name__})"
+        )
 
     records: dict[str, ArtifactIndexRecord] = {}
     for row in rows:
@@ -131,7 +159,7 @@ def load_artifact_index_projection(
             retried_as_timestamp=values["retried_as_timestamp"],
             retry_chain_root_timestamp=values["retry_chain_root_timestamp"],
         )
-    return records
+    return ArtifactIndexProjection(records)
 
 
 def load_dismissed_top_level() -> list[DismissedBundleSummary]:

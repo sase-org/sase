@@ -63,6 +63,7 @@ class AgentCatalogSnapshot:
     enriched_count: int
     thin_count: int
     facets: Mapping[str, tuple[str, ...]]
+    diagnostics: tuple[str, ...] = ()
 
     @property
     def enriched_ratio(self) -> float:

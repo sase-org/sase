@@ -30,7 +30,11 @@ def iter_bundle_paths(root: Path) -> list[Path]:
     for path in root.glob("*.json"):
         if path.is_file():
             results.append(path)
-    return results
+    return sorted(
+        results,
+        key=lambda path: (path_shard(root, path), path.name),
+        reverse=True,
+    )
 
 
 def read_bundle(path: Path) -> dict[str, Any]:

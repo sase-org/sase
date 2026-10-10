@@ -18,7 +18,12 @@ from sase.ace.dismissed_agents import (
     save_dismissed_bundle,
     verify_dismissed_bundle_index,
 )
-from sase.ace.dismissed_bundle_index import archive_index_exists
+from sase.ace.dismissed_bundle_index import (
+    SCHEMA_VERSION,
+    archive_index_exists,
+    dismissed_bundle_index_progress,
+    rebuild_index,
+)
 from sase.ace.tui.models.agent import AgentType
 from tests._dismissed_agents_helpers import make_agent
 
@@ -146,6 +151,13 @@ def test_dismissed_bundle_index_summary_fields(tmp_path: Path) -> None:
         agent.agent_name = "indexed_agent"
         agent.model = "gpt-test"
         agent.llm_provider = "codex"
+        agent.agent_session = "session-1"
+        agent.agent_session_role = "code"
+        agent.agent_clan = "clan-1"
+        agent.agent_clan_generation = "generation-2"
+        agent.agent_tab = "review"
+        agent.tribe = "backend"
+        agent.clan_tribe = "research"
         bundle = agent.to_bundle_dict()
         shard = bundles_dir / "202506"
         shard.mkdir(parents=True)
@@ -164,12 +176,25 @@ def test_dismissed_bundle_index_summary_fields(tmp_path: Path) -> None:
     assert summary.status == "FAILED"
     assert summary.model == "gpt-test"
     assert summary.llm_provider == "codex"
+    assert summary.agent_session == "session-1"
+    assert summary.agent_session_role == "code"
+    assert summary.agent_clan == "clan-1"
+    assert summary.agent_clan_generation == "generation-2"
+    assert summary.agent_tab == "review"
+    assert summary.tribe == "backend"
+    assert summary.clan_tribe == "research"
     assert set(summary.__dataclass_fields__) == {
         "agent_id",
+        "agent_clan",
+        "agent_clan_generation",
+        "agent_session",
+        "agent_session_role",
+        "agent_tab",
         "agent_name",
         "agent_type",
         "bundle_path",
         "cl_name",
+        "clan_tribe",
         "filename",
         "archive_payload_sha256",
         "archive_visibility",
@@ -203,6 +228,7 @@ def test_dismissed_bundle_index_summary_fields(tmp_path: Path) -> None:
         "step_type",
         "stop_time",
         "times_revived",
+        "tribe",
         "vcs_provider",
         "workflow",
     }
@@ -246,7 +272,148 @@ def test_dismissed_bundle_index_schema_mismatch_recreates_table(
             for row in conn.execute("PRAGMA table_info(dismissed_bundle_summaries)")
         }
     assert "obsolete_col" not in columns
-    assert {"bundle_path", "raw_suffix", "cl_name", "mtime_ns", "size_bytes"} <= columns
+    assert {
+        "bundle_path",
+        "raw_suffix",
+        "cl_name",
+        "agent_session",
+        "agent_session_role",
+        "agent_clan",
+        "agent_clan_generation",
+        "agent_tab",
+        "tribe",
+        "clan_tribe",
+        "mtime_ns",
+        "size_bytes",
+    } <= columns
+    with sqlite3.connect(index_path) as conn:
+        version = conn.execute(
+            "SELECT value FROM dismissed_bundle_index_meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+    assert int(version) == SCHEMA_VERSION == 3
+
+
+def test_rebuild_indexes_newest_shards_first_and_reports_progress(
+    tmp_path: Path,
+) -> None:
+    """Rebuild scans recent bundles first and exposes cheap progress updates."""
+    bundles_dir = tmp_path / "bundles"
+    bundle_paths = (
+        bundles_dir / "202607" / "20260715100000.json",
+        bundles_dir / "202608" / "20260815100000.json",
+        bundles_dir / "202609" / "20260915100000.json",
+    )
+    for path in bundle_paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "raw_suffix": path.stem,
+                    "agent_type": "run",
+                    "cl_name": "ordered",
+                    "status": "DONE",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    import sase.ace.dismissed_bundle_index._api as api
+    import sase.ace.dismissed_bundle_index._schema as schema
+
+    read_bundle = schema.read_bundle
+    real_set_progress = api._set_rebuild_progress
+    read_order: list[Path] = []
+    progress_rows: list[int] = []
+
+    def tracked_read(path: Path) -> dict[str, object]:
+        read_order.append(path)
+        return read_bundle(path)
+
+    def tracked_progress(key: str, indexed_rows: int) -> None:
+        real_set_progress(key, indexed_rows)
+        progress = dismissed_bundle_index_progress(bundles_dir)
+        assert progress.rebuilding is True
+        progress_rows.append(progress.indexed_rows)
+
+    with (
+        patch.object(schema, "read_bundle", tracked_read),
+        patch.object(api, "_set_rebuild_progress", tracked_progress),
+    ):
+        result = rebuild_index(bundles_dir)
+
+    assert result.indexed_rows == 3
+    assert read_order == [bundle_paths[2], bundle_paths[1], bundle_paths[0]]
+    assert progress_rows == [0, 1, 2, 3]
+    assert dismissed_bundle_index_progress(bundles_dir).rebuilding is False
+
+
+def test_v2_index_is_refilled_by_archive_ready_check(tmp_path: Path) -> None:
+    """The schema bump makes the existing v2 index stale and rebuilds it."""
+    bundles_dir = tmp_path / "bundles"
+    shard = bundles_dir / "202506"
+    shard.mkdir(parents=True)
+    bundle = {
+        "raw_suffix": "20250615100000",
+        "agent_type": "run",
+        "cl_name": "migrated",
+        "status": "DONE",
+    }
+    (shard / "20250615100000.json").write_text(json.dumps(bundle))
+    index_path = bundles_dir / "index.sqlite"
+    with sqlite3.connect(index_path) as conn:
+        conn.execute(
+            "CREATE TABLE dismissed_bundle_index_meta "
+            "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO dismissed_bundle_index_meta(key, value) VALUES "
+            "('schema_version', '2')"
+        )
+        conn.execute(
+            "CREATE TABLE dismissed_bundle_summaries "
+            "(bundle_path TEXT PRIMARY KEY, mtime_ns INTEGER, size_bytes INTEGER)"
+        )
+        conn.commit()
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        from sase.ace.dismissed_agents import ensure_dismissed_archive_ready
+
+        ensure_dismissed_archive_ready()
+        summaries = load_dismissed_bundle_summaries(cl_name="migrated")
+
+    assert [summary.raw_suffix for summary in summaries] == ["20250615100000"]
+
+
+def test_summary_does_not_treat_stop_time_as_dismissed_at(tmp_path: Path) -> None:
+    """Legacy bundle summaries keep end time and dismissal time distinct."""
+    bundles_dir = tmp_path / "bundles"
+    shard = bundles_dir / "202506"
+    shard.mkdir(parents=True)
+    (shard / "20250615100000.json").write_text(
+        json.dumps(
+            {
+                "raw_suffix": "20250615100000",
+                "agent_type": "run",
+                "cl_name": "timestamps",
+                "status": "DONE",
+                "stop_time": "2025-06-15T11:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        assert rebuild_index(bundles_dir).indexed_rows == 1
+        [summary] = load_dismissed_bundle_summaries(cl_name="timestamps")
+
+    assert summary.stop_time == "2025-06-15T11:00:00+00:00"
+    assert summary.dismissed_at is None
 
 
 def test_dismissed_bundle_verify_reports_stale_and_missing_rows(

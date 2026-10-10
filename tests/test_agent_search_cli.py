@@ -440,6 +440,28 @@ def test_agent_search_pretty_output_smoke(monkeypatch: Any, capsys: Any) -> None
     assert "RUNNING" in output
 
 
+def test_agent_search_warns_when_catalog_enrichment_is_degraded(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    snapshot = _snapshot(
+        _row("visible"),
+        diagnostics=("agent artifact index schema 999 is unsupported",),
+    )
+    _patch_sources(monkeypatch, snapshot)
+
+    code = handle_agents_search(
+        argparse.Namespace(json=True, limit=0, project=None, query=[])
+    )
+
+    captured = capsys.readouterr()
+    stderr = " ".join(captured.err.split())
+    assert code == 0
+    assert json.loads(captured.out)[0]["name"] == "visible"
+    assert "agent search enrichment degraded" in stderr
+    assert "schema 999 is unsupported" in stderr
+
+
 def _patch_sources(
     monkeypatch: Any,
     snapshot: AgentCatalogSnapshot,
@@ -463,7 +485,10 @@ def _patch_sources(
     )
 
 
-def _snapshot(*rows: AgentCatalogRow) -> AgentCatalogSnapshot:
+def _snapshot(
+    *rows: AgentCatalogRow,
+    diagnostics: tuple[str, ...] = (),
+) -> AgentCatalogSnapshot:
     return AgentCatalogSnapshot(
         rows=tuple(rows),
         registry_entry_count=len(rows),
@@ -478,6 +503,7 @@ def _snapshot(*rows: AgentCatalogRow) -> AgentCatalogSnapshot:
             if not row.from_artifact_index and not row.from_dismissed_archive
         ),
         facets={},
+        diagnostics=diagnostics,
     )
 
 

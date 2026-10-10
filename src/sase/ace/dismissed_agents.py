@@ -215,6 +215,13 @@ def rebuild_dismissed_bundle_index() -> tuple[int, int]:
     return _rebuild_dismissed_bundle_index_impl(_ctx())
 
 
+def dismissed_bundle_index_progress() -> Any:
+    """Return the cheap current rebuild status for the dismissed archive."""
+    from .dismissed_bundle_index import dismissed_bundle_index_progress as progress
+
+    return progress(dismissed_bundles_dir())
+
+
 def verify_dismissed_bundle_index() -> dict[str, int | bool]:
     return _verify_dismissed_bundle_index_impl(_ctx())
 

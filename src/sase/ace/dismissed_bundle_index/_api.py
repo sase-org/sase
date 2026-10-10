@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -16,9 +17,11 @@ from ._bundle_io import (
     read_bundle,
 )
 from ._models import (
+    DismissedBundleIndexProgress,
     DismissedBundleIndexRebuildResult,
     DismissedBundleIndexVerifyResult,
     DismissedBundleSummary,
+    SCHEMA_VERSION,
 )
 from ._schema import (
     connection,
@@ -28,6 +31,23 @@ from ._schema import (
     write_connection,
 )
 from ._summary import summary_from_bundle, summary_from_row
+
+_REBUILD_LOCKS_GUARD = threading.Lock()
+_REBUILD_LOCKS: dict[str, threading.Lock] = {}
+_REBUILD_PROGRESS_GUARD = threading.Lock()
+_REBUILD_PROGRESS: dict[str, int] = {}
+
+
+def dismissed_bundle_index_progress(root: Path) -> DismissedBundleIndexProgress:
+    """Return rebuild state without opening the database or bundle files."""
+
+    key = _root_key(root)
+    with _REBUILD_PROGRESS_GUARD:
+        indexed_rows = _REBUILD_PROGRESS.get(key)
+    return DismissedBundleIndexProgress(
+        rebuilding=indexed_rows is not None,
+        indexed_rows=indexed_rows or 0,
+    )
 
 
 def archive_index_exists(root: Path) -> bool:
@@ -207,19 +227,47 @@ def set_archive_visibility_for_suffixes(
 def rebuild_index(root: Path) -> DismissedBundleIndexRebuildResult:
     """Rebuild the entire dismissed bundle index from bundle JSON files."""
 
-    indexed = 0
-    skipped = 0
-    root.mkdir(parents=True, exist_ok=True)
-    with write_connection(root) as conn:
-        conn.execute("DELETE FROM dismissed_bundle_summaries")
-        conn.execute("DELETE FROM dismissed_bundle_search_fts")
-        indexed = rebuild_rows_from_bundles(conn, root)
-        bundle_count = len(iter_bundle_paths(root))
-        skipped = max(0, bundle_count - indexed)
+    key = _root_key(root)
+    with _REBUILD_LOCKS_GUARD:
+        rebuild_lock = _REBUILD_LOCKS.setdefault(key, threading.Lock())
+    with rebuild_lock:
+        _set_rebuild_progress(key, 0)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            paths = iter_bundle_paths(root)
+            with write_connection(root) as conn:
+                conn.execute("DELETE FROM dismissed_bundle_summaries")
+                conn.execute("DELETE FROM dismissed_bundle_search_fts")
+                indexed = rebuild_rows_from_bundles(
+                    conn,
+                    root,
+                    paths=paths,
+                    on_progress=lambda rows: _set_rebuild_progress(key, rows),
+                )
+            skipped = max(0, len(paths) - indexed)
+        finally:
+            _clear_rebuild_progress(key)
     return DismissedBundleIndexRebuildResult(
         indexed_rows=indexed,
         skipped_corrupt=skipped,
     )
+
+
+def _root_key(root: Path) -> str:
+    try:
+        return str(root.expanduser().resolve())
+    except (OSError, RuntimeError, ValueError):
+        return str(root.expanduser().absolute())
+
+
+def _set_rebuild_progress(key: str, indexed_rows: int) -> None:
+    with _REBUILD_PROGRESS_GUARD:
+        _REBUILD_PROGRESS[key] = indexed_rows
+
+
+def _clear_rebuild_progress(key: str) -> None:
+    with _REBUILD_PROGRESS_GUARD:
+        _REBUILD_PROGRESS.pop(key, None)
 
 
 def query_summary_identities(root: Path) -> set[tuple[str, str, str | None]] | None:
@@ -274,6 +322,16 @@ def verify_index(root: Path) -> DismissedBundleIndexVerifyResult:
     if index_path_for_root(root).is_file():
         try:
             with connection(root, create=False) as conn:
+                version_row = conn.execute(
+                    "SELECT value FROM dismissed_bundle_index_meta "
+                    "WHERE key = 'schema_version'"
+                ).fetchone()
+                try:
+                    version = int(version_row["value"]) if version_row else 0
+                except (TypeError, ValueError):
+                    version = 0
+                if version != SCHEMA_VERSION:
+                    stale_rows = 1
                 rows = conn.execute(
                     "SELECT bundle_path, mtime_ns, size_bytes "
                     "FROM dismissed_bundle_summaries"
@@ -285,6 +343,8 @@ def verify_index(root: Path) -> DismissedBundleIndexVerifyResult:
                 )
         except sqlite3.Error:
             stale_rows = 1
+    else:
+        stale_rows = 1
 
     for bundle_path, signature in indexed.items():
         try:

@@ -1,7 +1,7 @@
 """Tests for dismissed bundle persistence."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -30,12 +30,30 @@ def test_bundle_save_load_round_trip(tmp_path: Path) -> None:
         agent.tribe = "backend"
         assert save_dismissed_bundle(agent)
 
+        bundle_path = bundles_dir / "202506" / "20250615103000.json"
+        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+        dismissed_at = datetime.fromisoformat(bundle["dismissed_at"])
+        assert dismissed_at.tzinfo is not None
+        assert dismissed_at.utcoffset() == timedelta(0)
+
         loaded = load_dismissed_bundles()
         assert len(loaded) == 1
         assert loaded[0].identity == agent.identity
         assert loaded[0].cl_name == "test_cl"
         assert loaded[0].tribe == "backend"
         assert loaded[0].start_time == datetime(2025, 6, 15, 10, 30, 0)
+
+
+def test_existing_dismissed_timestamp_is_preserved_as_utc() -> None:
+    """A synced timestamp keeps its instant while being normalized to UTC."""
+    from sase.ace.dismissed_agents_bundles import _prepare_archive_bundle
+
+    bundle = make_agent().to_bundle_dict()
+    bundle["dismissed_at"] = "2025-06-15T07:30:00-05:00"
+
+    _prepare_archive_bundle(bundle)
+
+    assert bundle["dismissed_at"] == "2025-06-15T12:30:00+00:00"
 
 
 def test_bundle_load_attaches_project_display_name_without_serializing_it(

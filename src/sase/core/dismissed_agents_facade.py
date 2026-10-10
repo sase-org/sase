@@ -49,6 +49,12 @@ def rebuild_dismissed_bundle_index() -> tuple[int, int]:
     return dismissed_agents.rebuild_dismissed_bundle_index()
 
 
+def dismissed_bundle_index_progress() -> Any:
+    from sase.ace import dismissed_agents
+
+    return dismissed_agents.dismissed_bundle_index_progress()
+
+
 def load_dismissed_bundle_summaries(
     *,
     suffixes: set[str] | None = None,
@@ -94,6 +100,7 @@ __all__ = [
     "add_dismissed_agents",
     "archive_index_exists",
     "dismissed_agent_groups_dir",
+    "dismissed_bundle_index_progress",
     "dismissed_bundles_dir",
     "iter_dismissed_bundle_paths",
     "load_dismissed_agents",
