@@ -6034,11 +6034,6 @@
           "default": true,
           "deprecated": true
         },
-        "agent_auto_restart": {
-          "type": "boolean",
-          "description": "Automatic one-time relaunch of agents broken by a live sase update",
-          "default": false
-        },
         "agent_sudo_requests": {
           "type": "boolean",
           "description": "Gate the typed sudo request workflow while the runner, TUI modal, skill guard, and SSH relay phases land.",

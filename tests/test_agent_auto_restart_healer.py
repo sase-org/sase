@@ -14,7 +14,7 @@ import pytest
 from sase.agent.auto_restart import healer
 from sase.agent.auto_restart.healer import (
     HealerTarget,
-    apply_skip_rules,
+    _apply_skip_rules,
     heal_one,
 )
 from sase.agent.auto_restart.probe import run_probe
@@ -134,14 +134,14 @@ def test_skip_already_restarted(failed_row: Path) -> None:
     meta["auto_restart"] = {"ledger_key": "sase__abc"}
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     done = json.loads((failed_row / "done.json").read_text(encoding="utf-8"))
-    decision = apply_skip_rules(_target(failed_row), done=done, meta=meta)
+    decision = _apply_skip_rules(_target(failed_row), done=done, meta=meta)
     assert decision.skip
     assert decision.decline_reason == "already_restarted"
 
 
 def test_skip_killed_outcome(failed_row: Path) -> None:
     done = {"outcome": "killed", "kill_source": "user"}
-    decision = apply_skip_rules(_target(failed_row), done=done, meta={})
+    decision = _apply_skip_rules(_target(failed_row), done=done, meta={})
     assert decision.skip
     assert decision.decline_reason == "killed"
     assert not decision.loud
@@ -149,21 +149,21 @@ def test_skip_killed_outcome(failed_row: Path) -> None:
 
 def test_skip_non_failed_row(failed_row: Path) -> None:
     done = {"outcome": "done"}
-    decision = apply_skip_rules(_target(failed_row), done=done, meta={})
+    decision = _apply_skip_rules(_target(failed_row), done=done, meta={})
     assert decision.skip
     assert decision.decline_reason == "no_longer_failed"
 
 
 def test_skip_remote_row(failed_row: Path) -> None:
     done = {"outcome": "failed", "is_remote": True}
-    decision = apply_skip_rules(_target(failed_row), done=done, meta={})
+    decision = _apply_skip_rules(_target(failed_row), done=done, meta={})
     assert decision.skip
     assert decision.decline_reason == "remote"
 
 
 def test_no_skip_for_plain_failed_row(failed_row: Path) -> None:
     done = json.loads((failed_row / "done.json").read_text(encoding="utf-8"))
-    decision = apply_skip_rules(_target(failed_row), done=done, meta={})
+    decision = _apply_skip_rules(_target(failed_row), done=done, meta={})
     assert not decision.skip
 
 
@@ -257,7 +257,7 @@ def test_quiescence_returns_a_reason() -> None:
     assert result.reason
 
 
-# Gate: both the flag and the config must agree.
+# Gate: the config kill switch alone decides (the beta flag is retired).
 def test_gate_off_when_config_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     import sase.config._settings_system as settings
     from sase.agent.auto_restart import gate
@@ -266,29 +266,11 @@ def test_gate_off_when_config_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     assert gate.auto_restart_automatic_enabled() is False
 
 
-def test_gate_off_when_flag_snapshot_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_gate_on_when_config_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     import sase.config._settings_system as settings
-    import sase.feature_flags as flags
     from sase.agent.auto_restart import gate
 
     monkeypatch.setattr(settings, "get_agent_auto_restart_enabled", lambda: True)
-
-    def _boom() -> Any:
-        raise RuntimeError("no flags here")
-
-    monkeypatch.setattr(flags, "current_flags", _boom)
-    assert gate.auto_restart_automatic_enabled() is False
-
-
-def test_gate_on_when_both_agree(monkeypatch: pytest.MonkeyPatch) -> None:
-    import sase.config._settings_system as settings
-    import sase.feature_flags as flags
-    from sase.agent.auto_restart import gate
-
-    monkeypatch.setattr(settings, "get_agent_auto_restart_enabled", lambda: True)
-    monkeypatch.setattr(
-        flags, "current_flags", lambda: SimpleNamespace(enabled=lambda key: True)
-    )
     assert gate.auto_restart_automatic_enabled() is True
 
 

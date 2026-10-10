@@ -48,7 +48,7 @@ def auto_restart_root() -> Path:
     return sase_subdir("agent_auto_restart")
 
 
-def ledger_dir() -> Path:
+def _ledger_dir() -> Path:
     """Return the directory holding one JSON record per lineage."""
     return auto_restart_root() / LEDGER_DIRNAME
 
@@ -70,9 +70,9 @@ def ledger_key(project: str, lineage_root: str) -> str:
     return f"{safe_project}__{safe_lineage}"
 
 
-def ledger_record_path(key: str) -> Path:
+def _ledger_record_path(key: str) -> Path:
     """Return the JSON path for one ledger key."""
-    return ledger_dir() / f"{key}.json"
+    return _ledger_dir() / f"{key}.json"
 
 
 @dataclass(frozen=True)
@@ -102,7 +102,7 @@ def load_ledger_record(key: str) -> StoredLedgerRecord | None:
     """Load one ledger record, or ``None`` when no claim exists."""
     import json
 
-    path = ledger_record_path(key)
+    path = _ledger_record_path(key)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, NotADirectoryError):
@@ -160,7 +160,7 @@ def claim_ledger_record(
     if failed_artifacts_dir is not None:
         payload["failed_artifacts_dir"] = failed_artifacts_dir
     try:
-        atomic_write_json(ledger_record_path(key), payload, exclusive=True)
+        atomic_write_json(_ledger_record_path(key), payload, exclusive=True)
     except FileExistsError:
         return load_ledger_record(key)
     stored = _split_stored(payload)
@@ -179,7 +179,7 @@ def store_ledger_record(
             if key in extra:
                 merged[key] = extra[key]
     payload = _join_stored(stored.record, merged)
-    path = ledger_record_path(stored.record.key)
+    path = _ledger_record_path(stored.record.key)
     try:
         with file_lock(path.with_suffix(".lock"), timeout=10.0):
             atomic_write_json(path, payload)
@@ -241,7 +241,7 @@ def claimer_is_live(stored: StoredLedgerRecord) -> bool:
 
 def iter_ledger_records() -> list[StoredLedgerRecord]:
     """Load every ledger record, newest claim first; corrupt rows are skipped."""
-    directory = ledger_dir()
+    directory = _ledger_dir()
     try:
         paths = sorted(
             directory.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
@@ -294,9 +294,7 @@ __all__ = [
     "claimer_is_live",
     "delete_doorbell",
     "iter_ledger_records",
-    "ledger_dir",
     "ledger_key",
-    "ledger_record_path",
     "list_doorbells",
     "load_ledger_record",
     "store_ledger_record",

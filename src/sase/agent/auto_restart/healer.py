@@ -56,7 +56,7 @@ class HealerOutcome:
 
 
 @dataclass(frozen=True)
-class SkipDecision:
+class _SkipDecision:
     """One skip-rule evaluation."""
 
     skip: bool
@@ -492,7 +492,7 @@ def _heal_claimed(
     from sase.agent.auto_restart import ledger as ledger_mod
 
     key = stored.record.key
-    skip = apply_skip_rules(target, done=done, meta=meta)
+    skip = _apply_skip_rules(target, done=done, meta=meta)
     if skip.skip:
         if not dry_run:
             stored = ledger_mod.advance_ledger_record(
@@ -621,54 +621,54 @@ def _heal_claimed(
     )
 
 
-def apply_skip_rules(
+def _apply_skip_rules(
     target: HealerTarget,
     *,
     done: Mapping[str, Any],
     meta: Mapping[str, Any],
-) -> SkipDecision:
+) -> _SkipDecision:
     """Apply the user-intent skip rules against fresh state (re-validated)."""
     if meta.get("auto_restart") is not None:
-        return SkipDecision(
+        return _SkipDecision(
             skip=True,
             decline_reason="already_restarted",
             reason_text="auto-restart skipped — already restarted once",
         )
     if _is_remote_done(done, meta):
-        return SkipDecision(
+        return _SkipDecision(
             skip=True,
             decline_reason="remote",
             reason_text="auto-restart skipped — remote agent",
             loud=False,
         )
     if _outcome_is_killed(done):
-        return SkipDecision(
+        return _SkipDecision(
             skip=True,
             decline_reason="killed",
             reason_text="auto-restart skipped — agent was killed or stopped",
             loud=False,
         )
     if str(done.get("outcome", "")) != "failed":
-        return SkipDecision(
+        return _SkipDecision(
             skip=True,
             decline_reason="no_longer_failed",
             reason_text="auto-restart skipped — row is no longer failed",
             loud=False,
         )
     if _find_moved_on(target, meta):
-        return SkipDecision(
+        return _SkipDecision(
             skip=True,
             decline_reason="manual_relaunch",
             reason_text="auto-restart skipped — already relaunched by hand",
             loud=False,
         )
     if _has_pending_marker(target, meta):
-        return SkipDecision(
+        return _SkipDecision(
             skip=True,
             decline_reason="needs_user_decision",
             reason_text="not restarted — holding a question, plan, or gate marker",
         )
-    return SkipDecision(skip=False)
+    return _SkipDecision(skip=False)
 
 
 def _is_remote_done(done: Mapping[str, Any], meta: Mapping[str, Any]) -> bool:
@@ -855,7 +855,7 @@ def _relaunch(
     # Re-validate skip rules against fresh state immediately before mutating.
     fresh_done = _read_json(target.artifacts_dir / "done.json") or {}
     fresh_meta = _read_json(target.artifacts_dir / "agent_meta.json") or {}
-    skip = apply_skip_rules(target, done=fresh_done, meta=fresh_meta)
+    skip = _apply_skip_rules(target, done=fresh_done, meta=fresh_meta)
     if skip.skip:
         stored = ledger_mod.advance_ledger_record(
             stored, "decline", note=skip.decline_reason
@@ -1361,8 +1361,6 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 __all__ = [
     "HealerOutcome",
     "HealerTarget",
-    "SkipDecision",
-    "apply_skip_rules",
     "heal_one",
     "resolve_pending_targets",
     "resolve_targets",

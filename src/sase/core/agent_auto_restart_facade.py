@@ -106,11 +106,6 @@ def auto_restart_recovery_is_in_flight(state: str | None) -> bool:
     return bool(binding(state))
 
 
-def python_wire_schema_version() -> int:
-    """Return the Python mirror of the auto-restart wire schema version."""
-    return AGENT_AUTO_RESTART_WIRE_SCHEMA_VERSION
-
-
 __all__ = [
     "advance_auto_restart_ledger",
     "auto_restart_lineage_root",
@@ -119,5 +114,4 @@ __all__ = [
     "claim_auto_restart_ledger",
     "classify_agent_failure",
     "derive_auto_restart_episode",
-    "python_wire_schema_version",
 ]

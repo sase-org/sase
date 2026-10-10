@@ -22,7 +22,7 @@ PROBE_TIMEOUT_SECONDS = 20.0
 
 
 @dataclass(frozen=True)
-class ProbeResult:
+class _ProbeResult:
     """Outcome of one fresh-interpreter probe."""
 
     ok: bool
@@ -57,7 +57,7 @@ def run_probe(
     *,
     binding_checks: list[tuple[str, str]] | None = None,
     timeout: float = PROBE_TIMEOUT_SECONDS,
-) -> ProbeResult:
+) -> _ProbeResult:
     """Import *modules* in a fresh ``-I`` interpreter; check bindings."""
     import json
 
@@ -83,29 +83,29 @@ def run_probe(
             cwd=str(Path.home()),
         )
     except subprocess.TimeoutExpired:
-        return ProbeResult(
+        return _ProbeResult(
             ok=False,
             detail=f"probe timed out after {timeout:.0f}s",
         )
     except Exception as exc:
-        return ProbeResult(ok=False, detail=f"probe could not run: {exc}")
+        return _ProbeResult(ok=False, detail=f"probe could not run: {exc}")
     if proc.returncode != 0:
         tail = (proc.stderr or proc.stdout or "").strip()[-500:]
-        return ProbeResult(ok=False, detail=f"probe interpreter failed: {tail}")
+        return _ProbeResult(ok=False, detail=f"probe interpreter failed: {tail}")
     try:
         failures = json.loads(proc.stdout.strip() or "[]")
     except ValueError:
-        return ProbeResult(ok=False, detail="probe returned unparseable output")
+        return _ProbeResult(ok=False, detail="probe returned unparseable output")
     if not isinstance(failures, list):
-        return ProbeResult(ok=False, detail="probe returned an unexpected shape")
+        return _ProbeResult(ok=False, detail="probe returned an unexpected shape")
     failures = tuple(str(f) for f in failures)
     if failures:
-        return ProbeResult(
+        return _ProbeResult(
             ok=False,
             failures=failures,
             detail="; ".join(failures)[:1000],
         )
-    return ProbeResult(ok=True, detail="fresh interpreter imports cleanly")
+    return _ProbeResult(ok=True, detail="fresh interpreter imports cleanly")
 
 
 def probe_modules_for_frames(
@@ -156,7 +156,6 @@ def _path_to_module(filename: str, root: str) -> str | None:
 
 __all__ = [
     "PROBE_TIMEOUT_SECONDS",
-    "ProbeResult",
     "probe_modules_for_frames",
     "run_probe",
 ]

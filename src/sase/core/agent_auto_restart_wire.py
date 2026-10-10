@@ -68,7 +68,7 @@ def _str_list(value: Any) -> list[str]:
 
 
 @dataclass(frozen=True)
-class AgentFailureChainLinkWire:
+class _AgentFailureChainLinkWire:
     type: str = ""
     qualname: str = ""
     module: str = ""
@@ -76,20 +76,20 @@ class AgentFailureChainLinkWire:
 
 
 @dataclass(frozen=True)
-class AgentFailureImportErrorWire:
+class _AgentFailureImportErrorWire:
     name: str | None = None
     path: str | None = None
     missing_symbol: str | None = None
 
 
 @dataclass(frozen=True)
-class AgentFailureAttributeErrorWire:
+class _AgentFailureAttributeErrorWire:
     module: str | None = None
     attribute: str | None = None
 
 
 @dataclass(frozen=True)
-class AgentFailureFrameWire:
+class _AgentFailureFrameWire:
     file: str = ""
     function: str = ""
     line: int | None = None
@@ -102,10 +102,10 @@ class AgentFailureFactsWire:
     schema_version: int = AGENT_AUTO_RESTART_WIRE_SCHEMA_VERSION
     captured_at: str | None = None
     lifecycle_phase: str | None = None
-    exception_chain: tuple[AgentFailureChainLinkWire, ...] = ()
-    import_error: AgentFailureImportErrorWire | None = None
-    attribute_error: AgentFailureAttributeErrorWire | None = None
-    frames: tuple[AgentFailureFrameWire, ...] = ()
+    exception_chain: tuple[_AgentFailureChainLinkWire, ...] = ()
+    import_error: _AgentFailureImportErrorWire | None = None
+    attribute_error: _AgentFailureAttributeErrorWire | None = None
+    frames: tuple[_AgentFailureFrameWire, ...] = ()
     last_frame_file: str | None = None
     skew_suspect: bool = False
     error_text: str | None = None
@@ -144,7 +144,7 @@ class AutoRestartFileProofWire:
 
 
 @dataclass(frozen=True)
-class AutoRestartProbeWire:
+class _AutoRestartProbeWire:
     ok: bool = False
     failures: tuple[str, ...] = ()
 
@@ -162,7 +162,7 @@ class AutoRestartWitnessesWire:
     current_identity: str | None = None
     journal_updates: tuple[str, ...] = ()
     file_proof: AutoRestartFileProofWire | None = None
-    probe: AutoRestartProbeWire | None = None
+    probe: _AutoRestartProbeWire | None = None
     refresh_log_line: AutoRestartRefreshLogLineWire | None = None
 
 
@@ -185,7 +185,7 @@ class RecoveryVerdictWire:
 
 
 @dataclass(frozen=True)
-class AutoRestartLedgerHistoryWire:
+class _AutoRestartLedgerHistoryWire:
     state: str = ""
     at: str | None = None
     note: str | None = None
@@ -207,7 +207,7 @@ class AutoRestartLedgerRecordWire:
     evidence_dir: str | None = None
     decline_reason: str | None = None
     deferrals: int = 0
-    history: tuple[AutoRestartLedgerHistoryWire, ...] = ()
+    history: tuple[_AutoRestartLedgerHistoryWire, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -383,11 +383,11 @@ def recovery_verdict_from_dict(data: dict[str, Any]) -> RecoveryVerdictWire:
 def ledger_record_from_dict(data: dict[str, Any]) -> AutoRestartLedgerRecordWire:
     """Rehydrate a ledger record from the PyO3 dict shape."""
     _check_schema(data, what="AutoRestartLedgerRecordWire")
-    history: list[AutoRestartLedgerHistoryWire] = []
+    history: list[_AutoRestartLedgerHistoryWire] = []
     for entry in data.get("history") or []:
         if isinstance(entry, dict):
             history.append(
-                AutoRestartLedgerHistoryWire(
+                _AutoRestartLedgerHistoryWire(
                     state=str(entry.get("state", "")),
                     at=_opt_str(entry.get("at")),
                     note=_opt_str(entry.get("note")),
@@ -437,34 +437,34 @@ def agent_failure_facts_from_dict(data: Any) -> AgentFailureFactsWire | None:
     if not isinstance(data, dict) or not data:
         return None
 
-    def chain_link(entry: Any) -> AgentFailureChainLinkWire:
+    def chain_link(entry: Any) -> _AgentFailureChainLinkWire:
         if not isinstance(entry, dict):
-            return AgentFailureChainLinkWire()
-        return AgentFailureChainLinkWire(
+            return _AgentFailureChainLinkWire()
+        return _AgentFailureChainLinkWire(
             type=str(entry.get("type", "")),
             qualname=str(entry.get("qualname", "")),
             module=str(entry.get("module", "")),
             message=str(entry.get("message", "")),
         )
 
-    import_error: AgentFailureImportErrorWire | None = None
+    import_error: _AgentFailureImportErrorWire | None = None
     raw_import = data.get("import_error")
     if isinstance(raw_import, dict):
-        import_error = AgentFailureImportErrorWire(
+        import_error = _AgentFailureImportErrorWire(
             name=_opt_str(raw_import.get("name")),
             path=_opt_str(raw_import.get("path")),
             missing_symbol=_opt_str(raw_import.get("missing_symbol")),
         )
 
-    attribute_error: AgentFailureAttributeErrorWire | None = None
+    attribute_error: _AgentFailureAttributeErrorWire | None = None
     raw_attribute = data.get("attribute_error")
     if isinstance(raw_attribute, dict):
-        attribute_error = AgentFailureAttributeErrorWire(
+        attribute_error = _AgentFailureAttributeErrorWire(
             module=_opt_str(raw_attribute.get("module")),
             attribute=_opt_str(raw_attribute.get("attribute")),
         )
 
-    frames: list[AgentFailureFrameWire] = []
+    frames: list[_AgentFailureFrameWire] = []
     raw_frames = data.get("frames")
     if isinstance(raw_frames, list):
         for entry in raw_frames:
@@ -472,7 +472,7 @@ def agent_failure_facts_from_dict(data: Any) -> AgentFailureFactsWire | None:
                 continue
             line = entry.get("line")
             frames.append(
-                AgentFailureFrameWire(
+                _AgentFailureFrameWire(
                     file=str(entry.get("file", "")),
                     function=str(entry.get("function", "")),
                     line=None if line is None else int(line),
@@ -559,19 +559,13 @@ __all__ = [
     "VERDICT_MODE_DEFER",
     "VERDICT_MODE_NOTIFY_POST_PROVIDER",
     "VERDICT_MODE_RELAUNCH",
-    "AgentFailureAttributeErrorWire",
-    "AgentFailureChainLinkWire",
     "AgentFailureFactsWire",
-    "AgentFailureFrameWire",
-    "AgentFailureImportErrorWire",
     "AgentRecoveryWire",
     "AutoRestartContextWire",
     "AutoRestartEpisodeWire",
     "AutoRestartFileProofWire",
-    "AutoRestartLedgerHistoryWire",
     "AutoRestartLedgerRecordWire",
     "AutoRestartManagedRootWire",
-    "AutoRestartProbeWire",
     "AutoRestartRefreshLogLineWire",
     "AutoRestartWitnessesWire",
     "RecoveryVerdictWire",

@@ -277,15 +277,16 @@ release, where no live process writes anything — still resolves on the `max_qu
 backstop. `epic_launch_flush` is untouched by that guard; it already throttles via
 `run_every: "30s"`. `sidecar_auto_sync` lives in its own 30-second routine now.
 
-`agent_auto_restart` sweeps update-skew recoveries: it enumerates recovery doorbells,
-recent failed rows, and stale, deferred, and launched ledger records, then submits
-`sase agent auto-restart run -p -j` as a durable proc (concurrency key
-`agent-auto-restart`, one at a time) when work exists. It settles `launched` records
-from their replacement's outcome, re-surfaces stale `pending` rows, and — when the
-feature is off or paused — re-surfaces pending failures loudly instead of healing them.
-Its `fs` trigger watches `agent_auto_restart/doorbell` and the code-swap lock file with
-`max_quiet: "60s"`; idle ticks cost a handful of `stat()` calls and the full artifact
-scan runs at most once a minute.
+`agent_auto_restart` sweeps update-skew recoveries (see
+[`agent_auto_restart.md`](agent_auto_restart.md) for the full feature guide): it
+enumerates recovery doorbells, recent failed rows, and stale, deferred, and launched
+ledger records, then submits `sase agent auto-restart run -p -j` as a durable proc
+(concurrency key `agent-auto-restart`, one at a time) when work exists. It settles
+`launched` records from their replacement's outcome, re-surfaces stale `pending` rows,
+and — when the feature is off or paused — re-surfaces pending failures loudly instead of
+healing them. Its `fs` trigger watches `agent_auto_restart/doorbell` and the code-swap
+lock file with `max_quiet: "60s"`; idle ticks cost a handful of `stat()` calls and the
+full artifact scan runs at most once a minute.
 
 `wait_checks` unblocks a named dependency when the newest matching agent, or the newest
 matching workflow root and all of its children, has a successful terminal `done.json`

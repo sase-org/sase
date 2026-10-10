@@ -279,7 +279,7 @@ def _handle_run(args: argparse.Namespace) -> int:
     if not auto_restart_automatic_enabled():
         err.print(
             "sase agent auto-restart run: automatic restarts are disabled "
-            "(beta flag off or agent_auto_restart.enabled is false); "
+            "(agent_auto_restart.enabled is false); "
             "nothing was claimed or relaunched",
             style="yellow",
             soft_wrap=True,

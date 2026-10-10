@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class QuiescenceResult:
+class _QuiescenceResult:
     """Outcome of one quiescence check."""
 
     ok: bool
@@ -29,21 +29,21 @@ class QuiescenceResult:
     quiet_seconds: float | None = None
 
 
-def check_quiescence(*, quiescence_seconds: float) -> QuiescenceResult:
+def check_quiescence(*, quiescence_seconds: float) -> _QuiescenceResult:
     """Return whether the tree is quiet enough to relaunch."""
     writer = _writer_holds_lock()
     if writer is None:
-        return QuiescenceResult(ok=False, reason="could not probe the code-swap lock")
+        return _QuiescenceResult(ok=False, reason="could not probe the code-swap lock")
     if writer:
-        return QuiescenceResult(
+        return _QuiescenceResult(
             ok=False, reason="a sase update currently holds the code-swap lock"
         )
     last_change = _last_code_change_epoch()
     if last_change is None:
-        return QuiescenceResult(ok=True, reason="no code-change signal found")
+        return _QuiescenceResult(ok=True, reason="no code-change signal found")
     quiet = time.time() - last_change
     if quiet < quiescence_seconds:
-        return QuiescenceResult(
+        return _QuiescenceResult(
             ok=False,
             reason=(
                 "code changed "
@@ -51,7 +51,7 @@ def check_quiescence(*, quiescence_seconds: float) -> QuiescenceResult:
             ),
             quiet_seconds=quiet,
         )
-    return QuiescenceResult(
+    return _QuiescenceResult(
         ok=True,
         reason=f"code quiet for {quiet:.0f}s",
         quiet_seconds=quiet,
@@ -193,4 +193,4 @@ def _managed_head_epochs() -> list[float]:
     return epochs
 
 
-__all__ = ["QuiescenceResult", "check_quiescence"]
+__all__ = ["check_quiescence"]
