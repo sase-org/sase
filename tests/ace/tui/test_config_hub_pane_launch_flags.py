@@ -8,12 +8,8 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
-from sase.ace.tui.modals.config_hub_session import (
-    ConfigHubEntry,
-    validated_config_subtab,
-)
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.models_panel import LaunchPane, ModelsPanelResult
-from sase.feature_flags import override_flags
 from tests._models_panel_helpers import make_alias_view, patch_alias_views
 from tests.ace.tui._config_center_tabs_helpers import _HostApp
 from tests.ace.tui._config_hub_pane_helpers import (
@@ -150,89 +146,53 @@ async def test_embedded_launch_unchanged_close_does_not_refresh_indicators(
     assert close_calls == [True]
 
 
-async def test_config_hub_strip_thresholds_grow_for_the_flags_child(
+async def test_config_hub_strip_thresholds_cover_the_flags_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_hub_children(monkeypatch)
-    with override_flags(admin_center_flags=False):
-        async with _HostApp().run_test() as pilot:
-            modal = ConfigCenterModal(initial_tab="config")
-            pilot.app.push_screen(modal)
-            await wait_for(pilot, lambda: modal._active_tab == "config")
-            hub = modal.query_one("#config", ConfigHubPane)
-            assert len(hub._panel_tabs) == 6
-            assert hub._compact_below == 82
-            assert hub._micro_below == 60
-    with override_flags(admin_center_flags=True):
-        async with _HostApp().run_test() as pilot:
-            modal = ConfigCenterModal(initial_tab="config")
-            pilot.app.push_screen(modal)
-            await wait_for(pilot, lambda: modal._active_tab == "config")
-            hub = modal.query_one("#config", ConfigHubPane)
-            assert len(hub._panel_tabs) == 7
-            assert hub._compact_below == 82
-            assert hub._micro_below == 60
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(initial_tab="config")
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        assert len(hub._panel_tabs) == 7
+        assert hub._compact_below == 82
+        assert hub._micro_below == 60
 
 
-async def test_flags_resume_falls_back_when_rollout_is_off(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _created, calls = _patch_hub_children(monkeypatch)
-    state = AdminCenterSessionState()
-    state.config_hub.active_subtab = "flags"
-    with override_flags(admin_center_flags=False):
-        async with _HostApp().run_test() as pilot:
-            modal = ConfigCenterModal(initial_tab="config", session_state=state)
-            pilot.app.push_screen(modal)
-            await wait_for(pilot, lambda: modal._active_tab == "config")
-            hub = modal.query_one("#config", ConfigHubPane)
-            await wait_for(pilot, lambda: "misc" in hub._panes)
-
-            assert calls == ["misc"]
-            assert hub._active_subtab == "misc"
-            assert "flags" not in hub._subtab_order
-            assert validated_config_subtab("flags") is None
-            _assert_hub_caption(hub, "misc")
-
-
-async def test_flags_off_prefix_keeps_six_child_numbering(
+async def test_flags_prefix_keeps_seven_child_numbering(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_hub_children(monkeypatch)
-    with override_flags(admin_center_flags=False):
-        async with _HostApp().run_test() as pilot:
-            modal = ConfigCenterModal(initial_tab="config")
-            pilot.app.push_screen(modal)
-            await wait_for(pilot, lambda: modal._active_tab == "config")
-            hub = modal.query_one("#config", ConfigHubPane)
-            await wait_for(pilot, lambda: "misc" in hub._panes)
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(initial_tab="config")
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: "misc" in hub._panes)
 
-            await pilot.press("0", "1")
-            await wait_for(pilot, lambda: hub._active_subtab == "misc")
-            _assert_hub_caption(hub, "misc")
-            await pilot.press("0", "6")
-            await wait_for(pilot, lambda: hub._active_subtab == "macros")
-            await pilot.press("0", "7")
-            await pilot.pause()
-            assert hub._active_subtab == "macros"
-            _assert_hub_caption(hub, "macros")
+        await pilot.press("0", "1")
+        await wait_for(pilot, lambda: hub._active_subtab == "misc")
+        _assert_hub_caption(hub, "misc")
+        await pilot.press("0", "7")
+        await wait_for(pilot, lambda: hub._active_subtab == "macros")
+        _assert_hub_caption(hub, "macros")
 
 
 async def test_flags_direct_entry_shows_flags_caption(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
-    with override_flags(admin_center_flags=True):
-        async with _HostApp().run_test() as pilot:
-            modal = ConfigCenterModal(
-                initial_tab="config",
-                config_entry=ConfigHubEntry(subtab="flags"),
-            )
-            pilot.app.push_screen(modal)
-            await wait_for(pilot, lambda: modal._active_tab == "config")
-            hub = modal.query_one("#config", ConfigHubPane)
-            await wait_for(pilot, lambda: "flags" in hub._panes)
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="flags"),
+        )
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: "flags" in hub._panes)
 
-            assert calls == ["flags"]
-            _assert_hub_caption(hub, "flags")
-            assert "flags" in hub._subtab_order
+        assert calls == ["flags"]
+        _assert_hub_caption(hub, "flags")
+        assert "flags" in hub._subtab_order

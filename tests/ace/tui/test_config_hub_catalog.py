@@ -19,12 +19,10 @@ from sase.ace.tui.modals.config_hub_catalog import (
 )
 from sase.ace.tui.modals.config_hub_session import (
     CONFIG_SUBTAB_ORDER as SESSION_SUBTAB_ORDER,
-    CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS,
     config_subtab_order,
     validated_config_subtab,
 )
 from sase.ace.tui.modals.help_modal.binding_common import admin_center_opener_help_label
-from sase.feature_flags import FeatureFlag, override_flags
 
 _ROOT = Path(__file__).resolve().parents[3]
 _SESSION_PATH = (
@@ -100,45 +98,34 @@ def test_registered_catalog_is_alphabetized_with_all_first() -> None:
         "macros",
     )
     assert CONFIG_SUBTAB_ORDER == SESSION_SUBTAB_ORDER
-    assert CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS == (
-        "misc",
-        "holds",
-        "launch",
-        "memory",
-        "snippets",
-        "macros",
+
+
+def test_config_subtab_order_includes_flags() -> None:
+    assert config_subtab_order() == SESSION_SUBTAB_ORDER
+    tabs = config_panel_tabs()
+    assert tuple(spec.id for spec in config_subtab_specs()) == SESSION_SUBTAB_ORDER
+    assert tuple(tab.id for tab in tabs) == SESSION_SUBTAB_ORDER
+    assert tuple(tab.shortcut for tab in tabs) == (
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
     )
-
-
-def test_config_subtab_order_includes_flags_when_rollout_is_on() -> None:
-    with override_flags(admin_center_flags=True):
-        assert config_subtab_order() == SESSION_SUBTAB_ORDER
-        tabs = config_panel_tabs()
-        assert tuple(spec.id for spec in config_subtab_specs()) == SESSION_SUBTAB_ORDER
-        assert tuple(tab.id for tab in tabs) == SESSION_SUBTAB_ORDER
-        assert tuple(tab.shortcut for tab in tabs) == (
-            "01",
-            "02",
-            "03",
-            "04",
-            "05",
-            "06",
-            "07",
-        )
-        misc_spec = next(spec for spec in config_subtab_specs() if spec.id == "misc")
-        assert misc_spec.label == "All"
-        assert misc_spec.compact_label == "All"
-        assert misc_spec.micro_label == "All"
-        flags_spec = next(spec for spec in config_subtab_specs() if spec.id == "flags")
-        assert flags_spec.label == "Flags"
-        assert flags_spec.micro_label == "Flag"
-        assert validated_config_subtab("flags") == "flags"
-        assert validated_config_subtab("xprompts") == "macros"
-        launch_spec = next(
-            spec for spec in config_subtab_specs() if spec.id == "launch"
-        )
-        assert launch_spec.label == "Launch"
-        assert launch_spec.micro_label == "Run"
+    misc_spec = next(spec for spec in config_subtab_specs() if spec.id == "misc")
+    assert misc_spec.label == "All"
+    assert misc_spec.compact_label == "All"
+    assert misc_spec.micro_label == "All"
+    flags_spec = next(spec for spec in config_subtab_specs() if spec.id == "flags")
+    assert flags_spec.label == "Flags"
+    assert flags_spec.micro_label == "Flag"
+    assert validated_config_subtab("flags") == "flags"
+    assert validated_config_subtab("xprompts") == "macros"
+    launch_spec = next(spec for spec in config_subtab_specs() if spec.id == "launch")
+    assert launch_spec.label == "Launch"
+    assert launch_spec.micro_label == "Run"
 
 
 def test_registered_specs_carry_reviewed_full_and_compact_copy() -> None:
@@ -158,32 +145,21 @@ def test_registered_specs_carry_reviewed_full_and_compact_copy() -> None:
 
 
 def test_active_specs_keep_catalog_derived_description_order() -> None:
-    with override_flags(admin_center_flags=True):
-        specs = config_subtab_specs()
-        assert tuple(spec.id for spec in specs) == SESSION_SUBTAB_ORDER
-        assert tuple(
-            (spec.description, spec.compact_description) for spec in specs
-        ) == tuple(_REVIEWED_DESCRIPTIONS[subtab] for subtab in SESSION_SUBTAB_ORDER)
-
-    with override_flags(admin_center_flags=False):
-        specs = config_subtab_specs()
-        assert tuple(spec.id for spec in specs) == CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS
-        assert "flags" not in {spec.id for spec in specs}
-        assert tuple(
-            (spec.description, spec.compact_description) for spec in specs
-        ) == tuple(
-            _REVIEWED_DESCRIPTIONS[subtab]
-            for subtab in CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS
-        )
-        tabs = config_panel_tabs()
-        assert tuple(tab.shortcut for tab in tabs) == (
-            "01",
-            "02",
-            "03",
-            "04",
-            "05",
-            "06",
-        )
+    specs = config_subtab_specs()
+    assert tuple(spec.id for spec in specs) == SESSION_SUBTAB_ORDER
+    assert tuple(
+        (spec.description, spec.compact_description) for spec in specs
+    ) == tuple(_REVIEWED_DESCRIPTIONS[subtab] for subtab in SESSION_SUBTAB_ORDER)
+    tabs = config_panel_tabs()
+    assert tuple(tab.shortcut for tab in tabs) == (
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+    )
 
 
 def test_config_subtab_description_text_uses_cell_width() -> None:
@@ -203,38 +179,10 @@ def test_config_subtab_description_text_uses_cell_width() -> None:
     assert config_subtab_description_text(spec, width=0).plain == full.plain
 
 
-def test_config_subtab_order_omits_flags_when_rollout_is_off() -> None:
-    with override_flags(admin_center_flags=False):
-        assert config_subtab_order() == CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS
-        tabs = config_panel_tabs()
-        assert tuple(spec.id for spec in config_subtab_specs()) == (
-            CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS
-        )
-        assert tuple(tab.id for tab in tabs) == CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS
-        assert tuple(tab.shortcut for tab in tabs) == (
-            "01",
-            "02",
-            "03",
-            "04",
-            "05",
-            "06",
-        )
-        assert validated_config_subtab("flags") is None
-        assert validated_config_subtab("memory") == "memory"
-        assert validated_config_subtab("launch") == "launch"
-        assert validated_config_subtab("holds") == "holds"
-
-
 def test_config_catalog_does_not_resolve_flags_at_import() -> None:
     for path in (_SESSION_PATH, _CATALOG_PATH, _CENTER_CATALOG_PATH):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         assert not _module_calls_current_flags(tree), path
-
-
-def test_admin_center_flags_call_site_uses_snapshot_enabled() -> None:
-    source = _SESSION_PATH.read_text(encoding="utf-8")
-    assert "current_flags().enabled(FeatureFlag.admin_center_flags)" in source
-    assert FeatureFlag.admin_center_flags == "admin_center_flags"
 
 
 def _module_calls_current_flags(tree: ast.AST) -> bool:

@@ -31,7 +31,6 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
 )
 from sase.core.state_write_guard import pytest_path_is_sandboxed
 from sase.core.time import local_now
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.procs import Proc, proc_store_path, read_procs
 
 from ._proc_observer_log import ObservedProcLog, ProcLogLine, ProcLogStream
@@ -376,12 +375,6 @@ class ProcObserver:
         """Return durable proc rows, skipping an unchanged store parse."""
         force_read = self._force_store_read
         self._force_store_read = False
-        if not current_flags().enabled(FeatureFlag.ace_refresh_tokens):
-            rows = read_procs()
-            self._cached_store_rows = rows
-            self._last_proc_store_token = None
-            return rows
-
         token = probe_procs_token(proc_store_path())
         now_mono = time.monotonic()
         sanity_due = (

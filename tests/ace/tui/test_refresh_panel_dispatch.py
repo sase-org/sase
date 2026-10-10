@@ -1,4 +1,4 @@
-"""Both-states coverage for Refresh panel gesture wiring."""
+"""Coverage for Refresh panel gesture wiring."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from sase.ace.tui.actions.event_refresh._freshness import freshness_label
 from sase.ace.tui.actions.refresh_panel import (
     FULL_HISTORY_MIGRATION_BANNER,
     REFRESH_PANEL_COMMAND_LABEL,
-    REFRESH_TAB_COMMAND_LABEL,
 )
 from sase.ace.tui.commands import iter_app_commands, iter_mode_commands
 from sase.ace.tui.keymaps import load_keymap_registry
@@ -19,7 +18,6 @@ from sase.ace.tui.modals.help_modal.axe_bindings import axe_bindings
 from sase.ace.tui.modals.help_modal.patches_bindings import cls_bindings
 from sase.ace.tui.modals.refresh_panel_modal import RefreshPanelModal
 from sase.ace.tui.widgets import KeybindingFooter
-from sase.feature_flags import override_flags
 from sase.llm_provider.usage.refresh import (
     USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
     UsageRefreshReceipt,
@@ -121,11 +119,10 @@ def _started_receipt(*providers: str) -> UsageRefreshReceipt:
     )
 
 
-def test_flag_on_refresh_pushes_panel_and_this_tab_dispatches() -> None:
+def test_refresh_pushes_panel_and_this_tab_dispatches() -> None:
     app = _DispatchApp()
 
-    with override_flags(refresh_panel=True):
-        app.action_refresh()
+    app.action_refresh()
 
     assert len(app.pushed) == 1
     modal, callback = app.pushed[0]
@@ -142,11 +139,10 @@ def test_flag_on_refresh_pushes_panel_and_this_tab_dispatches() -> None:
     assert app.notifications == ["Refreshed"]
 
 
-def test_flag_on_full_history_works_from_artifacts_and_axe() -> None:
+def test_full_history_works_from_artifacts_and_axe() -> None:
     for tab in ("artifacts", "axe"):
         app = _DispatchApp(current_tab=tab)
-        with override_flags(refresh_panel=True):
-            app._dispatch_refresh_choice("full_history")
+        app._dispatch_refresh_choice("full_history")
 
         assert app.scheduled_agents == [
             {
@@ -159,12 +155,11 @@ def test_flag_on_full_history_works_from_artifacts_and_axe() -> None:
         assert app._agents_history_reconcile_pending is False
 
 
-def test_flag_on_usage_runs_off_the_ui_thread() -> None:
+def test_usage_runs_off_the_ui_thread() -> None:
     app = _DispatchApp()
     receipt = _started_receipt("synth")
 
     with (
-        override_flags(refresh_panel=True),
         patch(
             "sase.ace.tui.actions.refresh_panel.submit_usage_refresh",
             return_value=receipt,
@@ -180,11 +175,10 @@ def test_flag_on_usage_runs_off_the_ui_thread() -> None:
     assert app.notifications == ["Refreshing usage: synth"]
 
 
-def test_flag_on_everything_zeroes_sanity_before_sweep() -> None:
+def test_everything_zeroes_sanity_before_sweep() -> None:
     app = _DispatchApp()
 
     with (
-        override_flags(refresh_panel=True),
         patch(
             "sase.ace.tui.actions.refresh_panel.submit_usage_refresh",
             return_value=_started_receipt("synth"),
@@ -200,11 +194,10 @@ def test_flag_on_everything_zeroes_sanity_before_sweep() -> None:
     assert "Refreshing everything" in app.notifications
 
 
-def test_flag_on_comma_y_opens_panel_on_full_history() -> None:
+def test_comma_y_opens_panel_on_full_history() -> None:
     app = _FakeApp(current_tab="agents")
 
-    with override_flags(refresh_panel=True):
-        handled = app._handle_leader_key("y")
+    handled = app._handle_leader_key("y")
 
     assert handled is True
     assert app.full_history_refresh_count == 0
@@ -217,109 +210,47 @@ def test_flag_on_comma_y_opens_panel_on_full_history() -> None:
     ]
 
 
-def test_flag_on_comma_y_opens_panel_from_non_agents_tab() -> None:
+def test_comma_y_opens_panel_from_non_agents_tab() -> None:
     app = _FakeApp(current_tab="patches")
 
-    with override_flags(refresh_panel=True):
-        handled = app._handle_leader_key("y")
+    handled = app._handle_leader_key("y")
 
     assert handled is True
     assert app.full_history_refresh_count == 0
     assert app.refresh_panel_opens[0]["initial_choice"] == "full_history"
 
 
-def test_flag_on_footer_palette_and_help_omit_comma_y() -> None:
-    with override_flags(refresh_panel=True):
-        footer = KeybindingFooter()
-        captured = _capture_bindings(footer)
-        footer.update_leader_bindings(current_tab="agents")
-        assert "full history refresh" not in _last_labels(captured)
+def test_footer_palette_and_help_omit_comma_y() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+    footer.update_leader_bindings(current_tab="agents")
+    assert "full history refresh" not in _last_labels(captured)
 
-        catalog_ids = {spec.id for spec in iter_mode_commands(load_keymap_registry({}))}
-        assert "leader.full_history_refresh" not in catalog_ids
-        catalog = list(iter_app_commands(load_keymap_registry({})))
-        refresh = next(spec for spec in catalog if spec.id == "app.refresh")
-        agents_refresh = next(
-            spec for spec in catalog if spec.id == "app.agents_refresh"
-        )
-        assert refresh.label == REFRESH_PANEL_COMMAND_LABEL
-        assert agents_refresh.label == REFRESH_PANEL_COMMAND_LABEL
-        assert agents_refresh.tabs == ("agents",)
-        assert refresh.tabs == ("artifacts", "services")
+    catalog_ids = {spec.id for spec in iter_mode_commands(load_keymap_registry({}))}
+    assert "leader.full_history_refresh" not in catalog_ids
+    catalog = list(iter_app_commands(load_keymap_registry({})))
+    refresh = next(spec for spec in catalog if spec.id == "app.refresh")
+    agents_refresh = next(spec for spec in catalog if spec.id == "app.agents_refresh")
+    assert refresh.label == REFRESH_PANEL_COMMAND_LABEL
+    assert agents_refresh.label == REFRESH_PANEL_COMMAND_LABEL
+    assert agents_refresh.tabs == ("agents",)
+    assert refresh.tabs == ("artifacts", "services")
 
-        labels = _help_labels(agents_bindings)
-        assert "Refresh from full history" not in labels
-        assert "Open Refresh panel" in labels
-        assert "Open Refresh panel" in _help_labels(cls_bindings)
-        assert "Open Refresh panel" in _help_labels(axe_bindings)
+    labels = _help_labels(agents_bindings)
+    assert "Refresh from full history" not in labels
+    assert "Open Refresh panel" in labels
+    assert "Open Refresh panel" in _help_labels(cls_bindings)
+    assert "Open Refresh panel" in _help_labels(axe_bindings)
 
 
-def test_flag_off_refresh_is_immediate() -> None:
+def test_agents_refresh_opens_panel() -> None:
     app = _DispatchApp()
 
-    with override_flags(refresh_panel=False):
-        app.action_refresh()
-
-    assert app.pushed == []
-    assert app.scheduled_agents == [{"source": "manual", "full_history": False}]
-    assert app.notifications == ["Refreshed"]
-
-
-def test_agents_refresh_opens_panel_when_flag_on() -> None:
-    app = _DispatchApp()
-
-    with override_flags(refresh_panel=True):
-        app.action_agents_refresh()
+    app.action_agents_refresh()
 
     assert len(app.pushed) == 1
     assert isinstance(app.pushed[0][0], RefreshPanelModal)
     assert app.scheduled_agents == []
-
-
-def test_agents_refresh_is_immediate_when_flag_off() -> None:
-    app = _DispatchApp()
-
-    with override_flags(refresh_panel=False):
-        app.action_agents_refresh()
-
-    assert app.pushed == []
-    assert app.scheduled_agents == [{"source": "manual", "full_history": False}]
-    assert app.notifications == ["Refreshed"]
-
-
-def test_flag_off_comma_y_calls_full_history_directly() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    with override_flags(refresh_panel=False):
-        handled = app._handle_leader_key("y")
-
-    assert handled is True
-    assert app.full_history_refresh_count == 1
-    assert app.refresh_panel_opens == []
-
-
-def test_flag_off_footer_palette_and_help_keep_comma_y() -> None:
-    with override_flags(refresh_panel=False):
-        footer = KeybindingFooter()
-        captured = _capture_bindings(footer)
-        footer.update_leader_bindings(current_tab="agents")
-        assert "full history refresh" in _last_labels(captured)
-
-        catalog_ids = {spec.id for spec in iter_mode_commands(load_keymap_registry({}))}
-        assert "leader.full_history_refresh" in catalog_ids
-        catalog = list(iter_app_commands(load_keymap_registry({})))
-        refresh = next(spec for spec in catalog if spec.id == "app.refresh")
-        agents_refresh = next(
-            spec for spec in catalog if spec.id == "app.agents_refresh"
-        )
-        assert refresh.label == REFRESH_TAB_COMMAND_LABEL
-        assert agents_refresh.label == REFRESH_TAB_COMMAND_LABEL
-
-        labels = _help_labels(agents_bindings)
-        assert "Refresh from full history" in labels
-        assert "Open Refresh panel" not in labels
-        assert "Open Refresh panel" not in _help_labels(cls_bindings)
-        assert "Open Refresh panel" not in _help_labels(axe_bindings)
 
 
 def test_panel_rows_use_in_memory_freshness_and_tab_label() -> None:
@@ -331,7 +262,6 @@ def test_panel_rows_use_in_memory_freshness_and_tab_label() -> None:
     app._surface_refreshed_mono = {"artifacts": 0.0, "agents_full_history": 0.0}
 
     with (
-        override_flags(refresh_panel=True),
         patch(
             "sase.ace.tui.actions.refresh_panel.surface_refreshed_age",
             side_effect=lambda _app, surface: {
@@ -361,13 +291,12 @@ def test_provider_pane_label_does_not_dispatch_on_ref_prefix() -> None:
     assert app._refresh_tab_label() == "Artifacts › Plan"
 
 
-def test_flag_on_cancel_does_not_refresh() -> None:
+def test_cancel_does_not_refresh() -> None:
     app = _DispatchApp()
 
-    with override_flags(refresh_panel=True):
-        app.action_refresh()
-        _modal, callback = app.pushed[0]
-        callback(None)
+    app.action_refresh()
+    _modal, callback = app.pushed[0]
+    callback(None)
 
     assert app.scheduled_agents == []
     assert app.notifications == []

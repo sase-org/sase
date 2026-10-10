@@ -11,7 +11,6 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.help_modal.agents_bindings import agents_bindings
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import KeybindingFooter
-from sase.feature_flags import override_flags
 from tests._command_availability_helpers import catalog_by_id, make_agent
 
 
@@ -116,16 +115,15 @@ def test_footer_and_help_follow_agents_retry_override() -> None:
     assert ("f8", "Retry local or remote agent") in help_pairs
 
 
-def test_agents_help_refresh_label_follows_flag() -> None:
+def test_agents_help_refresh_label_opens_panel() -> None:
     registry = load_keymap_registry({})
-    with override_flags(refresh_panel=False):
-        labels = {
-            (key, label)
-            for _section, rows in agents_bindings(registry)
-            for key, label in rows
-        }
-        assert ("r", "Refresh") in labels
-        assert ("r", "Open Refresh panel") not in labels
+    labels = {
+        (key, label)
+        for _section, rows in agents_bindings(registry)
+        for key, label in rows
+    }
+    assert ("r", "Open Refresh panel") in labels
+    assert ("r", "Refresh") not in labels
 
 
 async def test_agents_r_refreshes_and_R_retries(

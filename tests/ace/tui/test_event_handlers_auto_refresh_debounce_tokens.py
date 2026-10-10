@@ -10,7 +10,6 @@ import pytest
 
 from sase.ace.tui.actions._event_refresh import AGENTS_LOAD_MIN_INTERVAL_SECONDS
 from sase.ace.tui.actions.event_handlers import FULL_SANITY_REFRESH_SECONDS
-from sase.feature_flags import override_flags
 
 from ._event_handlers_dirty_flags_helpers import _FakeApp, _surface_token_snapshot
 
@@ -25,8 +24,7 @@ async def test_fallback_broad_load_covers_retained_exact_agent_delta() -> None:
     app._dirty_agent_artifact_dirs = (artifact_dir,)
     app._probed_surface_tokens = _surface_token_snapshot(agents=3)
 
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["agents", "delta-load:watcher:1"]
     assert app.delta_load_requests == [("watcher", (artifact_dir,))]
@@ -95,8 +93,7 @@ async def test_auto_refresh_tick_emits_surface_reload_trace(
 
     app = _FakeApp(watcher_active=False)
     app._probed_surface_tokens = _surface_token_snapshot(axe=2)
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
 
     trace._flush_trace_writes()
     rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
@@ -112,10 +109,9 @@ async def test_auto_refresh_tick_emits_surface_reload_trace(
 
 @pytest.mark.asyncio
 async def test_watcherless_matching_tokens_skip_refreshes() -> None:
-    """Enabled tokens restore the dirty gate even without a watcher."""
+    """Stat-only tokens restore the dirty gate even without a watcher."""
     app = _FakeApp(watcher_active=False)
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls == []
     assert app.token_probe_calls == 1
 
@@ -124,8 +120,7 @@ async def test_watcherless_matching_tokens_skip_refreshes() -> None:
 async def test_watcherless_token_drift_refreshes_only_that_surface() -> None:
     app = _FakeApp(watcher_active=False)
     app._probed_surface_tokens = _surface_token_snapshot(axe=2)
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls == ["axe"]
     assert app._last_completed_surface_tokens["axe"] == app._probed_surface_tokens.axe
 
@@ -135,8 +130,7 @@ async def test_watcher_and_token_drift_both_refresh() -> None:
     """Token drift works even when the watcher is active and flags are clean."""
     app = _FakeApp(watcher_active=True)
     app._probed_surface_tokens = _surface_token_snapshot(notifications=9)
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls == ["notifications"]
 
 
@@ -144,8 +138,7 @@ async def test_watcher_and_token_drift_both_refresh() -> None:
 async def test_first_load_baselines_tokens_after_success() -> None:
     app = _FakeApp(watcher_active=False)
     app._last_completed_surface_tokens = {}
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert "axe" in app.refresh_calls
     assert "notifications" in app.refresh_calls
     assert "agents" in app.refresh_calls
@@ -160,8 +153,7 @@ async def test_off_tab_token_drift_keeps_old_agents_baseline() -> None:
     app.current_tab = "patches"
     previous = app._last_completed_surface_tokens["agents"]
     app._probed_surface_tokens = _surface_token_snapshot(agents=4)
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert "agents" not in app.refresh_calls
     assert app._last_completed_surface_tokens["agents"] == previous
 
@@ -175,8 +167,7 @@ async def test_debounced_token_drift_keeps_old_agents_baseline() -> None:
     previous = app._last_completed_surface_tokens["agents"]
     app._dirty_agents = True
     app._probed_surface_tokens = _surface_token_snapshot(agents=8)
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls.count("agents") == 1
     assert app._dirty_agents is True
     assert app._last_completed_surface_tokens["agents"] == previous
@@ -187,8 +178,7 @@ async def test_exact_agent_delta_accepts_token_without_fallback() -> None:
     app = _FakeApp(watcher_active=True)
     app._dirty_agent_artifact_dirs = (Path("/tmp/artifacts/a"),)
     app._probed_surface_tokens = _surface_token_snapshot(agents=3)
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls == ["delta:watcher:1"]
     assert app._last_completed_surface_tokens["agents"] == (
         app._probed_surface_tokens.agents
@@ -200,8 +190,7 @@ async def test_token_probe_failure_fails_open() -> None:
     app = _FakeApp(watcher_active=False)
     app._probed_surface_tokens = _surface_token_snapshot(indeterminate="axe")
     previous = app._last_completed_surface_tokens["axe"]
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert "axe" in app.refresh_calls
     assert app._last_completed_surface_tokens["axe"] == previous
 
@@ -211,33 +200,18 @@ async def test_token_churn_does_not_overlap_in_flight_agent_load() -> None:
     app = _FakeApp(watcher_active=False)
     app._last_completed_surface_tokens = {}
     app._agents_loading = True
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
     assert "agents" not in app.refresh_calls
     assert app._last_completed_surface_tokens.get("agents") is None
 
 
 @pytest.mark.asyncio
-async def test_disabled_flag_preserves_watcherless_unconditional_refresh() -> None:
-    app = _FakeApp(watcher_active=False)
-    with override_flags(ace_refresh_tokens=False):
-        await app._run_auto_refresh()
-        app._last_agents_load_mono = (
-            time.monotonic() - AGENTS_LOAD_MIN_INTERVAL_SECONDS - 0.1
-        )
-        await app._run_auto_refresh()
-    assert app.refresh_calls.count("agents") == 2
-    assert app.token_probe_calls == 0
-
-
-@pytest.mark.asyncio
-async def test_enabled_flag_baselines_after_first_load_then_skips() -> None:
+async def test_baselines_after_first_load_then_skips() -> None:
     app = _FakeApp(watcher_active=False)
     app._last_completed_surface_tokens = {}
-    with override_flags(ace_refresh_tokens=True):
-        await app._run_auto_refresh()
-        app.refresh_calls.clear()
-        await app._run_auto_refresh()
+    await app._run_auto_refresh()
+    app.refresh_calls.clear()
+    await app._run_auto_refresh()
     assert app.refresh_calls == []
     completed = app._last_completed_surface_tokens
     probed = app._probed_surface_tokens

@@ -16,10 +16,6 @@ from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.feature_flags_pane import FeatureFlagsPane
 from sase.ace.tui.modals.feature_flags_pane_load import FeatureFlagsPaneLoad
-from sase.ace.tui.modals.feature_flags_pane_rendering import (
-    ROLLOUT_FLAG_KEY,
-    ROLLOUT_RECOVERY_COMMAND,
-)
 from sase.ace.tui.update_restart import restart_after_update_when_ready
 from sase.feature_flags.cli_views import FlagView
 from sase.feature_flags.models import (
@@ -387,33 +383,6 @@ async def test_mutation_failure_stays_in_pane_without_restart(
         assert restarts == []
         assert pane.is_mounted
         assert pane._mutating is False
-
-
-async def test_self_disable_confirmation_includes_recovery_command(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _install_load(
-        monkeypatch,
-        _payload(
-            (
-                _view(
-                    ROLLOUT_FLAG_KEY,
-                    kind="sunset",
-                    enabled=True,
-                    description="The Config catalog exposes the Flags pane.",
-                ),
-            )
-        ),
-    )
-    async with AcePage(initial_tab="agents") as page:
-        _modal, pane = await _open_flags_pane(page)
-        pane.action_toggle_flag()
-        await page.expect_modal("ConfirmActionModal")
-        modal = page.app.screen
-        assert isinstance(modal, ConfirmActionModal)
-        assert ROLLOUT_RECOVERY_COMMAND in (modal._subject or "")
-        assert "Flags pane will disappear" in (modal._subject or "")
-        await page.press("n")
 
 
 def test_active_proc_queues_restart_then_expires(

@@ -21,8 +21,6 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
-    ace_refresh_tokens = "ace_refresh_tokens"
-    admin_center_flags = "admin_center_flags"
     axe_routine_job_contract = "axe_routine_job_contract"
     agent_sudo_requests = "agent_sudo_requests"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
@@ -30,8 +28,6 @@ class FeatureFlag(StrEnum):
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
-    ref_sync_gesture = "ref_sync_gesture"
-    refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
     agents_session_manifest_compat = "agents_session_manifest_compat"
     claude_helper_channel = "claude_helper_channel"
@@ -40,23 +36,6 @@ class FeatureFlag(StrEnum):
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
-    FeatureFlag.ace_refresh_tokens: FeatureFlagDefinition(
-        key=FeatureFlag.ace_refresh_tokens,
-        kind="sunset",
-        description=(
-            "Gate sase's TUI and proc refreshes on per-surface stat-only change tokens."
-        ),
-        bead="sase-wr",
-    ),
-    FeatureFlag.admin_center_flags: FeatureFlagDefinition(
-        key=FeatureFlag.admin_center_flags,
-        kind="sunset",
-        description=(
-            "The Config catalog exposes the Flags pane for persistent "
-            "feature-flag control."
-        ),
-        bead="sase-rx",
-    ),
     FeatureFlag.axe_routine_job_contract: FeatureFlagDefinition(
         key=FeatureFlag.axe_routine_job_contract,
         kind="sunset",
@@ -127,29 +106,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "automatically, toasting when it starts and when it finishes."
         ),
         bead="sase-sx",
-    ),
-    FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
-        key=FeatureFlag.ref_sync_gesture,
-        kind="sunset",
-        description=(
-            "A second ':' typed immediately after '@<kind>:' with an empty "
-            "payload is consumed and refreshes that kind's backing sidecar "
-            "(clone-if-missing or force-pull past the freshness TTL, else a "
-            "catalog rescan), then reopens the '@' payload menu with "
-            "newly-arrived rows badged."
-        ),
-        bead="sase-qu",
-    ),
-    FeatureFlag.refresh_panel: FeatureFlagDefinition(
-        key=FeatureFlag.refresh_panel,
-        kind="sunset",
-        description=(
-            "R opens the Refresh panel, whose single-key options run the "
-            "current tab refresh, the Agents full-history rescan, a provider "
-            "usage-window refresh, or all three, and ,y opens that panel with "
-            "the cursor on Full history."
-        ),
-        bead="sase-105",
     ),
     FeatureFlag.slim_agents_manifest: FeatureFlagDefinition(
         key=FeatureFlag.slim_agents_manifest,

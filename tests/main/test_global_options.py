@@ -23,8 +23,8 @@ from sase.main.parser import create_parser, parser_only_hint
 from tests._conftest_runtime import reset_process_feature_flags
 
 
-REGISTERED_ENABLE_KEY = "ref_sync_gesture"
-REGISTERED_DISABLE_KEY = "ref_sync_gesture"
+REGISTERED_ENABLE_KEY = "provider_drain"
+REGISTERED_DISABLE_KEY = "provider_drain"
 
 
 def _extract_feature_flags(argv: list[str]) -> tuple[dict[str, bool], list[str]]:
@@ -86,30 +86,30 @@ def test_extract_accepts_all_option_spellings(
             ),
         ),
         (
-            ["-p", "-f", "ref_sync_gesture", "flag", "list"],
+            ["-p", "-f", "provider_drain", "flag", "list"],
             _GlobalOptionExtraction(
-                feature_flags={"ref_sync_gesture": True},
+                feature_flags={"provider_drain": True},
                 print_command=True,
                 remaining=["flag", "list"],
-                display_args=["-f", "ref_sync_gesture", "flag", "list"],
+                display_args=["-f", "provider_drain", "flag", "list"],
             ),
         ),
         (
-            ["-Fref_sync_gesture", "-p", "flag", "list"],
+            ["-Fprovider_drain", "-p", "flag", "list"],
             _GlobalOptionExtraction(
-                feature_flags={"ref_sync_gesture": False},
+                feature_flags={"provider_drain": False},
                 print_command=True,
                 remaining=["flag", "list"],
-                display_args=["-Fref_sync_gesture", "flag", "list"],
+                display_args=["-Fprovider_drain", "flag", "list"],
             ),
         ),
         (
-            ["--disable-feature=ref_sync_gesture", "--print-command", "flag"],
+            ["--disable-feature=provider_drain", "--print-command", "flag"],
             _GlobalOptionExtraction(
-                feature_flags={"ref_sync_gesture": False},
+                feature_flags={"provider_drain": False},
                 print_command=True,
                 remaining=["flag"],
-                display_args=["--disable-feature=ref_sync_gesture", "flag"],
+                display_args=["--disable-feature=provider_drain", "flag"],
             ),
         ),
     ],
@@ -133,30 +133,30 @@ def test_extract_global_options_removes_only_print_from_display(
             ),
         ),
         (
-            ["-pfref_sync_gesture", "flag"],
+            ["-pfprovider_drain", "flag"],
             _GlobalOptionExtraction(
-                feature_flags={"ref_sync_gesture": True},
+                feature_flags={"provider_drain": True},
                 print_command=True,
                 remaining=["flag"],
-                display_args=["-fref_sync_gesture", "flag"],
+                display_args=["-fprovider_drain", "flag"],
             ),
         ),
         (
-            ["-ppf", "ref_sync_gesture", "flag"],
+            ["-ppf", "provider_drain", "flag"],
             _GlobalOptionExtraction(
-                feature_flags={"ref_sync_gesture": True},
+                feature_flags={"provider_drain": True},
                 print_command=True,
                 remaining=["flag"],
-                display_args=["-f", "ref_sync_gesture", "flag"],
+                display_args=["-f", "provider_drain", "flag"],
             ),
         ),
         (
-            ["-pFref_sync_gesture", "flag"],
+            ["-pFprovider_drain", "flag"],
             _GlobalOptionExtraction(
-                feature_flags={"ref_sync_gesture": False},
+                feature_flags={"provider_drain": False},
                 print_command=True,
                 remaining=["flag"],
-                display_args=["-Fref_sync_gesture", "flag"],
+                display_args=["-Fprovider_drain", "flag"],
             ),
         ),
         (

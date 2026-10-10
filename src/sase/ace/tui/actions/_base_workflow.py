@@ -72,7 +72,7 @@ class BaseWorkflowActionsMixin(BaseActionsHost):
             self.push_screen(WorkflowSelectModal(workflows), on_dismiss)  # type: ignore[attr-defined]
 
     def action_agents_refresh(self) -> None:
-        """Refresh Agents, or open the Refresh panel when that flag is on."""
+        """Open the Refresh panel for the Agents tab."""
         self.action_refresh()  # type: ignore[attr-defined]
 
     def action_agents_retry(self) -> None:

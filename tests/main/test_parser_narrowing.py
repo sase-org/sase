@@ -118,7 +118,7 @@ def test_stitch_parser_supports_canonical_command_and_legacy_alias(
         (["sase", "-p", "bead"], "bead"),
         (["sase", "--print-command", "bead"], "bead"),
         (["sase", "-pp", "bead"], "bead"),
-        (["sase", "-pfref_sync_gesture", "flag"], "flag"),
+        (["sase", "-pfprovider_drain", "flag"], "flag"),
         (["sase", "-fp", "flag"], "flag"),
         (["sase", "-ppx", "bead"], None),
         (["sase", "ace"], None),

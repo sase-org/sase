@@ -873,8 +873,8 @@ ace:
       agents_prev: "k"
       agents_revive: "w"
       agents_filters: "f"
-      # Tab-disjoint with run_workflow/refresh: Agents uses r to refresh
-      # (or open the Refresh panel) and R to retry; other tabs keep r for
+      # Tab-disjoint with run_workflow/refresh: Agents uses r to open
+      # the Refresh panel and R to retry; other tabs keep r for
       # Patch/Axe run and R for refresh.
       agents_refresh: "r"
       agents_retry: "R"

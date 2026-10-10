@@ -10,9 +10,12 @@ from types import SimpleNamespace
 import pytest
 
 from sase.ace.tui.actions.event_handlers import FULL_SANITY_REFRESH_SECONDS
-from sase.feature_flags import override_flags
 
-from ._event_handlers_dirty_flags_helpers import _FakeApp, _make_agent
+from ._event_handlers_dirty_flags_helpers import (
+    _FakeApp,
+    _make_agent,
+    _surface_token_snapshot,
+)
 
 
 @pytest.mark.asyncio
@@ -200,15 +203,13 @@ async def test_notification_reconcile_runs_when_unrelated_delta_consumed(
 
 
 @pytest.mark.asyncio
-async def test_watcher_inactive_runs_full_refresh() -> None:
-    """Without a watcher the auto-refresh path keeps polling every surface."""
+async def test_watcher_inactive_probes_tokens_and_refreshes_drift() -> None:
+    """Without a watcher the auto-refresh path probes tokens once per tick."""
     app = _FakeApp(watcher_active=False)
-    with override_flags(ace_refresh_tokens=False):
-        await app._run_auto_refresh()
-    assert "axe" in app.refresh_calls
-    assert "notifications" in app.refresh_calls
-    assert "agents" in app.refresh_calls
-    assert app.token_probe_calls == 0
+    app._probed_surface_tokens = _surface_token_snapshot(axe=2)
+    await app._run_auto_refresh()
+    assert app.refresh_calls == ["axe"]
+    assert app.token_probe_calls == 1
 
 
 @pytest.mark.asyncio

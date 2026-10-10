@@ -1042,7 +1042,7 @@ stored size; launch routing uses the same `@small` fallback.
 | `n`             | Rename PR (non-Sub/Rev PRs only)                                                                |
 | `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                                    |
 | `!R`            | Rewind to previous commit (`!` suffix skips VCS operations)                                     |
-| `R`             | Open the [Refresh panel](#refresh-panel) (refreshes immediately when it is disabled)            |
+| `R`             | Open the [Refresh panel](#refresh-panel)                                                        |
 | `y`             | Copy the PR's `@patch:` reference                                                               |
 | `s`             | Change status (opens status modal)                                                              |
 | `S`             | Bulk status change for all marked PRs                                                           |
@@ -1455,7 +1455,7 @@ count gains a lit `▶M` when `M` in-flight targets remain hidden behind `.`.
 | `A`                 | Toggle the agent's `%auto` autonomy record (off restores last profile on re-enable)                                                                                                                                                                                                                                                            |
 | `F`                 | Prepare a fork of the selected agent/session, named proc, monitor, clan container, or focused named tribe panel                                                                                                                                                                                                                                |
 | `n`                 | Name agent                                                                                                                                                                                                                                                                                                                                     |
-| `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                                                                                                                                                                                                                                                   |
+| `r`                 | Open the Refresh panel for the Agents tab                                                                                                                                                                                                                                                                                                      |
 | `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                                                                                                                                                                                                                                                          |
 | `v`                 | View files (hint mode; annotates clan/session containers in place; adds `⚒ run log` targets on the Runs card that open the retained run log in the pager)                                                                                                                                                                                      |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                                                                                                                                                                                                                                                              |
@@ -1492,8 +1492,7 @@ target in the chooser's displayed order, or only the highlighted row when nothin
 marked. `q` / `Esc` cancel without opening anything.
 
 On Artifacts and Services, `r` still runs a Patch workflow or an Axe job/bgcmd, and `R`
-still opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that
-panel is disabled). Only the Agents tab swaps those keys.
+still opens the [Refresh panel](#refresh-panel). Only the Agents tab swaps those keys.
 
 #### x: how a kill is carried out
 
@@ -1846,10 +1845,7 @@ If usage metrics are disabled or no providers are eligible, the usage row stays 
 but unavailable: pressing `u` explains why and leaves the panel open so you can pick
 something else.
 
-The default-on `refresh_panel` sunset flag is the escape hatch back to the old gestures.
-Disable it (`sase flag disable refresh_panel`) to restore immediate current-tab refresh
-(`R` on Artifacts and Services, `r` on Agents) and `,y` (Agents full-history) without
-the chooser. See [feature flags](configuration.md#feature_flags).
+See [feature flags](configuration.md#feature_flags).
 
 The dismissed projection that hides agents from the visible inbox is rebuilt from the
 in-memory dismissed set _unioned with every dismissed-bundle summary_. Reviving an agent
@@ -2981,7 +2977,7 @@ clan. Help is not a leader command: press the app-level `?` to open the Help mod
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))                                                    |
 | `,U`       | Open Update panel (SASE, providers)                                                                                                            |
 | `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                                                                 |
-| `,y`       | Open the [Refresh panel](#refresh-panel) with Full history highlighted (refresh Agents from full history when the panel is disabled)           |
+| `,y`       | Open the [Refresh panel](#refresh-panel) with Full history highlighted                                                                         |
 | `,R`       | Show runners info                                                                                                                              |
 | `,L`       | Jump to the log entry for the most recent error toast                                                                                          |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication                                                       |
@@ -3576,15 +3572,14 @@ keyboard-first control surface for every code-owned SASE feature flag. It shows
 effective state, kind, default, provenance, saved machine preference, description,
 removal bead, and removal horizon; it does not edit portable configuration files.
 
-With the default-on `admin_center_flags` sunset flag, Config's nested catalog is:
+Config's nested catalog is:
 
 ```text
 01 All · 02 Flags · 03 Holds · 04 Launch · 05 Memory · 06 Snippets · 07 Macros
 ```
 
-Disable `admin_center_flags` to drop Flags, leaving the six-child catalog numbered `01`
-All through `06` Macros. `sase flag enable` and `sase flag disable` remain available
-either way; they are the recovery and automation surface when the pane is off.
+`sase flag enable` and `sase flag disable` remain available alongside the pane as the
+automation surface.
 
 The pane uses the Admin Center list/detail layout: a header with registered/on/saved
 counts, a flag rail, a scrollable detail card, a hidden inline filter, and a one-line
@@ -3593,15 +3588,15 @@ environment or root CLI `-f`/`-F` still wins, a yellow “forced for this proces
 explains that saving restarts sase's TUI and the service host but will not take effect
 until that override is removed.
 
-| Key              | Action                                                                                        |
-| ---------------- | --------------------------------------------------------------------------------------------- |
-| `/`              | Open an inline filter over key, description, kind, effective state, and provenance            |
-| `Esc`            | Close/clear the filter before closing Admin Center                                            |
-| `j` / `k`        | Move the rail; arrows, Home/End, and mouse clicks work the same way                           |
-| `q`              | Close Admin Center                                                                            |
-| `Enter`/`Space`  | Open a cancel-first confirmation (`OFF -> ON` or `ON -> OFF`)                                 |
-| `r`              | Reload the catalog                                                                            |
-| `0` then `1`–`7` | Jump to a numbered Config child while Flags is visible (`1`–`6` when the rollout flag is off) |
+| Key              | Action                                                                             |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| `/`              | Open an inline filter over key, description, kind, effective state, and provenance |
+| `Esc`            | Close/clear the filter before closing Admin Center                                 |
+| `j` / `k`        | Move the rail; arrows, Home/End, and mouse clicks work the same way                |
+| `q`              | Close Admin Center                                                                 |
+| `Enter`/`Space`  | Open a cancel-first confirmation (`OFF -> ON` or `ON -> OFF`)                      |
+| `r`              | Reload the catalog                                                                 |
+| `0` then `1`–`7` | Jump to a numbered Config child                                                    |
 
 Confirmation is cancel-first. It names the flag, the current-to-target state, the saved
 state path, any shadowing source, and that **sase's TUI and service host restart after
@@ -3611,10 +3606,6 @@ performs one controlled sase's TUI+service-host restart. Independent commands ke
 running. Durable operations started from this TUI still finish their result handling
 first, within the same 60-second wait. A restart failure does not roll back the saved
 preference.
-
-Disabling `admin_center_flags` from its own row is supported: the confirmation says the
-Flags pane will disappear after restart and gives `sase flag enable admin_center_flags`
-as the recovery command.
 
 See [feature flags](configuration.md#feature_flags) for precedence, the state file, and
 the CLI contract.
@@ -3639,7 +3630,7 @@ These work on all tabs:
 | `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                          |
 | `Q`                     | Open the quit / restart menu                                                                                                                                           |
 | `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Services (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
-| `r`                     | On Agents, refresh (or open the Refresh panel). Artifacts and Services keep `r` for Patch workflow / Services run or re-run                                            |
+| `r`                     | On Agents, open the Refresh panel. Artifacts and Services keep `r` for Patch workflow / Services run or re-run                                                         |
 | `q`                     | Quit (first closes an open artifact viewer pane)                                                                                                                       |
 | `?`                     | Show help modal                                                                                                                                                        |
 
@@ -3678,11 +3669,10 @@ own keybindings table names its jump targets; two are deliberate exceptions. The
 Statistics tab has no row cursor, so `'` there arms the same numbered-view selection the
 `0` prefix already arms, using the visible strip numbers as hints. Config's nested
 catalog is ordered **01 All · 02 Flags · 03 Holds · 04 Launch · 05 Memory · 06 Snippets
-· 07 Macros** when `admin_center_flags` is on, or **01 All** through **06 Macros**
-(without Flags) when it is off; `0` then the matching digits selects those children,
-while bare digits continue to belong to the active child or the Admin Center's top-level
-tabs. The Updates tab's single merged list jumps normally across every section — SASE,
-Plugins, and Agent CLIs alike.
+· 07 Macros**; `0` then the matching digits selects those children, while bare digits
+continue to belong to the active child or the Admin Center's top-level tabs. The Updates
+tab's single merged list jumps normally across every section — SASE, Plugins, and Agent
+CLIs alike.
 
 ### Quit / Restart Menu
 
@@ -6686,11 +6676,10 @@ are armed with [`sase agent hold`](cli.md#sase-agent-hold) or the
   asking. During the current beta, pressing **Arm** only confirms the launch preview; it
   does not write a hold to the store.
 - **Holds pane.** Open SASE Admin Center with `#`, then Config > **03 Holds** (`0` then
-  `3`; **02** when `admin_center_flags` is off). Each row shows the armer and its kind,
-  the scope (`host` or `project:<name>`), the selectors (`names=`, `hoods=`, `tribes=`,
-  `future`, and `pending=N`), and the time until expiry. Press `j` / `k` (or the arrow
-  keys) to move, `d` to release the highlighted hold, `r` to reload, and `q` or `Esc` to
-  close Admin Center.
+  `3`). Each row shows the armer and its kind, the scope (`host` or `project:<name>`),
+  the selectors (`names=`, `hoods=`, `tribes=`, `future`, and `pending=N`), and the time
+  until expiry. Press `j` / `k` (or the arrow keys) to move, `d` to release the
+  highlighted hold, `r` to reload, and `q` or `Esc` to close Admin Center.
 
 ## Linked Chats in Multi-Step Workflows
 
@@ -7714,32 +7703,30 @@ token under the cursor:
   appear only from snapshots the mounted Artifacts panes have already loaded, so typing
   never launches Git, contacts a tracker, or performs unbounded filesystem scans, with
   one explicit, user-initiated exception: typing a second `:` right after `@<kind>:`
-  with an empty payload (the `@<kind>::` gesture, gated by the `ref_sync_gesture` flag)
-  consumes that keystroke and refreshes the kind's backing sources now — cloning a
-  missing sidecar, force-pulling an existing one past the freshness TTL, or rescanning a
-  local/session-only kind — then reopens the payload menu. A pinned, non-selectable
-  status row shows a live spinner while the sync runs (`cloning <repo> …` on a
-  first-ever clone, `syncing <repo> …` otherwise) and settles to `<repo> synced · N new`
-  or `<repo> sync failed · <detail>`; rows that arrived from the sync are badged `[✦]`
-  in place of their usual source badge until the panel closes. A successful sync
-  dismisses its status row after 2.5 seconds; a failed one stays until the panel closes
-  and falls back to a toast if the panel is already gone. The gesture never fires with a
-  non-empty payload (so `@file:default:` still inserts a literal colon), and repeating
-  it while a sync is already running for that kind is a no-op. Disable
-  `ref_sync_gesture` to fall back to a literal second colon with no sync ever triggered.
-  Payload acceptance replaces the complete `@kind:payload` context, including when the
-  cursor is in the middle of it. On an un-narrowed bare-`@` menu, `Enter` submits the
-  unexpanded `@` and dismisses the menu; `Ctrl+F` accepts the highlighted row even when
-  it is the untouched first row, and `Ctrl+L` remains a manual-menu alias. Payload rows
-  are rendered path-first — the source badge, then the reference path with dim
-  directories and a bright basename, then a dim `title · detail · age` tail truncated to
-  the remaining panel width — so what you see is what gets inserted. Matched characters
-  are highlighted in gold wherever they landed, in the path, in the title, in a kind
-  name, or in a local file row, so every row shows why it is there. The panel subtitle
-  reports the same context: `~ fuzzy` when any visible row matched below the literal
-  tiers, `N of M` for matching rows out of that kind's known payloads, and a
-  `⚠ K not scanned` warning when a catalog cap truncated the candidate set, so a bounded
-  search never reads as an exhaustive one.
+  with an empty payload (the `@<kind>::` gesture) consumes that keystroke and refreshes
+  the kind's backing sources now — cloning a missing sidecar, force-pulling an existing
+  one past the freshness TTL, or rescanning a local/session-only kind — then reopens the
+  payload menu. A pinned, non-selectable status row shows a live spinner while the sync
+  runs (`cloning <repo> …` on a first-ever clone, `syncing <repo> …` otherwise) and
+  settles to `<repo> synced · N new` or `<repo> sync failed · <detail>`; rows that
+  arrived from the sync are badged `[✦]` in place of their usual source badge until the
+  panel closes. A successful sync dismisses its status row after 2.5 seconds; a failed
+  one stays until the panel closes and falls back to a toast if the panel is already
+  gone. The gesture never fires with a non-empty payload (so `@file:default:` still
+  inserts a literal colon), and repeating it while a sync is already running for that
+  kind is a no-op. Payload acceptance replaces the complete `@kind:payload` context,
+  including when the cursor is in the middle of it. On an un-narrowed bare-`@` menu,
+  `Enter` submits the unexpanded `@` and dismisses the menu; `Ctrl+F` accepts the
+  highlighted row even when it is the untouched first row, and `Ctrl+L` remains a
+  manual-menu alias. Payload rows are rendered path-first — the source badge, then the
+  reference path with dim directories and a bright basename, then a dim
+  `title · detail · age` tail truncated to the remaining panel width — so what you see
+  is what gets inserted. Matched characters are highlighted in gold wherever they
+  landed, in the path, in the title, in a kind name, or in a local file row, so every
+  row shows why it is there. The panel subtitle reports the same context: `~ fuzzy` when
+  any visible row matched below the literal tiers, `N of M` for matching rows out of
+  that kind's known payloads, and a `⚠ K not scanned` warning when a catalog cap
+  truncated the candidate set, so a bounded search never reads as an exhaustive one.
 - **Placeholder completion**: When the cursor is inside an incomplete `<foobar>` tag,
   completion suggests matching placeholders from the current prompt first, then saved
   common placeholders learned from tags you have written before. Within the
@@ -9602,10 +9589,10 @@ runs asynchronously, so moving between tabs never blocks on disk I/O.
 When the inotify-based artifact watcher is active, the periodic tick is
 **event-driven**: it consults per-surface dirty flags (`_dirty_patches`,
 `_dirty_agents`, `_dirty_axe`) and short-circuits the whole tick when nothing has
-changed. With `ace_refresh_tokens` enabled (the default), cheap stat-only change tokens
-also skip unchanged surfaces when no watcher is available. A 300-second
-`--sanity-refresh-interval` floor still triggers a full reconcile to recover from missed
-events, so a quiet TUI does ~zero work between real changes without going stale.
+changed. Cheap stat-only change tokens also skip unchanged surfaces when no watcher is
+available. A 300-second `--sanity-refresh-interval` floor still triggers a full
+reconcile to recover from missed events, so a quiet TUI does ~zero work between real
+changes without going stale.
 
 ### Performance Tracing
 

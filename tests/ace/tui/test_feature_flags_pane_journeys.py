@@ -8,19 +8,13 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from textual.css.query import NoMatches
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
-from sase.ace.tui.modals.config_hub_catalog import config_panel_tabs
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
-from sase.ace.tui.modals.config_hub_session import (
-    ConfigHubEntry,
-    config_subtab_order,
-)
-from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.feature_flags_pane import FeatureFlagsPane
-from sase.feature_flags import FeatureFlag, current_flags, override_flags
+from sase.feature_flags import current_flags
 from sase.feature_flags import snapshot as snapshot_mod
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
 from sase.feature_flags.state import (
@@ -31,7 +25,6 @@ from tests._conftest_runtime import reset_process_feature_flags
 from tests.feature_flags._helpers import demo_flag
 
 KEY = "demo_sunset_flag"
-ROLLOUT = "admin_center_flags"
 
 
 def _install_synthetic_flag(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -130,66 +123,6 @@ async def test_flags_pane_enable_and_disable_write_state_and_request_restart(
         saved_decision = current_flags().decision(KEY)
         assert saved_decision.enabled is False
         assert saved_decision.source == "state"
-
-
-async def test_disabling_rollout_flag_omits_flags_from_post_restart_catalog() -> None:
-    restarts: list[bool] = []
-    async with AcePage(initial_tab="agents") as page:
-        page.app._restart_tui = (  # type: ignore[method-assign]
-            lambda *, restart_axe: restarts.append(restart_axe)
-        )
-        _modal, pane = await _open_flags_pane(page)
-        _select_flag(pane, ROLLOUT)
-        await page.pause()
-        pane.action_toggle_flag()
-        await page.expect_modal("ConfirmActionModal")
-        confirm = page.app.screen
-        assert isinstance(confirm, ConfirmActionModal)
-        assert "sase flag enable admin_center_flags" in (confirm._subject or "")
-        await page.press("y")
-        await page.wait_for(lambda _s: restarts == [True])
-
-        assert load_saved_feature_flags().flags[ROLLOUT] is False
-        assert current_flags().enabled(FeatureFlag.admin_center_flags) is False
-        assert "flags" not in config_subtab_order()
-        assert tuple(tab.id for tab in config_panel_tabs()) == (
-            "misc",
-            "holds",
-            "launch",
-            "memory",
-            "snippets",
-            "macros",
-        )
-
-        fresh = ConfigCenterModal(initial_tab="config")
-        page.app.push_screen(fresh)
-        await page.wait_for(lambda _s: bool(fresh.query("#config")))
-        hub = fresh.query_one("#config", ConfigHubPane)
-        await page.wait_for(lambda _s: bool(hub._subtab_order))
-        assert "flags" not in hub._subtab_order
-        with pytest.raises(NoMatches):
-            hub.query_one("#flags", FeatureFlagsPane)
-
-
-async def test_config_catalog_omits_flags_when_rollout_is_off() -> None:
-    with override_flags(admin_center_flags=False):
-        async with AcePage(initial_tab="agents") as page:
-            modal = ConfigCenterModal(initial_tab="config")
-            page.app.push_screen(modal)
-            await page.expect_modal("ConfigCenterModal")
-            await page.wait_for(lambda _s: bool(modal.query("#config")))
-            hub = modal.query_one("#config", ConfigHubPane)
-            await page.wait_for(lambda _s: bool(hub._subtab_order))
-            assert hub._active_subtab != "flags"
-            assert "flags" not in hub._subtab_order
-            assert tuple(tab.shortcut for tab in config_panel_tabs()) == (
-                "01",
-                "02",
-                "03",
-                "04",
-                "05",
-                "06",
-            )
 
 
 async def test_toggle_commits_saved_state_before_restart_runs(

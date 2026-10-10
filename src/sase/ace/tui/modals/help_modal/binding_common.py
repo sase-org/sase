@@ -160,9 +160,7 @@ def admin_center_machines_section(
 
 def refresh_help_label() -> str:
     """Return the General-section label for the app-level refresh key."""
-    from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
-
-    return "Open Refresh panel" if refresh_panel_enabled() else "Refresh"
+    return "Open Refresh panel"
 
 
 def leader_full_history_help_rows(
@@ -170,19 +168,9 @@ def leader_full_history_help_rows(
     *,
     refresh_action: str = "refresh",
 ) -> list[tuple[str, str]]:
-    """Return the leader-mode refresh row, migrated onto refresh while the panel is on."""
-    from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
-
+    """Return the leader-mode refresh row, migrated onto the Refresh panel."""
     d = key_display_name
-    if refresh_panel_enabled():
-        return [(d(getattr(km.app, refresh_action)), refresh_help_label())]
-    lm = km.leader_mode
-    return [
-        (
-            f"{d(lm.prefix)}{d(sk(lm.keys, 'full_history_refresh'))}",
-            "Refresh from full history",
-        )
-    ]
+    return [(d(getattr(km.app, refresh_action)), refresh_help_label())]
 
 
 def sk(keys: dict[str, str | dict[str, str]], name: str) -> str:

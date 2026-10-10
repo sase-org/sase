@@ -9,8 +9,6 @@ from datetime import date
 from rich.console import Console
 
 from sase.ace.tui.modals.feature_flags_pane_rendering import (
-    ROLLOUT_FLAG_KEY,
-    ROLLOUT_RECOVERY_COMMAND,
     build_detail_meta,
     build_detail_title,
     build_empty_catalog_message,
@@ -205,18 +203,18 @@ def test_confirmation_copy_is_cancel_first_and_warns_on_shadowing() -> None:
     assert "--enable-feature" in copy.subject
 
 
-def test_self_disable_confirmation_includes_cli_recovery() -> None:
+def test_toggle_off_confirmation_carries_no_disappearance_copy() -> None:
     view = _view(
-        ROLLOUT_FLAG_KEY,
+        "demo_sunset_flag",
         kind="sunset",
         enabled=True,
         source="default",
-        description="The Config catalog exposes the Flags pane.",
+        description="A synthetic sunset flag.",
     )
     copy = build_toggle_confirmation(view, state_path="/tmp/feature_flags.json")
     assert "ON -> OFF" in copy.subject
-    assert "Flags pane will disappear" in copy.subject
-    assert ROLLOUT_RECOVERY_COMMAND in copy.subject
+    assert "disappear" not in copy.subject
+    assert "Recover with" not in copy.subject
 
 
 def test_row_render_stays_under_key_to_paint_budget() -> None:

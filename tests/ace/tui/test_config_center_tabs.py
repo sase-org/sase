@@ -35,7 +35,6 @@ from sase.ace.tui.modals.config_center_modal import (
     validated_center_tab,
 )
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
-from sase.feature_flags import override_flags
 from tests.ace.tui._config_center_tabs_helpers import (
     _HostApp,
     _StubPane,
@@ -65,13 +64,9 @@ def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
     ]
 
 
-def test_config_tab_description_follows_rollout_flag() -> None:
-    with override_flags(admin_center_flags=True):
-        assert "flags" in config_tab_description()
-        assert "flags" in tab_description_text("config").plain
-    with override_flags(admin_center_flags=False):
-        assert "flags" not in config_tab_description()
-        assert "flags" not in tab_description_text("config").plain
+def test_config_tab_description_mentions_flags() -> None:
+    assert "flags" in config_tab_description()
+    assert "flags" in tab_description_text("config").plain
 
 
 def test_numbered_tab_strip_plain_text_and_click_ranges_without_selection() -> None:

@@ -12,9 +12,6 @@ from sase.artifact_ref_sync import (
     plan_artifact_ref_sync,
     run_artifact_ref_sync,
 )
-from sase.feature_flags.registry import FeatureFlag
-from sase.feature_flags.snapshot import current_flags
-
 from ._artifact_ref_highlight import resolve_artifact_ref_warm_workspace
 from .artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -106,8 +103,6 @@ class ArtifactRefSyncMixin(_MixinBase):
             return None
         bar = self._find_prompt_bar()
         if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
-            return None
-        if not current_flags().enabled(FeatureFlag.ref_sync_gesture):
             return None
         context = self._get_artifact_ref_completion_context()
         if context is None or context.stage != "payload" or context.kind is None:

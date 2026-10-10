@@ -25,7 +25,6 @@ from dataclasses import fields
 
 import pytest
 
-from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
 from sase.ace.tui.commands import (
     CATEGORY_ORDER,
     CommandSpec,
@@ -113,9 +112,10 @@ def test_every_builtin_mode_subkey_has_a_command_spec() -> None:
         for cid in sub:
             assert f"copy.{tab_name}.{cid}" in ids, f"missing copy.{tab_name}.{cid}"
 
-    # Leader
+    # Leader (,y opens the Refresh panel on Full history, so
+    # full_history_refresh has no standalone palette command)
     for cid in reg.leader_mode.keys:
-        if cid == "full_history_refresh" and refresh_panel_enabled():
+        if cid == "full_history_refresh":
             continue
         assert f"leader.{cid}" in ids, f"missing leader.{cid}"
 
@@ -139,8 +139,7 @@ def test_leader_mode_dataclass_default_matches_default_config_yml() -> None:
         c.id for c in build_command_catalog(reg_dataclass) if c.id.startswith("leader.")
     }
     expected_leader_ids = {f"leader.{cid}" for cid in reg_dataclass.leader_mode.keys}
-    if refresh_panel_enabled():
-        expected_leader_ids.discard("leader.full_history_refresh")
+    expected_leader_ids.discard("leader.full_history_refresh")
     assert catalog_dataclass_ids == expected_leader_ids
     # ``jump_to_notification`` was retired: Enter (``app.act_on_agent``) now
     # opens an agent's pending gate, so no leader command may reintroduce it.

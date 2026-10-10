@@ -18,11 +18,11 @@ class EventAutoRefreshMixin(EventAutoRefreshSurfacesMixin):
         ``set_timer`` call schedules a single retry; if the user is *still*
         navigating when that fires, the same gate will defer it again.
 
-        Phase 7: when the inotify watcher is active each surface's refresh
-        is gated on its dirty flag; flags clear after the refresh runs.
-        Token probes additionally skip unchanged surfaces when
-        ``ace_refresh_tokens`` is enabled. Every sanity interval we ignore
-        those gates and run a full reconcile to recover from missed events.
+        When the inotify watcher is active each surface's refresh is gated
+        on its dirty flag; flags clear after the refresh runs. Stat-only
+        token probes additionally skip unchanged surfaces. Every sanity
+        interval we ignore those gates and run a full reconcile to recover
+        from missed events.
         """
         self._countdown_remaining = self.refresh_interval
         if self._nav_gate.is_navigating():

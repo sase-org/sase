@@ -177,11 +177,9 @@ import/publication commands, and recovery.
 Press `#` in the `sase tui` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
 **Machines**, **Procs**, **Projects**, **Statistics**, **Tools**, and **Updates**—are
-introduced without loading their data. Config's nested catalog is alphabetized. With the
-default-on `admin_center_flags` sunset flag it is **All**, **Flags**, **Holds**,
-**Launch**, **Memory**, **Snippets**, and **Macros**, labeled `01` through `07`.
-Disabling that flag omits Flags and numbers the remaining six children `01` through
-`06`. While home is visible, press `#` again to resume the last section that was
+introduced without loading their data. Config's nested catalog is alphabetized: **All**,
+**Flags**, **Holds**, **Launch**, **Memory**, **Snippets**, and **Macros**, labeled `01`
+through `07`. While home is visible, press `#` again to resume the last section that was
 successfully active in this sase's TUI process. Before the first section visit, the
 repeated key leaves home unchanged and constructs no pane. Press `1`–`8` or click the
 numbered tab strip to enter a section: `1` Config, `2` Logs, `3` Machines, `4` Procs,
@@ -215,11 +213,9 @@ pane-local state are never carried between modal lifetimes.
 The Config tab answers four questions for every field — what value is effective, why
 (its provenance), where an edit will go, and whether it validates:
 
-The nested Config catalog is alphabetized. When `admin_center_flags` is on (the
-default), it is **01 All**, **02 Flags**, **03 Holds**, **04 Launch**, **05 Memory**,
-**06 Snippets**, and **07 Macros**. With the bundled prefix, press `0` and then `1`-`7`
-to open those children. When the flag is off, the catalog runs from **01 All** and **02
-Holds** through **06 Macros**, and `0` then `1`-`6` selects them. Remap the prefix with
+The nested Config catalog is alphabetized: **01 All**, **02 Flags**, **03 Holds**, **04
+Launch**, **05 Memory**, **06 Snippets**, and **07 Macros**. With the bundled prefix,
+press `0` and then `1`-`7` to open those children. Remap the prefix with
 `ace.keymaps.config.select_subtab` without changing the visible default badges.
 
 **Holds** lists the active [agent holds](macros.md#hold-directive) with their selectors
@@ -822,7 +818,7 @@ ace:
           models_panel: "m"
           update_sase: "U"
           update_everything: "E"
-          full_history_refresh: "y" # with refresh_panel on, opens the Refresh panel
+          full_history_refresh: "y" # opens the Refresh panel on Full history
           collapse_fold_by_hint: "H" # Agents fold-collapse hints; `,H`
       fold_mode:
         prefix: "z"
@@ -1427,7 +1423,7 @@ default `/`, and the direct `agents_filters` binding, default `f`. The leader-mo
 | Field                           | Default   | Action                                                                                          |
 | ------------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
 | `agents_filters`                | `f`       | Open the top-level Agents `agents-live` filter bar.                                             |
-| `agents_refresh`                | `r`       | Refresh the Agents tab, or open the Refresh panel while the `refresh_panel` sunset flag is on.  |
+| `agents_refresh`                | `r`       | Open the Refresh panel for the Agents tab.                                                      |
 | `agents_retry`                  | `R`       | Retry the selected local or remote agent.                                                       |
 | `choose_agent_grouping`         | `o`       | Open the Agents grouping picker (`p`/`d`/`s`/`m` modes; local `o` toggles split/merged panels). |
 | `view_agent_metadata`           | `V`       | Open the selected local agent's metadata panel in the SASE pager.                               |
@@ -1447,11 +1443,10 @@ tab now uses deck keys instead (`next_deck_card` / `prev_deck_card` for cards,
 
 On the Agents tab, `r` refreshes and `R` retries; every other tab keeps `r` for
 `run_workflow` and `R` for `refresh`, which is why those pairs share keys (see the
-allowlist below). With the default-on `refresh_panel` sunset flag, both refresh actions
-open the Refresh panel, and the leader `full_history_refresh` chord (`,y`) opens it with
-the cursor on the Agents full-history rescan. Likewise, `V` opens the Agent Run Log
-modal (`show_agent_run_log`) everywhere except the Agents tab, where
-`view_agent_metadata` owns it.
+allowlist below). Both refresh actions open the Refresh panel, and the leader
+`full_history_refresh` chord (`,y`) opens it with the cursor on the Agents full-history
+rescan. Likewise, `V` opens the Agent Run Log modal (`show_agent_run_log`) everywhere
+except the Agents tab, where `view_agent_metadata` owns it.
 
 Remote retry, stop, and fork reuse the ordinary `agents_retry`, `kill_agent`, and
 `edit_hooks` actions when the row advertises those capabilities. See
@@ -5186,7 +5181,7 @@ chezmoi source.
 
 ```yaml
 feature_flags:
-  ref_sync_gesture: true
+  provider_drain: true
 ```
 
 The generated JSON Schema exposes one boolean property per registered flag with its
@@ -5203,8 +5198,6 @@ retired spelling, so its behavior is documented in
 
 | Flag                             | Kind   | Default | Controls                                                                                                                                                                                                                                  |
 | -------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ace_refresh_tokens`             | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                                                                                                          |
-| `admin_center_flags`             | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                                                                                                     |
 | `agent_sudo_requests`            | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                                                                                       |
 | `agents_session_manifest_compat` | sunset | `true`  | When an owner manifest still lists files, accept the current set or the legacy set that drops `sessions/` pages. See [Strict v2 layout](agents_sidecar.md#strict-v2-layout).                                                              |
 | `autonomy_record_only`           | sunset | `true`  | Only `agent_meta.autonomy` carries `%auto` state; off also writes the legacy meta keys.                                                                                                                                                   |
@@ -5216,8 +5209,6 @@ retired spelling, so its behavior is documented in
 | `monitor_continuation_records`   | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                                                                   |
 | `muse_synchronous_shell`         | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                                                                             |
 | `provider_drain`                 | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit` and Launch Control's automatic provider drain in `ace.md`).                                                                 |
-| `ref_sync_gesture`               | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                                                                                 |
-| `refresh_panel`                  | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                                                                                                |
 | `slim_agents_manifest`           | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                                                                       |
 
 `agent_decks` and `agent_tabs` are no longer registered. The Agents tab always shows
@@ -5287,8 +5278,7 @@ detail card (`STATE`).
 {
   "version": 1,
   "flags": {
-    "admin_center_flags": true,
-    "ref_sync_gesture": false
+    "provider_drain": true
   }
 }
 ```
@@ -5342,19 +5332,19 @@ higher source is removed.
 
 Root-level `-f/--enable-feature` and `-F/--disable-feature` force a registered flag on
 or off for one `sase` invocation. They must appear before the subcommand
-(`sase -f ref_sync_gesture run "..."`). They outrank every config layer, a saved machine
+(`sase -f provider_drain run "..."`). They outrank every config layer, a saved machine
 preference, and an inherited `SASE_FEATURE_FLAGS` value, and they merge into
 `SASE_FEATURE_FLAGS` so launched agents and other child processes inherit the same
 overrides.
 
 `SASE_FEATURE_FLAGS` is a strict JSON object of booleans, for example
-`{"ref_sync_gesture":false}`. Malformed JSON, a non-object payload, or a non-boolean
-value is a startup error for that process. SASE-launched children inherit a resolved
-snapshot through the same variable, so `sase flag list` marks env provenance
-prominently. CLI overrides are marked the same way (`CLI:--enable-feature` /
-`CLI:--disable-feature`). After a successful save, SASE merges the chosen key into
-`SASE_FEATURE_FLAGS` so an sase's TUI `execv` restart does not inherit the old pinned
-snapshot above the new saved value.
+`{"provider_drain":false}`. Malformed JSON, a non-object payload, or a non-boolean value
+is a startup error for that process. SASE-launched children inherit a resolved snapshot
+through the same variable, so `sase flag list` marks env provenance prominently. CLI
+overrides are marked the same way (`CLI:--enable-feature` / `CLI:--disable-feature`).
+After a successful save, SASE merges the chosen key into `SASE_FEATURE_FLAGS` so an
+sase's TUI `execv` restart does not inherit the old pinned snapshot above the new saved
+value.
 
 #### Enable, disable, and restart
 
@@ -5376,10 +5366,7 @@ and `restart` objects.
 
 From Config > Flags, a confirmed toggle uses the same mutation path, then waits for
 TUI-local tasks and installation changes and performs one controlled sase's TUI and
-service host restart. Independent commands keep running. Disabling `admin_center_flags`
-from its own row is supported: the pane disappears after restart, and
-`sase flag enable admin_center_flags` restores it. The CLI commands are not gated by
-that flag.
+service host restart. Independent commands keep running.
 
 Create temporary flags with `sase flag new <key>` rather than editing the registry by
 hand. The command creates a task bead of type `flag`, prints the registry entry, and

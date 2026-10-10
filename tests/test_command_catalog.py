@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from dataclasses import fields
 
-from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
 from sase.ace.tui.commands import (
     CommandContext,
     build_command_catalog,
@@ -34,8 +33,9 @@ def _registry() -> KeymapRegistry:
 
 def _expected_leader_ids(reg: KeymapRegistry) -> set[str]:
     ids = {f"leader.{cid}" for cid in reg.leader_mode.keys}
-    if refresh_panel_enabled():
-        ids.discard("leader.full_history_refresh")
+    # The leader ,y chord opens the Refresh panel on Full history, so it has
+    # no standalone palette command.
+    ids.discard("leader.full_history_refresh")
     return ids
 
 

@@ -40,9 +40,6 @@ _OFF_GLYPH = "○"
 _BETA_CHIP = "β"
 _SUNSET_CHIP = "↗"
 
-ROLLOUT_FLAG_KEY = "admin_center_flags"
-ROLLOUT_RECOVERY_COMMAND = "sase flag enable admin_center_flags"
-
 _PROCESS_PIN_SOURCES: frozenset[FlagSource] = frozenset({"override", "cli"})
 
 _LIST_RAIL_CHROME = 6
@@ -314,12 +311,6 @@ def build_toggle_confirmation(
     if _is_shadowed_decision(view.decision, view.saved):
         lines.append("")
         lines.append(_shadow_plain(view.decision))
-    if str(view.definition.key) == ROLLOUT_FLAG_KEY and not target_enabled:
-        lines.append("")
-        lines.append(
-            "The Flags pane will disappear after restart. "
-            f"Recover with: {ROLLOUT_RECOVERY_COMMAND}"
-        )
     return _FlagToggleConfirmation(
         title="Toggle feature flag",
         message=(
@@ -460,8 +451,6 @@ def _diagnostics_block(diagnostics: tuple[FeatureFlagDiagnostic, ...]) -> Text:
 
 __all__ = [
     "FLAGS_PANE_ACCENT",
-    "ROLLOUT_FLAG_KEY",
-    "ROLLOUT_RECOVERY_COMMAND",
     "build_corrupt_state_message",
     "build_detail_description",
     "build_detail_meta",

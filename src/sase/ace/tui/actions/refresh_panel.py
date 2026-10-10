@@ -1,4 +1,4 @@
-"""Refresh panel wiring behind the ``refresh_panel`` sunset flag."""
+"""Refresh panel wiring for the ``R``/``,y`` refresh gestures."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from sase.ace.tui.modals.refresh_panel_modal import (
     RefreshPanelModal,
     RefreshRow,
 )
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.llm_provider.usage.presentation import render_usage_refresh_toast
 from sase.llm_provider.usage.refresh import UsageRefreshReceipt, submit_usage_refresh
 
@@ -22,14 +21,8 @@ TabName = Literal["artifacts", "agents", "services"]
 
 FULL_HISTORY_MIGRATION_BANNER = ",y lives here now — press f"
 REFRESH_PANEL_COMMAND_LABEL = "Open Refresh panel"
-REFRESH_TAB_COMMAND_LABEL = "Refresh tab"
 _USAGE_DISABLED_MESSAGE = "subscription usage collection is disabled"
 _TAB_LABELS = {"agents": "Agents", "services": "Services"}
-
-
-def refresh_panel_enabled() -> bool:
-    """Return whether the refresh action and ``,y`` should open the panel."""
-    return current_flags().enabled(FeatureFlag.refresh_panel)
 
 
 class RefreshPanelMixin:
@@ -40,12 +33,8 @@ class RefreshPanelMixin:
     _last_full_sanity_refresh: float
 
     def action_refresh(self) -> None:
-        """Refresh the current tab, or open the Refresh panel when enabled."""
-        if refresh_panel_enabled():
-            RefreshPanelMixin._open_refresh_panel(self)
-            return
-        RefreshPanelMixin._refresh_current_tab_surfaces(self)
-        self.notify("Refreshed")  # type: ignore[attr-defined]
+        """Open the Refresh panel for the current tab."""
+        RefreshPanelMixin._open_refresh_panel(self)
 
     def action_refresh_agents_full_history(self) -> None:
         """Explicitly refresh Agents from full artifact history."""

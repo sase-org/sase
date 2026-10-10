@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
@@ -110,28 +109,6 @@ async def test_trigger_declines_with_cold_known_kind_set() -> None:
         assert text_area._artifact_ref_sync_trigger() is None
 
 
-async def test_trigger_declines_when_flag_disabled() -> None:
-    app = CompletionTestApp()
-    async with app.run_test():
-        text_area = app.query_one(PromptTextArea)
-        seed_catalog(text_area, CATALOG)
-        _place_cursor(text_area, "@plans:|")
-
-        with override_flags(ref_sync_gesture=False):
-            assert text_area._artifact_ref_sync_trigger() is None
-
-
-async def test_trigger_fires_when_flag_enabled_explicitly() -> None:
-    app = CompletionTestApp()
-    async with app.run_test():
-        text_area = app.query_one(PromptTextArea)
-        seed_catalog(text_area, CATALOG)
-        _place_cursor(text_area, "@plans:|")
-
-        with override_flags(ref_sync_gesture=True):
-            assert text_area._artifact_ref_sync_trigger() == "plans"
-
-
 async def test_second_colon_is_consumed_and_never_enters_the_buffer() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
@@ -150,20 +127,17 @@ async def test_second_colon_is_consumed_and_never_enters_the_buffer() -> None:
         assert "::" not in text_area.text
 
 
-async def test_disabled_flag_inserts_the_second_colon_literally_and_submits_nothing() -> (
-    None
-):
+async def test_non_empty_payload_keeps_the_second_colon_literal() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         text_area = app.query_one(PromptTextArea)
         seed_catalog(text_area, CATALOG)
-        text_area.load_text("@plans:")
-        text_area.cursor_location = (0, len("@plans:"))
+        text_area.load_text("@plans:foo")
+        text_area.cursor_location = (0, len("@plans:foo"))
         started: list[str] = []
         text_area._start_artifact_ref_sync = started.append  # type: ignore[method-assign]
 
-        with override_flags(ref_sync_gesture=False):
-            await pilot.press(":")
+        await pilot.press(":")
 
         assert started == []
-        assert text_area.text == "@plans::"
+        assert text_area.text == "@plans:foo:"

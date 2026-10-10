@@ -6,8 +6,6 @@ import asyncio
 import time
 from typing import Any
 
-from sase.feature_flags import FeatureFlag, current_flags
-
 from .._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ..agents._notification_utils import request_notification_agents_refresh
 from ...util.trace import tui_trace
@@ -20,7 +18,6 @@ from ._constants import (
 )
 from ._freshness import note_surface_refreshed
 from ._helpers import callable_accepts_kwarg
-from ._surface_tokens import SurfaceTokenSnapshot
 from ._watcher import EventWatcherRefreshMixin
 
 
@@ -126,10 +123,7 @@ class EventAutoRefreshSurfacesMixin(
             now_mono - getattr(self, "_last_full_sanity_refresh", 0.0)
             >= sanity_interval
         )
-        tokens_enabled = current_flags().enabled(FeatureFlag.ace_refresh_tokens)
-        current_tokens: SurfaceTokenSnapshot | None = None
-        if tokens_enabled:
-            current_tokens = await asyncio.to_thread(self._probe_surface_tokens)
+        current_tokens = await asyncio.to_thread(self._probe_surface_tokens)
 
         attention_network_scheduled = False
         attention_network_due = getattr(
@@ -199,10 +193,6 @@ class EventAutoRefreshSurfacesMixin(
         def _should_refresh(flag_name: str, surface: str) -> bool:
             if sanity_due:
                 return True
-            if not tokens_enabled:
-                if not watcher_active:
-                    return True
-                return bool(getattr(self, flag_name, True))
             if watcher_active and bool(getattr(self, flag_name, True)):
                 return True
             return self._surface_token_drifted(current_tokens, surface)
@@ -431,7 +421,7 @@ class EventAutoRefreshSurfacesMixin(
                     self._clear_agent_artifact_delta_state()
                 self._dirty_agents = not fallback_delta_covered
                 if fallback_delta_covered:
-                    if fallback_artifact_dirs and tokens_enabled:
+                    if fallback_artifact_dirs:
                         current_tokens = await asyncio.to_thread(
                             self._probe_surface_tokens
                         )

@@ -275,8 +275,7 @@ below the ~22/min shipped-config floor — fs-guarded jobs contribute 0.0 betwee
 floor is `stale_running_cleanup` and is expected — and `refresh.auto_tick` records with
 `surfaces_reloaded=0` (or only `axe`/`notifications` when those tokens actually moved)
 and `axe_file_opens` near zero. If spawn rate is well above the floor, check whether
-shipped jobs lost their `fs` trigger in `src/sase/default_config.yml`, or whether
-`ace_refresh_tokens` is off.
+shipped jobs lost their `fs` trigger in `src/sase/default_config.yml`.
 
 ## Suite test-cost gate
 

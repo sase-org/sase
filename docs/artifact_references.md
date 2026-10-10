@@ -105,9 +105,9 @@ it syncs or first-clones that kind's sidecar, rebuilds the completion catalog, a
 reopens the payload menu with the newly-arrived rows badged. Pointer kinds such as
 `@plan:` and `@research:` never auto-materialize at launch (see above), but they are
 reachable this way — `@research::` clones the sidecar on first use. See
-[sase's TUI](ace.md) for the full gesture, its status row, and its `ref_sync_gesture`
-feature flag. References inside inline code, fenced code, or disabled macro regions stay
-literal and do not trigger materialization.
+[sase's TUI](ace.md) for the full gesture and its status row. References inside inline
+code, fenced code, or disabled macro regions stay literal and do not trigger
+materialization.
 
 ## Allow-Listed Files
 

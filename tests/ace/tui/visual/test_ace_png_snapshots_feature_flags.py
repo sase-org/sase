@@ -12,7 +12,6 @@ from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.feature_flags_pane import FeatureFlagsPane
 from sase.ace.tui.modals.feature_flags_pane_load import FeatureFlagsPaneLoad
-from sase.ace.tui.modals.feature_flags_pane_rendering import ROLLOUT_FLAG_KEY
 from sase.feature_flags.cli_views import FlagView
 from sase.feature_flags.models import FeatureFlagDecision
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -27,6 +26,11 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 from tests.feature_flags._helpers import demo_flag, flag_bead
 
 pytestmark = pytest.mark.visual
+
+#: Display key for the synthetic sunset row in the populated fixture. This is
+#: plain pane text, not a production registry entry, so the golden is stable
+#: across flag retirements.
+_SYNTHETIC_SUNSET_KEY = "admin_center_flags"
 
 _TODAY = date(2026, 8, 21)
 _RELEASE = "0.16.0"
@@ -65,7 +69,7 @@ def _populated_payload() -> FeatureFlagsPaneLoad:
     return FeatureFlagsPaneLoad(
         views=(
             _view(
-                ROLLOUT_FLAG_KEY,
+                _SYNTHETIC_SUNSET_KEY,
                 kind="sunset",
                 enabled=True,
                 source="default",

@@ -6,7 +6,6 @@ from pathlib import Path
 
 from sase.ace.tui import proc_observer as po
 from sase.ace.tui.proc_observer import ProcObserver
-from sase.feature_flags import override_flags
 from sase.procs import Proc
 
 
@@ -44,9 +43,8 @@ def test_unchanged_proc_token_skips_read_procs(monkeypatch, tmp_path: Path) -> N
     _stub_context(monkeypatch)
     calls = _counting_read(monkeypatch)
     observer = ProcObserver(on_snapshot=lambda _snapshot: None)
-    with override_flags(ace_refresh_tokens=True):
-        observer.poll_once()
-        observer.poll_once()
+    observer.poll_once()
+    observer.poll_once()
     assert calls["n"] == 1
 
 
@@ -57,10 +55,9 @@ def test_changed_proc_token_reads_immediately(monkeypatch, tmp_path: Path) -> No
     _stub_context(monkeypatch)
     calls = _counting_read(monkeypatch)
     observer = ProcObserver(on_snapshot=lambda _snapshot: None)
-    with override_flags(ace_refresh_tokens=True):
-        observer.poll_once()
-        store.write_text("{}\n{}\n", encoding="utf-8")
-        observer.poll_once()
+    observer.poll_once()
+    store.write_text("{}\n{}\n", encoding="utf-8")
+    observer.poll_once()
     assert calls["n"] == 2
 
 
@@ -71,10 +68,9 @@ def test_request_poll_forces_full_read(monkeypatch, tmp_path: Path) -> None:
     _stub_context(monkeypatch)
     calls = _counting_read(monkeypatch)
     observer = ProcObserver(on_snapshot=lambda _snapshot: None)
-    with override_flags(ace_refresh_tokens=True):
-        observer.poll_once()
-        observer.request_poll()
-        observer.poll_once()
+    observer.poll_once()
+    observer.request_poll()
+    observer.poll_once()
     assert calls["n"] == 2
 
 
@@ -85,10 +81,9 @@ def test_sanity_due_rereads_unchanged_store(monkeypatch, tmp_path: Path) -> None
     _stub_context(monkeypatch)
     calls = _counting_read(monkeypatch)
     observer = ProcObserver(on_snapshot=lambda _snapshot: None)
-    with override_flags(ace_refresh_tokens=True):
-        observer.poll_once()
-        observer._last_proc_store_sanity_mono = 0.0
-        observer.poll_once()
+    observer.poll_once()
+    observer._last_proc_store_sanity_mono = 0.0
+    observer.poll_once()
     assert calls["n"] == 2
 
 
@@ -106,23 +101,9 @@ def test_indeterminate_token_reads_immediately(monkeypatch, tmp_path: Path) -> N
             raise PermissionError("denied")
         return real_stat(self, *args, **kwargs)
 
-    with override_flags(ace_refresh_tokens=True):
-        observer.poll_once()
-        monkeypatch.setattr(Path, "stat", fake_stat)
-        observer.poll_once()
-    assert calls["n"] == 2
-
-
-def test_disabled_flag_parses_every_poll(monkeypatch, tmp_path: Path) -> None:
-    store = tmp_path / "procs.jsonl"
-    store.write_text("{}\n", encoding="utf-8")
-    monkeypatch.setattr(po, "proc_store_path", lambda: store)
-    _stub_context(monkeypatch)
-    calls = _counting_read(monkeypatch)
-    observer = ProcObserver(on_snapshot=lambda _snapshot: None)
-    with override_flags(ace_refresh_tokens=False):
-        observer.poll_once()
-        observer.poll_once()
+    observer.poll_once()
+    monkeypatch.setattr(Path, "stat", fake_stat)
+    observer.poll_once()
     assert calls["n"] == 2
 
 
@@ -148,10 +129,9 @@ def test_cached_rows_still_refresh_selected_log(monkeypatch, tmp_path: Path) -> 
     calls = _counting_read(monkeypatch, [proc])
     observer = ProcObserver(on_snapshot=lambda _snapshot: None)
     observer.set_detail_proc("p1")
-    with override_flags(ace_refresh_tokens=True):
-        first = observer.poll_once()
-        log_path.write_text("one\ntwo\n", encoding="utf-8")
-        second = observer.poll_once()
+    first = observer.poll_once()
+    log_path.write_text("one\ntwo\n", encoding="utf-8")
+    second = observer.poll_once()
     assert calls["n"] == 1
     assert first is not None
     assert second is not None

@@ -53,8 +53,8 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase flag                         # same as `sase flag list`\n"
             "  sase flag list                    # every registered flag\n"
-            "  sase flag enable ref_sync_gesture # persist on for this machine\n"
-            "  sase flag disable ref_sync_gesture\n"
+            "  sase flag enable provider_drain # persist on for this machine\n"
+            "  sase flag disable provider_drain\n"
             "  sase flag show plugins_enabled    # one flag's provenance\n"
             "  sase flag new demo_key --when-enabled '...' --when-disabled '...' "
             "--remove-when '...'\n"
@@ -232,8 +232,8 @@ def _add_mutation_parser(
         ),
         epilog=(
             "examples:\n"
-            f"  sase flag {name} ref_sync_gesture\n"
-            f"  sase flag {name} ref_sync_gesture --json"
+            f"  sase flag {name} provider_drain\n"
+            f"  sase flag {name} provider_drain --json"
         ),
     )
     parser.add_argument(
