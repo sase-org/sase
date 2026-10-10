@@ -15,7 +15,6 @@ from typing import Any
 
 import pytest
 
-from sase.integrations.macro_lsp import _apply_queue_capacity_budget_flag
 from tests._macro_directive_completion_parity_helpers import (
     _finalizer_catalog_payload,
     _write_helper,
@@ -123,16 +122,7 @@ class LspSession:
             )
             env["SASE_XPROMPT_ARTIFACT_REF_CATALOG"] = str(artifact_ref_catalog)
             env["SASE_MACRO_ARTIFACT_REF_CATALOG"] = str(artifact_ref_catalog)
-        _apply_queue_capacity_budget_flag(env)
-        from sase.feature_flags.registry import FeatureFlag
-        from sase.feature_flags.snapshot import current_flags
-
-        flag_snapshot = current_flags()
-        initialization_options = {
-            "queue_capacity_budget": flag_snapshot.enabled(
-                FeatureFlag.queue_capacity_budget
-            ),
-        }
+        initialization_options = {}
         self._proc = subprocess.Popen(
             [str(binary)],
             stdin=subprocess.PIPE,

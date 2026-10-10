@@ -448,7 +448,7 @@ def test_capture_service_environment_never_captures_feature_flags(
     captured = capture_service_environment(
         environ={
             "PATH": os.defpath,
-            "SASE_FEATURE_FLAGS": '{"queue_capacity_budget": true}',
+            "SASE_FEATURE_FLAGS": '{"example_retired_flag": true}',
         },
         metadata_payload={},
     )

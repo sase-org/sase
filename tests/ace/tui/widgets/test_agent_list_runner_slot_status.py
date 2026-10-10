@@ -6,7 +6,6 @@ from rich.text import Text
 
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
-from sase.feature_flags import override_flags
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -78,23 +77,6 @@ class TestRunnerSlotWaitRendering:
         assert "▶" not in left.plain
         assert _styles_covering(left, "c9") == {"dim", "#87AFD7"}
         assert "dim #5F87FF" in _styles_covering(left, "p20")
-
-    def test_explicit_threshold_legacy_display_stays_available(self) -> None:
-        agent = make_agent(
-            status="QUEUED",
-            wait_runners=9,
-            wait_runners_explicit=True,
-            wait_priority=20,
-            wait_priority_explicit=True,
-            slot_requested_at="2026-07-12T12:00:00Z",
-            runner_slots_in_use=10,
-        )
-
-        with override_flags(queue_capacity_budget=False):
-            left, _, _ = format_agent_option(agent, 0, is_selected=False)
-
-        assert "test_cl (QUEUED ▶10→9 p20)" in left.plain
-        assert "c9" not in left.plain
 
     def test_implicit_priority_and_threshold_are_hidden_on_queued_row(self) -> None:
         agent = make_agent(

@@ -18,7 +18,6 @@ from tests.ace.tui.widgets.test_directive_arg_completion_fixed import (
     test_directive_arg_completion_metadata_has_descriptions,
     test_legacy_enabled_directive_offers_bool_values,
     test_queue_capacity_completion_describes_limit,
-    test_queue_capacity_completion_keeps_threshold_help_when_budget_off,
     test_queue_priority_completion_describes_order_and_default,
     test_repeat_offers_positive_count_examples,
 )
@@ -78,7 +77,6 @@ __all__ = [
     "test_provider_scoped_model_completion_has_no_shared_extension",
     "test_qualified_model_at_suffix_routes_to_effort_completion",
     "test_queue_capacity_completion_describes_limit",
-    "test_queue_capacity_completion_keeps_threshold_help_when_budget_off",
     "test_queue_priority_completion_describes_order_and_default",
     "test_repeat_offers_positive_count_examples",
     "test_wait_arg_completion_excludes_groups_and_deduplicates_insertions",

@@ -279,18 +279,6 @@ def test_ace_and_lsp_wait_hood_rows_match(
     assert [row.insertion for row in ace_rows] == ["sase-11l", "ship"]
 
 
-def test_ace_and_lsp_queue_argument_rows_keep_zero_when_budget_off(
-    tmp_path: Path,
-) -> None:
-    with override_flags(queue_capacity_budget=False):
-        ace_rows = _ace_clause_rows("%q:")
-        with LspSession(tmp_path) as lsp:
-            lsp_rows = lsp.complete("%q:")
-
-    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
-    assert [row.insertion for row in ace_rows] == ["0", "1"]
-
-
 def test_wait_keywords_exclude_queue_fields(
     tmp_path: Path,
 ) -> None:

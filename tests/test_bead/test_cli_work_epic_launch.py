@@ -12,7 +12,6 @@ from sase.bead import cli as bead_cli
 from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
-from sase.feature_flags import override_flags
 from sase.macro.models import Macro
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.work import (
@@ -248,10 +247,9 @@ def test_work_launch_capacity_1_stamps_every_segment(
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
 
-    with override_flags(queue_capacity_budget=True):
-        bead_cli.handle_bead_work(
-            make_args(epic_id, yes=True, json_output=True, capacity=1)
-        )
+    bead_cli.handle_bead_work(
+        make_args(epic_id, yes=True, json_output=True, capacity=1)
+    )
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
@@ -298,12 +296,10 @@ def _patch_land_macro(monkeypatch: pytest.MonkeyPatch, content: str) -> None:
     )
 
 
-@pytest.mark.parametrize("budget_enabled", [True, False])
 @pytest.mark.parametrize("dry_run", [False, True])
 def test_preflight_conflict_raises_before_side_effects(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
-    budget_enabled: bool,
     dry_run: bool,
 ) -> None:
     epic_id, _phase_ids = seed_diamond(project_dir)
@@ -328,10 +324,7 @@ def test_preflight_conflict_raises_before_side_effects(
         track("launch_bead_work_agents"),
     )
 
-    with (
-        override_flags(queue_capacity_budget=budget_enabled),
-        BeadProject(project_dir) as project,
-    ):
+    with BeadProject(project_dir) as project:
         with pytest.raises(BeadWorkError, match="capacity=4"):
             launch_epic_bead_work(
                 project,

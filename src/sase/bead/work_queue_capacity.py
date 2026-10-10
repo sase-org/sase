@@ -2,14 +2,13 @@
 
 ``sase bead work --capacity N`` stamps a ``%queue(capacity=...)`` budget into
 every phase and land segment. A macro that authors a queue weight greater
-than ``N`` is raised to ``ceil(weight)`` once ``queue_capacity_budget`` is on,
-so a uniform ``N=1`` stays satisfiable for the default-weight builtin lander.
+than ``N`` is raised to ``ceil(weight)``, so a uniform ``N=1`` stays
+satisfiable for the default-weight builtin lander.
 
 This module probes only the queue-relevant macro text (never ``%id``,
 ``%clan``, ``%w``, ``%model``, or VCS prefixes), then translates ``N`` into a
-per-agent budget: ``max(N, ceil(authored_weight))`` with the flag on, and
-plain ``N`` with the flag off. A colliding macro-authored ``capacity`` is a
-pre-flight error so the runner never sees it.
+per-agent budget: ``max(N, ceil(authored_weight))``. A colliding
+macro-authored ``capacity`` is a pre-flight error so the runner never sees it.
 """
 
 from __future__ import annotations
@@ -21,8 +20,6 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, NamedTuple
 
 from sase.bead.work import EpicWorkPlan, phase_requires_plan
-from sase.feature_flags.registry import FeatureFlag
-from sase.feature_flags.snapshot import current_flags
 from sase.macro._exceptions import MacroError
 from sase.macro.directives import extract_prompt_directives
 from sase.macro.processor import (
@@ -154,7 +151,6 @@ def resolve_epic_queue_capacities(
             raised=(),
         )
 
-    budget_enabled = current_flags().enabled(FeatureFlag.queue_capacity_budget)
     probe_cache: dict[str, PromptDirectives] = {}
     authored_by_shape: dict[tuple[str, bool], _AuthoredQueueFields] = {}
     composed_ok: set[tuple[str, bool, int]] = set()
@@ -184,10 +180,7 @@ def resolve_epic_queue_capacities(
                 agent_name=agent_name,
                 macro_name=macro_name,
             )
-        if budget_enabled:
-            effective = max(capacity, math.ceil(authored.weight))
-        else:
-            effective = capacity
+        effective = max(capacity, math.ceil(authored.weight))
         composed_key = (macro_name, include_plan, effective)
         if composed_key not in composed_ok:
             composed = _queue_probe_text(

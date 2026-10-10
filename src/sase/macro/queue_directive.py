@@ -289,18 +289,15 @@ def reauthor_capacity_for_prefix(
     *,
     explicit: bool,
     weight: float | None = None,
-    budget_enabled: bool | None = None,
 ) -> int | None:
     """Return a capacity safe to put through the new-authored parser.
 
-    Persisted explicit zero with the budget flag on is an exact effective-weight
-    drain, not a value the On parser accepts. Implicit zero is "no authored
-    budget" and is omitted rather than reauthored as ``capacity=0``.
+    Persisted explicit zero is an exact effective-weight drain, not a value
+    the parser accepts. Implicit zero is "no authored budget" and is omitted
+    rather than reauthored as ``capacity=0``.
     """
     if capacity is None or not explicit:
         return None
-    if budget_enabled is None:
-        budget_enabled = "queue_capacity_budget" in launch_feature_flag_keys()
     effective_weight = 1.0 if weight is None else float(weight)
     try:
         binding = getattr(
@@ -311,11 +308,11 @@ def reauthor_capacity_for_prefix(
     except ImportError:
         binding = None
     if callable(binding):
-        payload = binding(capacity, explicit, effective_weight, 1.0, budget_enabled)
+        payload = binding(capacity, explicit, effective_weight, 1.0, True)
         if isinstance(payload, dict) and "reauthor_capacity" in payload:
             value = payload.get("reauthor_capacity")
             return int(value) if type(value) is int else None
-    if budget_enabled and capacity == 0:
+    if capacity == 0:
         return None
     return capacity
 
@@ -326,13 +323,10 @@ def reauthor_capacity_multiplier_for_prefix(
     capacity: int | None = None,
     explicit: bool = False,
     weight: float | None = None,
-    budget_enabled: bool | None = None,
 ) -> float | None:
     """Return the Rust-normalized multiplier safe to put in a continuation."""
     if capacity is not None or multiplier is None:
         return None
-    if budget_enabled is None:
-        budget_enabled = "queue_capacity_budget" in launch_feature_flag_keys()
     effective_weight = 1.0 if weight is None else float(weight)
     try:
         binding = getattr(
@@ -348,7 +342,7 @@ def reauthor_capacity_multiplier_for_prefix(
             explicit,
             effective_weight,
             1.0,
-            budget_enabled,
+            True,
             queue_capacity_multiplier=multiplier,
         )
         if isinstance(payload, Mapping):
@@ -361,13 +355,11 @@ def reauthor_capacity_multiplier_for_prefix(
 
 
 def launch_feature_flag_keys() -> list[str]:
-    """Return currently enabled launch/editor flags for Rust entry points."""
-    from sase.feature_flags.registry import FeatureFlag
-    from sase.feature_flags.snapshot import current_flags
+    """Return currently enabled launch/editor flags for Rust entry points.
+
+    The queue capacity budget is unconditional now that its sunset flag
+    retired; only the agent-holds capability still travels here.
+    """
     from sase.macro.hold_directive import AGENT_HOLDS_FLAG
 
-    flags: list[str] = [AGENT_HOLDS_FLAG]
-    snapshot = current_flags()
-    if snapshot.enabled(FeatureFlag.queue_capacity_budget):
-        flags.append(str(FeatureFlag.queue_capacity_budget))
-    return flags
+    return [AGENT_HOLDS_FLAG]

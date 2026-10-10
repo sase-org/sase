@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from sase.feature_flags import override_flags
 from sase.monitor.continuation_delivery import (
     launch_wire_extra,
     queue_launch_prefix,
@@ -15,11 +14,10 @@ __all__ = [
     "test_epic_launch_monitor_override_without_starter_weight_is_not_inherited",
     "test_launch_wire_extra_keeps_user_authored_zero",
     "test_launch_wire_extra_preserves_canonical_capacity",
-    "test_queue_launch_prefix_keeps_legacy_zero_when_budget_off",
     "test_queue_launch_prefix_keeps_user_authored_zero",
     "test_queue_launch_prefix_legacy_zero_does_not_reenter_on_parser",
     "test_queue_launch_prefix_omits_implicit_zero",
-    "test_queue_launch_prefix_omits_legacy_zero_when_budget_on",
+    "test_queue_launch_prefix_omits_legacy_zero",
     "test_queue_launch_prefix_positive_budget_is_parseable",
     "test_queue_launch_prefix_prefers_canonical_capacity",
     "test_queue_launch_prefix_reauthors_capacity_multiplier",
@@ -27,77 +25,53 @@ __all__ = [
 
 
 def test_queue_launch_prefix_prefers_canonical_capacity() -> None:
-    from sase.feature_flags import override_flags
-
-    with override_flags(queue_capacity_budget=True):
-        prefix = queue_launch_prefix(
-            {
-                "wait_priority": 0,
-                "wait_runners": 0,
-                "wait_runners_explicit": True,
-                "queue_priority": 7,
-                "queue_capacity": 3,
-                "queue_capacity_explicit": True,
-                "queue_weight": 0.25,
-            }
-        )
+    prefix = queue_launch_prefix(
+        {
+            "wait_priority": 0,
+            "wait_runners": 0,
+            "wait_runners_explicit": True,
+            "queue_priority": 7,
+            "queue_capacity": 3,
+            "queue_capacity_explicit": True,
+            "queue_weight": 0.25,
+        }
+    )
 
     assert prefix == "%queue(capacity=3, priority=0, weight=0.25)\n"
 
 
-def test_queue_launch_prefix_omits_legacy_zero_when_budget_on() -> None:
-    from sase.feature_flags import override_flags
-
-    with override_flags(queue_capacity_budget=True):
-        prefix = queue_launch_prefix(
-            {
-                "wait_runners": 0,
-                "wait_runners_explicit": True,
-                "wait_priority": 0,
-                "queue_weight": 0.25,
-            }
-        )
+def test_queue_launch_prefix_omits_legacy_zero() -> None:
+    prefix = queue_launch_prefix(
+        {
+            "wait_runners": 0,
+            "wait_runners_explicit": True,
+            "wait_priority": 0,
+            "queue_weight": 0.25,
+        }
+    )
 
     assert prefix == "%queue(priority=0, weight=0.25)\n"
 
 
-def test_queue_launch_prefix_keeps_legacy_zero_when_budget_off() -> None:
-    from sase.feature_flags import override_flags
-
-    with override_flags(queue_capacity_budget=False):
-        prefix = queue_launch_prefix(
-            {
-                "wait_runners": 0,
-                "wait_runners_explicit": True,
-            }
-        )
-
-    assert prefix == "%queue(capacity=0)\n"
-
-
 def test_queue_launch_prefix_omits_implicit_zero() -> None:
-    from sase.feature_flags import override_flags
-
-    with override_flags(queue_capacity_budget=True):
-        prefix = queue_launch_prefix(
-            {
-                "wait_runners": 0,
-                "wait_runners_explicit": False,
-                "queue_weight": 2.0,
-            }
-        )
+    prefix = queue_launch_prefix(
+        {
+            "wait_runners": 0,
+            "wait_runners_explicit": False,
+            "queue_weight": 2.0,
+        }
+    )
 
     assert prefix == "%queue(weight=2)\n"
 
 
 def test_queue_launch_prefix_reauthors_capacity_multiplier() -> None:
-    with override_flags(queue_capacity_budget=True):
-        meta = {
-            "queue_capacity_multiplier": 1.5,
-            "wait_priority": 0,
-            "queue_weight": 0.25,
-        }
-        prefix = queue_launch_prefix(meta)
+    meta = {
+        "queue_capacity_multiplier": 1.5,
+        "wait_priority": 0,
+        "queue_weight": 0.25,
+    }
+    prefix = queue_launch_prefix(meta)
 
     assert prefix == "%queue(capacity=1.5x, priority=0, weight=0.25)\n"
     assert launch_wire_extra(meta) == {
@@ -134,19 +108,17 @@ def test_followup_prompt_carries_no_auto_prefix() -> None:
 
 
 def test_queue_launch_prefix_positive_budget_is_parseable() -> None:
-    from sase.feature_flags import override_flags
     from sase.macro.directives import extract_prompt_directives
 
-    with override_flags(queue_capacity_budget=True):
-        prefix = queue_launch_prefix(
-            {
-                "queue_capacity": 100,
-                "queue_capacity_explicit": True,
-                "wait_priority": 0,
-                "queue_weight": 0.25,
-            }
-        )
-        _cleaned, directives = extract_prompt_directives(f"{prefix}continue")
+    prefix = queue_launch_prefix(
+        {
+            "queue_capacity": 100,
+            "queue_capacity_explicit": True,
+            "wait_priority": 0,
+            "queue_weight": 0.25,
+        }
+    )
+    _cleaned, directives = extract_prompt_directives(f"{prefix}continue")
 
     assert prefix == "%queue(capacity=100, priority=0, weight=0.25)\n"
     assert directives.queue_capacity == 100
@@ -156,18 +128,16 @@ def test_queue_launch_prefix_positive_budget_is_parseable() -> None:
 
 
 def test_queue_launch_prefix_legacy_zero_does_not_reenter_on_parser() -> None:
-    from sase.feature_flags import override_flags
     from sase.macro.directives import extract_prompt_directives
 
-    with override_flags(queue_capacity_budget=True):
-        prefix = queue_launch_prefix(
-            {
-                "wait_runners": 0,
-                "wait_runners_explicit": True,
-                "queue_weight": 0.25,
-            }
-        )
-        _cleaned, directives = extract_prompt_directives(f"{prefix}continue")
+    prefix = queue_launch_prefix(
+        {
+            "wait_runners": 0,
+            "wait_runners_explicit": True,
+            "queue_weight": 0.25,
+        }
+    )
+    _cleaned, directives = extract_prompt_directives(f"{prefix}continue")
 
     assert "capacity=0" not in prefix
     assert directives.queue_capacity is None

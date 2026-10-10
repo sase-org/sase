@@ -51,7 +51,6 @@ SASE_MACRO_ARTIFACT_REF_CATALOG_ENV = "SASE_MACRO_ARTIFACT_REF_CATALOG"
 SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
 SASE_MACRO_GLOSSARY_CATALOG_ENV = "SASE_MACRO_GLOSSARY_CATALOG"
 SASE_MACRO_PLUGIN_INPUT_TYPES_JSON_ENV = "SASE_MACRO_PLUGIN_INPUT_TYPES_JSON"
-SASE_QUEUE_CAPACITY_BUDGET_ENV = "SASE_QUEUE_CAPACITY_BUDGET"
 SASE_AGENT_HOLDS_ENV = "SASE_AGENT_HOLDS"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 MACRO_LSP_BINARY = "sase-macro-lsp"
@@ -396,7 +395,6 @@ def _prepare_macro_lsp_environment(
     _materialize_machine_catalog(environ)
     _materialize_artifact_ref_catalog(environ)
     _materialize_glossary_catalog(environ)
-    _apply_queue_capacity_budget_flag(environ)
     _apply_agent_holds_flag(environ)
 
 
@@ -538,14 +536,6 @@ def _materialize_glossary_catalog(
             f"Warning: failed to materialize glossary catalog: {exc}",
             file=sys.stderr,
         )
-
-
-def _apply_queue_capacity_budget_flag(environ: MutableMapping[str, str]) -> None:
-    """Pin the LSP to the process-local queue_capacity_budget sunset flag."""
-    from sase.macro.queue_directive import launch_feature_flag_keys
-
-    enabled = "queue_capacity_budget" in launch_feature_flag_keys()
-    environ[SASE_QUEUE_CAPACITY_BUDGET_ENV] = "1" if enabled else "0"
 
 
 def _apply_agent_holds_flag(environ: MutableMapping[str, str]) -> None:

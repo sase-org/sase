@@ -24,7 +24,6 @@ from .._agent_list_styling import (
 from .._queue_weight_badge import (
     format_queue_capacity_badge_value,
     queue_capacity_badge_number_style,
-    queue_capacity_budget_display_enabled,
 )
 from ._agent_display_state import DetailHeaderSummary
 from ._agent_page_section import (
@@ -149,8 +148,6 @@ def _append_capacity_fields(text: Text, agent: Agent) -> None:
             f"{format_capacity_value(wait_agent.queue_weight)} capacity units\n",
             style="#87D7D7",
         )
-    if not queue_capacity_budget_display_enabled():
-        return
     capacity_explicit = (
         wait_agent.queue_capacity_explicit or wait_agent.wait_runners_explicit
     )

@@ -2871,17 +2871,15 @@ plus its own weight fits within the authored positive-integer budget. `%q:1.5x`,
 and `1.25x` are all valid) and are re-resolved on every queued admission poll, so a
 `1.5x` multiplier with effective budget `5` has an admission limit of `7.5`, then
 becomes `15` if the effective budget rises to `10`. A weight above the resolved budget
-stays `QUEUED` until the budget changes. With the `queue_capacity_budget` flag off,
-multipliers still parse and persist but do not alter admission. This means `%q:100` can
-intentionally admit work above a global budget of `1`, while `%q:1` is the run-alone
-barrier for a default-weight launch. Four independent claims of weight `0.25` fit in
-capacity `1`; one claim of weight `2` does not, so authoring weight greater than an
-integer capacity is rejected. `capacity=0` is rejected at authoring time with a
-migration message recommending `%q:1` for run-alone behavior. Authored `runners=` on
-`%queue` is rejected with a migration message naming `capacity=`. Retired
-`%wait(runners=...)` guidance likewise recommends `%queue(capacity=...)`. Previously
-serialized `wait_runners` integer values still load as the legacy spelling of canonical
-`queue_capacity`.
+stays `QUEUED` until the budget changes. This means `%q:100` can intentionally admit
+work above a global budget of `1`, while `%q:1` is the run-alone barrier for a
+default-weight launch. Four independent claims of weight `0.25` fit in capacity `1`; one
+claim of weight `2` does not, so authoring weight greater than an integer capacity is
+rejected. `capacity=0` is rejected at authoring time with a migration message
+recommending `%q:1` for run-alone behavior. Authored `runners=` on `%queue` is rejected
+with a migration message naming `capacity=`. Retired `%wait(runners=...)` guidance
+likewise recommends `%queue(capacity=...)`. Previously serialized `wait_runners` integer
+values still load as the legacy spelling of canonical `queue_capacity`.
 
 Among waiters that currently fit their own admission limit, the lowest numeric
 `%queue(priority=N)` / `%q(p=N)` starts first, with FIFO ordering among equal

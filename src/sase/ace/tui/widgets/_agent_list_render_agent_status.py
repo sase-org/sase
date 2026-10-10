@@ -58,10 +58,7 @@ from ._agent_list_styling import (
     gate_status_presentation,
     monitor_status_presentation,
 )
-from ._queue_weight_badge import (
-    append_agent_queue_badges,
-    queue_capacity_budget_display_enabled,
-)
+from ._queue_weight_badge import append_agent_queue_badges
 from ..models._agent_clan import status_display_agent
 from ..models.finalizer_row_state import (
     glance_finalizer_state,
@@ -139,19 +136,6 @@ def append_queued_status_extras(text: Text, agent: Agent) -> None:
             queue_label += f"/{queue_size}"
         text.append(queue_label, style=QUEUED_STATUS_COLOR)
     slot_label = ""
-    if (
-        not queue_capacity_budget_display_enabled()
-        and wait_agent.wait_runners_explicit
-        and wait_agent.wait_runners is not None
-    ):
-        occupied = wait_agent.runner_occupied_capacity
-        if occupied is None and wait_agent.runner_slots_in_use is not None:
-            occupied = float(wait_agent.runner_slots_in_use)
-        if occupied is not None:
-            slot_label = (
-                f" ▶{format_capacity_value(occupied, minimum_decimal=False)}"
-                f"→{wait_agent.wait_runners}"
-            )
     if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
         slot_label = f"{slot_label} p{wait_agent.wait_priority}"
     if slot_label:

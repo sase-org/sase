@@ -20,7 +20,6 @@ from sase.bead.work_queue_capacity import (
     _segment_specs,
     resolve_epic_queue_capacities,
 )
-from sase.feature_flags import override_flags
 from sase.macro.directives import extract_prompt_directives
 from sase.macro.models import InputArg, InputType, Macro
 from sase.macro.processor import (
@@ -92,9 +91,8 @@ def _extract_probe(probe_text: str) -> Any:
     return directives
 
 
-def test_flag_on_capacity_1_leaves_builtin_segments_at_1() -> None:
-    with override_flags(queue_capacity_budget=True):
-        result = _resolve(1)
+def test_capacity_1_leaves_builtin_segments_at_1() -> None:
+    result = _resolve(1)
 
     assert dict(result.segment_capacity) == {
         "sase-zp.1": 1,
@@ -103,10 +101,9 @@ def test_flag_on_capacity_1_leaves_builtin_segments_at_1() -> None:
     assert result.raised == ()
 
 
-def test_flag_on_capacity_1_raises_land_override_weight() -> None:
+def test_capacity_1_raises_land_override_weight() -> None:
     extras = _land_macro("%q(w=2.0)\nLand the epic.")
-    with override_flags(queue_capacity_budget=True):
-        result = _resolve(1, extra_macros=extras)
+    result = _resolve(1, extra_macros=extras)
 
     assert dict(result.segment_capacity) == {
         "sase-zp.1": 1,
@@ -115,9 +112,8 @@ def test_flag_on_capacity_1_raises_land_override_weight() -> None:
     assert result.raised == (_RaisedQueueCapacity("sase-zp.land", 1, 2, 2.0),)
 
 
-def test_flag_on_capacity_3_raises_nothing() -> None:
-    with override_flags(queue_capacity_budget=True):
-        result = _resolve(3)
+def test_capacity_3_raises_nothing() -> None:
+    result = _resolve(3)
 
     assert dict(result.segment_capacity) == {
         "sase-zp.1": 3,
@@ -126,32 +122,18 @@ def test_flag_on_capacity_3_raises_nothing() -> None:
     assert result.raised == ()
 
 
-def test_flag_off_capacity_1_does_not_raise_land() -> None:
-    with override_flags(queue_capacity_budget=False):
-        result = _resolve(1)
-
-    assert dict(result.segment_capacity) == {
-        "sase-zp.1": 1,
-        "sase-zp.land": 1,
-    }
-    assert result.raised == ()
-
-
 def test_fractional_authored_weight_rounds_up() -> None:
     extras = _land_macro("%q(w=2.5)\nLand the epic.")
-    with override_flags(queue_capacity_budget=True):
-        result = _resolve(2, extra_macros=extras)
+    result = _resolve(2, extra_macros=extras)
 
     assert result.segment_capacity["sase-zp.land"] == 3
     assert result.raised == (_RaisedQueueCapacity("sase-zp.land", 2, 3, 2.5),)
 
 
-@pytest.mark.parametrize("budget_enabled", [True, False])
-def test_macro_authored_capacity_conflicts_with_cli(budget_enabled: bool) -> None:
+def test_macro_authored_capacity_conflicts_with_cli() -> None:
     extras = _land_macro("%q:4\nLand the epic.")
-    with override_flags(queue_capacity_budget=budget_enabled):
-        with pytest.raises(EpicQueueCapacityConflictError, match="capacity=4") as exc:
-            _resolve(2, extra_macros=extras)
+    with pytest.raises(EpicQueueCapacityConflictError, match="capacity=4") as exc:
+        _resolve(2, extra_macros=extras)
     assert exc.value.agent_name == "sase-zp.land"
     assert exc.value.macro_name == "bd/land_epic"
     assert "--capacity 2" in str(exc.value)
@@ -181,8 +163,7 @@ def test_large_phase_probe_includes_plan() -> None:
     assert land_macro == "bd/land_epic"
     assert land_refs == ("#bd/land_epic:sase-zp",)
 
-    with override_flags(queue_capacity_budget=True):
-        result = _resolve(1, large_phase=True)
+    result = _resolve(1, large_phase=True)
 
     assert result.segment_capacity["sase-zp.1"] == 1
     assert result.segment_capacity["sase-zp.land"] == 1
@@ -190,14 +171,13 @@ def test_large_phase_probe_includes_plan() -> None:
 
 
 def test_runner_accepts_every_capacity_1_segment() -> None:
-    with override_flags(queue_capacity_budget=True):
-        result = _resolve(1)
-        rendered = render_multi_prompt(
-            _plan(),
-            work_phase_macro=_PHASE,
-            land_epic_macro=_LAND,
-            segment_capacity=result.segment_capacity,
-        )
+    result = _resolve(1)
+    rendered = render_multi_prompt(
+        _plan(),
+        work_phase_macro=_PHASE,
+        land_epic_macro=_LAND,
+        segment_capacity=result.segment_capacity,
+    )
 
     phase, land = rendered.split("\n---\n")
     assert phase.count("%queue(capacity=1)") == 1

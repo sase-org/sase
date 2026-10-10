@@ -6,8 +6,6 @@ import math
 
 from rich.text import Text
 
-from sase.feature_flags import FeatureFlag, current_flags
-
 from ..models.agent import Agent, wait_display_agent
 from ..models.agent_runner_slots import (
     format_queue_weight_badge_value,
@@ -17,11 +15,6 @@ QUEUE_WEIGHT_BADGE_PREFIX_STYLE = "dim"
 QUEUE_WEIGHT_BADGE_NUMBER_STYLE = "#87D7D7"
 QUEUE_CAPACITY_BADGE_NUMBER_STYLE = "#87AFD7"
 QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE = "#FFD700"
-
-
-def queue_capacity_budget_display_enabled() -> bool:
-    """Return whether capacity-budget display has replaced threshold display."""
-    return current_flags().enabled(FeatureFlag.queue_capacity_budget)
 
 
 def append_queue_weight_badge(
@@ -100,8 +93,6 @@ def append_agent_queue_badges(text: Text, agent: Agent) -> bool:
     ):
         return appended
     wait_agent = wait_display_agent(agent)
-    if not queue_capacity_budget_display_enabled():
-        return appended
     capacity = (
         wait_agent.queue_capacity
         if wait_agent.queue_capacity is not None

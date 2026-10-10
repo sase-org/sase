@@ -15,7 +15,6 @@ from sase.core.agent_launch_facade import (
     plan_typed_launch_units,
 )
 from sase.core.agent_launch_wire import AgentUnitWire
-from sase.feature_flags import override_flags
 from sase.macro.directives import DirectiveError, extract_prompt_directives
 from sase.macro.queue_directive import (
     collect_queue_fields,
@@ -113,16 +112,15 @@ def test_queue_weight_extracts_unconditionally() -> None:
 
 
 def test_capacity_multiplier_extracts_formats_and_rebuilds() -> None:
-    with override_flags(queue_capacity_budget=True):
-        parsed = parse_queue_capacity_value("1.50x")
-        cleaned, directives = extract_prompt_directives("%q(1.5x, w=0.25)\nDo work")
-        plan = plan_typed_launch_units(
-            "%q(1.5x, w=0.25)\nDo work",
-            selected_project="sase",
-        )
-        agent = plan.units[0].payload
-        assert isinstance(agent, AgentUnitWire)
-        rebuilt = agent_unit_dispatch_prompt(agent)
+    parsed = parse_queue_capacity_value("1.50x")
+    cleaned, directives = extract_prompt_directives("%q(1.5x, w=0.25)\nDo work")
+    plan = plan_typed_launch_units(
+        "%q(1.5x, w=0.25)\nDo work",
+        selected_project="sase",
+    )
+    agent = plan.units[0].payload
+    assert isinstance(agent, AgentUnitWire)
+    rebuilt = agent_unit_dispatch_prompt(agent)
 
     assert parsed == {"queue_capacity_multiplier": 1.5}
     assert format_queue_capacity_multiplier(1.5) == "1.5x"
@@ -196,14 +194,12 @@ def _queue_occurrence(source: str, args: list[dict[str, str]]) -> dict[str, Any]
     ("spelling", "name", "value"),
     [("%q(w=0)", "w", "0"), ("%queue(weight=0.0)", "weight", "0.0")],
 )
-@pytest.mark.parametrize("budget", [True, False])
 def test_zero_weight_directive_collects_through_rust(
-    spelling: str, name: str, value: str, budget: bool
+    spelling: str, name: str, value: str
 ) -> None:
-    with override_flags(queue_capacity_budget=budget):
-        result = collect_queue_fields(
-            [_queue_occurrence(spelling, [{"name": name, "value": value}])]
-        )
+    result = collect_queue_fields(
+        [_queue_occurrence(spelling, [{"name": name, "value": value}])]
+    )
 
     assert result["errors"] == []
     assert isinstance(result["fields"], dict)
@@ -213,25 +209,18 @@ def test_zero_weight_directive_collects_through_rust(
 
 
 def test_zero_weight_with_capacity_budget_collects_through_rust() -> None:
-    with override_flags(queue_capacity_budget=True):
-        result = collect_queue_fields(
-            [
-                _queue_occurrence(
-                    "%q(1, w=0)", [{"value": "1"}, {"name": "w", "value": "0"}]
-                )
-            ]
-        )
+    result = collect_queue_fields(
+        [_queue_occurrence("%q(1, w=0)", [{"value": "1"}, {"name": "w", "value": "0"}])]
+    )
 
     assert result["errors"] == []
     assert result["fields"] == {"capacity": 1, "weight": 0.0}
 
 
-@pytest.mark.parametrize("budget", [True, False])
-def test_negative_zero_weight_still_rejected(budget: bool) -> None:
-    with override_flags(queue_capacity_budget=budget):
-        result = collect_queue_fields(
-            [_queue_occurrence("%q(w=-0)", [{"name": "w", "value": "-0"}])]
-        )
+def test_negative_zero_weight_still_rejected() -> None:
+    result = collect_queue_fields(
+        [_queue_occurrence("%q(w=-0)", [{"name": "w", "value": "-0"}])]
+    )
 
     assert result["fields"] is None
     assert result["errors"][0]["code"] == "invalid-queue-weight"
@@ -241,10 +230,8 @@ def test_format_zero_weight_emits_weight_zero() -> None:
     assert format_queue_directive(weight=0.0) == "%queue(weight=0)"
 
 
-@pytest.mark.parametrize("budget", [True, False])
-def test_zero_weight_extracts_explicit(budget: bool) -> None:
-    with override_flags(queue_capacity_budget=budget):
-        cleaned, directives = extract_prompt_directives("%q(w=0)\nDo work")
+def test_zero_weight_extracts_explicit() -> None:
+    cleaned, directives = extract_prompt_directives("%q(w=0)\nDo work")
 
     assert cleaned == "Do work"
     assert directives.queue_weight == 0.0
@@ -267,8 +254,6 @@ def test_validate_queue_capacity_rejects_booleans_and_invalid_numbers() -> None:
     assert validate_queue_capacity(4294967295) == 4294967295
     with pytest.raises(ValueError, match="at least 1|positive"):
         validate_queue_capacity(0)
-    with override_flags(queue_capacity_budget=False):
-        assert validate_queue_capacity(0) == 0
     with pytest.raises(ValueError, match="boolean"):
         validate_queue_capacity(True)
     with pytest.raises(ValueError, match="boolean"):

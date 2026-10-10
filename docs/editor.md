@@ -114,11 +114,8 @@ inventories degrade independently.
 The `sase lsp` wrapper snapshots the launch-related
 [feature flags](configuration.md#feature_flags) when it starts the server and passes
 them to the Rust process, so completion matches what a launch from the same machine
-would accept:
-
-| Flag                    | Server environment           | Effect on editor assistance                                                                                                                                                                            |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `queue_capacity_budget` | `SASE_QUEUE_CAPACITY_BUDGET` | Sunset (default on). `%queue` capacity is described as this launch's runner-capacity budget; with the flag off, capacity help describes the older weighted-load threshold and `%q:` also suggests `0`. |
+would accept. The `%queue` capacity budget needs no flag: capacity help always describes
+this launch's runner-capacity budget, and `%q:` suggests `1`, `100`, and `1.5x`.
 
 The server reads these values once, so restart the LSP session after changing a flag.
 

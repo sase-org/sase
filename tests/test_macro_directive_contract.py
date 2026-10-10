@@ -102,7 +102,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "project",
         "host",
     )
-    assert _suggested_values(contract["queue"]) == ("0", "1")
+    assert _suggested_values(contract["queue"]) == ("1", "100", "1.5x")
     assert contract["dispatch"].get("feature_flag") is None
     assert contract["tab"].get("feature_flag") is None
     assert contract["tab"].get("alias") is None

@@ -23,7 +23,6 @@ from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from sase.axe import run_agent_wait_markers, run_agent_wait_slots
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
-from sase.feature_flags import override_flags
 
 from tests._runner_slot_fixtures import artifact
 
@@ -53,15 +52,10 @@ def _render_agent_from_record(
     return agent
 
 
-@pytest.mark.parametrize(
-    ("budget_enabled", "drain_capacity"),
-    [(True, 1), (False, 0)],
-)
 def test_capacity_blocked_waiter_does_not_park_the_queue_behind_it(
     tmp_path: Path,
-    budget_enabled: bool,
-    drain_capacity: int,
 ) -> None:
+    drain_capacity = 1
     artifact(
         tmp_path,
         "20260913090000",
@@ -72,7 +66,6 @@ def test_capacity_blocked_waiter_does_not_park_the_queue_behind_it(
     later = artifact(tmp_path, "20260913090002", 102)
 
     with (
-        override_flags(queue_capacity_budget=budget_enabled),
         patch.object(
             run_agent_wait_slots,
             "_scan_runner_slot_records",
@@ -213,10 +206,8 @@ def test_index_rebuild_keeps_metadata_capacity_after_waiting_marker_removal(
     assert "Capacity: 100 capacity units" in header.plain
 
 
-@pytest.mark.parametrize("budget_enabled", [True, False])
 def test_capacity_blocked_head_then_high_budget_launch_uses_real_scan(
     tmp_path: Path,
-    budget_enabled: bool,
 ) -> None:
     artifact(
         tmp_path,
@@ -228,7 +219,6 @@ def test_capacity_blocked_head_then_high_budget_launch_uses_real_scan(
     later = artifact(tmp_path, "20260913093002", 302)
 
     with (
-        override_flags(queue_capacity_budget=budget_enabled),
         patch.object(
             run_agent_wait_slots,
             "_scan_runner_slot_records",
@@ -246,7 +236,7 @@ def test_capacity_blocked_head_then_high_budget_launch_uses_real_scan(
             artifacts_dir=str(drain),
             cl_name="cl",
             timestamp=drain.name,
-            directive_threshold=1 if budget_enabled else 0,
+            directive_threshold=1,
             claim=lambda: "unexpected",
         )
         assert drained is None
@@ -260,14 +250,6 @@ def test_capacity_blocked_head_then_high_budget_launch_uses_real_scan(
             claim=lambda: "started",
         )
 
-    if budget_enabled:
-        assert started == "started"
-        assert not parked
-        assert not (later / "waiting.json").exists()
-    else:
-        assert started is None
-        assert parked
-        later_marker = json.loads((later / "waiting.json").read_text())
-        assert later_marker["queue_capacity"] == 100
-        assert later_marker["queue_capacity_explicit"] is True
-        assert "wait_runners" not in later_marker
+    assert started == "started"
+    assert not parked
+    assert not (later / "waiting.json").exists()

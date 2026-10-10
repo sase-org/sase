@@ -903,11 +903,10 @@ runner prepends it to each proposed prompt as `%queue(capacity=N)` unless the pr
 already authors its own `%queue` capacity, so it follows the
 [per-launch capacity budget](macros.md#agent-names-waits-and-queue-admission) rules: the
 agent starts when the occupied weighted load plus its own weight fits within `N`, and
-`1` makes a default-weight lane agent run alone. While the default-on
-`queue_capacity_budget` flag is enabled, `N` must be at least `1`; `wait_runners: 0`
-produces a `%queue(capacity=0)` that is rejected at launch. When a job proposes a clan,
-every member carries the budget and waits independently, so a low budget can serialize
-the clan.
+`1` makes a default-weight lane agent run alone. `N` must be at least `1`;
+`wait_runners: 0` produces a `%queue(capacity=0)` that is rejected at launch. When a job
+proposes a clan, every member carries the budget and waits independently, so a low
+budget can serialize the clan.
 
 #### Job Fields
 
@@ -1309,7 +1308,7 @@ Policy is runner-owned and evaluated before the script:
   `agent_clan.name_prefix` matches canonical clan metadata on active agents only; dotted
   agent names are not treated as clans. `agent_runners.max` defaults to `0` and inhibits
   while more than that many participating lanes are occupied, a participating-lane count
-  distinct from the weighted `%queue(capacity=N)` threshold. Weighted runner capacity is
+  distinct from the weighted `%queue(capacity=N)` budget. Weighted runner capacity is
   tracked separately by the host-wide capacity budget. A `STARTING` agent has not yet
   been admitted and does not count; an agent parked on a question has yielded capacity
   and does not count. A match records a visible `skipped` run naming the guard and

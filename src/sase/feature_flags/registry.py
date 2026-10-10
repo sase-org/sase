@@ -34,7 +34,6 @@ class FeatureFlag(StrEnum):
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
-    queue_capacity_budget = "queue_capacity_budget"
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
@@ -177,16 +176,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "automatically, toasting when it starts and when it finishes."
         ),
         bead="sase-sx",
-    ),
-    FeatureFlag.queue_capacity_budget: FeatureFlagDefinition(
-        key=FeatureFlag.queue_capacity_budget,
-        kind="sunset",
-        description=(
-            "A %queue capacity value is this launch's runner-capacity "
-            "budget and replaces max_running_agents for its own "
-            "admission decision."
-        ),
-        bead="sase-zv",
     ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,

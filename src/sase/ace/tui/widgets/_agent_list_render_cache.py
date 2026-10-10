@@ -40,7 +40,6 @@ from sase.ace.tui.tool_runs.row_chip import tool_run_chip_token
 from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 from sase.core.time import local_now
 from ._agent_list_helpers import ordered_row_providers
-from ._queue_weight_badge import queue_capacity_budget_display_enabled
 
 _AGENT_CACHE_MAX = 512
 _BANNER_CACHE_MAX = 128
@@ -398,7 +397,6 @@ def agent_render_key(
         _freeze_jsonish(wait_agent.runner_capacity_blockers),
         wait_agent.held_by,
         wait_agent.hold_expires_at,
-        queue_capacity_budget_display_enabled(),
         agent_file_change_hint(agent),
         agent.reverted,
         agent_has_confirmed_bead(agent),

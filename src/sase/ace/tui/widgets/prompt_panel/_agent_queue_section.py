@@ -25,7 +25,6 @@ from .._queue_weight_badge import (
     append_queue_capacity_badge,
     append_queue_weight_badge,
     format_queue_capacity_badge_value,
-    queue_capacity_budget_display_enabled,
 )
 from ._helpers import append_section_heading
 
@@ -118,30 +117,13 @@ def append_runner_queue_section(
         )
     append_section_heading(text, heading, section_id=_QUEUE_SECTION_ID)
 
-    capacity_budget = queue_capacity_budget_display_enabled()
-    threshold_width = (
-        0
-        if capacity_budget
-        else max(
-            (
-                cell_len(f"≤{entry.threshold if entry.threshold is not None else 0}")
-                for entry in queue
-                if entry.wait_runners_explicit and entry.capacity_multiplier is None
-            ),
-            default=0,
-        )
-    )
-    capacity_width = (
-        max(
-            (
-                _queue_entry_capacity_badge_width(entry)
-                for entry in queue
-                if entry.wait_runners_explicit or _entry_has_authored_multiplier(entry)
-            ),
-            default=0,
-        )
-        if capacity_budget
-        else 0
+    capacity_width = max(
+        (
+            _queue_entry_capacity_badge_width(entry)
+            for entry in queue
+            if entry.wait_runners_explicit or _entry_has_authored_multiplier(entry)
+        ),
+        default=0,
     )
     priority_width = max(
         (
@@ -176,7 +158,6 @@ def append_runner_queue_section(
             rank=row.rank,
             queue_size=len(queue),
             selected_index=selection.index,
-            threshold_width=threshold_width,
             capacity_width=capacity_width,
             priority_width=priority_width,
             weight_width=weight_width,
@@ -223,7 +204,6 @@ def _append_queue_entry(
     rank: int,
     queue_size: int,
     selected_index: int,
-    threshold_width: int,
     capacity_width: int,
     priority_width: int,
     weight_width: int,
@@ -290,18 +270,6 @@ def _append_queue_entry(
             text.append(" " * max(0, capacity_width - (len(text) - start)))
         else:
             text.append(" " * capacity_width)
-    if threshold_width:
-        text.append(" ")
-        threshold = entry.threshold if entry.threshold is not None else 0
-        threshold_label = (
-            f"≤{threshold}"
-            if entry.wait_runners_explicit and entry.capacity_multiplier is None
-            else ""
-        )
-        text.append(
-            threshold_label.ljust(threshold_width),
-            style=_PARKED_COLOR if threshold_label else None,
-        )
     if priority_width:
         text.append(" ")
         priority_label = (
@@ -364,10 +332,8 @@ def _entry_has_authored_multiplier(entry: RunnerQueueEntry) -> bool:
 def _queue_entry_capacity_parts(entry: RunnerQueueEntry) -> tuple[str, ...]:
     free = _queue_entry_free_capacity(entry)
     capacity_budget = (
-        queue_capacity_budget_display_enabled()
-        and (entry.wait_runners_explicit or _entry_has_authored_multiplier(entry))
-        and free is not None
-    )
+        entry.wait_runners_explicit or _entry_has_authored_multiplier(entry)
+    ) and free is not None
     if format_queue_weight_badge_value(
         entry.requested_weight,
         explicit=entry.requested_weight_explicit,
@@ -384,11 +350,7 @@ def _queue_entry_free_capacity(entry: RunnerQueueEntry) -> float | None:
         free = blocker.get("free_capacity")
         if isinstance(free, (int, float)) and not isinstance(free, bool):
             return max(float(free), 0.0)
-    if (
-        queue_capacity_budget_display_enabled()
-        and entry.occupied_capacity is not None
-        and entry.admission_limit is not None
-    ):
+    if entry.occupied_capacity is not None and entry.admission_limit is not None:
         return max(entry.admission_limit - entry.occupied_capacity, 0.0)
     return None
 

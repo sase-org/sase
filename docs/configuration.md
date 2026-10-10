@@ -4244,18 +4244,16 @@ versioned record at `~/.sase/max_running_agents_override.json`; a new set replac
 previous value, expiry is enforced at its deadline, and a persistent edit leaves an
 active override in force. Lowering the effective value is non-preemptive, so existing
 agents continue and new launches wait for occupied capacity to drain. Parked waiters and
-question continuations reread the effective cap on each normal poll. With the default-on
-`queue_capacity_budget` sunset flag, an explicit `%queue(capacity=N)` (or
-`sase bead work -c/--capacity N` for an epic) uses that positive-integer value as the
-launch's own admission budget, replacing the global budget for that launch only. Once
-admitted, the launch holds an ordinary weighted claim, so occupied capacity can honestly
-exceed the global budget until work drains.
+question continuations reread the effective cap on each normal poll. An explicit
+`%queue(capacity=N)` (or `sase bead work -c/--capacity N` for an epic) uses that
+positive-integer value as the launch's own admission budget, replacing the global budget
+for that launch only. Once admitted, the launch holds an ordinary weighted claim, so
+occupied capacity can honestly exceed the global budget until work drains.
 
 An authored `%queue(capacity=<M>x)` instead scales from this effective value, including
 an active override: `%q:1.5x` resolves to `7.5` when the effective limit is `5`. It is
 resolved again while the launch is queued, rather than freezing the configured value at
-launch time. Multipliers accept up to two decimal places and affect admission only while
-`queue_capacity_budget` is enabled.
+launch time. Multipliers accept up to two decimal places.
 
 When upgrading from an unweighted scheduler build, restart sase's TUI and the service
 host and let already running agent processes finish or relaunch them under the new
@@ -5222,7 +5220,6 @@ retired spelling, so its behavior is documented in
 | `monitor_continuation_records`   | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                                                                   |
 | `muse_synchronous_shell`         | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                                                                             |
 | `provider_drain`                 | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit` and Launch Control's automatic provider drain in `ace.md`).                                                                 |
-| `queue_capacity_budget`          | sunset | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                                                                                                 |
 | `ref_sync_gesture`               | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                                                                                 |
 | `refresh_panel`                  | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                                                                                                |
 | `slim_agents_manifest`           | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                                                                       |

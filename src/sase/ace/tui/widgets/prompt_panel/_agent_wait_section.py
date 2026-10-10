@@ -40,7 +40,6 @@ from ...wait_status_presentation import (
     append_wait_bead_status_badge as _append_wait_bead_status_badge,
     append_wait_status_badge as _append_wait_status_badge,
 )
-from .._queue_weight_badge import queue_capacity_budget_display_enabled
 
 if TYPE_CHECKING:
     from sase.core.wait_dependency_resolution import TribeWaitBinding
@@ -415,45 +414,31 @@ def build_wait_lanes(
             if formatted is not None:
                 if value.plain:
                     value.append(" · ", style="dim #AF87FF")
-                if queue_capacity_budget_display_enabled():
-                    resolved = resolve_queue_capacity_multiplier(
-                        multiplier, wait_agent.runner_effective_limit
-                    )
-                    label = f"capacity budget {formatted}"
-                    if resolved is not None:
-                        label += f" ({format_capacity_value(resolved)})"
-                    value.append(label, style=_WAITING_VALUE_STYLE)
-                else:
-                    value.append(
-                        f"waiting for weighted load ×{formatted}",
-                        style=_WAITING_VALUE_STYLE,
-                    )
+                resolved = resolve_queue_capacity_multiplier(
+                    multiplier, wait_agent.runner_effective_limit
+                )
+                label = f"capacity budget {formatted}"
+                if resolved is not None:
+                    label += f" ({format_capacity_value(resolved)})"
+                value.append(label, style=_WAITING_VALUE_STYLE)
         elif capacity_explicit:
             if value.plain:
                 value.append(" · ", style="dim #AF87FF")
-            if queue_capacity_budget_display_enabled():
-                if threshold == 0:
-                    value.append("legacy capacity=0", style=_WAITING_VALUE_STYLE)
-                    value.append(
-                        " (exact-weight drain budget)",
-                        style="bold #AF87FF",
-                    )
-                elif threshold == 1:
-                    value.append("capacity budget 1", style=_WAITING_VALUE_STYLE)
-                    if _capacity_budget_runs_alone(wait_agent, threshold):
-                        value.append(" (runs alone)", style="bold #AF87FF")
-                else:
-                    value.append(
-                        f"capacity budget {threshold}",
-                        style=_WAITING_VALUE_STYLE,
-                    )
+            if threshold == 0:
+                value.append("legacy capacity=0", style=_WAITING_VALUE_STYLE)
+                value.append(
+                    " (exact-weight drain budget)",
+                    style="bold #AF87FF",
+                )
+            elif threshold == 1:
+                value.append("capacity budget 1", style=_WAITING_VALUE_STYLE)
+                if _capacity_budget_runs_alone(wait_agent, threshold):
+                    value.append(" (runs alone)", style="bold #AF87FF")
             else:
                 value.append(
-                    f"waiting for weighted load ≤{threshold}",
+                    f"capacity budget {threshold}",
                     style=_WAITING_VALUE_STYLE,
                 )
-                if threshold == 0:
-                    value.append(" (drain barrier)", style="bold #AF87FF")
         position = wait_agent.runner_slot_queue_position
         queue_size = wait_agent.runner_slot_queue_size
         if position is not None and queue_size is not None:
@@ -518,16 +503,12 @@ def _runner_capacity_parts(agent: Agent) -> tuple[str, ...]:
         return ()
     free = _runner_free_capacity(agent)
     capacity_budget = (
-        queue_capacity_budget_display_enabled()
-        and (
-            agent.wait_runners_explicit
-            or (
-                agent.queue_capacity_explicit
-                and agent.queue_capacity_multiplier is not None
-            )
+        agent.wait_runners_explicit
+        or (
+            agent.queue_capacity_explicit
+            and agent.queue_capacity_multiplier is not None
         )
-        and free is not None
-    )
+    ) and free is not None
     if format_queue_weight_badge_value(
         agent.queue_weight,
         explicit=agent.queue_weight_explicit,
@@ -548,8 +529,7 @@ def _runner_free_capacity(agent: Agent) -> float | None:
         if isinstance(free, (int, float)) and not isinstance(free, bool):
             return max(float(free), 0.0)
     if (
-        queue_capacity_budget_display_enabled()
-        and agent.runner_occupied_capacity is not None
+        agent.runner_occupied_capacity is not None
         and agent.runner_admission_limit is not None
     ):
         return max(agent.runner_admission_limit - agent.runner_occupied_capacity, 0.0)

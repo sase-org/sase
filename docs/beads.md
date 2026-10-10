@@ -2621,13 +2621,12 @@ behavior. The option applies to epic bead IDs and epic Markdown plan targets. An
 explicit capacity on a standalone task target is an actionable error: earlier successful
 targets stand and processing stops. When a segment is raised above `N`, the work-plan
 summary prints `Capacity: requested N · <agent> raised to M (queue weight W)`. The raise
-follows the `queue_capacity_budget` flag, which is on by default; with the flag off,
-every segment gets plain `N`. Before it marks the epic ready, preclaims beads, or spawns
-anything, SASE expands each phase and land macro to check the combined queue fields: a
-macro that sets its own `%queue(capacity=...)` conflicts with `--capacity`, and that
-target fails (under `--dry-run` too) without changing any bead or agent state.
-`-C/--cl-name NAME` retains the existing completion-notification behavior and plan-file
-restriction.
+always applies: every segment gets `max(N, ceil(authored_weight))`. Before it marks the
+epic ready, preclaims beads, or spawns anything, SASE expands each phase and land macro
+to check the combined queue fields: a macro that sets its own `%queue(capacity=...)`
+conflicts with `--capacity`, and that target fails (under `--dry-run` too) without
+changing any bead or agent state. `-C/--cl-name NAME` retains the existing
+completion-notification behavior and plan-file restriction.
 
 `-w/--wait SPEC` holds launched epic phases until every named dependency finishes.
 `SPEC` is a comma-separated list of agent names and `bead=<id>` entries; `time=`,

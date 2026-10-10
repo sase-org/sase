@@ -2339,7 +2339,7 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         "now": "2026-01-01T00:06:00Z",
         "deference_seconds_per_step": 0,
         "deference_max_seconds": 0,
-        "feature_flags": ["queue_capacity_budget"],
+        "feature_flags": [],
     }
     try:
         snapshot = module.runner_capacity_snapshot(request)
@@ -2399,7 +2399,7 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         "now": "2026-01-01T00:11:00Z",
         "deference_seconds_per_step": 0,
         "deference_max_seconds": 0,
-        "feature_flags": ["queue_capacity_budget"],
+        "feature_flags": [],
     }
     try:
         budget_snapshot = module.runner_capacity_snapshot(high_capacity_request)
@@ -2472,7 +2472,7 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         "now": "2026-01-01T00:21:00Z",
         "deference_seconds_per_step": 0,
         "deference_max_seconds": 0,
-        "feature_flags": ["queue_capacity_budget"],
+        "feature_flags": [],
     }
     try:
         held_snapshot = module.runner_capacity_snapshot(held_request)
