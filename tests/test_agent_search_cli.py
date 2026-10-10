@@ -557,33 +557,21 @@ def test_agent_search_session_field_and_kind_match_session_rows(
         assert "family" not in payload[0]
 
 
-def test_agent_search_legacy_family_terms_follow_the_flag(
+def test_agent_search_legacy_family_terms_are_accepted_aliases(
     monkeypatch: Any,
     capsys: Any,
 ) -> None:
-    from sase.feature_flags import override_flags
-
     snapshot = _snapshot(
         _row("research.12--code", agent_session="research.12", kind=("session",)),
         _row("solo"),
     )
     _patch_sources(monkeypatch, snapshot)
 
-    with override_flags(legacy_agent_family_syntax=True):
-        # legacy agent-family spelling: the old query terms still resolve
-        for query in (["family:research.12"], ["kind:family"]):
-            code = handle_agents_search(
-                argparse.Namespace(json=True, limit=0, project=None, query=query)
-            )
-            assert code == 0
-            payload = json.loads(capsys.readouterr().out)
-            assert [row["name"] for row in payload] == ["research.12--code"]
-
-    with override_flags(legacy_agent_family_syntax=False):
-        # legacy agent-family spelling: the old query terms are rejected
-        for query in (["family:research.12"], ["kind:family"]):
-            code = handle_agents_search(
-                argparse.Namespace(json=True, limit=0, project=None, query=query)
-            )
-            assert code == 2
-            assert "session" in capsys.readouterr().err
+    # legacy agent-family spelling: the old query terms still resolve
+    for query in (["family:research.12"], ["kind:family"]):
+        code = handle_agents_search(
+            argparse.Namespace(json=True, limit=0, project=None, query=query)
+        )
+        assert code == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["research.12--code"]

@@ -68,7 +68,7 @@ def test_rewrite_retry_prompt_uses_concrete_name_for_agent_session_member() -> N
 
 def test_rewrite_retry_prompt_still_reads_legacy_family_member() -> None:
     # legacy agent-family spelling: retired "family=" %id syntax still loads
-    # while the legacy_agent_family_syntax flag allows it.
+    # as an alias of "session=".
     assert (
         _rewrite_retry_prompt_name(
             "%id(reviewer, family=foo)\nDo work",

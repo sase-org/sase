@@ -24,17 +24,16 @@ _FAMILY_IDENTIFIER_RE = re.compile(
 )
 
 # Every exception below is one of: the canonical legacy-reader homes
-# (plan_chain, core/wire), a legacy durable-data reader, the
-# legacy_agent_family_syntax sunset-flag branch, the sidecar families/ redirect
-# stubs, or the removed workflow-kind error.
+# (plan_chain, core/wire), a legacy durable-data reader, the retired
+# agent-family compatibility aliases and their callers, the sidecar families/
+# redirect stubs, or the removed workflow-kind error.
 # New exceptions must name an equally explicit migration boundary.
 _FAMILY_IDENTIFIER_ALLOWLIST = {
     # Canonical legacy-key homes.
     Path("src/sase/plan_chain.py"),
     Path("src/sase/core/wire.py"),
-    # Sunset-flag branch: definition, enforcement, and callers.
+    # Compatibility-alias module and callers.
     Path("src/sase/agent/legacy_agent_family_syntax.py"),
-    Path("src/sase/feature_flags/registry.py"),
     Path("src/sase/agent/_agent_session_attach_directives.py"),
     Path("src/sase/agent/_agent_session_attach_launch.py"),
     Path("src/sase/agent/_agent_session_attach_types.py"),
@@ -48,7 +47,6 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/notification_gates/model_request.py"),
     Path("src/sase/notification_gates/model_turn.py"),
     Path("src/sase/macro/_directive_edit_identity.py"),
-    Path("src/sase/config/sase.schema.json"),
     # Legacy durable-data and pre-contract wire readers.
     Path("src/sase/core/agent_scan_wire_conversion.py"),
     Path("src/sase/core/agent_cleanup_wire.py"),

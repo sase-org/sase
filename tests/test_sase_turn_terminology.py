@@ -36,15 +36,15 @@ _TURN_IDENTIFIER_RE = re.compile(
 # Every exception below is one of: the canonical legacy-key homes
 # (plan_chain, core/wire), a legacy durable-data or pre-contract wire
 # reader, a dual-core binding fallback that works against both the old and
-# the new core, the legacy_sase_shell_syntax sunset-flag branch, or Unix-shell
-# handling (completion install targets) whose ``shell_name`` helper is an
-# unrelated meaning.
+# the new core, the retired sase-shell compatibility aliases and their
+# callers, or Unix-shell handling (completion install targets) whose
+# ``shell_name`` helper is an unrelated meaning.
 # New exceptions must name an equally explicit migration boundary.
 _TURN_IDENTIFIER_ALLOWLIST = {
     # Canonical legacy-key homes.
     Path("src/sase/plan_chain.py"),
     Path("src/sase/core/wire.py"),
-    # Sunset-flag branch: definition, enforcement, and callers.
+    # Compatibility-alias module and callers.
     Path("src/sase/agent/legacy_sase_shell_syntax.py"),
     Path("src/sase/main/gate_handler.py"),
     Path("src/sase/main/proc_handler.py"),
@@ -68,10 +68,6 @@ _TURN_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/plan_gate_turn/create.py"),
     # Legacy dismissed-procs file migration reader.
     Path("src/sase/ace/dismissed_procs.py"),
-    # Sunset-flag registry sentence naming the retired spellings.
-    Path("src/sase/feature_flags/registry.py"),
-    # Generated schema; its retired-spellings description mirrors the registry.
-    Path("src/sase/config/sase.schema.json"),
     Path("src/sase/procs/__init__.py"),
     Path("src/sase/procs/models/__init__.py"),
     Path("src/sase/procs/models/common.py"),
@@ -176,16 +172,15 @@ _SRC_STALE_PHRASES = (
     "--shell-stop-status",
 )
 
-# Whole-file exception: the sunset-flag module defines and enforces the
-# retired spellings, so it names them throughout.
+# Whole-file exception: the compatibility-alias module defines the retired
+# spellings, so it names them throughout.
 _SRC_STALE_PHRASE_FILE_ALLOWLIST = {
     Path("src/sase/agent/legacy_sase_shell_syntax.py"),
 }
 
 # Intentional survivors in ``src/``: each pair names a file whose remaining
 # hit is a named legacy reader (pre-rename values or keys read for
-# compatibility, never written), a hidden sunset-flag CLI alias, or the
-# retired-spellings description in the schema/flag registry.
+# compatibility, never written) or a hidden retired-spelling CLI alias.
 _SRC_STALE_PHRASE_ALLOWLIST = {
     # Pre-rename ``proc-shell`` lifecycle/origin values and fold id.
     (
@@ -203,19 +198,7 @@ _SRC_STALE_PHRASE_ALLOWLIST = {
     ("src/sase/plan_gate_turn/followup.py", "plan-shell"),
     # Legacy ``gate.shell.reclaim_grace_seconds`` key reader.
     ("src/sase/config/_settings_system.py", "gate.shell."),
-    # Retired-spellings descriptions.
-    ("src/sase/config/sase.schema.json", "gate.shell."),
-    ("src/sase/config/sase.schema.json", "--next-fork shell"),
-    ("src/sase/config/sase.schema.json", "--shell"),
-    ("src/sase/config/sase.schema.json", "--shell-status"),
-    ("src/sase/config/sase.schema.json", "--shell-stop-status"),
-    ("src/sase/feature_flags/registry.py", "gate.shell."),
-    ("src/sase/feature_flags/registry.py", '"fork": "shell"'),
-    ("src/sase/feature_flags/registry.py", "--next-fork shell"),
-    ("src/sase/feature_flags/registry.py", "--shell"),
-    ("src/sase/feature_flags/registry.py", "--shell-status"),
-    ("src/sase/feature_flags/registry.py", "--shell-stop-status"),
-    # Hidden sunset-flag CLI aliases (``help=argparse.SUPPRESS``).
+    # Hidden retired-spelling CLI aliases (``help=argparse.SUPPRESS``).
     ("src/sase/main/parser_gate.py", "--shell"),
     ("src/sase/main/parser_gate.py", "--shell-status"),
     ("src/sase/main/parser_gate.py", "--shell-stop-status"),

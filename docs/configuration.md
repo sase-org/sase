@@ -4164,10 +4164,9 @@ gate:
 
 Within the grace window, reclaim cancels an expired gate and settles its turn as a
 normal `timeout`; once the window has passed, a still-pending turn settles as `lost`
-instead. A missing, negative, or non-integer value falls back to `3600`. While
-`legacy_sase_shell_syntax` is enabled, the retired `gate.shell` `.reclaim_grace_seconds`
-key is accepted as this same setting. Setting both keys is an error; use only
-`gate.turn`.
+instead. A missing, negative, or non-integer value falls back to `3600`. The retired
+`gate.shell` `.reclaim_grace_seconds` key is accepted as this same setting. Setting both
+keys is an error; use only `gate.turn`.
 
 Source: `src/sase/default_config.yml`, `src/sase/gate_turn/reclaim.py`
 
@@ -5215,8 +5214,6 @@ retired spelling, so its behavior is documented in
 | `claude_helper_channel`          | sunset | `true`  | Claude receives the packaged helper instructions and a tool guard that prevents native helpers from submitting root final declarations. See [Root and helper agents](agent_providers.md#root-and-helper-agents).                          |
 | `grok_rules_delivery`            | sunset | `true`  | Grok root runs receive the SASE single-turn directive plus the managed project root `AGENTS.md` through `--rules`. See [Grok Build Integration](llms.md#grok-build-integration).                                                          |
 | `instruction_shadow_render`      | sunset | `true`  | Root provider invocations record an intended bundle and manifest and set `SASE_INSTRUCTIONS_FILE` for the call. Current providers do not read it, so existing delivery stays the same. See [Instruction Bundles](instruction_bundles.md). |
-| `legacy_agent_family_syntax`     | sunset | `true`  | Retired agent-family spellings still alias agent-session spellings. Off rejects new uses; stored records still read. See [Agent sessions](agent_sessions.md#sequential-agent-sessions).                                                   |
-| `legacy_sase_shell_syntax`       | sunset | `true`  | Retired sase-shell spellings still alias sase-turn spellings. Off rejects new uses; stored records still read. See [Gate turns](notifications.md#gate-turns-and-continuation).                                                            |
 | `monitor_continuation_records`   | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                                                                   |
 | `muse_synchronous_shell`         | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                                                                             |
 | `provider_drain`                 | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit` and Launch Control's automatic provider drain in `ace.md`).                                                                 |
@@ -5230,17 +5227,17 @@ retired spelling, so its behavior is documented in
 registered is removed the next time an installing process reconciles
 `feature_flags.json`.
 
-`legacy_agent_family_syntax` accepts, while it stays on, the retired family keyword on
-`%id` as `session=`, the `family` and `kind` agent-query values as `session:` and
-`kind:session`, the `--next-fork` family value, a gate `"fork": "family"`, and
-`SASE_AGENT_FAMILY_ATTACH`. `legacy_sase_shell_syntax` accepts
-`sase gate create --shell`, `--shell-status`, `--shell-stop-status`, and the
-`--next-fork` shell value; a gate spec's `"shell"` block, the `"fork"` key set to
-`"shell"`, and `"continuation_mode": "gate_shell"`; `--shell` on `sase proc list` or
+The retired family keyword on `%id` is always accepted as `session=`, the `family` and
+`kind` agent-query values are always accepted as `session:` and `kind:session`, and the
+`--next-fork` family value, a gate `"fork": "family"`, and `SASE_AGENT_FAMILY_ATTACH`
+always normalize to their session replacements. The retired shell spellings are always
+accepted as well: `sase gate create --shell`, `--shell-status`, `--shell-stop-status`,
+and the `--next-fork` shell value; a gate spec's `"shell"` block, the `"fork"` key set
+to `"shell"`, and `"continuation_mode": "gate_shell"`; `--shell` on `sase proc list` or
 `sase proc run` (replaced by `--name`); and the retired `gate.shell`
 `.reclaim_grace_seconds` key. Supplying both names for the same option or block is an
-error in either flag state. Write the session and turn spellings in new prompts and
-config, and use `--name` for proc commands.
+error. Write the session and turn spellings in new prompts and config, and use `--name`
+for proc commands.
 
 The sunset flag for retired macro spellings accepts, while it stays on, the aliases in
 [the macro rename section](macros.md#retired-macro-spellings). Turning it off rejects

@@ -1,4 +1,4 @@
-"""Both-state coverage for the retired agent-family syntax flag."""
+"""Unconditional coverage for the retired agent-family syntax aliases."""
 
 from __future__ import annotations
 
@@ -15,10 +15,9 @@ from sase.agent._agent_session_attach_types import (
 )
 from sase.agent.agent_session_attach import load_agent_session_attach_plan_from_env
 from sase.agent.detached_child import agent_session_attach_env
-from sase.feature_flags import override_flags
 from sase.main.parser_gate import register_gate_parser
 from sase.notification_gates.model_turn import GateTurnNext
-from sase.notification_gates.models import GateError, GateSpec
+from sase.notification_gates.models import GateSpec
 from sase.macro._exceptions import DirectiveError
 from sase.macro._directive_edit_identity import set_prompt_name
 from sase.macro.directives import extract_prompt_directives
@@ -49,80 +48,47 @@ def _gate_parser() -> argparse.ArgumentParser:
     return parser
 
 
-@pytest.mark.parametrize("enabled", [False, True])
-def test_canonical_session_directive_works_in_both_flag_states(enabled: bool) -> None:
-    with override_flags(legacy_agent_family_syntax=enabled):
-        _, directives = extract_prompt_directives(
-            "%id(review, session=parent)\nDo work"
-        )
+def test_canonical_session_directive_passes_through() -> None:
+    _, directives = extract_prompt_directives("%id(review, session=parent)\nDo work")
 
     assert directives.agent_session_attach_parent == "parent"
     assert directives.agent_session_attach_suffix == "review"
 
 
-def test_legacy_directive_is_an_enabled_alias_and_disabled_error() -> None:
-    with override_flags(legacy_agent_family_syntax=True):
-        _, directives = extract_prompt_directives("%id(review, family=parent)\nDo work")
+def test_legacy_directive_is_always_an_accepted_alias() -> None:
+    _, directives = extract_prompt_directives("%id(review, family=parent)\nDo work")
     assert directives.agent_session_attach_parent == "parent"
-
-    with override_flags(legacy_agent_family_syntax=False):
-        with pytest.raises(DirectiveError, match=r"family= is retired; use session="):
-            extract_prompt_directives("%id(review, family=parent)\nDo work")
 
 
 def test_session_and_family_directives_cannot_be_combined() -> None:
-    with override_flags(legacy_agent_family_syntax=True):
-        with pytest.raises(
-            DirectiveError, match=r"cannot be combined; use only session="
-        ):
-            extract_prompt_directives(
-                "%id(review, session=parent, family=other)\nDo work"
-            )
+    with pytest.raises(DirectiveError, match=r"cannot be combined; use only session="):
+        extract_prompt_directives("%id(review, session=parent, family=other)\nDo work")
 
 
-def test_prompt_identity_edits_emit_session_and_reject_disabled_legacy_input() -> None:
-    with override_flags(legacy_agent_family_syntax=True):
-        rewritten = set_prompt_name("%id(old, family=parent)\nDo work", "new")
+def test_prompt_identity_edits_emit_session_for_legacy_input() -> None:
+    rewritten = set_prompt_name("%id(old, family=parent)\nDo work", "new")
     assert rewritten == "%id(new, session=parent)\nDo work"
 
-    with override_flags(legacy_agent_family_syntax=False):
-        with pytest.raises(ValueError, match=r"family= is retired; use session="):
-            set_prompt_name("%id(old, family=parent)\nDo work", "new")
 
-
-@pytest.mark.parametrize("enabled", [False, True])
-def test_canonical_next_fork_works_in_both_flag_states(enabled: bool) -> None:
-    with override_flags(legacy_agent_family_syntax=enabled):
-        args = _gate_parser().parse_args(["gate", "create", "--next-fork", "session"])
-        raw = custom_gate_spec(request_id=f"canonical-fork-{enabled}")
-        raw["shell"] = {"next": {"fork": "session"}}
-        spec = GateSpec.from_mapping(raw)
+def test_canonical_next_fork_passes_through() -> None:
+    args = _gate_parser().parse_args(["gate", "create", "--next-fork", "session"])
+    raw = custom_gate_spec(request_id="canonical-fork")
+    raw["shell"] = {"next": {"fork": "session"}}
+    spec = GateSpec.from_mapping(raw)
 
     assert args.next_fork == "session"
     assert spec.shell is not None
     assert spec.shell.next.fork == "session"
 
 
-def test_legacy_next_fork_and_gate_spec_follow_the_flag(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    with override_flags(legacy_agent_family_syntax=True):
-        args = _gate_parser().parse_args(["gate", "create", "--next-fork", "family"])
-        raw = custom_gate_spec(request_id="legacy-fork-on")
-        raw["shell"] = {"next": {"fork": "family"}}
-        spec = GateSpec.from_mapping(raw)
+def test_legacy_next_fork_and_gate_spec_are_always_accepted_aliases() -> None:
+    args = _gate_parser().parse_args(["gate", "create", "--next-fork", "family"])
+    raw = custom_gate_spec(request_id="legacy-fork-on")
+    raw["shell"] = {"next": {"fork": "family"}}
+    spec = GateSpec.from_mapping(raw)
     assert args.next_fork == "session"
     assert spec.shell is not None
     assert spec.shell.next.fork == "session"
-
-    with override_flags(legacy_agent_family_syntax=False):
-        with pytest.raises(SystemExit):
-            _gate_parser().parse_args(["gate", "create", "--next-fork", "family"])
-        raw = custom_gate_spec(request_id="legacy-fork-off")
-        raw["shell"] = {"next": {"fork": "family"}}
-        with pytest.raises(GateError, match=r'"fork": "family" is retired'):
-            GateSpec.from_mapping(raw)
-    assert '"fork": "session"' in capsys.readouterr().err
 
 
 def test_gate_help_lists_only_canonical_next_fork_value(
@@ -137,25 +103,21 @@ def test_gate_help_lists_only_canonical_next_fork_value(
     assert "--next-fork {session,shell,none}" not in help_text
 
 
-def test_durable_legacy_gate_fork_loads_when_the_flag_is_off() -> None:
-    with override_flags(legacy_agent_family_syntax=False):
-        policy = GateTurnNext.from_mapping({"fork": "family"}, target="shell.next")
+def test_durable_legacy_gate_fork_loads() -> None:
+    policy = GateTurnNext.from_mapping({"fork": "family"}, target="shell.next")
 
     assert policy.fork == "session"
 
 
-def test_attach_env_writer_and_loader_follow_the_flag() -> None:
+def test_attach_env_writer_prefers_canonical_and_loader_reads_legacy() -> None:
     plan = _attach_plan()
     written = agent_session_attach_env(plan)
     assert written[AGENT_SESSION_ATTACH_ENV]
     assert LEGACY_AGENT_FAMILY_ATTACH_ENV not in written
 
     legacy = {LEGACY_AGENT_FAMILY_ATTACH_ENV: json.dumps(asdict(plan))}
-    with override_flags(legacy_agent_family_syntax=True):
-        assert load_agent_session_attach_plan_from_env(legacy) == plan
-    with override_flags(legacy_agent_family_syntax=False):
-        assert load_agent_session_attach_plan_from_env(legacy) is None
-        assert load_agent_session_attach_plan_from_env(written) == plan
+    assert load_agent_session_attach_plan_from_env(legacy) == plan
+    assert load_agent_session_attach_plan_from_env(written) == plan
 
 
 def _agents_profile() -> object:
@@ -166,56 +128,40 @@ def _agents_profile() -> object:
     return profile
 
 
-@pytest.mark.parametrize("enabled", [False, True])
-def test_canonical_session_query_terms_work_in_both_flag_states(
-    enabled: bool,
-) -> None:
+def test_canonical_session_query_terms_pass_through() -> None:
     from sase.agent.legacy_agent_family_syntax import (
         normalize_agent_session_query_text,
     )
 
     profile = _agents_profile()
-    with override_flags(legacy_agent_family_syntax=enabled):
-        assert (
-            normalize_agent_session_query_text('session:"research.12"', profile)
-            == 'session:"research.12"'
-        )
-        assert (
-            normalize_agent_session_query_text("session:research.12", profile)
-            == "session:research.12"
-        )
-        assert (
-            normalize_agent_session_query_text("kind:session", profile)
-            == "kind:session"
-        )
+    assert (
+        normalize_agent_session_query_text('session:"research.12"', profile)
+        == 'session:"research.12"'
+    )
+    assert (
+        normalize_agent_session_query_text("session:research.12", profile)
+        == "session:research.12"
+    )
+    assert normalize_agent_session_query_text("kind:session", profile) == "kind:session"
 
 
-def test_legacy_query_terms_are_an_enabled_alias_and_disabled_error() -> None:
-    from sase.ace.query.profile_reference_support import ProfileQueryError
+def test_legacy_query_terms_are_always_accepted_aliases() -> None:
     from sase.agent.legacy_agent_family_syntax import (
         normalize_agent_session_query_text,
     )
 
     profile = _agents_profile()
-    with override_flags(legacy_agent_family_syntax=True):
-        assert (
-            normalize_agent_session_query_text('family:"research.12"', profile)
-            == "session:research.12"
+    assert (
+        normalize_agent_session_query_text('family:"research.12"', profile)
+        == "session:research.12"
+    )
+    assert normalize_agent_session_query_text("kind:family", profile) == "kind:session"
+    assert (
+        normalize_agent_session_query_text(
+            'family:"research.12" AND NOT kind:workflow-child', profile
         )
-        assert (
-            normalize_agent_session_query_text("kind:family", profile) == "kind:session"
-        )
-        assert (
-            normalize_agent_session_query_text(
-                'family:"research.12" AND NOT kind:workflow-child', profile
-            )
-            == "session:research.12 AND NOT kind:workflow-child"
-        )
-
-    with override_flags(legacy_agent_family_syntax=False):
-        for query in ('family:"research.12"', "kind:family"):
-            with pytest.raises(ProfileQueryError, match=r"session"):
-                normalize_agent_session_query_text(query, profile)
+        == "session:research.12 AND NOT kind:workflow-child"
+    )
 
 
 def test_legacy_query_alias_preserves_host_limit_token() -> None:
@@ -224,15 +170,14 @@ def test_legacy_query_alias_preserves_host_limit_token() -> None:
     )
 
     profile = _agents_profile()
-    with override_flags(legacy_agent_family_syntax=True):
-        assert (
-            normalize_agent_session_query_text("family:x limit:5", profile)
-            == "session:x limit:5"
-        )
-        assert (
-            normalize_agent_session_query_text("kind:family limit:0", profile)
-            == "kind:session limit:0"
-        )
+    assert (
+        normalize_agent_session_query_text("family:x limit:5", profile)
+        == "session:x limit:5"
+    )
+    assert (
+        normalize_agent_session_query_text("kind:family limit:0", profile)
+        == "kind:session limit:0"
+    )
 
 
 def test_canonical_query_text_passes_through_untouched() -> None:
@@ -241,12 +186,9 @@ def test_canonical_query_text_passes_through_untouched() -> None:
     )
 
     profile = _agents_profile()
-    with override_flags(legacy_agent_family_syntax=False):
-        assert normalize_agent_session_query_text("", profile) == ""
-        assert normalize_agent_session_query_text("limit:5", profile) == "limit:5"
-        assert (
-            normalize_agent_session_query_text("name:family", profile) == "name:family"
-        )
+    assert normalize_agent_session_query_text("", profile) == ""
+    assert normalize_agent_session_query_text("limit:5", profile) == "limit:5"
+    assert normalize_agent_session_query_text("name:family", profile) == "name:family"
 
 
 def test_agent_query_completion_and_hints_show_only_session() -> None:

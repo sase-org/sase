@@ -28,8 +28,6 @@ class FeatureFlag(StrEnum):
     agent_sudo_requests = "agent_sudo_requests"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
     grok_rules_delivery = "grok_rules_delivery"
-    legacy_agent_family_syntax = "legacy_agent_family_syntax"
-    legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
@@ -88,31 +86,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "skill guard, and SSH relay phases land."
         ),
         bead="sase-111",
-    ),
-    FeatureFlag.legacy_agent_family_syntax: FeatureFlagDefinition(
-        key=FeatureFlag.legacy_agent_family_syntax,
-        kind="sunset",
-        description=(
-            "SASE silently accepts the retired agent-family spellings as aliases "
-            "of their agent-session replacements: %id(..., family=...), the "
-            'family:/kind:family agent queries, --next-fork family, gate "fork": '
-            '"family", and SASE_AGENT_FAMILY_ATTACH. Removing this flag also '
-            "removes sase-core's hidden `family` %id keyword alias."
-        ),
-        bead="sase-18l",
-    ),
-    FeatureFlag.legacy_sase_shell_syntax: FeatureFlagDefinition(
-        key=FeatureFlag.legacy_sase_shell_syntax,
-        kind="sunset",
-        description=(
-            "SASE silently accepts the retired sase-shell spellings as aliases "
-            "of their sase-turn replacements: `sase gate create --shell`, "
-            "`--shell-status`, `--shell-stop-status`, and `--next-fork shell`; "
-            'a gate spec\'s `"shell"` block, `"fork": "shell"`, and '
-            '`"continuation_mode": "gate_shell"`; `sase proc list/run --shell`; '
-            "and the `gate.shell.reclaim_grace_seconds` config key."
-        ),
-        bead="sase-1ar",
     ),
     FeatureFlag.bgcmd_legacy_slots: FeatureFlagDefinition(
         key=FeatureFlag.bgcmd_legacy_slots,

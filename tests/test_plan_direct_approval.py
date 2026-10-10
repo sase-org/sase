@@ -227,8 +227,7 @@ def test_compose_coder_prompt_agent_session() -> None:
     assert "#coder(plan:202609/foo.md)" in prompt
 
 
-def test_compose_coder_prompt_session_directive_parses_without_legacy_syntax() -> None:
-    from sase.feature_flags import override_flags
+def test_compose_coder_prompt_session_directive_parses() -> None:
     from sase.macro.directives import extract_prompt_directives
 
     placement = CoderPlacement(mode="session", parent="bob", agent_session="bob")
@@ -241,8 +240,7 @@ def test_compose_coder_prompt_session_directive_parses_without_legacy_syntax() -
         bead=None,
         placement=placement,
     )
-    with override_flags(legacy_agent_family_syntax=False):
-        _, directives = extract_prompt_directives(prompt)
+    _, directives = extract_prompt_directives(prompt)
     assert directives.agent_session_attach_parent == "bob"
     assert directives.agent_session_attach_suffix == "code"
 

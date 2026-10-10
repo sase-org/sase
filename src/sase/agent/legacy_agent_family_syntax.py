@@ -1,8 +1,8 @@
 """Compatibility normalizers for retired agent-family user syntax.
 
 Keep every temporary alias for the agent-session terminology migration in this
-module. Durable readers may request the unconditional legacy path; authored
-input follows the ``legacy_agent_family_syntax`` sunset flag.
+module. Both durable readers and authored input always accept the retired
+spellings as aliases of their agent-session replacements.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from sase.agent._agent_session_attach_types import (
     AGENT_SESSION_ATTACH_ENV,
     LEGACY_AGENT_FAMILY_ATTACH_ENV,
 )
-from sase.feature_flags import FeatureFlag, current_flags
 
 if TYPE_CHECKING:
     from sase.ace.query.types import QueryExpr
@@ -30,20 +29,10 @@ _LEGACY_QUERY_KIND = "family"
 _SESSION_QUERY_KIND = "session"
 
 
-def _legacy_agent_family_syntax_enabled() -> bool:
-    """Return whether retired user-authored agent-family syntax is accepted."""
-    return current_flags().enabled(FeatureFlag.legacy_agent_family_syntax)
-
-
-def _retired_agent_family_syntax_message(legacy: str, replacement: str) -> str:
-    """Return the consistent replacement hint for one retired spelling."""
-    return f"{legacy} is retired; use {replacement}"
-
-
 def normalize_agent_session_directive_args(
     named_args: Mapping[str, str],
 ) -> dict[str, str]:
-    """Normalize the old ``family=`` %id keyword to ``session=`` when allowed."""
+    """Normalize the old ``family=`` %id keyword to ``session=``."""
     normalized = dict(named_args)
     has_legacy = _LEGACY_DIRECTIVE_KEY in normalized
     has_canonical = _SESSION_DIRECTIVE_KEY in normalized
@@ -51,8 +40,6 @@ def normalize_agent_session_directive_args(
         raise ValueError("family= and session= cannot be combined; use only session=.")
     if not has_legacy:
         return normalized
-    if not _legacy_agent_family_syntax_enabled():
-        raise ValueError(_retired_agent_family_syntax_message("family=", "session="))
     normalized[_SESSION_DIRECTIVE_KEY] = normalized.pop(_LEGACY_DIRECTIVE_KEY)
     return normalized
 
@@ -62,30 +49,25 @@ def normalize_agent_session_fork(
     *,
     persisted: bool = False,
 ) -> object:
-    """Normalize a gate fork value, preserving old durable records unconditionally."""
+    """Normalize a gate fork value to its agent-session spelling."""
     if value != _LEGACY_FORK:
         return value
-    if persisted or _legacy_agent_family_syntax_enabled():
-        return _SESSION_FORK
-    raise ValueError(
-        _retired_agent_family_syntax_message('"fork": "family"', '"fork": "session"')
-    )
+    # Retired switch kept for compatibility and ignored.
+    _ = persisted
+    return _SESSION_FORK
 
 
 def normalize_persisted_agent_session_fork(value: object) -> object:
-    """Normalize a pre-rename durable gate fork regardless of the sunset flag."""
+    """Normalize a pre-rename durable gate fork to its session spelling."""
     return normalize_agent_session_fork(value, persisted=True)
 
 
 def agent_session_attach_env_value(env: Mapping[str, str]) -> str | None:
-    """Read the canonical attach payload, or a permitted legacy fallback."""
+    """Read the canonical attach payload, or the legacy fallback."""
     canonical = env.get(AGENT_SESSION_ATTACH_ENV)
     if canonical:
         return canonical
-    legacy = env.get(LEGACY_AGENT_FAMILY_ATTACH_ENV)
-    if legacy and _legacy_agent_family_syntax_enabled():
-        return legacy
-    return None
+    return env.get(LEGACY_AGENT_FAMILY_ATTACH_ENV) or None
 
 
 def _normalize_agent_session_query_expr(expr: QueryExpr) -> QueryExpr:
@@ -133,11 +115,9 @@ def normalize_agent_session_query_text(
     ``kind:family`` value), :func:`_normalize_agent_session_query_expr`
     rewrites the AST, and the canonical session spelling is returned.
 
-    With the ``legacy_agent_family_syntax`` flag on, a query using the
-    retired spellings returns its canonical text. With the flag off, a query
-    using them raises :class:`ProfileQueryError` naming the
-    ``session:``/``kind:session`` replacements. Queries that fail to parse
-    for any other reason raise the original parse error either way.
+    A query using the retired spellings always returns its canonical text.
+    Queries that fail to parse for any other reason raise the original parse
+    error.
     """
     from sase.ace.query.limit_token import LimitTokenError, extract_limit
     from sase.ace.query.profile_reference import parse_query_for_profile
@@ -200,13 +180,6 @@ def _normalize_agent_session_query_after_error(
     rewritten = _normalize_agent_session_query_expr(legacy_expr)
     if to_canonical_string(rewritten) == to_canonical_string(legacy_expr):
         raise original_error from None
-    if not _legacy_agent_family_syntax_enabled():
-        raise ProfileQueryError(
-            _retired_agent_family_syntax_message(
-                "family:/kind:family", "session:/kind:session"
-            ),
-            0,
-        ) from None
     canonical = to_canonical_string(rewritten)
     # Validate the rewritten query against the canonical profile so genuine
     # errors elsewhere in the query still surface with canonical positions.
