@@ -2078,40 +2078,67 @@ UpdateFailureModal {
 
 UpdateFailureModal > #update-failure-container {
     width: 90;
-    max-width: 94%;
     height: auto;
-    max-height: 86%;
     background: $surface;
     border: double #FF5F5F;
     padding: 0 1;
 }
 
+UpdateFailureModal > #update-failure-container.-cramped {
+    padding: 0 1;
+}
+
 UpdateFailureModal #update-failure-meta {
     height: auto;
-    margin-bottom: 1;
+    width: 100%;
 }
 
 UpdateFailureModal #update-failure-error {
     height: auto;
+    width: 100%;
     margin-bottom: 1;
+}
+
+UpdateFailureModal > #update-failure-container.-cramped #update-failure-error {
+    margin-bottom: 0;
 }
 
 UpdateFailureModal #update-failure-output-label {
     height: auto;
-    margin-bottom: 1;
+    width: 100%;
 }
 
 UpdateFailureModal #update-failure-scroll {
+    height: 1fr;
+    min-height: 1;
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+UpdateFailureModal #update-failure-body {
     height: auto;
-    max-height: 20;
-    border: solid $secondary;
+    width: 100%;
 }
 
 UpdateFailureModal #update-failure-footer {
     height: auto;
+    width: 100%;
     color: $text-muted;
     text-align: center;
     margin-top: 1;
+}
+
+UpdateFailureModal > #update-failure-container.-cramped #update-failure-footer {
+    margin-top: 0;
+}
+
+UpdateFailureModal #update-failure-scroll-hint {
+    height: auto;
+    width: 100%;
+    color: $text-muted;
+    text-align: center;
 }
 
 GateRetryModal {

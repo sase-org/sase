@@ -108,6 +108,9 @@ ADMIN_CENTER_UPDATES_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Space", "Mark plugin / agent CLI"),
         ("H", "CLI history: this / all"),
         ("r / o", "Refresh / offline mode"),
+        ("f (Update panel)", "Open failure report"),
+        ("u / d / y / q", "Report: open/dismiss/copy/close"),
+        ("Ctrl+U/D, g / G", "Report scroll / top/bottom"),
     ],
 )
 

@@ -9208,10 +9208,17 @@ A red gear means the last update or update-planning attempt settled with an erro
 ACE exited before it finished (an interrupted attempt, whose install may be incomplete).
 Clicking the red gear opens the failure report: the failed attempt's label, error, and
 last output, with `u` opening the Update panel, `d` dismissing the recorded failure, `y`
-copying the report, and `q` closing. A later attempt that starts after the failure
-clears the gear on success, as does dismissing it. The record lives in
-`~/.sase/update_attempts.json`, so it survives ACE restarts and every ACE instance on
-the machine converges on it at startup and on the ten-minute update-check tick.
+copying the report, and `q`/`Esc` closing. The report expands automatically to fit its
+content and terminal: a small failure stays compact, a long command widens it, and a
+long transcript grows it taller up to nearly the whole terminal. Resizing the terminal
+reflows the report without losing focus or scroll position. When the report still
+overflows, only the report scrolls (`Ctrl+U`/`Ctrl+D` half-page, `g`/`G` top/bottom);
+the title and actions stay pinned. `d` dismisses the recorded failure (clearing the
+gear), while `q`/`Esc` only closes the report and keeps it recorded. A later attempt
+that starts after the failure clears the gear on success, as does dismissing it. The
+record lives in `~/.sase/update_attempts.json`, so it survives ACE restarts and every
+ACE instance on the machine converges on it at startup and on the ten-minute
+update-check tick.
 
 For editable host, core, and plugin checkouts, the running TUI also remembers the Git
 HEAD imported by the process and cheaply checks whether the checkout has moved on disk.
