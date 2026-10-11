@@ -452,6 +452,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jm.3.1(request_archive_lookup)' \
         --epic-symbol 'sase-1jx.6(classify_project_candidates)' \
+        --epic-symbol 'sase-1jx.7(plan_project_onboarding)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
         --epic-symbol 'sase-1jm.3(archive_marked_run_keys)' \
         --epic-symbol 'sase-1jm.3(archive_read_target)' \

@@ -39,6 +39,23 @@ def evaluate_repo_creation_form(
     )
 
 
+def plan_project_onboarding(
+    request: Mapping[str, Any],
+    facts: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Derive the ordered onboarding plan from intent and observed facts."""
+    payload = {
+        "schema_version": PROJECT_ONBOARDING_WIRE_SCHEMA_VERSION,
+        "request": dict(request),
+        "facts": dict(facts),
+    }
+    return _call(
+        "plan_project_onboarding",
+        payload,
+        "project onboarding plan",
+    )
+
+
 def _call(name: str, request: Mapping[str, Any], label: str) -> dict[str, Any]:
     _require_wire_schema()
     payload = dict(request)
@@ -69,4 +86,5 @@ __all__ = [
     "PROJECT_ONBOARDING_WIRE_SCHEMA_VERSION",
     "classify_project_candidates",
     "evaluate_repo_creation_form",
+    "plan_project_onboarding",
 ]

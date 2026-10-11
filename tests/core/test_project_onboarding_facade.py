@@ -6,6 +6,7 @@ from sase.core.project_onboarding_facade import (
     PROJECT_ONBOARDING_WIRE_SCHEMA_VERSION,
     classify_project_candidates,
     evaluate_repo_creation_form,
+    plan_project_onboarding,
 )
 from sase.core.rust import require_rust_binding
 
@@ -89,3 +90,79 @@ def test_evaluate_template_excludes_in_lenient_and_strict() -> None:
         error["field"] == "license" and error["code"] == "conflict"
         for error in strict["errors"]
     )
+
+
+def test_plan_fresh_add_is_ready_with_stable_fingerprint() -> None:
+    request = {
+        "mode": "add",
+        "actor": "human",
+        "target": {
+            "workflow_type": "gh",
+            "identity_key": "github.com/sase-org/bob",
+            "ref": "sase-org/bob",
+            "display": "sase-org/bob",
+            "checkout_dir": "/tmp/bob",
+            "project_key_base": "gh_sase-org__bob",
+            "project_name_base": "bob",
+            "storage_policy": "separate_repo",
+        },
+        "requested": {"setup": "auto", "make_current": False},
+    }
+    facts = {
+        "remote": {
+            "status": "found",
+            "visibility": "private",
+            "can_push": True,
+            "sase_managed": False,
+        },
+        "checkout": {"state": "absent"},
+    }
+    result = plan_project_onboarding(request, facts)
+    assert result["schema_version"] == 1
+    assert result["status"] == "ready"
+    assert result["setup"]["code"] == "unmanaged_can_push"
+    assert result["identity"]["key"] == "gh_sase-org__bob"
+    assert result["steps"][0]["id"] == "checkout"
+    assert result["steps"][0]["state"] == "pending"
+    later = plan_project_onboarding(
+        request,
+        {
+            **facts,
+            "checkout": {"state": "matching"},
+            "record": {
+                "key": "gh_sase-org__bob",
+                "name": "bob",
+                "aliases": [],
+                "state": "enabled",
+            },
+        },
+    )
+    assert later["intent_fingerprint"] == result["intent_fingerprint"]
+
+
+def test_plan_agent_create_is_human_only() -> None:
+    result = plan_project_onboarding(
+        {
+            "mode": "create",
+            "actor": "agent",
+            "target": {
+                "workflow_type": "gh",
+                "identity_key": "github.com/sase-org/forge",
+                "ref": "sase-org/forge",
+                "display": "sase-org/forge",
+                "project_key_base": "gh_sase-org__forge",
+                "project_name_base": "forge",
+                "storage_policy": "separate_repo",
+            },
+            "requested": {"setup": "auto"},
+            "creation": {"visibility": "private", "summary": []},
+        },
+        {
+            "remote": {"status": "not_found"},
+            "checkout": {"state": "absent"},
+            "can_create": True,
+        },
+    )
+    assert result["status"] == "blocked"
+    assert any(item["code"] == "human_only" for item in result["blockers"])
+    assert result["setup"]["code"] == "agent"

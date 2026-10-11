@@ -416,6 +416,7 @@ def test_validate_sase_core_rs_requires_project_onboarding_bindings() -> None:
         "project_onboarding_wire_schema_version",
         "classify_project_candidates",
         "evaluate_repo_creation_form",
+        "plan_project_onboarding",
     }
 
     assert bindings <= set(validator.REQUIRED_BINDINGS)

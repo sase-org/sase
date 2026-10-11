@@ -443,6 +443,7 @@ REQUIRED_BINDINGS = (
     "project_onboarding_wire_schema_version",
     "classify_project_candidates",
     "evaluate_repo_creation_form",
+    "plan_project_onboarding",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
