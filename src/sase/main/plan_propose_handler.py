@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import os
 import sys
+from collections import Counter
 from pathlib import Path
-from typing import Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 from sase.agent.pending_handoff import PLAN_PENDING_MARKER
 from sase.agent.pending_handoff_write import (
@@ -15,6 +16,12 @@ from sase.agent.pending_handoff_write import (
     write_pending_handoff_marker,
 )
 from sase.main.utils import kill_agent_runner_group
+
+if TYPE_CHECKING:
+    from sase.sdd.plan_validate import PlanValidationResult
+
+# Longest source line echoed in a formatted-plan error (keeps `tail` readable).
+_SOURCE_LINE_LIMIT = 160
 
 
 def _read_agent_meta_associations(artifacts_dir: str) -> dict[str, str]:
@@ -49,6 +56,123 @@ def _touch_turn_refresh_pulse_for_artifacts_dir(artifacts_dir: str) -> None:
         pass
 
 
+def _validate_plan_text(
+    text: str, target_tier: str, artifacts_dir: str
+) -> PlanValidationResult:
+    """Validate plan *text* in authoring mode, including decision host checks.
+
+    A failing host check (or an exception from it) comes back as a failed
+    result carrying the extra diagnostics, with no validated plan.
+    """
+    from sase.sdd.plan_validate import PlanValidationResult, validate_plan
+
+    validation = validate_plan(text, target_tier)
+    if validation.plan is None or not getattr(
+        validation.plan, "decisions", cast(Any, ())
+    ):
+        return validation
+
+    from sase.sdd.plan_decisions import validate_host_checks
+
+    try:
+        extra = validate_host_checks(
+            text,
+            validation,
+            artifacts_dir,
+            strict_quotes=True,
+        )
+    except Exception as exc:
+        from sase.sdd.plan_validate import PlanDiagnostic, PlanDiagnosticSeverity
+
+        extra = [
+            PlanDiagnostic(
+                severity=PlanDiagnosticSeverity.ERROR,
+                code="decision-host-check-failed",
+                field_path="decisions",
+                message=f"plan decision host checks failed: {exc}",
+                line=None,
+            )
+        ]
+    if not extra:
+        return validation
+    return PlanValidationResult(
+        schema_version=validation.schema_version,
+        ok=False,
+        diagnostics=(*validation.diagnostics, *extra),
+        plan=None,
+    )
+
+
+_CalloutSignature = tuple[str, str | None, str]
+
+
+def _callout_signature(validation: PlanValidationResult) -> list[_CalloutSignature]:
+    """The ordered ``(id, key, branch)`` of each callout; lines are ignored."""
+    callouts = getattr(validation.plan, "decision_callouts", cast(Any, ()))
+    return [(c.id, c.key, c.branch) for c in callouts]
+
+
+def _callout_label(signature: _CalloutSignature) -> str:
+    """Render a callout as it is authored: ``id = key`` or ``id = yes|no``."""
+    callout_id, key, branch = signature
+    return f"{callout_id} = {key or branch}"
+
+
+def _formatted_plan_failure(
+    authored: PlanValidationResult,
+    formatted: str,
+    target_tier: str,
+    artifacts_dir: str,
+) -> str | None:
+    """Describe how formatting broke an already-valid plan, or ``None``.
+
+    Prettier may reshape the text the agent validated, and the host validates
+    the archived copy only after the runner is gone.  This returns a short
+    message (agents pipe propose into ``tail``) when the formatted text fails
+    validation or its decision callouts differ from the authored ones.
+    """
+    result = _validate_plan_text(formatted, target_tier, artifacts_dir)
+    lines: list[str] = []
+    source_lines = formatted.splitlines()
+    for diagnostic in result.diagnostics:
+        if not diagnostic.is_error:
+            continue
+        if diagnostic.line is None:
+            lines.append(f"formatted [{diagnostic.code}] {diagnostic.message}")
+            continue
+        lines.append(
+            f"formatted line {diagnostic.line} [{diagnostic.code}] {diagnostic.message}"
+        )
+        if 0 < diagnostic.line <= len(source_lines):
+            text = source_lines[diagnostic.line - 1].strip()
+            if len(text) > _SOURCE_LINE_LIMIT:
+                text = text[: _SOURCE_LINE_LIMIT - 1] + "…"
+            lines.append(f"    {text}")
+    if result.plan is not None:
+        before = _callout_signature(authored)
+        after = _callout_signature(result)
+        if before != after:
+            lost = Counter(before) - Counter(after)
+            gained = Counter(after) - Counter(before)
+            lines.extend(f"lost callout: {_callout_label(c)}" for c in lost.elements())
+            lines.extend(
+                f"unexpected callout: {_callout_label(c)}" for c in gained.elements()
+            )
+            if not lost and not gained:
+                lines.append("callouts were reordered")
+    if result.ok and not lines:
+        return None
+    return "\n".join(
+        [
+            "Error: formatting this plan for the archive would change its "
+            "meaning; nothing was proposed.",
+            *lines,
+            "Give each > [!decision] header its own paragraph or rephrase the "
+            "affected text, then rerun sase plan propose.",
+        ]
+    )
+
+
 def handle_plan_propose_command(plan_file: str) -> NoReturn:
     """Submit a plan file for approval (used by /sase_plan skill).
 
@@ -56,9 +180,12 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     2. Validate plan_file exists
     3. Validate the authored plan tier (a pinned auto tier selects coverage;
        a cross-tier pin parks the plan for review)
-    4. Move plan into the ~/.sase/plans/ archive (consumes the scratch file)
-    5. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
-    6. Kill the agent runner's process group via SIGTERM
+    4. Format the plan with prettier and re-validate the formatted text: if
+       formatting would change validity or the decision callouts, exit 1
+       before touching the scratch file, the archive, or the runner
+    5. Move plan into the ~/.sase/plans/ archive (consumes the scratch file)
+    6. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
+    7. Kill the agent runner's process group via SIGTERM
     """
     try:
         artifacts_dir = handoff_guard(command="sase plan propose")
@@ -94,7 +221,7 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         validate_plan_artifact_link_inlet,
     )
     from sase.sdd.plan_tiers import read_plan_tier
-    from sase.sdd.plan_validate import plan_frontmatter_schema, validate_plan
+    from sase.sdd.plan_validate import plan_frontmatter_schema
 
     authored_tier = read_plan_tier(plan_path)
     target_tier = authored_tier or "tale"
@@ -104,52 +231,8 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     except ArtifactLinkFrontmatterInletError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-    validation = validate_plan(original, target_tier)
+    validation = _validate_plan_text(original, target_tier, artifacts_dir)
     _filtered_schema = plan_frontmatter_schema(target_tier)
-    if validation.plan is not None and getattr(
-        validation.plan, "decisions", cast(Any, ())
-    ):
-        from sase.sdd.plan_decisions import (
-            artifacts_dir_from_env,
-            count_memory,
-            validate_host_checks,
-        )
-        from sase.sdd.plan_validate import PlanValidationResult
-
-        try:
-            extra = validate_host_checks(
-                original,
-                validation,
-                artifacts_dir,
-                strict_quotes=True,
-            )
-        except Exception as exc:
-            from sase.sdd.plan_validate import PlanDiagnostic, PlanDiagnosticSeverity
-
-            extra = [
-                PlanDiagnostic(
-                    severity=PlanDiagnosticSeverity.ERROR,
-                    code="decision-host-check-failed",
-                    field_path="decisions",
-                    message=f"plan decision host checks failed: {exc}",
-                    line=None,
-                )
-            ]
-        if extra:
-            failed = PlanValidationResult(
-                schema_version=validation.schema_version,
-                ok=False,
-                diagnostics=(*validation.diagnostics, *extra),
-                plan=None,
-            )
-            render_validation_human(
-                failed,
-                tier=target_tier,
-                path=plan_file,
-                schema=_filtered_schema,
-                console=error_console,
-            )
-            sys.exit(1)
     if not validation.ok:
         render_validation_human(
             validation,
@@ -266,6 +349,16 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
 
         raw = refresh_bead_plan_section(raw)
     formatted = format_with_prettier(raw)
+
+    # The formatted text is what gets archived, and the host re-validates it
+    # only after this runner is gone.  Check it here, while the agent can
+    # still fix the plan: nothing below this point has run yet, so a failure
+    # leaves the scratch file, the archive, and the runner untouched.
+    if failure := _formatted_plan_failure(
+        validation, formatted, target_tier, artifacts_dir
+    ):
+        print(failure, file=sys.stderr)
+        sys.exit(1)
     if formatted != original:
         plan_path.write_text(formatted, encoding="utf-8")
 
@@ -302,6 +395,23 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         created_by=proposed_by or os.environ.get("USER") or "unknown",
         artifacts_dir=artifacts_dir,
     )
+
+    # Publishing the link inlet rewrites the archived copy's managed link
+    # blocks, so validate the bytes the host will actually see.  Only the
+    # scratch file is consumed by now: put it back as the agent wrote it and
+    # drop the archive so the agent can fix the plan and propose again.
+    if link_inlet.entries and (
+        failure := _formatted_plan_failure(
+            validation,
+            archived_path.read_text(encoding="utf-8"),
+            target_tier,
+            artifacts_dir,
+        )
+    ):
+        plan_path.write_text(original, encoding="utf-8")
+        archived_path.unlink(missing_ok=True)
+        print(failure, file=sys.stderr)
+        sys.exit(1)
 
     # Write .sase_plan_pending marker JSON. ``plan_file`` points at the durable
     # archive copy; ``original_file`` is retained for provenance/debugging even

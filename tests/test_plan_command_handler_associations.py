@@ -154,7 +154,7 @@ def test_plan_command_overwrites_authored_project_with_registered_display_name(
         ),
         patch(
             "sase.sdd.plan_validate.validate_plan",
-            return_value=SimpleNamespace(ok=True, plan=None),
+            return_value=SimpleNamespace(ok=True, plan=None, diagnostics=()),
         ),
         patch("sase.sdd.plan_validate.plan_frontmatter_schema", return_value=()),
         patch(

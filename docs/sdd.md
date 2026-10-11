@@ -138,6 +138,12 @@ rather than waiting for the next auto-refresh tick. Legacy or unreadable-tier pl
 the `PLAN` fallback. The pulse file is consumed by the inotify-based artifact watcher
 and is harmless when no TUI is open.
 
+`sase plan propose` formats the plan with prettier and re-validates the formatted copy
+before archiving it. If formatting would change the plan's validity or its decision
+callouts, propose exits non-zero and proposes nothing: the scratch file, the archive,
+and the running agent are left untouched, so the agent can fix the plan and propose
+again.
+
 Humans can approve the pending proposal from sase's TUI or from the CLI. `sase plan`
 lists pending PlanApproval notifications, recent approvals, and inferred rejected
 archived proposals. `sase plan approve <name>` defaults to a tale; an epic-authored plan
@@ -617,10 +623,15 @@ characters. There is no authored `kind` field: the presence of `choices` selects
 kind.
 
 A `> [!decision] <id>` block marks the true branch of a toggle; `= no` marks its false
-branch. A choice block must use `= <key>`. Unknown IDs or branches fail validation.
-Fenced examples are ignored. An unmentioned decision produces a warning, so reference
-each decision in the prose or a callout. Decisions do not conditionally schedule epic
-phases: `phases[].when` is reserved and rejected.
+branch. A choice block must use `= <key>`. Unknown IDs or branches fail validation. The
+ID is the first word after the marker, and the line has a branch only when `=` directly
+follows the ID. Any other text on the header line is prose and is ignored. Prettier
+joins a header with its first body line, so `> [!decision] grouping = pane` on its own
+line and `> [!decision] grouping = pane Group bindings by pane.` mean the same thing,
+and a toggle header joined to prose that contains `=` still names only its ID. Fenced
+examples are ignored. An unmentioned decision produces a warning, so reference each
+decision in the prose or a callout. Decisions do not conditionally schedule epic phases:
+`phases[].when` is reserved and rejected.
 
 Decisions ride the gate inputs to durable answers. ACE renders a Decisions panel above
 the verdict, Telegram renders a decision keyboard, and the CLI takes
