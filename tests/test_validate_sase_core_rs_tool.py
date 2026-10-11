@@ -410,6 +410,22 @@ def test_validate_sase_core_rs_requires_fleet_contract_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_project_onboarding_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "project_onboarding_wire_schema_version",
+        "classify_project_candidates",
+        "evaluate_repo_creation_form",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_bindings(module_with_required_bindings(validator))
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_inline_code_binding() -> None:
     validator = load_validate_sase_core_rs()
 

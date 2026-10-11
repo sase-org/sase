@@ -440,6 +440,9 @@ REQUIRED_BINDINGS = (
     "goal_render_list",
     "goal_render_card",
     "goal_fast_path",
+    "project_onboarding_wire_schema_version",
+    "classify_project_candidates",
+    "evaluate_repo_creation_form",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
