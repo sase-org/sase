@@ -4877,7 +4877,7 @@
       }
     },
     "github_orgs": {
-      "description": "GitHub organization/user names the user has push access to, used for cloning and PR submission",
+      "description": "GitHub organization/user names the user has push access to. Seeds owner completion and gates PR submission; does not choose SSH vs HTTPS (cloning always tries SSH first, then HTTPS)",
       "oneOf": [
         {
           "type": "array",
