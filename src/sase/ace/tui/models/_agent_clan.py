@@ -281,16 +281,12 @@ def clan_project_labels(agent: Agent) -> tuple[str, ...]:
 
     Computed at render time from :func:`clan_members` — the same direct
     members that feed the count chip — so the label always matches the
-    members the chip counts. Each member contributes
-    ``member.project_display_name`` when set, otherwise
-    ``project_file_parent_name(member.project_file)``; members with
-    neither are skipped. Labels de-duplicate case-insensitively, keeping
-    the first spelling seen, and sort by member count descending, then
-    case-folded label. Returns ``()`` for non-clan rows and for clans
-    with no project members.
+    members the chip counts. Each member contributes ``member.project_label``;
+    members with neither a display name nor a project file are skipped. Labels
+    de-duplicate case-insensitively, keeping the first spelling seen, and sort
+    by member count descending, then case-folded label. Returns ``()`` for
+    non-clan rows and for clans with no project members.
     """
-    from .agent import project_file_parent_name
-
     if not agent.is_clan_container:
         return ()
     counts: dict[str, int] = {}
@@ -300,9 +296,7 @@ def clan_project_labels(agent: Agent) -> tuple[str, ...]:
         if member.identity in seen:
             continue
         seen.add(member.identity)
-        label = member.project_display_name or (
-            project_file_parent_name(member.project_file) if member.project_file else ""
-        )
+        label = member.project_label or ""
         if not label:
             continue
         folded = label.casefold()

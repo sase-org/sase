@@ -128,6 +128,11 @@ _AUDITED_RENDERERS = (
     "src/sase/diagnostics/render.py",
     "src/sase/main/search_handler.py",
     "src/sase/main/workspace_handler_list.py",
+    "src/sase/ace/tui/widgets/_agent_list_render_agent.py",
+    "src/sase/ace/tui/widgets/prompt_panel/_agent_display_clan_identity.py",
+    "src/sase/ace/tui/widgets/prompt_panel/_identity_header_compact.py",
+    "src/sase/ace/tui/actions/agent_workflow/_launch_submit_helpers.py",
+    "src/sase/ace/tui/actions/agent_workflow/_launch_submission.py",
 )
 
 _SINK_CALLS = {
@@ -334,7 +339,19 @@ _PROJECT_METADATA_FLOW_FILES = (
     "src/sase/ace/tui/modals/_prompt_stash_preview.py",
     "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_stash_store.py",
     "src/sase/ace/tui/actions/agents/_notification_launch_approval.py",
+    "src/sase/ace/tui/actions/agents/_loading_compute.py",
+    "src/sase/ace/tui/models/agent_loader.py",
+    "src/sase/ace/dismissed_agents_bundles.py",
+    "src/sase/ace/tui/actions/event_refresh/_auto_refresh_surfaces.py",
+    "src/sase/agents/_wait_live_rows.py",
+    "src/sase/axe/lumberjack.py",
 )
+_PROJECT_METADATA_LOADER_NAMES = {
+    "list_project_records",
+    "load_project_display_snapshot",
+    "load_project_ref_display_snapshot",
+    "refresh_project_display_snapshot",
+}
 _ALLOWED_METADATA_LOADERS = {
     (
         "src/sase/ace/tui/actions/_state_init_late.py",
@@ -366,7 +383,54 @@ _ALLOWED_METADATA_LOADERS = {
         "_read_launch_approval_task_metadata",
         "load_project_display_snapshot",
     ): "Launch approval resolves its task label inside the tracked task worker.",
+    (
+        "src/sase/ace/tui/actions/agents/_loading_compute.py",
+        "compute_apply_loaded_agents",
+        "refresh_project_display_snapshot",
+    ): "Agent-load worker revalidates cross-process labels before attaching names.",
+    (
+        "src/sase/ace/tui/models/agent_loader.py",
+        "_filter_and_cap_windowed_agents_live",
+        "refresh_project_display_snapshot",
+    ): "Windowed live-query path revalidates before attaching names.",
+    (
+        "src/sase/ace/dismissed_agents_bundles.py",
+        "_load_bundle_paths",
+        "refresh_project_display_snapshot",
+    ): "Dismissed-bundle loads revalidate before attaching names.",
+    (
+        "src/sase/ace/tui/actions/event_refresh/_auto_refresh_surfaces.py",
+        "_run_auto_refresh_surfaces",
+        "refresh_project_display_snapshot",
+    ): "Auto-refresh tick revalidates off-thread and dirties label surfaces.",
+    (
+        "src/sase/agents/_wait_live_rows.py",
+        "build_wait_live_rows",
+        "refresh_project_display_snapshot",
+    ): "Wait live rows revalidate once per poll iteration.",
+    (
+        "src/sase/axe/lumberjack.py",
+        "_run_tick",
+        "refresh_project_display_snapshot",
+    ): "Lumberjack revalidates once per cycle, not per log line.",
 }
+
+
+def _metadata_loader_call_name(call: ast.Call) -> str | None:
+    """Return the tracked loader a call invokes, including via ``to_thread``."""
+    name = _call_name(call)
+    if name in _PROJECT_METADATA_LOADER_NAMES:
+        return name
+    if name == "to_thread" and call.args:
+        target = call.args[0]
+        if isinstance(target, ast.Name) and target.id in _PROJECT_METADATA_LOADER_NAMES:
+            return target.id
+        if (
+            isinstance(target, ast.Attribute)
+            and target.attr in _PROJECT_METADATA_LOADER_NAMES
+        ):
+            return target.attr
+    return None
 
 
 def test_project_metadata_loaders_stay_at_reviewed_tui_worker_boundaries() -> None:
@@ -376,12 +440,8 @@ def test_project_metadata_loaders_stay_at_reviewed_tui_worker_boundaries() -> No
         tree = _parse(path)
         parents = _parent_map(tree)
         for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
-            name = _call_name(call)
-            if name not in {
-                "list_project_records",
-                "load_project_display_snapshot",
-                "load_project_ref_display_snapshot",
-            }:
+            name = _metadata_loader_call_name(call)
+            if name is None:
                 continue
             actual.add((path, _enclosing_function(call, parents), name))
 
@@ -399,6 +459,8 @@ _PURE_TUI_RENDER_FILES = (
     "src/sase/ace/tui/modals/statistics_pane_views.py",
     "src/sase/ace/tui/modals/prompt_stash_row.py",
     "src/sase/ace/tui/modals/_prompt_stash_preview.py",
+    "src/sase/ace/tui/widgets/_agent_list_render_agent.py",
+    "src/sase/ace/tui/widgets/prompt_panel/_agent_display_clan_identity.py",
 )
 _FORBIDDEN_RENDER_CALLS = {
     "Popen",
@@ -412,6 +474,7 @@ _FORBIDDEN_RENDER_CALLS = {
     "open",
     "read_bytes",
     "read_text",
+    "refresh_project_display_snapshot",
     "rglob",
     "run",
     "stat",
@@ -431,3 +494,420 @@ def test_audited_tui_render_helpers_are_free_of_io_and_subprocess_calls() -> Non
                     f"{path}:{call.lineno} {_enclosing_function(call, parents)} calls {name}"
                 )
     assert not violations, "\n".join(violations)
+
+
+@dataclass(frozen=True, slots=True)
+class _PathLabelExemption:
+    path: str
+    function: str
+    expression: str
+    rationale: str
+
+
+# Identity-only derivations of the directory key. Each site feeds grouping keys,
+# navigation targets, workspace resolution, query matching, storage handles, or
+# the display-map lookup itself — never a human-facing project name.
+_PATH_LABEL_EXEMPTIONS = (
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/agent.py",
+        "project_file_parent_name",
+        "Path(str(project_file)).parent.name",
+        "The canonical identity helper every other site funnels through.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/agent.py",
+        "is_project_agent",
+        "project_file_parent_name(self.project_file)",
+        "Project-agent classification compares Patch identity against the key.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/agent.py",
+        "project_label",
+        "project_file_parent_name(self.project_file)",
+        "Chokepoint derives the key only to project it through the display map.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agents/_node_finder_facets.py",
+        "snapshot_all_facets",
+        "project_file_parent_name(agent.project_file)",
+        "Node-finder facet matching joins on canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/_startup_prompt_catalog_semantics.py",
+        "_semantic_context_matches_selected_agent",
+        "Path(project_file).parent.name",
+        "Startup semantic matching compares storage identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agent_workflow/_entry_quick_launch.py",
+        "_start_agent_from_agent_quick",
+        "Path(agent.project_file).parent.name",
+        "Launch prefix derivation; the key is projected before the toast.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agent_workflow/_entry_relaunch.py",
+        "_mount_edit_relaunch_prompt_bar",
+        "Path(project_file).parent.name",
+        "Relaunch prompt resolves the canonical owning project.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agent_workflow/_launch_delta.py",
+        "artifact_dir_from_launch_result",
+        "Path(result.project_file).expanduser().parent.name",
+        "Launch-result artifact directories key on storage identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agent_workflow/_launch_submit_helpers.py",
+        "launch_record_context_from_prompt_context",
+        "Path(ctx.project_file).expanduser().parent.name",
+        "Launch records persist canonical identity, never labels.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agent_workflow/_launch_submit_helpers.py",
+        "launch_record_context",
+        "Path(project_file).expanduser().parent.name",
+        "Launch records persist canonical identity, never labels.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agent_workflow/_launch_submit_helpers.py",
+        "dispatch_payload_from_prompt_context",
+        "Path(ctx.project_file).expanduser().parent.name",
+        "Dispatch payloads carry canonical identity for replay and lookup.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agents/_notification_navigation.py",
+        "navigate_to_patch_tab",
+        "Path(project_file).parent.name",
+        "Patch-tab navigation targets canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agents/_panel_tmux.py",
+        "_resolve_agent_tmux_target",
+        "Path(agent.project_file).parent.name",
+        "Tmux window identity must stay a stable canonical key.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agents/_patch_navigation.py",
+        "_read_workflow_state_cl_name",
+        "Path(agent.project_file).parent.name",
+        "Workflow-state Patch reads resolve the canonical project.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agents/_saved_group_records.py",
+        "_agent_project_name",
+        "Path(agent.project_file).parent.name",
+        "Saved group records persist canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agents/_saved_group_records.py",
+        "_agent_project_name",
+        "Path(agent.project_file).stem",
+        "Saved group records persist canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/agents/_wait_helpers.py",
+        "wait_bead_project_key",
+        "Path(project_file).parent.name",
+        "Wait-bead joins key on canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/actions/artifacts_files.py",
+        "_first_file_project_agent_match",
+        "Path(project_file).parent.name",
+        "Artifact file matching joins on canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/command_line/sources.py",
+        "_project_candidates",
+        "Path(project_file).parent.name",
+        "Command-line project candidates resolve storage identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/data_providers/_handles.py",
+        "_handle_for_agent",
+        "Path(agent.project_file).parent.name",
+        "Row handles embed canonical identity for stable selection.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/modals/_runners_data.py",
+        "_collect_manual_agents",
+        "Path(project_file).stem",
+        "Runner rows key manual agents by canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/modals/agent_workspace_tmux_modal.py",
+        "build_agent_workspace_tmux_choices",
+        "Path(agent.project_file).parent.name",
+        "Tmux workspace choices key on stable canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/modals/revive_agent_modal.py",
+        "_agent_filter_label",
+        "Path(agent.project_file).parent.name",
+        "Search corpus intentionally spans canonical and display spellings.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/_agent_associated_plan_paths.py",
+        "agent_project_name",
+        "Path(agent.project_file).parent.name",
+        "Plan-path association joins on canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/_agent_runner_slot_capacity.py",
+        "project_name",
+        "Path(agent.project_file).parent.name",
+        "Runner capacity accounting groups by canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/agent_bead.py",
+        "_agent_project_name",
+        "Path(agent.project_file).parent.name",
+        "Bead association joins on canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/agent_epic_follow_progress.py",
+        "_follow_progress_project_key",
+        "Path(str(project_file)).parent.name",
+        "Follow-progress joins key on canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/agent_live_query.py",
+        "_project_basename",
+        "Path(project_file).parent.name",
+        "Live-query pushdown matches canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/agent_page_url.py",
+        "resolve_agent_page_url",
+        "Path(agent.project_file).parent.name",
+        "Page URLs embed canonical identity for stable links.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/models/agent_wait_beads.py",
+        "_wait_bead_project_key",
+        "Path(project_file).parent.name",
+        "Wait-bead joins key on canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/thinking/session_resolver.py",
+        "_get_workspace_cwd",
+        "Path(agent.project_file).parent.name",
+        "Workspace resolution starts from canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/widgets/_prompt_input_bar_dispatch.py",
+        "_dispatch_source_label",
+        "Path(project_file).expanduser().parent.name",
+        "Source key is projected through the display map before paint.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/widgets/prompt_panel/_agent_clan_aggregation.py",
+        "_clan_hint_workspace_context",
+        "Path(row.project_file).parent.name",
+        "Workspace resolution starts from canonical identity.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/widgets/prompt_panel/_agent_commits.py",
+        "_agent_plan_workspaces",
+        "Path(agent.project_file).parent.name",
+        "Plan workspaces carry owner identity for workspace resolution.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/widgets/prompt_panel/_agent_commits.py",
+        "_primary_repo_name",
+        "Path(agent.project_file).stem",
+        "Stem-derived key is projected through the display map before paint.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/widgets/prompt_panel/_agent_display_header_metadata_fields.py",
+        "append_agent_metadata_fields",
+        "Path(agent.project_file).parent.name",
+        "Macro sections receive the key for resolution beside the label.",
+    ),
+    _PathLabelExemption(
+        "src/sase/ace/tui/widgets/prompt_panel/_agent_macro_highlighting.py",
+        "_agent_project_and_workspace",
+        "Path(agent.project_file).parent.name",
+        "Highlight context resolves the canonical ref for workspace lookup.",
+    ),
+)
+
+
+def _path_label_sites(
+    path: str,
+) -> set[tuple[str, str, str]]:
+    """Return ``(path, function, expression)`` path-derived key sites in *path*."""
+    tree = _parse(path)
+    parents = _parent_map(tree)
+    sites: set[tuple[str, str, str]] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = (
+                func.id
+                if isinstance(func, ast.Name)
+                else (func.attr if isinstance(func, ast.Attribute) else "")
+            )
+            if name == "project_file_parent_name":
+                sites.add((path, _enclosing_function(node, parents), ast.unparse(node)))
+            continue
+        if not isinstance(node, ast.Attribute):
+            continue
+        candidate: ast.AST | None = None
+        if node.attr == "name" and isinstance(node.value, ast.Attribute):
+            if node.value.attr == "parent":
+                candidate = node
+        elif node.attr == "stem":
+            candidate = node
+        if candidate is None:
+            continue
+        expression = ast.unparse(candidate)
+        if "project_file" not in expression:
+            continue
+        sites.add((path, _enclosing_function(candidate, parents), expression))
+    return sites
+
+
+def _tui_py_files() -> list[str]:
+    return sorted(
+        str(path.relative_to(_ROOT))
+        for path in _ROOT.glob("src/sase/ace/tui/**/*.py")
+        if "__pycache__" not in str(path)
+    )
+
+
+def test_project_labels_never_derive_from_paths() -> None:
+    """No TUI label may come from a project path; identity sites are allowlisted."""
+    allowed = {
+        (item.path, item.function, item.expression) for item in _PATH_LABEL_EXEMPTIONS
+    }
+    violations: list[str] = []
+    for path in _tui_py_files():
+        for site in _path_label_sites(path):
+            if site not in allowed:
+                violations.append(f"{site[0]}:{site[1]} derives {site[2]}")
+    assert not violations, "\n".join(violations)
+
+
+def test_path_label_exemptions_name_existing_sites_and_rationales() -> None:
+    """Path-label exemptions are deliberate, documented, and cannot go stale."""
+    actual: set[tuple[str, str, str]] = set()
+    for path in _tui_py_files():
+        actual |= _path_label_sites(path)
+    for exemption in _PATH_LABEL_EXEMPTIONS:
+        assert exemption.rationale.strip()
+        assert (exemption.path, exemption.function, exemption.expression) in actual, (
+            f"stale path-label exemption: {exemption.path} "
+            f"{exemption.function} {exemption.expression}"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _DisplayFallbackExemption:
+    path: str
+    function: str
+    expression: str
+    rationale: str
+
+
+# Pre-existing ``project_display_name or ...`` fallbacks outside the agent-label
+# chokepoint. Each owns a non-Agent display field or a query/entry identity where
+# the fallback is empty or the model carries its own refresh story.
+_DISPLAY_FALLBACK_EXEMPTIONS = (
+    _DisplayFallbackExemption(
+        "src/sase/ace/tui/bgcmd.py",
+        "display_project",
+        "self.project_display_name or self.project",
+        "Durable oneshot rows snapshot their label at build time and refresh on rebuild.",
+    ),
+    _DisplayFallbackExemption(
+        "src/sase/ace/patch/models/patch.py",
+        "project_query_name",
+        "self.project_display_name or self.project_name",
+        "Exact project: query identity, not a painted label.",
+    ),
+    _DisplayFallbackExemption(
+        "src/sase/artifact_providers/builtin_entry_patch.py",
+        "resolve_patch_entry",
+        "patch.project_display_name or ''",
+        "Entry builder falls back to empty, never to a key.",
+    ),
+    _DisplayFallbackExemption(
+        "src/sase/ace/tui/widgets/prompt_panel/_identity_header_compact.py",
+        "_build_named_proc_compact_lines",
+        "agent.project_display_name or humanize_cl_name(agent.cl_name)",
+        "Named-proc rows fall back to the proc's own name, never a path or key.",
+    ),
+    _DisplayFallbackExemption(
+        "src/sase/ace/tui/widgets/prompt_panel/_agent_display_header_metadata_identity.py",
+        "append_project_fields",
+        "agent.project_display_name or humanize_cl_name(agent.cl_name)",
+        "Named-proc fields fall back to the proc's own name, never a path or key.",
+    ),
+)
+
+# The sanctioned chokepoint: ``Agent.project_label`` plus the display-map module.
+_DISPLAY_FALLBACK_CHOKPOINT = (
+    "src/sase/ace/tui/models/agent.py",
+    "project_label",
+)
+_DISPLAY_FALLBACK_CHOKPOINT_FILES = frozenset(
+    {
+        "src/sase/project_display_names.py",
+    }
+)
+
+
+def _display_fallback_sites() -> dict[tuple[str, str, str], int]:
+    """Map ``(path, function, or-expression)`` display fallbacks across ``src``."""
+    sites: dict[tuple[str, str, str], int] = {}
+    for file_path in sorted(_ROOT.glob("src/**/*.py")):
+        if "__pycache__" in str(file_path):
+            continue
+        path = str(file_path.relative_to(_ROOT))
+        tree = _parse(path)
+        parents = _parent_map(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.BoolOp) or not isinstance(node.op, ast.Or):
+                continue
+            if not any(
+                isinstance(value, ast.Attribute)
+                and value.attr == "project_display_name"
+                for value in node.values
+            ):
+                continue
+            key = (path, _enclosing_function(node, parents), ast.unparse(node))
+            sites[key] = node.lineno
+    return sites
+
+
+def test_project_display_name_fallback_lives_only_in_chokepoint() -> None:
+    """Only Agent.project_label may fall back from project_display_name."""
+    allowed = {
+        (item.path, item.function, item.expression)
+        for item in _DISPLAY_FALLBACK_EXEMPTIONS
+    }
+    violations: list[str] = []
+    for (path, function, expression), lineno in _display_fallback_sites().items():
+        if path in _DISPLAY_FALLBACK_CHOKPOINT_FILES:
+            continue
+        if (path, function) == _DISPLAY_FALLBACK_CHOKPOINT:
+            continue
+        if (path, function, expression) in allowed:
+            continue
+        violations.append(f"{path}:{lineno} {function} falls back in {expression}")
+    assert not violations, "\n".join(violations)
+
+
+def test_display_fallback_exemptions_name_existing_sites_and_rationales() -> None:
+    """Display-fallback exemptions are deliberate, documented, and cannot go stale."""
+    actual = set(_display_fallback_sites())
+    assert not any(key[0] in _DISPLAY_FALLBACK_CHOKPOINT_FILES for key in actual), (
+        "display-map module grew a project_display_name fallback; review it here"
+    )
+    for exemption in _DISPLAY_FALLBACK_EXEMPTIONS:
+        assert exemption.rationale.strip()
+        assert (exemption.path, exemption.function, exemption.expression) in actual, (
+            f"stale display-fallback exemption: {exemption.path} "
+            f"{exemption.function} {exemption.expression}"
+        )

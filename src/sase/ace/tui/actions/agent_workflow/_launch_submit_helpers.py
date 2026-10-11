@@ -65,14 +65,16 @@ def launch_toast_label(prompt: str, fallback: str) -> str:
     context. Deriving the label from the submitted text keeps the "Launching
     agent for ..." toast honest about the cycled-to ref instead of the stale
     baked ``ctx.display_name``. Falls back to *fallback* when the prompt has no
-    recognized leading VCS tag.
+    recognized leading VCS tag. Both spellings are projected through the
+    memory-only display map so a directory key never reaches the toast.
     """
     from sase.macro._parsing import extract_project_from_vcs_tag
+    from sase.project_display_names import humanize_cl_name
 
     prefix = submitted_vcs_prompt_prefix(prompt)
     if prefix is None:
-        return fallback
-    return extract_project_from_vcs_tag(prefix) or fallback
+        return humanize_cl_name(fallback)
+    return humanize_cl_name(extract_project_from_vcs_tag(prefix) or fallback)
 
 
 def record_submit_time_vcs_replay(prompt: str) -> None:

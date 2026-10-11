@@ -398,6 +398,9 @@ def compute_apply_loaded_agents(
         EMPTY_EXPLICIT_REMOVALS,
         is_explicitly_removed,
     )
+    from sase.project_display_names import refresh_project_display_snapshot
+
+    refresh_project_display_snapshot()
 
     removal_snapshot = explicit_removals or EMPTY_EXPLICIT_REMOVALS
     explicitly_removed = [

@@ -197,9 +197,7 @@ class AgentPanelTmuxMixin:
                 agent.workspace_dir if not use_primary else None,
             )
 
-        project_name = (
-            agent.project_display_name or Path(agent.project_file).parent.name
-        )
+        project_name = agent.project_label or Path(agent.project_file).parent.name
         if use_primary:
             window_name = project_name
         else:

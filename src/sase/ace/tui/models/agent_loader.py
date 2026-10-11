@@ -574,8 +574,12 @@ def _filter_and_cap_windowed_agents_live(
     requested_limit: int,
 ) -> tuple[list[Agent], int]:
     """Apply exact ``agents-live`` query semantics and cap a bounded prefix."""
-    from sase.project_display_names import attach_project_display_names
+    from sase.project_display_names import (
+        attach_project_display_names,
+        refresh_project_display_snapshot,
+    )
 
+    refresh_project_display_snapshot()
     attach_project_display_names(agents)
     from .agent_live_query_engine import apply_agents_live_query_filter
 

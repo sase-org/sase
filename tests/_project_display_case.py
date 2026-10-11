@@ -91,6 +91,25 @@ class ProjectDisplayCase:
             display_name=self.project_label,
         )
 
+    def assert_no_key_leak(
+        self,
+        text: str,
+        *,
+        project_dir: Path | str | None = None,
+    ) -> None:
+        """Fail when rendered *text* leaks the directory key or spec identity."""
+        assert self.project_key not in text, (
+            f"rendered text leaks directory key {self.project_key!r}: {text!r}"
+        )
+        spec_name = f"{self.project_key}.sase"
+        assert spec_name not in text, (
+            f"rendered text leaks spec filename {spec_name!r}: {text!r}"
+        )
+        if project_dir is not None and str(project_dir):
+            assert str(project_dir) not in text, (
+                f"rendered text leaks project dir {str(project_dir)!r}: {text!r}"
+            )
+
     def write_project_layout(
         self,
         projects_root: Path,

@@ -144,6 +144,12 @@ class Lumberjack:
 
     def _run_tick(self) -> None:
         """Execute one tick: refresh patches, serialize context, invoke chop scripts."""
+        from sase.project_display_names import refresh_project_display_snapshot
+
+        try:
+            refresh_project_display_snapshot()
+        except Exception:  # noqa: BLE001 - log keeps stale labels; next tick retries.
+            pass
         _tick_start = time.monotonic()
         finalized_actions = finalize_launched_chop_runs(
             self.name,

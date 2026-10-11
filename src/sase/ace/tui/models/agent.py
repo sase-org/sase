@@ -99,14 +99,15 @@ def is_generated_relaunch_source(agent: object) -> bool:
 
 
 @lru_cache(maxsize=1024)
-def project_file_parent_name(project_file: str) -> str:
+def project_file_parent_name(project_file: str | None) -> str:
     """Return ``Path(project_file).parent.name`` without rebuilding paths.
 
     Project files repeat across the agents of one project, so memoizing
     this pure string projection keeps per-agent classification (and every
-    grouped tree build over the same roster) off ``pathlib``.
+    grouped tree build over the same roster) off ``pathlib``. Identity-only:
+    never use the result as a human-facing project label.
     """
-    return Path(project_file).parent.name
+    return Path(str(project_file)).parent.name
 
 
 @dataclass
@@ -595,6 +596,24 @@ class Agent(AgentState):
         if not self.project_file:
             return False
         return self.cl_name == project_file_parent_name(self.project_file)
+
+    @property
+    def project_label(self) -> str | None:
+        """Return the human-facing project label for this agent, if any.
+
+        The single sanctioned key-to-label fallback for agents: ``project_display_name``
+        when set, otherwise a memory-only ``project_display_name_for`` lookup of the
+        canonical key derived from ``project_file``. Agents without a ``project_file``
+        return ``None``. Unknown keys (for example a deleted project's history)
+        resolve to the key through ``ProjectDisplaySnapshot.label_for``.
+        """
+        if self.project_display_name:
+            return self.project_display_name
+        if not self.project_file:
+            return None
+        from sase.project_display_names import project_display_name_for
+
+        return project_display_name_for(project_file_parent_name(self.project_file))
 
     # --- Delegated to agent_artifacts module ---
 

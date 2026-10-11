@@ -9,7 +9,7 @@ from typing import Any
 from sase.core.time import local_now
 from sase.plan_chain import agent_session_base, canonical_plan_chain_suffix
 
-from ..agent import Agent, project_file_parent_name
+from ..agent import Agent
 from .._agent_tree import (
     agent_tree_depth,
     presentation_anchor,
@@ -81,7 +81,7 @@ def _project_name(agent: Agent) -> str:
         if agent.is_named_proc and agent.project_display_name:
             return agent.project_display_name
         return NO_PROJECT
-    return agent.project_display_name or project_file_parent_name(agent.project_file)
+    return agent.project_label or NO_PROJECT
 
 
 def _name_root_from_grouping_name(name: str) -> str:

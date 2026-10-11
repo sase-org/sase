@@ -3,6 +3,15 @@
 Storage and query layers provide canonical project keys. Human-facing renderers
 consume labels from a preloaded :class:`ProjectDisplaySnapshot` and retain the
 paired key for interactions, joins, persistence, and structured output.
+
+A project's human-facing name is ``effective_project_name(record)``: ``PROJECT_NAME``
+when set. The directory key and the ``*.sase`` filename are storage identity and are
+never used as a project's name, except as explicitly labeled identity fields in
+project-admin output and in machine-readable (JSON) output.
+
+Lookups are memory-only: render paths never stat, glob, or read project records.
+Long-lived processes call :func:`refresh_project_display_snapshot` at their worker or
+tick boundaries to pick up projects created or renamed by other processes.
 """
 
 from __future__ import annotations
@@ -195,6 +204,7 @@ class ProjectRefDisplaySnapshot:
 
 
 _PROJECT_DISPLAY_NAME_CACHE: dict[str, ProjectDisplaySnapshot] | None = None
+_PROJECT_DISPLAY_FRESHNESS_TOKENS: dict[str, object] | None = None
 _PROJECT_DISPLAY_NAME_CACHE_LOCK = RLock()
 
 #: Memoized ``humanize_cl_name`` results for the default (cached-map) path,
@@ -280,13 +290,124 @@ def load_project_ref_display_snapshot(
         return ProjectRefDisplaySnapshot()
 
 
+def _project_display_freshness_token(
+    resolved_root: Path,
+) -> object | None:
+    """Return a cheap freshness token for one projects root, or ``None``.
+
+    The token scans the projects root once for directory membership and records
+    ``(name, mtime_ns, size)`` for each project's active ProjectSpec filenames.
+    ``None`` means the root could not be scanned, so the caller treats the
+    snapshot as changed and reloads.
+    """
+    try:
+        from sase.ace.patch.project_spec_path import (
+            active_project_spec_filename,
+            legacy_active_project_spec_filename,
+        )
+    except Exception:  # noqa: BLE001 - token degrades to always-reload.
+        return None
+    try:
+        with os.scandir(resolved_root) as iterator:
+            entries = list(iterator)
+    except OSError:
+        return None
+    top_level: list[str] = sorted(entry.name for entry in entries)
+    spec_stats: list[tuple[str, int, int]] = []
+    for entry in entries:
+        try:
+            if not entry.is_dir(follow_symlinks=False):
+                continue
+        except OSError:
+            continue
+        dirname = entry.name
+        for filename in (
+            active_project_spec_filename(dirname),
+            legacy_active_project_spec_filename(dirname),
+        ):
+            try:
+                stat = os.stat(os.path.join(resolved_root, dirname, filename))
+            except OSError:
+                continue
+            spec_stats.append((f"{dirname}/{filename}", stat.st_mtime_ns, stat.st_size))
+    return (str(resolved_root), tuple(top_level), tuple(sorted(spec_stats)))
+
+
+def _store_display_snapshot_locked(
+    cache_key: str,
+    snapshot: ProjectDisplaySnapshot,
+    token: object | None,
+) -> None:
+    """Store one snapshot and its freshness token; caller holds the lock."""
+    global _PROJECT_DISPLAY_NAME_CACHE  # noqa: PLW0603
+    global _PROJECT_DISPLAY_FRESHNESS_TOKENS  # noqa: PLW0603
+    if _PROJECT_DISPLAY_NAME_CACHE is None:
+        _PROJECT_DISPLAY_NAME_CACHE = {}
+    if _PROJECT_DISPLAY_FRESHNESS_TOKENS is None:
+        _PROJECT_DISPLAY_FRESHNESS_TOKENS = {}
+    _PROJECT_DISPLAY_NAME_CACHE[cache_key] = snapshot
+    _PROJECT_DISPLAY_FRESHNESS_TOKENS[cache_key] = token
+
+
+def refresh_project_display_snapshot(
+    projects_root: Path | str | None = None,
+) -> bool:
+    """Revalidate the cached snapshot against cross-process changes.
+
+    Worker and tick use only: render paths never call this. When the ProjectSpec
+    freshness token is unchanged, return ``False`` without loading records.
+    Otherwise load records; on failure keep the previous snapshot and token and
+    return ``False`` so the next call retries. On success store the new token;
+    when the label ``signature`` changed (including a first population), swap
+    the snapshot first, then bump ``_HUMANIZE_CACHE_GEN``, clear
+    ``_HUMANIZE_CACHE``, and invalidate the macro project identity, returning
+    ``True``.
+    """
+    cache_key = _projects_root_cache_key(projects_root)
+    resolved = _projects_root(projects_root)
+    new_token = _project_display_freshness_token(resolved)
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        cached = (
+            _PROJECT_DISPLAY_NAME_CACHE.get(cache_key)
+            if _PROJECT_DISPLAY_NAME_CACHE is not None
+            else None
+        )
+        old_token = (
+            _PROJECT_DISPLAY_FRESHNESS_TOKENS.get(cache_key)
+            if _PROJECT_DISPLAY_FRESHNESS_TOKENS is not None
+            else None
+        )
+        old_signature = cached.signature if cached is not None else None
+    if new_token is not None and cached is not None and new_token == old_token:
+        return False
+    try:
+        records = list_project_records(resolved, "all", include_home=True)
+    except Exception:  # noqa: BLE001 - keep labels; retry on the next call.
+        return False
+    fresh = ProjectDisplaySnapshot.from_records(records)
+    changed = old_signature is None or fresh.signature != old_signature
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        _store_display_snapshot_locked(cache_key, fresh, new_token)
+        if not changed:
+            return False
+        global _HUMANIZE_CACHE_GEN  # noqa: PLW0603
+        _HUMANIZE_CACHE_GEN += 1
+        _HUMANIZE_CACHE.clear()
+    from sase.macro.project_identity import invalidate_macro_project_identity
+
+    invalidate_macro_project_identity()
+    return True
+
+
 def _get_project_display_snapshot(
     projects_root: Path | str | None = None,
 ) -> ProjectDisplaySnapshot:
     """Return the explicitly managed cached snapshot for convenience callers.
 
-    Cache freshness never depends on filesystem metadata. Call
-    :func:`invalidate_project_display_snapshot` after a supported mutation.
+    Lookups are memory-only. Long-lived processes call
+    :func:`refresh_project_display_snapshot` at their worker or tick boundaries;
+    :func:`invalidate_project_display_snapshot` remains the in-process mutation
+    path.
     """
     global _PROJECT_DISPLAY_NAME_CACHE  # noqa: PLW0603
 
@@ -297,8 +418,24 @@ def _get_project_display_snapshot(
         cached = _PROJECT_DISPLAY_NAME_CACHE.get(cache_key)
         if cached is None:
             cached = load_project_display_snapshot(projects_root)
-            _PROJECT_DISPLAY_NAME_CACHE[cache_key] = cached
+            _store_display_snapshot_locked(
+                cache_key,
+                cached,
+                _project_display_freshness_token(_projects_root(projects_root)),
+            )
         return cached
+
+
+def project_display_snapshot_is_warm(
+    projects_root: Path | str | None = None,
+) -> bool:
+    """Return whether a display snapshot is cached for *projects_root*."""
+    cache_key = _projects_root_cache_key(projects_root)
+    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
+        return (
+            _PROJECT_DISPLAY_NAME_CACHE is not None
+            and cache_key in _PROJECT_DISPLAY_NAME_CACHE
+        )
 
 
 def invalidate_project_display_snapshot(
@@ -309,6 +446,8 @@ def invalidate_project_display_snapshot(
     with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
         if _PROJECT_DISPLAY_NAME_CACHE is not None:
             _PROJECT_DISPLAY_NAME_CACHE.pop(cache_key, None)
+        if _PROJECT_DISPLAY_FRESHNESS_TOKENS is not None:
+            _PROJECT_DISPLAY_FRESHNESS_TOKENS.pop(cache_key, None)
 
     # The humanize memo keys on a generation instead of the map, so any
     # invalidation retires every entry even when only one root was popped.
@@ -549,4 +688,6 @@ __all__ = [
     "project_display_name_for_ref",
     "project_display_name_map_signature",
     "project_display_name_for",
+    "project_display_snapshot_is_warm",
+    "refresh_project_display_snapshot",
 ]

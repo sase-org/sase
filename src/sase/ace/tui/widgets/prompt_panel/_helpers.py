@@ -325,7 +325,7 @@ def should_render_agent_detail_model(agent: Agent) -> bool:
 
 def project_display_label(agent: Agent, fallback: object) -> str:
     """Return the display label for an agent's project field."""
-    return agent.project_display_name or str(fallback)
+    return agent.project_label or str(fallback)
 
 
 def _read_metadata_list(path: Path) -> list[dict[str, Any]] | None:

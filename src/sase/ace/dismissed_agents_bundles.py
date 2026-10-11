@@ -420,7 +420,12 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
 
 def _load_bundle_paths(ctx: Any, bundle_paths: list[Path]) -> list[Agent]:
     """Load dismissed agents from already-resolved bundle paths."""
-    from sase.project_display_names import attach_project_display_names
+    from sase.project_display_names import (
+        attach_project_display_names,
+        refresh_project_display_snapshot,
+    )
+
+    refresh_project_display_snapshot()
 
     from .tui.models._loaders._json_cache import (
         get_loader_executor,

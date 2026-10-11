@@ -473,14 +473,18 @@ class PromptInputBarDispatchMixin(_MixinBase):
         return text, severity, visible
 
     def _dispatch_source_label(self) -> str:
+        from sase.project_display_names import project_display_name_for
+
         ctx = getattr(self.app, "_prompt_context", None)
         project_file = getattr(ctx, "project_file", "") if ctx is not None else ""
         if isinstance(project_file, str) and project_file:
             project = Path(project_file).expanduser().parent.name
             if project:
-                return project
+                return project_display_name_for(project)
         project_name = getattr(ctx, "project_name", "") if ctx is not None else ""
-        return str(project_name or "current")
+        if project_name:
+            return project_display_name_for(str(project_name))
+        return "current"
 
     def _tab_context_segment(
         self, prompt: str

@@ -124,6 +124,26 @@ class EventAutoRefreshSurfacesMixin(
             >= sanity_interval
         )
         current_tokens = await asyncio.to_thread(self._probe_surface_tokens)
+        from sase.project_display_names import (
+            project_display_snapshot_is_warm,
+            refresh_project_display_snapshot,
+        )
+
+        # A cold cache populates on the next normal load anyway, so only a
+        # genuine change under a previously loaded map dirties surfaces.
+        _labels_were_warm = project_display_snapshot_is_warm(None)
+        try:
+            project_labels_changed = await asyncio.to_thread(
+                refresh_project_display_snapshot
+            )
+        except Exception:  # noqa: BLE001 - labels stay stale; next tick retries.
+            project_labels_changed = False
+        project_labels_changed = bool(project_labels_changed and _labels_were_warm)
+        if project_labels_changed:
+            if hasattr(self, "_dirty_agents"):
+                self._dirty_agents = True
+            if hasattr(self, "_dirty_patches"):
+                self._dirty_patches = True
 
         attention_network_scheduled = False
         attention_network_due = getattr(
@@ -259,7 +279,11 @@ class EventAutoRefreshSurfacesMixin(
             and bool(queued_agent_artifact_dirs)
             and getattr(self, "_dirty_agent_artifact_fallback_reason", None) is None
         )
-        agents_due = _should_refresh("_dirty_agents", "agents") or agent_delta_ready
+        agents_due = (
+            _should_refresh("_dirty_agents", "agents")
+            or agent_delta_ready
+            or project_labels_changed
+        )
         # Tab-gate: broad (expensive) agent loads are deferred until the
         # user is actually looking at the Agents tab, or the sanity-floor
         # escape hatch below fires. A queued, bounded exact artifact-delta

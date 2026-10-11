@@ -425,6 +425,96 @@ def test_fresh_load_and_invalidation_observe_nested_name_change(
     assert calls == 4
 
 
+def test_refresh_first_population_counts_as_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+
+    assert pdn.refresh_project_display_snapshot(root) is True
+    assert pdn.project_display_name_for("missing", root) == "missing"
+
+    calls = 0
+    real_list = pdn.list_project_records
+
+    def _counting(*args: object, **kwargs: object) -> list[ProjectRecordWire]:
+        nonlocal calls
+        calls += 1
+        return real_list(*args, **kwargs)
+
+    monkeypatch.setattr(pdn, "list_project_records", _counting)
+    assert pdn.refresh_project_display_snapshot(root) is False
+    assert calls == 0
+
+
+def test_refresh_reload_advances_humanize_generation_only_on_label_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+    layout = project_display_case.write_project_layout(root)
+
+    assert pdn.refresh_project_display_snapshot(root) is True
+    assert (
+        pdn.project_display_name_for(project_display_case.project_key, root)
+        == project_display_case.project_label
+    )
+
+    gen_before = pdn._HUMANIZE_CACHE_GEN
+    layout.project_file.write_text(
+        layout.project_file.read_text(encoding="utf-8")
+        + "\nRUNNING:\n  #1 | 123 | run | demo\n",
+        encoding="utf-8",
+    )
+    assert pdn.refresh_project_display_snapshot(root) is False
+    assert pdn._HUMANIZE_CACHE_GEN == gen_before
+
+    layout.project_file.write_text(
+        f"PROJECT_NAME: gizmos\nWORKSPACE_DIR: {layout.workspace_dir}\n",
+        encoding="utf-8",
+    )
+    assert pdn.refresh_project_display_snapshot(root) is True
+    assert pdn._HUMANIZE_CACHE_GEN != gen_before
+    assert pdn.project_display_name_for(project_display_case.project_key, root) == (
+        "gizmos"
+    )
+
+
+def test_refresh_failure_keeps_snapshot_and_retries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+    layout = project_display_case.write_project_layout(root)
+
+    assert pdn.refresh_project_display_snapshot(root) is True
+    layout.project_file.write_text(
+        layout.project_file.read_text(encoding="utf-8") + "\n# churn\n",
+        encoding="utf-8",
+    )
+
+    def _fail(*_args: object, **_kwargs: object) -> list[ProjectRecordWire]:
+        raise RuntimeError("inventory unavailable")
+
+    monkeypatch.setattr(pdn, "list_project_records", _fail)
+    assert pdn.refresh_project_display_snapshot(root) is False
+    assert (
+        pdn.project_display_name_for(project_display_case.project_key, root)
+        == project_display_case.project_label
+    )
+
+
 def test_attach_project_display_names_duck_types_and_clears_fallbacks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -458,3 +548,22 @@ def test_attach_project_display_names_duck_types_and_clears_fallbacks(
     assert equal.project_display_name is None
     assert missing.project_display_name is None
     assert not hasattr(ignored, "project_display_name")
+
+
+def test_display_snapshot_is_warm_tracks_cached_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_FRESHNESS_TOKENS", None)
+
+    assert pdn.project_display_snapshot_is_warm(root) is False
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: [])
+    assert pdn.refresh_project_display_snapshot(root) is True
+    assert pdn.project_display_snapshot_is_warm(root) is True
+
+    pdn.invalidate_project_display_snapshot(root)
+    assert pdn.project_display_snapshot_is_warm(root) is False

@@ -88,7 +88,11 @@ currently uses these fields:
   lists, launch pickers, agent grouping labels, and VCS workspace references. Patch
   `project:` queries (including the `+project` shorthand) also use this configured name
   exactly and case-insensitively, falling back to the directory key only when
-  `PROJECT_NAME` is missing or invalid.
+  `PROJECT_NAME` is missing or invalid. Long-running processes (`sase tui`, axe,
+  `sase agents wait`) pick up projects created or renamed by other processes on their
+  next refresh. The directory key and ProjectSpec filename are never shown as a
+  project's name; they appear only as labeled identity fields in project-admin output
+  and in machine-readable (JSON) output.
 - **PROJECT_ALIASES**: Comma-separated alternate project names accepted in VCS workspace
   references and `+<project>` tags. Aliases are canonicalized to the directory-key
   project name before launch state, prompt history, and agent artifacts are written.

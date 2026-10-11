@@ -280,7 +280,7 @@ def fold_chip(level: FoldLevel, scale: FoldScale) -> Text:
 def _fallback_context_line(agent: Agent) -> Text:
     """Return the quiet dim context line used when row 2 would be empty."""
     parts: list[str] = []
-    project = agent.project_display_name or humanize_cl_name(agent.cl_name)
+    project = agent.project_label or humanize_cl_name(agent.cl_name)
     if project:
         parts.append(project)
     workspace_num = agent.effective_workspace_num

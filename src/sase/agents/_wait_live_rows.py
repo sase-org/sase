@@ -109,6 +109,12 @@ def build_wait_live_rows(
     elapsed_seconds: float,
 ) -> tuple[WaitLiveRow, ...]:
     """Return live-panel rows for *target_states*, unfinished first."""
+    from sase.project_display_names import refresh_project_display_snapshot
+
+    try:
+        refresh_project_display_snapshot()
+    except Exception:  # noqa: BLE001 - rows keep stale labels; next poll retries.
+        pass
 
     records_by_dir = {record.artifact_dir: record for record in snapshot.records}
     queue = _queue_context(snapshot.records)
