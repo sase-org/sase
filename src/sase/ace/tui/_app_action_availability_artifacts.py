@@ -144,6 +144,9 @@ def check_artifacts_availability(
         if app.current_tab != ARTIFACTS_TAB:
             return False
     if action == "open_saved_query_picker":
+        if app.current_tab == "agents":
+            archive_state = getattr(app, "_agents_archive_view", None)
+            return getattr(archive_state, "active_view", None) == "archive"
         if app.current_tab != ARTIFACTS_TAB:
             return False
         if (
@@ -151,8 +154,12 @@ def check_artifacts_availability(
             and not _artifact_contract_action_available(app, action)
         ):
             return False
-    if action == "start_saved_query_mode" and app.current_tab != ARTIFACTS_TAB:
-        return False
+    if action == "start_saved_query_mode":
+        if app.current_tab == "agents":
+            archive_state = getattr(app, "_agents_archive_view", None)
+            return getattr(archive_state, "active_view", None) == "archive"
+        if app.current_tab != ARTIFACTS_TAB:
+            return False
     if action == "patches_filters":
         if (
             app.current_tab != ARTIFACTS_TAB

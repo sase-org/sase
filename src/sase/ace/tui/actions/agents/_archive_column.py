@@ -435,6 +435,23 @@ def update_archive_pulse(owner: Any) -> None:
 def on_archive_snapshot_applied(owner: Any) -> None:
     """Controller hook: a current-generation result landed."""
     refresh_column(owner)
+    if archive_detail_owns_panel(owner):
+        try:
+            from ...widgets import AgentInfoPanel
+
+            snapshot = archive_corpus_snapshot(owner)
+            archive = column_archive(owner)
+            owner.query_one("#agent-info-panel", AgentInfoPanel).set_archive_info(
+                active=True,
+                query=archive.committed_query,
+                grouping=archive.grouping,
+                count=snapshot.count,
+                indexed_rows=snapshot.indexed_rows,
+                status=snapshot.status,
+                refreshing=snapshot.refreshing,
+            )
+        except Exception:
+            log.debug("archive info row update failed", exc_info=True)
 
 
 # --- chrome ---------------------------------------------------------------
@@ -473,6 +490,47 @@ def sync_archive_chrome(owner: Any, *, request: bool = True) -> None:
     pre-planned them).
     """
     active = archive_detail_owns_panel(owner)
+    try:
+        from ...widgets import AgentInfoPanel, AgentLoadIndicator, TabBar
+
+        panel = owner.query_one("#agent-info-panel", AgentInfoPanel)
+        if active:
+            from ._archive_controller import archive_corpus_snapshot
+
+            snapshot = archive_corpus_snapshot(owner)
+            archive = column_archive(owner)
+            panel.set_archive_info(
+                active=True,
+                query=archive.committed_query,
+                grouping=archive.grouping,
+                count=snapshot.count,
+                indexed_rows=snapshot.indexed_rows,
+                status=snapshot.status,
+                refreshing=snapshot.refreshing,
+            )
+        else:
+            panel.set_archive_info(active=False)
+        try:
+            owner.query_one("#agents-header").set_class(active, "archive-hidden")
+        except Exception:
+            pass
+        try:
+            indicator = owner.query_one("#agent-load-indicator", AgentLoadIndicator)
+            if active:
+                if not hasattr(owner, "_archive_saved_load_indicator_display"):
+                    owner._archive_saved_load_indicator_display = indicator.display
+                indicator.display = False
+            elif hasattr(owner, "_archive_saved_load_indicator_display"):
+                indicator.display = owner._archive_saved_load_indicator_display
+                del owner._archive_saved_load_indicator_display
+        except Exception:
+            pass
+        try:
+            owner.query_one("#tab-bar", TabBar).set_agents_archive_active(active)
+        except Exception:
+            pass
+    except Exception:
+        log.debug("archive info chrome sync failed", exc_info=True)
     content = _agents_content(owner)
     try:
         if content is not None:

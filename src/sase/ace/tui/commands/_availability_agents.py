@@ -81,6 +81,12 @@ _DONE_AGENT_STATUSES: frozenset[str] = frozenset({"DONE", "FAILED"})
 
 def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     """Return whether an Agents-tab command is runnable."""
+    if spec.id in {
+        "app.start_saved_query_mode",
+        "app.open_saved_query_picker",
+    } or spec.id.startswith("saved_query."):
+        return ctx.agents_archive_active
+
     agent = ctx.agent
     panel_focused = ctx.panel_focused or ctx.collapsed_panel_focused
     summary_scale = resolve_summary_fold_scale(

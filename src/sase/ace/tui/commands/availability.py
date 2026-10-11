@@ -35,6 +35,14 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     """
     if ctx.tab not in spec.tabs:
         return False
+    if spec.id == "agents.open_archive":
+        from sase.ace.tui.models.agent_archive_view import agents_archive_view_enabled
+
+        return agents_archive_view_enabled()
+    if spec.id == "agents.back_to_inbox":
+        from sase.ace.tui.models.agent_archive_view import agents_archive_view_enabled
+
+        return agents_archive_view_enabled() and ctx.agents_archive_active
     if spec.id == "app.follow_artifact_link":
         return ctx.link_edges_present is not False
     if ctx.tab == "artifacts":

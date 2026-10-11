@@ -165,7 +165,17 @@ class ArtifactsQueryHistoryActionsMixin:
     ) -> bool:
         pane_id = contract.id
         pane = self._query_history_pane(contract)
-        digest = self._query_profile_digest(contract=contract, pane=pane)
+        if pane_id == "agents-live":
+            profile_for_source = getattr(
+                pane, "_agents_profile_digest_for_source", None
+            )
+            digest = (
+                profile_for_source(record.source)
+                if callable(profile_for_source)
+                else self._query_profile_digest(contract=contract, pane=pane)
+            )
+        else:
+            digest = self._query_profile_digest(contract=contract, pane=pane)
         if (
             record.profile_digest is not None
             and digest is not None

@@ -79,6 +79,7 @@ _LEADER_LABELS: dict[str, str] = {
     "capture_agents_repro": "Capture Agents-tab repro bundle",
     "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
     "jump_to_last_error": "Jump to the last error in Logs",
+    "toggle_agents_archive": "Toggle Agents Archive / Inbox",
 }
 
 _BANG_LABELS: dict[str, str] = {
@@ -121,6 +122,7 @@ _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "agent_from_cl": CL_AGENTS,
     "capture_agents_repro": AGENTS_ONLY,
     "toggle_agents_repro_checks": AGENTS_ONLY,
+    "toggle_agents_archive": ALL_TABS,
 }
 
 

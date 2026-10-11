@@ -221,6 +221,7 @@ class CommandContext:
     # Patches tab state
     mark_count: int = 0
     # Agents tab state
+    agents_archive_active: bool = False
     completed_agent_count: int = 0
     stopped_agent_count: int = 0
     unread_completed_agent_count: int = 0

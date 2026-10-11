@@ -43,6 +43,7 @@ class TabBar(Static):
     def __init__(self, **kwargs: Any) -> None:
         self._registry = load_keymap_registry({})
         self._current_tab: TabName = TAB_ORDER[0]
+        self._agents_archive_active = False
         self._tab_ranges: dict[TabName, tuple[int, int]] = dict.fromkeys(
             TAB_ORDER, (0, 0)
         )
@@ -59,6 +60,13 @@ class TabBar(Static):
     def update_tab(self, tab: TabName) -> None:
         """Update the displayed active tab."""
         self._current_tab = tab
+        self._refresh_content()
+
+    def set_agents_archive_active(self, active: bool) -> None:
+        """Mark Agents with a clock when its Archive view is active."""
+        if self._agents_archive_active == active:
+            return
+        self._agents_archive_active = active
         self._refresh_content()
 
     @property
@@ -80,7 +88,10 @@ class TabBar(Static):
             is_active = self._current_tab == tab
             style = f"bold {_TAB_COLORS[tab]}" if is_active else "#888888"
             start = len(text.plain)
-            text.append(f" {name} ", style=style)
+            label = (
+                "Agents ◷" if tab == "agents" and self._agents_archive_active else name
+            )
+            text.append(f" {label} ", style=style)
             self._tab_ranges[tab] = (start, len(text.plain))
         return text
 

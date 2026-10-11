@@ -58,6 +58,7 @@ class AgentInfoPanel(Static):
         self._countdown_text_span: tuple[int, int] | None = None
         self._countdown_render_template: tuple[Text, Text] | None = None
         self._loading: bool = False
+        self._archive_info: dict[str, Any] | None = None
         self._content_width = 0
         self._registry = load_keymap_registry({})
 
@@ -210,6 +211,32 @@ class AgentInfoPanel(Static):
         self._search_query_rich = rich
         self._search_query_match_count = match_count
         self._roster_loading = roster_loading
+        self._update_display()
+
+    def set_archive_info(
+        self,
+        *,
+        active: bool,
+        query: str = "in:archive",
+        grouping: str = "day",
+        count: int = 0,
+        indexed_rows: int = 0,
+        status: str = "cold",
+        refreshing: bool = False,
+    ) -> None:
+        """Show the Archive summary in the shared Agents info row."""
+        self._archive_info = (
+            {
+                "query": query,
+                "grouping": grouping,
+                "count": count,
+                "indexed_rows": indexed_rows,
+                "status": status,
+                "refreshing": refreshing,
+            }
+            if active
+            else None
+        )
         self._update_display()
 
     def update_state(
@@ -436,6 +463,39 @@ class AgentInfoPanel(Static):
     def _build_display_text(self) -> Text:
         """Build the full Rich ``Text`` for the current panel state."""
         text = Text()
+        self._search_query_click_span = None
+        self._sidebar_chip_click_span = None
+        if self._archive_info is not None:
+            info = self._archive_info
+            text.append("Archive", style="bold #FFAF87")
+            count = int(info.get("count", 0) or 0)
+            text.append(f" · {count} runs", style="bold #FFFFFF")
+            text.append(f" · {info.get('grouping', 'day')}", style="dim")
+            query = str(info.get("query", "in:archive") or "in:archive")
+            text.append(" · ", style="dim")
+            text.append("filter: ", style="dim italic")
+            start = text.cell_len
+            text.append(query, style="bold #FFD700")
+            self._search_query_click_span = (start, text.cell_len)
+            status = str(info.get("status", "cold"))
+            suffix = "refreshing" if info.get("refreshing") else status
+            text.append(
+                f" · {suffix} {int(info.get('indexed_rows', 0) or 0)} indexed",
+                style="dim",
+            )
+            try:
+                shortcut = key_display_name(self._registry.leader_mode.prefix) + "a"
+            except Exception:
+                shortcut = ",a"
+            width = int(getattr(getattr(self, "size", None), "width", 0) or 0)
+            remaining = width - text.cell_len - cell_len(f"{shortcut} Inbox")
+            if remaining > 1:
+                text.append(" " * remaining)
+            else:
+                text.append("  ")
+            text.append(shortcut, style="bold #FFD700")
+            text.append(" Inbox", style="dim")
+            return text
         if self._loading:
             text.append("Agents", style="bold #87D7FF")
             text.append(": ", style="bold #87D7FF")

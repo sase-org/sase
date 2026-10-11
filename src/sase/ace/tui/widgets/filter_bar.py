@@ -195,6 +195,16 @@ class FilterBar(FilterBarCompletionMixin, Static):
         self.FREE_TEXT_HINT = profile.free_text_hint
         self._inject_host_limit_completions()
 
+    def set_query_profile(self, profile: CompiledQueryProfile) -> None:
+        """Change the editor dialect for the current query scope."""
+        if self._profile is not None and self._profile.digest == profile.digest:
+            return
+        self._profile = profile
+        self._configure_from_profile(profile)
+        self._completion_signature = None
+        if self._editing:
+            self._refresh_completion()
+
     def _inject_host_limit_completions(self) -> None:
         """Expose the host-owned ``limit:`` cap on every Artifacts filter bar."""
 

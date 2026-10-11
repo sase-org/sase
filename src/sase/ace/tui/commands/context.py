@@ -498,6 +498,10 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     return CommandContext(
         tab=tab,
         artifacts_subtab=getattr(app, "current_artifacts_pane_key", "patches"),
+        agents_archive_active=(
+            getattr(getattr(app, "_agents_archive_view", None), "active_view", None)
+            == "archive"
+        ),
         patch=cs,
         agent=agent,
         axe_item=axe_item,

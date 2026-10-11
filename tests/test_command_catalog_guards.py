@@ -183,6 +183,8 @@ def test_every_command_spec_has_label_and_key_display() -> None:
             "tool_runs.stop",
             "tool_runs.open_pane",
             "tool_runs.run_tool",
+            "agents.open_archive",
+            "agents.back_to_inbox",
         }:
             assert spec.key_sequence == (), f"{spec.id}: expected keyless"
             assert spec.key_display == "", f"{spec.id}: expected blank key display"

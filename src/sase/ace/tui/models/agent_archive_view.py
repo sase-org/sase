@@ -84,8 +84,13 @@ class ParkedInboxState:
     committed_query: str = ""
     selected_identity: Any = None
     scroll: int = 0
-    agent_tab: str | None = None
+    scroll_y: float = 0.0
+    agent_tab: Any = None
     panel_focus: str | None = None
+    panel_layout: Any = None
+    focused_panel: str | None = None
+    group_focus: tuple[str, ...] | None = None
+    deck_state: Any = None
     deck_choices: dict[str, str] = field(default_factory=dict)
     folds: tuple[str, ...] = ()
 

@@ -504,6 +504,8 @@ def test_command_specs_are_well_formed() -> None:
             "tool_runs.stop",
             "tool_runs.open_pane",
             "tool_runs.run_tool",
+            "agents.open_archive",
+            "agents.back_to_inbox",
         }:
             # These Admin Center panels and the palette-only deck-view
             # choices are intentionally keyless: searchable commands with

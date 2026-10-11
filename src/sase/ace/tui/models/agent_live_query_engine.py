@@ -72,6 +72,18 @@ def _agents_archive_query_profile() -> CompiledQueryProfile:
     return profile
 
 
+def agents_query_profile_for_source(query: str) -> CompiledQueryProfile:
+    """Return the live or Archive dialect selected by the host scope token."""
+    from sase.ace.query.scope_token import extract_scope
+
+    _remainder, scope = extract_scope((query or "").strip())
+    return (
+        _agents_archive_query_profile()
+        if scope == "archive"
+        else agents_live_query_profile()
+    )
+
+
 def agents_history_query_key(
     raw_query: str | None,
 ) -> AgentsHistoryQueryKey:

@@ -381,6 +381,133 @@ def test_validator_appends_legacy_token_hint_without_typing_races() -> None:
     assert "Inbox field" in mirror
 
 
+def test_agents_query_profile_follows_the_host_scope() -> None:
+    from sase.ace.tui.models.agent_live_query_engine import (
+        agents_query_profile_for_source,
+    )
+
+    assert agents_query_profile_for_source("status:FAILED").pane_id == "agents-live"
+    assert (
+        agents_query_profile_for_source("in:inbox status:FAILED").pane_id
+        == "agents-live"
+    )
+    assert agents_query_profile_for_source("in:archive").pane_id == "agents-archive"
+    assert (
+        agents_query_profile_for_source("in:archive outcome:failed").pane_id
+        == "agents-archive"
+    )
+
+
+def test_archive_filter_commit_parks_inbox_without_persisting_archive_query() -> None:
+    from sase.ace.tui.actions.agents._archive_view import init_agents_archive_view_state
+    from sase.ace.tui.actions.agents._filter_bar_session import (
+        AgentsFilterBarSessionMixin,
+    )
+    from sase.feature_flags import override_flags
+
+    class Harness(AgentsFilterBarSessionMixin):
+        def __init__(self) -> None:
+            self.current_tab = "agents"
+            self._agent_search_query = "model:opus"
+            self.current_idx = 0
+            self._agents = []
+            self.transitions: list[tuple[str, str, str, str | None, str]] = []
+            self.explicit_commits: list[str] = []
+            init_agents_archive_view_state(self)
+
+        def _get_selected_agent(self) -> None:
+            return None
+
+        def _record_artifacts_query_transition(self, pane: str, **kwargs: Any) -> None:
+            self.transitions.append(
+                (
+                    pane,
+                    kwargs["old_source"],
+                    kwargs["old_canonical"],
+                    kwargs["old_profile_digest"],
+                    kwargs["new_canonical"],
+                )
+            )
+
+        def _schedule_agents_async_refresh(self, **_kwargs: Any) -> None:
+            return
+
+        def _record_explicit_agents_query_commit(self, source: str) -> None:
+            self.explicit_commits.append(source)
+
+        def query_one(self, *_args: Any, **_kwargs: Any) -> Any:
+            raise LookupError("no mounted widgets in this harness")
+
+    app = Harness()
+    with override_flags(agents_archive_view=True):
+        app._commit_agents_filter_query("in:archive outcome:failed")
+
+    assert app._agents_archive_view.active_view == "archive"
+    assert (
+        app._agents_archive_view.archive.committed_query == "in:archive outcome:failed"
+    )
+    assert app._agents_archive_view.parked_inbox is not None
+    assert app._agents_archive_view.parked_inbox.committed_query == "model:opus"
+    assert app.explicit_commits == []
+    assert app.transitions[0][0] == "agents-live"
+    assert app.transitions[0][3] is not None
+
+
+def test_archive_history_and_saved_slot_keep_the_archive_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace import saved_queries
+    from sase.ace.tui.actions.agents._filter_bar_session import (
+        AgentsFilterBarSessionMixin,
+    )
+    from sase.ace.tui.models.agent_live_query_engine import (
+        agents_query_profile_for_source,
+    )
+
+    class Harness(AgentsFilterBarSessionMixin):
+        _agents_filter_session_open = True
+        _agents_live_preview_query = "in:archive outcome:failed"
+        _agent_search_query = ""
+
+        def notify(self, *_args: Any, **_kwargs: Any) -> None:
+            return
+
+    app = Harness()
+    record = app.query_history_record()
+    assert (
+        record.profile_digest == agents_query_profile_for_source(record.source).digest
+    )
+
+    saved: list[tuple[str, str, str, str, str | None]] = []
+    monkeypatch.setattr(saved_queries, "find_slot_for_query", lambda *_: None)
+    monkeypatch.setattr(saved_queries, "get_next_available_slot", lambda _slots: "1")
+    monkeypatch.setattr(saved_queries, "load_saved_queries", lambda _pane: {})
+
+    def save(
+        pane_id: str,
+        slot: str,
+        source: str,
+        canonical: str,
+        *,
+        profile_digest: str | None = None,
+    ) -> bool:
+        saved.append((pane_id, slot, source, canonical, profile_digest))
+        return True
+
+    monkeypatch.setattr(saved_queries, "save_query", save)
+    app._save_agents_filter_query_slot("#in:archive outcome:failed")
+
+    assert saved == [
+        (
+            "agents-live",
+            "1",
+            "in:archive outcome:failed",
+            "in:archive outcome:failed",
+            agents_query_profile_for_source(record.source).digest,
+        )
+    ]
+
+
 async def test_f_opens_the_filter_bar(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

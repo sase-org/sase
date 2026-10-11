@@ -163,6 +163,13 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        archive_key = leader_keys.get("toggle_agents_archive")
+        if isinstance(archive_key, str) and key == archive_key:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self.action_toggle_agents_archive()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["run_cmd"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab != "artifacts":

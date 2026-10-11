@@ -4030,6 +4030,10 @@ HintInputBar #hint-escape-hint {
     display: none;
 }
 
+#agents-header.archive-hidden {
+    display: none;
+}
+
 #archive-pulse {
     width: 100%;
     height: 1;

@@ -35,6 +35,7 @@ from sase.ace.tui.commands._mode_commands import iter_mode_commands
 from sase.ace.tui.commands._tabs import AGENTS_ONLY
 from sase.ace.tui.commands._tabs import ALL_TABS
 from sase.ace.tui.commands._tabs import CL_ONLY
+from sase.ace.tui.commands._tabs import CL_AGENTS
 from sase.ace.tui.commands.types import (
     CATEGORY_ORDER,
     CommandExecutor,
@@ -88,7 +89,7 @@ def iter_saved_query_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]
             key_sequence=sequence,
             key_display=_format_key_sequence(sequence),
             category="Saved Queries",
-            tabs=CL_ONLY,
+            tabs=CL_AGENTS,
             executor=CommandExecutor(kind="saved_query", digit=d),
             aliases=(f"q{d}", f"query {d}"),
         )
@@ -128,6 +129,30 @@ def _iter_agents_panel_layout_command(
             "split panels",
             "merge panels",
         ),
+    )
+
+
+def _iter_agents_archive_commands() -> Iterator[CommandSpec]:
+    """Yield keyless Archive navigation actions for the command palette."""
+    yield CommandSpec(
+        id="agents.open_archive",
+        label="Agents: Open Archive",
+        key_sequence=(),
+        key_display="",
+        category="Navigation",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="open_agents_archive"),
+        aliases=("archive", "agents archive", "open archive"),
+    )
+    yield CommandSpec(
+        id="agents.back_to_inbox",
+        label="Agents: Back to Inbox",
+        key_sequence=(),
+        key_display="",
+        category="Navigation",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="back_to_agents_inbox"),
+        aliases=("inbox", "agents inbox", "back to inbox"),
     )
 
 
@@ -553,6 +578,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(_iter_deck_picker_commands(registry))
     catalog.extend(_iter_deck_view_commands())
     catalog.extend(iter_saved_query_commands(registry))
+    catalog.extend(_iter_agents_archive_commands())
     catalog.extend(_iter_artifacts_subtab_commands())
     catalog.extend(_iter_tasks_command())
     catalog.extend(_iter_machines_command())

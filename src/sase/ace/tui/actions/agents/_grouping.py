@@ -36,7 +36,7 @@ TabName = Literal[  # legacy compatibility alias
     "artifacts", "patches", "changespecs", "agents", "services"
 ]
 GroupingSaveTarget = Literal[  # legacy compatibility alias
-    "agents", "artifacts", "patches", "changespecs"
+    "agents", "archive", "artifacts", "patches", "changespecs"
 ]
 
 log = logging.getLogger(__name__)
@@ -91,6 +91,7 @@ class AgentGroupingMixin:
     _grouping_mode_save_pending: dict[str, object]
     _grouping_mode_save_inflight: set[str]
     _grouping_mode_save_active: dict[str, object]
+    _agents_archive_view: Any
 
     # Legacy compatibility aliases for older ChangeSpec grouping state names.
     @property
@@ -183,7 +184,7 @@ class AgentGroupingMixin:
     def _schedule_grouping_mode_save(
         self,
         target: GroupingSaveTarget,
-        mode: GroupingMode | PatchGroupingMode,
+        mode: GroupingMode | PatchGroupingMode | str,
     ) -> None:
         """Persist the latest grouping mode for *target* off the key path."""
         self._ensure_grouping_mode_save_state()
@@ -213,10 +214,22 @@ class AgentGroupingMixin:
             finally:
                 if (
                     failed
-                    and target == "agents"
+                    and target in {"agents", "archive"}
                     and self._grouping_mode_save_pending.get(target) is active_mode
                 ):
-                    self._notify_agents_grouping_save_failed()
+                    if target == "archive":
+                        try:
+                            notify = getattr(self, "notify", None)
+                            if callable(notify):
+                                notify(
+                                    "Could not save Archive grouping preference",
+                                    severity="warning",
+                                    timeout=3.0,
+                                )
+                        except Exception:
+                            pass
+                    else:
+                        self._notify_agents_grouping_save_failed()
                 self._grouping_mode_save_inflight.discard(target)
                 self._grouping_mode_save_active.pop(target, None)
                 if self._grouping_mode_save_pending.get(target) is not active_mode:
@@ -252,6 +265,11 @@ class AgentGroupingMixin:
         from ...models.agent_groups import GroupingMode
         from ...models.patch_groups import PatchGroupingMode
 
+        if target == "archive":
+            from ....grouping_strategy import save_agent_archive_grouping
+
+            return save_agent_archive_grouping(str(mode))
+
         if target == "agents":
             if not isinstance(mode, GroupingMode):
                 return False
@@ -281,6 +299,43 @@ class AgentGroupingMixin:
         if self.current_tab != "agents":
             return
         from textual.screen import ModalScreen
+
+        from ...models.agent_archive_view import AGENTS_VIEW_ARCHIVE
+
+        if (
+            getattr(getattr(self, "_agents_archive_view", None), "active_view", None)
+            == AGENTS_VIEW_ARCHIVE
+        ):
+            from ...modals.archive_grouping_modal import ArchiveGroupingModal
+
+            current = self._agents_archive_view.archive.grouping
+
+            def _on_archive_choice(chosen: str | None) -> None:
+                if chosen not in {"day", "project", "outcome", "model"}:
+                    return
+                archive = self._agents_archive_view.archive
+                archive.grouping = chosen
+                archive.expanded_banners = ()
+                archive.folded_banners = ()
+                archive.expanded_containers = ()
+                archive.loaded_pages = {}
+                archive.selected_key = None
+                archive.pending_exact_name = None
+                archive.reveal_row = None
+                from ._archive_controller import request_archive_view_load
+
+                request_archive_view_load(self)
+                self._schedule_grouping_mode_save("archive", chosen)
+                notify = getattr(self, "notify", None)
+                if callable(notify):
+                    notify(f"Archive grouped by {chosen}")
+
+            if isinstance(getattr(self, "screen", None), ModalScreen):
+                return
+            push_screen = getattr(self, "push_screen", None)
+            if callable(push_screen):
+                push_screen(ArchiveGroupingModal(current), _on_archive_choice)
+            return
 
         from ...modals.agent_grouping_modal import (
             AgentGroupingAction,

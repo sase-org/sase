@@ -116,6 +116,10 @@ def test_saved_query_picker_and_slots_follow_query_pane_capability() -> None:
                 ),  # legacy tab id
             )
         assert not is_command_available(spec, CommandContext(tab="agents"))
+        assert is_command_available(
+            spec,
+            CommandContext(tab="agents", agents_archive_active=True),
+        )
         assert not is_command_available(spec, CommandContext(tab="axe"))
 
 
@@ -133,6 +137,10 @@ def test_saved_query_slot_mode_command_follows_query_pane_capability() -> None:
             ),  # legacy tab id
         )
     assert not is_command_available(spec, CommandContext(tab="agents"))
+    assert is_command_available(
+        spec,
+        CommandContext(tab="agents", agents_archive_active=True),
+    )
     assert not is_command_available(spec, CommandContext(tab="axe"))
 
 

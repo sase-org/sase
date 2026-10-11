@@ -119,7 +119,14 @@ def find_slot_for_query(pane_id: str, canonical: str) -> str | None:
     return None
 
 
-def save_query(pane_id: str, slot: str, source: str, canonical: str) -> bool:
+def save_query(
+    pane_id: str,
+    slot: str,
+    source: str,
+    canonical: str,
+    *,
+    profile_digest: str | None = None,
+) -> bool:
     """Save a query to a specific slot on *pane_id*.
 
     If the query already exists in a different slot on this pane, it is
@@ -145,7 +152,11 @@ def save_query(pane_id: str, slot: str, source: str, canonical: str) -> bool:
     slots[slot] = QueryRecord(
         source=source,
         canonical=canonical,
-        profile_digest=current_profile_digest(pane_id),
+        profile_digest=(
+            current_profile_digest(pane_id)
+            if profile_digest is None
+            else profile_digest
+        ),
     )
     panes[pane_id] = slots
     return _write_all_panes(panes)

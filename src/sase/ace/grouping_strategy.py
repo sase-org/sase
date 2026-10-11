@@ -12,6 +12,7 @@ from .tui.models.patch_groups import PatchGroupingMode
 
 AGENT_GROUPING_MODE_FILENAME = "grouping_mode.txt"
 PATCH_GROUPING_MODE_FILENAME = "patch_grouping_mode.txt"
+AGENT_ARCHIVE_GROUPING_FILENAME = "agent_archive_grouping.txt"
 LEGACY_CHANGESPEC_GROUPING_MODE_FILENAME = (  # legacy compatibility filename
     "changespec_grouping_mode.txt"
 )
@@ -30,6 +31,10 @@ def _agent_grouping_mode_path() -> Path:
 
 def _patch_grouping_mode_path() -> Path:
     return _sase_dir() / PATCH_GROUPING_MODE_FILENAME
+
+
+def _agent_archive_grouping_path() -> Path:
+    return _sase_dir() / AGENT_ARCHIVE_GROUPING_FILENAME
 
 
 def _legacy_changespec_grouping_mode_path() -> Path:  # legacy compatibility alias
@@ -101,6 +106,28 @@ def load_patch_grouping_mode(
 def save_patch_grouping_mode(mode: PatchGroupingMode) -> bool:
     """Persist the Patch grouping mode to the canonical filename."""
     return _save_mode(_patch_grouping_mode_path(), mode)
+
+
+def load_agent_archive_grouping(default: str = "day") -> str:
+    """Load the persisted Archive banner grouping."""
+    try:
+        value = _agent_archive_grouping_path().read_text(encoding="utf-8").strip()
+    except OSError:
+        return default
+    return value if value in {"day", "project", "outcome", "model"} else default
+
+
+def save_agent_archive_grouping(grouping: str) -> bool:
+    """Persist one supported Archive banner grouping."""
+    if grouping not in {"day", "project", "outcome", "model"}:
+        return False
+    try:
+        path = _agent_archive_grouping_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{grouping}\n", encoding="utf-8")
+    except OSError:
+        return False
+    return True
 
 
 load_changespec_grouping_mode = (  # legacy compatibility alias

@@ -111,6 +111,41 @@ class PatchQueryMixin:
         force-switches the sub-tab: loading always targets whichever pane
         is currently active when that pane declares saved-query support.
         """
+        archive_state = getattr(self, "_agents_archive_view", None)
+        if (
+            self.current_tab == "agents"
+            and getattr(archive_state, "active_view", None) == "archive"
+        ):
+            pane_id = "agents-live"
+            queries = getattr(self, "_saved_queries", {}).get(pane_id)
+            if queries is None:
+                from ....saved_queries import load_saved_queries
+
+                queries = load_saved_queries(pane_id)
+                self._saved_queries[pane_id] = queries
+            record = queries.get(slot)
+            if record is None:
+                self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
+                return
+            try:
+                canonical = self._agents_history_canonical(record.source)  # type: ignore[attr-defined]
+                digest = self._agents_profile_digest_for_source(record.source)  # type: ignore[attr-defined]
+            except Exception:
+                canonical, digest = None, None
+            if canonical != record.canonical or (
+                record.profile_digest is not None and record.profile_digest != digest
+            ):
+                self.notify(  # type: ignore[attr-defined]
+                    f"Slot {slot}'s saved query no longer matches its query dialect: {record.source}",
+                    severity="error",
+                )
+                return
+            if self._validate_agents_live_query(record.source):  # type: ignore[attr-defined]
+                self.notify("Stored query is invalid", severity="error")  # type: ignore[attr-defined]
+                return
+            self._commit_agents_filter_query(record.source)  # type: ignore[attr-defined]
+            return
+
         if self.current_tab != "artifacts":
             self._save_current_tab_position()  # type: ignore[attr-defined]
             from ...artifact_tabs import switch_to_artifacts_subtab
@@ -196,7 +231,13 @@ class PatchQueryMixin:
 
     def action_start_saved_query_mode(self) -> None:
         """Arm direct saved-query slot selection (0 then a digit)."""
-        if self.current_tab != "artifacts":
+        archive_state = getattr(self, "_agents_archive_view", None)
+        if (
+            self.current_tab == "agents"
+            and getattr(archive_state, "active_view", None) != "archive"
+        ):
+            return
+        if self.current_tab not in {"artifacts", "agents"}:
             return
         self._saved_query_mode_active = True  # type: ignore[attr-defined]
         self._update_saved_query_footer()
@@ -233,6 +274,43 @@ class PatchQueryMixin:
 
     def action_open_saved_query_picker(self) -> None:
         """Open the cached saved-query chooser on the active Artifacts pane."""
+        archive_state = getattr(self, "_agents_archive_view", None)
+        if (
+            self.current_tab == "agents"
+            and getattr(archive_state, "active_view", None) == "archive"
+        ):
+            from ...modals import SavedQueryPickerModal
+            from ....saved_queries import load_saved_queries
+
+            pane_id = "agents-live"
+            if pane_id not in self._saved_queries:
+                self._saved_queries[pane_id] = load_saved_queries(pane_id)
+            archive = getattr(
+                getattr(self, "_agents_archive_view", None), "archive", None
+            )
+            active = (
+                getattr(archive, "committed_query", "")
+                if getattr(
+                    getattr(self, "_agents_archive_view", None), "active_view", None
+                )
+                == "archive"
+                else getattr(self, "_agent_search_query", "")
+            )
+            try:
+                active_query = self._agents_history_canonical(active)  # type: ignore[attr-defined]
+            except Exception:
+                active_query = ""
+            queries = {
+                slot: record.canonical
+                for slot, record in self._saved_queries[pane_id].items()
+            }
+            self.push_screen(  # type: ignore[attr-defined]
+                SavedQueryPickerModal(queries, active_query),
+                lambda slot: self._load_saved_query(slot) if slot is not None else None,
+            )
+            return
+        if self.current_tab == "agents":
+            return
         pane_id = getattr(self, "current_artifacts_pane_key", "patches")
         if self.current_tab != "artifacts":
             return

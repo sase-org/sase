@@ -186,6 +186,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "capture_agents_repro": "B",
             "toggle_agents_repro_checks": "T",
             "jump_to_last_error": "L",
+            "toggle_agents_archive": "a",
         }
     )
 

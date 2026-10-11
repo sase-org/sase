@@ -50,6 +50,7 @@ class AgentsFilterBarSessionMixin:
     _agents_filter_match_count: tuple[int, int] | None
     _agents_filter_preview_generation: int
     _agents_filter_preview_task: asyncio.Task[None] | None
+    _agents_archive_view: Any
 
     if TYPE_CHECKING:
 
@@ -71,20 +72,30 @@ class AgentsFilterBarSessionMixin:
         from ...widgets.agents_filter_bar import AgentsFilterBar
 
         bar = self.query_one(AgentsFilterBar)  # type: ignore[attr-defined]
+        from ...models.agent_archive_view import AGENTS_VIEW_ARCHIVE
+        from ...models.agent_live_query_engine import agents_query_profile_for_source
+
+        source = (
+            self._agents_archive_view.archive.committed_query
+            if getattr(getattr(self, "_agents_archive_view", None), "active_view", None)
+            == AGENTS_VIEW_ARCHIVE
+            else self._agent_search_query
+        )
+        bar.set_query_profile(agents_query_profile_for_source(source))
         if self._agents_filter_session_open:
             bar.focus_editor()
             return
         self._agents_filter_session_open = True
         self._agents_filter_restore_query = self._agent_search_query
         self._agents_filter_restore_focus = self.focused  # type: ignore[attr-defined]
-        self._agents_live_preview_query = self._agent_search_query
+        self._agents_live_preview_query = source
         self._agents_filter_query_error = None
         from ...models.agent_live_query_engine import AgentsLiveQueryFacade
 
         cached = getattr(self, "_agents_live_query_facade", None)
         self._agents_live_preview_facade: AgentsLiveQueryFacade | None = cached  # type: ignore[attr-defined]
         self._agents_filter_match_count = None
-        bar.open(self._agent_search_query)
+        bar.open(source)
 
     def _close_agents_filter_session(self) -> None:
         from ...widgets.agents_filter_bar import AgentsFilterBar
@@ -123,6 +134,12 @@ class AgentsFilterBarSessionMixin:
         text = event.text
         self._agents_live_preview_query = text
         bar = self.query_one(AgentsFilterBar)  # type: ignore[attr-defined]
+        from ...models.agent_live_query_engine import agents_query_profile_for_source
+
+        try:
+            bar.set_query_profile(agents_query_profile_for_source(text))
+        except Exception:
+            pass
 
         if _SAVE_QUERY_RE.match(text.strip()):
             bar.set_status(None, exact=False, error=None, coverage_label="save")
@@ -135,6 +152,7 @@ class AgentsFilterBarSessionMixin:
             return
 
         self._agents_filter_query_error = None
+        self._agents_filter_match_count = None
         self._schedule_agents_filter_preview_refresh(text)
         self._sync_agents_filter_bar_status()
 
@@ -171,8 +189,30 @@ class AgentsFilterBarSessionMixin:
         self._refilter_agents(refresh_content_index=False)
 
     def _commit_agents_filter_query(self, source: str) -> None:
-        old_source = self._agent_search_query
+        from ...models.agent_archive_view import AGENTS_VIEW_ARCHIVE
+        from ....query.scope_token import extract_scope
+
+        old_source = (
+            self._agents_archive_view.archive.committed_query
+            if getattr(getattr(self, "_agents_archive_view", None), "active_view", None)
+            == AGENTS_VIEW_ARCHIVE
+            else self._agent_search_query
+        )
         self._record_agents_live_query_transition(old_source, source)
+        _remainder, scope = extract_scope(source)
+        if scope == "archive":
+            from ._archive_view import open_agents_archive_view_with_query
+
+            open_agents_archive_view_with_query(self, query=source)
+            return
+
+        if (
+            getattr(getattr(self, "_agents_archive_view", None), "active_view", None)
+            == AGENTS_VIEW_ARCHIVE
+        ):
+            from ._archive_view import close_agents_archive_view
+
+            close_agents_archive_view(self)
         self._record_explicit_agents_query_commit(source)  # type: ignore[attr-defined]
         # Session is still open here, so this refilter uses (and, on a
         # cache-miss race, self-heals) the *preview* facade below -- copy it
@@ -196,7 +236,7 @@ class AgentsFilterBarSessionMixin:
                 "agents-live",
                 old_source=old_source,
                 old_canonical=old_canonical,
-                old_profile_digest=self._agents_live_profile_digest(),
+                old_profile_digest=self._agents_profile_digest_for_source(old_source),
                 new_canonical=new_canonical,
             )
 
@@ -227,6 +267,14 @@ class AgentsFilterBarSessionMixin:
         from ...models.agent_live_query_engine import agents_live_query_profile
 
         return agents_live_query_profile().digest
+
+    def _agents_profile_digest_for_source(self, source: str) -> str | None:
+        from ...models.agent_live_query_engine import agents_query_profile_for_source
+
+        try:
+            return agents_query_profile_for_source(source).digest
+        except Exception:
+            return self._agents_live_profile_digest()
 
     def _sync_agents_filter_bar_status(self) -> None:
         from ...widgets.agents_filter_bar import AgentsFilterBar
@@ -268,7 +316,43 @@ class AgentsFilterBarSessionMixin:
         from ...models.agent_live_query_engine import (
             build_agents_live_query_index,
             evaluate_agents_live_query,
+            agents_query_profile_for_source,
         )
+
+        profile = agents_query_profile_for_source(query)
+        if profile.pane_id == "agents-archive":
+            controller = getattr(self, "_agents_archive_controller", None)
+            corpus = getattr(controller, "corpus", None)
+            if corpus is None:
+                return
+            from ....query.scope_token import extract_scope
+
+            remainder, _scope = extract_scope(query)
+            try:
+                count = await asyncio.to_thread(
+                    lambda: int(
+                        corpus.count(
+                            remainder,
+                            profile=getattr(controller, "profile", None),
+                        )
+                        or 0
+                    )
+                )
+            except Exception:
+                log.debug("archive filter preview failed", exc_info=True)
+                return
+            if (
+                generation != self._agents_filter_preview_generation
+                or not self._agents_filter_session_open
+                or query != self._agents_live_preview_query
+            ):
+                return
+            self._agents_filter_match_count = (
+                count,
+                int(getattr(controller, "indexed_rows", 0) or 0),
+            )
+            self._sync_agents_filter_bar_status()
+            return
 
         agents = list(getattr(self, "_agents_with_children", []) or [])
         content_index = getattr(self, "_agent_content_search_index", None)
@@ -293,7 +377,11 @@ class AgentsFilterBarSessionMixin:
             return
         if not self._agents_filter_session_open:
             return
-        if query != (self._agents_live_preview_query or ""):
+        if (
+            generation != self._agents_filter_preview_generation
+            or not self._agents_filter_session_open
+            or query != (self._agents_live_preview_query or "")
+        ):
             return
 
         self._agents_filter_query_error = error
@@ -333,6 +421,7 @@ class AgentsFilterBarSessionMixin:
             self.notify(f"Invalid query: {error}", severity="error")  # type: ignore[attr-defined]
             return
         canonical = self._agents_history_canonical(query_part)
+        profile_digest = self._agents_profile_digest_for_source(query_part)
 
         existing_slot = find_slot_for_query(pane_id, canonical)
         if slot_specified:
@@ -346,7 +435,9 @@ class AgentsFilterBarSessionMixin:
                 self.notify("All 10 slots are full", severity="warning")  # type: ignore[attr-defined]
                 return
 
-        if save_query(pane_id, slot, query_part, canonical):
+        if save_query(
+            pane_id, slot, query_part, canonical, profile_digest=profile_digest
+        ):
             self._invalidate_saved_query_cache()
             if existing_slot is not None and existing_slot != slot:
                 self.notify(f"Moved query from slot {existing_slot} to slot {slot}")  # type: ignore[attr-defined]
@@ -378,7 +469,7 @@ class AgentsFilterBarSessionMixin:
         return QueryRecord(
             source=source,
             canonical=self._agents_history_canonical(source),
-            profile_digest=self._agents_live_profile_digest(),
+            profile_digest=self._agents_profile_digest_for_source(source),
         )
 
     def apply_query_history_record(self, record: object) -> bool:
@@ -390,11 +481,19 @@ class AgentsFilterBarSessionMixin:
             return False
         if canonical != getattr(record, "canonical", None):
             return False
+        if getattr(record, "profile_digest", None) not in (
+            None,
+            self._agents_profile_digest_for_source(source),
+        ):
+            return False
         if not self._agents_filter_session_open:
             return False
         from ...widgets.agents_filter_bar import AgentsFilterBar
 
         bar = self.query_one(AgentsFilterBar)  # type: ignore[attr-defined]
+        from ...models.agent_live_query_engine import agents_query_profile_for_source
+
+        bar.set_query_profile(agents_query_profile_for_source(source))
         bar.set_query(source)
         self._agents_live_preview_query = source
         error = self._validate_agents_live_query(source)
