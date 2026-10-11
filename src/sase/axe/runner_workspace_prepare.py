@@ -7,7 +7,6 @@ re-exported here to preserve the historical import surface.
 
 import logging
 import sys
-import time
 from typing import TYPE_CHECKING
 
 from sase.axe.runner_workspace_errors import WorkspacePreparationError
@@ -28,6 +27,7 @@ from sase.axe.runner_workspace_reclone import prepare_workspace_with_reclone
 from sase.git_lock_retry import (
     STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS,
     git_index_lock_path,
+    try_remove_stale_index_lock,
 )
 from sase.vcs_provider import get_vcs_provider
 
@@ -59,25 +59,9 @@ def clear_stale_git_index_lock(
     lock_path = git_index_lock_path(workspace_dir)
     if lock_path is None:
         return False
-    try:
-        age_seconds = time.time() - lock_path.stat().st_mtime
-    except FileNotFoundError:
+    if not try_remove_stale_index_lock(workspace_dir, min_age_seconds=min_age_seconds):
         return False
-    except OSError:
-        logger.debug("Could not stat git index lock %s", lock_path, exc_info=True)
-        return False
-    if age_seconds < min_age_seconds:
-        return False
-    try:
-        lock_path.unlink()
-    except FileNotFoundError:
-        return False
-    except OSError:
-        logger.warning(
-            "Failed to remove stale git index lock %s", lock_path, exc_info=True
-        )
-        return False
-    message = f"Removed stale git index lock ({age_seconds:.0f}s old): {lock_path}"
+    message = f"Removed stale git index lock: {lock_path}"
     print(message, file=sys.stderr)
     logger.warning(message)
     return True

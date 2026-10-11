@@ -316,7 +316,10 @@ class SessionProcReporter:
 
     def dev_command_runner(self) -> Callable[..., DevCommandResult]:
         """Return a dev-update command runner that streams into this proc."""
-        from sase.dev_update.models import DevCommandResult
+        from sase.dev_update.command import run_dev_update_command
+
+        def _on_recovery(message: str) -> None:
+            self.log(message, stream="progress")
 
         def _run(
             argv: Sequence[str],
@@ -326,18 +329,14 @@ class SessionProcReporter:
             timeout: float | None = None,
         ) -> DevCommandResult:
             self.phase("Running " + " ".join(str(part) for part in argv[:2]))
-            try:
-                completed = self.run(argv, cwd=cwd, env=env, timeout=timeout)
-            except FileNotFoundError as exc:
-                return DevCommandResult(returncode=127, stderr=str(exc))
-            except subprocess.TimeoutExpired:
-                return DevCommandResult(returncode=124, stderr="command timed out")
-            except OSError as exc:
-                return DevCommandResult(returncode=1, stderr=str(exc))
-            return DevCommandResult(
-                returncode=completed.returncode,
-                stdout=completed.stdout,
-                stderr=completed.stderr,
+            return run_dev_update_command(
+                argv,
+                cwd=cwd,
+                env=env,
+                timeout=timeout,
+                run_attempt=self.run,
+                on_recovery=_on_recovery,
+                cancel_check=self.cancel_event.is_set,
             )
 
         return _run

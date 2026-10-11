@@ -16,7 +16,7 @@ from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from sase.git_lock_retry import STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
+from sase.git_lock_retry import try_remove_stale_index_lock
 from sase.sdd._push_race import is_retryable_push_race
 
 DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS = 10.0
@@ -189,19 +189,8 @@ def clean_agents_payload_worktree(
 
 
 def _clear_stale_agents_index_lock(repo: Path, git_runner: GitRunner) -> None:
-    lock_path = agents_git_dir(repo, git_runner) / "index.lock"
-    try:
-        age_seconds = time.time() - lock_path.stat().st_mtime
-    except OSError:
-        return
-    if age_seconds < STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS:
-        return
-    try:
-        lock_path.unlink()
-    except OSError:
-        # The scoped git recovery below will return a useful error if the lock
-        # still exists; a concurrent actor may also have removed it first.
-        pass
+    del git_runner
+    try_remove_stale_index_lock(repo)
 
 
 def ensure_agents_clone(

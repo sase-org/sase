@@ -18,6 +18,8 @@ from sase.ops.names import GIT_POST_WRITE
 from sase.post_write_operations import run_post_write_command_sync
 from sase.macro.write_targets import PostWriteActionKind, PostWriteActionOffer
 
+from tests.git_lock_test_helpers import age_git_index_lock
+
 from ._prompt_save_macro_helpers import _CommitHarness
 
 
@@ -195,11 +197,12 @@ def test_git_commit_push_worker_backs_off_then_removes_stale_index_lock(
     (tmp_path / ".git").mkdir()
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    age_git_index_lock(lock)
     commit_attempts = 0
 
     def run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         nonlocal commit_attempts
-        if argv[3] == "commit":
+        if len(argv) > 3 and argv[3] == "commit":
             commit_attempts += 1
             if lock.exists():
                 return subprocess.CompletedProcess(

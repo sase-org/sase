@@ -4,17 +4,25 @@ import logging
 import os
 from pathlib import Path
 import subprocess
+import sys
 import time
 
 import pytest
 
+from sase.core.git_lock_facade import classify_git_lock_failure
 from sase.git_lock_retry import (
     DEFAULT_GIT_LOCK_RETRY_DELAYS,
     ENV_GIT_LOCK_RETRY_DELAYS,
     git_index_lock_path,
     git_lock_retry_delays,
-    _is_retryable_git_lock_error,
+    try_remove_stale_index_lock,
     run_with_git_lock_retry,
+)
+from tests.git_lock_test_helpers import (
+    absent_owner_facts,
+    active_owner_facts,
+    age_git_index_lock,
+    incomplete_owner_facts,
 )
 
 
@@ -61,7 +69,21 @@ def test_is_retryable_git_lock_error_truth_table(
     output: str | bytes | None,
     expected: bool,
 ) -> None:
-    assert _is_retryable_git_lock_error(returncode, output) is expected
+    stderr = (
+        output.decode("utf-8", errors="replace")
+        if isinstance(output, bytes)
+        else (output or "")
+    )
+    classification = classify_git_lock_failure(
+        {
+            "exit_status": returncode,
+            "stdout": "",
+            "stderr": stderr,
+            "timed_out": False,
+            "signal_terminated": returncode < 0,
+        }
+    )
+    assert bool(classification.get("retryable")) is expected
 
 
 def test_git_lock_retry_delays_defaults_and_env_override(
@@ -74,7 +96,9 @@ def test_git_lock_retry_delays_defaults_and_env_override(
     assert git_lock_retry_delays() == (0.0, 0.025, 1.5)
 
 
-@pytest.mark.parametrize("raw", ["", "wat", "0.1,,0.2", "-0.1,0.2"])
+@pytest.mark.parametrize(
+    "raw", ["", "wat", "0.1,,0.2", "-0.1,0.2", "nan", "inf", "0.1,inf"]
+)
 def test_git_lock_retry_delays_invalid_env_uses_default(
     monkeypatch: pytest.MonkeyPatch,
     raw: str,
@@ -119,7 +143,7 @@ def test_run_with_git_lock_retry_succeeds_mid_schedule(
 def test_run_with_git_lock_retry_removes_lock_persisting_through_window(
     tmp_path: Path,
 ) -> None:
-    lock_path = _make_repo_and_lock(tmp_path)
+    lock_path = age_git_index_lock(_make_repo_and_lock(tmp_path))
     calls = 0
 
     def attempt() -> subprocess.CompletedProcess[str]:
@@ -131,6 +155,7 @@ def test_run_with_git_lock_retry_removes_lock_persisting_through_window(
         attempt,
         cwd=tmp_path,
         delays=(0.001, 0.001),
+        owner_probe=absent_owner_facts,
     )
 
     assert result.returncode == 0
@@ -176,12 +201,60 @@ def test_run_with_git_lock_retry_zero_window_keeps_young_lock(
         lambda: failure,
         cwd=tmp_path,
         delays=(),
+        recovery_wait_cap=0,
+        owner_probe=absent_owner_facts,
     )
 
     assert result is failure
     assert outcome.attempts == 1
     assert outcome.lock_removed is False
     assert lock_path.exists()
+
+
+def test_run_with_git_lock_retry_can_disable_age_wait(tmp_path: Path) -> None:
+    lock_path = _make_repo_and_lock(tmp_path)
+    failure = _lock_error(lock_path)
+    slept: list[float] = []
+
+    result, outcome = run_with_git_lock_retry(
+        lambda: failure,
+        cwd=tmp_path,
+        delays=(0,),
+        owner_probe=absent_owner_facts,
+        allow_age_wait=False,
+        sleeper=slept.append,
+    )
+
+    assert result is failure
+    assert outcome.lock_removed is False
+    assert lock_path.exists()
+    assert all(delay < 1.0 for delay in slept)
+
+
+def test_run_with_git_lock_retry_still_removes_aged_lock_without_age_wait(
+    tmp_path: Path,
+) -> None:
+    lock_path = _make_repo_and_lock(tmp_path)
+    age_git_index_lock(lock_path)
+    calls = 0
+
+    def attempt() -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        return _lock_error(lock_path) if lock_path.exists() else _success()
+
+    result, outcome = run_with_git_lock_retry(
+        attempt,
+        cwd=tmp_path,
+        delays=(),
+        owner_probe=absent_owner_facts,
+        allow_age_wait=False,
+    )
+
+    assert result.returncode == 0
+    assert calls == 2
+    assert outcome.lock_removed is True
+    assert not lock_path.exists()
 
 
 def test_run_with_git_lock_retry_removes_old_lock_without_backoff(
@@ -201,6 +274,7 @@ def test_run_with_git_lock_retry_removes_old_lock_without_backoff(
         attempt,
         cwd=tmp_path,
         delays=(),
+        owner_probe=absent_owner_facts,
     )
 
     assert result.returncode == 0
@@ -234,6 +308,7 @@ def test_run_with_git_lock_retry_falls_back_to_canonical_lock_path(
         attempt,
         cwd=tmp_path,
         delays=(),
+        owner_probe=absent_owner_facts,
     )
 
     assert result.returncode == 0
@@ -328,7 +403,7 @@ def test_run_with_git_lock_retry_deletion_failure_returns_original_error(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    lock_path = _make_repo_and_lock(tmp_path)
+    lock_path = age_git_index_lock(_make_repo_and_lock(tmp_path))
     failure = _lock_error(lock_path)
     original_unlink = Path.unlink
 
@@ -343,6 +418,7 @@ def test_run_with_git_lock_retry_deletion_failure_returns_original_error(
             lambda: failure,
             cwd=tmp_path,
             delays=(0.001,),
+            owner_probe=absent_owner_facts,
         )
 
     assert result is failure
@@ -383,15 +459,188 @@ def test_git_index_lock_path_resolves_git_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     (tmp_path / ".git").write_text("gitdir: elsewhere", encoding="utf-8")
-    completed = subprocess.CompletedProcess(
-        ["git", "rev-parse", "--git-dir"],
-        0,
-        stdout="../metadata/worktrees/repo\n",
-        stderr="",
-    )
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: completed)
+    git_dir = (tmp_path / "../metadata/worktrees/repo").resolve()
 
-    assert (
-        git_index_lock_path(tmp_path)
-        == (tmp_path / "../metadata/worktrees/repo/index.lock").resolve()
+    def fake_run(
+        argv: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--git-path" in argv:
+            stdout = f"{git_dir / 'index'}\n"
+        elif "--absolute-git-dir" in argv:
+            stdout = f"{git_dir}\n"
+        elif "--show-toplevel" in argv:
+            stdout = f"{tmp_path}\n"
+        else:
+            stdout = f"{git_dir}\n"
+        return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert git_index_lock_path(tmp_path) == git_dir / "index.lock"
+
+
+def test_run_with_git_lock_retry_preserves_symlink_lock(tmp_path: Path) -> None:
+    target = tmp_path / "elsewhere.lock"
+    target.write_bytes(b"locked")
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    lock_path = git_dir / "index.lock"
+    lock_path.symlink_to(target)
+    age_git_index_lock(target)
+    failure = _lock_error(lock_path)
+
+    result, outcome = run_with_git_lock_retry(
+        lambda: failure,
+        cwd=tmp_path,
+        delays=(),
+        owner_probe=absent_owner_facts,
     )
+
+    assert result is failure
+    assert outcome.lock_removed is False
+    assert lock_path.is_symlink()
+    assert target.exists()
+
+
+def test_run_with_git_lock_retry_preserves_live_owner(tmp_path: Path) -> None:
+    lock_path = age_git_index_lock(_make_repo_and_lock(tmp_path))
+    failure = _lock_error(lock_path)
+
+    result, outcome = run_with_git_lock_retry(
+        lambda: failure,
+        cwd=tmp_path,
+        delays=(),
+        owner_probe=active_owner_facts,
+    )
+
+    assert result is failure
+    assert outcome.lock_removed is False
+    assert lock_path.exists()
+
+
+def test_run_with_git_lock_retry_preserves_unknown_owner(tmp_path: Path) -> None:
+    lock_path = age_git_index_lock(_make_repo_and_lock(tmp_path))
+    failure = _lock_error(lock_path)
+
+    result, outcome = run_with_git_lock_retry(
+        lambda: failure,
+        cwd=tmp_path,
+        delays=(),
+        owner_probe=incomplete_owner_facts,
+    )
+
+    assert result is failure
+    assert outcome.lock_removed is False
+    assert lock_path.exists()
+
+
+def test_run_with_git_lock_retry_waits_then_removes_young_owner_free_lock(
+    tmp_path: Path,
+) -> None:
+    lock_path = _make_repo_and_lock(tmp_path)
+    mtime = lock_path.lstat().st_mtime
+    created = time.time()
+    unix_now = {"value": created}
+    calls = 0
+
+    def unix_clock() -> float:
+        return unix_now["value"]
+
+    def sleeper(delay: float) -> None:
+        unix_now["value"] += delay
+
+    def attempt() -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        return _lock_error(lock_path) if lock_path.exists() else _success()
+
+    result, outcome = run_with_git_lock_retry(
+        attempt,
+        cwd=tmp_path,
+        delays=(),
+        unix_clock=unix_clock,
+        sleeper=sleeper,
+        owner_probe=absent_owner_facts,
+    )
+
+    assert result.returncode == 0
+    assert calls == 2
+    assert outcome.lock_removed is True
+    assert unix_now["value"] >= mtime + 15
+    assert not lock_path.exists()
+
+
+def test_run_with_git_lock_retry_cancel_during_backoff_keeps_lock(
+    tmp_path: Path,
+) -> None:
+    lock_path = _make_repo_and_lock(tmp_path)
+    cancelled = False
+
+    def sleeper(_delay: float) -> None:
+        nonlocal cancelled
+        cancelled = True
+
+    result, outcome = run_with_git_lock_retry(
+        lambda: _lock_error(lock_path),
+        cwd=tmp_path,
+        delays=(0.2,),
+        sleeper=sleeper,
+        cancel_check=lambda: cancelled,
+        owner_probe=absent_owner_facts,
+    )
+
+    assert result.returncode == 128
+    assert outcome.lock_removed is False
+    assert lock_path.exists()
+
+
+def test_run_with_git_lock_retry_open_handle_is_a_live_owner(
+    tmp_path: Path,
+) -> None:
+    lock_path = age_git_index_lock(_make_repo_and_lock(tmp_path))
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import sys, time\n"
+            "handle = open(sys.argv[1], 'rb')\n"
+            "sys.stdout.write('ready\\n')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(30)\n",
+            str(lock_path),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline() == "ready\n"
+        result, outcome = run_with_git_lock_retry(
+            lambda: _lock_error(lock_path),
+            cwd=tmp_path,
+            delays=(),
+        )
+        assert result.returncode == 128
+        assert outcome.lock_removed is False
+        assert lock_path.exists()
+    finally:
+        holder.kill()
+        holder.wait(timeout=5)
+
+
+def test_try_remove_stale_index_lock_requires_age_and_absent_owner(
+    tmp_path: Path,
+) -> None:
+    lock_path = _make_repo_and_lock(tmp_path)
+    assert (
+        try_remove_stale_index_lock(tmp_path, owner_probe=absent_owner_facts) is False
+    )
+    assert lock_path.exists()
+    age_git_index_lock(lock_path)
+    assert (
+        try_remove_stale_index_lock(tmp_path, owner_probe=active_owner_facts) is False
+    )
+    assert lock_path.exists()
+    assert try_remove_stale_index_lock(tmp_path, owner_probe=absent_owner_facts) is True
+    assert not lock_path.exists()

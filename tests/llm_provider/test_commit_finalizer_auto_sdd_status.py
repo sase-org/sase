@@ -18,6 +18,7 @@ from sase.llm_provider import commit_finalizer_git_status as finalizer_git_statu
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
+from tests.git_lock_test_helpers import age_git_index_lock
 from tests.sdd_policy_helpers import set_sdd_policy
 
 _PLAN_WIP = """---
@@ -152,6 +153,7 @@ def test_auto_commit_git_runner_recovers_stale_index_lock(
     path.write_text("plan\n", encoding="utf-8")
     lock = repo / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
     result = finalizer_git_status.run_git(str(repo), ["add", "plan.md"])

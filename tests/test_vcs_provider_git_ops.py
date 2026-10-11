@@ -11,6 +11,7 @@ import pytest
 
 from sase.git_lock_retry import ENV_GIT_LOCK_RETRY_DELAYS
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
+from tests.git_lock_test_helpers import age_git_index_lock
 
 # === Tests for commit ===
 
@@ -68,6 +69,7 @@ def test_git_runner_removes_persistent_index_lock_after_retries(
     tracked.write_text("content\n", encoding="utf-8")
     lock_path = tmp_path / ".git" / "index.lock"
     lock_path.touch()
+    age_git_index_lock(lock_path)
     monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001")
 
     success, error = BareGitPlugin().vcs_add_remove(str(tmp_path))

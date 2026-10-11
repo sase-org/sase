@@ -15,6 +15,8 @@ from sase.bead.conflict_resolver import (
 )
 from sase.bead.project import BEADS_DIRNAME
 
+from tests.git_lock_test_helpers import age_git_index_lock
+
 from .conflict_resolver_test_helpers import (
     _assert_config_roundtrips_save_config,
     _build_stream_conflict,
@@ -41,6 +43,7 @@ def test_git_add_recovers_stale_index_lock(
     note.write_text("resolved\n", encoding="utf-8")
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
     _git_add(tmp_path, ["note.txt"])
@@ -225,6 +228,7 @@ def test_conflict_probe_retries_through_a_stale_index_lock(
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    age_git_index_lock(lock)
 
     result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
 

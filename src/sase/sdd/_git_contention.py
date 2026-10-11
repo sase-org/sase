@@ -14,6 +14,7 @@ import subprocess
 import time
 from typing import Any
 
+from sase.core.git_lock_facade import parse_git_lock_retry_delays
 from sase.git_lock_retry import (
     DEFAULT_GIT_LOCK_RETRY_DELAYS as SHARED_GIT_LOCK_RETRY_DELAYS,
     git_lock_retry_delays,
@@ -297,13 +298,7 @@ def _git_lock_retry_delays() -> tuple[float, ...]:
     raw = os.environ.get(ENV_GIT_LOCK_RETRY_DELAYS)
     if raw is None:
         return git_lock_retry_delays()
-    try:
-        delays = tuple(float(value.strip()) for value in raw.split(","))
-    except ValueError:
-        return DEFAULT_GIT_LOCK_RETRY_DELAYS
-    if not delays or any(delay < 0 for delay in delays):
-        return DEFAULT_GIT_LOCK_RETRY_DELAYS
-    return delays
+    return tuple(parse_git_lock_retry_delays(raw))
 
 
 def _store_write_lock_timeout(default: float) -> float:

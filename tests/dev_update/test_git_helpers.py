@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.version import _git
+from tests.git_lock_test_helpers import age_git_index_lock
 
 
 def test_probe_git_metadata_at_ref_uses_requested_ref(
@@ -246,6 +247,7 @@ def test_run_git_recovers_stale_index_lock(
     (tmp_path / "feature.txt").write_text("feature\n", encoding="utf-8")
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
     assert _git.run_git(tmp_path, "add", "feature.txt") == ""

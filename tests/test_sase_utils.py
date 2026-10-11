@@ -14,6 +14,7 @@ from sase.core.changespec import (
 )
 from sase.core.paths import shorten_path
 from sase.core.shell import run_workspace_command, strip_hook_prefix
+from tests.git_lock_test_helpers import age_git_index_lock
 
 
 def test_shorten_path_partial_home_match() -> None:
@@ -112,6 +113,7 @@ def test_run_workspace_git_command_recovers_stale_index_lock(
     (tmp_path / "feature.txt").write_text("feature\n", encoding="utf-8")
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
     success, error = run_workspace_command(

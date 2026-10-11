@@ -829,19 +829,32 @@ CLI) without modifying the core.
 
 SASE routes Git mutations used by commits, workspace setup, operational workspace leases
 (lease preparation and reset/replay recovery of leased checkouts), SDD writes, linked
-repositories, agent reverts, updates, and finalization through one bounded lock-recovery
-policy. On an `index.lock` failure it retries with short exponential backoff. If the
-canonical lock remains the same throughout that window or is already at least 15 seconds
-old, SASE removes that unchanged stale lock and tries once more. A lock whose path or
-file identity changes is treated as active and is never removed by the recovery path.
-Read-only Git commands do not need this policy.
+repositories, agent reverts, CLI updates, and TUI editable updates through one bounded
+lock-recovery policy owned by `sase-core`. The TUI reporter's dev-update runner uses
+that same policy; a running editable TUI must be restarted to load a landed fix, because
+advancing its checkout does not replace already-imported Python code.
+
+On an `index.lock` failure SASE retries with a short six-step backoff
+(`0.1, 0.2, 0.4, 0.8, 1.6, 3.2` seconds, overridable by `SASE_GIT_LOCK_RETRY_DELAYS` /
+`SASE_SDD_GIT_LOCK_RETRY_DELAYS`). Removal requires an unchanged regular lock file at
+least 15 seconds old, exhausted retries, and affirmative evidence that no relevant owner
+is active. A younger owner-free lock may wait until that age inside a 30-second recovery
+budget (or a shorter command deadline). A live owner, an unknown/incomplete owner probe,
+a symlink or directory leaf, a changed path or file identity, unsupported
+`GIT_DIR`/`GIT_INDEX_FILE` context, or a mismatched error path preserves the lock. Other
+`.lock` types may retry; they are never deleted. Read-only Git commands do not need this
+policy.
+
+This is conservative recovery, not a proof of exclusive ownership: an external Git
+writer can still race the unlink. SASE rechecks identity and owner immediately before
+unlinking and removes a lock at most once.
 
 If a mutation still reports `index.lock`, first check for another Git process operating
 on that repository and let it finish. Avoid deleting `.git/index.lock` blindly:
-worktrees can store the real Git directory elsewhere, and a changing lock belongs to
-active work. After confirming no Git process is live, rerun the SASE operation; its
-recovery logic will resolve the canonical lock path and remove only an unchanged stale
-file.
+worktrees can store the real Git directory elsewhere, and a changing or owned lock
+belongs to active work. After confirming no Git process is live, rerun the SASE
+operation; its recovery logic will resolve the canonical lock path and remove only an
+unchanged stale owner-free file.
 
 ### Numbered Workspace Reports a Broken Git Object Dependency
 

@@ -172,6 +172,27 @@ def test_validate_sase_core_rs_requires_cleanup_wire_version_binding() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_git_lock_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    git_lock_bindings = {
+        "git_lock_wire_schema_version",
+        "default_git_lock_retry_delays",
+        "parse_git_lock_retry_delays",
+        "validate_git_lock_retry_delays",
+        "classify_git_lock_failure",
+        "match_git_lock_path",
+        "classify_git_lock_owner",
+        "decide_git_lock_recovery",
+        "decide_eager_git_lock_cleanup",
+    }
+
+    assert git_lock_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in git_lock_bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_vcs_log_bindings() -> None:
     validator = load_validate_sase_core_rs()
     vcs_log_bindings = {

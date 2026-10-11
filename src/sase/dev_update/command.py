@@ -30,6 +30,11 @@ DEV_UPDATE_COMMAND_TIMEOUT_SECONDS = 300.0
 DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS = 3600.0
 
 
+DevAttemptRunner = Callable[..., subprocess.CompletedProcess[str]]
+RecoveryHook = Callable[[str], None]
+CancelCheck = Callable[[], bool]
+
+
 def run_dev_update_command(
     argv: Sequence[str],
     *,
@@ -37,26 +42,60 @@ def run_dev_update_command(
     env: Mapping[str, str] | None = None,
     timeout: float | None = None,
     on_output: OutputSink | None = None,
+    run_attempt: DevAttemptRunner | None = None,
+    on_recovery: RecoveryHook | None = None,
+    cancel_check: CancelCheck | None = None,
+    unix_clock: Callable[[], float] | None = None,
+    monotonic_clock: Callable[[], float] | None = None,
+    sleeper: Callable[[float], None] | None = None,
 ) -> DevCommandResult:
     """Run a dev-update command in a non-interactive subprocess.
 
     ``timeout`` of ``None`` selects :data:`DEV_UPDATE_COMMAND_TIMEOUT_SECONDS`.
     A non-``None`` ``on_output`` streams each output line through
-    :func:`sase.dev_update.stream_command.run_streaming`; ``None`` keeps the
-    legacy ``capture_output`` path byte-for-byte.
+    :func:`sase.dev_update.stream_command.run_streaming` unless *run_attempt*
+    is injected; ``None`` keeps the legacy ``capture_output`` path
+    byte-for-byte. Retries share one monotonic deadline and do not multiply
+    the command timeout.
     """
     command = list(argv)
-    deadline = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS if timeout is None else timeout
+    total_timeout = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS if timeout is None else timeout
     command_env, git_stdin = _subprocess_options(command, env)
+    monotonic = monotonic_clock or time.monotonic
+    started = monotonic()
+    deadline = started + total_timeout
+    first_attempt = True
+
+    def remaining() -> float:
+        return max(0.0, deadline - monotonic())
 
     def attempt() -> subprocess.CompletedProcess[str]:
+        nonlocal first_attempt
+        if first_attempt:
+            first_attempt = False
+            allowance = total_timeout
+        else:
+            allowance = remaining()
+        if cancel_check is not None and cancel_check():
+            raise RuntimeError("dev-update command cancelled")
+        if allowance <= 0:
+            raise subprocess.TimeoutExpired(command, total_timeout)
+        if run_attempt is not None:
+            kwargs: dict[str, Any] = {
+                "cwd": cwd,
+                "env": command_env,
+                "timeout": allowance,
+            }
+            if _runner_accepts_keyword(run_attempt, "stdin"):
+                kwargs["stdin"] = git_stdin
+            return run_attempt(command, **kwargs)
         if on_output is not None:
             return run_streaming(
                 command,
                 cwd=cwd,
                 env=command_env,
                 stdin=git_stdin,
-                timeout=deadline,
+                timeout=allowance,
                 on_line=on_output,
             )
         return subprocess.run(
@@ -64,7 +103,7 @@ def run_dev_update_command(
             cwd=cwd,
             capture_output=True,
             text=True,
-            timeout=deadline,
+            timeout=allowance,
             env=command_env,
             stdin=git_stdin,
         )
@@ -74,6 +113,14 @@ def run_dev_update_command(
             completed, _outcome = run_with_git_lock_retry(
                 attempt,
                 cwd=_git_command_cwd(command, cwd),
+                argv=command,
+                env=command_env,
+                on_recovery=on_recovery,
+                cancel_check=cancel_check,
+                unix_clock=unix_clock,
+                monotonic_clock=monotonic,
+                sleeper=sleeper,
+                remaining_timeout=remaining,
             )
         else:
             completed = attempt()
@@ -87,6 +134,10 @@ def run_dev_update_command(
         )
     except OSError as exc:
         return DevCommandResult(returncode=1, stderr=str(exc))
+    except RuntimeError as exc:
+        if "cancelled" in str(exc):
+            return DevCommandResult(returncode=130, stderr=str(exc))
+        raise
     return DevCommandResult(
         returncode=completed.returncode,
         stdout=completed.stdout,
@@ -138,7 +189,7 @@ def run_recorded_command(
     return result
 
 
-def _runner_accepts_keyword(run: DevCommandRunner, name: str) -> bool:
+def _runner_accepts_keyword(run: Callable[..., Any], name: str) -> bool:
     """Whether the injected runner accepts the ``name`` keyword."""
     try:
         params = signature(run).parameters.values()

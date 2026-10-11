@@ -10,6 +10,7 @@ import pytest
 
 from sase.ace.revert_agent import RevertRepo, execute_agent_revert, preview_agent_revert
 from sase.ace.revert_agent_git import run_git
+from tests.git_lock_test_helpers import age_git_index_lock
 from tests.ace._revert_agent_helpers import (
     _add_bare_origin,
     _commit,
@@ -89,6 +90,7 @@ def test_revert_git_runner_recovers_stale_index_lock(
     (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
     lock = repo / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    age_git_index_lock(lock)
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
     result = run_git(str(repo), ["add", "feature.txt"])

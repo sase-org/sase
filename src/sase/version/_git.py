@@ -282,6 +282,8 @@ def run_git(
     completed, _outcome = run_with_git_lock_retry(
         attempt,
         cwd=root,
+        argv=argv,
+        env=non_interactive_git_env(),
         result_adapter=_git_result_adapter,
     )
     if isinstance(completed, subprocess.CalledProcessError):

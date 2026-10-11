@@ -179,6 +179,9 @@ def _run_git_mutation(
     result, _outcome = run_with_git_lock_retry(
         lambda: _run_git(args, checkout),
         cwd=checkout,
+        argv=["git", *args],
+        env=non_interactive_git_env(),
+        allow_age_wait=False,
     )
     return result
 
