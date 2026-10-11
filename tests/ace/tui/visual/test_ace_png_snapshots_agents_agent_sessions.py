@@ -28,6 +28,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -73,6 +74,11 @@ async def test_running_agent_session_current_runtime_png_snapshots(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        # Wait for the settled main-turn runtime, not just idle: the main
+        # turn count flips (main 0 vs main 1) as the session load settles.
+        await wait_for_svg_contains(page, "visual-runtime-family")
+        await wait_for_svg_contains(page, "1m05s")
+        await wait_for_svg_contains(page, "3m05s")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "visual-runtime-family")
@@ -86,6 +92,9 @@ async def test_running_agent_session_current_runtime_png_snapshots(
 
         await page.press("l")
         await page.expect_state("agent_count", 3)
+        await wait_for_svg_contains(page, "visual-runtime-family--code")
+        await wait_for_svg_contains(page, "1m05s")
+        await wait_for_svg_contains(page, "3m05s")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "visual-runtime-family--code")

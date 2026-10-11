@@ -27,6 +27,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -54,6 +55,9 @@ async def test_agent_session_gate_turns_png_snapshots(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        # Wait on semantic state, not just idle: the settled turn rows
+        # (6 turns) must render before capture.
+        await wait_for_svg_contains(page, "6 turns")
         await wait_for_visual_idle(page)
 
         container = page.app._agents[page.app.current_idx]
@@ -108,6 +112,8 @@ async def test_agent_session_gate_turns_narrow_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "visual-family")
+        await wait_for_svg_contains(page, "⋔")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "visual-family")

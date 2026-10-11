@@ -331,12 +331,15 @@ class DeckPanelNavigationMixin:
         return self._main_active_card
 
     def handle_tool_runs_deck_loaded(self, message: Any) -> None:
-        """Store a freshly loaded Runs document and refresh chrome.
+        """Store a freshly loaded Runs document and refresh chrome and footer.
 
         Records the document for tabs, the ``tools ⚒N M`` subtitle
         segment and the empty state, merges Runs availability with the
         LLM Calls card's, and shows exactly one Tools host — all
-        without disturbing the active card.
+        without disturbing the active card. The footer refresh keeps the
+        conditional ``H compact Runs`` and card/block hints in sync with
+        the stored Runs availability (footer convention: a keymap appears
+        iff its condition is sometimes true).
         """
         try:
             document = message.document
@@ -413,6 +416,13 @@ class DeckPanelNavigationMixin:
                 self.refresh_chrome()
             except Exception:
                 pass
+        try:
+            app = getattr(self, "app", None)
+            refresh = getattr(app, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            pass
         try:
             message.stop()
         except Exception:

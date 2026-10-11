@@ -91,10 +91,13 @@ async def test_tool_runs_session_rail_png_snapshot(
         )
         for brief in briefs
     }
+    # Seed after patch_startup_loaders: the startup helper resets the
+    # glance snapshot and stubs the loader seam to None, so seeding first
+    # would be clobbered and the rail would render no runs.
+    patch_startup_loaders(monkeypatch, agents=[root, child_a, child_b])
     seed_tool_run_surfaces(
         monkeypatch, glances=[], summaries={key.key: summary}, details=details
     )
-    patch_startup_loaders(monkeypatch, agents=[root, child_a, child_b])
 
     async with AcePage(query='"visual"', patches=patches(), size=(120, 40)) as page:
         await wait_for_startup(page)
@@ -102,7 +105,11 @@ async def test_tool_runs_session_rail_png_snapshot(
         await page.expect_state("tab", "agents")
         await select_agent(page, "tr-sess")
         await show_runs_card(page)
-        await wait_for_svg_contains(page, "s1000000")
+        # The s1000000 sentinel renders from the brief alone, so it is not
+        # a load signal: wait for the loaded argv line and the honest
+        # absence tail before capturing.
+        await wait_for_svg_contains(page, "just check")
+        await wait_for_svg_contains(page, "no log recorded")
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,

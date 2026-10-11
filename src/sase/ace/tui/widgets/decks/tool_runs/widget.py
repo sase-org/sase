@@ -170,12 +170,25 @@ class ToolRunsDeckView(ToolRunsLiveMixin, CardDocumentView):
             signature = tool_runs_cache_signature(
                 selector.key, total, live_ids, truncated
             )
-            if signature and signature == self._painted_signature and not force:
-                return
             try:
                 store_token = snapshot.store_token if snapshot else None
             except Exception:
                 store_token = None
+            try:
+                fast_details = cached_block_details(rows, store_token)
+            except Exception:
+                fast_details = {}
+            try:
+                fast_complete = len(fast_details) >= len(rows)
+            except Exception:
+                fast_complete = False
+            if (
+                signature
+                and signature == self._painted_signature
+                and not force
+                and fast_complete
+            ):
+                return
             now_s = time.time()
             self._paint_tool_runs_result(
                 ToolRunsDeckLoadResult(
@@ -188,7 +201,7 @@ class ToolRunsDeckView(ToolRunsLiveMixin, CardDocumentView):
                         digest=signature,
                         total_runs=total,
                         truncated=truncated,
-                        details=cached_block_details(rows, store_token),
+                        details=fast_details,
                         level=self._detail_level,
                         width=tool_runs_render_width(self),
                         now_s=now_s,
@@ -203,7 +216,12 @@ class ToolRunsDeckView(ToolRunsLiveMixin, CardDocumentView):
                 preferred_card,
                 store_token=store_token,
             )
-            return
+            if fast_complete and not force:
+                return
+            # Fast path painted a placeholder for at least one block whose
+            # detail missed the LRU (or a generation bump stranded the only
+            # load): fall through and still start or keep a worker so loaded
+            # detail replaces the placeholder.
         if (
             self._current_worker is not None
             and self._current_worker.is_running

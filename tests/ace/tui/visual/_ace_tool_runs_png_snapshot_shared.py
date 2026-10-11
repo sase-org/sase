@@ -254,7 +254,21 @@ def seed_tool_run_surfaces(
         store_token: Any = None,
         **kw: Any,
     ) -> LoadedToolRunDetail | None:
-        return detail_map.get(str(run_id))
+        loaded = detail_map.get(str(run_id))
+        if loaded is None:
+            return None
+        # Store through the same detail-cache path production uses so the
+        # Runs fast path (`cached_block_details`) sees the stubbed detail
+        # instead of painting `run detail unavailable`.
+        try:
+            key = detail_module._detail_lru_key(str(run_id), brief, store_token)
+        except Exception:
+            return loaded
+        try:
+            detail_module._store_tool_run_detail(key, loaded)
+        except Exception:
+            pass
+        return loaded
 
     monkeypatch.setattr(detail_module, "load_tool_run_detail_blocking", _load)
     monkeypatch.setattr(runs_loader_module, "load_tool_run_detail_blocking", _load)

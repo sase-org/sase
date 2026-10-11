@@ -538,3 +538,171 @@ def test_single_run_document_counts_as_success() -> None:
     app._pending_tool_run_block = {"run_id": "a" * 32, "identity": ("agent", "a", "")}  # type: ignore[attr-defined]
     assert apply_pending_tool_run_select(app, panel, n_runs=1) is True
     assert app._pending_tool_run_block is None  # type: ignore[attr-defined]
+
+
+def test_fast_path_still_loads_when_details_missing_across_generation_bump() -> None:
+    """Cached summary with missing details must still start a load.
+
+    Regression for the deck-races fast-path strand: the summary LRU hit
+    painted ``run detail unavailable`` and returned without a worker, while
+    a generation bump dropped the only in-flight load as stale.
+    """
+
+    from types import SimpleNamespace
+    from sase.ace.tui.widgets.decks.tool_runs import widget as _widget_module
+
+    run_id = "f" * 32
+    brief = _brief(run_id)
+    selector = SimpleNamespace(key="node-key")
+    agent = SimpleNamespace(identity=("agent", "a", ""))
+    summary = SimpleNamespace()
+    rows = (brief,)
+
+    paints: list[tuple[object, object | None]] = []
+    started: list[int] = []
+
+    class _FakeWorker:
+        is_running = True
+
+        def cancel(self) -> None:
+            self.is_running = False
+
+    view = ToolRunsDeckView()
+    view._painted_signature = None
+    view._current_worker = None
+
+    def _fake_paint(
+        self: object, result: object, preferred: object | None, **kwargs: object
+    ) -> None:
+        paints.append((result, preferred))
+        view._painted_signature = getattr(result, "signature", None)
+        view._has_displayed_content = True
+
+    def _fake_run_worker(
+        self: object, _fetch: object, *, thread: bool = True
+    ) -> _FakeWorker:
+        started.append(view._current_generation)
+        worker = _FakeWorker()
+        view._current_worker = worker  # type: ignore[assignment]
+        return worker
+
+    import pytest as _pytest
+
+    monkeypatch = _pytest.MonkeyPatch()
+    try:
+        monkeypatch.setattr(
+            _widget_module, "selector_for_agent", lambda _agent: selector
+        )
+        monkeypatch.setattr(
+            _widget_module,
+            "cached_node_summary_for_selector",
+            lambda _selector: summary,
+        )
+        monkeypatch.setattr(
+            _widget_module,
+            "tool_runs_rows_for_document",
+            lambda _summary, _snapshot_runs: (rows, 1, False),
+        )
+        monkeypatch.setattr(
+            _widget_module,
+            "tool_runs_cache_signature",
+            lambda _key, _total, _live, _trunc: "sig-1",
+        )
+        # Detail cache misses every block: the fast path can only paint the
+        # honest-absence placeholder.
+        monkeypatch.setattr(
+            _widget_module, "cached_block_details", lambda _rows, _token: {}
+        )
+        monkeypatch.setattr(
+            _widget_module,
+            "build_tool_runs_document",
+            lambda *a, **k: SimpleNamespace(
+                card_ids=("runs",), cards=(SimpleNamespace(),)
+            ),
+        )
+        monkeypatch.setattr(_widget_module, "count_silent_rows", lambda _r, _n: 0)
+        monkeypatch.setattr(_widget_module, "tool_runs_render_width", lambda _v: 100)
+        monkeypatch.setattr(_widget_module, "tool_runs_hint_numbers", lambda _v: None)
+        monkeypatch.setattr(ToolRunsDeckView, "_paint_tool_runs_result", _fake_paint)
+        monkeypatch.setattr(ToolRunsDeckView, "run_worker", _fake_run_worker)
+        monkeypatch.setattr(ToolRunsDeckView, "_show_loading", lambda self: None)
+
+        view.update_display(agent, generation=1)
+        assert len(paints) == 1
+        assert started == [1]
+
+        # A generation bump with the same cached summary must not strand the
+        # subject's only load: the placeholder repaints and a new worker
+        # starts for the new generation.
+        view.update_display(agent, generation=2)
+        assert len(paints) == 2
+        assert started == [1, 2]
+    finally:
+        monkeypatch.undo()
+
+    # A complete fast path paints once and starts no worker.
+    view2 = ToolRunsDeckView()
+    view2._painted_signature = None
+    view2._current_worker = None
+    paints2: list[tuple[object, object | None]] = []
+    started2: list[int] = []
+
+    def _fake_paint2(
+        self: object, result: object, preferred: object | None, **kwargs: object
+    ) -> None:
+        paints2.append((result, preferred))
+        view2._painted_signature = getattr(result, "signature", None)
+        view2._has_displayed_content = True
+
+    def _fake_run_worker2(
+        self: object, _fetch: object, *, thread: bool = True
+    ) -> _FakeWorker:
+        started2.append(view2._current_generation)
+        worker = _FakeWorker()
+        view2._current_worker = worker  # type: ignore[assignment]
+        return worker
+
+    monkeypatch2 = _pytest.MonkeyPatch()
+    try:
+        monkeypatch2.setattr(
+            _widget_module, "selector_for_agent", lambda _agent: selector
+        )
+        monkeypatch2.setattr(
+            _widget_module,
+            "cached_node_summary_for_selector",
+            lambda _selector: summary,
+        )
+        monkeypatch2.setattr(
+            _widget_module,
+            "tool_runs_rows_for_document",
+            lambda _summary, _snapshot_runs: (rows, 1, False),
+        )
+        monkeypatch2.setattr(
+            _widget_module,
+            "tool_runs_cache_signature",
+            lambda _key, _total, _live, _trunc: "sig-1",
+        )
+        monkeypatch2.setattr(
+            _widget_module,
+            "cached_block_details",
+            lambda _rows, _token: {run_id: SimpleNamespace()},
+        )
+        monkeypatch2.setattr(
+            _widget_module,
+            "build_tool_runs_document",
+            lambda *a, **k: SimpleNamespace(
+                card_ids=("runs",), cards=(SimpleNamespace(),)
+            ),
+        )
+        monkeypatch2.setattr(_widget_module, "count_silent_rows", lambda _r, _n: 0)
+        monkeypatch2.setattr(_widget_module, "tool_runs_render_width", lambda _v: 100)
+        monkeypatch2.setattr(_widget_module, "tool_runs_hint_numbers", lambda _v: None)
+        monkeypatch2.setattr(ToolRunsDeckView, "_paint_tool_runs_result", _fake_paint2)
+        monkeypatch2.setattr(ToolRunsDeckView, "run_worker", _fake_run_worker2)
+        monkeypatch2.setattr(ToolRunsDeckView, "_show_loading", lambda self: None)
+
+        view2.update_display(agent, generation=1)
+        assert len(paints2) == 1
+        assert started2 == []
+    finally:
+        monkeypatch2.undo()
