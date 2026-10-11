@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import importlib.metadata
+import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,11 @@ if TYPE_CHECKING:
 
 from ._hookspec import (
     ExternalRepoCloneResult,
+    LocalRepoCandidates,
+    ParsedRepoRef,
+    RepoCreateResult,
+    RepoCreationForm,
+    RepoProbe,
     ResolvedRef,
     SddSidecarPreflight,
     VcsRefNamespaces,
@@ -24,6 +30,17 @@ from ._hookspec import (
 from ._plugin_manager import WorkspacePluginManager
 
 _manager: WorkspacePluginManager | None = None
+_LOGGER = logging.getLogger(__name__)
+
+
+def _fallback_parsed_repo_ref(workflow_type: str, ref: str) -> ParsedRepoRef:
+    """Build a displayable request identity when a provider hook itself fails."""
+    return ParsedRepoRef(
+        workflow_type=workflow_type,
+        ref=ref,
+        identity_key=f"{workflow_type}:{ref}",
+        display=ref,
+    )
 
 
 def _get_manager() -> WorkspacePluginManager:
@@ -281,6 +298,88 @@ def list_ref_namespaces(workflow_type: str) -> VcsRefNamespaces:
     if result is not None:
         return result
     return VcsRefNamespaces()
+
+
+def parse_repo_ref(workflow_type: str, text: str) -> ParsedRepoRef | None:
+    """Parse a user repository reference through provider plugins."""
+    try:
+        return _get_manager().parse_repo_ref(workflow_type, text)
+    except Exception:
+        _LOGGER.warning(
+            "Workspace provider failed to parse repository reference for %s",
+            workflow_type,
+            exc_info=True,
+        )
+        return None
+
+
+def list_local_repo_candidates(workflow_type: str) -> LocalRepoCandidates | None:
+    """List local repository candidates through provider plugins."""
+    try:
+        return _get_manager().list_local_repo_candidates(workflow_type)
+    except Exception:
+        _LOGGER.warning(
+            "Workspace provider failed to list local repositories for %s",
+            workflow_type,
+            exc_info=True,
+        )
+        return None
+
+
+def probe_repo(workflow_type: str, ref: str) -> RepoProbe | None:
+    """Probe a provider repository, degrading plugin exceptions to unavailable."""
+    try:
+        return _get_manager().probe_repo(workflow_type, ref)
+    except Exception as exc:
+        _LOGGER.warning(
+            "Workspace provider failed to probe repository for %s",
+            workflow_type,
+            exc_info=True,
+        )
+        parsed = parse_repo_ref(workflow_type, ref) or _fallback_parsed_repo_ref(
+            workflow_type, ref
+        )
+        return RepoProbe(
+            status="unavailable",
+            parsed=parsed,
+            error_kind="unknown",
+            message=str(exc),
+        )
+
+
+def describe_repo_creation(
+    workflow_type: str, namespace: str
+) -> RepoCreationForm | None:
+    """Describe the provider's repository creation form."""
+    try:
+        return _get_manager().describe_repo_creation(workflow_type, namespace)
+    except Exception:
+        _LOGGER.warning(
+            "Workspace provider failed to describe repository creation for %s",
+            workflow_type,
+            exc_info=True,
+        )
+        return None
+
+
+def create_repo(
+    workflow_type: str,
+    ref: str,
+    options: dict[str, str],
+) -> RepoCreateResult | None:
+    """Create a provider repository, translating plugin exceptions to failures."""
+    try:
+        return _get_manager().create_repo(workflow_type, ref, options)
+    except Exception as exc:
+        _LOGGER.warning(
+            "Workspace provider failed to create repository for %s",
+            workflow_type,
+            exc_info=True,
+        )
+        parsed = parse_repo_ref(workflow_type, ref) or _fallback_parsed_repo_ref(
+            workflow_type, ref
+        )
+        return RepoCreateResult(status="failed", parsed=parsed, message=str(exc))
 
 
 def extract_change_identifier(pr_url: str) -> tuple[str, str] | None:

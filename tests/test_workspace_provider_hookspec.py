@@ -96,6 +96,7 @@ class TestHookspecSignatures:
 # implementation instead.
 _FROZEN_HOOK_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "ws_clone_external_repo": ("scheme", "ref", "dest_dir"),
+    "ws_create_repo": ("workflow_type", "ref", "options"),
     "ws_create_sdd_remote": ("primary_workspace_dir", "workspace_dir", "options"),
     "ws_detect_workflow_type": ("project_file",),
     "ws_extract_change_identifier": ("pr_url",),
@@ -110,6 +111,7 @@ _FROZEN_HOOK_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "ws_generate_submitted_check_script": ("identifier", "vcs_type"),
     "ws_get_change_label": ("project_file",),
     "ws_get_workflow_metadata": (),
+    "ws_describe_repo_creation": ("workflow_type", "namespace"),
     "ws_get_workspace_directory": (
         "workflow_type",
         "workspace_num",
@@ -118,10 +120,13 @@ _FROZEN_HOOK_ARGUMENTS: dict[str, tuple[str, ...]] = {
     ),
     "ws_get_workspace_name": ("cwd",),
     "ws_list_ref_namespaces": ("workflow_type",),
+    "ws_list_local_repo_candidates": ("workflow_type",),
     "ws_list_repo_candidates": ("workflow_type", "namespace"),
     "ws_materialize_sdd_store": ("primary_workspace_dir", "workspace_dir", "options"),
     "ws_peek_ref": ("ref", "workflow_type"),
+    "ws_parse_repo_ref": ("workflow_type", "text"),
     "ws_preflight_sdd_sidecar": ("primary_workspace_dir", "workspace_dir", "options"),
+    "ws_probe_repo": ("workflow_type", "ref"),
     "ws_prepare_mail": (
         "changespec_name",
         "changespec_parent",  # legacy hook argument name
@@ -328,3 +333,50 @@ def test_external_repo_scheme_discovery_uses_plugin_metadata(
     )
 
     assert _registry.get_external_repo_schemes() == {"gh"}
+
+
+def test_onboarding_registry_wrappers_degrade_plugin_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.workspace_provider import _registry
+
+    class BrokenOnboardingPlugin:
+        @hookimpl
+        def ws_parse_repo_ref(self, workflow_type: str, text: str) -> object | None:
+            raise RuntimeError("parse failed")
+
+        @hookimpl
+        def ws_list_local_repo_candidates(self, workflow_type: str) -> object | None:
+            raise RuntimeError("local discovery failed")
+
+        @hookimpl
+        def ws_probe_repo(self, workflow_type: str, ref: str) -> object | None:
+            raise RuntimeError("probe failed")
+
+        @hookimpl
+        def ws_describe_repo_creation(
+            self, workflow_type: str, namespace: str
+        ) -> object | None:
+            raise RuntimeError("describe failed")
+
+        @hookimpl
+        def ws_create_repo(
+            self, workflow_type: str, ref: str, options: dict[str, str]
+        ) -> object | None:
+            raise RuntimeError("create failed")
+
+    pm = pluggy.PluginManager("sase_workspace")
+    pm.add_hookspecs(WorkspaceHookSpec)
+    pm.register(BrokenOnboardingPlugin())
+    manager = WorkspacePluginManager(pm)
+    monkeypatch.setattr(_registry, "_get_manager", lambda: manager)
+
+    assert _registry.parse_repo_ref("git", "repo") is None
+    assert _registry.list_local_repo_candidates("git") is None
+    probe = _registry.probe_repo("git", "repo")
+    assert probe is not None and probe.status == "unavailable"
+    assert probe.message == "probe failed"
+    assert _registry.describe_repo_creation("git", "") is None
+    created = _registry.create_repo("git", "repo", {})
+    assert created is not None and created.status == "failed"
+    assert created.message == "create failed"

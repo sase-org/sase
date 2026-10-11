@@ -767,7 +767,12 @@ Workspace plugins use pluggy's hook system, similar to VCS plugins. The hook
 specification is defined in `WorkspaceHookSpec`
 (`src/sase/workspace_provider/_hookspec.py`). Most hooks use `firstresult=True`; the
 exception is `ws_get_workflow_metadata` which collects results from all plugins. All
-hook method names are prefixed with `ws_`.
+hook method names are prefixed with `ws_`. Alongside reference resolution and workspace
+management, providers may implement the additive onboarding hooks `ws_parse_repo_ref`,
+`ws_list_local_repo_candidates`, `ws_probe_repo`, `ws_describe_repo_creation`, and
+`ws_create_repo`. Their argument names are frozen for out-of-tree plugins; the hookspec
+tests pin them. Repository creation creates only the provider-owned repository. SASE
+handles checkout, project registration, and setup as a separate convergent operation.
 
 The workspace registry (`src/sase/workspace_provider/_registry.py`) creates a singleton
 `WorkspacePluginManager`, registers `WorkspaceHookSpec`, and loads all `sase_workspace`

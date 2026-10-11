@@ -142,6 +142,26 @@ workflow types.
 | ------------------------------ | -------------- | --------------------------------------------------------- |
 | `ws_format_commit_description` | `bool \| None` | Format a commit description file (add tags, prefix, etc.) |
 
+### Repository Onboarding
+
+The provider-neutral onboarding flows use additive hooks. Providers return `None` when
+they do not own the requested `workflow_type`; repository creation never clones or
+registers the project, which happens later through the normal reference resolver.
+
+| Hook                            | Returns                       | Description                                                   |
+| ------------------------------- | ----------------------------- | ------------------------------------------------------------- |
+| `ws_parse_repo_ref`             | `ParsedRepoRef \| None`       | Purely normalize a user-entered repository reference          |
+| `ws_list_local_repo_candidates` | `LocalRepoCandidates \| None` | Find bounded local repositories and checkouts                 |
+| `ws_probe_repo`                 | `RepoProbe \| None`           | Read-only observation of availability and repository metadata |
+| `ws_describe_repo_creation`     | `RepoCreationForm \| None`    | Describe provider-specific creation fields                    |
+| `ws_create_repo`                | `RepoCreateResult \| None`    | Create the remote or bare repository only                     |
+
+`ws_parse_repo_ref` must not access the filesystem, network, or subprocesses.
+`ws_list_local_repo_candidates` reads local metadata without subprocesses, and
+`ws_probe_repo` is bounded and non-interactive. Creation forms identify each option by
+its stable `name`; `ws_create_repo` receives those values and returns `created`,
+`exists`, or `failed` without deciding whether to adopt an existing repository.
+
 ## Registry Functions
 
 The workspace provider package (`sase.workspace_provider`) exports convenience functions

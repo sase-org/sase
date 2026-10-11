@@ -20,6 +20,118 @@ VcsRepoCandidateErrorKind = Literal[
     "unknown",
 ]
 SddSidecarPreflightStatus = Literal["found", "not_found", "unavailable"]
+RepoProbeStatus = Literal["found", "not_found", "unavailable"]
+RepoCreationFieldKind = Literal["line", "text", "bool", "choice", "search"]
+RepoCreateStatus = Literal["created", "exists", "failed"]
+
+
+@dataclass(frozen=True)
+class ParsedRepoRef:
+    """Provider-normalized repository reference used by onboarding flows."""
+
+    workflow_type: str
+    ref: str
+    identity_key: str
+    display: str
+    host: str = ""
+    owner: str = ""
+    name: str = ""
+    project_key_base: str = ""
+    project_name_base: str = ""
+    checkout_dir: str = ""
+    web_url: str = ""
+    normalized_from: str = ""
+
+
+@dataclass(frozen=True)
+class LocalRepoCandidate:
+    """One locally available repository or checkout."""
+
+    parsed: ParsedRepoRef
+    path: str
+    origin_url: str = ""
+    numbered_copy: bool = False
+
+
+@dataclass(frozen=True)
+class LocalRepoCandidates:
+    """Local repository discovery results for a provider."""
+
+    entries: tuple[LocalRepoCandidate, ...] = ()
+    message: str = ""
+
+
+@dataclass(frozen=True)
+class RepoProbe:
+    """Read-only provider observation for one repository reference."""
+
+    status: RepoProbeStatus
+    parsed: ParsedRepoRef
+    visibility: str = ""
+    description: str = ""
+    default_branch: str = ""
+    is_empty: bool | None = None
+    is_archived: bool | None = None
+    can_push: bool | None = None
+    sase_managed: bool | None = None
+    repo_id: str = ""
+    web_url: str = ""
+    error_kind: VcsRepoCandidateErrorKind | None = None
+    message: str = ""
+    remedy_argv: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class RepoCreationChoice:
+    """One selectable value in a provider's repository creation form."""
+
+    value: str
+    label: str = ""
+    description: str = ""
+    disabled_reason: str = ""
+
+
+@dataclass(frozen=True)
+class RepoCreationField:
+    """One field exposed by a provider's repository creation form."""
+
+    name: str
+    label: str
+    kind: RepoCreationFieldKind
+    group: Literal["basics", "advanced"] = "basics"
+    default: str = ""
+    choices: tuple[RepoCreationChoice, ...] = ()
+    required: bool = False
+    description: str = ""
+    placeholder: str = ""
+    excludes: tuple[str, ...] = ()
+    requires: tuple[str, ...] = ()
+    disabled_reason: str = ""
+
+
+@dataclass(frozen=True)
+class RepoCreationForm:
+    """Provider-specific controls for creating a repository."""
+
+    workflow_type: str
+    namespace: str
+    fields: tuple[RepoCreationField, ...]
+    can_create: bool | None = None
+    message: str = ""
+    remedy_argv: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class RepoCreateResult:
+    """Outcome of creating a provider-owned repository, without registering it."""
+
+    status: RepoCreateStatus
+    parsed: ParsedRepoRef
+    repo_id: str = ""
+    web_url: str = ""
+    visibility: str = ""
+    message: str = ""
+    mismatches: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -79,6 +191,9 @@ class VcsRepoEntry:
     is_fork: bool = False
     is_archived: bool = False
     pushed_at: str | None = None
+    repo_id: str = ""
+    viewer_permission: str = ""
+    is_empty: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +205,9 @@ class VcsRepoCandidates:
     message: str = ""
     provider_display: str = ""
     entries: tuple[VcsRepoEntry, ...] = field(default_factory=tuple)
+    host: str = ""
+    truncated: bool = False
+    remedy_argv: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -103,6 +221,7 @@ class VcsNamespaceEntry:
     name: str
     description: str = ""
     kind_label: str = "org"
+    host: str = ""
 
 
 @dataclass(frozen=True)
@@ -110,6 +229,7 @@ class VcsRefNamespaces:
     """Namespace completion response returned by workspace plugins."""
 
     entries: tuple[VcsNamespaceEntry, ...] = field(default_factory=tuple)
+    account: str = ""
 
 
 @dataclass(frozen=True)
@@ -216,6 +336,37 @@ class WorkspaceHookSpec:
         fast local data such as project records or config. Providers should
         return ``None`` unless they own *workflow_type*.
         """
+        ...
+
+    @hookspec(firstresult=True)
+    def ws_parse_repo_ref(self, workflow_type: str, text: str) -> ParsedRepoRef | None:
+        """Parse a provider reference without filesystem or network effects."""
+        ...
+
+    @hookspec(firstresult=True)
+    def ws_list_local_repo_candidates(
+        self, workflow_type: str
+    ) -> LocalRepoCandidates | None:
+        """Discover bounded local repository candidates without subprocesses."""
+        ...
+
+    @hookspec(firstresult=True)
+    def ws_probe_repo(self, workflow_type: str, ref: str) -> RepoProbe | None:
+        """Read-only, bounded probe for one provider repository."""
+        ...
+
+    @hookspec(firstresult=True)
+    def ws_describe_repo_creation(
+        self, workflow_type: str, namespace: str
+    ) -> RepoCreationForm | None:
+        """Describe the provider's repository creation fields."""
+        ...
+
+    @hookspec(firstresult=True)
+    def ws_create_repo(
+        self, workflow_type: str, ref: str, options: dict[str, str]
+    ) -> RepoCreateResult | None:
+        """Create only the remote repository, without cloning or registering."""
         ...
 
     @hookspec(firstresult=True)

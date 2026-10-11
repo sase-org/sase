@@ -16,7 +16,7 @@ from sase.core.paths import sase_subdir
 from sase.workspace_provider import VcsRepoCandidates, VcsRepoEntry
 
 VCS_REPO_CATALOG_SCHEMA_VERSION = 1
-VCS_REPO_CACHE_SCHEMA_VERSION = 1
+VCS_REPO_CACHE_SCHEMA_VERSION = 2
 DEFAULT_VCS_REPO_CACHE_TTL_SECONDS = 600
 DEFAULT_VCS_REPO_MAX_REPOS = 200
 
@@ -140,6 +140,9 @@ class VcsRepoFetchResult:
     provider_display: str = ""
     entries: tuple[VcsRepoEntry, ...] = ()
     stale: bool = False
+    host: str = ""
+    truncated: bool = False
+    remedy_argv: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -147,9 +150,12 @@ class _CachedRepoPayload:
     fetched_at: float
     provider_display: str
     entries: tuple[VcsRepoEntry, ...]
+    host: str = ""
+    truncated: bool = False
+    remedy_argv: tuple[str, ...] = ()
 
 
-_MEMO_CACHE: dict[tuple[str, str], _CachedRepoPayload] = {}
+_MEMO_CACHE: dict[tuple[str, str, str], _CachedRepoPayload] = {}
 
 
 def load_vcs_repo_completion_config(
@@ -306,6 +312,7 @@ def fetch_repo_candidates(
     workflow_type: str,
     namespace: str,
     *,
+    host: str = "",
     config: _VcsRepoCompletionConfig | None = None,
 ) -> VcsRepoFetchResult:
     """Fetch repository candidates using the shared memo/disk TTL cache."""
@@ -313,7 +320,7 @@ def fetch_repo_candidates(
     if not settings.enabled:
         return VcsRepoFetchResult(status="ok", entries=())
 
-    key = (workflow_type, namespace)
+    key = (workflow_type, host, namespace)
     now = time.time()
     stale_payload: _CachedRepoPayload | None = None
 
@@ -323,7 +330,7 @@ def fetch_repo_candidates(
             return _result_from_cache(memo_payload, max_repos=settings.max_repos)
         stale_payload = memo_payload
 
-    cache_path = _cache_path(workflow_type, namespace)
+    cache_path = _cache_path(workflow_type, host, namespace)
     disk_payload = _read_cache_payload(cache_path)
     if disk_payload is not None:
         _MEMO_CACHE[key] = disk_payload
@@ -333,11 +340,15 @@ def fetch_repo_candidates(
 
     fetched = workspace_provider.list_repo_candidates(workflow_type, namespace)
     entries = tuple(fetched.entries[: settings.max_repos])
+    truncated = fetched.truncated or len(fetched.entries) > settings.max_repos
     if fetched.status == "ok":
         payload = _CachedRepoPayload(
             fetched_at=now,
             provider_display=fetched.provider_display,
             entries=entries,
+            host=fetched.host or host,
+            truncated=truncated,
+            remedy_argv=fetched.remedy_argv,
         )
         _MEMO_CACHE[key] = payload
         _write_cache_payload(cache_path, payload)
@@ -345,6 +356,9 @@ def fetch_repo_candidates(
             status="ok",
             provider_display=fetched.provider_display,
             entries=entries,
+            host=fetched.host or host,
+            truncated=truncated,
+            remedy_argv=fetched.remedy_argv,
         )
 
     if stale_payload is not None:
@@ -355,6 +369,12 @@ def fetch_repo_candidates(
             provider_display=fetched.provider_display or stale_payload.provider_display,
             entries=stale_payload.entries[: settings.max_repos],
             stale=True,
+            host=stale_payload.host or host,
+            truncated=(
+                stale_payload.truncated
+                or len(stale_payload.entries) > settings.max_repos
+            ),
+            remedy_argv=stale_payload.remedy_argv,
         )
 
     return VcsRepoFetchResult(
@@ -363,6 +383,9 @@ def fetch_repo_candidates(
         message=fetched.message,
         provider_display=fetched.provider_display,
         entries=entries,
+        host=fetched.host or host,
+        truncated=truncated,
+        remedy_argv=fetched.remedy_argv,
     )
 
 
@@ -370,6 +393,7 @@ def peek_cached_repo_candidates(
     workflow_type: str,
     namespace: str,
     *,
+    host: str = "",
     config: _VcsRepoCompletionConfig | None = None,
 ) -> VcsRepoFetchResult | None:
     """Return fresh cached repo candidates without invoking a provider.
@@ -383,7 +407,7 @@ def peek_cached_repo_candidates(
     if not settings.enabled:
         return VcsRepoFetchResult(status="ok", entries=())
 
-    key = (workflow_type, namespace)
+    key = (workflow_type, host, namespace)
     now = time.time()
     memo_payload = _MEMO_CACHE.get(key)
     if memo_payload is not None and _is_fresh(
@@ -393,7 +417,7 @@ def peek_cached_repo_candidates(
     ):
         return _result_from_cache(memo_payload, max_repos=settings.max_repos)
 
-    disk_payload = _read_cache_payload(_cache_path(workflow_type, namespace))
+    disk_payload = _read_cache_payload(_cache_path(workflow_type, host, namespace))
     if disk_payload is None:
         return None
     _MEMO_CACHE[key] = disk_payload
@@ -417,18 +441,23 @@ def filter_vcs_repo_entries(
 
 def vcs_repo_catalog_response(request: dict[str, Any]) -> dict[str, object]:
     """Return the JSON-serializable helper-bridge repo catalog response."""
-    _reject_unexpected_fields(request, {"namespace", "schema_version", "workflow"})
+    _reject_unexpected_fields(
+        request, {"host", "namespace", "schema_version", "workflow"}
+    )
     schema_version = request.get("schema_version", VCS_REPO_CATALOG_SCHEMA_VERSION)
     if schema_version != VCS_REPO_CATALOG_SCHEMA_VERSION:
         raise ValueError("unsupported vcs-repo-catalog schema_version")
 
     workflow = _required_string(request.get("workflow"), "workflow")
     namespace = _required_string(request.get("namespace"), "namespace")
+    host = request.get("host", "")
+    if not isinstance(host, str):
+        raise ValueError("host must be a string")
     settings = load_vcs_repo_completion_config()
     if not settings.enabled:
         return _response_payload(VcsRepoFetchResult(status="ok", entries=()))
     return _response_payload(
-        fetch_repo_candidates(workflow, namespace, config=settings)
+        fetch_repo_candidates(workflow, namespace, host=host, config=settings)
     )
 
 
@@ -440,6 +469,9 @@ def _response_payload(result: VcsRepoFetchResult) -> dict[str, object]:
         "message": result.message,
         "provider_display": result.provider_display,
         "stale": result.stale,
+        "host": result.host,
+        "truncated": result.truncated,
+        "remedy_argv": list(result.remedy_argv),
         "entries": [_entry_to_dict(entry) for entry in result.entries],
     }
 
@@ -451,6 +483,9 @@ def _result_from_cache(
         status="ok",
         provider_display=payload.provider_display,
         entries=payload.entries[:max_repos],
+        host=payload.host,
+        truncated=payload.truncated or len(payload.entries) > max_repos,
+        remedy_argv=payload.remedy_argv,
     )
 
 
@@ -462,10 +497,16 @@ def _is_fresh(
     return ttl_seconds > 0 and now - payload.fetched_at <= ttl_seconds
 
 
-def _cache_path(workflow_type: str, namespace: str) -> Path:
+def _cache_path(workflow_type: str, host: str, namespace: str) -> Path:
     workflow_slug = quote(workflow_type, safe="")
+    host_slug = quote(host, safe="") or "_default"
     namespace_slug = quote(namespace, safe="")
-    return sase_subdir("vcs_repo_cache") / workflow_slug / f"{namespace_slug}.json"
+    return (
+        sase_subdir("vcs_repo_cache")
+        / workflow_slug
+        / host_slug
+        / f"{namespace_slug}.json"
+    )
 
 
 def _read_cache_payload(path: Path) -> _CachedRepoPayload | None:
@@ -480,9 +521,19 @@ def _read_cache_payload(path: Path) -> _CachedRepoPayload | None:
     fetched_at = raw.get("fetched_at")
     provider_display = raw.get("provider_display")
     raw_entries = raw.get("entries")
+    host = raw.get("host", "")
+    truncated = raw.get("truncated", False)
+    raw_remedy_argv = raw.get("remedy_argv", [])
     if not isinstance(fetched_at, int | float):
         return None
-    if not isinstance(provider_display, str) or not isinstance(raw_entries, list):
+    if (
+        not isinstance(provider_display, str)
+        or not isinstance(raw_entries, list)
+        or not isinstance(host, str)
+        or not isinstance(truncated, bool)
+        or not isinstance(raw_remedy_argv, list)
+        or any(not isinstance(arg, str) for arg in raw_remedy_argv)
+    ):
         return None
     entries = tuple(
         entry
@@ -493,6 +544,9 @@ def _read_cache_payload(path: Path) -> _CachedRepoPayload | None:
         fetched_at=float(fetched_at),
         provider_display=provider_display,
         entries=entries,
+        host=host,
+        truncated=truncated,
+        remedy_argv=tuple(raw_remedy_argv),
     )
 
 
@@ -501,6 +555,9 @@ def _write_cache_payload(path: Path, payload: _CachedRepoPayload) -> None:
         "schema_version": VCS_REPO_CACHE_SCHEMA_VERSION,
         "fetched_at": payload.fetched_at,
         "provider_display": payload.provider_display,
+        "host": payload.host,
+        "truncated": payload.truncated,
+        "remedy_argv": list(payload.remedy_argv),
         "entries": [_entry_to_dict(entry) for entry in payload.entries],
     }
     try:
@@ -521,6 +578,9 @@ def _entry_to_dict(entry: VcsRepoEntry) -> dict[str, object]:
         "is_fork": entry.is_fork,
         "is_archived": entry.is_archived,
         "pushed_at": entry.pushed_at,
+        "repo_id": entry.repo_id,
+        "viewer_permission": entry.viewer_permission,
+        "is_empty": entry.is_empty,
     }
 
 
@@ -534,6 +594,9 @@ def _entry_from_dict(data: object) -> VcsRepoEntry | None:
     description = data.get("description", "")
     visibility = data.get("visibility", "")
     pushed_at = data.get("pushed_at")
+    repo_id = data.get("repo_id", "")
+    viewer_permission = data.get("viewer_permission", "")
+    is_empty = data.get("is_empty")
     return VcsRepoEntry(
         name=name,
         ref=ref,
@@ -542,6 +605,11 @@ def _entry_from_dict(data: object) -> VcsRepoEntry | None:
         is_fork=data.get("is_fork") is True,
         is_archived=data.get("is_archived") is True,
         pushed_at=pushed_at if isinstance(pushed_at, str) else None,
+        repo_id=repo_id if isinstance(repo_id, str) else "",
+        viewer_permission=(
+            viewer_permission if isinstance(viewer_permission, str) else ""
+        ),
+        is_empty=is_empty if isinstance(is_empty, bool) else None,
     )
 
 

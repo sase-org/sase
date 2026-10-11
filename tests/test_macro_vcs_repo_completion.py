@@ -176,6 +176,80 @@ def test_fetch_repo_candidates_uses_memo_and_disk_cache(
     assert calls == [("gh", "bbugyi200")]
 
 
+def test_fetch_repo_candidates_cache_key_includes_host(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase_home"))
+    monkeypatch.setattr(vrc.time, "time", lambda: 1000.0)
+    calls: list[tuple[str, str]] = []
+
+    def fake_list(workflow_type: str, namespace: str) -> VcsRepoCandidates:
+        calls.append((workflow_type, namespace))
+        return VcsRepoCandidates(
+            status="ok",
+            provider_display="Forge",
+            entries=(_entry("repo"),),
+        )
+
+    monkeypatch.setattr(vrc.workspace_provider, "list_repo_candidates", fake_list)
+    config = _VcsRepoCompletionConfig(cache_ttl_seconds=600)
+
+    first = fetch_repo_candidates("gh", "team", host="one.example", config=config)
+    second = fetch_repo_candidates("gh", "team", host="two.example", config=config)
+
+    assert first.host == "one.example"
+    assert second.host == "two.example"
+    assert calls == [("gh", "team"), ("gh", "team")]
+
+
+def test_candidate_cache_records_host_truncation_and_additive_entry_fields(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase_home"))
+    monkeypatch.setattr(vrc.time, "time", lambda: 1000.0)
+    candidate = VcsRepoEntry(
+        name="repo",
+        ref="team/repo",
+        repo_id="123",
+        viewer_permission="WRITE",
+        is_empty=False,
+    )
+    monkeypatch.setattr(
+        vrc.workspace_provider,
+        "list_repo_candidates",
+        lambda _workflow, _namespace: VcsRepoCandidates(
+            status="ok",
+            provider_display="Forge",
+            entries=(candidate,),
+            host="forge.example",
+            truncated=True,
+            remedy_argv=("forge", "auth", "login"),
+        ),
+    )
+
+    first = fetch_repo_candidates("gh", "team", host="forge.example")
+    vrc._MEMO_CACHE.clear()
+    cached = fetch_repo_candidates("gh", "team", host="forge.example")
+
+    assert first.truncated is True
+    assert first.remedy_argv == ("forge", "auth", "login")
+    assert cached.entries == (candidate,)
+    assert cached.truncated is True
+    assert cached.host == "forge.example"
+    assert cached.remedy_argv == ("forge", "auth", "login")
+
+
+def test_cache_schema_v1_payload_is_ignored(tmp_path) -> None:
+    path = tmp_path / "cache.json"
+    path.write_text(
+        '{"schema_version":1,"fetched_at":1000,"provider_display":"GitHub",'
+        '"entries":[]}',
+        encoding="utf-8",
+    )
+
+    assert vrc._read_cache_payload(path) is None
+
+
 def test_fetch_repo_candidates_applies_max_repos_to_cached_results(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -206,6 +280,7 @@ def test_fetch_repo_candidates_applies_max_repos_to_cached_results(
 
     assert [entry.name for entry in first.entries] == ["repo-0", "repo-1", "repo-2"]
     assert [entry.name for entry in second.entries] == ["repo-0"]
+    assert second.truncated is True
 
 
 def test_peek_cached_repo_candidates_applies_max_repos_to_disk_cache(
@@ -239,6 +314,7 @@ def test_peek_cached_repo_candidates_applies_max_repos_to_disk_cache(
 
     assert cached is not None
     assert [entry.name for entry in cached.entries] == ["repo-0"]
+    assert cached.truncated is True
 
 
 def test_fetch_repo_candidates_serves_stale_entries_on_error(
@@ -346,6 +422,9 @@ def test_vcs_repo_catalog_response_round_trip(
             "is_fork": False,
             "is_archived": False,
             "pushed_at": None,
+            "repo_id": "",
+            "viewer_permission": "",
+            "is_empty": None,
         }
     ]
 

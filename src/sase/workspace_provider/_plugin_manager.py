@@ -4,6 +4,11 @@ import pluggy
 
 from ._hookspec import (
     ExternalRepoCloneResult,
+    LocalRepoCandidates,
+    ParsedRepoRef,
+    RepoCreateResult,
+    RepoCreationForm,
+    RepoProbe,
     ResolvedRef,
     SddSidecarPreflight,
     VcsRefNamespaces,
@@ -73,6 +78,42 @@ class WorkspacePluginManager:
     def list_ref_namespaces(self, workflow_type: str) -> VcsRefNamespaces | None:
         return self._pm.hook.ws_list_ref_namespaces(  # type: ignore[no-any-return]
             workflow_type=workflow_type,
+        )
+
+    def parse_repo_ref(self, workflow_type: str, text: str) -> ParsedRepoRef | None:
+        return self._pm.hook.ws_parse_repo_ref(  # type: ignore[no-any-return]
+            workflow_type=workflow_type,
+            text=text,
+        )
+
+    def list_local_repo_candidates(
+        self, workflow_type: str
+    ) -> LocalRepoCandidates | None:
+        return self._pm.hook.ws_list_local_repo_candidates(  # type: ignore[no-any-return]
+            workflow_type=workflow_type,
+        )
+
+    def probe_repo(self, workflow_type: str, ref: str) -> RepoProbe | None:
+        return self._pm.hook.ws_probe_repo(  # type: ignore[no-any-return]
+            workflow_type=workflow_type,
+            ref=ref,
+        )
+
+    def describe_repo_creation(
+        self, workflow_type: str, namespace: str
+    ) -> RepoCreationForm | None:
+        return self._pm.hook.ws_describe_repo_creation(  # type: ignore[no-any-return]
+            workflow_type=workflow_type,
+            namespace=namespace,
+        )
+
+    def create_repo(
+        self, workflow_type: str, ref: str, options: dict[str, str]
+    ) -> RepoCreateResult | None:
+        return self._pm.hook.ws_create_repo(  # type: ignore[no-any-return]
+            workflow_type=workflow_type,
+            ref=ref,
+            options=options,
         )
 
     def submit(
