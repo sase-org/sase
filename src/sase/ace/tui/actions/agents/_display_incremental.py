@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 from ...models.agent_groups import GroupingMode
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
+from ._archive_view import cancel_inbox_detail_debounce
 from ._display_diff import (
     PanelRebuildScope,
     affected_panel_keys,
@@ -273,7 +274,8 @@ class AgentDisplayIncrementalMixin:
         sync_artifact_layout = getattr(self, "_sync_artifact_file_viewer_layout", None)
         if callable(sync_artifact_layout):
             sync_artifact_layout()
-        self._agent_detail_debouncer.cancel()
+        # A hidden Inbox refresh must not cancel the Archive's pending debounce.
+        cancel_inbox_detail_debounce(self)
 
         from textual.css.query import NoMatches
 

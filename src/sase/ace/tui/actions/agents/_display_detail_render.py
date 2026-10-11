@@ -12,6 +12,11 @@ from ...widgets.prompt_panel_messages import (
     ClanSectionSnapshotLoaded,
     TribeSectionSnapshotLoaded,
 )
+from ._archive_view import (
+    agents_inbox_detail_allowed,
+    remember_agents_detail_owner,
+    scheduled_agents_detail_is_current,
+)
 from ._display_helpers import TabName
 
 if TYPE_CHECKING:
@@ -80,6 +85,10 @@ class AgentDetailRenderMixin:
         cheap: bool = False,
     ) -> bool:
         """Render the live tribe document when whole-panel focus is active."""
+        if not agents_inbox_detail_allowed(self):
+            # The Archive owns the detail panel: no Inbox-originated summary
+            # rendering (immediate, debounced, or refresh-driven) may paint.
+            return False
         if cheap:
             try:
                 focus = self._focused_tribe_panel_context()
@@ -114,6 +123,11 @@ class AgentDetailRenderMixin:
         their multi-section detail on every j/k tick can delay the selection
         highlight's next paint.
         """
+        if not agents_inbox_detail_allowed(self):
+            # The Archive owns the detail panel: Inbox-originated immediate
+            # rendering (including onboarding and summary paths below) stays
+            # out. True means no debounced phase is required.
+            return True
         from textual.css.query import NoMatches
 
         from ...widgets import AgentDetail, KeybindingFooter
@@ -183,6 +197,7 @@ class AgentDetailRenderMixin:
         if debouncer is None:
             return
         if not render_immediate:
+            remember_agents_detail_owner(self)
             debouncer.schedule(self._fire_debounced_detail_update)
             return
         update_info = getattr(self, "_update_agents_info_panel", None)
@@ -191,10 +206,13 @@ class AgentDetailRenderMixin:
         if self._apply_agent_detail_immediate():
             debouncer.cancel()
             return
+        remember_agents_detail_owner(self)
         debouncer.schedule(self._fire_debounced_detail_update)
 
     def _refresh_tribe_summary_only(self) -> bool:
         """Rebuild only an active tribe after mark/unread state changes."""
+        if not agents_inbox_detail_allowed(self):
+            return False
         resolver = getattr(self, "_focused_tribe_summary", None)
         snapshot = resolver() if callable(resolver) else None
         if snapshot is None:
@@ -231,6 +249,14 @@ class AgentDetailRenderMixin:
 
     def _fire_debounced_detail_update(self) -> None:
         """Apply the debounced detail update once the j/k burst quiesces."""
+        if not scheduled_agents_detail_is_current(self):
+            # The view switched since this update was scheduled: drop it
+            # instead of repainting a panel owned by the other view.
+            return
+        if not agents_inbox_detail_allowed(self):
+            # The Archive owns the detail panel: drop Inbox-originated
+            # debounced work, including workers started before the switch.
+            return
         nav_gate = getattr(self, "_nav_gate", None)
         is_navigating = getattr(nav_gate, "is_navigating", None)
         if callable(is_navigating) and is_navigating():
@@ -284,6 +310,10 @@ class AgentDetailRenderMixin:
             agent_detail: The agent detail panel widget.
             footer_widget: The keybinding footer widget.
         """
+        if not agents_inbox_detail_allowed(self):
+            # The Archive owns the detail panel: no Inbox debounced update,
+            # footer repaint, or hydration follow-up may paint.
+            return
         if self._sync_agents_onboarding(
             agent_detail=agent_detail, footer_widget=footer_widget
         ):
@@ -392,6 +422,9 @@ class AgentDetailRenderMixin:
 
         if not changed:
             return
+        if not agents_inbox_detail_allowed(self):
+            # A view switch landed while this Inbox hydration was in flight.
+            return
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is None or current_agent.identity != agent_identity:
@@ -492,6 +525,8 @@ class AgentDetailRenderMixin:
 
         if self._focused_tribe_panel_context() is not None:
             return
+        if not agents_inbox_detail_allowed(self):
+            return
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is None or current_agent.identity != message.agent_identity:
             return
@@ -518,6 +553,8 @@ class AgentDetailRenderMixin:
         message: ClanSectionSnapshotLoaded,
     ) -> None:
         """Debounce the repaint for a current clan enrichment result."""
+        if not agents_inbox_detail_allowed(self):
+            return
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if (
             current_agent is None
@@ -533,6 +570,8 @@ class AgentDetailRenderMixin:
         message: TribeSectionSnapshotLoaded,
     ) -> None:
         """Debounce repaint only while the enriched tribe remains focused."""
+        if not agents_inbox_detail_allowed(self):
+            return
         focus = self._focused_tribe_panel_context()
         if (
             focus is None

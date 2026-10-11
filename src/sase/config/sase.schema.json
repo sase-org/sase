@@ -6025,7 +6025,13 @@
       "additionalProperties": {
         "type": "boolean"
       },
-      "properties": {}
+      "properties": {
+        "agents_archive_view": {
+          "type": "boolean",
+          "description": "The Agents tab offers a read-only Archive of local dismissed runs.",
+          "default": false
+        }
+      }
     }
   }
 }

@@ -39,6 +39,11 @@ def init_runtime_state(
     """Initialize startup, refresh, watcher, and artifacts-scope state."""
     self._current_idx = 0
     self._current_attempt_number = None
+    # Agents Archive view-foundation (child epic sase-1jm.3.1): startup is
+    # always Inbox; the Archive parks and restores through this state.
+    from .agents._archive_view import init_agents_archive_view_state
+
+    init_agents_archive_view_state(self)
     # Bypass the ``current_tab`` watcher: setting it via descriptor would
     # try to query widgets that haven't been composed yet. The reactive's
     # internal storage was initialized to "artifacts" by ``App.__init__``;

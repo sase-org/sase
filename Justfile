@@ -437,6 +437,15 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1jm.3.1(open_agents_archive_view)' \
+        --epic-symbol 'sase-1jm.3.1(open_agents_archive_view_with_query)' \
+        --epic-symbol 'sase-1jm.3.1(close_agents_archive_view)' \
+        --epic-symbol 'sase-1jm.3.1(get_agents_tab_selection)' \
+        --epic-symbol 'sase-1jm.3.1(archive_read_only_context)' \
+        --epic-symbol 'sase-1jm.3.1(agents_view_is_archive)' \
+        --epic-symbol 'sase-1jm.3.1(archive_detail_owns_panel)' \
+        --epic-symbol 'sase-1jm.3.1(capture_agents_detail_owner)' \
+        --epic-symbol 'sase-1jm.3.1(invalidate_agents_detail_ownership)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

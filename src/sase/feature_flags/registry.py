@@ -21,8 +21,19 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
+    agents_archive_view = "agents_archive_view"
 
-_FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {}
+
+_FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
+    FeatureFlag.agents_archive_view: FeatureFlagDefinition(
+        key=FeatureFlag.agents_archive_view,
+        kind="beta",
+        description=(
+            "The Agents tab offers a read-only Archive of local dismissed runs."
+        ),
+        bead="sase-1ju",
+    ),
+}
 
 FEATURE_FLAG_DEFINITIONS: Mapping[FeatureFlag, FeatureFlagDefinition] = (
     MappingProxyType(_FEATURE_FLAG_DEFINITIONS)

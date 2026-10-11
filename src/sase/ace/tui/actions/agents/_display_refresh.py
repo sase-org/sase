@@ -12,6 +12,10 @@ if TYPE_CHECKING:
 
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
+from ._archive_view import (
+    agents_inbox_detail_allowed,
+    cancel_inbox_detail_debounce,
+)
 from ._paint_log import record_agents_paint_frame
 from ._refresh_trace import (
     AgentRefreshDisplayCost,
@@ -78,8 +82,10 @@ class AgentDisplayRefreshMixin:
         sync_artifact_layout = getattr(self, "_sync_artifact_file_viewer_layout", None)
         if callable(sync_artifact_layout):
             sync_artifact_layout()
-        # Cancel any pending debounced detail update — full refresh supersedes
-        self._agent_detail_debouncer.cancel()
+        # Cancel any pending debounced detail update — full refresh supersedes,
+        # unless the Archive owns the panel: a hidden Inbox refresh must not
+        # cancel the Archive's pending debounce.
+        cancel_inbox_detail_debounce(self)
 
         from textual.css.query import NoMatches
 
@@ -147,6 +153,9 @@ class AgentDisplayRefreshMixin:
         if callable(update_agents_header):
             update_agents_header()
         if defer_detail:
+            if not agents_inbox_detail_allowed(self):
+                log.debug("agents display refresh detail skipped: archive owns panel")
+                return
             if self._sync_agents_onboarding(  # type: ignore[attr-defined]
                 agent_detail=agent_detail, footer_widget=footer_widget
             ):
@@ -197,7 +206,7 @@ class AgentDisplayRefreshMixin:
             self._refresh_panel_highlights()  # type: ignore[attr-defined]
             self._update_agents_info_panel()  # type: ignore[attr-defined]
             if self._apply_agent_detail_immediate():  # type: ignore[attr-defined]
-                self._agent_detail_debouncer.cancel()
+                cancel_inbox_detail_debounce(self)
             else:
                 self._agent_detail_debouncer.schedule(
                     self._fire_debounced_detail_update  # type: ignore[attr-defined]
