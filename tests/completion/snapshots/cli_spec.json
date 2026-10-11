@@ -3435,7 +3435,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "f75a3fcb2bbd4075",
+            "description_digest": "d0bf3fe5c8158622",
             "hidden": false,
             "mutex_groups": [],
             "name": "search",

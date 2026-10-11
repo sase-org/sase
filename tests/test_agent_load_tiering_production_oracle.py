@@ -15,6 +15,7 @@ case are now zero-diff regressions.
 from __future__ import annotations
 
 from collections.abc import Iterable
+import os
 from pathlib import Path
 
 import pytest
@@ -175,6 +176,9 @@ def test_production_machine_query_oracle_repairs_owner_after_index(
         source_machine="athena",
     )
     rebuild_index(fixture)
+    stat = target_dir.stat()
+    # Ensure the index timestamp is newer than the artifact directory.
+    os.utime(target_dir, ns=(stat.st_atime_ns, stat.st_mtime_ns - 2_000_000_000))
     set_artifact_machine_provenance(
         target_dir, source_machine="athena", owner_machine="apollo"
     )

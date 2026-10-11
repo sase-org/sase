@@ -234,13 +234,14 @@ class _TreeTermination:
         except OSError:
             return False
 
-    def signal_group(self, sig: int) -> None:
+    def signal_group(self, sig: int) -> bool:
         if not self._group_signalable():
-            return
+            return False
         try:
             self._killpg(self.pid, sig)
         except (ProcessLookupError, PermissionError):
-            pass
+            return False
+        return True
 
     def signal(self, target: _Target, sig: int) -> bool:
         """Signal *target* only while it is still the pinned process."""
@@ -391,7 +392,7 @@ def _run_termination(
     escalated = False
     stragglers = termination.alive_targets()
     if stragglers:
-        termination.signal_group(signal.SIGKILL)
+        escalated = termination.signal_group(signal.SIGKILL)
         for target in stragglers:
             escalated = termination.signal(target, signal.SIGKILL) or escalated
         termination.wait_for_exit(post_kill_seconds)

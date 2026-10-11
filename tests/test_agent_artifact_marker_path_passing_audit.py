@@ -325,7 +325,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "monitor vs agent; no marker is written."
         ),
     ),
-    "src/sase/axe/run_agent_directive_metadata.py:session_root_tab": PathPassingReview(
+    "src/sase/axe/run_agent_directive_metadata_preserved.py:session_root_tab": PathPassingReview(
         exemption=(
             "Read-only session-tab inheritance: agent_meta.json is opened "
             "only to recover the session root's stored agent_tab before the "

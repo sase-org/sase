@@ -4,7 +4,8 @@ Every step after fixture setup runs through real code: the runner doorbell
 and silent notification, the scheduler tick, the healer with the real
 classifier, settlement of the live report, and the replacement's
 already-restarted escalation. Fake only quiescence, the probe subprocess,
-and plan/execute.
+plan/execute, and the W3 git file proof recorded from the real incident so
+the replay does not depend on the clone's history depth.
 """
 
 from __future__ import annotations
@@ -29,11 +30,22 @@ from sase.axe.run_agent_runner_finalize import (
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.agent.status_buckets import UPDATE_RECOVERY_GLYPH
 from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
+from sase.core.agent_auto_restart_wire import AutoRestartFileProofWire
 from sase.notifications.store import load_notifications
 
 AGENT_NAME = "research.46.final"
 BOOT_REV = "9c5000f2dbb126962ea0a84856d0a49115450dc7"
 UPDATE_REV = "9fd8a081f45689655249b7bf6ed7b561de65b8bf"
+RECORDED_FILE_PROOF = AutoRestartFileProofWire(
+    symbol="auto_launch_prefix",
+    module="sase.monitor.continuation_delivery",
+    boot_has=True,
+    head_has=False,
+    culprit_commit=UPDATE_REV,
+    culprit_subject=(
+        "feat(autonomy): structural inheritance of live record and truthful A toggle"
+    ),
+)
 INCIDENT_ERROR = (
     "ImportError: cannot import name 'auto_launch_prefix' "
     "from 'sase.monitor.continuation_delivery'"
@@ -284,6 +296,21 @@ def test_incident_replay_end_to_end(
             status="ok", launched_artifacts_dir=str(new_dir), error=None
         )
 
+    file_proof_calls: list[tuple[str, str, Path, str]] = []
+
+    def fake_file_proof(
+        *, module: str, symbol: str, root: Path, boot_rev: str
+    ) -> AutoRestartFileProofWire:
+        file_proof_calls.append((module, symbol, root, boot_rev))
+        assert module == "sase.monitor.continuation_delivery"
+        assert symbol == "auto_launch_prefix"
+        assert root.name == "sase"
+        assert boot_rev == BOOT_REV
+        return RECORDED_FILE_PROOF
+
+    monkeypatch.setattr(
+        "sase.agent.auto_restart.witnesses._collect_file_proof", fake_file_proof
+    )
     outcome = heal_one(
         target,
         check_quiescence=_ok_quiescence,
@@ -291,6 +318,7 @@ def test_incident_replay_end_to_end(
         plan_restart=fake_plan,
         execute_restart=fake_execute,
     )
+    assert file_proof_calls
     assert outcome.action == "relaunched", outcome.reason_text
     assert outcome.launched_artifacts_dir == launched[0]
     assert outcome.evidence_dir is not None

@@ -12,6 +12,7 @@ import pytest
 
 from sase.completion.candidates.protocol import Candidate
 from sase.completion.candidates.providers import candidates_for
+from sase.feature_flags.registry import feature_flag_definitions
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +57,7 @@ def test_flag_candidates_come_from_the_in_process_registry() -> None:
     result = candidates_for("flag", "", project=None, limit=200)
 
     keys = {candidate.value for candidate in result}
-    assert keys == set()
+    assert keys == set(feature_flag_definitions())
     assert "agent_sudo_requests" not in keys
     assert "provider_drain" not in keys
     assert "autonomy_record_only" not in keys

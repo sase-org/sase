@@ -174,6 +174,8 @@ def _bob_dry_run(md_file: Path, bob_dir: Path) -> str:
             "create",
             "--include-id",
             "--dry-run",
+            "--parent",
+            "mac_inbox",
             "--bob-dir",
             str(bob_dir),
             str(md_file),

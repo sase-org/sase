@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shutil
 
@@ -155,7 +156,11 @@ def set_artifact_machine_provenance(
     source_machine: str | None = None,
     owner_machine: str | None = None,
 ) -> None:
-    """Rewrite machine provenance on an already-indexed artifact's markers."""
+    """Atomically rewrite machine provenance on indexed artifact markers.
+
+    In-place rewrites do not bump the artifact directory mtime, so the
+    revalidation directory-dirty check could miss the change.
+    """
 
     for marker_name in ("agent_meta.json", "done.json"):
         path = artifact_dir / marker_name
@@ -178,16 +183,17 @@ def set_artifact_machine_provenance(
                 "username": "bryan",
                 "machine_name": owner_machine,
             }
-        path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+        _replace_json(path, payload)
 
 
 def set_artifact_hidden(artifact_dir: Path, hidden: bool) -> None:
-    """Flip the ``hidden`` marker on an existing artifact's JSON markers in place.
+    """Atomically flip the ``hidden`` marker on existing artifact JSON markers.
 
     Simulates a mutation that moves a row into or out of visibility (the
     index query wire always sets ``include_hidden=False``) without a full
     index rebuild, so callers can exercise revalidate-driven repair of an
-    already-indexed row.
+    already-indexed row. In-place rewrites do not bump the artifact directory
+    mtime, so the revalidation directory-dirty check could miss the change.
     """
     for marker_name in ("done.json", "agent_meta.json"):
         path = artifact_dir / marker_name
@@ -201,7 +207,14 @@ def set_artifact_hidden(artifact_dir: Path, hidden: bool) -> None:
             payload["hidden"] = True
         else:
             payload.pop("hidden", None)
-        _write_json(path, payload)
+        _replace_json(path, payload)
+
+
+def _replace_json(path: Path, payload: dict[str, object]) -> None:
+    """Write JSON by same-directory rename so the parent mtime is refreshed."""
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def delete_artifact(artifact_dir: Path) -> None:

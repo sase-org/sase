@@ -73,6 +73,34 @@ def test_terminates_every_process_shape_and_verifies_death(
     proc.wait(timeout=5)
 
 
+def test_group_sigkill_counts_as_escalation_when_it_reaps_straggler(
+    tmp_path: Path, scratch_key: str, reap: list[int]
+) -> None:
+    proc, pids = launch_runner(tmp_path, scratch_key, reap)
+    artifacts = tmp_path / "artifacts"
+    write_meta(artifacts, proc.pid, launch_scratch_key=scratch_key)
+
+    def killpg(pgid: int, sig: int) -> None:
+        os.killpg(pgid, sig)
+        if sig == signal.SIGKILL:
+            wait_until_gone(pids["ignores_term"])
+
+    result = terminate_agent_processes(
+        proc.pid,
+        artifacts_dir=artifacts,
+        grace_seconds=0.3,
+        killpg=killpg,
+        registry_fn=no_registry,
+    )
+
+    assert result.success is True
+    assert result.survivors == ()
+    assert result.status == "force_killed"
+    assert result.escalated is True
+    assert_dead(pids)
+    proc.wait(timeout=5)
+
+
 def test_sweeps_orphans_after_the_runner_already_died(
     tmp_path: Path, scratch_key: str, reap: list[int]
 ) -> None:
