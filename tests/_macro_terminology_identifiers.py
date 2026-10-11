@@ -157,9 +157,8 @@ def _allowed_module(relative: Path, module: str, line: str) -> bool:
         # The canonical legacy home; callers import it on purpose.
         return True
     if module == "sase.legacy_xprompt_syntax":
-        # The cutover's temporary syntax home owns every sunset alias and
-        # the flag-gated normalization policy (plan 202610/macro_syntax_cutover.md).
-        # Remove when the sunset flag and this module are deleted.
+        # The cutover's syntax home owns every retired alias and the
+        # normalization policy (plan 202610/macro_syntax_cutover.md).
         return True
     return False
 

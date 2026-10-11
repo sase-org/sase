@@ -199,7 +199,6 @@ def test_apply_exact_public_job_edit_promotes_legacy_list_form_source(
             "release.check",
             "script",
         ),
-        routine_job_contract=True,
         use_chezmoi=False,
     )
 

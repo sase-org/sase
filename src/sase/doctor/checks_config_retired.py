@@ -204,7 +204,6 @@ def _scan_definition_directories(context: DoctorContext) -> list[dict[str, str]]
     try:
         sources = resolve_macro_file_sources(
             project=context.project,
-            accept_legacy=True,
         )
     except Exception:  # noqa: BLE001 - keep the check accessible on bad trees.
         return findings
@@ -229,7 +228,7 @@ def _scan_definition_directories(context: DoctorContext) -> list[dict[str, str]]
                 _finding(
                     str(path),
                     f"retired definition directory ({source.scope} "
-                    f"{source.locator}); never loaded",
+                    f"{source.locator}); still loaded as a retired alias",
                     "move definitions to the canonical macros directory",
                 )
             )
@@ -249,7 +248,6 @@ def _scan_frontmatter(context: DoctorContext) -> list[dict[str, str]]:
     try:
         sources = resolve_macro_file_sources(
             project=context.project,
-            accept_legacy=True,
         )
     except Exception:  # noqa: BLE001 - keep the check accessible on bad trees.
         return findings

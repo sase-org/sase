@@ -89,7 +89,7 @@ def test_relaunch_preserves_global_options_before_tui(monkeypatch) -> None:
         patch.object(
             sys,
             "argv",
-            ["sase", "-p", "-f", "provider_drain", "tui", "--tmux", "my query"],
+            ["sase", "-p", "-f", "demo_flag", "tui", "--tmux", "my query"],
         ),
     ):
         ace_tmux.launch_ace_in_tmux(launch_args())
@@ -103,7 +103,7 @@ def test_relaunch_preserves_global_options_before_tui(monkeypatch) -> None:
         "sase",
         "-p",
         "-f",
-        "provider_drain",
+        "demo_flag",
         "tui",
         "my query",
     ]

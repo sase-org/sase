@@ -214,13 +214,8 @@ class TestLegacyDirectoryGating:
     def test_role_legacy_sources_are_always_included(self) -> None:
         from sase.content_layout import resolve_macro_file_sources
 
-        # The retired switch is accepted and ignored: both values return
-        # the same sources, with retired roles included unconditionally.
-        denied = resolve_macro_file_sources(accept_legacy=False)
-        accepted = resolve_macro_file_sources(accept_legacy=True)
-        assert {source.path for source in denied} == {
-            source.path for source in accepted
-        }
+        sources = resolve_macro_file_sources()
+        assert any(source.role == "legacy" for source in sources)
 
     def test_snippet_source_path_always_includes_legacy(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -271,20 +266,9 @@ class TestLspDiscoveryPolicy:
 
         old_mtime = time.time() - 100
         os.utime(canonical, (old_mtime, old_mtime))
-        assert (
-            _newest_existing_macro_lsp_binary([bindir], accept_legacy=True) == canonical
-        )
-        assert (
-            _newest_existing_macro_lsp_binary([bindir], accept_legacy=False)
-            == canonical
-        )
+        assert _newest_existing_macro_lsp_binary([bindir]) == canonical
         canonical.unlink()
-        assert _newest_existing_macro_lsp_binary([bindir], accept_legacy=True) == legacy
-        # The retired switch is accepted and ignored: denied lookups still
-        # find the legacy binary.
-        assert (
-            _newest_existing_macro_lsp_binary([bindir], accept_legacy=False) == legacy
-        )
+        assert _newest_existing_macro_lsp_binary([bindir]) == legacy
 
     def test_exec_wrapper_exports_no_policy_transport(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

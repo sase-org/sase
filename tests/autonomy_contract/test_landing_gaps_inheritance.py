@@ -10,7 +10,6 @@ from unittest.mock import patch
 import pytest
 
 from sase.autonomy.record import read_record
-from sase.feature_flags import override_flags
 from tests.autonomy_contract import harness
 from tests.autonomy_contract._landing_gaps_helpers import inputs
 
@@ -53,34 +52,30 @@ def _build_with_prompt(
     )
 
 
-@pytest.mark.parametrize("flag_on", [True, False])
-def test_host_composed_explicit_manual_narrows(tmp_path: Path, flag_on: bool) -> None:
+def test_host_composed_explicit_manual_narrows(tmp_path: Path) -> None:
     """Explicit ``%auto:manual``/``:off`` narrows a tale parent to manual."""
-    with override_flags(autonomy_record_only=flag_on):
-        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
-        parent_meta = harness.read_meta(parent_dir)
-        plan = _host_composed_plan(parent_dir, parent_meta)
-        for prompt in ("%auto:manual\nDo the work", "%auto:off\nDo the work"):
-            meta = _build_with_prompt(prompt, tmp_path, plan=plan)
-            record = read_record(meta)
-            assert record is not None
-            assert record["profile"] == "manual"
-            assert record["source"] == "inherited"
-
-
-@pytest.mark.parametrize("flag_on", [True, False])
-def test_host_composed_bare_widening_refused(tmp_path: Path, flag_on: bool) -> None:
-    """Bare ``%auto`` on a tale child keeps the inherited tale record."""
-    with override_flags(autonomy_record_only=flag_on):
-        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
-        parent_meta = harness.read_meta(parent_dir)
-        plan = _host_composed_plan(parent_dir, parent_meta)
-        meta = _build_with_prompt("%auto\nDo the work", tmp_path, plan=plan)
+    _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
+    parent_meta = harness.read_meta(parent_dir)
+    plan = _host_composed_plan(parent_dir, parent_meta)
+    for prompt in ("%auto:manual\nDo the work", "%auto:off\nDo the work"):
+        meta = _build_with_prompt(prompt, tmp_path, plan=plan)
         record = read_record(meta)
         assert record is not None
-        assert record["profile"] == "tale"
-        assert record["selection"] == "tale"
+        assert record["profile"] == "manual"
         assert record["source"] == "inherited"
+
+
+def test_host_composed_bare_widening_refused(tmp_path: Path) -> None:
+    """Bare ``%auto`` on a tale child keeps the inherited tale record."""
+    _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", tmp_path)
+    parent_meta = harness.read_meta(parent_dir)
+    plan = _host_composed_plan(parent_dir, parent_meta)
+    meta = _build_with_prompt("%auto\nDo the work", tmp_path, plan=plan)
+    record = read_record(meta)
+    assert record is not None
+    assert record["profile"] == "tale"
+    assert record["selection"] == "tale"
+    assert record["source"] == "inherited"
 
 
 def test_host_composed_unreadable_predecessor_fails_closed(tmp_path: Path) -> None:
@@ -139,14 +134,12 @@ def _direct_approval_plan(tmp_path: Path, *, recovery: bool = False):
 @pytest.mark.parametrize("caller", ["direct", "recovery"])
 @pytest.mark.parametrize("cwd_project", ["contract-proj", "other-proj", None])
 @pytest.mark.parametrize("parent_mode", ["tale", "off"])
-@pytest.mark.parametrize("flag_on", [True, False])
 def test_direct_approval_and_recovery_inherit_from_target_project(
     tmp_path: Path,
     monkeypatch,
     caller: str,
     cwd_project: str | None,
     parent_mode: str,
-    flag_on: bool,
 ) -> None:
     """Direct approval and recovery retain inheritance across unrelated CWDs."""
     from types import SimpleNamespace
@@ -167,93 +160,90 @@ def test_direct_approval_and_recovery_inherit_from_target_project(
     monkeypatch.delenv("SASE_AGENT", raising=False)
     workdir = tmp_path / "work"
     workdir.mkdir()
-    with override_flags(autonomy_record_only=flag_on):
-        _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", workdir)
-        if parent_mode == "off":
-            harness.adapt_a_off(parent_dir)
-        parent_meta = harness.read_meta(parent_dir)
-        parent_record = read_record(parent_meta)
-        assert parent_record is not None
+    _, _, parent_dir = harness.launch_meta("%auto:tale\nDo the work", workdir)
+    if parent_mode == "off":
+        harness.adapt_a_off(parent_dir)
+    parent_meta = harness.read_meta(parent_dir)
+    parent_record = read_record(parent_meta)
+    assert parent_record is not None
 
-        unresolved_plan = replace(
-            _host_composed_plan(parent_dir, parent_meta), host_composed=False
-        )
-        resolved_projects: list[str] = []
+    unresolved_plan = replace(
+        _host_composed_plan(parent_dir, parent_meta), host_composed=False
+    )
+    resolved_projects: list[str] = []
 
-        def _resolve(directive, *, project_name: str, **_kwargs):
-            resolved_projects.append(project_name)
-            if project_name != "contract-proj":
-                raise RuntimeError(f"unrecognized session project: {project_name}")
-            return unresolved_plan
+    def _resolve(directive, *, project_name: str, **_kwargs):
+        resolved_projects.append(project_name)
+        if project_name != "contract-proj":
+            raise RuntimeError(f"unrecognized session project: {project_name}")
+        return unresolved_plan
 
-        monkeypatch.setattr(
-            attach_resolution, "resolve_agent_session_attach_plan", _resolve
-        )
-        monkeypatch.setattr(
-            "sase.main.utils.ensure_project_file_and_get_workspace_num",
-            lambda **_kwargs: (None, 0, cwd_project),
-        )
-        monkeypatch.setattr(
-            "sase.config._owner.require_agent_owner_identity", lambda: object()
-        )
-        built: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        attach_resolution, "resolve_agent_session_attach_plan", _resolve
+    )
+    monkeypatch.setattr(
+        "sase.main.utils.ensure_project_file_and_get_workspace_num",
+        lambda **_kwargs: (None, 0, cwd_project),
+    )
+    monkeypatch.setattr(
+        "sase.config._owner.require_agent_owner_identity", lambda: object()
+    )
+    built: list[dict[str, Any]] = []
 
-        def _fake_process_launch(prompt: str, extra_env=None, **_kwargs):
-            context = SimpleNamespace(project_name="contract-proj", is_home_mode=True)
-            pre_resolved = load_agent_session_attach_plan_from_env(
-                dict(extra_env or {})
-            )
-            assert pre_resolved is not None and pre_resolved.host_composed is True
-            _context, child_env = prepare_agent_session_attach_launch(
-                prompt,
-                context,
-                dict(extra_env or {}),
-                resolve_agent_session_attach_plan=_resolve,
-            )
-            attach_plan = load_agent_session_attach_plan_from_env(child_env)
-            assert attach_plan is not None and attach_plan.host_composed is True
-            _, directives = extract_prompt_directives(prompt)
-            child_meta = build_agent_meta(
-                inputs(workdir),
-                directives=directives,
+    def _fake_process_launch(prompt: str, extra_env=None, **_kwargs):
+        context = SimpleNamespace(project_name="contract-proj", is_home_mode=True)
+        pre_resolved = load_agent_session_attach_plan_from_env(dict(extra_env or {}))
+        assert pre_resolved is not None and pre_resolved.host_composed is True
+        _context, child_env = prepare_agent_session_attach_launch(
+            prompt,
+            context,
+            dict(extra_env or {}),
+            resolve_agent_session_attach_plan=_resolve,
+        )
+        attach_plan = load_agent_session_attach_plan_from_env(child_env)
+        assert attach_plan is not None and attach_plan.host_composed is True
+        _, directives = extract_prompt_directives(prompt)
+        child_meta = build_agent_meta(
+            inputs(workdir),
+            directives=directives,
+            agent_name=attach_plan.agent_name,
+            agent_tribe=None,
+            agent_session_attach_plan=attach_plan,
+            clan_membership_plan=None,
+        )
+        built.append(child_meta)
+        return [
+            AgentLaunchResult(
+                pid=123,
+                workspace_num=0,
+                workspace_dir=str(workdir),
+                output_path=str(tmp_path / "coder.out"),
                 agent_name=attach_plan.agent_name,
-                agent_tribe=None,
-                agent_session_attach_plan=attach_plan,
-                clan_membership_plan=None,
             )
-            built.append(child_meta)
-            return [
-                AgentLaunchResult(
-                    pid=123,
-                    workspace_num=0,
-                    workspace_dir=str(workdir),
-                    output_path=str(tmp_path / "coder.out"),
-                    agent_name=attach_plan.agent_name,
-                )
-            ]
+        ]
 
-        monkeypatch.setattr(
-            "sase.agent.launch_cwd.launch_agents_from_cwd", _fake_process_launch
-        )
-        plan = _direct_approval_plan(tmp_path, recovery=caller == "recovery")
-        outcome = (
-            execute_coder_recovery(plan)
-            if caller == "recovery"
-            else execute_direct_approval(plan)
-        )
+    monkeypatch.setattr(
+        "sase.agent.launch_cwd.launch_agents_from_cwd", _fake_process_launch
+    )
+    plan = _direct_approval_plan(tmp_path, recovery=caller == "recovery")
+    outcome = (
+        execute_coder_recovery(plan)
+        if caller == "recovery"
+        else execute_direct_approval(plan)
+    )
 
-        assert outcome.coder is not None
-        assert len(built) == 1
-        child_record = read_record(built[0])
-        assert child_record is not None
-        assert child_record["profile"] == parent_record["profile"]
-        assert child_record["selection"] == parent_record["selection"]
-        assert child_record["policy"] == parent_record["policy"]
-        assert child_record["source"] == "inherited"
-        assert child_record["revision"] == parent_record["revision"]
-        assert child_record["last"] == parent_record["last"]
-        assert child_record["digest"] == parent_record["digest"]
-        assert set(resolved_projects) == {"contract-proj"}
+    assert outcome.coder is not None
+    assert len(built) == 1
+    child_record = read_record(built[0])
+    assert child_record is not None
+    assert child_record["profile"] == parent_record["profile"]
+    assert child_record["selection"] == parent_record["selection"]
+    assert child_record["policy"] == parent_record["policy"]
+    assert child_record["source"] == "inherited"
+    assert child_record["revision"] == parent_record["revision"]
+    assert child_record["last"] == parent_record["last"]
+    assert child_record["digest"] == parent_record["digest"]
+    assert set(resolved_projects) == {"contract-proj"}
 
 
 def test_human_session_attach_uses_its_prompt_and_standalone_stays_standalone(

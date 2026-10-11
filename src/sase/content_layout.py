@@ -173,7 +173,6 @@ def resolve_macro_file_sources(
     project_root: Path | str | None = None,
     home_root: Path | str | None = None,
     project: str | None = None,
-    accept_legacy: bool | None = None,
 ) -> tuple[MacroSource, ...]:
     """Return ordered filesystem-backed macro/workflow sources.
 
@@ -188,8 +187,6 @@ def resolve_macro_file_sources(
     legacy ``sase.yml`` location is a separate content-layout compatibility
     surface and can contain valid canonical ``macros``.
     """
-    if accept_legacy is None:
-        accept_legacy = True
     if project_root is None:
         root = discover_project_root()
         if root is None:
@@ -204,9 +201,6 @@ def resolve_macro_file_sources(
         home_root=home_root,
         project=project,
     )
-    # Retired switch kept for compatibility and ignored: retired
-    # ("legacy" role) sources are always included.
-    _ = accept_legacy
     return tuple(
         source
         for source in layout.macro_sources

@@ -244,7 +244,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ),
     (
         "src/sase/main/plugin_discovery.py",
-        "enumeration (plus legacy ``sase_xprompts`` while enabled). Retains",
+        "enumeration (plus the retired ``sase_xprompts`` group). Retains",
     ),
     (
         "src/sase/main/plugin_discovery.py",

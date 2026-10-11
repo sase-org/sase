@@ -1,8 +1,9 @@
 """End-to-end usage-limit coverage through the real executor and fakey.
 
 Exercises the production path: fakey subprocess failure, invocation error
-handling, first-writer disable, notification, retry precedence, and the
-original provider error remaining the raised exception.
+handling, first-writer disable, the automatic drain that owns the
+notification, retry precedence, and the original provider error remaining
+the raised exception.
 """
 
 from __future__ import annotations
@@ -62,9 +63,12 @@ def test_usage_limit_failure_disables_only_fakey_and_preserves_error(
         SimpleNamespace(time=real_time.time, sleep=retry_sleeps.append),
     )
 
-    with patch(
-        "sase.llm_provider.usage_limit_disable.LLM_PROVIDER_AUTO_DISABLES",
-        _Counter(),
+    with (
+        patch(
+            "sase.llm_provider.usage_limit_disable.LLM_PROVIDER_AUTO_DISABLES",
+            _Counter(),
+        ),
+        patch("sase.procs.submit_proc_request") as submit_drain,
     ):
         with pytest.raises(WorkflowExecutionError, match="FAKEY-USAGE-LIMIT") as caught:
             harness.run()
@@ -85,11 +89,16 @@ def test_usage_limit_failure_disables_only_fakey_and_preserves_error(
     assert stored_claude.expires_at - stored_claude.created_at == pytest.approx(900.0)
     assert disables["fakey"].source == "usage_limit"
 
-    notifications = [
+    # A hard disable submits one durable drain that owns the (enriched)
+    # notification, so this process sends no inline notification.
+    submit_drain.assert_called_once()
+    drain_request = submit_drain.call_args.args[0]
+    assert drain_request.argv[:4] == ["sase", "agent", "drain", "fakey"]
+    assert drain_request.operation_payload["notify"] is True
+    assert "fakey" in drain_request.tags
+    assert [
         note for note in load_notifications() if note.sender == "llm.usage_limit"
-    ]
-    assert len(notifications) == 1
-    assert "fakey" in notifications[0].tags
+    ] == []
 
     attempt = harness.attempt_meta(1)
     assert attempt["status"] == "raised"

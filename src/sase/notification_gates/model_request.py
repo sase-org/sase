@@ -260,19 +260,13 @@ class GateSpec:
                     "continuation_mode must be a non-empty string",
                 )
             continuation = raw_continuation.strip()
-            # Authored requests follow the sunset flag: a retired
-            # ``gate_shell`` spelling maps to ``gate_turn`` while the flag
-            # is on and raises naming ``gate_turn`` while it is off.
+            # Authored requests accept the retired ``gate_shell`` spelling
+            # as ``gate_turn``.
             from sase.agent.legacy_sase_shell_syntax import (
                 normalize_continuation_mode,
             )
 
-            try:
-                normalized_continuation = normalize_continuation_mode(continuation)
-            except ValueError as exc:
-                raise GateError(
-                    "invalid_request", "continuation_mode", str(exc)
-                ) from exc
+            normalized_continuation = normalize_continuation_mode(continuation)
             assert isinstance(normalized_continuation, str)
             continuation = normalized_continuation
         timeout = data.get("gate_timeout_seconds")
@@ -300,12 +294,10 @@ class GateSpec:
             default_feedback=adapter.default_feedback,
         )
         primary_branch = normalize_primary_branch(data.get("primary_branch"), branches)
-        from sase.agent.legacy_agent_family_syntax import normalize_agent_session_fork
         from sase.agent.legacy_sase_shell_syntax import normalize_gate_spec_block
 
-        # Authored specs follow the sunset flag: a retired ``shell`` block
-        # maps to ``turn`` while the flag is on and raises naming ``turn``
-        # while it is off.
+        # Authored specs accept a retired ``shell`` block as ``turn``; both
+        # blocks together raise naming ``turn``.
         try:
             normalized_spec = normalize_gate_spec_block(data)
         except ValueError as exc:
@@ -316,7 +308,6 @@ class GateSpec:
                 turn_data,
                 branches=branches,
                 allow_branch_subsets=subset_branches_allowed(kind),
-                fork_normalizer=normalize_agent_session_fork,
             )
             if turn_data is not None
             else None

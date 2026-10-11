@@ -120,8 +120,8 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         DEFAULT_PROMPT_COMPLETION_SETTINGS.debounce_ms,
     )
     auto_file_paths = bool(raw.get("auto_file_paths", False))
-    # Config-layer normalization accepts the retired spelling only while the
-    # compatibility flag is on and canonicalizes it before this read.
+    # Config-layer normalization accepts the retired spelling and
+    # canonicalizes it before this read.
     if "auto_macro_menu" in raw:
         auto_macro_menu = bool(raw.get("auto_macro_menu"))
     else:

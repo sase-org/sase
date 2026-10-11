@@ -11,7 +11,6 @@ from sase.agent.legacy_sase_shell_syntax import (
     normalize_gate_fork,
     normalize_gate_shell_bool_args,
     normalize_gate_spec_block,
-    normalize_persisted_continuation_mode,
     normalize_proc_name_args,
     normalize_reclaim_config,
 )
@@ -61,9 +60,7 @@ def test_legacy_proc_shell_is_always_an_accepted_alias() -> None:
 
 def test_legacy_continuation_mode_is_always_an_accepted_alias() -> None:
     assert normalize_continuation_mode("gate_shell") == "gate_turn"
-    # Stored bundles map the same way.
-    assert normalize_persisted_continuation_mode("gate_shell") == "gate_turn"
-    assert normalize_persisted_continuation_mode("gate_turn") == "gate_turn"
+    assert normalize_continuation_mode("gate_turn") == "gate_turn"
 
 
 def test_gate_spec_legacy_shell_block_and_continuation_normalize() -> None:

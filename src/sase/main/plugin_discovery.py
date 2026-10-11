@@ -76,7 +76,6 @@ def discover_plugin_resources(group: str) -> list[ModuleType]:
 def macro_plugins_disabled(
     *,
     environ: Mapping[str, str] | None = None,
-    accept_legacy: bool | None = None,
 ) -> bool:
     """Return whether macro plugins are disabled by public env controls.
 
@@ -85,8 +84,6 @@ def macro_plugins_disabled(
     variable is always honored as an alias. Supplying both public names is
     an actionable error (presence decides, so empty values still collide).
     """
-    # Retired switch kept for compatibility and ignored.
-    _ = accept_legacy
     env = os.environ if environ is None else environ
     if env.get("SASE_DISABLE_PLUGINS"):
         return True
@@ -102,10 +99,7 @@ def macro_plugins_disabled(
     return bool(env.get(MACRO_PLUGIN_DISABLE_ENV))
 
 
-def _discover_macro_plugin_entry_points(
-    *,
-    accept_legacy: bool | None = None,
-) -> list[importlib.metadata.EntryPoint]:
+def _discover_macro_plugin_entry_points() -> list[importlib.metadata.EntryPoint]:
     """Return deduplicated macro plugin entry points, canonical group first.
 
     The canonical ``sase_macros`` group always loads; the retired plugin
@@ -113,8 +107,6 @@ def _discover_macro_plugin_entry_points(
     entry-point value (distribution resource identity), so a dual
     registration loads once with the canonical spelling winning.
     """
-    # Retired switch kept for compatibility and ignored.
-    _ = accept_legacy
     groups = [CANONICAL_PLUGIN_GROUP, RETIRED_PLUGIN_GROUP]
     entry_points: list[importlib.metadata.EntryPoint] = []
     seen: set[str] = set()
@@ -130,16 +122,13 @@ def _discover_macro_plugin_entry_points(
     return entry_points
 
 
-def discover_macro_plugin_modules(
-    *,
-    accept_legacy: bool | None = None,
-) -> list[ModuleType]:
+def discover_macro_plugin_modules() -> list[ModuleType]:
     """Load deduplicated macro plugin modules, canonical registration first.
 
     Modules that fail to load are silently skipped and logged at debug level.
     """
     modules: list[ModuleType] = []
-    for ep in _discover_macro_plugin_entry_points(accept_legacy=accept_legacy):
+    for ep in _discover_macro_plugin_entry_points():
         try:
             modules.append(ep.load())
         except Exception:
@@ -152,14 +141,11 @@ def discover_macro_plugin_modules(
     return modules
 
 
-def discover_macro_plugin_input_type_files(
-    *,
-    accept_legacy: bool | None = None,
-) -> list[dict[str, str]]:
+def discover_macro_plugin_input_type_files() -> list[dict[str, str]]:
     """Return concrete ``input_types.yml`` manifests with distributions.
 
     Reuses the canonical-first, deduplicated ``sase_macros`` entry-point
-    enumeration (plus legacy ``sase_xprompts`` while enabled). Retains
+    enumeration (plus the retired ``sase_xprompts`` group). Retains
     ``ep.dist`` instead of guessing the distribution from the module name.
     Locates the manifest at the package root with ``importlib.resources``.
     Respects global/macro-plugin disable controls and logs failed imports
@@ -170,10 +156,10 @@ def discover_macro_plugin_input_type_files(
         List of ``{"distribution", "module", "path"}`` dicts, sorted for
         determinism.
     """
-    if macro_plugins_disabled(accept_legacy=accept_legacy):
+    if macro_plugins_disabled():
         return []
     records: list[dict[str, str]] = []
-    for ep in _discover_macro_plugin_entry_points(accept_legacy=accept_legacy):
+    for ep in _discover_macro_plugin_entry_points():
         try:
             module = ep.load()
         except Exception:
@@ -221,20 +207,17 @@ def discover_macro_plugin_input_type_files(
     return records
 
 
-def discover_macro_plugin_distributions(
-    *,
-    accept_legacy: bool | None = None,
-) -> list[str]:
+def discover_macro_plugin_distributions() -> list[str]:
     """Return known macro-plugin distribution names, even without manifests.
 
     Uses the same enumeration as
     :func:`discover_macro_plugin_input_type_files` but keeps inventory
     independently of whether a manifest exists.
     """
-    if macro_plugins_disabled(accept_legacy=accept_legacy):
+    if macro_plugins_disabled():
         return []
     names: set[str] = set()
-    for ep in _discover_macro_plugin_entry_points(accept_legacy=accept_legacy):
+    for ep in _discover_macro_plugin_entry_points():
         dist = getattr(ep, "dist", None)
         metadata = getattr(dist, "metadata", None) if dist is not None else None
         name = None
@@ -250,8 +233,6 @@ def discover_macro_plugin_distributions(
 
 def macro_plugin_definition_dirname(
     module: ModuleType | str,
-    *,
-    accept_legacy: bool | None = None,
 ) -> str | None:
     """Return the packaged macro resource directory name for *module*.
 
@@ -259,8 +240,6 @@ def macro_plugin_definition_dirname(
     retired directory, which is always accepted as an alias. Returns
     ``None`` when the module ships neither.
     """
-    # Retired switch kept for compatibility and ignored.
-    _ = accept_legacy
     for candidate in (
         CANONICAL_PLUGIN_MACROS_DIR,
         LEGACY_PLUGIN_MACROS_DIR,

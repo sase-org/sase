@@ -201,13 +201,12 @@ def test_nested_config_entry_helpers_follow_policy() -> None:
 
 def test_normalize_frontmatter_mapping_shapes() -> None:
     assert normalize_frontmatter_macros(None) == {}
-    assert normalize_frontmatter_macros({}, accept_legacy=True) == {}
-    assert normalize_frontmatter_macros({"macros": None}, accept_legacy=True) == {}
+    assert normalize_frontmatter_macros({}) == {}
+    assert normalize_frontmatter_macros({"macros": None}) == {}
     with pytest.raises(ValueError, match=r"cannot be combined"):
         normalize_frontmatter_macros(
             {"macros": {}, "xprompts": None},
             source="s",
-            accept_legacy=True,
         )
 
 

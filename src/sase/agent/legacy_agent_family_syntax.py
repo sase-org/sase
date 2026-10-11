@@ -1,6 +1,6 @@
 """Compatibility normalizers for retired agent-family user syntax.
 
-Keep every temporary alias for the agent-session terminology migration in this
+Keep every retired alias for the agent-session terminology migration in this
 module. Both durable readers and authored input always accept the retired
 spellings as aliases of their agent-session replacements.
 """
@@ -44,22 +44,11 @@ def normalize_agent_session_directive_args(
     return normalized
 
 
-def normalize_agent_session_fork(
-    value: object,
-    *,
-    persisted: bool = False,
-) -> object:
+def normalize_agent_session_fork(value: object) -> object:
     """Normalize a gate fork value to its agent-session spelling."""
     if value != _LEGACY_FORK:
         return value
-    # Retired switch kept for compatibility and ignored.
-    _ = persisted
     return _SESSION_FORK
-
-
-def normalize_persisted_agent_session_fork(value: object) -> object:
-    """Normalize a pre-rename durable gate fork to its session spelling."""
-    return normalize_agent_session_fork(value, persisted=True)
 
 
 def agent_session_attach_env_value(env: Mapping[str, str]) -> str | None:
@@ -204,5 +193,4 @@ __all__ = [
     "normalize_agent_session_directive_args",
     "normalize_agent_session_fork",
     "normalize_agent_session_query_text",
-    "normalize_persisted_agent_session_fork",
 ]

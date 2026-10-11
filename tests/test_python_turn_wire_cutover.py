@@ -132,10 +132,8 @@ def test_gate_fork_shell_normalizes_to_turn() -> None:
 
 
 def test_gate_continuation_shell_normalizes_to_turn() -> None:
-    from sase.agent.legacy_sase_shell_syntax import (
-        normalize_persisted_continuation_mode,
-    )
+    from sase.agent.legacy_sase_shell_syntax import normalize_continuation_mode
 
     # legacy sase-shell spelling: pre-rename bundles carry gate_shell.
-    assert normalize_persisted_continuation_mode("gate_shell") == "gate_turn"
-    assert normalize_persisted_continuation_mode("gate_turn") == "gate_turn"
+    assert normalize_continuation_mode("gate_shell") == "gate_turn"
+    assert normalize_continuation_mode("gate_turn") == "gate_turn"

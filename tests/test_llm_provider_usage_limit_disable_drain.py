@@ -1,4 +1,4 @@
-"""The provider_drain-gated ownership decision: drain vs inline notify.
+"""The automatic-drain ownership decision: drain vs inline notify.
 
 Every branch covers the ``relaunch``/hard-disable preconditions required
 before a drain is ever attempted, and confirms exactly one notification

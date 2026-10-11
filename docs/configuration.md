@@ -5219,8 +5219,8 @@ The retired macro spellings in
 [the macro rename section](macros.md#retired-macro-spellings) are always accepted.
 Supplying a retired spelling in a new command, config key, frontmatter key, environment
 variable, or `sase path` target resolves to its replacement. The retired entry-point
-group is not loaded, a plugin's packaged copy of the retired definition directory is not
-read, and those retired directories are invisible to expansion, workflow loading,
+group is still loaded, a plugin's packaged copy of the retired definition directory is
+still read, and those retired directories stay visible to expansion, workflow loading,
 completion, catalogs, and save choices. Config keys, frontmatter keys, and the
 plugin-disable environment variable are an error when both the retired name and the
 macro name are present. The LSP command environment variable is the exception: a

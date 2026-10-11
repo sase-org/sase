@@ -98,11 +98,11 @@ def plugin_files(
     ]
     monkeypatch.setattr(
         "sase.main.plugin_discovery.discover_macro_plugin_input_type_files",
-        lambda *, accept_legacy=None: list(files),
+        lambda: list(files),
     )
     monkeypatch.setattr(
         "sase.main.plugin_discovery.discover_macro_plugin_distributions",
-        lambda *, accept_legacy=None: ["sase-research-artifacts"],
+        lambda: ["sase-research-artifacts"],
     )
     _clear_plugin_input_type_registry_cache()
     return files

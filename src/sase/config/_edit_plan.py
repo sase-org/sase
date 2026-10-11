@@ -26,11 +26,7 @@ from sase.config.core import (
     clear_config_cache,
     get_use_chezmoi,
 )
-from sase.config.inventory import (
-    ConfigDiagnostic,
-    ConfigInventory,
-    routine_job_contract_enabled,
-)
+from sase.config.inventory import ConfigDiagnostic, ConfigInventory
 from sase.config.targets import resolve_write_path
 from sase.core.rust import require_rust_binding
 
@@ -101,7 +97,7 @@ def _without_retired_counterpart(text: str, key_path: tuple[str, ...]) -> str:
     a both-present file that the next load rejects. Missing keys are a
     no-op through :func:`unset_key`. When the removal empties a top-level
     legacy section, the header goes too: even ``xprompts: {}`` counts as
-    presence and would fail a flag-off load.
+    presence for the both-spellings collision check.
     """
     counterpart = _retired_counterpart_key_path(tuple(key_path))
     if counterpart is None:
@@ -147,7 +143,6 @@ def plan_config_edit(
     *,
     key_path: tuple[str, ...] | list[str] | None = None,
     use_chezmoi: bool | None = None,
-    routine_job_contract: bool | None = None,
 ) -> EditPlanResult:
     """Plan a single set/unset edit against *target* layer for field *path*.
 
@@ -155,10 +150,6 @@ def plan_config_edit(
     preview, and validation, then computes the target-file text diff in memory.
     No file is written during planning.
     """
-    # The retired routine/job switch is accepted and ignored by the core:
-    # candidate and preview views always use the public projection, while
-    # the write plan keeps the requested source spelling.
-    project_public_contract = routine_job_contract_enabled(routine_job_contract)
     request: dict[str, object] = {
         "schema": inventory.schema,
         "layers": list(inventory.layer_inputs),
@@ -166,7 +157,10 @@ def plan_config_edit(
         "op": op.to_wire(),
         "deprecations": dict(DEPRECATED_TOP_LEVEL_KEYS),
         "unsupported": sorted(UNSUPPORTED_TOP_LEVEL_KEYS),
-        "routine_job_contract": project_public_contract,
+        # The retired routine/job switch is accepted and ignored by the core:
+        # candidate and preview views always use the public projection, while
+        # the write plan keeps the requested source spelling.
+        "routine_job_contract": True,
     }
     if path is not None:
         request["path"] = path

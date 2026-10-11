@@ -19,7 +19,6 @@ from sase.autonomy.record import (
     resolve_selection,
     with_legacy_projection,
 )
-from sase.feature_flags import override_flags
 from tests.autonomy_contract import harness
 
 from .test_landing_gaps_inheritance import (
@@ -33,7 +32,7 @@ from .test_landing_gaps_inheritance import (
     test_successor_prompt_extraction_covers_manual,
 )
 from .test_landing_gaps_records import (
-    test_apply_removes_stale_flag_off,
+    test_apply_removes_stale_keys,
     test_human_mutation_source_truthful,
     test_record_authoritative_over_stale_legacy,
     test_refresh_preserves_live_record,
@@ -58,9 +57,8 @@ __all__ = [
     "read_record",
     "resolve_selection",
     "with_legacy_projection",
-    "override_flags",
     "harness",
-    "test_apply_removes_stale_flag_off",
+    "test_apply_removes_stale_keys",
     "test_contract_suite_publishes_nothing",
     "test_direct_approval_and_recovery_inherit_from_target_project",
     "test_empty_adapter_capabilities_ask",

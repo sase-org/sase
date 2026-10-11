@@ -163,7 +163,7 @@ async def test_sudo_run_uses_terminal_handoff_not_durable_proc(
     result = SudoRequestModalResult(action="run", command_ids=("refresh",))
     app = _SudoActionApp(result)
     run_calls: list[tuple[list[str], dict[str, object]]] = []
-    monkeypatch.setenv(SASE_FEATURE_FLAGS_ENV, '{"agent_sudo_requests":false}')
+    monkeypatch.setenv(SASE_FEATURE_FLAGS_ENV, '{"demo_flag":false}')
     monkeypatch.setenv("SASE_SUDO_HANDOFF_TEST_ENV", "preserved")
 
     def fake_run(
@@ -394,21 +394,18 @@ def test_sudo_cli_message_reports_synchronous_detach_fallback() -> None:
     assert message.severity == "information"
 
 
-def test_sudo_cli_message_reports_feature_disabled_detail() -> None:
+def test_sudo_cli_message_reports_runner_error_detail() -> None:
     message = _sudo_cli_message(
         1,
         {
             "status": "pending",
             "outcome": "runner_error",
-            "code": "feature_disabled",
-            "message": "sudo requests are behind the agent_sudo_requests beta flag",
+            "code": "command_failed",
+            "message": "selected sudo command exited 2",
         },
     )
 
-    assert message.text == (
-        "Sudo handoff failed: "
-        "sudo requests are behind the agent_sudo_requests beta flag"
-    )
+    assert message.text == "Sudo handoff failed: selected sudo command exited 2"
     assert message.severity == "error"
 
 

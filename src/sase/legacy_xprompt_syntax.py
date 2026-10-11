@@ -1,6 +1,6 @@
 """Compatibility normalizers for retired xprompt user syntax.
 
-Keep every temporary alias for the xprompt-to-macro terminology migration in
+Keep every retired alias for the xprompt-to-macro terminology migration in
 this module. Durable readers live in :mod:`sase.legacy_xprompt_names`;
 authored input always accepts the retired spellings as aliases of their
 macro replacements.
@@ -80,26 +80,22 @@ def normalize_config_layer(
     layer: Mapping[str, Any],
     *,
     source: str = "",
-    accept_legacy: bool | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Normalize one authored config layer to canonical macro spellings.
 
-    Retired xprompt spellings are always accepted as aliases; the retired
-    ``accept_legacy`` bit is accepted for compatibility and ignored.
+    Retired xprompt spellings are always accepted as aliases.
     Returns the canonical mapping plus source-qualified diagnostics. Both
     spellings in one mapping raises ``ValueError`` naming the macro
     replacement.
     """
     from sase.core.rust import require_rust_binding
 
-    # Retired switch kept for compatibility and ignored.
-    _ = accept_legacy
-    accept_legacy = True
     binding = require_rust_binding("normalize_macro_config_layer")
     result = binding(
         {
             "layer": dict(layer),
-            "accept_legacy_xprompt_names": accept_legacy,
+            # Retired policy bit: the binding accepts and ignores it.
+            "accept_legacy_xprompt_names": True,
             "source": source,
         }
     )
@@ -114,17 +110,13 @@ def normalize_keymap_actions(
     mapping: Mapping[str, Any] | None,
     *,
     source: str = "",
-    accept_legacy: bool | None = None,
 ) -> dict[str, Any]:
     """Rewrite retired keymap action keys to their canonical names.
 
-    A legacy key is always accepted as its macro action; the retired
-    ``accept_legacy`` bit is accepted for compatibility and ignored. Both
+    A legacy key is always accepted as its macro action. Both
     spellings in one mapping are an error. Presence (not truthiness)
     decides.
     """
-    # Retired switch kept for compatibility and ignored.
-    _ = accept_legacy
     if not isinstance(mapping, dict):
         return {}
     result = dict(mapping)
@@ -146,20 +138,16 @@ def normalize_frontmatter_macros(
     mapping: Mapping[str, Any] | None,
     *,
     source: str = "",
-    accept_legacy: bool | None = None,
 ) -> dict[str, Any]:
     """Return the local-helper entries from a frontmatter/workflow mapping.
 
     Accepts canonical ``macros`` and always accepts retired ``xprompts`` as
-    an alias; the retired ``accept_legacy`` bit is accepted for
-    compatibility and ignored. Both spellings in one mapping are rejected.
+    an alias. Both spellings in one mapping are rejected.
     Presence (not truthiness) decides: a legacy key holding null, an empty
     mapping, false, or an empty string still counts. A both-spellings
     failure raises ``ValueError`` naming the replacement and must never be
     reduced to empty helpers by a broad caller catch.
     """
-    # Retired switch kept for compatibility and ignored.
-    _ = accept_legacy
     if not isinstance(mapping, dict):
         return {}
     has_legacy = RETIRED_FRONTMATTER_KEY in mapping

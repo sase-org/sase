@@ -1251,9 +1251,7 @@ admitted Agent unit, a restored named-agent `%wait` in the prompt AXE dispatches
 runner. If admission skips or condition-errors an intermediate proposal, AXE relinks
 that runner wait to the nearest earlier proposal that actually launched; if no ancestor
 launched, it dispatches without a named wait. A batch with no active `%if`/`%proc`
-directive, or any batch while the flag is disabled, keeps using the legacy launch path
-unchanged; an explicit typed directive while the flag is disabled fails before any agent
-or model is dispatched.
+directive keeps using the plain launch path unchanged.
 
 Python job packages should use the public `sase.jobs` SDK (`load_job_invocation`,
 `JobLogger`, `JobReport`, `JobResultBuilder`, and `launch_proposal`) for argument

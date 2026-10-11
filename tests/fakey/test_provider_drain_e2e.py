@@ -1,13 +1,12 @@
 """Real, hermetic end-to-end drill for the automatic provider-drain loop.
 
 Exercises the production path documented by the ``provider_drain`` epic: a
-real fakey subprocess trips a usage-limit failure, the flag-gated
+real fakey subprocess trips a usage-limit failure, the
 ``sase.llm_provider.usage_limit_disable`` ownership decision submits a real
 ``sase agent drain`` durable proc (not a mock of any of the decision points),
 that proc runs as a genuinely separate OS process and relaunches a second,
 stranded fakey agent for real, and exactly one enriched notification reports
-what moved. A flag-off variant proves both disable paths behave exactly as
-they do today.
+what moved.
 
 Hermeticity for the *relaunched* agent's execution follows the pattern
 documented in ``docs/fakey.md`` and used by ``tests/fakey/test_provider.py``:

@@ -23,16 +23,9 @@ GATE_TURN_STATE_CHOICES = (
 
 
 def _parse_next_fork(value: str) -> str:
-    try:
-        normalized = normalize_agent_session_fork(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(str(exc)) from exc
     from sase.agent.legacy_sase_shell_syntax import normalize_gate_fork
 
-    try:
-        normalized = normalize_gate_fork(normalized)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(str(exc)) from exc
+    normalized = normalize_gate_fork(normalize_agent_session_fork(value))
     if normalized not in {"session", "turn", "none"}:
         raise argparse.ArgumentTypeError("next-fork must be session, turn, or none")
     return str(normalized)

@@ -4536,7 +4536,7 @@
             },
             "relaunch": {
               "type": "boolean",
-              "description": "Behind the provider_drain beta flag: submit a durable 'sase agent drain' proc when a usage-limit disable hard-disables a provider, relaunching the agents it stranded and folding the drain report into the notify notification. Ignored while the flag is off.",
+              "description": "Submit a durable 'sase agent drain' proc when a usage-limit disable hard-disables a provider, relaunching the agents it stranded and folding the drain report into the notify notification.",
               "default": true
             },
             "relaunch_limit": {

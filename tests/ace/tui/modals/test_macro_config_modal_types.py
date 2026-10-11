@@ -62,11 +62,11 @@ def test_plugin_type_resolves_with_fixture_registry(
     ]
     monkeypatch.setattr(
         "sase.main.plugin_discovery.discover_macro_plugin_input_type_files",
-        lambda *, accept_legacy=None: list(files),
+        lambda: list(files),
     )
     monkeypatch.setattr(
         "sase.main.plugin_discovery.discover_macro_plugin_distributions",
-        lambda *, accept_legacy=None: ["sase-research-artifacts"],
+        lambda: ["sase-research-artifacts"],
     )
     _clear_plugin_input_type_registry_cache()
     assert (

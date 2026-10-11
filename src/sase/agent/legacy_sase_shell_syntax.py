@@ -1,6 +1,6 @@
 """Compatibility normalizers for retired sase-shell user syntax.
 
-Keep every temporary alias for the sase-turn terminology migration in this
+Keep every retired alias for the sase-turn terminology migration in this
 module. Both durable readers and authored input always accept the retired
 spellings as aliases of their sase-turn replacements.
 """
@@ -24,12 +24,10 @@ _LEGACY_SPEC_BLOCK = "shell"
 _CANONICAL_SPEC_BLOCK = "turn"
 
 
-def normalize_gate_fork(value: object, *, persisted: bool = False) -> object:
+def normalize_gate_fork(value: object) -> object:
     """Normalize a gate fork value to its turn spelling."""
     if value != _LEGACY_FORK:
         return value
-    # Retired switch kept for compatibility and ignored.
-    _ = persisted
     return _CANONICAL_FORK
 
 
@@ -49,26 +47,15 @@ def normalize_gate_spec_block(spec: Mapping[str, Any]) -> dict[str, Any]:
     return data
 
 
-def normalize_continuation_mode(value: object, *, persisted: bool = False) -> object:
+def normalize_continuation_mode(value: object) -> object:
     """Normalize a gate continuation mode to its turn spelling."""
     if value != _LEGACY_CONTINUATION:
         return value
-    # Retired switch kept for compatibility and ignored.
-    _ = persisted
     return _CANONICAL_CONTINUATION
 
 
-def normalize_persisted_continuation_mode(value: object) -> object:
-    """Normalize a pre-rename durable continuation mode to its turn spelling."""
-    return normalize_continuation_mode(value, persisted=True)
-
-
-def normalize_proc_name_args(
-    args: Mapping[str, Any], *, persisted: bool = False
-) -> dict[str, Any]:
+def normalize_proc_name_args(args: Mapping[str, Any]) -> dict[str, Any]:
     """Map a legacy ``shell`` proc-name value to ``name``."""
-    # Retired switch kept for compatibility and ignored.
-    _ = persisted
     data = dict(args)
     has_legacy = "shell" in data and data["shell"] is not None
     has_canonical = "name" in data and data["name"] is not None
@@ -132,7 +119,6 @@ __all__ = [
     "normalize_gate_fork",
     "normalize_gate_shell_bool_args",
     "normalize_gate_spec_block",
-    "normalize_persisted_continuation_mode",
     "normalize_proc_name_args",
     "normalize_reclaim_config",
 ]

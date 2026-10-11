@@ -260,11 +260,11 @@ def test_build_ace_restart_argv_replaces_legacy_ace_subcommand() -> None:
 def test_build_ace_restart_argv_preserves_global_options_before_tui() -> None:
     assert ace_handler._build_ace_restart_argv(
         restart_axe=True,
-        argv=["-p", "-f", "provider_drain", "tui", '"Ready"', "--", "--tab"],
+        argv=["-p", "-f", "demo_flag", "tui", '"Ready"', "--", "--tab"],
     ) == [
         "-p",
         "-f",
-        "provider_drain",
+        "demo_flag",
         "tui",
         '"Ready"',
         "--restart-service",

@@ -33,17 +33,13 @@ def build_gate_debug_overview(
     now: float,
 ) -> str:
     """Render the complete lifecycle/integrity overview as bounded-ready text."""
-    from sase.agent.legacy_sase_shell_syntax import (
-        normalize_persisted_continuation_mode,
-    )
+    from sase.agent.legacy_sase_shell_syntax import normalize_continuation_mode
 
     producer = envelope.get("producer")
     producer_text = _producer_text(producer, fallback=notification.sender)
     # Stored bundles keep their envelope bytes untouched (hash rule); project
     # a pre-rename ``gate_shell`` mode to ``gate_turn`` for display only.
-    stored_continuation = normalize_persisted_continuation_mode(
-        envelope.get("continuation_mode")
-    )
+    stored_continuation = normalize_continuation_mode(envelope.get("continuation_mode"))
     lines = [
         _kv("Status", status),
         _kv("Kind", str(envelope.get("kind") or kind)),

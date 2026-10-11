@@ -84,11 +84,11 @@ def test_runtime_missing_plugin_skips_only_affected_macro(tmp_path, monkeypatch)
     ]
     monkeypatch.setattr(
         "sase.main.plugin_discovery.discover_macro_plugin_input_type_files",
-        lambda *, accept_legacy=None: list(files),
+        lambda: list(files),
     )
     monkeypatch.setattr(
         "sase.main.plugin_discovery.discover_macro_plugin_distributions",
-        lambda *, accept_legacy=None: ["sase-research-artifacts"],
+        lambda: ["sase-research-artifacts"],
     )
     _clear_plugin_input_type_registry_cache()
     good = parse_inputs_from_front_matter(
@@ -142,12 +142,12 @@ def test_discovery_uses_entry_points_and_distributions(monkeypatch):
     monkeypatch.setattr(
         discovery,
         "_discover_macro_plugin_entry_points",
-        lambda *, accept_legacy=None: [FakeEp()],
+        lambda: [FakeEp()],
     )
     monkeypatch.setattr(
         discovery,
         "macro_plugins_disabled",
-        lambda *, environ=None, accept_legacy=None: False,
+        lambda *, environ=None: False,
     )
     dists = discovery.discover_macro_plugin_distributions()
     assert "sase-research-artifacts" in dists
@@ -192,7 +192,7 @@ def test_doctor_reports_malformed_manifest(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         "sase.main.plugin_discovery.discover_macro_plugin_input_type_files",
-        lambda *, accept_legacy=None: [
+        lambda: [
             {
                 "distribution": "bad-dist",
                 "module": "bad_mod",
@@ -202,7 +202,7 @@ def test_doctor_reports_malformed_manifest(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         "sase.main.plugin_discovery.discover_macro_plugin_distributions",
-        lambda *, accept_legacy=None: ["bad-dist"],
+        lambda: ["bad-dist"],
     )
     from sase.doctor.checks_config_macros import check_config_macro_input_types
     from sase.doctor.runner import default_doctor_context

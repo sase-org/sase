@@ -44,23 +44,17 @@ def _clear_plugin_input_type_registry_cache() -> None:
 
 def _discovery_snapshot(
     files: list[dict[str, str]] | None,
-    *,
-    accept_legacy: bool | None = None,
-) -> tuple[tuple[Any, ...], list[dict[str, str]], bool]:
+) -> tuple[tuple[Any, ...], list[dict[str, str]]]:
     from sase.main.plugin_discovery import (
         discover_macro_plugin_distributions,
         discover_macro_plugin_input_type_files,
     )
 
-    # Retired switch kept for compatibility and ignored: retired sources
-    # are always accepted.
-    _ = accept_legacy
-    accept_legacy = True
     if files is None:
-        files = discover_macro_plugin_input_type_files(accept_legacy=accept_legacy)
+        files = discover_macro_plugin_input_type_files()
     # Known distributions independently of manifests, for cache identity.
     try:
-        known = discover_macro_plugin_distributions(accept_legacy=accept_legacy)
+        known = discover_macro_plugin_distributions()
     except Exception:
         known = []
     disabled = (
@@ -87,18 +81,15 @@ def _discovery_snapshot(
             signature = (0, 0, False)
         parts.append((dist, module, path, signature))
     key = (
-        bool(accept_legacy),
         disabled,
         tuple(sorted(known, key=str.lower)),
         tuple(parts),
     )
-    return key, files, bool(accept_legacy)
+    return key, files
 
 
 def get_plugin_input_type_registry(
     files: list[dict[str, str]] | None = None,
-    *,
-    accept_legacy: bool | None = None,
 ) -> dict[str, Any]:
     """Return the cached Rust registry snapshot for discovered manifests.
 
@@ -109,7 +100,7 @@ def get_plugin_input_type_registry(
     """
     from sase.macro.load_issues import record_load_issue
 
-    key, files, _ = _discovery_snapshot(files, accept_legacy=accept_legacy)
+    key, files = _discovery_snapshot(files)
     store = _cache_store()
     cached = store.get(key)
     if cached is None:
@@ -120,7 +111,7 @@ def get_plugin_input_type_registry(
         )
 
         try:
-            known = discover_macro_plugin_distributions(accept_legacy=accept_legacy)
+            known = discover_macro_plugin_distributions()
         except Exception:
             known = []
         payload = binding({"files": files, "known_distributions": known})

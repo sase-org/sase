@@ -403,10 +403,9 @@ def get_gate_turn_reclaim_grace_seconds() -> int:
         return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
     if not isinstance(gate, dict):
         return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
-    # Authored config follows the sunset flag: a retired
-    # ``gate.shell.reclaim_grace_seconds`` maps to the turn key while the
-    # flag is on and raises naming ``gate.turn.reclaim_grace_seconds``
-    # while it is off, matching unknown-key reporting.
+    # Authored config accepts a retired ``gate.shell.reclaim_grace_seconds``
+    # as the turn key; setting both raises naming
+    # ``gate.turn.reclaim_grace_seconds``.
     from sase.agent.legacy_sase_shell_syntax import normalize_reclaim_config
 
     gate = normalize_reclaim_config({"gate": gate}).get("gate", {})

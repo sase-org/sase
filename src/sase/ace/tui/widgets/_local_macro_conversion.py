@@ -69,8 +69,8 @@ def _macro_placeholder_args_enabled() -> bool:
     try:
         ace = _config_section(load_merged_config(), "ace")
         inputs = _config_section(ace, "prompt_inputs")
-        # Config-layer normalization accepts the retired spelling only while
-        # the compatibility flag is on and canonicalizes it before this read.
+        # Config-layer normalization accepts the retired spelling and
+        # canonicalizes it before this read.
         if "macro_placeholder_args" in inputs:
             raw = inputs.get("macro_placeholder_args", True)
         else:

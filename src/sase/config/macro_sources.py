@@ -17,16 +17,13 @@ def _normalized_macros(
     data: dict[str, Any] | None,
     *,
     source: str,
-    accept_legacy: bool,
 ) -> dict[str, Any] | None:
     """Normalize one raw config mapping and return its canonical macros."""
     if not isinstance(data, dict):
         return None
     from sase.legacy_xprompt_syntax import normalize_config_layer
 
-    canonical, _ = normalize_config_layer(
-        data, source=source, accept_legacy=accept_legacy
-    )
+    canonical, _ = normalize_config_layer(data, source=source)
     macros = canonical.get("macros")
     return macros if isinstance(macros, dict) else None
 
@@ -43,14 +40,10 @@ def load_macros_by_source(
     """Load macro entries from each config source in priority order."""
     from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
-    # Retired spellings are always accepted.
-    accept_legacy = True
     results: list[tuple[str, dict[str, Any]]] = []
 
     default = default_loader()
-    macros = _normalized_macros(
-        default, source="default_config", accept_legacy=accept_legacy
-    )
+    macros = _normalized_macros(default, source="default_config")
     if macros is not None:
         results.append(("default_config", macros))
 
@@ -73,13 +66,12 @@ def load_macros_by_source(
             macros = _normalized_macros(
                 data,
                 source=f"plugin_config:{module_name}",
-                accept_legacy=accept_legacy,
             )
             if macros is not None:
                 results.append((f"plugin_config:{module_name}", macros))
 
     user_base = yaml_loader(config_dir / "sase.yml")
-    macros = _normalized_macros(user_base, source="config", accept_legacy=accept_legacy)
+    macros = _normalized_macros(user_base, source="config")
     if macros is not None:
         results.append(("config", macros))
 
@@ -88,16 +80,13 @@ def load_macros_by_source(
         macros = _normalized_macros(
             overlay,
             source=f"config_overlay:{overlay_path.name}",
-            accept_legacy=accept_legacy,
         )
         if macros is not None:
             results.append((f"config_overlay:{overlay_path.name}", macros))
 
     if local_path:
         local_config = yaml_loader(local_path)
-        macros = _normalized_macros(
-            local_config, source="local_config", accept_legacy=accept_legacy
-        )
+        macros = _normalized_macros(local_config, source="local_config")
         if macros is not None:
             results.append(("local_config", macros))
 

@@ -71,15 +71,6 @@ def test_presence_counts_even_for_empty_values(value: object) -> None:
     assert "xprompts" not in canonical
 
 
-def test_retired_policy_bit_is_accepted_and_ignored() -> None:
-    """The retired switch no longer changes policy: both values accept."""
-    for accept_legacy in (True, False):
-        canonical, _ = normalize_config_layer(
-            {"xprompts": {"a": {}}}, accept_legacy=accept_legacy
-        )
-        assert canonical == {"macros": {"a": {}}}
-
-
 def test_raw_layers_normalize_without_flag_resolution() -> None:
     """Normalization needs no flag snapshot since the switch retired."""
     from sase.config.core import load_config_layers

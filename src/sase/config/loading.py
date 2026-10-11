@@ -224,7 +224,6 @@ def _normalize_layer(
     data: dict[str, Any],
     *,
     source: str,
-    accept_legacy: bool,
 ) -> dict[str, Any]:
     """Normalize one authored layer to canonical macro spellings.
 
@@ -234,9 +233,7 @@ def _normalize_layer(
     """
     from sase.legacy_xprompt_syntax import normalize_config_layer
 
-    canonical, _ = normalize_config_layer(
-        data, source=source, accept_legacy=accept_legacy
-    )
+    canonical, _ = normalize_config_layer(data, source=source)
     return canonical
 
 
@@ -257,16 +254,12 @@ def merge_config_sources(
     keeps existing layer precedence instead of becoming a both-present
     error after merging.
     """
-    # Retired spellings are always accepted; no flag snapshot is consulted
-    # during the merge, so bootstrap layers cannot recurse.
-    accept_legacy = True
     default_contribution = _normalize_layer(
         _without_project_only_catalog(
             _without_owner_identity(default_config, source="default"),
             source="default",
         ),
         source="default",
-        accept_legacy=accept_legacy,
     )
     layer_inputs = [
         _layer_input(
@@ -288,7 +281,6 @@ def merge_config_sources(
                 source=f"plugin #{index}",
             ),
             source=f"plugin:{index}",
-            accept_legacy=accept_legacy,
         )
         layer_inputs.append(
             _layer_input(
@@ -309,7 +301,6 @@ def merge_config_sources(
                 source=str(user_base_path),
             ),
             source="user",
-            accept_legacy=accept_legacy,
         )
         layer_inputs.append(
             _layer_input(
@@ -356,7 +347,6 @@ def merge_config_sources(
         contribution = _normalize_layer(
             contribution,
             source=f"overlay:{overlay_path.name}",
-            accept_legacy=accept_legacy,
         )
         layer_inputs.append(
             _layer_input(
@@ -375,7 +365,6 @@ def merge_config_sources(
             contribution = _normalize_layer(
                 _without_owner_identity(local_config, source=str(local_path)),
                 source="local",
-                accept_legacy=accept_legacy,
             )
             layer_inputs.append(
                 _layer_input(

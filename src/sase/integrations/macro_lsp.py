@@ -115,8 +115,6 @@ def _resolve_macro_lsp_command(
     which: Callable[[str], str | None],
     repo_root: Path | None,
 ) -> tuple[str, ...]:
-    # Retired spellings are always accepted as aliases.
-    accept_legacy = True
     override = environ.get(SASE_MACRO_LSP_CMD_ENV, "").strip()
     legacy_override = environ.get(SASE_XPROMPT_LSP_CMD_ENV, "").strip()
     if override:
@@ -126,9 +124,7 @@ def _resolve_macro_lsp_command(
             SASE_XPROMPT_LSP_CMD_ENV, legacy_override, which=which
         )
 
-    venv_binary = _first_existing_macro_lsp_binary(
-        Path(sys.executable).parent, accept_legacy=accept_legacy
-    )
+    venv_binary = _first_existing_macro_lsp_binary(Path(sys.executable).parent)
     if venv_binary is not None:
         return (str(venv_binary),)
 
@@ -145,7 +141,6 @@ def _resolve_macro_lsp_command(
             sibling_core / "target" / "debug",
             sibling_core / "target" / "release",
         ),
-        accept_legacy=accept_legacy,
     )
     if target_binary is not None:
         return (str(target_binary),)
@@ -200,12 +195,8 @@ def _lsp_cargo_package(sibling_core: Path) -> str:
     return "sase_xprompt_lsp"
 
 
-def _first_existing_macro_lsp_binary(
-    directory: Path, *, accept_legacy: bool = True
-) -> Path | None:
-    for candidate in _macro_lsp_binary_candidates(
-        directory, accept_legacy=accept_legacy
-    ):
+def _first_existing_macro_lsp_binary(directory: Path) -> Path | None:
+    for candidate in _macro_lsp_binary_candidates(directory):
         if candidate.is_file():
             return candidate
     return None
@@ -213,17 +204,12 @@ def _first_existing_macro_lsp_binary(
 
 def _newest_existing_macro_lsp_binary(
     directories: Sequence[Path],
-    *,
-    accept_legacy: bool = True,
 ) -> Path | None:
     """Return the newest built binary, preferring usable canonical binaries.
 
     A usable canonical ``sase-macro-lsp`` binary always wins over a newer
     legacy binary; retired candidates are always considered as aliases.
-    The retired ``accept_legacy`` bit is accepted for compatibility and
-    ignored.
     """
-    _ = accept_legacy
     canonical = [
         directory / name
         for directory in directories
@@ -235,7 +221,7 @@ def _newest_existing_macro_lsp_binary(
     legacy = [
         candidate
         for directory in directories
-        for candidate in _macro_lsp_binary_candidates(directory, accept_legacy=True)
+        for candidate in _macro_lsp_binary_candidates(directory)
         if candidate.name not in _canonical_binary_names() and candidate.is_file()
     ]
     if not legacy:
@@ -249,22 +235,12 @@ def _canonical_binary_names() -> tuple[str, ...]:
     return (MACRO_LSP_BINARY,)
 
 
-def _macro_lsp_binary_candidates(
-    directory: Path, *, accept_legacy: bool = True
-) -> tuple[Path, ...]:
-    return tuple(
-        directory / name
-        for name in _macro_lsp_binary_names(accept_legacy=accept_legacy)
-    )
+def _macro_lsp_binary_candidates(directory: Path) -> tuple[Path, ...]:
+    return tuple(directory / name for name in _macro_lsp_binary_names())
 
 
-def _macro_lsp_binary_names(*, accept_legacy: bool = True) -> tuple[str, ...]:
-    """Return LSP binary names, always including retired aliases.
-
-    The retired ``accept_legacy`` bit is accepted for compatibility and
-    ignored.
-    """
-    _ = accept_legacy
+def _macro_lsp_binary_names() -> tuple[str, ...]:
+    """Return LSP binary names, always including retired aliases."""
     if os.name == "nt":
         return (
             f"{MACRO_LSP_BINARY}.exe",
