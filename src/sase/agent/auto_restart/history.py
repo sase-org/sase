@@ -103,7 +103,7 @@ def _done_died_at(
     return fallback_mtime
 
 
-def project_for_done(done: Mapping[str, Any], artifacts_dir: Path) -> str:
+def _project_for_done(done: Mapping[str, Any], artifacts_dir: Path) -> str:
     cl_name = done.get("cl_name")
     if isinstance(cl_name, str) and cl_name:
         return cl_name
@@ -161,7 +161,7 @@ def _iter_done_candidates(
                 FailedCandidate(
                     source="done",
                     name=name,
-                    project=project_for_done(done, artifacts_dir),
+                    project=_project_for_done(done, artifacts_dir),
                     died_at=_done_died_at(done, artifacts_dir, mtime),
                     artifacts_dir=artifacts_dir,
                     done=done,

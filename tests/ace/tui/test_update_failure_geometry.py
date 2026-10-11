@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from sase.ace.tui.modals.update_failure_geometry import (
     CHROME_COLS,
-    action_footer_lines,
-    choose_outer_width,
+    _action_footer_lines,
+    _content_cell_width,
+    _count_wrapped_rows,
+    _is_cramped,
+    _max_outer_size,
+    _pack_footer_lines,
     compute_geometry,
-    content_cell_width,
-    count_wrapped_rows,
-    is_cramped,
-    max_outer_size,
-    pack_footer_lines,
 )
 
 
@@ -94,7 +93,7 @@ def test_small_terminal_stays_in_bounds() -> None:
         )
 
         assert geometry is not None
-        max_w, max_h = max_outer_size(*screen)
+        max_w, max_h = _max_outer_size(*screen)
         assert geometry.width <= max_w
         assert geometry.height <= max_h
         assert len(geometry.footer_lines) >= 1
@@ -159,8 +158,8 @@ def test_unicode_tabs_and_literal_markup_agree() -> None:
     inner = geometry.inner_width
     assert inner == geometry.width - CHROME_COLS
     # Blank lines, trailing newline, and the long token all count.
-    assert count_wrapped_rows(body, inner) >= body.count("\n")
-    assert content_cell_width("[bold]hi[/bold]") == len("[bold]hi[/bold]")
+    assert _count_wrapped_rows(body, inner) >= body.count("\n")
+    assert _content_cell_width("[bold]hi[/bold]") == len("[bold]hi[/bold]")
 
 
 def test_empty_output_stays_compact() -> None:
@@ -204,20 +203,18 @@ def test_exact_fit_and_one_row_overflow_are_stable() -> None:
 
 
 def test_footer_packs_between_groups() -> None:
-    lines = pack_footer_lines(
+    lines = _pack_footer_lines(
         ("u open Update", "d dismiss", "y copy", "q/Esc close"), 200
     )
     assert lines == ("u open Update · d dismiss · y copy · q/Esc close",)
-    narrow = action_footer_lines(30)
+    narrow = _action_footer_lines(30)
     assert len(narrow) >= 1
     assert "open Update" not in " ".join(narrow)
 
 
 def test_cramped_uses_full_rectangle() -> None:
-    assert is_cramped(59, 40) is True
-    assert is_cramped(80, 15) is True
-    assert is_cramped(80, 24) is False
-    assert max_outer_size(40, 12) == (40, 12)
-    assert max_outer_size(240, 70) == (236, 68)
-    assert choose_outer_width(screen_w=40, screen_h=12, required_width=10) == 40
-    assert choose_outer_width(screen_w=240, screen_h=70, required_width=10) == 90
+    assert _is_cramped(59, 40) is True
+    assert _is_cramped(80, 15) is True
+    assert _is_cramped(80, 24) is False
+    assert _max_outer_size(40, 12) == (40, 12)
+    assert _max_outer_size(240, 70) == (236, 68)
