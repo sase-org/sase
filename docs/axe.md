@@ -356,6 +356,13 @@ waiter remains parked for a later tick. The waiting runner applies the same conf
 for its startup and periodic fallback path. Such ordinary deferrals are counted in the
 `deferred_unconfirmed` summary field rather than treated as errors.
 
+The runner's startup check and 60-second fallback build that view from the waiter's
+project only. Named waits and bead-only waits use a scoped index: rows whose identity
+keys intersect the marker's dependency names, plus the waiter's own artifact directory.
+Unscopable shapes — `@tribe` names, hoods, fork sources, identity deps, and armed epic
+follows — still load the full project index. Release decisions stay the same as the full
+view; scoping only drops rows that those queries never consult.
+
 `ready.json` is published atomically — via a temp file plus a no-clobber link, so the
 first writer wins — and is skipped entirely once the waiter is gone. The waiting runner
 treats an unreadable or malformed marker as not ready and keeps polling (bounded by its

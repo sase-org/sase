@@ -145,7 +145,7 @@ def test_release_paths_agree_on_unarmed_snapshot(
     assert direct.releasable is True
 
     monkeypatch.setattr(
-        wait_deps, "build_wait_dependency_index", lambda *args, **kwargs: index
+        wait_deps, "_build_runner_wait_index", lambda *args, **kwargs: index
     )
     initial = wait_deps.resolve_initial_wait_release(
         ["planner"], [], project_name="proj", artifacts_dir=str(waiter)

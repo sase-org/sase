@@ -9,22 +9,28 @@ outage cannot strand a waiting agent forever.
 import json
 import os
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.axe.run_agent_wait_markers import read_json_dict
 from sase.bead.wait_status import closed_bead_ids_for_waits
+from sase.core.agent_artifact_paths import (
+    ACE_RUN_WORKFLOW_DIR,
+    iter_agent_artifact_dirs,
+)
+from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
     WaitReleaseDecision,
     apply_wait_epic_follow_patch,
     build_wait_dependency_index,
     latest_member_finished_at,
+    marker_scope_keys,
     resolve_wait_release,
+    select_scope_rows,
 )
-from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 from sase.core.wait_dependency_resolution._types import WaitDependencyStatus
 
 
@@ -175,6 +181,47 @@ def _forward_identity_deps(
     return mapped
 
 
+def _project_ace_run_rows(
+    project_name: str,
+) -> list[tuple[Path, dict[str, Any], str]]:
+    """Load this project's ace-run ``agent_meta.json`` rows."""
+    rows: list[tuple[Path, dict[str, Any], str]] = []
+    for artifact_dir in iter_agent_artifact_dirs(project_name, ACE_RUN_WORKFLOW_DIR):
+        meta = read_json_dict(artifact_dir / "agent_meta.json")
+        if meta is not None:
+            rows.append((artifact_dir, meta, project_name))
+    return rows
+
+
+def _build_runner_wait_index(
+    marker: Mapping[str, Any],
+    *,
+    project_name: str,
+    artifacts_dir: str,
+    global_stored_tribes: tuple[str, ...],
+) -> WaitDependencyIndex:
+    """Build the project index the runner uses for one marker.
+
+    Named and bead-only waits get a scoped view of this project's ace-run
+    rows. Unscopable shapes, including forwarded identity deps, keep the
+    full ``build_wait_dependency_index(project_name)`` build.
+    """
+    scope_keys = marker_scope_keys(marker)
+    if scope_keys is None:
+        index = build_wait_dependency_index(project_name)
+    else:
+        index = WaitDependencyIndex.empty()
+        index.add_many(
+            select_scope_rows(
+                _project_ace_run_rows(project_name),
+                scope_keys,
+                include_dirs=(artifacts_dir,),
+            )
+        )
+    index.global_stored_tribes = global_stored_tribes
+    return index
+
+
 def _resolve_marker_release(
     marker: dict[str, Any],
     *,
@@ -198,9 +245,12 @@ def _resolve_marker_release(
         global_stored_tribes = stored_tribe_names_for_resolution()
 
         def build_index() -> WaitDependencyIndex:
-            index = build_wait_dependency_index(project_name)
-            index.global_stored_tribes = global_stored_tribes
-            return index
+            return _build_runner_wait_index(
+                marker,
+                project_name=project_name,
+                artifacts_dir=artifacts_dir,
+                global_stored_tribes=global_stored_tribes,
+            )
 
         dependency_index = build_index()
     except Exception as exc:
@@ -270,8 +320,19 @@ def _release_satisfied_at(
     if tuple(wait_beads):
         return None
     try:
-        index = build_wait_dependency_index(project_name)
-        index.global_stored_tribes = stored_tribe_names_for_resolution()
+        index = _build_runner_wait_index(
+            {
+                "waiting_for": list(wait_names),
+                "wait_for_artifacts": list(wait_identity_deps),
+                "wait_for_fork_sources": list(wait_fork_sources),
+                "wait_for_hoods": list(wait_hoods),
+                "wait_for_beads": list(wait_beads),
+                "resolved_deps": list(resolved_deps),
+            },
+            project_name=project_name,
+            artifacts_dir=artifacts_dir,
+            global_stored_tribes=stored_tribe_names_for_resolution(),
+        )
         return latest_member_finished_at(
             index.dependency_member_dirs(
                 tuple(wait_names),

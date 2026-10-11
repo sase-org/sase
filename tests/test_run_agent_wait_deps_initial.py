@@ -164,8 +164,8 @@ def test_runner_confirmation_rejects_stale_agent_session_then_accepts_complete_a
     fresh = _wait_index(root_dir, monitor_dir, handoff_dir, next_monitor_dir)
     indexes = iter((stale, fresh))
     monkeypatch.setattr(
-        "sase.axe.run_agent_wait_deps.build_wait_dependency_index",
-        lambda _project: next(indexes),
+        "sase.axe.run_agent_wait_deps._build_runner_wait_index",
+        lambda *_args, **_kwargs: next(indexes),
     )
 
     assert not resolve_initial_wait_release(
@@ -182,8 +182,8 @@ def test_runner_confirmation_rejects_stale_agent_session_then_accepts_complete_a
     complete = _wait_index(root_dir, monitor_dir, handoff_dir, next_monitor_dir)
     complete_indexes = iter((complete, complete))
     monkeypatch.setattr(
-        "sase.axe.run_agent_wait_deps.build_wait_dependency_index",
-        lambda _project: next(complete_indexes),
+        "sase.axe.run_agent_wait_deps._build_runner_wait_index",
+        lambda *_args, **_kwargs: next(complete_indexes),
     )
 
     assert resolve_initial_wait_release(
@@ -279,8 +279,8 @@ def test_initial_wait_release_routes_full_bead_wait_to_owner_project(
         ),
     )
     monkeypatch.setattr(
-        "sase.axe.run_agent_wait_deps.build_wait_dependency_index",
-        lambda _project: WaitDependencyIndex.empty(),
+        "sase.axe.run_agent_wait_deps._build_runner_wait_index",
+        lambda *_args, **_kwargs: WaitDependencyIndex.empty(),
     )
     monkeypatch.setattr(
         "sase.axe.run_agent_wait_deps.mark_bead_wait_sync_hint",
@@ -360,12 +360,10 @@ def test_runner_fallback_index_failure_warns_and_stays_parked(
         outcome="completed",
     )
 
-    def _boom(_project: str) -> object:
+    def _boom(*_args: object, **_kwargs: object) -> object:
         raise RuntimeError("index exploded")
 
-    monkeypatch.setattr(
-        "sase.axe.run_agent_wait_deps.build_wait_dependency_index", _boom
-    )
+    monkeypatch.setattr("sase.axe.run_agent_wait_deps._build_runner_wait_index", _boom)
 
     assert not resolve_initial_wait_release(
         ["foo"],

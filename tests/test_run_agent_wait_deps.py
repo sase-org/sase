@@ -25,6 +25,14 @@ from tests.test_run_agent_wait_deps_initial import (
     test_runner_fallback_confirmation_failure_warns_and_stays_parked,
     test_runner_fallback_index_failure_warns_and_stays_parked,
 )
+from tests.test_run_agent_wait_deps_scope import (
+    test_runner_identity_dep_keeps_full_project_index,
+    test_runner_scopable_named_wait_skips_full_project_index,
+    test_runner_scoped_named_wait_matches_full_handoff_followup,
+    test_runner_scoped_named_wait_matches_full_newer_failed_run,
+    test_runner_unscopable_marker_calls_full_project_index,
+    test_waiting_marker_fallback_scopes_satisfied_at_index,
+)
 from tests.test_run_agent_wait_deps_waiting_marker import (
     test_waiting_marker_dependencies_resolved_matches_terminal_outcome_semantics,
     test_waiting_marker_fallback_resolves_non_monitor_completed_workflow_without_done,
@@ -50,8 +58,14 @@ __all__ = [
     "test_runner_confirmation_rejects_stale_agent_session_then_accepts_complete_agent_session",
     "test_runner_fallback_confirmation_failure_warns_and_stays_parked",
     "test_runner_fallback_index_failure_warns_and_stays_parked",
+    "test_runner_identity_dep_keeps_full_project_index",
+    "test_runner_scopable_named_wait_skips_full_project_index",
+    "test_runner_scoped_named_wait_matches_full_handoff_followup",
+    "test_runner_scoped_named_wait_matches_full_newer_failed_run",
+    "test_runner_unscopable_marker_calls_full_project_index",
     "test_waiting_marker_dependencies_resolved_matches_terminal_outcome_semantics",
     "test_waiting_marker_fallback_resolves_non_monitor_completed_workflow_without_done",
+    "test_waiting_marker_fallback_scopes_satisfied_at_index",
     "test_waiting_marker_fallback_waits_for_settled_gate_without_terminal_outcome",
     "test_waiting_marker_fallback_waits_for_settled_monitor_without_terminal_outcome",
 ]
