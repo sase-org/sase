@@ -311,6 +311,14 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "rescan; no marker is written here."
         ),
     ),
+    "src/sase/axe/run_agent_wait_deps.py:_scoped_project_rows": PathPassingReview(
+        exemption=(
+            "Read-only runner scope selection: agent_meta.json is read through "
+            "the read_meta callback only on a scope-key cache miss, then again "
+            "for each selected row; the runner never writes the scope-key "
+            "cache or any marker."
+        ),
+    ),
     "src/sase/finalizers/cli_status.py:_target_for_dir": PathPassingReview(
         exemption=(
             "Read-only final-status target assembly: done.json is inspected "
