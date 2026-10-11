@@ -43,6 +43,30 @@ def resolve_project(
                 hints=("sase project list",),
             )
         return canonical
+    from sase.sdd.plan_project import read_plan_project_file
+
+    frontmatter_project = read_plan_project_file(source_path)
+    if frontmatter_project is not None:
+        canonical = _canonicalize_project(frontmatter_project)
+        try:
+            from sase.bead.cross_project import origin_for_project_ref
+
+            origin = (
+                origin_for_project_ref(canonical) if canonical is not None else None
+            )
+        except Exception:
+            origin = None
+        if origin is None:
+            return DirectApprovalRefusal(
+                code="unknown_project",
+                header=f"\u2717 unknown project {frontmatter_project}",
+                detail_lines=(
+                    "The plan's project field must name a registered, enabled project.",
+                    "Pass one with -P/--project (see `sase project list`).",
+                ),
+                hints=("sase project list",),
+            )
+        return origin.project_key
     action_data = getattr(history, "action_data", None)
     if isinstance(action_data, dict) and action_data:
         project = _project_from_action_data(action_data)
@@ -159,4 +183,30 @@ def _canonicalize_project(project: str) -> str | None:
     return value
 
 
-__all__ = ["project_tag_for", "resolve_planner", "resolve_project"]
+def display_project_name(project: str) -> str:
+    """Return a project's effective display name for human-facing output."""
+    try:
+        from sase.project_aliases import registered_project_records
+        from sase.core.project_lifecycle_wire import effective_project_name
+
+        record = next(
+            (
+                item
+                for item in registered_project_records()
+                if item.project_name == project
+            ),
+            None,
+        )
+        if record is not None:
+            return effective_project_name(record)
+    except Exception:
+        pass
+    return project
+
+
+__all__ = [
+    "display_project_name",
+    "project_tag_for",
+    "resolve_planner",
+    "resolve_project",
+]

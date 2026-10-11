@@ -209,7 +209,12 @@ def render_direct_approval_dry_run(
         out.print(f"  {plan.title}")
     out.print(f"\n  [dim]plan[/dim]    {plan.source_path}")
     if plan.predicted_plan_ref:
-        out.print(f"          → {plan.predicted_plan_ref} in sase")
+        from sase.main.plan_direct_approval_project import display_project_name
+
+        out.print(
+            f"          → {plan.predicted_plan_ref} in "
+            f"{display_project_name(plan.project)}"
+        )
     route = (
         "agent session " + str(plan.placement.agent_session)
         if plan.placement.mode == "session"

@@ -72,6 +72,56 @@ def test_standalone_when_no_planner(tmp_path: Path, monkeypatch) -> None:
     assert "#coder(" in outcome.coder_prompt_preview
 
 
+def test_frontmatter_project_routes_before_working_directory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from sase.main.plan_direct_approval_project import resolve_project
+
+    plan = _write_plan(
+        tmp_path,
+        "routed.md",
+        "---\ntier: tale\nproject: Friendly Name\n---\n",
+    )
+    monkeypatch.setattr(
+        "sase.bead.cross_project.origin_for_project_ref",
+        lambda ref: (
+            type("Origin", (), {"project_key": "gh_org__project"})()
+            if ref == "gh_org__project"
+            else None
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases.resolve_project_alias_ref",
+        lambda ref: "gh_org__project" if ref == "Friendly Name" else ref,
+    )
+    result = resolve_project(DirectApprovalRequest("routed.md"), plan, object(), None)
+    assert result == "gh_org__project"
+
+
+def test_unknown_frontmatter_project_refuses_without_cwd_fallback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from sase.main.plan_direct_approval_project import resolve_project
+
+    plan = _write_plan(
+        tmp_path,
+        "unknown.md",
+        "---\ntier: tale\nproject: missing-project\n---\n",
+    )
+    monkeypatch.setattr(
+        "sase.bead.cross_project.origin_for_project_ref", lambda ref: None
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_direct_approval_project._project_from_cwd",
+        lambda: pytest.fail("must not fall through to cwd"),
+    )
+    result = resolve_project(DirectApprovalRequest("unknown.md"), plan, object(), None)
+    assert isinstance(result, DirectApprovalRefusal)
+    assert result.code == "unknown_project"
+    assert "missing-project" in result.header
+    assert "-P/--project" in " ".join(result.detail_lines)
+
+
 def test_epic_guard_without_explicit_kind(tmp_path: Path, monkeypatch) -> None:
     plan = _write_plan(tmp_path, "big.md", VALID_EPIC_PLAN)
     monkeypatch.chdir(tmp_path)

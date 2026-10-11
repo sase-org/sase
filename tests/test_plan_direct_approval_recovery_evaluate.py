@@ -12,6 +12,7 @@ import pytest
 
 from sase.main.plan_direct_approval_recovery import (
     PriorCoder,
+    _committed_plan_is_done,
     evaluate_approval_recovery,
 )
 from sase.main.plan_pending_diagnosis import PlanGateHistory
@@ -154,7 +155,7 @@ def test_committed_done_with_unknown_coder_refuses(
     )
     monkeypatch.setattr(
         "sase.main.plan_direct_approval_recovery._committed_plan_is_done",
-        lambda ref, cwd: True,
+        lambda ref, cwd, project: True,
     )
 
     recovery = evaluate_approval_recovery(
@@ -164,6 +165,38 @@ def test_committed_done_with_unknown_coder_refuses(
     assert recovery is not None
     assert recovery.verdict == "succeeded"
     assert recovery.prior_coders == ()
+
+
+def test_committed_done_resolves_against_project_primary_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    committed_plan = tmp_path / "committed.md"
+    committed_plan.write_text("---\nstatus: done\n---\n", encoding="utf-8")
+    primary = tmp_path / "primary"
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(
+        "sase.bead.workspace.resolve_primary_workspace_for_project",
+        lambda project: primary if project == "project-key" else None,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.workspace_context_for_plan_resolution",
+        lambda base: (seen.setdefault("base", Path(base)), 1),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_roots",
+        lambda workspace, number: (seen.setdefault("workspace", Path(workspace)),),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_reference_from_roots",
+        lambda ref, roots: type(
+            "Resolution", (), {"status": "exact", "resolved_path": committed_plan}
+        )(),
+    )
+
+    assert _committed_plan_is_done(
+        "plan:202609/work.md", tmp_path / "wrong", "project-key"
+    )
+    assert seen["base"] == primary
 
 
 def test_missing_gate_turn_and_no_code_recovers(
@@ -181,7 +214,7 @@ def test_missing_gate_turn_and_no_code_recovers(
     )
     monkeypatch.setattr(
         "sase.main.plan_direct_approval_recovery._committed_plan_is_done",
-        lambda ref, cwd: False,
+        lambda ref, cwd, project: False,
     )
 
     recovery = evaluate_approval_recovery(

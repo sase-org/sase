@@ -9,7 +9,7 @@ from sase.sdd.frontmatter import parse_frontmatter, remove_frontmatter_fields
 PLAN_PROJECT_FIELD = "project"
 
 
-def read_plan_project(content: str) -> str | None:
+def _read_plan_project(content: str) -> str | None:
     """Return a non-empty project value from valid plan frontmatter."""
     if not isinstance(content, str):
         return None
@@ -28,7 +28,7 @@ def read_plan_project(content: str) -> str | None:
 def read_plan_project_file(path: str | Path) -> str | None:
     """Read a plan's project value, returning ``None`` for unreadable files."""
     try:
-        return read_plan_project(Path(path).expanduser().read_text(encoding="utf-8"))
+        return _read_plan_project(Path(path).expanduser().read_text(encoding="utf-8"))
     except (OSError, UnicodeError):
         return None
 
@@ -66,7 +66,6 @@ def plan_project_for_artifacts_dir(artifacts_dir: str) -> str | None:
 __all__ = [
     "PLAN_PROJECT_FIELD",
     "plan_project_for_artifacts_dir",
-    "read_plan_project",
     "read_plan_project_file",
     "strip_plan_project",
 ]

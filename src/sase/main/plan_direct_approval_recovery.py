@@ -148,7 +148,7 @@ def evaluate_approval_recovery(
                 plan_argument=committed_ref or str(local_plan),
                 refusal_code="already_implemented",
             )
-    if committed_ref and _committed_plan_is_done(committed_ref, cwd):
+    if committed_ref and _committed_plan_is_done(committed_ref, cwd, project):
         return CoderRecovery(
             verdict="succeeded",
             prior_coders=priors,
@@ -428,7 +428,7 @@ def _project_for_artifact_dir(directory: Path) -> str | None:
     return info.project_name if info is not None else None
 
 
-def _committed_plan_is_done(committed_ref: str, cwd: Path | None) -> bool:
+def _committed_plan_is_done(committed_ref: str, cwd: Path | None, project: str) -> bool:
     """Best-effort safety net: a committed plan with ``status: done`` succeeded."""
     try:
         from sase.core.paths import sase_home
@@ -441,7 +441,11 @@ def _committed_plan_is_done(committed_ref: str, cwd: Path | None) -> bool:
     except Exception:
         return False
     try:
-        base = cwd if cwd is not None else Path.cwd()
+        from sase.bead.workspace import resolve_primary_workspace_for_project
+
+        base = resolve_primary_workspace_for_project(project)
+        if base is None:
+            base = cwd if cwd is not None else Path.cwd()
         workspace_dir, workspace_num = workspace_context_for_plan_resolution(base)
         roots = resolve_plan_roots(workspace_dir, workspace_num)
         resolution = resolve_plan_reference_from_roots(committed_ref, roots=roots)

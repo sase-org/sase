@@ -10,7 +10,7 @@ import pytest
 
 from sase.sdd.plan_project import (
     plan_project_for_artifacts_dir,
-    read_plan_project,
+    _read_plan_project,
     read_plan_project_file,
     strip_plan_project,
 )
@@ -28,7 +28,7 @@ from sase.sdd.plan_project import (
     ],
 )
 def test_read_plan_project_is_tolerant(content: str, expected: str | None) -> None:
-    assert read_plan_project(content) == expected
+    assert _read_plan_project(content) == expected
 
 
 def test_read_plan_project_file_handles_missing_and_invalid_utf8(
