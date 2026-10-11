@@ -1030,6 +1030,10 @@ When a plan or epic gate with at least one decision auto-resolves (`source`
 - dedup key `plan-decisions-receipt-<request id>`;
 - plans with no decisions post nothing.
 
+A verified correction row that stayed on renders `corrects: '<quote>'`. A
+`claim_not_found` row left off without human review renders `claim not found` so the
+skipped correction is not silently lost.
+
 Visibility is an intentional exception to the Silent Notifications rules: visible in the
 ACE inbox direct page and delivered quietly by Telegram, with no unread bump, toast, or
 bell, while remaining visible to `sase notify list`.
@@ -1521,7 +1525,9 @@ Normalization runs once at the top of `execute_gate_selection`, before
 Omitted ids take their effective default, so an omitted value and an explicit default
 share one `input_identity`. Disagreeing `decision_*` values across selected options fail
 as `decision_conflict` before any receipt or command. An agent memory value of true
-fails as `memory_decision_requires_human` unless its effective default is already true.
+fails as `memory_decision_requires_human` unless its effective default is already true
+(a verified `asked`, `correction`, or `inherited` row). `claim_not_found` rows stay off
+under no-human review and join the unrequested set for coder follow-up.
 
 Submissions carry the displayed `review_revision`. A mismatch fails as `stale_review`
 before any side effect; an absent revision stays unchecked so mobile and older clients

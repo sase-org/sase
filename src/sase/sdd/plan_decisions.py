@@ -22,12 +22,14 @@ if TYPE_CHECKING:
 
 from sase.sdd import plan_decisions_host as _plan_decisions_host
 from sase.sdd._plan_decisions_shared import (
+    CORRECTS_UNVERIFIED_CODE as CORRECTS_UNVERIFIED_CODE,
     DECISION_SCHEMA_PREFIX as DECISION_SCHEMA_PREFIX,
     OVERLAP_CODE as OVERLAP_CODE,
     SEVEN_BINDINGS as SEVEN_BINDINGS,
     UNVERIFIED_CODE as UNVERIFIED_CODE,
     artifacts_dir_from_env as artifacts_dir_from_env,
     in_agent_context as in_agent_context,
+    memory_quote_texts as memory_quote_texts,
 )
 from sase.sdd.plan_decisions_bindings import (
     digest_binding as digest_binding,
@@ -79,10 +81,12 @@ except Exception:  # pragma: no cover - import surface stays available
 
 
 __all__ = [
+    "CORRECTS_UNVERIFIED_CODE",
     "DECISION_SCHEMA_PREFIX",
     "OVERLAP_CODE",
     "SEVEN_BINDINGS",
     "UNVERIFIED_CODE",
+    "memory_quote_texts",
     "build_definitions",
     "resolve_direct_with_definitions",
     "compile_input_properties",

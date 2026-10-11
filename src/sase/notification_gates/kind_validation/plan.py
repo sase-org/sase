@@ -250,6 +250,8 @@ def _validate_plan_decisions(spec: GateSpec, tier: PlanGateTier) -> None:
                 "not_asked",
                 "quote_not_found",
                 "inherited",
+                "correction",
+                "claim_not_found",
             ):
                 raise ValueError(f"invalid provenance for {decision_id!r}")
         frozen_digest = digest_binding(list(frozen))

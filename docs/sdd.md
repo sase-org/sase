@@ -668,18 +668,24 @@ checked against the displayed revision; a stale revision fails before execution.
 A memory decision is a toggle with `memory: [<selector>, ...]`. Selectors use the
 [memory-read forms](memory.md#audited-reads): a note, a web, or a `web:keyword` strand.
 They must resolve, and separate decisions cannot cover the same resolved memory file.
-Use `default: false` for a proposed memory change the human has not requested. A
-`default: true` memory decision needs a `requested` quote of 3–300 characters from
-human-authored text; memory decisions cannot carry `why` or `choices`.
+Use `default: false` for a proposed memory change the human has not requested and that
+does not correct a false claim. A `default: true` memory decision needs one quote of
+3–300 characters: `requested` from human-authored text, or `corrects` copied verbatim
+from the note's current text, naming a claim that is false or misleading or that the
+plan's own work makes so. Never carry both; `requested` wins when the user asked. Memory
+decisions cannot carry `why` or `choices`.
 
-SASE verifies that quote against the original human-typed launch prompt, human plan
+SASE verifies `requested` against the original human-typed launch prompt, human plan
 feedback, or human free-text question answers in the planner's chain. Generated macro
 text, model replies, selected option labels, auto-approval, and records without
-authorship provenance do not establish that request. An unverified request makes the
-effective default false; agent-context validation and proposal reject an authored true
-default without a verified quote. Validation outside an agent defers quote verification
-to proposal. An agent cannot turn a memory decision on unless its effective default is
-already true. Feedback about a memory decision remains provisional. See
+authorship provenance do not establish that request. It verifies `corrects` against the
+current raw text of the memory files that decision covers. Provenance is `asked` or
+`correction` when the quote matches, `quote_not_found` or `claim_not_found` when it does
+not, and `inherited` when an epic already authorized the same note. An unverified quote
+makes the effective default false; agent-context validation and proposal reject an
+authored true default without a verified quote. Validation outside an agent defers quote
+verification to proposal. An agent cannot turn a memory decision on unless its effective
+default is already true. Feedback about a memory decision remains provisional. See
 [launch authorship](prompt.md#launch-authorship) and the
 [gate protocol](notifications.md#plan-decisions).
 

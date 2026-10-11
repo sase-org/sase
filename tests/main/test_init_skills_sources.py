@@ -218,6 +218,8 @@ def _disable_prettier_for_skill_generation(
                 "only when the answer changes the tier, size, phase graph, or architecture",
                 "Never embed a decision you should make yourself",
                 "do not re-ask the epic's DECISIONS",
+                "If the planned work would leave a memory note stating something false",
+                "/sase_memory_write",
                 "sase plan validate sase_plan_<name>.md --explain",
                 "sase plan validate sase_plan_<name>.md",
                 "expected schema and all diagnostics",

@@ -54,7 +54,8 @@ def _render_provisional_decisions_section(
         if is_memory and value is True:
             lines.append(
                 f"- {decision_id} = {value_text} "
-                "(not authorization; default it on only by quoting human feedback text)"
+                "(not authorization; default it on only by quoting human feedback text "
+                "in `requested:` or the false claim in `corrects:`)"
             )
         elif default_text:
             lines.append(f"- {decision_id} = {value_text} (was {default_text})")

@@ -655,18 +655,18 @@ matches `sase bead show`.
 
 `sase plan validate PLAN_FILE` reads the required `tier: tale|epic` property and
 validates exactly one path without requiring a project or agent context. With Plan
-Decisions, agent-context validation also checks memory selectors and human-request
-quotes; outside an agent, quote verification is deferred to proposal. It reports every
-schema problem in one run and prints the expected tier schema plus a minimal valid
-example on failure. Use `-e/--explain` for tier-specific authoring guidance, `-j/--json`
-for the stable machine-readable envelope, or `-q/--quiet` to suppress the successful
-human summary. A plan that has decisions also prints the Decision Sheet after the
-result, and, when the live `%auto` spelling covers the plan's tier,
-`auto-approved: every decision takes its default`. When the spelling does not cover the
-tier, sase prints `%auto:<mode>` does not cover `<tier>` plans; this plan waits for
-review instead. In `--json` mode stdout stays one JSON document: the sheet, the `%auto`
-note, and the outside-agent quote-verification note live inside the `decisions` envelope
-while the same human text goes to stderr. See the
+Decisions, agent-context validation also checks memory selectors and human-request and
+corrected-claim quotes; outside an agent, quote verification is deferred to proposal. It
+reports every schema problem in one run and prints the expected tier schema plus a
+minimal valid example on failure. Use `-e/--explain` for tier-specific authoring
+guidance, `-j/--json` for the stable machine-readable envelope, or `-q/--quiet` to
+suppress the successful human summary. A plan that has decisions also prints the
+Decision Sheet after the result, and, when the live `%auto` spelling covers the plan's
+tier, `auto-approved: every decision takes its default`. When the spelling does not
+cover the tier, sase prints `%auto:<mode>` does not cover `<tier>` plans; this plan
+waits for review instead. In `--json` mode stdout stays one JSON document: the sheet,
+the `%auto` note, and the outside-agent quote-verification note live inside the
+`decisions` envelope while the same human text goes to stderr. See the
 [validation output](sdd.md#plan-frontmatter-schema-and-validation). The removed
 `-t/--tier` option is now invalid command usage. A valid plan exits 0, a validation
 failure exits 1, and invalid command usage exits 2.

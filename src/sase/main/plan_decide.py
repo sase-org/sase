@@ -500,13 +500,15 @@ def decision_card_lines(
                 if isinstance(quote_raw, str) and quote_raw.strip()
                 else ""
             )
-            if provenance == "quote_not_found":
+            if provenance in ("quote_not_found", "claim_not_found"):
                 if value is True:
                     bits += f" · {chip.removesuffix(' · off')}"
                 elif chip:
                     bits += f" · {chip}"
             elif provenance == "asked" and quote:
                 bits += f" · you asked: {quote!r}"
+            elif provenance == "correction" and quote:
+                bits += f" · corrects: {quote!r}"
             elif chip:
                 bits += f" · {chip}"
             if _memory_is_new(memory):

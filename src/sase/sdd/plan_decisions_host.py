@@ -11,10 +11,12 @@ from typing import Any
 
 from sase.notification_gates.models import GateError
 from sase.sdd._plan_decisions_shared import (
+    CORRECTS_UNVERIFIED_CODE,
     OVERLAP_CODE,
     UNVERIFIED_CODE,
     PlanDecisionError,
     artifacts_dir_from_env,
+    memory_quote_texts,
     require_binding,
     resolve_memory_records,
 )
@@ -62,28 +64,52 @@ def _build_host_facts(
         except PlanDecisionError:
             raise
         requested = getattr(decision, "requested", None)
-        if not isinstance(requested, str) or not requested.strip():
+        if isinstance(requested, str) and requested.strip():
+            if not human_texts:
+                facts[decision.id] = {
+                    "requested_verified": False,
+                    "provenance": "quote_not_found",
+                    "resolved": records,
+                }
+                continue
+            try:
+                match = _quote_match_binding(requested, human_texts)
+            except Exception:
+                match = {"verified": False}
+            verified = bool(match.get("verified"))
             facts[decision.id] = {
-                "requested_verified": False,
-                "provenance": "not_asked",
+                "requested_verified": verified,
+                "provenance": "asked" if verified else "quote_not_found",
                 "resolved": records,
             }
             continue
-        if not human_texts:
+        corrects = getattr(decision, "corrects", None)
+        if isinstance(corrects, str) and corrects.strip():
+            try:
+                note_texts = memory_quote_texts(list(selectors))
+            except Exception:
+                note_texts = []
+            if not note_texts:
+                facts[decision.id] = {
+                    "requested_verified": False,
+                    "provenance": "claim_not_found",
+                    "resolved": records,
+                }
+                continue
+            try:
+                match = _quote_match_binding(corrects, note_texts)
+            except Exception:
+                match = {"verified": False}
+            verified = bool(match.get("verified"))
             facts[decision.id] = {
-                "requested_verified": False,
-                "provenance": "quote_not_found",
+                "requested_verified": verified,
+                "provenance": "correction" if verified else "claim_not_found",
                 "resolved": records,
             }
             continue
-        try:
-            match = _quote_match_binding(requested, human_texts)
-        except Exception:
-            match = {"verified": False}
-        verified = bool(match.get("verified"))
         facts[decision.id] = {
-            "requested_verified": verified,
-            "provenance": "asked" if verified else "quote_not_found",
+            "requested_verified": False,
+            "provenance": "not_asked",
             "resolved": records,
         }
     return facts
@@ -151,27 +177,12 @@ def _check_memory_overlap(validation: Any) -> None:
             seen[key] = decision.id
 
 
-def _closest_sentence_for(
-    requested: str,
-    artifacts_dir: str = "",
-) -> str | None:
-    """Return the matcher's closest human sentence for a quote."""
-    directory = artifacts_dir or artifacts_dir_from_env()
-    if not directory or not requested.strip():
+def _closest_sentence_for(quote: str, texts: list[dict[str, str]]) -> str | None:
+    """Return the matcher's closest sentence from *texts* for *quote*."""
+    if not quote.strip() or not texts:
         return None
     try:
-        from sase.sdd.plan_human_text import human_authored_texts
-
-        texts = [
-            {"source": item.source, "ref": item.ref, "text": item.text}
-            for item in human_authored_texts(directory)
-        ]
-    except Exception:
-        return None
-    if not texts:
-        return None
-    try:
-        match = _quote_match_binding(requested, texts)
+        match = _quote_match_binding(quote, texts)
     except Exception:
         return None
     closest = match.get("closest")
@@ -180,6 +191,22 @@ def _closest_sentence_for(
         if isinstance(sentence, str) and sentence.strip():
             return sentence.strip()
     return None
+
+
+def _human_texts_for(artifacts_dir: str = "") -> list[dict[str, str]]:
+    """Load host-classified human-authored texts for ``requested:`` checks."""
+    directory = artifacts_dir or artifacts_dir_from_env()
+    if not directory:
+        return []
+    try:
+        from sase.sdd.plan_human_text import human_authored_texts
+
+        return [
+            {"source": item.source, "ref": item.ref, "text": item.text}
+            for item in human_authored_texts(directory)
+        ]
+    except Exception:
+        return []
 
 
 def validate_host_checks(
@@ -236,8 +263,33 @@ def validate_host_checks(
         fact = facts.get(decision.id, {})
         if fact.get("requested_verified"):
             continue
+        requested = getattr(decision, "requested", None)
+        corrects = getattr(decision, "corrects", None)
+        if isinstance(corrects, str) and corrects.strip():
+            selectors = list(getattr(decision, "memory", ()) or ())
+            try:
+                note_texts = memory_quote_texts(selectors)
+            except Exception:
+                note_texts = []
+            closest = _closest_sentence_for(corrects, note_texts)
+            paths = ", ".join(item["ref"] for item in note_texts) or ", ".join(
+                selectors
+            )
+            message = f"memory decision '{decision.id}' corrects quote was not found in {paths}"
+            if closest:
+                message += f'; closest: "{closest}"'
+            extra.append(
+                PlanDiagnostic(
+                    severity=PlanDiagnosticSeverity.ERROR,
+                    code=CORRECTS_UNVERIFIED_CODE,
+                    field_path=f"decisions.{decision.id}.corrects",
+                    message=message,
+                    line=None,
+                )
+            )
+            continue
         closest = _closest_sentence_for(
-            str(getattr(decision, "requested", "") or ""), artifacts_dir
+            str(requested or ""), _human_texts_for(artifacts_dir)
         )
         message = f"memory decision {decision.id!r} quote was not found in human text"
         if closest:

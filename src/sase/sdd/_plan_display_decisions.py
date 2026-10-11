@@ -24,6 +24,8 @@ _PROVENANCE_CHIPS = {
     "not_asked": "not asked",
     "quote_not_found": "\u26a0 quote not found \u00b7 off",
     "inherited": "approved in epic",
+    "correction": "corrects note",
+    "claim_not_found": "\u26a0 claim not found \u00b7 off",
 }
 
 

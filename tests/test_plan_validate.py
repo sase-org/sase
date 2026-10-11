@@ -105,6 +105,7 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
         "decisions.<id>.why",
         "decisions.<id>.memory",
         "decisions.<id>.requested",
+        "decisions.<id>.corrects",
         "decisions.<id>.answer",
         "links",
         "create_time",

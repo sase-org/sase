@@ -16,6 +16,7 @@ from typing import Any
 
 OVERLAP_CODE = "decision-memory-overlap"
 UNVERIFIED_CODE = "decision-requested-unverified"
+CORRECTS_UNVERIFIED_CODE = "decision-corrects-unverified"
 
 DECISION_SCHEMA_PREFIX = "decision_"
 
@@ -232,6 +233,58 @@ def resolve_memory_records(
     return records, note_keys
 
 
+def memory_quote_texts(selectors: list[str]) -> list[dict[str, str]]:
+    """Return raw note texts for ``corrects:`` verification.
+
+    Each existing file ``resolve_memory_records`` would count for *selectors*
+    becomes ``{source: "memory", ref: <canonical relative path>, text: <raw>}``.
+    Missing (future-grant) targets contribute nothing. Raw text includes
+    frontmatter so a stale ``description:`` can be quoted.
+    """
+    from sase.memory.selector import resolve_memory_selector_batch
+
+    texts: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    def _append(ref: str, raw: str) -> None:
+        if not ref or ref in seen:
+            return
+        seen.add(ref)
+        texts.append({"source": "memory", "ref": ref, "text": raw})
+
+    for selector in selectors:
+        try:
+            batch = resolve_memory_selector_batch([selector])
+        except Exception:
+            continue
+        for note in batch.notes:
+            try:
+                _append(
+                    str(note.content.path.canonical_path),
+                    str(note.content.raw_text),
+                )
+            except Exception:
+                continue
+        for section in batch.web_sections:
+            try:
+                web = section.web
+                _append(
+                    str(getattr(web, "relative_path", web.slug)),
+                    str(web.raw_text),
+                )
+            except Exception:
+                pass
+            for node in section.nodes:
+                try:
+                    _append(
+                        str(node.strand.relative_path),
+                        str(node.strand.raw_text),
+                    )
+                except Exception:
+                    continue
+    return texts
+
+
 def _strand_selector_is_prefix_ambiguous(selector: str) -> bool:
     """Return whether a strand selector is a prefix of existing strands.
 
@@ -367,6 +420,7 @@ def _grant_record_for_missing_selector(
 
 
 __all__ = [
+    "CORRECTS_UNVERIFIED_CODE",
     "DECISION_SCHEMA_PREFIX",
     "OVERLAP_CODE",
     "SEVEN_BINDINGS",
@@ -374,6 +428,7 @@ __all__ = [
     "PlanDecisionError",
     "artifacts_dir_from_env",
     "in_agent_context",
+    "memory_quote_texts",
     "require_binding",
     "resolve_memory_records",
 ]

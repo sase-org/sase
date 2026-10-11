@@ -220,6 +220,63 @@ def test_host_facts_verify_requested_quote_for_default_false(
     assert facts["tui_note"]["provenance"] == "quote_not_found"
 
 
+def test_card_correction_shows_corrects_quote() -> None:
+    from sase.main.plan_decide import decision_card_lines
+    from sase.sdd.plan_decisions import sheet_binding
+
+    definitions = make_definitions()
+    sheet = sheet_binding(definitions, {"grouping": "pane", "tui_note": True}, 4)
+    quote = "sase plan approve writes the durable plan"
+    for row in sheet["rows"]:
+        if row["id"] == "tui_note" and isinstance(row.get("memory"), dict):
+            row["memory"]["provenance"] = "correction"
+            row["memory"]["quote"] = quote
+    rows = [
+        {"id": "grouping", "value": "pane", "source": "default", "changed": False},
+        {"id": "tui_note", "value": True, "source": "default", "changed": False},
+    ]
+    lines = decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=True,
+    )
+    tui_line = next(line for line in lines if "tui_note" in line)
+    assert f"corrects: {quote!r}" in tui_line
+    assert "you asked:" not in tui_line
+
+
+def test_card_human_override_on_claim_not_found_row_drops_stale_off() -> None:
+    from sase.main.plan_decide import decision_card_lines
+    from sase.sdd.plan_decisions import sheet_binding
+
+    definitions = make_definitions()
+    sheet = sheet_binding(definitions, {"grouping": "pane", "tui_note": True}, 4)
+    for row in sheet["rows"]:
+        if row["id"] == "tui_note" and isinstance(row.get("memory"), dict):
+            row["memory"]["provenance"] = "claim_not_found"
+            row["memory"]["quote"] = "sase plan approve writes the durable plan"
+    rows = [
+        {"id": "grouping", "value": "pane", "source": "default", "changed": False},
+        {"id": "tui_note", "value": True, "source": "submitted", "changed": True},
+    ]
+    lines = decision_card_lines(
+        kind_label="tale",
+        plan_name="keymap_help_overlay",
+        review_revision=4,
+        sheet=sheet,
+        rows=rows,
+        verdict="coder + commit",
+        dry_run=True,
+    )
+    tui_line = next(line for line in lines if "tui_note" in line)
+    assert "claim not found" in tui_line
+    assert "· off" not in tui_line
+
+
 def test_card_human_override_on_quote_not_found_row_drops_stale_off() -> None:
     from sase.main.plan_decide import decision_card_lines
     from sase.sdd.plan_decisions import sheet_binding

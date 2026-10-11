@@ -48,7 +48,7 @@ def _is_unverified_row(
     memory = row.get("memory")
     if not isinstance(memory, dict):
         return False
-    if str(memory.get("provenance") or "") == "quote_not_found":
+    if str(memory.get("provenance") or "") in ("quote_not_found", "claim_not_found"):
         return True
     if definition is not None:
         authored = definition.get("default")
@@ -56,6 +56,14 @@ def _is_unverified_row(
         if authored is True and effective is False and row.get("value") is False:
             return True
     return False
+
+
+def _unverified_warning_line(memory: dict[str, Any]) -> str:
+    quote = memory.get("quote")
+    quote_text = str(quote).strip() if isinstance(quote, str) else ""
+    if str(memory.get("provenance") or "") == "claim_not_found":
+        return f'⚠ "{quote_text}" — not in the note · off until you turn it on'
+    return f'⚠ "{quote_text}" — not in your messages · off until you turn it on'
 
 
 def _collapsed_row_text(
@@ -96,13 +104,8 @@ def _collapsed_row_text(
             second += f" · {provenance}"
         text.append(second, style="dim")
         if _is_unverified_row(row, definition):
-            quote = memory.get("quote")
-            quote_text = str(quote).strip() if isinstance(quote, str) else ""
             text.append("\n")
-            text.append(
-                f'⚠ "{quote_text}" — not in your messages · off until you turn it on',
-                style="yellow",
-            )
+            text.append(_unverified_warning_line(memory), style="yellow")
         elif ask.strip():
             truncated = ask.strip()
             if len(truncated) > 60:
@@ -193,9 +196,8 @@ def _expanded_row_text(
         provenance = provenance_chip(str(memory.get("provenance") or ""))
         quote = memory.get("quote")
         if _is_unverified_row(row, definition):
-            quote_text = str(quote).strip() if isinstance(quote, str) else ""
             text.append(
-                f'  ⚠ "{quote_text}" — not in your messages · off until you turn it on',
+                f"  {_unverified_warning_line(memory)}",
                 style="yellow",
             )
             text.append("\n")
@@ -208,7 +210,12 @@ def _expanded_row_text(
                 text.append(f" · {provenance}", style="dim")
             text.append("\n")
             if isinstance(quote, str) and quote.strip():
-                text.append(f'  you asked: "{quote.strip()}"', style="dim")
+                label = (
+                    "corrects"
+                    if str(memory.get("provenance") or "") == "correction"
+                    else "you asked"
+                )
+                text.append(f'  {label}: "{quote.strip()}"', style="dim")
                 text.append("\n")
     return text
 

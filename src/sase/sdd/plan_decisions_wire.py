@@ -49,6 +49,11 @@ def validated_to_wire_dict(validation_plan: Any) -> dict[str, Any]:
                     else {}
                 ),
                 **(
+                    {"corrects": decision.corrects}
+                    if getattr(decision, "corrects", None) is not None
+                    else {}
+                ),
+                **(
                     {"answer": decision.answer}
                     if getattr(decision, "answer", None) is not None
                     else {}

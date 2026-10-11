@@ -548,8 +548,18 @@ def _receipt_memory_lines(
     note_names = ", ".join(names)
     if value is True:
         chip = provenance_chip(provenance)
-        detail = f"you asked: {quote_text!r}" if quote_text else (chip or "on")
+        if provenance == "correction" and quote_text:
+            detail = f"corrects: {quote_text!r}"
+        elif quote_text:
+            detail = f"you asked: {quote_text!r}"
+        else:
+            detail = chip or "on"
         return [f"\U0001f9e0 {note_names} \u00b7 {detail}"]
+    if provenance == "claim_not_found":
+        return [
+            f"\u26a0 \U0001f9e0 {decision_id} = no \u00b7 claim not found "
+            "\u2014 left off because no human reviewed this plan"
+        ]
     if provenance in ("not_asked", "quote_not_found"):
         return [
             f"\u26a0 \U0001f9e0 {decision_id} = no \u00b7 not asked "

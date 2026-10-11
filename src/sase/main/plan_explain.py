@@ -17,10 +17,13 @@ lowercase letter, use only lowercase letters, digits, and underscores, and have 
 `capacity`) are rejected. An optional one-line `why` (at most 100 chars) explains an
 ordinary decision's default. A toggle with `memory:` is a memory decision: a non-empty
 list of memory selectors (`note.md`, `web`, or `web:keyword`) covering every memory
-note the plan changes. A memory decision defaults to `true` only with a `requested:`
-quote (3–300 chars) of the user's complete affirmative request; otherwise it defaults
-to `false`. Memory decisions take no `choices:` and no `why:`. Never author the
-system-written `answer:`, `decided_by:`, or `decided_via:` fields. Mark the prose each
+note the plan changes. A memory decision defaults to `true` only with one quote that
+justifies it: `requested:` (3–300 chars) quotes the user's complete affirmative
+request, or `corrects:` (3–300 chars) copies verbatim from the note's current text a
+claim that is false or misleading, or that the plan's own work makes so. Otherwise it
+defaults to `false`; never carry both. Memory decisions take no `choices:` and no
+`why:`. Never author the system-written `answer:`, `decided_by:`, or `decided_via:`
+fields. Mark the prose each
 answer selects with `> [!decision] <id>`, `> [!decision] <id> = <key>`, or
 `> [!decision] <id> = no` callouts. `phases[].when` is reserved and always an error.
 Order decisions by importance with memory decisions last. Under `%auto`, embed only

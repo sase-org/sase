@@ -83,6 +83,7 @@ class _PlanDecision:
     default: Any
     memory: tuple[str, ...] | None
     requested: str | None
+    corrects: str | None
     answer: Any
 
 
@@ -313,6 +314,7 @@ def _validated_decision_from_dict(payload: dict[str, Any]) -> _PlanDecision:
         default=payload.get("default"),
         memory=selectors,
         requested=_optional_str(payload.get("requested")),
+        corrects=_optional_str(payload.get("corrects")),
         answer=payload.get("answer"),
     )
 
