@@ -521,15 +521,9 @@ class WaitDependencyIndexQueries(
                 if excluded_key is None or key != excluded_key:
                     member_dirs.setdefault(key, candidate.artifact_dir)
                 return
-            # Submitted planner-row aliases currently retain only the timestamp in
-            # ``named``.  The timestamp is still enough to recover their raw member
-            # from the artifact index (and including a collision is safely
-            # conservative for release confirmation).
-            add_candidates(
-                artifact
-                for artifact in self.artifacts_by_dir.values()
-                if artifact.timestamp == candidate.timestamp
-            )
+            # Submitted planner-row aliases retain their source artifact dir so
+            # scoped indexes can recover membership without scanning every row
+            # for a timestamp collision across projects.
 
         def add_name_members(name: str) -> None:
             if name.startswith("@"):

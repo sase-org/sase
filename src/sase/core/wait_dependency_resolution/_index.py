@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-from sase.plan_chain import (
-    agent_session_parallel_value,
-    agent_session_value,
-)
-
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,7 +22,6 @@ from sase.core.agent_tribe import (
 )
 
 from ._artifact_state import (
-    agent_session_base_from_meta,
     artifact_failed_for_identity,
     artifact_is_resolved,
     artifact_succeeded_for_identity,
@@ -44,6 +38,7 @@ from ._submitted_plans import (
     submitted_plan_artifact,
     submitted_plan_meta_preconditions_hold,
 )
+from ._scope import artifact_row_identity
 from ._tribe_binding import TribeMemberRow
 from ._types import (
     WAIT_SUCCESS_OUTCOMES,
@@ -278,8 +273,9 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         )
         timestamp = artifact_dir.name
 
-        name = meta.get("name")
-        if isinstance(name, str):
+        identity = artifact_row_identity(meta)
+        name = identity.name
+        if name is not None:
             self._record_named_candidate(
                 name,
                 WaitCandidate(
@@ -311,32 +307,29 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         else:
             plan_artifact = None
         if plan_artifact is not None:
+            assert identity.planner_row_name is not None
+            assert identity.planner_row_name == plan_artifact.planner_row_name
             self._record_named_candidate(
-                plan_artifact.planner_row_name,
-                WaitCandidate(timestamp=timestamp, is_resolved=True, is_done=True),
+                identity.planner_row_name,
+                WaitCandidate(
+                    timestamp=timestamp,
+                    is_resolved=True,
+                    is_done=True,
+                    name=identity.planner_row_name,
+                    project_name=project_name,
+                    artifact_dir=str(artifact_dir),
+                ),
                 prefer_on_tie=True,
             )
 
-        workflow_name = meta.get("workflow_name")
-        agent_session_name = agent_session_base_from_meta(meta)
+        workflow_name = identity.workflow_name
+        agent_session_name = identity.agent_session_name
         parent_timestamp = (
             meta.get("parent_timestamp")
             if isinstance(meta.get("parent_timestamp"), str)
             else None
         )
-        clan_name = meta.get("agent_clan")
-        if not isinstance(clan_name, str) or not clan_name:
-            # legacy agent-family spelling: pre-rename metas carry
-            # ``agent_family``; ``agent_session_value`` reads the new key first.
-            session_name = agent_session_value(meta)
-            if (
-                agent_session_parallel_value(meta) is True
-                and isinstance(session_name, str)
-                and session_name
-            ):
-                clan_name = session_name
-        if not isinstance(clan_name, str) or not clan_name:
-            clan_name = None
+        clan_name = identity.clan_name
         generation: str | None = None
         if clan_name is not None:
             generation_value = meta.get("agent_clan_generation")
@@ -350,7 +343,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             _epic_follow_facts_from_meta(meta)
         )
         artifact = ArtifactCandidate(
-            name=name if isinstance(name, str) else str(workflow_name or ""),
+            name=name if name is not None else str(meta.get("workflow_name") or ""),
             timestamp=timestamp,
             project_name=project_name,
             artifact_dir=str(artifact_dir),
