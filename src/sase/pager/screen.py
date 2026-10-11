@@ -46,6 +46,10 @@ class PagerScreen(  # type: ignore[misc]
 
     CSS = PAGER_CSS
 
+    # Tests pin this on the screen; production never sets it. Writes
+    # forward to the focused view via ``_VIEW_STATE_ATTRS``.
+    _time_band_now_epoch: int | None
+
     BINDINGS = [
         Binding("left_parenthesis", "history_older", "Older", show=False),
         Binding("right_parenthesis", "history_newer", "Newer", show=False),

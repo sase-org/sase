@@ -286,7 +286,17 @@ class PagerTrailMixin:
             trail.add_class("hidden")
             trail.remove_class("compact")
             if not framed:
-                rule.remove_class("hidden")
+                updater = getattr(self, "_update_chrome_rule_for_time_band", None)
+                if callable(updater):
+                    time_visible = False
+                    try:
+                        time_widget = self.query_one("#pager-time", Static)
+                        time_visible = not time_widget.has_class("hidden")
+                    except Exception:
+                        pass
+                    updater(time_visible)
+                else:
+                    rule.remove_class("hidden")
             return
 
         width = self._trail_paint_width()

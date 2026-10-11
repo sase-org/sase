@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -27,9 +28,10 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_visual_idle,
 )
 
-FIXED_NOW = datetime(2026, 9, 27, 12, 0, 0)
+_NY = ZoneInfo("America/New_York")
+FIXED_NOW = datetime(2026, 9, 27, 12, 0, 0, tzinfo=_NY)
 FIXED_NOW_TS = FIXED_NOW.timestamp()
-T0_TS = datetime(2026, 9, 27, 7, 30, 0).timestamp()
+T0_TS = datetime(2026, 9, 27, 7, 30, 0, tzinfo=_NY).timestamp()
 
 
 def pin_visual_time(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,8 +39,9 @@ def pin_visual_time(monkeypatch: pytest.MonkeyPatch) -> None:
 
     Agent-relative labels come from ``pin_agents_visual_now``; the
     running Reply receipt stamps durations with ``time.time``.
+    ``local_now`` is naive configured-tz wall time, so the pin strips tzinfo.
     """
-    pin_agents_visual_now(monkeypatch, FIXED_NOW)
+    pin_agents_visual_now(monkeypatch, FIXED_NOW.replace(tzinfo=None))
     monkeypatch.setattr(time, "time", lambda: FIXED_NOW_TS)
 
 

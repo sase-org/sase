@@ -327,7 +327,7 @@ def _section_for_state(state: str) -> PagerSection:
 
 def _inject_time_band_state(screen: PagerScreen, state: str) -> None:
     """Populate deterministic per-section history state for *state*."""
-    screen._time_band_now_epoch = _NOW  # type: ignore[attr-defined]
+    screen._time_band_now_epoch = _NOW
     identity = screen.document.sections[0].identity
     if state == "diff-range":
         pin = replace(

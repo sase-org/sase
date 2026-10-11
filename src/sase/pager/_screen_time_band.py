@@ -33,11 +33,29 @@ class PagerTimeBandMixin:
     _time_band_labels: tuple[TimeBandTarget, ...]
     _time_band_hints: dict[str, int]
     _time_band_signature: object | None
+    _time_band_now_epoch: int | None
 
     def _init_time_band_state(self: Any) -> None:
         self._time_band_labels = ()
         self._time_band_hints = {}
         self._time_band_signature = None
+        self._time_band_now_epoch = None
+
+    def _now_epoch(self: Any) -> int:
+        """Return the pinned time-band epoch, or wall-clock seconds.
+
+        Tests set :attr:`_time_band_now_epoch`; production never does, so
+        the wall clock is unchanged at runtime.
+        """
+        try:
+            pinned = getattr(self, "_time_band_now_epoch", None)
+            if pinned is not None:
+                value = int(pinned)
+                if value:
+                    return value
+        except Exception:
+            pass
+        return int(time.time())
 
     def _time_band_mode(self: Any) -> str:
         """Return ``hidden``/``now``/``past`` for the current section."""
@@ -67,7 +85,7 @@ class PagerTimeBandMixin:
                 timeline=None,
                 current_ordinal=0,
                 loading=True,
-                now_epoch=int(time.time()),
+                now_epoch=self._now_epoch(),
             )
         timeline = self._timeline_for_time_band(state)
         pin = getattr(state, "current_pin", None) or getattr(
@@ -80,10 +98,6 @@ class PagerTimeBandMixin:
             moment = moment_for_state(state)
         except Exception:
             moment = None
-        try:
-            pinned_now = int(getattr(self, "_time_band_now_epoch", None) or 0)
-        except Exception:
-            pinned_now = 0
         return build_time_band_data(
             subject_id=getattr(state, "subject_id", "")
             or section.subject_ref
@@ -91,7 +105,7 @@ class PagerTimeBandMixin:
             timeline=timeline,
             current_ordinal=ordinal,
             dirty=getattr(state, "status", "") == "dirty-now",
-            now_epoch=pinned_now or int(time.time()),
+            now_epoch=self._now_epoch(),
             total_visible=len(getattr(state, "visible_ordinals", ()) or ()),
             moment=moment,
         )
@@ -363,6 +377,10 @@ class PagerTimeBandMixin:
                 rows,
             )
         if self._time_band_signature == signature:
+            # Trail/subject updates can re-show the chrome rule after this
+            # paint; keep the hide in sync even when the band itself is
+            # unchanged.
+            self._update_chrome_rule_for_time_band(data is not None and rows > 0)
             return
         self._time_band_signature = signature
         if data is None or rows == 0:

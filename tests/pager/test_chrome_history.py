@@ -8,8 +8,14 @@ from rich.text import Text
 
 from sase.pager._chrome import footer_legend, subject_line, time_verbs_for_moment
 from sase.pager._chrome_history import history_badge
-from sase.pager.document import PagerDocument, PagerOrigin
-from sase.pager.history.models import committed_pin_for_ordinal, live_pin_for_subject
+from sase.pager._screen_chrome import PagerChromeMixin
+from sase.pager._screen_time_band import PagerTimeBandMixin
+from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.history.models import (
+    SectionTimeState,
+    committed_pin_for_ordinal,
+    live_pin_for_subject,
+)
 from sase.pager.history.moment import VersionMoment, build_moment
 from sase.pager.history.styles import default_history_styles
 
@@ -282,3 +288,49 @@ def test_footer_names_step_destinations_in_every_state() -> None:
         "=",
         "@",
     ]
+
+
+def test_history_chrome_age_uses_pinned_epoch() -> None:
+    committed = 1_000_000
+    pinned = committed + 10 * 86400
+    identity = "note:project:demo/garden"
+    pin = committed_pin_for_ordinal(identity, 1, commit="1" * 40, blob_oid="a" * 40)
+    section = PagerSection(
+        identity=identity,
+        title="garden.md",
+        kind="file",
+        body="# Garden\n",
+        subject_ref=identity,
+        version_pin=pin,
+    )
+    state = SectionTimeState(
+        provider_key="fixture",
+        subject_id=identity,
+        scope_key="project",
+        status="live",
+        visible_ordinals=(1,),
+        current_pin=pin,
+        timeline=(
+            {
+                "ordinal": 1,
+                "commit": "1" * 40,
+                "blob_oid": "a" * 40,
+                "committer_time": committed,
+                "class": "authored",
+            },
+        ),
+    )
+
+    class _Host(PagerTimeBandMixin, PagerChromeMixin):
+        def __init__(self) -> None:
+            self._time_band_now_epoch = pinned
+            self._history_states = {identity: state}
+
+        def _current_section(self) -> PagerSection:
+            return section
+
+    available, is_pinned, history_state = _Host()._history_chrome_state()
+    assert available
+    assert is_pinned
+    assert history_state is not None
+    assert history_state["age"] == "10d"

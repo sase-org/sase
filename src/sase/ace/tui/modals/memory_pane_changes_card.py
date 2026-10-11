@@ -194,8 +194,12 @@ class MemoryPaneChangesCardMixin(_MixinBase):
         try:
             import datetime as _dt  # noqa: PLC0415
 
+            from sase.core.time import get_timezone  # noqa: PLC0415
+
             absolute = (
-                _dt.datetime.fromtimestamp(epoch).strftime("%a %b %d %H:%M")
+                _dt.datetime.fromtimestamp(epoch, get_timezone()).strftime(
+                    "%a %b %d %H:%M"
+                )
                 if epoch
                 else "undated"
             )

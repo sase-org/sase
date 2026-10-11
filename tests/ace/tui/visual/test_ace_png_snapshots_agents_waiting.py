@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -58,7 +59,9 @@ def _clear_wait_bead_status_cache() -> None:
     _WAIT_BEAD_STATUS_CACHE.clear()
 
 
-_FOLLOW_SINCE = datetime(2026, 10, 6, 14, 32, 0).timestamp()
+_FOLLOW_SINCE = datetime(
+    2026, 10, 6, 14, 32, 0, tzinfo=ZoneInfo("America/New_York")
+).timestamp()
 
 
 def _seed_epic_follow_cache() -> None:

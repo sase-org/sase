@@ -2,12 +2,14 @@
 
 The Changes lens with unreviewed rows (``●`` dots plus the ``● N new``
 header chip) and the Config hub ``MEMORY`` sub-tab badge, at 120x40 in
-dark and light themes. Feed epochs are fixed past dates (the visual
-lane pins ``TZ=UTC``) and history data is injected deterministically:
-no git, no core, no wall-clock reads.
+dark and light themes. Feed epochs are fixed past dates and ``time.time``
+is pinned so the selected card's age stays ``16d ago``. History data is
+injected deterministically: no git, no core, no live wall-clock reads.
 """
 
 from __future__ import annotations
+
+import time
 
 import pytest
 from types import SimpleNamespace
@@ -44,6 +46,7 @@ pytestmark = pytest.mark.visual
 _T0 = 1789905600  # 2026-09-20 12:00 UTC, pinned for goldens
 _T1 = 1789992000  # 2026-09-21 12:00 UTC
 _T2 = 1790085780  # 2026-09-22 14:03 UTC
+_PINNED_NOW = _T2 + 16 * 86400  # keeps the selected card at "16d ago"
 
 
 def _golden_authored(name: str) -> dict[str, Any]:
@@ -174,6 +177,7 @@ async def test_memory_pane_changes_lens_review_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     _setup_notes(monkeypatch)
+    monkeypatch.setattr(time, "time", lambda: float(_PINNED_NOW))
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)

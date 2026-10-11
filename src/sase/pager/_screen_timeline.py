@@ -11,7 +11,6 @@ the trail; picker jumps always do.
 from __future__ import annotations
 
 import asyncio
-import time
 from dataclasses import replace
 from typing import Any
 
@@ -98,7 +97,7 @@ class PagerTimelineMixin:
             timeline = {"versions": list(state.timeline)}
             return build_picker_rows(
                 timeline,
-                now_epoch=int(time.time()),
+                now_epoch=self._now_epoch(),
                 now_matches_newest=bool(
                     moment is not None and moment.now_matches_newest
                 ),

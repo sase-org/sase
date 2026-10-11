@@ -65,11 +65,9 @@ class PagerChromeMixin:
             age = ""
             if moment.committed_time:
                 try:
-                    import time as _time
-
                     from sase.pager._time_band_vocab import format_age
 
-                    age = format_age(int(_time.time()), moment.committed_time)
+                    age = format_age(self._now_epoch(), moment.committed_time)
                 except Exception:
                     age = ""
         else:

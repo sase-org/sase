@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import time
 
 import pytest
@@ -27,7 +28,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-_VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0)
+_VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
 
 
 async def _open_agents_tab(page: AcePage, *, agent_count: int) -> None:
@@ -217,8 +218,12 @@ async def test_selected_retry_metadata_png_snapshot(
         AttemptRecord(
             attempt_number=1,
             status="failed",
-            start_epoch=datetime(2026, 7, 6, 11, 54, 0).timestamp(),
-            end_epoch=datetime(2026, 7, 6, 11, 55, 0).timestamp(),
+            start_epoch=datetime(
+                2026, 7, 6, 11, 54, 0, tzinfo=ZoneInfo("UTC")
+            ).timestamp(),
+            end_epoch=datetime(
+                2026, 7, 6, 11, 55, 0, tzinfo=ZoneInfo("UTC")
+            ).timestamp(),
             model="gpt-5",
             used_fallback=False,
             error_snippet="provider capacity exhausted",

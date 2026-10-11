@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import time
 
 import pytest
@@ -32,7 +33,7 @@ from tests.fakey.harness import (
 
 pytestmark = pytest.mark.visual
 
-_VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0)
+_VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
 
 
 def _patch_sentinel_pid_liveness(monkeypatch: pytest.MonkeyPatch) -> None:

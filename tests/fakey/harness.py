@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import socket
 import sys
 import threading
 import time
@@ -116,6 +117,7 @@ class FakeyRetryHarness:
         self.repo_root = Path.cwd()
         self.root = tmp_path
         self.home = tmp_path / "sase-home"
+        monkeypatch.setattr(socket, "gethostname", lambda: "sase-visual")
         self.workspace = tmp_path / "workspace"
         self.artifacts_timestamp = artifacts_timestamp
         self.is_home_mode = is_home_mode
@@ -305,9 +307,8 @@ class FakeyRetryHarness:
     ) -> None:
         """Rewrite nondeterministic persisted epochs to visual-clock sentinels."""
         target_dir = artifacts_dir or self.artifacts
-        # The countdown renderer compares against ``time.time()`` while the
-        # visual clock fixture is a naive local datetime, so preserve that
-        # local-time interpretation here.
+        # The countdown renderer compares against ``time.time()``. Callers
+        # pass a zone-explicit visual clock so the epoch is host-independent.
         visual_epoch = visual_now.timestamp()
         retry_path = target_dir / "retry_state.json"
         if retry_path.is_file():
