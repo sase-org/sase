@@ -461,6 +461,89 @@ async def test_loading_buffers_existing_hotkey_and_typeahead() -> None:
     assert results == [SaveLocationPick(EXISTING_CHOICE_ID, "rev")]
 
 
+def _option_plains_or_none(modal: SaveLocationPickerModal) -> list[str] | None:
+    try:
+        option_list = modal.query_one("#save-location-picker-list", OptionList)
+    except Exception:
+        return None
+    return [
+        option.prompt.plain if hasattr(option.prompt, "plain") else str(option.prompt)
+        for option in option_list.options
+    ]
+
+
+async def test_choices_delivered_before_mount_render_choices() -> None:
+    """Choices delivered after compose but before mount render on mount."""
+    from unittest.mock import PropertyMock, patch
+
+    app = _ModalApp()
+    async with app.run_test(size=(110, 30)) as pilot:
+        modal = SaveLocationPickerModal("snippet", "Pick", None)
+        app.push_screen(modal)
+        # Compose materialized the loading row; mount has not finished yet.
+        await wait_for_pilot(
+            pilot,
+            lambda: (
+                _option_plains_or_none(modal) is not None
+                and any(
+                    "Finding destinations" in text
+                    for text in (_option_plains_or_none(modal) or [])
+                )
+            ),
+            timeout=8.0,
+        )
+        # Simulate delivery inside the unmounted window: state updates while
+        # the stale loading row stays on screen.
+        with patch.object(
+            SaveLocationPickerModal,
+            "is_mounted",
+            new_callable=PropertyMock,
+            return_value=False,
+        ):
+            modal.set_choices(_standard_choices())
+        assert modal.loaded
+        # The deferred mount completion must render the delivered state.
+        modal._finish_mount()
+        await pilot.pause()
+        plains = _option_plains_or_none(modal) or []
+        assert not any("Finding destinations" in text for text in plains)
+        assert any("User config" in text for text in plains)
+        assert modal.highlighted_id == "/user"
+
+
+async def test_load_error_delivered_before_mount_renders_error() -> None:
+    """A load error delivered after compose but before mount renders on mount."""
+    from unittest.mock import PropertyMock, patch
+
+    app = _ModalApp()
+    async with app.run_test(size=(110, 30)) as pilot:
+        modal = SaveLocationPickerModal("snippet", "Pick", None)
+        app.push_screen(modal)
+        await wait_for_pilot(
+            pilot,
+            lambda: (
+                _option_plains_or_none(modal) is not None
+                and any(
+                    "Finding destinations" in text
+                    for text in (_option_plains_or_none(modal) or [])
+                )
+            ),
+            timeout=8.0,
+        )
+        with patch.object(
+            SaveLocationPickerModal,
+            "is_mounted",
+            new_callable=PropertyMock,
+            return_value=False,
+        ):
+            modal.set_load_error("disk is gone")
+        modal._finish_mount()
+        await pilot.pause()
+        plains = _option_plains_or_none(modal) or []
+        assert not any("Finding destinations" in text for text in plains)
+        assert any("disk is gone" in text for text in plains)
+
+
 async def test_existing_row_is_not_writable_destination_fallback() -> None:
     results: list[SaveLocationPick | None] = []
     choices = (

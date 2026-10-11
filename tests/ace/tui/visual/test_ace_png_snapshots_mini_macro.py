@@ -8,6 +8,13 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agent_workflow import (
+    _prompt_bar_mini_macro_location as location_mod,
+)
+from sase.ace.tui.modals.macro_location_modal import (
+    MACRO_HOME_DIR_LABEL,
+    MACRO_PROJECT_DIR_LABEL,
+)
 from sase.ace.tui.modals.mini_macro_name_modal import (
     MiniMacroNameModal,
     MiniMacroNameResult,
@@ -409,13 +416,96 @@ async def test_mini_macro_scoped_frontmatter_png_snapshot(
         )
 
 
+def _fixture_location_rows() -> tuple[UnifiedSaveLocation, UnifiedSaveLocation]:
+    """Deterministic picker rows that never read the host config.
+
+    Both paths shorten to fixed ``./``/``~/`` strings on every host, so the
+    list, the footer preview, and the golden can never leak ``/home/<user>``
+    or a per-run tmp path.
+    """
+    project_dir = Path.cwd() / "sase" / "macros" / "visual"
+    home_dir = Path.home() / "sase" / "macros"
+    return (
+        UnifiedSaveLocation(
+            location=MacroLocation(
+                MACRO_PROJECT_DIR_LABEL, str(project_dir), "directory"
+            ),
+            group="Project",
+            display_path="./sase/macros/visual",
+            names=frozenset(),
+            precedence=0,
+            namespace="sase",
+        ),
+        UnifiedSaveLocation(
+            location=MacroLocation(MACRO_HOME_DIR_LABEL, str(home_dir), "directory"),
+            group="Home",
+            display_path="~/sase/macros",
+            names=frozenset(),
+            precedence=10,
+        ),
+    )
+
+
+def _fixture_catalog(
+    rows: tuple[UnifiedSaveLocation, UnifiedSaveLocation],
+    macro_file: Path,
+) -> MiniMacroTargetCatalog:
+    """One editable fixture definition with a host-independent display path."""
+    return MiniMacroTargetCatalog(
+        definitions=(
+            MiniMacroDefinition(
+                name="rev",
+                workflow_kind="macro",  # type: ignore[arg-type]
+                source_path=str(macro_file),
+                display_path="~/sase/macros/rev.md",
+                storage_format=SaveTargetFormat.MARKDOWN,
+                entry_name=None,
+                location_path=rows[0].location.path,
+                precedence=0,
+                compatibility="editable",  # type: ignore[arg-type]
+                effective=True,
+                read_path=str(macro_file),
+                write_path=str(macro_file),
+            ),
+        ),
+        destinations=tuple(rows),
+    )
+
+
+def _stub_mini_macro_loaders(
+    monkeypatch: pytest.MonkeyPatch,
+    rows: tuple[UnifiedSaveLocation, UnifiedSaveLocation],
+    catalog: MiniMacroTargetCatalog,
+) -> None:
+    """Serve fixture rows and catalog the way the snippet tests stub theirs."""
+    monkeypatch.setattr(
+        location_mod, "_load_unified_save_rows", lambda _project: list(rows)
+    )
+    monkeypatch.setattr(location_mod, "_load_last_used_locations", lambda: {})
+    monkeypatch.setattr(
+        location_mod,
+        "_load_mini_macro_catalog",
+        lambda _project, _loaded: catalog,
+    )
+
+
 async def test_mini_macro_location_flow_picker_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Picker appearance on the mini-macro location-first path.
+
+    The loader seams serve fixture rows and one fixture definition, so the
+    golden covers the flow's data path without depending on the host's own
+    macro files. Capture waits for a loaded destination row, never the
+    ``Finding destinations…`` placeholder.
+    """
     patch_startup_loaders(monkeypatch)
-    del tmp_path
+    rows = _fixture_location_rows()
+    macro_file = tmp_path / "rev.md"
+    macro_file.write_text("# rev\n\nFixture body.\n", encoding="utf-8")
+    _stub_mini_macro_loaders(monkeypatch, rows, _fixture_catalog(rows, macro_file))
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -424,11 +514,12 @@ async def test_mini_macro_location_flow_picker_png_snapshot(
         await page.press("g", "x")
         await page.expect_modal("SaveLocationPickerModal")
         await wait_for_svg_contains(page, "where should it live?")
+        await wait_for_svg_contains(page, "Project macros")
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "mini_macro_location_flow_picker_120x40",
-            title="ACE mini-macro location picker — real chord flow",
+            title="ACE mini-macro location picker — fixture chord flow",
         )
 
 
@@ -437,8 +528,16 @@ async def test_mini_macro_location_flow_finder_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Picker → finder live-flow on ``g x`` then ``e`` with fixture data.
+
+    The finder shows only the fixture definition; neither screen may show
+    any ``/home/<user>`` path.
+    """
     patch_startup_loaders(monkeypatch)
-    del tmp_path
+    rows = _fixture_location_rows()
+    macro_file = tmp_path / "rev.md"
+    macro_file.write_text("# rev\n\nFixture body.\n", encoding="utf-8")
+    _stub_mini_macro_loaders(monkeypatch, rows, _fixture_catalog(rows, macro_file))
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -446,10 +545,11 @@ async def test_mini_macro_location_flow_finder_png_snapshot(
         await page.press("escape")
         await page.press("g", "x")
         await page.expect_modal("SaveLocationPickerModal")
-        await wait_for_svg_contains(page, "Edit existing")
+        await wait_for_svg_contains(page, "Project macros")
         await page.press("e")
         await page.expect_modal("ExistingDefinitionFinderModal")
         await wait_for_svg_contains(page, "Edit existing macro")
+        await wait_for_svg_contains(page, "#rev")
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,

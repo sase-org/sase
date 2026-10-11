@@ -93,6 +93,14 @@ groups with unexpected differences. Generation is not approval. Do not attach a 
 host-completion intent that skips that inspection. `--sase-update-visual-snapshots` is
 retired.
 
+A golden must not depend on the wall clock, the host zone at import time,
+`socket.gethostname()`, the real HOME or user config, or a loading frame: pin the seam
+(epoch, zone, hostname, fixture tree, loaded-state wait) before regenerating. Prove
+host-independence with a targeted `just fix-tui-screenshots --check` run twice, once
+with `TZ=UTC` exported, before committing images. CI renders on UTC runners with per-job
+hostnames and `HOME=/home/runner`, so anything host-dependent flips goldens on the next
+regeneration.
+
 Read [[lint_and_test.md]] for the agent verification recipe (`just check`;
 `just check-full` only when explicitly instructed), and [[tui_perf.md]] before changing
 the screenshot export handler, wait/settle logic, refresh scheduling, or any TUI path

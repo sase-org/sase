@@ -251,8 +251,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `sase/memory/tui.md`
 - Description: Read before using or changing `sase screenshot`, live TUI SVG export, or
   TUI PNG visual snapshot capture.
-- Lines: 99
-- Approx. tokens: 1446
+- Lines: 107
+- Approx. tokens: 1576
 
 ## Statistics
 
@@ -260,8 +260,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 13
 - Web descriptor notes: 3
-- Total lines: 1542
-- Total approx. tokens: 21984
+- Total lines: 1550
+- Total approx. tokens: 22114
 
 ## Commands
 

@@ -179,13 +179,12 @@ class SaveLocationPickerModal(ModalScreen[SaveLocationPick | None]):
         self.call_after_refresh(self._finish_mount)
 
     def _finish_mount(self) -> None:
-        try:
-            option_list = self.query_one("#save-location-picker-list", OptionList)
-        except Exception:
-            return
-        option_list.can_focus = False
-        option_list.highlighted = self._highlight_option_index()
-        self._refresh_footer()
+        # Rebuild instead of only fixing the highlight: choices (or a load
+        # error) delivered after compose but before mount would otherwise
+        # leave the loading row on screen forever. This only repaints current
+        # state, so it never re-dismisses or replays a pending pick that
+        # set_choices already resolved.
+        self._rebuild()
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape":
