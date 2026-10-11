@@ -7,7 +7,7 @@ import json
 import re
 import sys
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -43,6 +43,9 @@ from sase.project_display_names import (
     ProjectRefDisplaySnapshot,
     load_project_ref_display_snapshot,
 )
+
+if TYPE_CHECKING:
+    from sase.core.agent_archive_corpus_cache import CachedAgentArchiveCorpus
 
 _HIDDEN_KEY_RE = re.compile(r"(?<![A-Za-z0-9_-])hidden\s*:", re.IGNORECASE)
 
@@ -157,7 +160,7 @@ def _handle_archive_search(
         matching_rows.extend(dict(row) for row in page if isinstance(row, Mapping))
         remaining -= len(page)
 
-    _print_archive_index_notice(corpus.status, corpus.wire.get("status"))
+    _print_archive_index_notice(corpus.status, corpus.status_details)
     if as_json:
         json.dump(matching_rows, sys.stdout, indent=2)
         sys.stdout.write("\n")
@@ -172,7 +175,7 @@ def _handle_archive_search(
     return 0
 
 
-def _get_archive_corpus() -> Any:
+def _get_archive_corpus() -> CachedAgentArchiveCorpus:
     """Use the same lazy, process-wide corpus accessor as the Archive view."""
     from sase.ace import dismissed_agents
     from sase.ace.dismissed_bundle_index import dismissed_bundle_index_progress

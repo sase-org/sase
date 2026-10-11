@@ -20,10 +20,8 @@ def test_agent_search_archive_cli_matches_shared_corpus_order(
         agents_archive_query_schema,
     )
     from sase.ace.query_profile import compile_query_profile
-    from sase.core.agent_archive_corpus_cache import (
-        get_agent_archive_corpus,
-        invalidate_agent_archive_corpus_cache,
-    )
+    from sase.core import agent_archive_corpus_cache as cache_mod
+    from sase.core.agent_archive_corpus_cache import get_agent_archive_corpus
     from sase.project_display_names import ProjectDisplaySnapshot
     from tests._agent_archive_index_fixtures import insert_archive_rows
 
@@ -62,11 +60,7 @@ def test_agent_search_archive_cli_matches_shared_corpus_order(
         ),
     )
     monkeypatch.setattr(dismissed_agents, "_DISMISSED_BUNDLES_DIR", tmp_path)
-    from sase.core import agent_archive_corpus_cache
-
-    monkeypatch.setattr(
-        agent_archive_corpus_cache, "_build_fallback_facets", lambda: {}
-    )
+    monkeypatch.setattr(cache_mod, "_build_fallback_facets", lambda: {})
     from sase.agents import cli_search
 
     display = ProjectRefDisplaySnapshot(
@@ -75,7 +69,8 @@ def test_agent_search_archive_cli_matches_shared_corpus_order(
     monkeypatch.setattr(
         cli_search, "load_project_ref_display_snapshot", lambda: display
     )
-    invalidate_agent_archive_corpus_cache()
+    cache_mod._CACHED = None
+    cache_mod._GENERATION = 0
     cached = get_agent_archive_corpus(
         root=tmp_path,
         progress=DismissedBundleIndexProgress(rebuilding=False, indexed_rows=5),
@@ -124,4 +119,5 @@ def test_agent_search_archive_cli_matches_shared_corpus_order(
                 identity(row) for row in expected
             ]
     finally:
-        invalidate_agent_archive_corpus_cache()
+        cache_mod._CACHED = None
+        cache_mod._GENERATION = 0

@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentArchiveCorpusCacheKey:
+class _AgentArchiveCorpusCacheKey:
     """Exact cache key for one compiled archive corpus."""
 
     index_signature: tuple[int, int, int, int] | None
@@ -52,7 +52,7 @@ class AgentArchiveCorpusCacheKey:
 class CachedAgentArchiveCorpus:
     """One cached corpus plus the profile its key was built from."""
 
-    key: AgentArchiveCorpusCacheKey
+    key: _AgentArchiveCorpusCacheKey
     corpus: AgentArchiveCorpus
     profile: CompiledQueryProfile
 
@@ -62,7 +62,7 @@ _CACHED: CachedAgentArchiveCorpus | None = None
 _GENERATION = 0
 
 
-def link_facet_signature(link_facets: Mapping[str, Any]) -> str:
+def _link_facet_signature(link_facets: Mapping[str, Any]) -> str:
     """Return a stable digest for one link-facet mapping."""
     canonical = {
         str(name): {
@@ -80,16 +80,16 @@ def link_facet_signature(link_facets: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def archive_corpus_cache_key(
+def _archive_corpus_cache_key(
     *,
     index_signature: tuple[int, int, int, int] | None,
     link_facets: Mapping[str, Any],
     profile_digest: str,
-) -> AgentArchiveCorpusCacheKey:
+) -> _AgentArchiveCorpusCacheKey:
     """Build the exact cache key for one corpus build's inputs."""
-    return AgentArchiveCorpusCacheKey(
+    return _AgentArchiveCorpusCacheKey(
         index_signature=index_signature,
-        link_facet_signature=link_facet_signature(link_facets),
+        link_facet_signature=_link_facet_signature(link_facets),
         profile_digest=profile_digest,
     )
 
@@ -117,7 +117,7 @@ def get_agent_archive_corpus(
     global _CACHED
     resolved_profile = profile if profile is not None else agents_archive_profile()
     if link_facets is not None:
-        fast_key = archive_corpus_cache_key(
+        fast_key = _archive_corpus_cache_key(
             index_signature=_probe_index_signature(root),
             link_facets=link_facets,
             profile_digest=resolved_profile.digest,
@@ -136,14 +136,6 @@ def get_agent_archive_corpus(
             return _CACHED
         _CACHED = built
         return built
-
-
-def invalidate_agent_archive_corpus_cache() -> None:
-    """Drop the cached corpus, forcing the next accessor call to rebuild."""
-    global _CACHED
-    with _LOCK:
-        _CACHED = None
-        _bump_generation_locked()
 
 
 def _bump_generation_locked() -> int:
@@ -167,7 +159,7 @@ def _build_snapshot(
     resolved_facets = (
         link_facets if link_facets is not None else _build_fallback_facets()
     )
-    key = archive_corpus_cache_key(
+    key = _archive_corpus_cache_key(
         index_signature=index_signature(resolved_root),
         link_facets=resolved_facets,
         profile_digest=profile.digest,
@@ -255,10 +247,6 @@ def _facet_count(facets: Any) -> int:
 
 
 __all__ = [
-    "AgentArchiveCorpusCacheKey",
     "CachedAgentArchiveCorpus",
-    "archive_corpus_cache_key",
     "get_agent_archive_corpus",
-    "invalidate_agent_archive_corpus_cache",
-    "link_facet_signature",
 ]

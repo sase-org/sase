@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Collection, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -220,14 +219,15 @@ def _text(value: object) -> str | None:
 class AgentArchiveCorpus:
     """An immutable compiled archive corpus handle.
 
-    Wraps the ``compile_agent_archive_corpus`` Rust binding payload. Query
-    methods canonicalize relative dates in Python first, the same way
+    Wraps the ``compile_agent_archive_corpus`` Rust handle. Query methods
+    canonicalize relative dates in Python first, the same way
     :mod:`sase.core.query_profile_corpus_facade` does, then hand the
     already-literal query to Rust for batch matching.
     """
 
-    wire: dict[str, Any]
+    handle: Any
     status: str
+    status_details: Mapping[str, Any]
     timezone: str
 
     def summary(
@@ -241,7 +241,7 @@ class AgentArchiveCorpus:
         resolved = profile if profile is not None else agents_archive_profile()
         binding = require_rust_binding("summarize_agent_archive_corpus")
         return binding(
-            dict(self.wire),
+            self.handle,
             {
                 "query": _canonical_archive_query(query, resolved),
                 "profile": resolved.to_wire(),
@@ -264,7 +264,7 @@ class AgentArchiveCorpus:
         resolved = profile if profile is not None else agents_archive_profile()
         binding = require_rust_binding("rows_agent_archive_corpus")
         return binding(
-            dict(self.wire),
+            self.handle,
             {
                 "query": _canonical_archive_query(query, resolved),
                 "profile": resolved.to_wire(),
@@ -279,7 +279,7 @@ class AgentArchiveCorpus:
     def lookup(self, name: str) -> dict[str, Any] | None:
         """Resolve one exact archive name to its owner's light row, if any."""
         binding = require_rust_binding("lookup_agent_archive_corpus")
-        payload = binding(dict(self.wire), {"name": name})
+        payload = binding(self.handle, {"name": name})
         row = payload.get("row")
         return dict(row) if isinstance(row, Mapping) else None
 
@@ -293,7 +293,7 @@ class AgentArchiveCorpus:
         resolved = profile if profile is not None else agents_archive_profile()
         binding = require_rust_binding("count_agent_archive_corpus")
         payload = binding(
-            dict(self.wire),
+            self.handle,
             {
                 "query": _canonical_archive_query(query, resolved),
                 "profile": resolved.to_wire(),
@@ -327,7 +327,7 @@ def compile_agent_archive_corpus(
     compiles to an empty corpus.
     """
     binding = require_rust_binding("compile_agent_archive_corpus")
-    payload = binding(
+    handle = binding(
         {
             "root": str(root),
             "index_status": dict(index_status),
@@ -335,13 +335,16 @@ def compile_agent_archive_corpus(
             "link_facets": _link_facets_wire(link_facets),
         }
     )
-    wire = json.loads(json.dumps(payload))
-    status = wire.get("status")
-    status_name = status.get("status") if isinstance(status, Mapping) else None
+    status_details = handle.status()
+    status_name = (
+        status_details.get("status") if isinstance(status_details, Mapping) else None
+    )
+    details = dict(status_details) if isinstance(status_details, Mapping) else {}
     return AgentArchiveCorpus(
-        wire=wire,
+        handle=handle,
         status=str(status_name or "missing"),
-        timezone=str(wire.get("timezone") or ""),
+        status_details=details,
+        timezone=str(handle.timezone or ""),
     )
 
 

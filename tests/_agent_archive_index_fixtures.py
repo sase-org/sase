@@ -17,7 +17,7 @@ INSERT INTO dismissed_bundle_summaries (
     agent_name, status, start_time, stop_time, dismissed_at,
     agent_session, agent_session_role, agent_clan, agent_clan_generation,
     project_name, model, runtime, llm_provider, workflow,
-    is_workflow_child, mtime_ns, size_bytes
+    is_workflow_child, parent_timestamp, mtime_ns, size_bytes
 ) VALUES (
     :bundle_path, :agent_id, :raw_suffix, :shard, :filename,
     :source_username, :source_machine, :source_run_id,
@@ -25,7 +25,7 @@ INSERT INTO dismissed_bundle_summaries (
     :agent_name, :status, :start_time, :stop_time, :dismissed_at,
     :agent_session, :agent_session_role, :agent_clan, :agent_clan_generation,
     :project_name, :model, :runtime, :llm_provider, :workflow,
-    :is_workflow_child, :mtime_ns, :size_bytes
+    :is_workflow_child, :parent_timestamp, :mtime_ns, :size_bytes
 )
 """
 
@@ -46,7 +46,7 @@ def _row_values(root: Path, row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "bundle_path": bundle_path,
         "agent_id": name,
-        "raw_suffix": run_id,
+        "raw_suffix": str(row.get("raw_suffix") or run_id),
         "shard": run_id[:6],
         "filename": f"{run_id}.json",
         "source_username": str(row.get("source_username") or "bbugyi200"),
@@ -71,6 +71,7 @@ def _row_values(root: Path, row: Mapping[str, Any]) -> dict[str, Any]:
         "llm_provider": row.get("provider", "codex"),
         "workflow": row.get("workflow"),
         "is_workflow_child": int(bool(row.get("workflow_child", False))),
+        "parent_timestamp": row.get("parent_timestamp"),
         "mtime_ns": 0,
         "size_bytes": 0,
     }
