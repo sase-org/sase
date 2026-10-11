@@ -34,6 +34,9 @@ class EventAutoRefreshMixin(EventAutoRefreshSurfacesMixin):
             return
         if self._prompt_input_active():
             return
+        from ..agents._archive_controller import schedule_archive_idle_tick
+
+        schedule_archive_idle_tick(self)
         if getattr(self, "_auto_refresh_running", False):
             self._auto_refresh_pending = True
             return

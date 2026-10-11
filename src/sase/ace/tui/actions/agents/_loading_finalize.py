@@ -540,6 +540,10 @@ def finalize_agent_list(
         ),
     )
 
+    from ._archive_controller import refresh_archive_inbox_pulse
+
+    refresh_archive_inbox_pulse(app)
+
     # Only refresh display if on agents tab
     if on_agents_tab and refresh_display:
         with tui_trace("agents.final_display_refresh", agents=len(app._agents)):

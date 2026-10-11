@@ -624,3 +624,6 @@ class AgentLoadingApplyMixin(
         schedule_fleet_refresh = getattr(self, "_schedule_agents_fleet_refresh", None)
         if callable(schedule_fleet_refresh):
             schedule_fleet_refresh(source="apply")
+        from ._archive_controller import note_inbox_applied_for_archive
+
+        note_inbox_applied_for_archive(self, load_state=load_state)

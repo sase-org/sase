@@ -446,6 +446,11 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm.3.1(archive_detail_owns_panel)' \
         --epic-symbol 'sase-1jm.3.1(capture_agents_detail_owner)' \
         --epic-symbol 'sase-1jm.3.1(invalidate_agents_detail_ownership)' \
+        --epic-symbol 'sase-1jm.3.1.3(archive_corpus_snapshot)' \
+        --epic-symbol 'sase-1jm.3.1.3(archive_corpus_is_warm)' \
+        --epic-symbol 'sase-1jm.3.1.3(archive_inbox_pulse)' \
+        --epic-symbol 'sase-1jm.3.1.3(request_archive_windows)' \
+        --epic-symbol 'sase-1jm.3.1(request_archive_lookup)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

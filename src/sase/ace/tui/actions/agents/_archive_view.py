@@ -49,6 +49,9 @@ def init_agents_archive_view_state(owner: Any) -> AgentsArchiveViewState:
     state = startup_agents_archive_view_state()
     owner._agents_archive_view = state
     owner._agents_detail_scheduled_owner = None
+    from ._archive_controller import init_agents_archive_controller
+
+    init_agents_archive_controller(owner)
     return state
 
 
@@ -169,6 +172,9 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
         )
     state = _view_state(owner)
     if state.active_view == AGENTS_VIEW_ARCHIVE:
+        from ._archive_controller import request_archive_view_load
+
+        request_archive_view_load(owner)
         return ArchiveViewOutcome(
             status=ARCHIVE_STATUS_ALREADY_OPEN,
             view=state.active_view,
@@ -178,6 +184,9 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     state.parked_inbox = _capture_parked_inbox(owner)
     state.active_view = AGENTS_VIEW_ARCHIVE
     invalidate_agents_detail_ownership(owner)
+    from ._archive_controller import request_archive_view_load
+
+    request_archive_view_load(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_OPENED,
         view=state.active_view,
@@ -218,6 +227,9 @@ def open_agents_archive_view_with_query(
         loaded_pages={},
     )
     invalidate_agents_detail_ownership(owner)
+    from ._archive_controller import request_archive_view_load
+
+    request_archive_view_load(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_OPENED,
         view=state.active_view,

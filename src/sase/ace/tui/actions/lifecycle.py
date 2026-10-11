@@ -70,6 +70,9 @@ class LifecycleMixin:
         )
         if callable(cancel_notification_deadlines):
             cancel_notification_deadlines()
+        from .agents._archive_controller import cancel_archive_controller
+
+        cancel_archive_controller(self)
         cancel_pump_free_tasks(self)
         self._stop_tui_stall_watchdog()
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
