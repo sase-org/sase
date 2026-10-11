@@ -97,13 +97,16 @@ def test_stale_resolving_view_defers_agent_session_release(
     real_rows = wait_checks._filesystem_dependency_rows
     stale_rows = [row for row in real_rows(projects_root) if row[0] != next_monitor_dir]
 
-    def _rows(projects_dir, *, project_names=None, meta_cache=None):
+    def _rows(projects_dir, *, project_names=None, meta_cache=None, **kwargs):
         if project_names is None:
             # The resolving view misses the just-launched member; the
             # confirmation pass below re-reads the live tree.
             return list(stale_rows)
         return real_rows(
-            projects_dir, project_names=project_names, meta_cache=meta_cache
+            projects_dir,
+            project_names=project_names,
+            meta_cache=meta_cache,
+            **kwargs,
         )
 
     monkeypatch.setattr(wait_checks, "_filesystem_dependency_rows", _rows)

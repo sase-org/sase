@@ -104,9 +104,13 @@ def test_stale_resolving_view_defers_when_newer_failed_run_appears(
         *,
         project_names: set[str] | None = None,
         meta_cache: dict[Path, dict[str, Any] | None] | None = None,
+        **kwargs: Any,
     ) -> list[tuple[Path, dict[str, Any], str]]:
         rows = real_rows(
-            projects_dir, project_names=project_names, meta_cache=meta_cache
+            projects_dir,
+            project_names=project_names,
+            meta_cache=meta_cache,
+            **kwargs,
         )
         if project_names is None:
             return [row for row in rows if row[0] != failed_dir]

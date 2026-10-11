@@ -26,13 +26,14 @@ from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_projects_dir
 from sase.core.wait_dependency_resolution import (
     KNOWN_DONE_OUTCOMES,
+    ScopeKeyCache,
     WaitDependencyIndex,
     apply_wait_epic_follow_patch,
     latest_member_finished_at,
     marker_scope_keys,
     read_json_dict as _read_json_dict,
     resolve_wait_release,
-    select_scope_rows,
+    select_dirs_with_cache,
 )
 from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
 from sase.scripts._chop_wait_checks_common import TerminalBlocker, WaitingMarker
@@ -275,14 +276,14 @@ def _run(
     view_rows = 0
     scoped_index: WaitDependencyIndex | None = None
     full_index: WaitDependencyIndex | None = None
+    # Persistent scope-key cache: per-artifact keys fingerprinted by
+    # agent_meta.json stat data. Only this job writes it (at the end of the
+    # tick, when an entry changed); runners read it read-only.
+    scope_cache = ScopeKeyCache.load()
+    scope_cache_seen: set[Path] = set()
+    scope_cache_used = False
     if live_waiters:
-        artifact_rows = _filesystem_dependency_rows(projects_dir, meta_cache=meta_cache)
-        # Seed the cache from the resolving walk (which reused the waiter
-        # metadata above) so the confirmation rescan only reads metadata for
-        # artifact directories the resolving view never saw: exactly the
-        # new-member signal the confirmation exists to detect.
-        for artifact_dir, meta, _project_name in artifact_rows:
-            meta_cache.setdefault(artifact_dir / "agent_meta.json", meta)
+        artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
         # Seed negatives for walked directories whose meta file is absent
         # (waiter-only dirs usually): the rescan must not re-stat them into
         # reads, while a directory the walk never saw stays a cache miss and
@@ -293,11 +294,18 @@ def _run(
                 meta_cache[meta_path] = None
         tribe_source = WaitDependencyIndex.empty()
         if scoped_waiters:
-            scoped_rows = select_scope_rows(
-                artifact_rows,
-                scopable_keys,
+            # Scoped selection first: cache misses read meta fresh here and
+            # warm the run cache, so the full walk below reuses those reads
+            # instead of every meta being read twice on a cold cache.
+            scoped_rows = _filesystem_dependency_rows(
+                projects_dir,
+                meta_cache=meta_cache,
+                scope_cache=scope_cache,
+                scope_keys=scopable_keys,
                 include_dirs=scopable_waiter_dirs,
+                seen_dirs=scope_cache_seen,
             )
+            scope_cache_used = True
             scoped_index = _clone_empty_index(tribe_source)
             scoped_index.add_many(scoped_rows)
             view_rows += len(scoped_rows)
@@ -306,6 +314,15 @@ def _run(
                 # reuses the cache. Peak index memory stays the scoped view.
                 artifact_rows = scoped_rows
         if full_view_waiters:
+            artifact_rows = _filesystem_dependency_rows(
+                projects_dir, meta_cache=meta_cache
+            )
+            # Seed the run cache from the resolving walk so the confirmation
+            # rescan only reads metadata for artifact directories the
+            # resolving view never saw: exactly the new-member signal the
+            # confirmation exists to detect.
+            for artifact_dir, meta, _project_name in artifact_rows:
+                meta_cache.setdefault(artifact_dir / "agent_meta.json", meta)
             full_index = _clone_empty_index(tribe_source)
             full_index.add_many(artifact_rows)
             view_rows += len(artifact_rows)
@@ -463,7 +480,7 @@ def _run(
         def fresh_index(
             projects: frozenset[str] = frozenset(confirmation_projects),
         ) -> WaitDependencyIndex:
-            nonlocal confirmation_round, view_ms, view_rows
+            nonlocal confirmation_round, view_ms, view_rows, scope_cache_used
             key = (tuple(sorted(projects)), confirmation_round, scope_token)
             confirmation_round += 1
             cached = fresh_indexes.get(key)
@@ -471,16 +488,25 @@ def _run(
                 return cached
             fresh = _clone_empty_index(waiter_index)
             fresh_started = time.monotonic()
-            fresh_rows = _filesystem_dependency_rows(
-                projects_dir,
-                project_names=set(projects),
-                meta_cache=meta_cache,
-            )
             if scope_keys is not None:
-                fresh_rows = select_scope_rows(
-                    fresh_rows,
-                    scope_keys,
+                # Scoped confirmation re-lists fresh but stats instead of
+                # reading: new dirs are cache misses and still read meta,
+                # which preserves the new-member signal.
+                fresh_rows = _filesystem_dependency_rows(
+                    projects_dir,
+                    project_names=set(projects),
+                    meta_cache=meta_cache,
+                    scope_cache=scope_cache,
+                    scope_keys=scope_keys,
                     include_dirs=(waiting_marker.waiting_path.parent,),
+                    seen_dirs=scope_cache_seen,
+                )
+                scope_cache_used = True
+            else:
+                fresh_rows = _filesystem_dependency_rows(
+                    projects_dir,
+                    project_names=set(projects),
+                    meta_cache=meta_cache,
                 )
             fresh.add_many(fresh_rows)
             view_ms += int((time.monotonic() - fresh_started) * 1000)
@@ -678,6 +704,13 @@ def _run(
             f"{terminal_blocker_suppressed} additional terminal blocker log(s)",
         )
 
+    if scope_cache_used:
+        # Only this job writes the cache, and only when an entry changed.
+        # Dirs the tick never listed have vanished: drop them. The write is
+        # atomic and best-effort, so it can never fail the tick.
+        scope_cache.drop_missing(scope_cache_seen)
+        scope_cache.save_if_changed()
+
     if epic_follow_seen and epic_follow_reconciled_dirs:
         try:
             cleared = reconcile_epic_follow_notifications(
@@ -739,26 +772,79 @@ def _filesystem_dependency_rows(
     *,
     project_names: set[str] | None = None,
     meta_cache: dict[Path, dict[str, Any] | None] | None = None,
+    scope_cache: ScopeKeyCache | None = None,
+    scope_keys: frozenset[str] | set[str] | None = None,
+    include_dirs: tuple[Path, ...] | list[Path] = (),
+    seen_dirs: set[Path] | None = None,
 ) -> list[tuple[Path, dict[str, Any], str]]:
     """Load ace-run agent_meta.json files for wait-dependency resolution.
 
     When meta_cache is given, reuse metadata already loaded earlier in the run
     and only read files for artifact directories not yet seen. The directory
     listing itself is always fresh.
+
+    When scope_cache and scope_keys are given, select rows through the
+    persistent scope-key cache instead: unselected artifacts cost one
+    ``stat`` instead of one JSON read, while selected rows still read their
+    meta fresh. Every listed dir joins seen_dirs (when given) for the
+    end-of-tick prune of vanished cache entries.
     """
 
-    rows: list[tuple[Path, dict[str, Any], str]] = []
+    if scope_cache is None or scope_keys is None:
+        rows: list[tuple[Path, dict[str, Any], str]] = []
+        for project_dir in projects_dir.iterdir():
+            if not project_dir.is_dir():
+                continue
+            project_name = project_dir.name
+            if project_names is not None and project_name not in project_names:
+                continue
+            for artifact_dir in iter_agent_artifact_dirs(
+                project_name,
+                "ace-run",
+                projects_root=projects_dir,
+            ):
+                meta_path = artifact_dir / "agent_meta.json"
+                if meta_cache is not None and meta_path in meta_cache:
+                    meta = meta_cache[meta_path]
+                else:
+                    meta = _read_json_dict(meta_path)
+                    if meta_cache is not None:
+                        meta_cache[meta_path] = meta
+                if meta is not None:
+                    rows.append((artifact_dir, meta, project_name))
+        return rows
+
+    def _read_meta_fresh(artifact_dir: Path) -> dict[str, Any] | None:
+        meta = _read_json_dict(artifact_dir / "agent_meta.json")
+        if meta_cache is not None:
+            meta_cache[artifact_dir / "agent_meta.json"] = meta
+        return meta
+
+    scoped_rows: list[tuple[Path, dict[str, Any], str]] = []
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
             continue
         project_name = project_dir.name
         if project_names is not None and project_name not in project_names:
             continue
-        for artifact_dir in iter_agent_artifact_dirs(
-            project_name,
-            "ace-run",
-            projects_root=projects_dir,
-        ):
+        candidates = list(
+            iter_agent_artifact_dirs(
+                project_name,
+                "ace-run",
+                projects_root=projects_dir,
+            )
+        )
+        if seen_dirs is not None:
+            seen_dirs.update(candidates)
+        selected = select_dirs_with_cache(
+            candidates,
+            scope_keys,
+            include_dirs=include_dirs,
+            cache=scope_cache,
+            read_meta=_read_meta_fresh,
+            update_cache=True,
+        )
+        for artifact_dir in selected:
             meta_path = artifact_dir / "agent_meta.json"
             if meta_cache is not None and meta_path in meta_cache:
                 meta = meta_cache[meta_path]
@@ -767,8 +853,8 @@ def _filesystem_dependency_rows(
                 if meta_cache is not None:
                     meta_cache[meta_path] = meta
             if meta is not None:
-                rows.append((artifact_dir, meta, project_name))
-    return rows
+                scoped_rows.append((artifact_dir, meta, project_name))
+    return scoped_rows
 
 
 def main() -> None:

@@ -22,6 +22,7 @@ from sase.core.agent_artifact_paths import (
 )
 from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 from sase.core.wait_dependency_resolution import (
+    ScopeKeyCache,
     WaitDependencyIndex,
     WaitReleaseDecision,
     apply_wait_epic_follow_patch,
@@ -29,7 +30,7 @@ from sase.core.wait_dependency_resolution import (
     latest_member_finished_at,
     marker_scope_keys,
     resolve_wait_release,
-    select_scope_rows,
+    select_dirs_with_cache,
 )
 from sase.core.wait_dependency_resolution._types import WaitDependencyStatus
 
@@ -181,12 +182,31 @@ def _forward_identity_deps(
     return mapped
 
 
-def _project_ace_run_rows(
+def _scoped_project_rows(
     project_name: str,
+    scope_keys: frozenset[str],
+    *,
+    artifacts_dir: str,
 ) -> list[tuple[Path, dict[str, Any], str]]:
-    """Load this project's ace-run ``agent_meta.json`` rows."""
+    """Load this project's scoped ace-run rows through the cache, read-only.
+
+    Unselected artifacts cost one ``stat`` instead of one JSON read. The
+    cache is never written here: on a miss the meta is read directly, and
+    selected rows always read their meta fresh, so a missing or corrupt
+    cache simply reads everything.
+    """
+    cache = ScopeKeyCache.load()
+    candidates = list(iter_agent_artifact_dirs(project_name, ACE_RUN_WORKFLOW_DIR))
+    selected = select_dirs_with_cache(
+        candidates,
+        scope_keys,
+        include_dirs=(artifacts_dir,),
+        cache=cache,
+        read_meta=lambda artifact_dir: read_json_dict(artifact_dir / "agent_meta.json"),
+        update_cache=False,
+    )
     rows: list[tuple[Path, dict[str, Any], str]] = []
-    for artifact_dir in iter_agent_artifact_dirs(project_name, ACE_RUN_WORKFLOW_DIR):
+    for artifact_dir in selected:
         meta = read_json_dict(artifact_dir / "agent_meta.json")
         if meta is not None:
             rows.append((artifact_dir, meta, project_name))
@@ -212,10 +232,10 @@ def _build_runner_wait_index(
     else:
         index = WaitDependencyIndex.empty()
         index.add_many(
-            select_scope_rows(
-                _project_ace_run_rows(project_name),
+            _scoped_project_rows(
+                project_name,
                 scope_keys,
-                include_dirs=(artifacts_dir,),
+                artifacts_dir=artifacts_dir,
             )
         )
     index.global_stored_tribes = global_stored_tribes

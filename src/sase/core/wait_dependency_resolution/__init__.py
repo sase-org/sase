@@ -14,6 +14,13 @@ from ._json_io import read_json_dict
 from ._release_telemetry import latest_member_finished_at, parse_finished_at
 from ._resolution import dependency_resolution_status
 from ._scope import artifact_scope_keys, marker_scope_keys, select_scope_rows
+from ._scope_cache import (
+    ScopeKeyCache,
+    keys_for_artifact_dir,
+    scope_cache_path,
+    select_dirs_with_cache,
+    stat_agent_meta,
+)
 from ._submitted_plans import (
     submitted_plan_artifact,
     submitted_plan_artifact_for_dir,
@@ -75,6 +82,7 @@ __all__ = [
     "TribeMemberRow",
     "TribeWaitBinding",
     "WaitDependencyIndex",
+    "ScopeKeyCache",
     "WAIT_SUCCESS_OUTCOMES",
     "TribeCandidate",
     "apply_wait_epic_follow_patch",
@@ -83,13 +91,17 @@ __all__ = [
     "build_wait_dependency_index",
     "confirm_dependency_resolution",
     "dependency_resolution_status",
+    "keys_for_artifact_dir",
     "latest_member_finished_at",
     "marker_scope_keys",
     "parse_finished_at",
     "read_json_dict",
     "resolve_tribe_wait_binding",
     "resolve_wait_release",
+    "scope_cache_path",
+    "select_dirs_with_cache",
     "select_scope_rows",
+    "stat_agent_meta",
     "set_waiting_until",
     "submitted_plan_artifact",
     "submitted_plan_artifact_for_dir",

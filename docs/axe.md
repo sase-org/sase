@@ -370,6 +370,18 @@ Unscopable shapes — `@tribe` names, hoods, fork sources, identity deps, and ar
 follows — still load the full project index. Release decisions stay the same as the full
 view; scoping only drops rows that those queries never consult.
 
+Row selection itself goes through a persistent scope-key cache
+(`~/.sase/cache/wait_scope_keys.json`), so a live tick stats each artifact's
+`agent_meta.json` instead of reading it. Each entry maps an ace-run artifact directory
+to its meta `(st_mtime_ns, st_size, st_ino)` fingerprint plus its sorted scope keys.
+Only `wait_checks` writes the file — atomically, and only when an entry changed — while
+runners read it read-only and read the meta themselves on a miss. An unreadable,
+corrupt, or wrong-schema cache counts as empty, so everything is read; it is never read
+as "no rows". Selected rows always read their meta fresh, so the cache can only affect
+which rows are selected, never their content, and new artifact directories are cache
+misses that still read meta (which keeps the confirmation pass's new-member signal).
+Deleting the cache file is always safe: the next tick rebuilds it.
+
 `ready.json` is published atomically — via a temp file plus a no-clobber link, so the
 first writer wins — and is skipped entirely once the waiter is gone. The waiting runner
 treats an unreadable or malformed marker as not ready and keeps polling (bounded by its
