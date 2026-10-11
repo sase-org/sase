@@ -225,6 +225,9 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         from sase.file_references import format_with_prettier
 
         plan_content = format_with_prettier(plan_content)
+        from sase.sdd.plan_project import strip_plan_project
+
+        plan_content = strip_plan_project(plan_content)
         plan_path = dest
         plan_in_code_repo = store.is_in_tree and is_sase_plan_in_repo(
             plan_path,

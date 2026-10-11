@@ -78,6 +78,9 @@ def write_sdd_files(
 
         plan_content = plan_source.read_text(encoding="utf-8")
         plan_content = format_with_prettier(plan_content)
+        from sase.sdd.plan_project import strip_plan_project
+
+        plan_content = strip_plan_project(plan_content)
         plan_content = add_create_time_frontmatter(plan_content)
         plan_content = set_frontmatter_fields(plan_content, {"tier": tier})
         from sase.sdd.plan_header_writes import project_plan_header_sections

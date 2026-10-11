@@ -105,10 +105,12 @@ def archive_plan_file(
     from sase.sdd.committed_plan_validation import validate_plan_for_commit
     from sase.sdd.checkout_anchor import resolve_checkout_anchor
     from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
+    from sase.sdd.plan_project import strip_plan_project
     from sase.sdd.plan_tiers import read_plan_tier_from_content
     from sase.sdd.plan_header_writes import project_plan_header_sections
 
     content = format_with_prettier(source.read_text(encoding="utf-8"))
+    content = strip_plan_project(content)
     content = add_create_time_frontmatter(
         content,
         create_time=_existing_destination_create_time(destination),

@@ -113,6 +113,7 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
         "decided_via",
         "bead",
         "proposed_by",
+        "project",
         "parent",
         "bead_id",
     ]
@@ -235,6 +236,20 @@ def test_facade_surfaces_proposed_by() -> None:
     assert result.ok
     assert result.plan is not None
     assert result.plan.proposed_by == "bbugyi200.athena.q8--plan"
+
+
+def test_facade_surfaces_machine_local_project() -> None:
+    without = validate_plan(VALID_TALE, "tale")
+    assert without.ok and without.plan is not None
+    assert without.plan.project is None
+
+    with_project = VALID_TALE.replace(
+        "size: small\n", "size: small\nproject: Example Project\n"
+    )
+    result = validate_plan(with_project, "tale")
+
+    assert result.ok and result.plan is not None
+    assert result.plan.project == "Example Project"
 
 
 def test_facade_accepts_explicit_models_for_every_phase_size() -> None:

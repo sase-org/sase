@@ -113,6 +113,7 @@ class _ValidatedPlan:
     bead: str | None
     parent: str | None
     proposed_by: str | None
+    project: str | None = None
     decisions: tuple[_PlanDecision, ...] = ()
     decision_callouts: tuple[_PlanDecisionCallout, ...] = ()
     decided_by: str | None = None
@@ -272,6 +273,7 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
         bead=_optional_str(payload.get("bead")),
         parent=_optional_str(payload.get("parent")),
         proposed_by=_optional_str(payload.get("proposed_by")),
+        project=_optional_str(payload.get("project")),
         decisions=tuple(
             _validated_decision_from_dict(item)
             for item in payload.get("decisions", ())

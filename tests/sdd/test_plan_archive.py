@@ -102,6 +102,27 @@ def test_archive_leaves_unpaired_plan_unlinked_without_prompt_snapshot(
     assert validation.issues == []
 
 
+def test_archive_strips_machine_local_project_and_preserves_source(
+    tmp_path: Path,
+) -> None:
+    store = _sidecar_store(tmp_path)
+    source = _write_source(
+        tmp_path,
+        "---\ntier: tale\nproject: Example Project\n---\n# Plan\n",
+    )
+
+    result = archive_plan_file(
+        source,
+        store,
+        tier="tale",
+        yyyymm=_MONTH,
+        primary_root=tmp_path,
+    )
+
+    assert "project:" not in result.path.read_text(encoding="utf-8")
+    assert "project: Example Project" in source.read_text(encoding="utf-8")
+
+
 def test_archive_default_still_skips_prompt_section_without_snapshot(
     tmp_path: Path,
 ) -> None:

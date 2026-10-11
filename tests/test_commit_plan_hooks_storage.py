@@ -143,6 +143,32 @@ class TestHandleSasePlanStorage:
         assert committed_contents == [dest.read_text(encoding="utf-8")]
         assert "status: done" in committed_contents[0]
 
+    def test_local_store_copy_strips_machine_local_project(
+        self, tmp_path: Path
+    ) -> None:
+        plan_file = tmp_path / "my_plan.md"
+        plan_file.write_text(
+            "---\ntier: tale\nproject: Example Project\nstatus: wip\n---\n# Plan\n",
+            encoding="utf-8",
+        )
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        payload: dict = {"message": "fix: bug"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patched_sdd_policy("local"),
+            patch(_PLAN_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch("sase.sdd.files.get_yyyymm", return_value="202603"),
+            patch("sase.sdd.files.commit_sdd_store_files"),
+        ):
+            handle_sase_plan(payload, str(repo_dir))
+
+        dest = repo_dir / ".sase" / "sdd" / "plans" / "202603" / "my_plan.md"
+        assert dest.exists()
+        assert "project:" not in dest.read_text(encoding="utf-8")
+        assert "project: Example Project" in plan_file.read_text(encoding="utf-8")
+
     def test_archive_fallback_vc_true_copies(self, tmp_path: Path) -> None:
         """Archive fallback + version_controlled=True: copies into YYYYMM subdir."""
         archive_dir = tmp_path / ".sase" / "plans"

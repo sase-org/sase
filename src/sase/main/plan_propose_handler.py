@@ -239,6 +239,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
 
     if proposed_by := acting_agent_name():
         stamps["proposed_by"] = proposed_by
+    from sase.sdd.plan_project import plan_project_for_artifacts_dir
+
+    if project := plan_project_for_artifacts_dir(artifacts_dir):
+        stamps["project"] = project
     if target_tier == "tale" and active_bead:
         stamps["bead"] = active_bead
     elif target_tier == "epic" and active_bead:

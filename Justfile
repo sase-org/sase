@@ -430,6 +430,8 @@ _lint-patch-stitch-terminology: _setup
 # as the W3 file-proof gate in witness collection, so the sase-1j6 epic-symbol
 # row for facts_look_like_update_skew is dropped. If a later phase needs the
 # symbol allow-listed again, re-add a row re-keyed onto a still-open bead.
+# sase-1jw.1 adds machine-local plan project readers for the approval consumer
+# in sase-1jw.2; drop these rows once that phase wires the readers in.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -446,6 +448,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jm.3.1(request_archive_lookup)' \
         --epic-symbol 'sase-1jm.3.1(archive_container_members)' \
+        --epic-symbol 'sase-1jw.2(read_plan_project)' \
+        --epic-symbol 'sase-1jw.2(read_plan_project_file)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

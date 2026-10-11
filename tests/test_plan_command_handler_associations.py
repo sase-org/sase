@@ -122,6 +122,53 @@ def test_plan_command_without_resolvable_agent_omits_proposer(
     _assert_archived_associations(artifacts_dir, VALID_TALE, {})
 
 
+def test_plan_command_overwrites_authored_project_with_registered_display_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "proposed.md"
+    plan_file.write_text(
+        VALID_TALE.replace("size: small\n", "size: small\nproject: Authored\n"),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    formatted_inputs: list[str] = []
+
+    def capture_format(content: str) -> str:
+        formatted_inputs.append(content)
+        return content
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=capture_format,
+        ),
+        patch(
+            "sase.sdd.plan_validate.validate_plan",
+            return_value=SimpleNamespace(ok=True, plan=None),
+        ),
+        patch("sase.sdd.plan_validate.plan_frontmatter_schema", return_value=()),
+        patch(
+            "sase.sdd.plan_project.plan_project_for_artifacts_dir",
+            return_value="Registered Display",
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    assert len(formatted_inputs) == 1
+    stamped, _body, _had = parse_frontmatter(formatted_inputs[0])
+    assert stamped["project"] == "Registered Display"
+
+
 @pytest.mark.parametrize(
     (
         "content",

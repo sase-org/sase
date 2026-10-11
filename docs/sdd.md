@@ -473,12 +473,13 @@ an epic plan instead. Authoring validation rejects a missing or over-sized tale 
 while launch validation normalizes both to `medium` with a warning so legacy tales still
 launch.
 
-SASE-managed `create_time`, `status`, `bead`, `bead_id`, and `proposed_by` fields are
-accepted but never required. A plan may also declare
-[review decisions](#plan-decisions); their answers and review stamps are written by
-SASE. A proposal may carry the transient `links:` authoring inlet: a list of typed
-artifact relationships that `sase plan propose` validates, persists, and removes before
-archiving; see
+SASE-managed `create_time`, `status`, `bead`, `bead_id`, `proposed_by`, and `project`
+fields are accepted but never required. `project` records the SASE project for a
+machine-local proposal and is stripped when the plan is archived into that project's
+plan store. A plan may also declare [review decisions](#plan-decisions); their answers
+and review stamps are written by SASE. A proposal may carry the transient `links:`
+authoring inlet: a list of typed artifact relationships that `sase plan propose`
+validates, persists, and removes before archiving; see
 [Authoring links in a proposed plan](artifact_links.md#authoring-links-in-a-proposed-plan).
 Historical plans with a deprecated `prompt` or `parent` property remain valid, but both
 are intentionally omitted from canonical schema and authoring output because new links

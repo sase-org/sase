@@ -121,6 +121,13 @@ def _filtered_project_records(
     return filtered_project_records(root, list_project_records=list_project_records)
 
 
+def registered_project_records(
+    projects_root: Path | str | None = None,
+) -> list[ProjectRecordWire]:
+    """Return registered non-system project records in any lifecycle state."""
+    return _filtered_project_records(projects_root)
+
+
 def set_project_aliases_locked(
     project: str,
     aliases: list[str],
@@ -391,6 +398,7 @@ __all__ = [
     "humanize_project_refs_in_prompt",
     "load_project_alias_map",
     "remove_project_alias_locked",
+    "registered_project_records",
     "resolve_project_alias_ref",
     "set_project_aliases_locked",
 ]
