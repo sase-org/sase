@@ -197,6 +197,78 @@ def resolve_operation_context_for_targets(
     )
 
 
+def resolve_operation_context_for_project(
+    project_ref: str,
+    *,
+    cwd: Path | None = None,
+    for_write: bool = False,
+    materialize: bool = False,
+) -> BeadOperationContext:
+    """Resolve a write-capable operation context for an explicit project ref.
+
+    ``invocation_cwd`` stays the caller's working directory. Store discovery,
+    ownership, and writable-store checks run against the project's primary
+    checkout, matching ``_location_for_store_route``.
+    """
+
+    invocation_cwd = _invocation_cwd(cwd)
+    from sase.bead.cross_project import (
+        AmbiguousBeadProjectError,
+        origin_for_project_ref,
+    )
+    from sase.bead.workspace import resolve_primary_workspace_for_project
+
+    try:
+        origin = origin_for_project_ref(project_ref)
+    except AmbiguousBeadProjectError as exc:
+        raise BeadOperationRoutingError(str(exc)) from exc
+    if origin is None:
+        raise BeadOperationRoutingError(
+            f"unknown project {project_ref!r}; see `sase project list`"
+        )
+
+    primary = resolve_primary_workspace_for_project(origin.project_key)
+    if primary is None:
+        primary = Path(origin.primary_workspace)
+    primary = primary.expanduser().resolve()
+    if not primary.is_dir():
+        raise BeadOperationRoutingError(
+            f"project {_store_label(origin)!r} primary checkout is not available "
+            "on this machine"
+        )
+
+    want_materialize = materialize or for_write
+    location = _resolve_beads_location(
+        cwd=primary,
+        materialize=want_materialize,
+        require_existing=not want_materialize,
+    )
+    if location is None:
+        raise BeadOperationRoutingError(
+            f"project {_store_label(origin)!r} bead store is not materialized "
+            "on this machine"
+        )
+    ownership_context = _user_directed_context_for_project(origin.project_key, primary)
+    writable_beads_dir = _writable_beads_dir_for_context(ownership_context)
+    if writable_beads_dir is not None and not _same_path(
+        writable_beads_dir, location.beads_dir
+    ):
+        raise BeadOperationRoutingError(
+            f"routed read store {location.beads_dir} is not the writable bead store "
+            f"{writable_beads_dir} for project {_store_label(origin)!r}"
+        )
+    if for_write:
+        _refuse_read_only(location, operation="mutation")
+    return BeadOperationContext(
+        invocation_cwd=invocation_cwd,
+        location=location,
+        project_key=origin.project_key,
+        project_label=origin.project_label,
+        primary_workspace=primary,
+        ownership_context=ownership_context,
+    )
+
+
 def location_from_operation_context(
     context: BeadOperationContext | None,
     *,
@@ -561,6 +633,7 @@ __all__ = [
     "ownership_context_for_commit",
     "project_for_operation_context",
     "read_view_for_operation_context",
+    "resolve_operation_context_for_project",
     "resolve_operation_context_for_targets",
     "symbol_scan_start_for_operation_context",
 ]

@@ -48,6 +48,16 @@ def epic_plan_with_parent(parent_id: str) -> str:
     )
 
 
+def epic_plan_with_project(project: str, *, parent_id: str | None = None) -> str:
+    extra = f"project: {project}\n"
+    if parent_id is not None:
+        extra += f"parent_bead: {parent_id}\n"
+    return EPIC_PLAN.replace(
+        "goal: Exercise the host-owned plan-file launch.\n",
+        f"goal: Exercise the host-owned plan-file launch.\n{extra}",
+    )
+
+
 def epic_plan_with_phase_count(
     phase_count: int,
     *,

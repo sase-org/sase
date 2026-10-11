@@ -86,6 +86,7 @@ class PlanFileWorkResult:
     resumed: bool = False
     waves: tuple[tuple[str, ...], ...] = ()
     capacity: int | None = None
+    project: str | None = None
 
     def to_json(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -108,4 +109,6 @@ class PlanFileWorkResult:
         }
         if self.capacity is not None:
             payload["capacity"] = self.capacity
+        if self.project is not None:
+            payload["project"] = self.project
         return payload

@@ -110,6 +110,20 @@ def work_from_plan_file(
             f"epic plan validation failed: {source_path}",
             validation=validation,
         )
+    from sase.bead.cli_work_from_plan_project import (
+        render_project_and_store,
+        resolve_plan_file_parent_context,
+        resolve_plan_file_project_route,
+        with_plan_project,
+    )
+
+    project_route = resolve_plan_file_project_route(
+        source_path,
+        dry_run=dry_run,
+        no_push=no_push,
+        parent=parent,
+        capacity=capacity,
+    )
     _stamp_bead_work_decisions(source_path, validation, dry_run=dry_run)
 
     with ExitStack() as stack:
@@ -132,19 +146,24 @@ def work_from_plan_file(
         )
 
         parent_id = selected_epic_parent_id(plan.parent_bead, parent)
-        parent_bead_context = _resolve_parent_bead_context(
+        routed_context = None if project_route is None else project_route.context
+        parent_bead_context = resolve_plan_file_parent_context(
             parent_id,
             source_path=source_path,
             dry_run=dry_run,
             no_push=no_push,
             parent=parent,
             capacity=capacity,
+            cwd=None if routed_context is None else routed_context.primary_workspace,
+            expected_context=routed_context,
+            frontmatter_label=(None if project_route is None else project_route.label),
         )
+        bead_context = routed_context or parent_bead_context
         if not dry_run:
             with timer.stage("plan_launch_lock"):
                 stack.enter_context(
                     _epic_plan_launch_lock(
-                        _plan_file_launch_lock_anchor(parent_bead_context),
+                        _plan_file_launch_lock_anchor(bead_context),
                         plan_file=source_path,
                     )
                 )
@@ -152,7 +171,7 @@ def work_from_plan_file(
             with timer.stage("store_context"):
                 location, store, workspace_dir = _resolve_plan_file_context(
                     dry_run=dry_run,
-                    bead_context=parent_bead_context,
+                    bead_context=bead_context,
                 )
                 if dry_run:
                     _require_plan_store_health(store)
@@ -170,9 +189,10 @@ def work_from_plan_file(
                 capacity=capacity,
             ) from exc
         if render:
-            Console().print(
-                "[green]✓[/green] Store           "
-                f"{store.storage} · beads at {location.beads_dir}"
+            render_project_and_store(
+                project_route,
+                store=store,
+                location=location,
             )
 
         preview_epic_id: str | None = None
@@ -260,41 +280,47 @@ def work_from_plan_file(
                     else ""
                 )
                 Console().print(f"Epic: {preview_label}{stale_suffix}")
-            return _PlanFileWorkResult(
-                archived_plan_path=archive_destination,
-                authored_phase_ids=phase_ids,
-                dry_run=True,
-                epic_id=existing_epic_id,
-                parent_id=parent_id,
-                preview_epic_id=preview_epic_id,
-                replaced_stale_epic_id=stale_epic_id,
-                resumed=existing_epic_id is not None,
-                waves=waves,
-                capacity=capacity,
+            return with_plan_project(
+                _PlanFileWorkResult(
+                    archived_plan_path=archive_destination,
+                    authored_phase_ids=phase_ids,
+                    dry_run=True,
+                    epic_id=existing_epic_id,
+                    parent_id=parent_id,
+                    preview_epic_id=preview_epic_id,
+                    replaced_stale_epic_id=stale_epic_id,
+                    resumed=existing_epic_id is not None,
+                    waves=waves,
+                    capacity=capacity,
+                ),
+                project_route,
             )
 
-        return _work_from_plan_file_locked(
-            location=location,
-            store=store,
-            workspace_dir=workspace_dir,
-            source_path=source_path,
-            destination_name=destination_name,
-            plan=plan,
-            phase_ids=phase_ids,
-            waves=waves,
-            parent_id=parent_id,
-            parent=parent,
-            bead_context=parent_bead_context,
-            yes=yes,
-            yes_to_all=yes_to_all,
-            no_push=no_push,
-            render=render,
-            expect_prompt_snapshot=expect_prompt_snapshot,
-            timer=timer,
-            extra_waits=extra_waits,
-            capacity=capacity,
-            creator_artifacts_dir=creator_artifacts_dir,
-            creator_via=creator_via,
+        return with_plan_project(
+            _work_from_plan_file_locked(
+                location=location,
+                store=store,
+                workspace_dir=workspace_dir,
+                source_path=source_path,
+                destination_name=destination_name,
+                plan=plan,
+                phase_ids=phase_ids,
+                waves=waves,
+                parent_id=parent_id,
+                parent=parent,
+                bead_context=bead_context,
+                yes=yes,
+                yes_to_all=yes_to_all,
+                no_push=no_push,
+                render=render,
+                expect_prompt_snapshot=expect_prompt_snapshot,
+                timer=timer,
+                extra_waits=extra_waits,
+                capacity=capacity,
+                creator_artifacts_dir=creator_artifacts_dir,
+                creator_via=creator_via,
+            ),
+            project_route,
         )
 
 
@@ -576,51 +602,6 @@ def _plan_file_launch_lock_anchor(
         else bead_context.primary_workspace or bead_context.invocation_cwd
     )
     return _epic_launch_lock_anchor(workspace_dir)
-
-
-def _resolve_parent_bead_context(
-    parent_id: str | None,
-    *,
-    source_path: Path,
-    dry_run: bool,
-    no_push: bool,
-    parent: str | None,
-    capacity: int | None,
-) -> BeadOperationContext | None:
-    if parent_id is None:
-        return None
-    from sase.bead.operation_context import (
-        BeadOperationRoutingError,
-        resolve_operation_context_for_targets,
-    )
-
-    try:
-        return resolve_operation_context_for_targets(
-            [parent_id],
-            for_write=not dry_run,
-            materialize=not dry_run,
-        )
-    except BeadOperationRoutingError as exc:
-        message = str(exc)
-        missing = "not found" in message.casefold()
-        detail = (
-            f"epic plan {source_path} names parent bead {parent_id!r}, but that "
-            "bead is missing from the active store and enabled project stores; "
-            "restore the parent bead, choose another with --parent <bead-id>, "
-            "or force a top-level epic with --parent top-level"
-            if missing
-            else (
-                f"epic plan {source_path} names parent bead {parent_id!r}, but "
-                f"that bead could not be resolved: {message}"
-            )
-        )
-        raise _error_with_resume(
-            detail,
-            source_path,
-            no_push=no_push,
-            parent_override=parent,
-            capacity=capacity,
-        ) from exc
 
 
 __all__ = [

@@ -2645,7 +2645,16 @@ context: SASE reads and checkpoints the owner's bead store, resolves the owner p
 bead-work macros, and prefixes each segment with the owner's VCS workflow and project
 name. `--dry-run` reads the owner's store without materializing it. In plan-file mode, a
 `parent_bead` or `--parent` that belongs to another enabled project archives the plan
-into that project's SDD store and creates the epic in its bead store.
+into that project's SDD store and creates the epic in its bead store. A machine-local
+plan's frontmatter `project` field routes plan-file mode to that project's primary
+checkout when the working directory is outside it (no project, `home`, or a different
+project). The command then uses that project's lock, stores, archive links, and launch
+context, as if it had been run from the primary checkout. A working directory already
+inside that project (primary checkout, numbered workspace, or host-leased checkout)
+keeps local store resolution. An unknown or ambiguous `project` value fails before any
+mutation. When routing, a parent bead that belongs to a different project than the
+frontmatter is refused; use `--parent top-level` to create an unparented epic. Plans
+without the field keep working-directory and parent-bead routing as before.
 
 For a task bead, `sase bead work <task-id>` accepts `ready` (normal), `open` (manual
 launch), or recoverable `in_progress` state. It does not launch a duplicate when the

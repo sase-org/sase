@@ -93,6 +93,7 @@ def work_from_plan_file_locked(
                 tier="epic",
                 destination_name=destination_name,
                 preserve_existing=True,
+                primary_root=workspace_dir,
                 expect_prompt_snapshot=expect_prompt_snapshot,
             )
     except Exception as exc:

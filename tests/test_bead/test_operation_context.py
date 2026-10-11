@@ -9,8 +9,10 @@ import pytest
 
 from sase.bead.cross_project import BeadStoreOrigin, BeadStoreSnapshot
 from sase.bead.model import IssueType
+from sase.bead.cli_work_from_plan_project import _invocation_belongs_to_project
 from sase.bead.operation_context import (
     BeadOperationRoutingError,
+    resolve_operation_context_for_project,
     resolve_operation_context_for_targets,
 )
 from sase.bead.project import BeadProject
@@ -179,6 +181,129 @@ def test_fast_path_executes_foreign_target_with_owner_store_and_invocation_cwd(
             "relativize_design_paths": True,
         }
     ]
+
+
+def test_resolve_context_for_project_keeps_invocation_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    with BeadProject.init(owner):
+        pass
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    monkeypatch.chdir(caller)
+    origin = BeadStoreOrigin(
+        project_key="owner",
+        project_label="Owner",
+        primary_workspace=owner,
+        beads_dir=owner / "sdd" / "beads",
+    )
+    monkeypatch.setattr(
+        "sase.bead.cross_project.origin_for_project_ref",
+        lambda ref: origin if ref in {"owner", "Owner"} else None,
+    )
+    monkeypatch.setattr(
+        "sase.bead.workspace.resolve_primary_workspace_for_project",
+        lambda name: owner if name == "owner" else None,
+    )
+    monkeypatch.setattr(
+        "sase.bead.operation_context._user_directed_context_for_project",
+        lambda _project_key, _primary: None,
+    )
+    monkeypatch.setattr(
+        "sase.bead.operation_context._writable_beads_dir_for_context",
+        lambda _context: None,
+    )
+
+    context = resolve_operation_context_for_project(
+        "Owner",
+        cwd=caller,
+        for_write=True,
+        materialize=True,
+    )
+
+    assert context.invocation_cwd == caller.resolve()
+    assert context.project_key == "owner"
+    assert context.project_label == "Owner"
+    assert context.primary_workspace == owner.resolve()
+    assert context.write_beads_dir == (owner / "sdd" / "beads").resolve()
+
+
+def test_resolve_context_for_project_dry_run_does_not_materialize(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    with BeadProject.init(owner):
+        pass
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    monkeypatch.chdir(caller)
+    origin = BeadStoreOrigin(
+        project_key="owner",
+        project_label="owner",
+        primary_workspace=owner,
+        beads_dir=owner / "sdd" / "beads",
+    )
+    monkeypatch.setattr(
+        "sase.bead.cross_project.origin_for_project_ref",
+        lambda ref: origin if ref == "owner" else None,
+    )
+    monkeypatch.setattr(
+        "sase.bead.workspace.resolve_primary_workspace_for_project",
+        lambda name: owner if name == "owner" else None,
+    )
+    monkeypatch.setattr(
+        "sase.bead.operation_context._user_directed_context_for_project",
+        lambda _project_key, _primary: None,
+    )
+    seen: list[dict[str, object]] = []
+    from sase.bead import cli_common
+
+    real_resolve = cli_common.resolve_beads_location
+
+    def wrapped(*args: object, **kwargs: object) -> object:
+        seen.append(dict(kwargs))
+        return real_resolve(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_beads_location",
+        wrapped,
+    )
+
+    context = resolve_operation_context_for_project(
+        "owner",
+        cwd=caller,
+        for_write=False,
+        materialize=False,
+    )
+
+    assert context.write_beads_dir == (owner / "sdd" / "beads").resolve()
+    assert seen
+    assert all(item.get("materialize") in (False, None) for item in seen)
+
+
+def test_invocation_belongs_to_project_for_primary_and_foreign(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    owner.mkdir()
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    origin = BeadStoreOrigin(
+        project_key="owner",
+        project_label="Owner",
+        primary_workspace=owner,
+        beads_dir=owner / "sdd" / "beads",
+    )
+
+    assert _invocation_belongs_to_project(origin, cwd=owner) is True
+    assert _invocation_belongs_to_project(origin, cwd=caller) is False
 
 
 def _seed_task(root: Path, title: str) -> str:
