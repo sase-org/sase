@@ -475,7 +475,30 @@ def route_archive_key(owner: Any, intent: str) -> bool:
     from ._archive_column_nav import dispatch_archive_intent
 
     dispatch_archive_intent(owner, intent)
+    _mark_archive_key_painted(owner)
     return True
+
+
+def _mark_archive_key_painted(owner: Any) -> None:
+    """Finalize the in-flight key-to-paint sample on the next frame.
+
+    Mirrors the Inbox navigation path: the calling action already recorded
+    the keypress through ``_jk_perf_begin``, so without this hook the sample
+    would be discarded by the next keystroke and Archive j/k would stay
+    invisible to the ``SASE_TUI_PERF=1`` harness. No-op unless perf
+    recording is on; fakes without ``call_after_refresh`` never reach it.
+    """
+    try:
+        perf = getattr(owner, "_jk_perf", None)
+        after_refresh = getattr(owner, "call_after_refresh", None)
+        if perf is None or not callable(after_refresh):
+            return
+        mark_updated = getattr(perf, "mark_model_updated", None)
+        if callable(mark_updated):
+            mark_updated()
+        after_refresh(perf.mark_painted)
+    except Exception:
+        log.debug("archive paint sample hook failed", exc_info=True)
 
 
 class AgentArchiveColumnMixin:

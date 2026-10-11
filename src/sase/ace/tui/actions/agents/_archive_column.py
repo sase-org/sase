@@ -448,6 +448,24 @@ def on_archive_snapshot_applied(owner: Any) -> None:
             )
         except Exception:
             log.debug("archive info row update failed", exc_info=True)
+        _refresh_archive_footer(owner)
+
+
+def _refresh_archive_footer(owner: Any) -> None:
+    """Sync the conditional footer to Archive ownership.
+
+    Detail renders update the footer on some paths (container summaries)
+    but not others (placeholders, unreadable cards, empty states), so the
+    footer must follow ownership itself: every applied snapshot and every
+    chrome activation refreshes it, instead of piggybacking on whichever
+    render path happened to run last.
+    """
+    try:
+        refresh = getattr(owner, "_refresh_agent_footer_bindings_only", None)
+        if callable(refresh):
+            refresh()
+    except Exception:
+        log.debug("archive footer sync failed", exc_info=True)
 
 
 # --- chrome ---------------------------------------------------------------
@@ -542,6 +560,7 @@ def sync_archive_chrome(owner: Any, *, request: bool = True) -> None:
         if widget is not None:
             widget.reveal_cursor()
         schedule_detail(owner)
+        _refresh_archive_footer(owner)
         return
     if column_widget(owner) is not None:
         repaint = getattr(owner, "_refresh_agents_display_debounced", None)
