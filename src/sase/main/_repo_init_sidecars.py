@@ -18,6 +18,10 @@ from .init_plan import InitAction
 
 if TYPE_CHECKING:
     from sase.sdd._sidecar_init import SidecarInitSpec
+    from sase.sdd._sidecar_visibility import (
+        PrimaryRepoVisibility,
+        SidecarVisibilityPolicy,
+    )
     from sase.workspace_provider import SddSidecarPreflight
 
 
@@ -36,10 +40,14 @@ def run_configured_sidecars(
     args: argparse.Namespace,
     project_root: Path,
     specs: tuple[SidecarInitSpec, ...],
+    *,
+    visibility_policy: SidecarVisibilityPolicy | None = None,
+    primary_visibility: PrimaryRepoVisibility | None = None,
 ) -> int:
     """Create or connect provider-managed sidecars and initialize their files."""
 
     from sase.sdd._sidecar_init import initialize_sidecars, preflight_sidecars
+    from sase.sdd._sidecar_visibility import format_visibility_notes
     from sase.sdd.store import SddMaterializationError
 
     authorizations: dict[str, bool] = {}
@@ -62,6 +70,14 @@ def run_configured_sidecars(
         for role, preflight in preflights.items()
         if preflight.status == "not_found"
     }
+    if (
+        visibility_policy is not None
+        and primary_visibility is not None
+        and missing
+        and (visibility_policy.forced_roles or visibility_policy.dropped_roles)
+    ):
+        for line in format_visibility_notes(visibility_policy, primary_visibility):
+            print(line, file=sys.stderr)
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     if missing and getattr(args, "onboarding", False) and not stdin.isatty():
         deferred_document_roles = False
@@ -494,7 +510,7 @@ def plan_sidecar_actions(
                 ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
             ):
                 detail += (
-                    f" with configured {spec.visibility} visibility at the "
+                    f" with {spec.visibility} visibility at the "
                     "machine-level hidden path"
                 )
             actions.append(

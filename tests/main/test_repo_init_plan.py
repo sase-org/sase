@@ -113,7 +113,7 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
         for action in plan.actions
         if "agents sidecar repository" in action.detail
     )
-    assert "configured private visibility" in agents_connection.detail
+    assert "with private visibility" in agents_connection.detail
     assert "machine-level hidden path" in agents_connection.detail
     assert agents_connection.path == (
         state_root / "projects" / "gh_acme__widget" / "repos" / "agents"
@@ -150,7 +150,7 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
     output = StringIO()
     render_plan_diff(Console(file=output, width=400, no_color=True), plan)
     rendered = output.getvalue()
-    assert "configured private visibility" in rendered
+    assert "with private visibility" in rendered
     assert str(agents_connection.path) in rendered
     assert "manifest.json" in rendered
     assert "agents/.gitkeep" in rendered

@@ -30,6 +30,7 @@ from .init_project_scope import is_project_directory
 if TYPE_CHECKING:
     from sase.project_management import ProjectManagementStatus
     from sase.sdd._sidecar_init import SidecarInitSpec
+    from sase.sdd._sidecar_visibility import PrimaryRepoVisibility
 
 _NON_PROJECT_REPO_MESSAGE = "sase repo init: not a project directory (no VCS found); skipping repository initialization"
 _UNMANAGED_REPO_MESSAGE = (
@@ -90,7 +91,11 @@ def run_repo_init(args: argparse.Namespace) -> int:
         render_plan_diff(preview_console(sys.stdout), plan)
 
     changed_project_paths: list[Path] = []
-    config_update = _explicit_sidecar_config_update(management.config_path)
+    primary = _primary_repo_visibility(project_root)
+    private_primary = primary is not None and primary.visibility == "private"
+    config_update = _explicit_sidecar_config_update(
+        management.config_path, private_primary=private_primary
+    )
     if config_update.error is not None:
         print(f"error: {config_update.error}", file=sys.stderr)
         return 1
@@ -188,7 +193,11 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
     blockers: list[str] = []
     requires_tty = False
 
-    config_update = _explicit_sidecar_config_update(management.config_path)
+    primary = _primary_repo_visibility(project_root)
+    private_primary = primary is not None and primary.visibility == "private"
+    config_update = _explicit_sidecar_config_update(
+        management.config_path, private_primary=private_primary
+    )
     if config_update.error is not None:
         blockers.append(config_update.error)
     elif config_update.changed:
@@ -196,16 +205,24 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
             InitAction(
                 path=config_update.path,
                 operation="update" if config_update.path.exists() else "create",
-                detail=_sidecar_config_action_detail(config_update.added_roles),
+                detail=_sidecar_config_action_detail(
+                    config_update.added_roles,
+                    private_primary_repo=primary.repo
+                    if private_primary and primary is not None
+                    else None,
+                ),
                 new_content=config_update.updated_text,
             )
         )
 
     policy = _project_provider_sdd_policy(project_root)
     if policy == "separate_repo" or _has_materialized_sidecar_store(project_root):
+        from sase.sdd._sidecar_visibility import apply_primary_visibility_policy
         from sase.sdd.store import SddMaterializationError
 
-        specs = _configured_sidecar_specs(project_root)
+        specs = apply_primary_visibility_policy(
+            _configured_sidecar_specs(project_root), primary
+        ).specs
         try:
             sidecar_actions, sidecar_warnings, sidecar_requires_tty = (
                 _plan_sidecar_actions(project_root, specs)
@@ -238,8 +255,18 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
 
 
 def _run_configured_sidecars(args: argparse.Namespace, project_root: Path) -> int:
+    from sase.sdd._sidecar_visibility import apply_primary_visibility_policy
+
     specs = _configured_sidecar_specs(project_root)
-    return _run_configured_sidecars_impl(args, project_root, specs)
+    primary = _primary_repo_visibility(project_root)
+    visibility_policy = apply_primary_visibility_policy(specs, primary)
+    return _run_configured_sidecars_impl(
+        args,
+        project_root,
+        visibility_policy.specs,
+        visibility_policy=visibility_policy,
+        primary_visibility=primary,
+    )
 
 
 def _run_materialized_sidecars(project_root: Path, *, no_commit: bool = False) -> int:
@@ -279,12 +306,26 @@ def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]
     return _configured_sidecar_specs_impl(project_root)
 
 
-def _explicit_sidecar_config_update(config_path: Path) -> _ConfigUpdate:
-    return _explicit_sidecar_config_update_impl(config_path)
+def _explicit_sidecar_config_update(
+    config_path: Path, *, private_primary: bool = False
+) -> _ConfigUpdate:
+    return _explicit_sidecar_config_update_impl(
+        config_path, private_primary=private_primary
+    )
 
 
-def _sidecar_config_action_detail(roles: tuple[str, ...]) -> str:
-    return _sidecar_config_action_detail_impl(roles)
+def _sidecar_config_action_detail(
+    roles: tuple[str, ...], *, private_primary_repo: str | None = None
+) -> str:
+    return _sidecar_config_action_detail_impl(
+        roles, private_primary_repo=private_primary_repo
+    )
+
+
+def _primary_repo_visibility(project_root: Path) -> PrimaryRepoVisibility | None:
+    from sase.sdd._sidecar_visibility import resolve_primary_repo_visibility
+
+    return resolve_primary_repo_visibility(project_root)
 
 
 def _format_roles(roles: tuple[str, ...]) -> str:

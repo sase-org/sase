@@ -60,6 +60,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
         agent_publication_digest_check_specs,
     )
     from sase.doctor.checks_attachment_store import attachment_store_check_specs
+    from sase.doctor.checks_sidecar_visibility import sidecar_visibility_check_specs
     from sase.doctor.checks_axe import axe_check_specs
     from sase.doctor.checks_external_pr_mirror import (
         external_pr_mirror_check_specs,
@@ -111,6 +112,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *agents_sidecar_check_specs(context),
             *agent_publication_digest_check_specs(context),
             *attachment_store_check_specs(context),
+            *sidecar_visibility_check_specs(context),
             *bead_check_specs(context),
             *referenced_by_check_specs(context),
             *artifact_links_check_specs(context),

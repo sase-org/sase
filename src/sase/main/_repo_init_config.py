@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 from sase._linked_repo_config import (
     AGENTS_SIDECAR_ROLE,
+    ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    ATTACHMENTS_SIDECAR_ROLE,
     DEFAULT_AGENTS_DESCRIPTION,
     DEFAULT_RESEARCH_DESCRIPTION,
     SIDECAR_BUILTIN_CONFIG_KEY,
@@ -103,7 +105,9 @@ def _entry_text(entry: Mapping[str, Any], key: str) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
-def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
+def explicit_sidecar_config_update(
+    config_path: Path, *, private_primary: bool = False
+) -> ConfigUpdate:
     """Return the update needed to declare the standard sidecars explicitly."""
 
     try:
@@ -173,6 +177,9 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
             if isinstance(value, MutableMapping)
             for role in value
         }
+        private_visibility_items: tuple[tuple[str, str], ...] = (
+            (("visibility", "private"),) if private_primary else ()
+        )
         entries = {
             "plans": (
                 SIDECAR_BUILTIN_CONFIG_KEY,
@@ -181,12 +188,13 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
                         ("auto_clone", True),
                         ("auto_sync", True),
                         ("ref", CommentedMap((("use", "builtin@plan"),))),
+                        *private_visibility_items,
                     )
                 ),
             ),
             "beads": (
                 SIDECAR_BUILTIN_CONFIG_KEY,
-                CommentedMap((("auto_sync", True),)),
+                CommentedMap((("auto_sync", True), *private_visibility_items)),
             ),
             "research": (
                 SIDECAR_CUSTOM_CONFIG_KEY,
@@ -194,12 +202,18 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
                     (
                         ("description", DEFAULT_RESEARCH_DESCRIPTION),
                         ("auto_sync", True),
+                        *private_visibility_items,
                     )
                 ),
             ),
             AGENTS_SIDECAR_ROLE: (
                 SIDECAR_BUILTIN_CONFIG_KEY,
-                CommentedMap((("description", DEFAULT_AGENTS_DESCRIPTION),)),
+                CommentedMap(
+                    (
+                        ("description", DEFAULT_AGENTS_DESCRIPTION),
+                        *private_visibility_items,
+                    )
+                ),
             ),
         }
         added_roles = tuple(role for role in entries if role not in existing_roles)
@@ -210,6 +224,32 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
             if isinstance(plans_entry, MutableMapping) and "ref" not in plans_entry:
                 plans_entry["ref"] = CommentedMap((("use", "builtin@plan"),))
                 updated_roles.append("plans")
+        if private_primary:
+            for bucket_name in (
+                SIDECAR_BUILTIN_CONFIG_KEY,
+                SIDECAR_CUSTOM_CONFIG_KEY,
+            ):
+                sidecar_bucket = buckets[bucket_name]
+                if not isinstance(sidecar_bucket, MutableMapping):
+                    continue
+                for role, entry in sidecar_bucket.items():
+                    if role in (
+                        ATTACHMENTS_SIDECAR_ROLE,
+                        ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+                    ):
+                        continue
+                    if not isinstance(entry, MutableMapping):
+                        continue
+                    if entry.get("disabled") is True:
+                        continue
+                    current = entry.get("visibility")
+                    if isinstance(current, str):
+                        if current.strip().casefold() != "public":
+                            continue
+                    elif current is not None:
+                        continue
+                    entry["visibility"] = "private"
+                    updated_roles.append(str(role))
         if not updated_roles:
             return ConfigUpdate(config_path, current_text, current_text)
 
@@ -266,12 +306,17 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
     )
 
 
-def sidecar_config_action_detail(roles: tuple[str, ...]) -> str:
+def sidecar_config_action_detail(
+    roles: tuple[str, ...], *, private_primary_repo: str | None = None
+) -> str:
     """Describe an explicit sidecar configuration update."""
 
     joined = format_roles(roles)
     suffix = "sidecar" if len(roles) == 1 else "sidecars"
-    return f"declare the managed {joined} {suffix}"
+    detail = f"declare the managed {joined} {suffix}"
+    if private_primary_repo:
+        detail += f" (private: {private_primary_repo} is private)"
+    return detail
 
 
 def format_roles(roles: tuple[str, ...]) -> str:

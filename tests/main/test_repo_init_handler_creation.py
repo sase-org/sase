@@ -583,3 +583,223 @@ def test_public_sidecar_refused_when_beads_private(
     assert run_repo_init(args) == 0
     stderr = capsys.readouterr().err
     assert "repos.sidecar.builtin.beads.visibility: private" in stderr
+
+
+def test_private_primary_forces_private_sidecar_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sase.sdd._sidecar_visibility import PrimaryRepoVisibility
+
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (
+        SidecarInitSpec(role="plans", repo="acme/widget--plans", visibility="public"),
+        SidecarInitSpec(
+            role="attachments",
+            repo="acme/widget--attachments",
+            visibility="public",
+        ),
+    )
+    preflight_specs: list[tuple[SidecarInitSpec, ...]] = []
+    selected: list[tuple[SidecarInitSpec, ...]] = []
+    prompts: list[str] = []
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._primary_repo_visibility",
+        lambda _root: PrimaryRepoVisibility(repo="acme/widget", visibility="private"),
+    )
+
+    def preflight(
+        _root: Path, _workspace: int, received: tuple[SidecarInitSpec, ...]
+    ) -> dict[str, object]:
+        preflight_specs.append(received)
+        return {
+            spec.role: _preflight(spec.role, visibility="private") for spec in received
+        }
+
+    monkeypatch.setattr("sase.sdd._sidecar_init.preflight_sidecars", preflight)
+
+    def initialize(
+        _root: Path,
+        _workspace: int,
+        received: tuple[SidecarInitSpec, ...],
+        *,
+        creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
+    ) -> _SidecarInitOutcome:
+        selected.append(received)
+        assert creation_authorized == {"plans": True}
+        assert publish_sidecar_changes is False
+        return _outcome(tmp_path, received)
+
+    monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    args._init_input_func = lambda prompt: prompts.append(prompt) or "y"
+
+    assert run_repo_init(args) == 0
+
+    assert preflight_specs
+    assert {spec.role for spec in preflight_specs[0]} == {"plans"}
+    assert all(spec.visibility == "private" for spec in preflight_specs[0])
+    assert prompts == [
+        "Create private GitHub sidecar repository "
+        "acme/widget--plans on github.com? [y/N] "
+    ]
+    assert [spec.role for spec in selected[0]] == ["plans"]
+    stderr = capsys.readouterr().err
+    assert (
+        stderr.count(
+            "note: acme/widget is private, so SASE creates its sidecar "
+            "repositories as private"
+        )
+        == 1
+    )
+    assert "skipping the public attachments sidecar" in stderr
+    assert "visibility: private" in (tmp_path / "sase" / "sase.yml").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_private_primary_rerun_without_missing_sidecars_stays_quiet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sase.sdd._sidecar_visibility import PrimaryRepoVisibility
+
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (
+        SidecarInitSpec(role="plans", repo="acme/widget--plans", visibility="private"),
+        SidecarInitSpec(
+            role="agents", repo="acme/widget--agents", visibility="private"
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._primary_repo_visibility",
+        lambda _root: PrimaryRepoVisibility(repo="acme/widget", visibility="private"),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {
+            "plans": _preflight("plans", status="found", visibility="private"),
+            "agents": _preflight("agents", status="found", visibility="private"),
+        },
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.initialize_sidecars",
+        lambda _r, _w, received, **_k: _outcome(tmp_path, received),
+    )
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    args._init_input_func = lambda _prompt: pytest.fail("must not prompt")
+
+    assert run_repo_init(args) == 0
+    assert "note:" not in capsys.readouterr().err
+
+
+def test_unverifiable_primary_creates_private_sidecars_without_config_rewrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd._sidecar_visibility import PrimaryRepoVisibility
+
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (
+        SidecarInitSpec(role="plans", repo="acme/widget--plans", visibility="public"),
+    )
+    prompts: list[str] = []
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._primary_repo_visibility",
+        lambda _root: PrimaryRepoVisibility(repo="acme/widget", visibility="unknown"),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {"plans": _preflight("plans", visibility="private")},
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.initialize_sidecars",
+        lambda _r, _w, received, **_k: _outcome(tmp_path, received),
+    )
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    args._init_input_func = lambda prompt: prompts.append(prompt) or "y"
+
+    assert run_repo_init(args) == 0
+    assert prompts == [
+        "Create private GitHub sidecar repository "
+        "acme/widget--plans on github.com? [y/N] "
+    ]
+    assert "visibility" not in (tmp_path / "sase" / "sase.yml").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_private_primary_plan_declares_private_sidecars(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd._sidecar_visibility import PrimaryRepoVisibility
+
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (
+        SidecarInitSpec(role="plans", repo="acme/widget--plans", visibility="public"),
+        SidecarInitSpec(
+            role="agents",
+            repo="acme/widget--agents",
+            visibility="public",
+            description="Commit-associated agents.",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._primary_repo_visibility",
+        lambda _root: PrimaryRepoVisibility(repo="acme/widget", visibility="private"),
+    )
+
+    plan = plan_repo_init(_args(tmp_path))
+
+    config_action = next(
+        action for action in plan.actions if action.path.name == "sase.yml"
+    )
+    assert config_action.new_content is not None
+    assert "visibility: private" in config_action.new_content
+    assert "(private: acme/widget is private)" in config_action.detail
+    agents_connection = next(
+        action
+        for action in plan.actions
+        if "agents sidecar repository" in action.detail
+    )
+    assert "with private visibility" in agents_connection.detail
+    assert all(
+        "attachments sidecar repository" not in action.detail for action in plan.actions
+    )

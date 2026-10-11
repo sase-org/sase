@@ -667,6 +667,16 @@ and `visibility:` are passed to the provider. For a missing remote, initializati
 closed if the provider would create it with a different visibility; it does not verify
 an existing remote's visibility.
 
+A sidecar repository may be created public only when the primary repository is verified
+public. When the primary repository is private — or when its visibility cannot be
+verified — every sidecar is created private instead, even when its entry says
+`visibility: public`, and the public-only `attachments` sidecar is skipped entirely. A
+definitively private primary is also persisted as `visibility: private` in the project's
+`repos.sidecar` entries, so config-only readers stay consistent; an unverifiable primary
+still gets private sidecars but leaves the config untouched. `sase doctor` warns about
+any recorded sidecar that is still public while the primary is private (see
+`project.sidecar_visibility`).
+
 When non-interactive bare `sase init --yes` discovers a missing sidecar remote, it
 writes the project wiring, reports the missing repository, and leaves creation for a
 later interactive `sase repo init`. This keeps automated onboarding and post-commit
@@ -697,11 +707,11 @@ partial repository at `~/.sase/projects/<project_key>/repos/attachments-private`
 no worktree and no README, so initialization prints the clone path itself. A
 `visibility: public` override resolves to `private` for remote creation. Check an
 existing remote's visibility before storing attachments there. On projects with a public
-beads sidecar, initialization also offers to create the public `<project>--attachments`
-sidecar that holds public attachment bytes; the prompt names its PUBLIC visibility and
-refuses when the beads sidecar is not public. Declining leaves public uploads queued
-with `⇡ pending upload` until the store exists, and
-`repos.sidecar.builtin.attachments.disabled: true` opts out. Disabling either
+beads sidecar whose primary repository is verified public, initialization also offers to
+create the public `<project>--attachments` sidecar that holds public attachment bytes;
+the prompt names its PUBLIC visibility and refuses when the beads sidecar is not public.
+Declining leaves public uploads queued with `⇡ pending upload` until the store exists,
+and `repos.sidecar.builtin.attachments.disabled: true` opts out. Disabling either
 attachments role later hides it even when a clone already exists; use `-L/--local-only`
 for a particular attachment. See [Attachments](beads.md#attachments).
 

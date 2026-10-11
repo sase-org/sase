@@ -412,3 +412,136 @@ def test_repo_init_check_is_read_only_and_does_not_preflight(
     assert run_repo_init(_args(tmp_path, check=True)) == 1
     assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == before
     assert not (tmp_path / ".gitignore").exists()
+
+
+def test_private_primary_config_update_declares_private_sidecars(
+    tmp_path: Path,
+) -> None:
+    from sase._yaml_safe import yaml_safe_load
+
+    config_path = tmp_path / "sase" / "sase.yml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("is_sase_managed: true\n", encoding="utf-8")
+
+    update = explicit_sidecar_config_update(config_path, private_primary=True)
+
+    assert update.changed is True
+    assert set(update.added_roles) == {"plans", "beads", "research", "agents"}
+    data = yaml_safe_load(update.updated_text)
+    builtin = data["repos"]["sidecar"]["builtin"]
+    custom = data["repos"]["sidecar"]["custom"]
+    assert builtin["plans"]["visibility"] == "private"
+    assert builtin["beads"]["visibility"] == "private"
+    assert builtin["agents"]["visibility"] == "private"
+    assert custom["research"]["visibility"] == "private"
+
+
+def test_private_primary_config_update_backfills_existing_entries(
+    tmp_path: Path,
+) -> None:
+    from sase._yaml_safe import yaml_safe_load
+
+    config_path = tmp_path / "sase" / "sase.yml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        "is_sase_managed: true\n"
+        "repos:\n"
+        "  sidecar:\n"
+        "    builtin:\n"
+        "      plans:\n"
+        "        auto_clone: true\n"
+        "        ref:\n"
+        "          use: builtin@plan\n"
+        "      beads: {}\n"
+        "      agents:\n"
+        "        visibility: public\n"
+        "    custom:\n"
+        "      research: {}\n",
+        encoding="utf-8",
+    )
+
+    update = explicit_sidecar_config_update(config_path, private_primary=True)
+
+    assert update.changed is True
+    assert set(update.added_roles) == {"plans", "beads", "agents", "research"}
+    data = yaml_safe_load(update.updated_text)
+    builtin = data["repos"]["sidecar"]["builtin"]
+    assert builtin["plans"]["visibility"] == "private"
+    assert builtin["beads"]["visibility"] == "private"
+    assert builtin["agents"]["visibility"] == "private"
+    assert data["repos"]["sidecar"]["custom"]["research"]["visibility"] == "private"
+
+
+def test_private_primary_config_update_leaves_opted_out_and_fixed_roles(
+    tmp_path: Path,
+) -> None:
+    from sase._yaml_safe import yaml_safe_load
+
+    config_path = tmp_path / "sase" / "sase.yml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        "is_sase_managed: true\n"
+        "repos:\n"
+        "  sidecar:\n"
+        "    builtin:\n"
+        "      plans:\n"
+        "        auto_clone: true\n"
+        "        ref:\n"
+        "          use: builtin@plan\n"
+        "      beads:\n"
+        "        visibility: private\n"
+        "      agents:\n"
+        "        disabled: true\n"
+        "      attachments:\n"
+        "        visibility: public\n"
+        "      attachments-private: {}\n"
+        "    custom:\n"
+        "      research:\n"
+        "        disabled: true\n",
+        encoding="utf-8",
+    )
+
+    update = explicit_sidecar_config_update(config_path, private_primary=True)
+
+    assert update.changed is True
+    assert set(update.added_roles) == {"plans"}
+    data = yaml_safe_load(update.updated_text)
+    builtin = data["repos"]["sidecar"]["builtin"]
+    assert builtin["plans"]["visibility"] == "private"
+    assert builtin["beads"]["visibility"] == "private"
+    assert builtin["agents"] == {"disabled": True}
+    assert builtin["attachments"] == {"visibility": "public"}
+    assert builtin["attachments-private"] == {}
+    assert data["repos"]["sidecar"]["custom"]["research"] == {"disabled": True}
+
+
+def test_private_primary_config_update_is_idempotent(tmp_path: Path) -> None:
+    config_path = tmp_path / "sase" / "sase.yml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("is_sase_managed: true\n", encoding="utf-8")
+
+    first = explicit_sidecar_config_update(config_path, private_primary=True)
+    assert first.changed is True
+    config_path.write_text(first.updated_text, encoding="utf-8")
+
+    second = explicit_sidecar_config_update(config_path, private_primary=True)
+
+    assert second.changed is False
+    assert second.updated_text == first.updated_text
+
+
+def test_default_config_update_ignores_private_primary_flag(tmp_path: Path) -> None:
+    left = tmp_path / "left" / "sase.yml"
+    left.parent.mkdir(parents=True)
+    right = tmp_path / "right" / "sase.yml"
+    right.parent.mkdir(parents=True)
+    content = "is_sase_managed: true\n"
+    left.write_text(content, encoding="utf-8")
+    right.write_text(content, encoding="utf-8")
+
+    default = explicit_sidecar_config_update(left)
+    flagged_off = explicit_sidecar_config_update(right, private_primary=False)
+
+    assert default.updated_text == flagged_off.updated_text
+    assert default.added_roles == flagged_off.added_roles
+    assert "visibility" not in default.updated_text
