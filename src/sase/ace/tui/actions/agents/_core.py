@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from ._agent_enter_action import AgentEnterActionMixin
 from ._approve import AgentApproveMixin
+from ._archive_view import AgentArchiveColumnMixin
 from ._patch_navigation import AgentPatchNavigationMixin
 from ._display import AgentDisplayMixin
 from ._filter_actions import AgentFilterActionsMixin
@@ -67,6 +68,7 @@ TabName = Literal["artifacts", "agents", "services"]
 
 
 class AgentsMixinCore(
+    AgentArchiveColumnMixin,
     AgentMetadataPagerMixin,
     AgentMetadataSearchMixin,
     AgentApproveMixin,

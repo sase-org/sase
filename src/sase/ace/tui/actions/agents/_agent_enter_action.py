@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Any
 
 from sase.gate_turn.naming import short_gate_turn_id
 
+from ...models.agent_archive_view import INTENT_ACTIVATE
+from ._archive_view import route_archive_key
 from ._agent_enter_targets import (
     NO_TARGET_EMPTY_MESSAGE,
     AgentEnterResolution,
@@ -291,6 +293,8 @@ class AgentEnterActionMixin:
     def action_act_on_agent(self: Any) -> None:
         """Run context-aware Enter for the selected Agents-tab row."""
         if getattr(self, "current_tab", None) != "agents":
+            return
+        if route_archive_key(self, INTENT_ACTIVATE):
             return
         if getattr(self, "_current_group_key", None) is not None:
             return

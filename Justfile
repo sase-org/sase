@@ -439,18 +439,14 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1jm.3.1(open_agents_archive_view)' \
         --epic-symbol 'sase-1jm.3.1(open_agents_archive_view_with_query)' \
-        --epic-symbol 'sase-1jm.3.1(close_agents_archive_view)' \
         --epic-symbol 'sase-1jm.3.1(get_agents_tab_selection)' \
-        --epic-symbol 'sase-1jm.3.1(archive_read_only_context)' \
         --epic-symbol 'sase-1jm.3.1(agents_view_is_archive)' \
-        --epic-symbol 'sase-1jm.3.1(archive_detail_owns_panel)' \
+        --epic-symbol 'sase-1jm.3.1(archive_read_only_context)' \
         --epic-symbol 'sase-1jm.3.1(capture_agents_detail_owner)' \
         --epic-symbol 'sase-1jm.3.1(invalidate_agents_detail_ownership)' \
-        --epic-symbol 'sase-1jm.3.1.3(archive_corpus_snapshot)' \
-        --epic-symbol 'sase-1jm.3.1.3(archive_corpus_is_warm)' \
-        --epic-symbol 'sase-1jm.3.1.3(archive_inbox_pulse)' \
-        --epic-symbol 'sase-1jm.3.1.3(request_archive_windows)' \
+        --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jm.3.1(request_archive_lookup)' \
+        --epic-symbol 'sase-1jm.3.1(archive_container_members)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

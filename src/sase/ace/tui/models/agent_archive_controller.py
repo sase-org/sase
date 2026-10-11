@@ -109,6 +109,11 @@ class ArchiveCorpusSnapshot:
     grouping: str
     tokens: ArchiveRevalidationTokens | None
     warm: bool
+    applied_query: str | None = None
+    applied_grouping: str | None = None
+    applied_expanded: tuple[str, ...] = ()
+    timezone: str = ""
+    requested_windows: tuple[ArchivePageWindow, ...] = ()
 
 
 @dataclass
@@ -138,6 +143,9 @@ class AgentsArchiveControllerState:
     last_query: str = ARCHIVE_DEFAULT_QUERY
     last_grouping: str = ARCHIVE_DEFAULT_GROUPING
     last_expanded: tuple[str, ...] = ()
+    applied_query: str | None = None
+    applied_grouping: str | None = None
+    applied_expanded: tuple[str, ...] = ()
 
 
 def startup_agents_archive_controller_state() -> AgentsArchiveControllerState:

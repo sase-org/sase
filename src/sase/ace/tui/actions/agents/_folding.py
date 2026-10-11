@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+from ...models.agent_archive_view import INTENT_COLLAPSE, INTENT_EXPAND
+from ._archive_view import route_archive_key
 from ._folding_agents import AgentTreeFoldingMixin
 from ._folding_axe import AxeFoldingMixin
 
@@ -110,6 +112,8 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
 
     def action_expand_or_layout(self) -> None:
         """Expand fold on agents/axe tab, or expand Patch group when grouped."""
+        if route_archive_key(self, INTENT_EXPAND):
+            return
         if self._route_llm_calls_detail_level("expand"):
             return
         if self.current_tab == "agents":
@@ -131,6 +135,8 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
     def action_hooks_or_collapse(self) -> None:
         """Navigate/collapse/jump on Agents, or collapse elsewhere."""
         if self.current_tab == "agents":
+            if route_archive_key(self, INTENT_COLLAPSE):
+                return
             if self._route_llm_calls_detail_level("collapse"):
                 return
             self._collapse_fold()

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ...models.agent_archive_view import INTENT_SWITCH_SECTION
+from ._archive_view import route_archive_key
 from ._fold_scope import focused_panel_fold_registry
 from ._navigation_order import rendered_panel_slice
 from ._panel_fold_intent import effective_panel_collapses
@@ -323,6 +325,8 @@ class AgentPanelNavigationMixin:
         record_navigation = getattr(self, "_record_jk_navigation", None)
         if callable(record_navigation):
             record_navigation()
+        if route_archive_key(self, INTENT_SWITCH_SECTION):
+            return
         self._change_focused_agent_panel(forward=True)
         jk_perf = getattr(self, "_jk_perf", None)
         if jk_perf is not None:
@@ -336,6 +340,8 @@ class AgentPanelNavigationMixin:
         record_navigation = getattr(self, "_record_jk_navigation", None)
         if callable(record_navigation):
             record_navigation()
+        if route_archive_key(self, INTENT_SWITCH_SECTION):
+            return
         self._change_focused_agent_panel(forward=False)
         jk_perf = getattr(self, "_jk_perf", None)
         if jk_perf is not None:

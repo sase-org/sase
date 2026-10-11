@@ -19,6 +19,7 @@ from ...models.agent_archive_controller import (
     ArchiveRequestSnapshot,
     ArchiveRevalidationTokens,
 )
+from ...models.agent_archive_list import archive_row_key
 
 log = logging.getLogger(__name__)
 
@@ -37,17 +38,8 @@ def _archive_root(owner: Any) -> Path | None:
 
 
 def row_identity(row: Mapping[str, Any]) -> str | None:
-    """Return the stable Archive identity for one light row."""
-    for key in ("name", "cl_name", "agent_name"):
-        value = row.get(key)
-        if isinstance(value, str) and value:
-            return value
-    archive_key = row.get("archive_key")
-    if isinstance(archive_key, Mapping):
-        run_id = archive_key.get("source_run_id")
-        if isinstance(run_id, str) and run_id:
-            return run_id
-    return None
+    """Return the stable Archive identity for one core light row."""
+    return archive_row_key(row)
 
 
 def _idle_tokens_match(
@@ -274,6 +266,23 @@ def _status_from_corpus(
     return ARCHIVE_CORPUS_WARM, indexed_rows, None
 
 
+def _match_query(query: str) -> str | None:
+    """Strip the host ``in:`` scope token: it selects the view, not rows.
+
+    The core corpus only knows row fields, so the scope must be extracted
+    before every summary, rows, and count call (the CLI does the same).
+    """
+    from sase.ace.query.profile_reference_support import ProfileQueryError
+    from sase.ace.query.scope_token import ScopeTokenError, extract_scope
+
+    try:
+        remainder, _scope = extract_scope(query)
+    except (ScopeTokenError, ProfileQueryError, ValueError):
+        log.debug("archive query scope rejected: %r", query, exc_info=True)
+        return None
+    return remainder
+
+
 def _query_handle(
     corpus: Any,
     profile: Any,
@@ -286,11 +295,12 @@ def _query_handle(
 ]:
     if corpus is None:
         return None, (), (), 0
+    query = _match_query(snapshot.query)
+    if query is None:
+        return None, (), (), 0
     summary: Mapping[str, Any] | None = None
     try:
-        summary = corpus.summary(
-            snapshot.query, group_by=snapshot.grouping, profile=profile
-        )
+        summary = corpus.summary(query, group_by=snapshot.grouping, profile=profile)
     except Exception:
         log.debug("archive corpus summary failed", exc_info=True)
         summary = None
@@ -299,7 +309,7 @@ def _query_handle(
     for window in snapshot.windows:
         try:
             payload = corpus.rows(
-                snapshot.query,
+                query,
                 group_by=snapshot.grouping,
                 group_key=window.group_key,
                 offset=window.offset,
@@ -328,7 +338,7 @@ def _query_handle(
                 identities.append(identity)
     count = 0
     try:
-        count = int(corpus.count(snapshot.query, profile=profile))
+        count = int(corpus.count(query, profile=profile))
     except Exception:
         if isinstance(summary, Mapping):
             count = int(summary.get("total", 0) or 0)

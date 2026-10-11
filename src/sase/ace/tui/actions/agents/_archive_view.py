@@ -8,6 +8,7 @@ read callers opt into :func:`get_agents_tab_selection` instead.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from typing import Any
 
@@ -15,7 +16,9 @@ from ...models.agent_archive_view import (
     AGENTS_VIEW_ARCHIVE,
     AGENTS_VIEW_INBOX,
     ARCHIVE_ROW_AGENT,
+    ARCHIVE_ROW_CONTAINER,
     ARCHIVE_ROW_NONE,
+    ARCHIVE_SECTION_PULSE,
     ARCHIVE_STATUS_ALREADY_INBOX,
     ARCHIVE_STATUS_ALREADY_OPEN,
     ARCHIVE_STATUS_DISABLED,
@@ -31,8 +34,13 @@ from ...models.agent_archive_view import (
     agents_archive_view_enabled,
     capture_detail_owner,
     detail_owner_is_current,
+    is_archive_container_key,
+    is_archive_row_key,
     startup_agents_archive_view_state,
 )
+
+
+log = logging.getLogger(__name__)
 
 
 def _view_state(owner: Any) -> AgentsArchiveViewState:
@@ -158,6 +166,16 @@ def _capture_parked_inbox(owner: Any) -> ParkedInboxState:
     )
 
 
+def _sync_archive_chrome(owner: Any) -> None:
+    """Show the active view's column. Never lets chrome failures reach the Inbox."""
+    from ._archive_column import sync_archive_chrome
+
+    try:
+        sync_archive_chrome(owner, request=False)
+    except Exception:
+        log.debug("archive chrome sync failed", exc_info=True)
+
+
 def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     """Open the Archive with its parked state (the pure ``,a`` toggle seam).
 
@@ -187,6 +205,7 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     from ._archive_controller import request_archive_view_load
 
     request_archive_view_load(owner)
+    _sync_archive_chrome(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_OPENED,
         view=state.active_view,
@@ -224,12 +243,14 @@ def open_agents_archive_view_with_query(
         committed_query=query,
         selected_key=None,
         pending_exact_name=agent_name,
+        reveal_row=None,
         loaded_pages={},
     )
     invalidate_agents_detail_ownership(owner)
     from ._archive_controller import request_archive_view_load
 
     request_archive_view_load(owner)
+    _sync_archive_chrome(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_OPENED,
         view=state.active_view,
@@ -257,6 +278,7 @@ def close_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     state.parked_inbox = None
     state.active_view = AGENTS_VIEW_INBOX
     invalidate_agents_detail_ownership(owner)
+    _sync_archive_chrome(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_RETURNED,
         view=state.active_view,
@@ -268,26 +290,40 @@ def get_agents_tab_selection(owner: Any) -> AgentsTabSelection:
     """Return the typed view-aware selection for read callers.
 
     Live-only callers keep using ``_get_selected_agent`` and never see an
-    archived row. The archived agent hydrates in the archive-reader phase;
-    until then an Archive selection carries its stable key, not a bundle.
+    archived row. A banner, page tail, or the focused Inbox pulse is not an
+    agent: it resolves to ``row_kind`` ``"none"``. A run carries its stable
+    key and core light row; a container carries ``container:<key>`` and the
+    light row of its summary. The archived agent hydrates in the
+    archive-reader phase; until then an Archive selection carries its key.
     """
     state = _view_state(owner)
     if state.active_view == AGENTS_VIEW_ARCHIVE:
         if not agents_archive_view_enabled():
             return AgentsTabSelection(view=AGENTS_VIEW_INBOX, row_kind=ARCHIVE_ROW_NONE)
         key = state.archive.selected_key
-        if key is None:
+        if (
+            key is None
+            or state.archive.focused_section == ARCHIVE_SECTION_PULSE
+            or not is_archive_row_key(key)
+        ):
             return AgentsTabSelection(
                 view=AGENTS_VIEW_ARCHIVE,
                 row_kind=ARCHIVE_ROW_NONE,
                 read_only=True,
             )
+        from ._archive_column import archive_light_row
+
         return AgentsTabSelection(
             view=AGENTS_VIEW_ARCHIVE,
-            row_kind=ARCHIVE_ROW_AGENT,
+            row_kind=(
+                ARCHIVE_ROW_CONTAINER
+                if is_archive_container_key(key)
+                else ARCHIVE_ROW_AGENT
+            ),
             read_only=True,
             archive_key=key,
             provenance="archive",
+            light_row=archive_light_row(owner, key),
         )
     selector = getattr(owner, "_get_selected_agent", None)
     agent = selector() if callable(selector) else None
@@ -304,7 +340,11 @@ def archive_read_only_context(owner: Any) -> ReadOnlyArchiveContext | None:
     if not archive_detail_owns_panel(owner):
         return None
     key = state.archive.selected_key
-    if key is None:
+    if (
+        key is None
+        or state.archive.focused_section == ARCHIVE_SECTION_PULSE
+        or not is_archive_row_key(key)
+    ):
         return None
     return ReadOnlyArchiveContext(
         archive_key=key,
@@ -313,7 +353,50 @@ def archive_read_only_context(owner: Any) -> ReadOnlyArchiveContext | None:
     )
 
 
+def route_archive_key(owner: Any, intent: str) -> bool:
+    """Route an Agents-tab list key to the Archive. True when it consumed the key.
+
+    Called at the top of the ``j k g G h l J K`` and Enter actions so an active
+    Archive never falls through to Inbox navigation or to actions on the
+    parked Inbox selection. The Inbox path pays one attribute read: the Archive
+    column code only loads once the Archive is actually open.
+    """
+    if getattr(owner, "current_tab", "agents") != "agents":
+        return False
+    if not agents_view_is_archive(owner) or not archive_detail_owns_panel(owner):
+        return False
+    from ._archive_column_nav import dispatch_archive_intent
+
+    dispatch_archive_intent(owner, intent)
+    return True
+
+
+class AgentArchiveColumnMixin:
+    """Textual message handlers for the Archive column widgets.
+
+    Handlers defer to the column code so the Inbox-only startup path never
+    imports it.
+    """
+
+    def on_archive_list_cursor_moved(self, event: Any) -> None:
+        from ._archive_column_nav import archive_cursor_from_widget
+
+        archive_cursor_from_widget(self, event.key)
+
+    def on_archive_list_item_activated(self, event: Any) -> None:
+        from ._archive_column_nav import archive_activate_key
+
+        archive_activate_key(self, event.key)
+
+    def on_archive_pulse_activated(self, event: Any) -> None:
+        from ._archive_column_nav import archive_activate_pulse
+
+        archive_activate_pulse(self)
+
+
 __all__ = [
+    "AgentArchiveColumnMixin",
+    "route_archive_key",
     "archive_detail_owns_panel",
     "archive_read_only_context",
     "agents_inbox_detail_allowed",

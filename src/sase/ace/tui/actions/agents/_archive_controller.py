@@ -41,6 +41,7 @@ from ...models.agent_archive_view import (
     ARCHIVE_DEFAULT_GROUPING,
     ARCHIVE_DEFAULT_QUERY,
     agents_archive_view_enabled,
+    is_archive_row_key,
 )
 from ...util.pump_tasks import spawn_pump_free_task
 
@@ -83,6 +84,10 @@ def archive_corpus_snapshot(owner: Any) -> ArchiveCorpusSnapshot:
         grouping=state.last_grouping,
         tokens=state.tokens,
         warm=state.corpus is not None,
+        applied_query=state.applied_query,
+        applied_grouping=state.applied_grouping,
+        applied_expanded=state.applied_expanded,
+        timezone=str(getattr(state.corpus, "timezone", "") or ""),
     )
 
 
@@ -118,11 +123,41 @@ def _ui_is_idle(owner: Any) -> bool:
 
 
 def refresh_archive_inbox_pulse(owner: Any) -> ArchiveInboxPulse:
-    """Snapshot Inbox counts from already-applied roster state."""
+    """Snapshot Inbox counts from already-applied roster state.
+
+    Prefers the Inbox header's cached metrics (so the pulse can never disagree
+    with it and costs nothing extra); a bare roster scan is the fallback.
+    """
     pulse = ArchiveInboxPulse()
     if not agents_archive_view_enabled():
         _controller(owner).pulse = pulse
         return pulse
+    pulse = _pulse_from_header_metrics(owner) or _pulse_from_roster(owner)
+    _controller(owner).pulse = pulse
+    from ._archive_column import update_archive_pulse
+
+    update_archive_pulse(owner)
+    return pulse
+
+
+def _pulse_from_header_metrics(owner: Any) -> ArchiveInboxPulse | None:
+    metrics = getattr(owner, "_agent_info_metrics", None)
+    if not callable(metrics):
+        return None
+    try:
+        unread, asking, running, waiting, _failed, _read, total, *_rest = metrics()
+    except Exception:
+        return None
+    return ArchiveInboxPulse(
+        total=int(total),
+        running=int(running),
+        waiting=int(waiting),
+        unread=int(unread),
+        attention=int(asking),
+    )
+
+
+def _pulse_from_roster(owner: Any) -> ArchiveInboxPulse:
     agents = getattr(owner, "_agents", None) or ()
     running = 0
     waiting = 0
@@ -134,15 +169,13 @@ def refresh_archive_inbox_pulse(owner: Any) -> ArchiveInboxPulse:
             waiting += 1
     unread = len(getattr(owner, "_unread_completed_agent_ids", ()) or ())
     attention = int(getattr(owner, "_pending_attention_count", 0) or 0)
-    pulse = ArchiveInboxPulse(
+    return ArchiveInboxPulse(
         total=len(tuple(agents)),
         running=running,
         waiting=waiting,
         unread=unread,
         attention=attention,
     )
-    _controller(owner).pulse = pulse
-    return pulse
 
 
 def note_inbox_applied_for_archive(owner: Any, load_state: Any = None) -> None:
@@ -226,6 +259,7 @@ def request_archive_view_load(owner: Any) -> None:
     ):
         state.status = ARCHIVE_CORPUS_LOADING
         state.error_message = None
+    _preplan_view_windows(owner)
     if not state.inbox_complete_applied:
         state.explicit_open_queued = True
         _schedule_inbox_load_for_gate(owner)
@@ -234,6 +268,26 @@ def request_archive_view_load(owner: Any) -> None:
         state.explicit_open_queued = True
         return
     _schedule_request(owner, kind=ARCHIVE_REQUEST_VIEW)
+
+
+def _preplan_view_windows(owner: Any) -> None:
+    """Carry the held summary's windows into the open's own request.
+
+    A warm reopen then needs one corpus round trip instead of a summary
+    request followed by a window request.
+    """
+    from ._archive_column import plan_archive_view_windows
+
+    try:
+        windows = plan_archive_view_windows(owner)
+    except Exception:
+        log.debug("archive window preplan failed", exc_info=True)
+        return
+    if windows is not None:
+        state = _controller(owner)
+        state.last_windows = windows
+        archive = getattr(_view_state(owner), "archive", None)
+        state.last_expanded = tuple(getattr(archive, "expanded_containers", ()) or ())
 
 
 def request_archive_windows(
@@ -391,6 +445,7 @@ def _apply_archive_result(
         state.windows = ()
         state.identities = ()
         state.count = 0
+        _notify_snapshot_applied(owner)
         return
     facets = result.get("facets")
     if isinstance(facets, Mapping):
@@ -412,11 +467,25 @@ def _apply_archive_result(
     identities = result.get("identities")
     state.identities = identities if isinstance(identities, tuple) else ()
     state.count = int(result.get("count") or 0)
+    state.applied_query = snapshot.query
+    state.applied_grouping = snapshot.grouping
+    state.applied_expanded = tuple(snapshot.expanded_containers)
     state.refreshing = False
     if state.corpus is not None:
         state.prewarm_started = True
         state.prewarm_pending = False
     _apply_selection(owner, snapshot, result)
+    _notify_snapshot_applied(owner)
+
+
+def _notify_snapshot_applied(owner: Any) -> None:
+    """Let the Archive column repaint from the freshly published snapshot."""
+    from ._archive_column import on_archive_snapshot_applied
+
+    try:
+        on_archive_snapshot_applied(owner)
+    except Exception:
+        log.debug("archive column snapshot hook failed", exc_info=True)
 
 
 def _apply_selection(
@@ -439,7 +508,10 @@ def _apply_selection(
         if looked_up is not None:
             archive.selected_key = looked_up
             archive.pending_exact_name = None
+            archive.reveal_row = dict(lookup_row)
             return
+    if current_key is not None and not is_archive_row_key(str(current_key)):
+        return  # a banner or page tail cursor is not an identity to preserve
     if snapshot.kind == ARCHIVE_REQUEST_PREWARM and current_key is None:
         return
     preserved = preserve_archive_selected_key(
