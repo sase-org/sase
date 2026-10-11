@@ -138,6 +138,9 @@ def invalidate_agents_detail_ownership(owner: Any) -> int:
     """
     state = _view_state(owner)
     state.generation += 1
+    from ._archive_reader import clear_archive_reader_runtime
+
+    clear_archive_reader_runtime(owner)
     return state.generation
 
 
@@ -375,8 +378,8 @@ def get_agents_tab_selection(owner: Any) -> AgentsTabSelection:
     archived row. A banner, page tail, or the focused Inbox pulse is not an
     agent: it resolves to ``row_kind`` ``"none"``. A run carries its stable
     key and core light row; a container carries ``container:<key>`` and the
-    light row of its summary. The archived agent hydrates in the
-    archive-reader phase; until then an Archive selection carries its key.
+    light row of its summary. A hydrated Archive agent is attached when the
+    reader has finished loading that same key.
     """
     state = _view_state(owner)
     if state.active_view == AGENTS_VIEW_ARCHIVE:
@@ -394,6 +397,7 @@ def get_agents_tab_selection(owner: Any) -> AgentsTabSelection:
                 read_only=True,
             )
         from ._archive_column import archive_light_row
+        from ._archive_reader import hydrated_archive_agent_for
 
         return AgentsTabSelection(
             view=AGENTS_VIEW_ARCHIVE,
@@ -402,6 +406,7 @@ def get_agents_tab_selection(owner: Any) -> AgentsTabSelection:
                 if is_archive_container_key(key)
                 else ARCHIVE_ROW_AGENT
             ),
+            agent=hydrated_archive_agent_for(owner, key),
             read_only=True,
             archive_key=key,
             provenance="archive",
@@ -428,10 +433,20 @@ def archive_read_only_context(owner: Any) -> ReadOnlyArchiveContext | None:
         or not is_archive_row_key(key)
     ):
         return None
+    from ._archive_column import archive_light_row
+    from ._archive_reader import hydrated_archive_agent_for
+
+    runtime = getattr(owner, "_archive_reader_runtime", None)
+    matching = getattr(runtime, "archive_key", None) == key
     return ReadOnlyArchiveContext(
         archive_key=key,
         detail_generation=state.generation,
         provenance="archive",
+        light_row=archive_light_row(owner, key),
+        hydrated_agent=hydrated_archive_agent_for(owner, key),
+        unreadable=bool(getattr(runtime, "unreadable", False)) if matching else False,
+        retained=tuple(getattr(runtime, "retained", ())) if matching else (),
+        missing=tuple(getattr(runtime, "missing", ())) if matching else (),
     )
 
 

@@ -20,6 +20,23 @@ def _dispatch_file_view(
     """Run the legacy Files branch; return False when there is no content."""
     from .prompt_panel._agent_commits import agent_commit_diffs
 
+    if getattr(agent, "_archive_read_only", False):
+        del stale_threshold_seconds
+        retained: list[str] = []
+        seen: set[str] = set()
+        for info in agent_commit_diffs(agent):
+            path = getattr(info, "diff_path", None)
+            if path and path not in seen:
+                seen.add(path)
+                retained.append(path)
+        for path in list(agent.all_files or ()):
+            if path not in seen:
+                seen.add(path)
+                retained.append(path)
+        if retained:
+            file_panel.set_file_list(retained, start_index=0)
+            return True
+        return False
     if agent.status in _ACTIVE_STATUSES:
         file_panel.update_display(
             agent, stale_threshold_seconds=stale_threshold_seconds
@@ -62,5 +79,20 @@ def load_deck_file_view(
         file_panel, agent, stale_threshold_seconds=stale_threshold_seconds
     )
     if not loaded:
+        if getattr(agent, "_archive_read_only", False):
+            from ..models.agent_archive_reader import (
+                ARCHIVE_MISSING_FILES,
+                titled_archive_card,
+            )
+
+            updater = getattr(file_panel, "_update_body", None) or getattr(
+                file_panel, "update", None
+            )
+            if callable(updater):
+                try:
+                    updater(titled_archive_card(ARCHIVE_MISSING_FILES))
+                    return False
+                except Exception:
+                    pass
         file_panel.show_empty()
     return loaded

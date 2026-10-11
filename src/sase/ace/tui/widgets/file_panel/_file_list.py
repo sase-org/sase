@@ -47,6 +47,8 @@ def desired_file_pages(agent: Agent) -> tuple[list[str], str | None]:
 
     cache_entry = file_cache.get(get_cache_key(agent))
     suppress_live_diff = bool(commit_diffs) and _is_terminal_agent(agent)
+    if getattr(agent, "_archive_read_only", False):
+        suppress_live_diff = True
     if (
         cache_entry is not None
         and bool(cache_entry.diff_output)
@@ -493,4 +495,6 @@ class FilePanelFileListMixin:
 
 
 def _is_terminal_agent(agent: Agent) -> bool:
+    if getattr(agent, "_archive_read_only", False):
+        return True
     return agent_status_bucket(agent) in {"Done", "Failed"}

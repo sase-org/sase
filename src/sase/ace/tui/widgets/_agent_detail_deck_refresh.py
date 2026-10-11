@@ -85,6 +85,30 @@ class AgentDetailDeckRefreshMixin:
                     self._refresh_tools_panel(panel, agent, attempt_number)
                 except Exception:
                     pass
+                if getattr(agent, "_archive_read_only", False):
+                    try:
+                        availability = probe_tools_deck(
+                            agent, attempt_number=attempt_number
+                        )
+                    except Exception:
+                        availability = DeckAvailability(False, 0)
+                    if not availability.has_content:
+                        from ..models.agent_archive_reader import (
+                            ARCHIVE_MISSING_TOOLS,
+                            titled_archive_card,
+                        )
+
+                        body = titled_archive_card(ARCHIVE_MISSING_TOOLS)
+                        for view in (
+                            getattr(panel, "tools_view", None),
+                            getattr(panel, "tool_runs_view", None),
+                        ):
+                            updater = getattr(view, "update", None)
+                            if callable(updater):
+                                try:
+                                    updater(body)
+                                except Exception:
+                                    pass
             elif panel.deck is DeckId.FINAL:
                 # Every FINAL panel paints its own view; the shared
                 # stat-signature cache makes duplicates instant.
@@ -92,6 +116,26 @@ class AgentDetailDeckRefreshMixin:
                     preferred = self._final_preferred_card(panel)
                 except Exception:
                     preferred = None
+                if getattr(agent, "_archive_read_only", False):
+                    try:
+                        availability = probe_final_deck(
+                            agent, attempt_number=attempt_number
+                        )
+                    except Exception:
+                        availability = DeckAvailability(False, 0)
+                    if not availability.has_content:
+                        from ..models.agent_archive_reader import (
+                            ARCHIVE_MISSING_FINAL,
+                            titled_archive_card,
+                        )
+
+                        updater = getattr(panel.final_view, "update", None)
+                        if callable(updater):
+                            try:
+                                updater(titled_archive_card(ARCHIVE_MISSING_FINAL))
+                            except Exception:
+                                pass
+                        continue
                 try:
                     panel.final_view.update_display(
                         agent,

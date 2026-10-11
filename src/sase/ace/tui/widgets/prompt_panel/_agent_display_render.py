@@ -73,6 +73,7 @@ from ._agent_macro_highlighting import (
 from ..decks.card_part import card_document, context_card, reply_card, summary_card
 from ._helpers import append_section_heading, format_output
 from ._member_roster import member_jump_map_publisher_for
+from ...models.agent_archive_view import agent_is_archive_read_only
 from ._traceback_section import build_traceback_block
 
 _HUMANIZED_TEXT_CACHE_LIMIT = 24
@@ -530,8 +531,12 @@ class AgentDisplayRenderMixin(
                         reply_card(*reply_parts),
                     )
                 )
-            # For completed or failed agents/steps, also show the response
-            elif agent.status in ("DONE", "FAILED"):
+            # For completed or failed agents/steps, also show the response.
+            # Archived RUNNING/WAITING rows reuse this static path.
+            elif agent_is_archive_read_only(agent) or agent.status in (
+                "DONE",
+                "FAILED",
+            ):
                 reply_header = Text()
                 append_section_heading(reply_header, "AGENT CHAT")
 
@@ -579,8 +584,26 @@ class AgentDisplayRenderMixin(
                         )
                     reply_parts.append(response_syntax)
                 else:
-                    reply_header.append("No response file found.\n", style="dim italic")
-                    reply_parts.append(reply_header)
+                    live_reply = (
+                        agent.get_live_reply_content()
+                        if agent_is_archive_read_only(agent)
+                        else None
+                    )
+                    if live_reply:
+                        reply_parts.append(reply_header)
+                        reply_parts.append(self._render_markdown(live_reply))
+                    elif agent_is_archive_read_only(agent):
+                        from ...models.agent_archive_reader import ARCHIVE_MISSING_REPLY
+
+                        reply_header.append(
+                            f"{ARCHIVE_MISSING_REPLY}\n", style="dim italic"
+                        )
+                        reply_parts.append(reply_header)
+                    else:
+                        reply_header.append(
+                            "No response file found.\n", style="dim italic"
+                        )
+                        reply_parts.append(reply_header)
 
                 append_finalizer_receipt(reply_parts, agent)
                 self.update(  # type: ignore[attr-defined]
@@ -637,7 +660,12 @@ class AgentDisplayRenderMixin(
                     )
                 )
         else:
-            header_text.append("No prompt file found.\n", style="dim italic")
+            if agent_is_archive_read_only(agent):
+                from ...models.agent_archive_reader import ARCHIVE_MISSING_CONTEXT
+
+                header_text.append(f"{ARCHIVE_MISSING_CONTEXT}\n", style="dim italic")
+            else:
+                header_text.append("No prompt file found.\n", style="dim italic")
             traceback_parts = build_traceback_block(error_tb_syntax)
             if traceback_parts:
                 self.update(  # type: ignore[attr-defined]

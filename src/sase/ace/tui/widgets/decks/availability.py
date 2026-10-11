@@ -43,6 +43,11 @@ def probe_files_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
         all_files = list(agent.all_files)
         if all_files:
             return DeckAvailability(True, len(all_files))
+    if getattr(agent, "_archive_read_only", False):
+        all_files = list(getattr(agent, "all_files", None) or ())
+        if all_files:
+            return DeckAvailability(True, len(all_files))
+        return DeckAvailability(False, 0)
     if agent.status in _ACTIVE_STATUSES:
         return DeckAvailability(None, None)
     if agent.workspace_num is not None and not agent.fleet_origin_alias:
@@ -134,6 +139,8 @@ def probe_final_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
     known = [s for s in summaries if s is not None]
     if not known:
         try:
+            if getattr(agent, "_archive_read_only", False):
+                return DeckAvailability(False, 0)
             if agent.status in _ACTIVE_STATUSES:
                 return DeckAvailability(None, None)
         except Exception:
@@ -167,6 +174,8 @@ def probe_final_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
     if running:
         return DeckAvailability(None, None)
     try:
+        if getattr(agent, "_archive_read_only", False):
+            return DeckAvailability(False, 0)
         if agent.status in _ACTIVE_STATUSES:
             return DeckAvailability(None, None)
     except Exception:

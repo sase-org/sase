@@ -50,6 +50,9 @@ ARCHIVE_STATUS_DISABLED = "disabled"
 ARCHIVE_STATUS_RETURNED = "returned"
 ARCHIVE_STATUS_ALREADY_INBOX = "already_inbox"
 
+ARCHIVE_IDENTITY_KIND = "◷ ARCHIVED · read-only"
+ARCHIVE_IDENTITY_ACCENT = "#d7af5f"
+
 
 @dataclass
 class ArchiveViewState:
@@ -133,12 +136,21 @@ class AgentsTabSelection:
 
 @dataclass(frozen=True)
 class ReadOnlyArchiveContext:
-    """Read-only detail context carried outside serialized bundle state."""
+    """Read-only detail context carried outside serialized bundle state.
+
+    Provenance, the light row, and retained/missing facts are the seam the
+    parent Record phase consumes. Hydration never rewrites stored status.
+    """
 
     archive_key: str
     detail_generation: int = 0
     provenance: str | None = None
     read_only: bool = True
+    light_row: Mapping[str, Any] | None = None
+    hydrated_agent: Any = None
+    unreadable: bool = False
+    retained: tuple[str, ...] = ()
+    missing: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -199,6 +211,11 @@ def agents_archive_view_enabled() -> bool:
     return current_flags().enabled(FeatureFlag.agents_archive_view)
 
 
+def agent_is_archive_read_only(agent: Any) -> bool:
+    """Return whether ``agent`` is a hydrated Archive row (live-path guard)."""
+    return bool(getattr(agent, "_archive_read_only", False))
+
+
 def capture_detail_owner(
     *,
     view: str,
@@ -246,6 +263,8 @@ __all__ = [
     "AGENTS_VIEW_INBOX",
     "ARCHIVE_DEFAULT_GROUPING",
     "ARCHIVE_DEFAULT_QUERY",
+    "ARCHIVE_IDENTITY_ACCENT",
+    "ARCHIVE_IDENTITY_KIND",
     "ARCHIVE_ROW_AGENT",
     "ARCHIVE_ROW_CONTAINER",
     "ARCHIVE_ROW_NONE",
@@ -263,6 +282,7 @@ __all__ = [
     "DetailOwnership",
     "ParkedInboxState",
     "ReadOnlyArchiveContext",
+    "agent_is_archive_read_only",
     "agents_archive_view_enabled",
     "capture_detail_owner",
     "detail_owner_is_current",

@@ -160,15 +160,17 @@ async def test_cursor_moves_debounce_the_detail_paint_and_drop_stale_work() -> N
         column_mod._paint_detail_placeholder = lambda o: painted.append("paint")
         try:
             route_archive_key(owner, INTENT_DOWN)
-            owner._agent_detail_debouncer.fire()
-            assert painted == ["paint"]
+            assert painted == ["paint"]  # identity paints immediately
 
             route_archive_key(owner, INTENT_DOWN)
             close_agents_archive_view(owner)  # the view switched before it fired
             owner._agent_detail_debouncer.fire()
-            assert painted == ["paint"]
+            assert painted == ["paint", "paint"]  # fire after switch does not paint
         finally:
             column_mod._paint_detail_placeholder = original
+            for coro in list(harness.spawn.coros):
+                coro.close()
+            harness.spawn.coros.clear()
         assert owner._agents_archive_view.active_view == AGENTS_VIEW_INBOX
 
 

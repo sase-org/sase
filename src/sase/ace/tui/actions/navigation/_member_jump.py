@@ -278,6 +278,10 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             self._reveal_agent_row(target.member_identity, subject=subject)
             return
 
+        from ..agents._archive_view import archive_detail_owns_panel
+
+        if archive_detail_owns_panel(self):
+            return
         dismissed_resolver = getattr(self, "_active_dismissed_agent_objects", None)
         revive = getattr(self, "_do_revive_agent", None)
         if not callable(dismissed_resolver) or not callable(revive):

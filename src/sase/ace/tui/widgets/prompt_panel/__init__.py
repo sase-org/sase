@@ -157,7 +157,8 @@ class AgentPromptPanel(
         """Render the normal detail, then follow its selected live Reply source."""
         self.cancel_live_reply_follow()
         super().update_display(agent)  # type: ignore[misc]
-        self.configure_live_reply_follow(agent)
+        if not getattr(agent, "_archive_read_only", False):
+            self.configure_live_reply_follow(agent)
 
     def update_display_with_hints(self, agent: Agent) -> Any:
         """Hint documents are snapshots and never run the live Reply follower."""

@@ -66,6 +66,7 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "project_display_name",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",
+            "_archive_read_only",
         }
     )
     | _PROJECTED_RECORD_BUNDLE_FIELDS
@@ -206,6 +207,8 @@ def from_bundle_dict(
         if f.name in kwargs:
             continue
         if f.name in _PROJECTED_RECORD_BUNDLE_FIELDS:
+            continue
+        if f.name in _RUNTIME_ONLY_BUNDLE_FIELDS:
             continue
         if f.name not in data:
             continue

@@ -113,3 +113,7 @@ class AgentStateFleetFields:
     # Populated alongside ``_loaded_from_dismissed_bundle`` by the dismissed
     # bundle loader so the revive audit log can record which file was deleted.
     _dismissed_bundle_path: str | None = field(default=None, compare=False, repr=False)
+
+    # Archive-reader hydration guard. Never serialized. Distinct from
+    # ``_loaded_from_dismissed_bundle`` (revive / Inbox exclusion).
+    _archive_read_only: bool = field(default=False, compare=False, repr=False)

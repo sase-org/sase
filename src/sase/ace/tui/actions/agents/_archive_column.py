@@ -55,11 +55,7 @@ from ._archive_controller import (
     archive_inbox_pulse,
     request_archive_windows,
 )
-from ._archive_view import (
-    archive_detail_owns_panel,
-    remember_agents_detail_owner,
-    scheduled_agents_detail_is_current,
-)
+from ._archive_view import archive_detail_owns_panel
 
 log = logging.getLogger(__name__)
 
@@ -557,41 +553,20 @@ def sync_archive_chrome(owner: Any, *, request: bool = True) -> None:
 
 
 def _paint_detail_placeholder(owner: Any) -> None:
-    """Clear the shared detail panel while the Archive owns it.
+    """Paint archived identity and the titled loading placeholder immediately."""
+    from ._archive_reader import paint_archive_detail_placeholder
 
-    Seam for the archive-reader phase, which replaces this with the archived
-    identity header, hydration, and read-only decks. Until then a stale Inbox
-    agent must not stay visible next to an Archive cursor.
-    """
-    from textual.css.query import NoMatches
-
-    from ...widgets import AgentDetail
-
-    query_one = getattr(owner, "query_one", None)
-    if not callable(query_one):
-        return
-    try:
-        query_one("#agent-detail-panel", AgentDetail).show_empty()
-    except NoMatches:
-        return
+    paint_archive_detail_placeholder(owner)
 
 
 def schedule_detail(owner: Any) -> None:
-    """Debounce the Archive detail paint (``DetailPanelDebouncer``, 150 ms)."""
-    debouncer = getattr(owner, "_agent_detail_debouncer", None)
-    schedule = getattr(debouncer, "schedule", None)
-    if not callable(schedule):
-        return
-    remember_agents_detail_owner(owner)
-    schedule(lambda: _fire_archive_detail(owner))
+    """Paint identity immediately, then debounce pump-free hydration (150 ms)."""
+    from ._archive_reader import arm_archive_detail_hydration
 
-
-def _fire_archive_detail(owner: Any) -> None:
-    if not scheduled_agents_detail_is_current(owner):
-        return
-    if not archive_detail_owns_panel(owner):
-        return
+    # Call the local wrapper so tests can intercept the immediate paint
+    # without patching the reader module.
     _paint_detail_placeholder(owner)
+    arm_archive_detail_hydration(owner)
 
 
 __all__ = [

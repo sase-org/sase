@@ -87,6 +87,8 @@ class FilePanelFetchMixin:
         workspace/provider discovery on the UI thread and shows up directly in
         j/k latency.
         """
+        if getattr(agent, "_archive_read_only", False):
+            return
         inflight_key = self._inflight_key_for_agent(agent)
         existing = self._inflight_diff_tasks.get(inflight_key)
         if existing is not None and existing.is_running:

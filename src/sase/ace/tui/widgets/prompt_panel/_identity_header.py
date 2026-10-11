@@ -90,6 +90,13 @@ class IdentityHeader:
 
 def identity_kind_for_agent(agent: Agent) -> tuple[str, str]:
     """Return the panel kind label and accent color for ``agent``."""
+    if getattr(agent, "_archive_read_only", False):
+        from ...models.agent_archive_view import (
+            ARCHIVE_IDENTITY_ACCENT,
+            ARCHIVE_IDENTITY_KIND,
+        )
+
+        return (ARCHIVE_IDENTITY_KIND, ARCHIVE_IDENTITY_ACCENT)
     if agent.is_agent_session_container_row:
         return ("SESSION", SESSION_IDENTITY_COLOR)
     if agent.is_named_proc:
