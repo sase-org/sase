@@ -1424,9 +1424,11 @@ axe:
             Resolve agent wait dependencies and write ready.json when satisfied
 
             Walks waiting markers across projects, resolves only live waiters (provably dead runners are skipped and
-            counted in the dead-waiter backlog counter), and resolves named-agent, artifact, and closed-bead
-            dependencies from filesystem agent metadata and canonical bead state. It writes ready.json only after
-            every dependency is satisfied; invalid or already-ready markers are skipped without blocking other agents.
+            counted in the dead-waiter backlog counter), and resolves named-agent and closed-bead waits from a scoped
+            filesystem metadata view (identity keys of the live waiters plus each waiter's own row). Unscopable shapes
+            (@tribe names, hoods, fork sources, identity deps, armed epic follows) still use the full artifact view.
+            It writes ready.json only after every dependency is satisfied; invalid or already-ready markers are skipped
+            without blocking other agents.
     sidecar_sync:
       description: |-
         Fetch and fast-forward opted-in primary sidecar clones

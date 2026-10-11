@@ -309,14 +309,21 @@ resolution, no notifications — and counted in the `dead_waiting` backlog count
 alongside `live_waiting` and `unknown_liveness`. With no live or unknown waiter pending,
 the tick emits its summary without building any dependency view, and `unresolved` counts
 only live/unknown waiters. The resolving view itself is built from filesystem
-`agent_meta.json` rows rather than the artifact index.
+`agent_meta.json` rows rather than the artifact index. Named-agent and bead-only waiters
+resolve from a scoped view: only rows whose identity keys intersect the live waiters'
+dependency names, plus each scopable waiter's own directory. Confirmation re-lists those
+projects fresh and keeps the same per-waiter key set, so a member that appears between
+the two views still defers release. Unscopable shapes — `@tribe` names, hoods, fork
+sources, identity (`wait_for_artifacts`) deps, and armed epic follows — keep today's
+full view, built at most once per tick and only when a live waiter needs it.
 
 The `wait_checks` summary includes `walk_ms` for marker scanning and liveness
 classification, `view_ms` for dependency view construction, `resolve_ms` for the
-per-waiter loop, and `view_rows` for the rows loaded into views during the tick.
-Progress lines report the waiter counts after classification and the resolving view's
-row count; chop log lines flush immediately so they remain available if the job is
-killed.
+per-waiter loop, `view_rows` for the rows loaded into views during the tick,
+`scoped_waiters` for live waiters resolved from the scoped view, and `full_view_waiters`
+for live waiters that used the full view. Progress lines report the waiter counts after
+classification and the resolving view's row count; chop log lines flush immediately so
+they remain available if the job is killed.
 
 If an unresolved dependency already has a terminal `done.json` outcome that wait
 resolution does not recognize, `wait_checks` increments `unknown_outcome` and logs the
