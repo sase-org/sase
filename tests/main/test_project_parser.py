@@ -112,6 +112,48 @@ class TestProjectParser:
         assert ns.project == "demo"
         assert ns.force is True
 
+    def test_suggest_defaults(self) -> None:
+        ns = parse_sase_args(["project", "suggest"])
+
+        assert ns.project_subcommand == "suggest"
+        assert ns.provider is None
+        assert ns.all is False
+        assert ns.json is False
+        assert ns.owner is None
+        assert ns.refresh is False
+
+    def test_suggest_provider_and_short_options(self) -> None:
+        ns = parse_sase_args(
+            ["project", "suggest", "gh", "-a", "-j", "-o", "sase-org", "-r"]
+        )
+
+        assert ns.project_subcommand == "suggest"
+        assert ns.provider == "gh"
+        assert ns.all is True
+        assert ns.json is True
+        assert ns.owner == ["sase-org"]
+        assert ns.refresh is True
+
+    def test_suggest_long_options_and_repeatable_owner(self) -> None:
+        ns = parse_sase_args(
+            [
+                "project",
+                "suggest",
+                "--all",
+                "--json",
+                "--owner",
+                "sase-org",
+                "--owner",
+                "bobs-org",
+                "--refresh",
+            ]
+        )
+
+        assert ns.all is True
+        assert ns.json is True
+        assert ns.owner == ["sase-org", "bobs-org"]
+        assert ns.refresh is True
+
     def test_legacy_aliases_still_parse(self) -> None:
         set_state = parse_sase_args(["project", "set-state", "demo", "archived"])
         close = parse_sase_args(["project", "close", "demo"])

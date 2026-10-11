@@ -31704,6 +31704,116 @@
             "stdin": false,
             "subcommands": [],
             "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "a9b45fe571ab3610",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "suggest",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "all",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--all"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "owner",
+                "hidden": false,
+                "kind": null,
+                "metavar": "OWNER",
+                "repeatable": true,
+                "required": false,
+                "strings": [
+                  "-o",
+                  "--owner"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "refresh",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-r",
+                  "--refresh"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "project",
+              "suggest"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "provider",
+                "is_remainder": false,
+                "kind": "provider",
+                "metavar": "provider",
+                "nargs": "?",
+                "required": false,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
           }
         ],
         "writes": false

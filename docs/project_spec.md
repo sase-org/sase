@@ -209,6 +209,26 @@ filter matches `PROJECT_NAME` and aliases, and `A` opens the alias editor for th
 highlighted project. Alias edits replace the selected project's alias set; marked bulk
 operations remain lifecycle-only.
 
+### Adding Projects
+
+A project comes into existence when a new VCS macro argument resolves (for example the
+GitHub provider's first-use `owner/repo` refs, which allocate a canonical project such
+as `gh_foo-org__foo` with `WORKSPACE_DIR` set). Projects created this way are enabled by
+default: a missing `PROJECT_STATE` means enabled, and onboarding never writes
+`PROJECT_STATE`.
+
+`sase project suggest` ranks the repositories worth adding next without creating
+anything. Discovery is cache-first per owner across every workspace provider and feeds
+the shared classification rules, grouping candidates as `RESUME` (an interrupted
+onboarding), `ON THIS MACHINE` (local clones), `SUGGESTED`, `LINKED TO YOUR PROJECTS`,
+and `DISABLED PROJECTS`. Enabled projects, sidecars, forks, archived repositories,
+numbered clone copies, and third-party local checkouts stay hidden unless `--all` is
+passed. The command is read-only, so agents may call it freely.
+
+```bash
+sase project suggest [PROVIDER] [-a|--all] [-j|--json] [-o|--owner OWNER]... [-r|--refresh]
+```
+
 ### Current Project
 
 The **current project** is not a ProjectSpec field and not a lifecycle state. It is the

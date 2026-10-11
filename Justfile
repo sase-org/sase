@@ -451,9 +451,20 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm.3.1(invalidate_agents_detail_ownership)' \
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jm.3.1(request_archive_lookup)' \
-        --epic-symbol 'sase-1jx.6(classify_project_candidates)' \
         --epic-symbol 'sase-1jx.7(plan_project_onboarding)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
+        --epic-symbol 'sase-1jx.7(parse_user_ref)' \
+        --epic-symbol 'sase-1jx.7(UserRefError)' \
+        --epic-symbol 'sase-1jx.9(CandidateInputs)' \
+        --epic-symbol 'sase-1jx.9(OwnerResult)' \
+        --epic-symbol 'sase-1jx.9(journals_dir)' \
+        --epic-symbol 'sase-1jx.9(load_candidate_inputs)' \
+        --epic-symbol 'sase-1jx.9(Preferences)' \
+        --epic-symbol 'sase-1jx.9(load_preferences)' \
+        --epic-symbol 'sase-1jx.9(preferences_path)' \
+        --epic-symbol 'sase-1jx.9(save_preferences)' \
+        --epic-symbol 'sase-1jx.12(record_owner_selection)' \
+        --epic-symbol 'sase-1jx.12(record_visibility_selection)' \
         --epic-symbol 'sase-1jm.3(archive_marked_run_keys)' \
         --epic-symbol 'sase-1jm.3(archive_read_target)' \
         {{ args }}

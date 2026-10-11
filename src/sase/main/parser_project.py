@@ -31,7 +31,7 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     project_sub = project_parser.add_subparsers(
         dest="project_subcommand",
         help="Project subcommands",
-        metavar="{alias,current,disable,enable,list,set-current,set-state,show}",
+        metavar="{alias,current,disable,enable,list,set-current,set-state,show,suggest}",
     )
 
     alias_parser = project_sub.add_parser(
@@ -192,4 +192,57 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
         "--json",
         action="store_true",
         help="Emit machine-readable JSON",
+    )
+
+    suggest_parser = project_sub.add_parser(
+        "suggest",
+        help="Rank repositories worth adding as projects",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Rank repositories worth adding as SASE projects, grouped as "
+            "RESUME, ON THIS MACHINE, SUGGESTED, LINKED TO YOUR PROJECTS, "
+            "and DISABLED PROJECTS. Discovery is cache-first per owner and "
+            "read-only: nothing is cloned, created, or registered.\n\n"
+            "Human output prints one grouped section per workspace provider "
+            "with a health line, owner errors with their remedy, a hidden "
+            "row footer, and a closing `sase project add REF` hint. "
+            "--json emits the machine-readable candidate document."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase project suggest\n"
+            "  sase project suggest gh --owner sase-org --refresh\n"
+            "  sase project suggest --all --json"
+        ),
+    )
+    suggest_parser.add_argument(
+        "provider",
+        nargs="?",
+        help="Workspace provider workflow type (default: every provider)",
+    )
+    suggest_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Include hidden rows (sidecars, forks, archived, projects)",
+    )
+    suggest_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+    suggest_parser.add_argument(
+        "-o",
+        "--owner",
+        action="append",
+        default=None,
+        metavar="OWNER",
+        help="Restrict discovery to the named owner (repeatable)",
+    )
+    suggest_parser.add_argument(
+        "-r",
+        "--refresh",
+        action="store_true",
+        help="Bypass the cached repository lists",
     )

@@ -2,9 +2,9 @@
 name: sase_project
 description: >-
   Inspect and manage SASE projects with `sase project` (list, show, current,
-  set-current, enable, disable, alias). Use when you need the set of enabled projects,
-  the current project, one project's lifecycle record, or machine-readable project data
-  — e.g. to fan out one agent per enabled project.
+  set-current, enable, disable, alias, suggest). Use when you need the set of enabled
+  projects, the current project, one project's lifecycle record, or machine-readable
+  project data — e.g. to fan out one agent per enabled project.
 skill: true
 ---
 
@@ -21,6 +21,18 @@ state and aliases, or select projects for a multi-project workflow.
   claims, launchability, and warnings. Add `--json` for machine-readable data.
 - `sase project current` prints the current project derived from the VCS macro MRU head,
   colored with that project's accent. Add `--json` for machine-readable data.
+
+## Suggest Projects
+
+- `sase project suggest [PROVIDER] [-a|--all] [-j|--json] [-o|--owner OWNER]... [-r|--refresh]`
+  ranks the repositories worth adding as projects, grouped as `RESUME`,
+  `ON THIS MACHINE`, `SUGGESTED`, `LINKED TO YOUR PROJECTS`, and `DISABLED PROJECTS`.
+  Discovery is cache-first per owner and read-only — nothing is cloned, created, or
+  registered — so agents may call it freely.
+- `sase project suggest --json` emits the machine-readable candidate document
+  (`schema_version`, per-provider `owners`, `groups`, and `hidden` counts, plus
+  `search_only` rows with `--all`). Prefer it when selecting a repository to add
+  programmatically.
 
 ## Manage Projects
 

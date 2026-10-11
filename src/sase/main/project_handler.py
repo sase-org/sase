@@ -14,6 +14,7 @@ from sase.project_aliases import set_project_aliases_locked
 
 from .project_handler_alias import handle_alias
 from .project_handler_current import handle_current, handle_set_current
+from .project_handler_onboarding import handle_suggest
 from .project_handler_lifecycle import (
     ProjectLifecycleBlockedError,
     ProjectLifecycleError,
@@ -158,6 +159,7 @@ _HANDLERS = {
     "set-current": handle_set_current,
     "set-state": _handle_set_state,
     "show": _handle_show,
+    "suggest": handle_suggest,
 }
 
 
@@ -181,7 +183,7 @@ def handle_project_command(args: argparse.Namespace) -> None:
     if handler is None:
         print(
             "Usage: sase project "
-            "{alias,current,disable,enable,list,set-current,set-state,show}",
+            "{alias,current,disable,enable,list,set-current,set-state,show,suggest}",
             file=sys.stderr,
         )
         sys.exit(2)
