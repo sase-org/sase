@@ -39,7 +39,11 @@ from ._artifact_state import (
 )
 from ._index_queries import WaitDependencyIndexQueries
 from ._json_io import read_json_dict
-from ._submitted_plans import plan_path_marker, submitted_plan_artifact
+from ._submitted_plans import (
+    plan_path_marker,
+    submitted_plan_artifact,
+    submitted_plan_meta_preconditions_hold,
+)
 from ._tribe_binding import TribeMemberRow
 from ._types import (
     WAIT_SUCCESS_OUTCOMES,
@@ -137,30 +141,48 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         self,
         artifacts: Iterable[tuple[Path, dict[str, Any], str]],
     ) -> None:
-        """Add artifact rows using one dismissed-archive fallback query."""
+        """Add artifact rows using one dismissed-archive fallback query.
 
-        prepared = [
-            (
-                artifact_dir,
-                meta,
-                project_name,
-                read_json_dict(artifact_dir / "done.json"),
-            )
-            for artifact_dir, meta, project_name in artifacts
-        ]
+        Batch work is linear: per-row query-cache invalidation and per-row
+        effective-clan-tribe refreshes are deferred until after all rows are
+        filed, and each touched ``(clan, generation)`` is refreshed once.
+        ``_add_prepared`` never reads ``effective_clan_tribes`` mid-batch,
+        so the deferred refresh yields the same final state as sequential
+        ``add()`` calls.
+        """
+
+        prepared: list[
+            tuple[Path, dict[str, Any], str, dict[str, Any] | None, bool]
+        ] = []
+        for artifact_dir, meta, project_name in artifacts:
+            done_path = artifact_dir / "done.json"
+            done_data = read_json_dict(done_path)
+            # Carry the prepare-step existence check into ``_add_prepared``
+            # so a batch of N rows costs N ``done.json`` stats instead of 2N.
+            # ``done_data is not None`` implies the file existed at read time.
+            done_exists = True if done_data is not None else done_path.exists()
+            prepared.append((artifact_dir, meta, project_name, done_data, done_exists))
         archived = load_archived_agent_completions(
             (artifact_dir, meta, project_name)
-            for artifact_dir, meta, project_name, done_data in prepared
-            if done_data is None and not (artifact_dir / "done.json").exists()
+            for artifact_dir, meta, project_name, done_data, done_exists in prepared
+            if done_data is None and not done_exists
         )
-        for artifact_dir, meta, project_name, done_data in prepared:
+        touched_generations: set[tuple[str, str]] = set()
+        for artifact_dir, meta, project_name, done_data, done_exists in prepared:
             self._add_prepared(
                 artifact_dir,
                 meta,
                 project_name=project_name,
                 done_data=done_data,
                 archived_completion=archived.get(str(artifact_dir)),
+                done_exists=done_exists,
+                invalidate_caches=False,
+                touched_clan_generations=touched_generations,
             )
+        for clan_name, generation in touched_generations:
+            self._refresh_effective_clan_tribe(clan_name, generation)
+        if prepared:
+            self._invalidate_query_caches()
 
     def add(
         self,
@@ -173,9 +195,10 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
 
         done_path = artifact_dir / "done.json"
         done_data = read_json_dict(done_path)
+        done_exists = True if done_data is not None else done_path.exists()
         archived = (
             load_archived_agent_completions(((artifact_dir, meta, project_name),))
-            if done_data is None and not done_path.exists()
+            if done_data is None and not done_exists
             else {}
         )
         self._add_prepared(
@@ -184,6 +207,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             project_name=project_name,
             done_data=done_data,
             archived_completion=archived.get(str(artifact_dir)),
+            done_exists=done_exists,
         )
 
     def add_scan_record(
@@ -212,8 +236,12 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         project_name: str,
         done_data: dict[str, Any] | None,
         archived_completion: ArchivedAgentCompletion | None,
+        done_exists: bool | None = None,
+        invalidate_caches: bool = True,
+        touched_clan_generations: set[tuple[str, str]] | None = None,
     ) -> None:
-        self._invalidate_query_caches()
+        if invalidate_caches:
+            self._invalidate_query_caches()
         done_path = artifact_dir / "done.json"
         if done_data is not None:
             outcome = done_outcome_from_data(done_data)
@@ -237,9 +265,11 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             is_identity_success = False
             is_failed = False
             has_done_marker = False
+        if done_exists is None:
+            done_exists = done_path.exists()
         is_queued = (
             (artifact_dir / "waiting.json").exists()
-            and not done_path.exists()
+            and not done_exists
             and archived_completion is None
         )
         is_dependency_parked = (
@@ -270,11 +300,16 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         # resolved named candidate under its canonical ``<base>--plan`` row name
         # so a ``%wait`` on that planner row unblocks while the plan is in
         # review, without making the whole plan chain look complete.
-        plan_artifact = submitted_plan_artifact(
-            meta=meta,
-            plan_path_marker=plan_path_marker(artifact_dir),
-            outcome=outcome,
-        )
+        # Skip the ``plan_path.json`` read unless the meta-only preconditions
+        # hold: otherwise the classifier returns ``None`` for any marker.
+        if submitted_plan_meta_preconditions_hold(meta, outcome):
+            plan_artifact = submitted_plan_artifact(
+                meta=meta,
+                plan_path_marker=plan_path_marker(artifact_dir),
+                outcome=outcome,
+            )
+        else:
+            plan_artifact = None
         if plan_artifact is not None:
             self._record_named_candidate(
                 plan_artifact.planner_row_name,
@@ -353,7 +388,10 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             self.clans.setdefault(clan_name, {}).setdefault(generation, []).append(
                 artifact
             )
-            self._refresh_effective_clan_tribe(clan_name, generation)
+            if touched_clan_generations is not None:
+                touched_clan_generations.add((clan_name, generation))
+            else:
+                self._refresh_effective_clan_tribe(clan_name, generation)
 
         canonical_meta = canonicalize_agent_tribe_metadata(dict(meta))
         direct_tribes = {

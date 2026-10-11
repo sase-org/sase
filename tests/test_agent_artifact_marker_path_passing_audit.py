@@ -237,12 +237,6 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "with archived completion metadata as a read-only fallback."
         ),
     ),
-    "src/sase/core/wait_dependency_resolution/_index.py:add_many": PathPassingReview(
-        exemption=(
-            "Read-only dependency-index construction: done.json is batched into "
-            "terminal projections without mutating artifact markers."
-        ),
-    ),
     "src/sase/monitor/start_metadata.py:read_start_meta": PathPassingReview(
         exemption=(
             "Read-only monitor-start helper: agent_meta.json is read only to "

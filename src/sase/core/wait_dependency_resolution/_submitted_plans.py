@@ -63,6 +63,40 @@ def submitted_plan_artifact(
     )
 
 
+def submitted_plan_meta_preconditions_hold(
+    meta: Mapping[str, Any],
+    outcome: str | None,
+) -> bool:
+    """Return whether *meta*/*outcome* could classify as a submitted planner.
+
+    This mirrors every ``submitted_plan_artifact`` check that does not need
+    the ``plan_path.json`` marker value, so callers can skip that file read
+    when it returns ``False``: the classifier would return ``None`` for any
+    marker value. When it returns ``True`` the caller must still read the
+    marker and call ``submitted_plan_artifact`` (the plan-path presence check
+    still applies). Keep in sync with ``submitted_plan_artifact``.
+    """
+    if outcome is not None:
+        return False
+    if canonical_plan_chain_suffix(meta.get("role_suffix")) != PLAN_CHAIN_PLAN_SUFFIX:
+        return False
+    if not _has_submission_marker(meta.get("plan_submitted_at")):
+        return False
+    if meta.get("plan_approved"):
+        return False
+    if _has_submission_marker(meta.get("feedback_submitted_at")):
+        return False
+    name = meta.get("name")
+    if not isinstance(name, str) or not name:
+        return False
+    base = agent_session_base(name) or name
+    try:
+        agent_session_phase_name(base, PLAN_CHAIN_PLAN_SUFFIX)
+    except ValueError:
+        return False
+    return True
+
+
 def submitted_plan_artifact_for_dir(
     artifact_dir: Path | str,
 ) -> SubmittedPlanArtifact | None:
