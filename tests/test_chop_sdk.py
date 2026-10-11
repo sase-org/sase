@@ -105,8 +105,40 @@ def test_progress_lines_with_a_spaced_prefix_do_not_become_the_summary() -> None
         )
         is None
     )
+    assert (
+        parse_summary(
+            "[wait_checks] waiter walk progress: projects=1 artifacts=8 "
+            "waiting=2 live=2 dead=0 unknown_liveness=0 elapsed_ms=4"
+        )
+        is None
+    )
+    assert (
+        parse_summary("[wait_checks] resolving view progress: rows=8 elapsed_ms=7")
+        is None
+    )
     assert logger.last_summary is not None
     assert logger.last_summary.line == line
+
+
+def test_chop_logger_flushes_each_emitted_line() -> None:
+    class FlushTrackingStream(io.StringIO):
+        flush_calls = 0
+
+        def flush(self) -> None:
+            self.flush_calls += 1
+            super().flush()
+
+    stdout = FlushTrackingStream()
+    stderr = FlushTrackingStream()
+    logger = ChopLogger(verbose=True, stdout=stdout, stderr=stderr)
+
+    logger.info("info line")
+    logger.debug("debug line")
+    logger.warning("warning line")
+    logger.error("error line")
+
+    assert stdout.flush_calls == 1
+    assert stderr.flush_calls == 3
 
 
 def test_result_builder_proposal_helper_round_trips(tmp_path: Path) -> None:

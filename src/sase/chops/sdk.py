@@ -137,7 +137,7 @@ class ChopLogger:
     def info(self, message: str) -> None:
         """Write an informational line to stdout."""
 
-        print(message, file=self._stdout)
+        print(message, file=self._stdout, flush=True)
         summary = parse_summary(message)
         if summary is not None:
             self._summaries.append(summary)
@@ -146,17 +146,17 @@ class ChopLogger:
         """Write a debug line to stderr when verbose mode is enabled."""
 
         if self.verbose:
-            print(message, file=self._stderr)
+            print(message, file=self._stderr, flush=True)
 
     def warning(self, message: str) -> None:
         """Write a warning line to stderr."""
 
-        print(message, file=self._stderr)
+        print(message, file=self._stderr, flush=True)
 
     def error(self, message: str) -> None:
         """Write an error line to stderr."""
 
-        print(message, file=self._stderr)
+        print(message, file=self._stderr, flush=True)
 
     @property
     def last_summary(self) -> ChopSummary | None:

@@ -62,6 +62,7 @@ def _marker_has_epic_follows(waiting_path: Path) -> bool:
 def _run(
     runtime: BuiltinChopRuntime,
 ) -> ChopResultBuilder:
+    walk_started = time.monotonic()
     projects_dir = sase_projects_dir()
     if not projects_dir.exists():
         return runtime.emit_summary(
@@ -74,6 +75,10 @@ def _run(
                 "unknown_liveness": 0,
                 "ready_written": 0,
                 "deferred_unconfirmed": 0,
+                "walk_ms": 0,
+                "view_ms": 0,
+                "resolve_ms": 0,
+                "view_rows": 0,
             },
             reason="no_projects_dir",
         )
@@ -151,9 +156,21 @@ def _run(
             live_waiting += 1
         live_waiting_markers.append(waiting_marker)
 
+    walk_ms = int((time.monotonic() - walk_started) * 1000)
+    runtime.log(
+        "[wait_checks] waiter walk progress: "
+        f"projects={projects} artifacts={artifacts} waiting={waiting_markers} "
+        f"live={live_waiting} dead={dead_waiting} "
+        f"unknown_liveness={unknown_liveness} elapsed_ms={walk_ms}",
+    )
+
+    view_started = time.monotonic()
+    view_ms = 0
+    view_rows = 0
     if live_waiting_markers:
         artifact_rows = _filesystem_dependency_rows(projects_dir, meta_cache=meta_cache)
         dependency_index.add_many(artifact_rows)
+        view_rows += len(artifact_rows)
         # Seed the cache from the resolving view (which reused the waiter
         # metadata above) so the confirmation rescan only reads metadata for
         # artifact directories the resolving view never saw: exactly the
@@ -168,6 +185,10 @@ def _run(
             meta_path = artifact_dir / "agent_meta.json"
             if meta_path not in meta_cache and not meta_path.exists():
                 meta_cache[meta_path] = None
+    view_ms += int((time.monotonic() - view_started) * 1000)
+    runtime.log(
+        f"[wait_checks] resolving view progress: rows={view_rows} elapsed_ms={view_ms}",
+    )
 
     wait_bead_cache = WaitBeadStatusCache()
 
@@ -307,7 +328,7 @@ def _run(
         def fresh_index(
             projects: frozenset[str] = frozenset(confirmation_projects),
         ) -> WaitDependencyIndex:
-            nonlocal confirmation_round
+            nonlocal confirmation_round, view_ms, view_rows
             key = (tuple(sorted(projects)), confirmation_round)
             confirmation_round += 1
             cached = fresh_indexes.get(key)
@@ -320,13 +341,15 @@ def _run(
             # that already-loaded evidence exactly rather than allowing the
             # confirmation pass to see a different tribe universe.
             fresh.agent_tribes = dict(dependency_index.agent_tribes)
-            fresh.add_many(
-                _filesystem_dependency_rows(
-                    projects_dir,
-                    project_names=set(projects),
-                    meta_cache=meta_cache,
-                )
+            fresh_started = time.monotonic()
+            fresh_rows = _filesystem_dependency_rows(
+                projects_dir,
+                project_names=set(projects),
+                meta_cache=meta_cache,
             )
+            fresh.add_many(fresh_rows)
+            view_ms += int((time.monotonic() - fresh_started) * 1000)
+            view_rows += len(fresh_rows)
             fresh_indexes[key] = fresh
             return fresh
 
@@ -478,6 +501,7 @@ def _run(
                 else:
                     terminal_blocker_suppressed += 1
 
+    resolve_started = time.monotonic()
     for waiting_marker in live_waiting_markers:
         try:
             with open(waiting_marker.waiting_path, encoding="utf-8") as f:
@@ -551,6 +575,8 @@ def _run(
                 )
             continue
 
+    resolve_ms = int((time.monotonic() - resolve_started) * 1000)
+
     if terminal_blocker_suppressed:
         runtime.log(
             "[wait_checks] Suppressed "
@@ -599,6 +625,10 @@ def _run(
             "unknown_outcome": unknown_outcome,
             "deferred_unconfirmed": deferred_unconfirmed,
             "waiter_errors": waiter_errors,
+            "walk_ms": walk_ms,
+            "view_ms": view_ms,
+            "resolve_ms": resolve_ms,
+            "view_rows": view_rows,
         },
         reason=reason,
     )

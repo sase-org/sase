@@ -311,6 +311,13 @@ the tick emits its summary without building any dependency view, and `unresolved
 only live/unknown waiters. The resolving view itself is built from filesystem
 `agent_meta.json` rows rather than the artifact index.
 
+The `wait_checks` summary includes `walk_ms` for marker scanning and liveness
+classification, `view_ms` for dependency view construction, `resolve_ms` for the
+per-waiter loop, and `view_rows` for the rows loaded into views during the tick.
+Progress lines report the waiter counts after classification and the resolving view's
+row count; chop log lines flush immediately so they remain available if the job is
+killed.
+
 If an unresolved dependency already has a terminal `done.json` outcome that wait
 resolution does not recognize, `wait_checks` increments `unknown_outcome` and logs the
 artifact directory plus the offending outcome. The job also emits a bounded sample of
