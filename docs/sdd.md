@@ -149,10 +149,12 @@ lists pending PlanApproval notifications, recent approvals, and inferred rejecte
 archived proposals. `sase plan approve <name>` defaults to a tale; an epic-authored plan
 requires an explicit `--kind epic` or `--kind tale` to prevent an accidental downgrade.
 The command can also directly approve an archived or scratch plan with no live gate;
-`--dry-run` previews it and `--project` supplies explicit project context. Approving an
-already-approved plan relaunches a failed, killed, or never-launched coder and refuses
-one that is running or finished. The selected target schema is validated before the
-response, SDD copy, or notification dismissal, and failures leave the proposal pending.
+`--dry-run` previews it and `--project` supplies explicit project context. When
+`--project` is omitted, a proposal's frontmatter `project` field supplies the project.
+Approving an already-approved plan relaunches a failed, killed, or never-launched coder
+and refuses one that is running or finished. The selected target schema is validated
+before the response, SDD copy, or notification dismissal, and failures leave the
+proposal pending.
 
 For a saved epic file with no live approval gate, use `sase bead work <plan-file>`. The
 direct `sase plan approve` route does not launch gateless epics. An explicit
