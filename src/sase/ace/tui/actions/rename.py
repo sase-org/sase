@@ -31,6 +31,10 @@ class RenameMixin:
         On the Agents tab: set/change the agent name.
         """
         if self.current_tab == "agents":
+            from .agents._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "rename_cl"):
+                return
             self._set_agent_name()
             return
 

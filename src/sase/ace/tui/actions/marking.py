@@ -54,12 +54,27 @@ class MarkingMixin:
             self._toggle_mark_patch()
             return
         if self.current_tab == "agents":
+            from .agents._archive_actions import (
+                archive_ui_active,
+                toggle_archive_mark,
+            )
+
+            if archive_ui_active(self):
+                if toggle_archive_mark(self):
+                    from .agents._archive_column import refresh_column
+
+                    refresh_column(self)
+                return
             self._toggle_mark_agent()  # type: ignore[attr-defined]
             return
 
     def action_toggle_agent_unread(self) -> None:
         """Toggle the selected agent row's unread marker."""
         if self.current_tab == "agents":
+            from .agents._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "toggle_agent_unread"):
+                return
             self._toggle_agent_unread()  # type: ignore[attr-defined]
             return
 
@@ -113,6 +128,21 @@ class MarkingMixin:
             self._clear_patch_marks()
             return
         if self.current_tab == "agents":
+            from .agents._archive_actions import (
+                archive_ui_active,
+                clear_archive_marks,
+            )
+
+            if archive_ui_active(self):
+                cleared = clear_archive_marks(self)
+                if cleared:
+                    from .agents._archive_column import refresh_column
+
+                    refresh_column(self)
+                    self.notify(f"Cleared {cleared} archive mark(s)")  # type: ignore[attr-defined]
+                else:
+                    self.notify("No archive marks to clear", severity="warning")  # type: ignore[attr-defined]
+                return
             self._clear_agent_marks()  # type: ignore[attr-defined]
             return
 
@@ -134,6 +164,10 @@ class MarkingMixin:
     def action_bulk_change_status(self) -> None:
         """Change status for marked Patches."""
         if not self._is_patch_tab():
+            if self.current_tab == "agents":
+                from .agents._archive_actions import guard_archive_live_action
+
+                guard_archive_live_action(self, "bulk_change_status")
             return
 
         if not self.marked_indices:
@@ -170,6 +204,10 @@ class MarkingMixin:
     def action_save_marked_agents(self) -> None:
         """Save and dismiss marked agents on the Agents tab."""
         if self.current_tab != "agents":
+            return
+        from .agents._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(self, "save_marked_agents"):
             return
         self._prompt_and_save_marked_agent_group()  # type: ignore[attr-defined]
 

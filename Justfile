@@ -426,6 +426,11 @@ _lint-patch-stitch-terminology: _setup
 # (plan/execute with protect_root=None, member reads, runner detection, and
 # their dataclasses) through reap_orphaned_agent_scopes, so its rows are
 # dropped.
+# sase-1jm.3.1.6 (action-boundary) parks two seams for still-open parent
+# sase-1jm.3 phases: archive_marked_run_keys feeds the parent bulk-restore
+# builder with container-expanded member runs, and archive_read_target feeds
+# the parent fork/copy chooser with the hydrated Archive agent. Drop each row
+# once its parent consumer lands a real caller.
 # sase-1j6.4 (witness-scan) consumes the update-skew failure-facts prefilter
 # as the W3 file-proof gate in witness collection, so the sase-1j6 epic-symbol
 # row for facts_look_like_update_skew is dropped. If a later phase needs the
@@ -448,6 +453,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm.3.1(request_archive_lookup)' \
         --epic-symbol 'sase-1jx.6(classify_project_candidates)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
+        --epic-symbol 'sase-1jm.3(archive_marked_run_keys)' \
+        --epic-symbol 'sase-1jm.3(archive_read_target)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

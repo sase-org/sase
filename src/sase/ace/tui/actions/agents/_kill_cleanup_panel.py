@@ -21,6 +21,11 @@ class AgentCleanupPanelMixin:
 
     def action_open_agent_cleanup_panel(self) -> None:
         """Open the Agents cleanup panel, or clear output on the AXE tab."""
+        if self.current_tab == "agents":
+            from ._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "open_agent_cleanup_panel"):
+                return
         if self.current_tab == "services":
             self.action_clear_axe_output()  # type: ignore[attr-defined]
             return

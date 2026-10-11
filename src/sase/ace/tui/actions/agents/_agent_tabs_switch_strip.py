@@ -116,6 +116,12 @@ class AgentTabsSwitchStripMixin:
         A no-op when the strip is hidden: with fewer than two tabs there is
         nowhere to go, and the latch keeps its own empty selection.
         """
+        from ._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(
+            self, "next_agents_tab" if step > 0 else "prev_agents_tab"
+        ):
+            return
         self._ensure_agent_tabs_state()  # type: ignore[attr-defined]
         if not self._agent_tab_strip_visible():
             return
@@ -144,6 +150,10 @@ class AgentTabsSwitchStripMixin:
 
     def action_pick_agents_tab(self) -> None:
         """Open the minimal tab picker and switch on select."""
+        from ._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(self, "pick_agents_tab"):
+            return
         self._ensure_agent_tabs_state()  # type: ignore[attr-defined]
         if getattr(self, "current_tab", None) != "agents":
             return

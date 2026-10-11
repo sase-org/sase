@@ -87,6 +87,11 @@ class AgentApproveMixin:
         if self.current_tab != "agents":
             return
 
+        from ._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(self, "toggle_auto_approve"):
+            return
+
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]

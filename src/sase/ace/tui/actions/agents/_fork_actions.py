@@ -175,6 +175,11 @@ class AgentForkActionsMixin:
         if self.current_tab != "agents":
             return
 
+        from ._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(self, "wait_for_agent"):
+            return
+
         if self._marked_agents:
             self._bulk_wait_for_marked_agents()
             return

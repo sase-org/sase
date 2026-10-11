@@ -29,6 +29,11 @@ class AgentKillActionFlowMixin:
 
     def action_kill_agent(self) -> None:
         """Kill or dismiss agent, or toggle/kill axe on AXE tab."""
+        if self.current_tab == "agents":
+            from ._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "kill_agent"):
+                return
         if self.current_tab == "artifacts":
             self.action_toggle_hide_submitted()  # type: ignore[attr-defined]
             return

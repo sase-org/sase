@@ -35,6 +35,92 @@ class AgentFooterDisplayMixin:
             self, current_agent: Agent | None
         ) -> int: ...
 
+    def _archive_footer_deck_counts(
+        self, agent_detail: AgentDetail
+    ) -> tuple[int, bool, bool]:
+        """Return deck footer counts for the Archive's conditional footer.
+
+        Reads only the focused deck panel of the shared detail widget, so
+        archived deck keys keep their footer chips while every live
+        entry-dependent chip stays out of the Archive footer.
+        """
+        deck_card_count = 0
+        card_blocks_navigable = False
+        deck_view_cycle_available = False
+        try:
+            from ...widgets.decks.model import DeckId as _DeckId
+
+            focused = agent_detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+            try:
+                card_blocks_navigable = bool(focused.card_blocks_navigable)
+            except Exception:
+                card_blocks_navigable = False
+            try:
+                deck_view_cycle_available = bool(focused.deck_view_cycle_available)
+            except Exception:
+                deck_view_cycle_available = False
+            if focused.deck is _DeckId.MAIN:
+                try:
+                    deck_card_count = len(
+                        agent_detail._main_deck_document.cards  # type: ignore[attr-defined]
+                    )
+                except Exception:
+                    deck_card_count = 0
+            elif focused.deck is _DeckId.FILES:
+                try:
+                    deck_card_count = len(getattr(focused.file_view, "_file_list", []))
+                except Exception:
+                    deck_card_count = 0
+            elif focused.deck is _DeckId.TOOLS:
+                try:
+                    deck_card_count = len(focused._tools_tabs())  # type: ignore[attr-defined]
+                except Exception:
+                    deck_card_count = 1
+            elif focused.deck is _DeckId.FINAL:
+                try:
+                    deck_card_count = len(
+                        agent_detail._final_document.cards  # type: ignore[attr-defined]
+                    )
+                except Exception:
+                    deck_card_count = 0
+        except Exception:
+            deck_card_count = 0
+        return deck_card_count, card_blocks_navigable, deck_view_cycle_available
+
+    def _apply_archive_footer_update(
+        self,
+        agent_detail: AgentDetail,
+        footer_widget: KeybindingFooter,
+    ) -> None:
+        """Refresh the Archive's view-specific conditional footer bindings."""
+        from ._archive_actions import (
+            archive_markable_key,
+            archive_marked_count,
+        )
+
+        deck_card_count, card_blocks_navigable, deck_view_cycle_available = (
+            self._archive_footer_deck_counts(agent_detail)
+        )
+        selection_is_container = False
+        has_selection = archive_markable_key(self) is not None
+        if has_selection:
+            try:
+                from ...models.agent_archive_view import is_archive_container_key
+
+                selection_is_container = bool(
+                    is_archive_container_key(archive_markable_key(self))
+                )
+            except Exception:
+                selection_is_container = False
+        footer_widget.update_archive_bindings(
+            marked_count=archive_marked_count(self),
+            has_selection=has_selection,
+            selection_is_container=selection_is_container,
+            deck_card_count=deck_card_count,
+            card_blocks_navigable=card_blocks_navigable,
+            deck_view_cycle_available=deck_view_cycle_available,
+        )
+
     def _apply_agent_footer_update(
         self,
         agent_detail: AgentDetail,
@@ -94,6 +180,15 @@ class AgentFooterDisplayMixin:
         elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
             footer_widget.update_custom_mode_bindings(cm)
         else:
+            from ._archive_actions import archive_ui_active
+
+            if archive_ui_active(self):
+                # The Archive owns the shared detail panel: live
+                # entry-dependent chips (kill, wait, retry, cleanup, tab
+                # moves) stay out and the parked Inbox selection never
+                # reaches the footer.
+                self._apply_archive_footer_update(agent_detail, footer_widget)
+                return
             completed_count = self._agent_panel_index().completed_count  # type: ignore[attr-defined]
             can_jump = (
                 not current_agent.is_clan_container

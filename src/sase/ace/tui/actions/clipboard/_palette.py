@@ -109,9 +109,10 @@ def _build_patch_context(app: Any) -> CopyAsContext | None:
 
 
 def _build_agent_context(app: Any) -> CopyAsContext | None:
-    resolver = getattr(app, "_get_selected_agent", None)
+    from ..agents._archive_actions import resolve_agents_read_agent
+
     try:
-        agent = resolver() if callable(resolver) else None
+        agent = resolve_agents_read_agent(app)
     except Exception:
         agent = None
     if agent is None:

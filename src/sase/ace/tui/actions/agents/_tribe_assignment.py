@@ -48,6 +48,11 @@ class AgentTribeAssignmentMixin:
         if self.current_tab != "agents":
             return
 
+        from ._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(self, "edit_agent_tribe"):
+            return
+
         from sase.ace.agent_tribes import load_agent_tribes
 
         store = load_agent_tribes()

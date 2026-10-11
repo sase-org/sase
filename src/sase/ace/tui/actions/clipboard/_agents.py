@@ -17,7 +17,9 @@ class ClipboardAgentsMixin(ClipboardBase):
 
     def _copy_chat_path(self) -> None:
         """Copy the chat file path of the selected agent (%c on agents tab)."""
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        from ..agents._archive_actions import resolve_agents_read_agent
+
+        agent = resolve_agents_read_agent(self)
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
@@ -41,7 +43,9 @@ class ClipboardAgentsMixin(ClipboardBase):
 
     def _copy_agent_name(self) -> None:
         """Copy the selected agent's name (%n on agents tab)."""
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        from ..agents._archive_actions import resolve_agents_read_agent
+
+        agent = resolve_agents_read_agent(self)
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
@@ -62,7 +66,9 @@ class ClipboardAgentsMixin(ClipboardBase):
 
     def _copy_agent_prompt(self) -> None:
         """Copy the prompt (raw macro) of the selected agent (%p on agents tab)."""
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        from ..agents._archive_actions import resolve_agents_read_agent
+
+        agent = resolve_agents_read_agent(self)
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
@@ -86,7 +92,9 @@ class ClipboardAgentsMixin(ClipboardBase):
 
     def _copy_agent_reference(self) -> None:
         """Copy the durable reference for a concrete Agents-tab agent row."""
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        from ..agents._archive_actions import resolve_agents_read_agent
+
+        agent = resolve_agents_read_agent(self)
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
@@ -125,7 +133,9 @@ class ClipboardAgentsMixin(ClipboardBase):
 
     def _copy_tool_run_id(self) -> None:
         """Copy the selected Runs block's run id, else the header chip's."""
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        from ..agents._archive_actions import resolve_agents_read_agent
+
+        agent = resolve_agents_read_agent(self)
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return

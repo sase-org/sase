@@ -33,6 +33,10 @@ class AgentWaitModalMixin:
     def action_reword(self) -> None:
         """Reword or wait - behavior depends on current tab."""
         if self.current_tab == "agents":
+            from ._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "reword"):
+                return
             self._wait_agent()
         else:
             # Call parent implementation for Patches

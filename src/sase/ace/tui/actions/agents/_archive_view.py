@@ -52,6 +52,16 @@ def _view_state(owner: Any) -> AgentsArchiveViewState:
     return state
 
 
+def agents_archive_view_state(owner: Any) -> AgentsArchiveViewState:
+    """Return the owner's Archive/Inbox view state (public consumer seam).
+
+    Action-boundary consumers (marks, footer, guards) read parked state
+    through here instead of the private ``_view_state`` so the
+    view-foundation contract stays import-clean.
+    """
+    return _view_state(owner)
+
+
 def init_agents_archive_view_state(owner: Any) -> AgentsArchiveViewState:
     """Initialize lifecycle state. Startup is always Inbox."""
     state = startup_agents_archive_view_state()
@@ -534,6 +544,7 @@ class AgentArchiveColumnMixin:
 __all__ = [
     "AgentArchiveColumnMixin",
     "route_archive_key",
+    "agents_archive_view_state",
     "archive_detail_owns_panel",
     "archive_read_only_context",
     "agents_inbox_detail_allowed",

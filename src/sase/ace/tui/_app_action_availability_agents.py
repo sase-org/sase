@@ -174,6 +174,20 @@ def _remote_content_available(agent: Any) -> bool:
     return bool(remote_content_available(agent))
 
 
+def _archive_owns_agents_panel(app: Any) -> bool:
+    """Return whether the Archive owns the Agents tab (beta on, parked)."""
+    if getattr(app, "current_tab", None) != "agents":
+        return False
+    try:
+        from sase.ace.tui.actions.agents._archive_actions import archive_ui_active
+    except Exception:
+        return False
+    try:
+        return bool(archive_ui_active(app))
+    except Exception:
+        return False
+
+
 def check_agents_availability(
     app: Any,
     action: str,
@@ -181,6 +195,16 @@ def check_agents_availability(
 ) -> bool | None:
     """Return agents/decks/prompt availability, or None when undecided."""
     del parameters
+    if _archive_owns_agents_panel(app):
+        # Live-only row actions (and their palette entries) stay hidden
+        # while the Archive owns the panel; deck/read/copy/Enter seams
+        # stay available. Key dispatch toasts via guard_archive_live_action.
+        from sase.ace.tui.actions.agents._archive_actions import (
+            ARCHIVE_LIVE_ONLY_ACTIONS,
+        )
+
+        if action in ARCHIVE_LIVE_ONLY_ACTIONS:
+            return False
     selected_agent = _selected_agent(app) if app.current_tab == "agents" else None
     selected_agent_remote = bool(
         selected_agent is not None

@@ -514,3 +514,52 @@ class AgentBindingsMixin:
             )
 
         return bindings
+
+    def _compute_archive_bindings(
+        self,
+        *,
+        marked_count: int = 0,
+        has_selection: bool = False,
+        selection_is_container: bool = False,
+        deck_card_count: int = 0,
+        card_blocks_navigable: bool = False,
+        deck_view_cycle_available: bool = False,
+    ) -> list[tuple[str, str]]:
+        """Compute conditional bindings for the Agents Archive view.
+
+        Only conditionally available actions appear here: the read-only
+        Archive exposes no live entry (kill, wait, retry, cleanup) and no
+        agent-tab chips. Global toggle/filter/navigation live in the help
+        modal's Archive box. Sorting (symbols first, then alphabetical) is
+        applied by the shared footer layout.
+        """
+        bindings: list[tuple[str, str]] = []
+        if has_selection:
+            bindings.append((self._kd("act_on_agent"), "read"))
+            bindings.append((self._kd("toggle_mark"), "mark"))
+        if marked_count > 0:
+            bindings.append((self._kd("clear_marks"), f"unmark ({marked_count})"))
+        if selection_is_container:
+            bindings.append(
+                (
+                    f"{self._kd('expand_or_layout')}/{self._kd('hooks_or_collapse')}",
+                    "expand",
+                )
+            )
+        if deck_card_count > 1:
+            bindings.append(
+                (
+                    f"{self._kd('next_deck_card')}/{self._kd('prev_deck_card')}",
+                    "cards",
+                )
+            )
+        if card_blocks_navigable:
+            bindings.append(
+                (
+                    f"{self._kd('prev_card_block')}/{self._kd('next_card_block')}",
+                    "blocks",
+                )
+            )
+        if deck_view_cycle_available:
+            bindings.append((self._kd("cycle_deck_view"), "view"))
+        return bindings

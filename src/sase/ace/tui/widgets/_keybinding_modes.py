@@ -36,6 +36,17 @@ class KeybindingModesMixin:
             mark_count: int = 0,
         ) -> list[tuple[str, str]]: ...
 
+        def _compute_archive_bindings(
+            self,
+            *,
+            marked_count: int = 0,
+            has_selection: bool = False,
+            selection_is_container: bool = False,
+            deck_card_count: int = 0,
+            card_blocks_navigable: bool = False,
+            deck_view_cycle_available: bool = False,
+        ) -> list[tuple[str, str]]: ...
+
         def _compute_agent_bindings(
             self,
             agent: Agent | None,
@@ -221,6 +232,27 @@ class KeybindingModesMixin:
             agent_tab_strip_visible=agent_tab_strip_visible,
             deck_zoomed=deck_zoomed,
             node_rail=node_rail,
+        )
+        self._update_display(bindings)
+
+    def update_archive_bindings(
+        self,
+        *,
+        marked_count: int = 0,
+        has_selection: bool = False,
+        selection_is_container: bool = False,
+        deck_card_count: int = 0,
+        card_blocks_navigable: bool = False,
+        deck_view_cycle_available: bool = False,
+    ) -> None:
+        """Update bindings for the Agents Archive view (read-only)."""
+        bindings = self._compute_archive_bindings(
+            marked_count=marked_count,
+            has_selection=has_selection,
+            selection_is_container=selection_is_container,
+            deck_card_count=deck_card_count,
+            card_blocks_navigable=card_blocks_navigable,
+            deck_view_cycle_available=deck_view_cycle_available,
         )
         self._update_display(bindings)
 

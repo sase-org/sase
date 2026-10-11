@@ -345,6 +345,10 @@ class ProposalRebaseMixin:
 
         # Check if we're on agents tab
         if hasattr(self, "current_tab") and self.current_tab == "agents":  # type: ignore[attr-defined]
+            from .agents._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "accept_proposal"):
+                return
             from .agents._remote_lifecycle import is_remote_fleet_agent
 
             agents: list[Agent] = getattr(self, "_agents", [])

@@ -77,6 +77,11 @@ class BaseWorkflowActionsMixin(BaseActionsHost):
 
     def action_agents_retry(self) -> None:
         """Retry the selected local or remote agent."""
+        if getattr(self, "current_tab", None) == "agents":
+            from .agents._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "agents_retry"):
+                return
         self._retry_selected_agent()
 
     def _retry_selected_agent(self) -> None:
