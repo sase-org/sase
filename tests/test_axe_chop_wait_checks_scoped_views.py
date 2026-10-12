@@ -8,7 +8,9 @@ from typing import Any
 
 import pytest
 
-import sase.scripts._chop_wait_checks_run as wait_checks
+import sase.scripts._chop_wait_checks_run as wait_checks_run
+import sase.scripts._chop_wait_checks_run_fs as wait_checks_fs
+import sase.scripts._chop_wait_checks_run_waiters as wait_checks_waiters
 from sase.core.wait_dependency_resolution import WaitDependencyIndex
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, run_wait_checks
@@ -97,7 +99,7 @@ def test_stale_resolving_view_defers_when_newer_failed_run_appears(
         done=True,
         outcome="failed",
     )
-    real_rows = wait_checks._filesystem_dependency_rows
+    real_rows = wait_checks_fs.filesystem_dependency_rows
 
     def _rows(
         projects_dir: Path,
@@ -116,7 +118,8 @@ def test_stale_resolving_view_defers_when_newer_failed_run_appears(
             return [row for row in rows if row[0] != failed_dir]
         return rows
 
-    monkeypatch.setattr(wait_checks, "_filesystem_dependency_rows", _rows)
+    monkeypatch.setattr(wait_checks_run, "filesystem_dependency_rows", _rows)
+    monkeypatch.setattr(wait_checks_waiters, "filesystem_dependency_rows", _rows)
 
     run_wait_checks(tmp_path, monkeypatch)
 

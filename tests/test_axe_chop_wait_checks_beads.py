@@ -10,7 +10,7 @@ import pytest
 
 import sase.bead.store_locator as bead_store_locator
 import sase.scripts.sase_chop_sidecar_auto_sync as sidecar_auto_sync_chop
-import sase.scripts._chop_wait_checks_run as wait_checks_module
+import sase.scripts._chop_wait_checks_run_waiters as wait_checks_waiters
 from sase._sidecar_auto_sync import SidecarSyncResult
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.bead.model import IssueType
@@ -161,7 +161,7 @@ def test_wait_checks_routes_full_bead_wait_to_owner_project(
     )
     hints: list[str | None] = []
     monkeypatch.setattr(
-        wait_checks_module,
+        wait_checks_waiters,
         "mark_bead_wait_sync_hint",
         lambda project: hints.append(project),
     )
@@ -248,7 +248,7 @@ def test_wait_checks_reads_each_project_bead_store_once_per_cycle(
     make_waiting_agent(tmp_path, suffix="one", wait_for_beads=["sase-1"])
     make_waiting_agent(tmp_path, suffix="two", wait_for_beads=["sase-1"])
     lookup = MagicMock(return_value=frozenset({"sase-1"}))
-    monkeypatch.setattr(wait_checks_module, "closed_bead_ids_for_project", lookup)
+    monkeypatch.setattr(wait_checks_waiters, "closed_bead_ids_for_project", lookup)
 
     run_wait_checks(tmp_path, monkeypatch)
 

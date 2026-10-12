@@ -3,7 +3,9 @@
 Owns the ``wait_checks`` builtin handler, the waiting-marker scan, and the
 run-scoped ``agent_meta.json`` cache. Terminal-blocker detection lives in
 :mod:`sase.scripts._chop_wait_checks_terminal`; shared dataclasses live in
-:mod:`sase.scripts._chop_wait_checks_common`.
+:mod:`sase.scripts._chop_wait_checks_common`. Filesystem rows live in
+:mod:`sase.scripts._chop_wait_checks_run_fs`; per-waiter release lives in
+:mod:`sase.scripts._chop_wait_checks_run_waiters`.
 """
 
 from __future__ import annotations
@@ -11,69 +13,39 @@ from __future__ import annotations
 import json
 import time
 import traceback
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.axe.run_agent_wait_deps import mark_bead_wait_sync_hint
-from sase.axe.run_agent_wait_markers import publish_ready_marker
 from sase.axe.wait_marker_scan import scan_waiting_markers, waiting_runner_liveness
-from sase.bead.store_locator import closed_bead_ids_for_project
-from sase.bead.wait_status import WaitBeadStatusCache, closed_bead_ids_for_waits
+from sase.bead.wait_status import WaitBeadStatusCache
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
-from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_projects_dir
 from sase.core.wait_dependency_resolution import (
-    KNOWN_DONE_OUTCOMES,
     ScopeKeyCache,
     WaitDependencyIndex,
-    apply_wait_epic_follow_patch,
-    latest_member_finished_at,
     marker_scope_keys,
-    read_json_dict as _read_json_dict,
-    resolve_wait_release,
-    select_dirs_with_cache,
 )
-from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
-from sase.scripts._chop_wait_checks_common import TerminalBlocker, WaitingMarker
-from sase.scripts._chop_wait_checks_terminal import (
-    epic_follow_blocked_dedup_key,
-    epic_follow_land_failed_dedup_key,
-    epic_follow_launching_dedup_key,
-    reconcile_epic_follow_notifications,
-    terminal_blockers,
-    upsert_epic_follow_blocked_notification,
-    upsert_epic_follow_land_failed_notification,
-    upsert_epic_follow_launching_notification,
-    upsert_terminal_blocked_wait_notification,
+import sase.scripts._chop_wait_checks_run_fs as wait_checks_fs
+from sase.scripts._chop_wait_checks_run_fs import (
+    clone_empty_index,
+    filesystem_dependency_rows,
 )
-
-_MAX_TERMINAL_BLOCKER_LOGS = 10
-
-
-@dataclass(frozen=True)
-class _LiveWaiter:
-    """One live waiter whose waiting.json was already parsed this tick."""
-
-    waiting_marker: WaitingMarker
-    data: dict[str, Any]
-    waiting_for: list[Any]
-    wait_for_artifacts: list[Any]
-    wait_for_fork_sources: list[Any]
-    wait_for_beads: list[Any]
-    wait_for_hoods: list[Any]
-    resolved_deps: list[Any]
-    wait_for_epics_of: list[Any]
-    wait_epic_follows: list[Any]
-    scope_keys: frozenset[str] | None
+from sase.scripts._chop_wait_checks_common import WaitingMarker
+from sase.scripts._chop_wait_checks_run_waiters import (
+    MAX_TERMINAL_BLOCKER_LOGS,
+    LiveWaiter,
+    WaitChecksTick,
+    process_one_waiter,
+)
+from sase.scripts._chop_wait_checks_terminal import reconcile_epic_follow_notifications
 
 
 def _as_list(value: object) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _load_live_waiter(waiting_marker: WaitingMarker) -> _LiveWaiter | None:
+def _load_live_waiter(waiting_marker: WaitingMarker) -> LiveWaiter | None:
     """Parse a live waiter's marker once. ``None`` means skip as invalid."""
     try:
         with open(waiting_marker.waiting_path, encoding="utf-8") as stream:
@@ -110,7 +82,7 @@ def _load_live_waiter(waiting_marker: WaitingMarker) -> _LiveWaiter | None:
         "wait_for_epics_of": wait_for_epics_of,
         "wait_epic_follows": wait_epic_follows,
     }
-    return _LiveWaiter(
+    return LiveWaiter(
         waiting_marker=waiting_marker,
         data=data,
         waiting_for=waiting_for,
@@ -123,15 +95,6 @@ def _load_live_waiter(waiting_marker: WaitingMarker) -> _LiveWaiter | None:
         wait_epic_follows=wait_epic_follows,
         scope_keys=marker_scope_keys(marker),
     )
-
-
-def _clone_empty_index(source: WaitDependencyIndex) -> WaitDependencyIndex:
-    """Empty index that reuses already-loaded tribe evidence from *source*."""
-    cloned = WaitDependencyIndex.empty(
-        global_stored_tribes=source.global_stored_tribes,
-    )
-    cloned.agent_tribes = dict(source.agent_tribes)
-    return cloned
 
 
 def _marker_has_epic_follows(waiting_path: Path) -> bool:
@@ -174,30 +137,12 @@ def _run(
     projects = 0
     artifacts = 0
     waiting_markers = 0
-    ready_written = 0
-    skipped_ready = 0
-    skipped_invalid = 0
-    unresolved = 0
-    unknown_outcome = 0
-    deferred_unconfirmed = 0
     waiter_errors = 0
     waiter_error_logs = 0
-    terminal_blocker_logs = 0
-    terminal_blocker_suppressed = 0
     live_waiting = 0
     dead_waiting = 0
     unknown_liveness = 0
-    # Epic-follow notification reconciliation: waiters evaluated cleanly this
-    # tick contribute their still-active dedup keys; anything they own that
-    # is not active gets dismissed afterwards in one pass.
-    epic_follow_seen = False
-    epic_follow_active_keys: set[str] = set()
-    epic_follow_reconciled_dirs: set[str] = set()
     live_waiting_markers: list[WaitingMarker] = []
-    fresh_indexes: dict[
-        tuple[tuple[str, ...], int, tuple[tuple[str, ...], str] | None],
-        WaitDependencyIndex,
-    ] = {}
     # Run-scoped agent_meta.json cache. The confirmation pass re-lists artifact
     # directories (so a successor created after the resolving view was built is
     # still detected) but reuses metadata this run already loaded, keeping the
@@ -212,6 +157,8 @@ def _run(
     artifacts = scan.artifacts
     waiting_markers = scan.waiting
     skipped_ready = scan.already_ready
+    epic_follow_seen = False
+    epic_follow_reconciled_dirs: set[str] = set()
     for already_ready_marker in scan.already_ready_markers:
         # Already released: any epic-follow blocker rows it owns
         # are stale. Read the marker best-effort so the
@@ -225,7 +172,7 @@ def _run(
     for waiting_marker in scan.pending:
         waiter_dir = waiting_marker.waiting_path.parent
         meta_path = waiter_dir / "agent_meta.json"
-        meta_cache[meta_path] = _read_json_dict(meta_path)
+        meta_cache[meta_path] = wait_checks_fs.read_json_dict(meta_path)
         liveness = waiting_runner_liveness(waiter_dir, meta_cache[meta_path])
         if liveness == "dead":
             # Dead waiters get no resolution, no terminal-blocker
@@ -253,11 +200,12 @@ def _run(
         f"unknown_liveness={unknown_liveness} elapsed_ms={walk_ms}",
     )
 
-    live_waiters: list[_LiveWaiter] = []
+    live_waiters: list[LiveWaiter] = []
     scopable_keys: set[str] = set()
     scopable_waiter_dirs: list[Path] = []
     scoped_waiters = 0
     full_view_waiters = 0
+    skipped_invalid = 0
     for waiting_marker in live_waiting_markers:
         loaded = _load_live_waiter(waiting_marker)
         if loaded is None:
@@ -297,7 +245,7 @@ def _run(
             # Scoped selection first: cache misses read meta fresh here and
             # warm the run cache, so the full walk below reuses those reads
             # instead of every meta being read twice on a cold cache.
-            scoped_rows = _filesystem_dependency_rows(
+            scoped_rows = filesystem_dependency_rows(
                 projects_dir,
                 meta_cache=meta_cache,
                 scope_cache=scope_cache,
@@ -306,7 +254,7 @@ def _run(
                 seen_dirs=scope_cache_seen,
             )
             scope_cache_used = True
-            scoped_index = _clone_empty_index(tribe_source)
+            scoped_index = clone_empty_index(tribe_source)
             scoped_index.add_many(scoped_rows)
             view_rows += len(scoped_rows)
             if not full_view_waiters:
@@ -314,7 +262,7 @@ def _run(
                 # reuses the cache. Peak index memory stays the scoped view.
                 artifact_rows = scoped_rows
         if full_view_waiters:
-            artifact_rows = _filesystem_dependency_rows(
+            artifact_rows = filesystem_dependency_rows(
                 projects_dir, meta_cache=meta_cache
             )
             # Seed the run cache from the resolving walk so the confirmation
@@ -323,7 +271,7 @@ def _run(
             # confirmation exists to detect.
             for artifact_dir, meta, _project_name in artifact_rows:
                 meta_cache.setdefault(artifact_dir / "agent_meta.json", meta)
-            full_index = _clone_empty_index(tribe_source)
+            full_index = clone_empty_index(tribe_source)
             full_index.add_many(artifact_rows)
             view_rows += len(artifact_rows)
     view_ms += int((time.monotonic() - view_started) * 1000)
@@ -333,339 +281,22 @@ def _run(
         f"full_view_waiters={full_view_waiters} elapsed_ms={view_ms}",
     )
 
-    wait_bead_cache = WaitBeadStatusCache()
-
-    def _epic_follow_notification_keys(
-        waiting_marker: WaitingMarker,
-        data: dict[str, Any],
-        wait_epic_follows: list[Any],
-        follows: Any,
-        waiter_index: WaitDependencyIndex,
-    ) -> set[str]:
-        """Upsert epic-follow blocker notifications; return active dedup keys.
-
-        Merges fresh follow decisions with persisted FOLLOWING entries (pinned
-        follows skip the collector) so a land agent that fails after pinning
-        still notifies. Never raises: notification failures must not park the
-        waiter or block its release.
-        """
-        waiter_dir = waiting_marker.waiting_path.parent
-        waiter_str = str(waiter_dir)
-        active: set[str] = set()
-        try:
-            fresh_by_target = {
-                decision.target: decision
-                for decision in follows
-                if getattr(decision, "target", None)
-            }
-            following_epics: list[str] = []
-            for decision in follows:
-                state = getattr(decision, "state", None)
-                target = getattr(decision, "target", None)
-                if not isinstance(target, str) or not target:
-                    continue
-                if state == "launching" and bool(
-                    getattr(decision, "launching_overdue", False)
-                ):
-                    upsert_epic_follow_launching_notification(
-                        waiting_marker, data, decision
-                    )
-                    active.add(epic_follow_launching_dedup_key(waiter_str, target))
-                elif state == "blocked":
-                    upsert_epic_follow_blocked_notification(
-                        waiting_marker, data, decision
-                    )
-                    active.add(epic_follow_blocked_dedup_key(waiter_str, target))
-                if state == "following":
-                    for epic_id in getattr(decision, "epic_ids", ()):
-                        if isinstance(epic_id, str) and epic_id:
-                            following_epics.append(epic_id)
-            for entry in wait_epic_follows:
-                if not isinstance(entry, dict):
-                    continue
-                target = entry.get("target")
-                if not isinstance(target, str) or target in fresh_by_target:
-                    continue
-                if entry.get("state") != "following":
-                    continue
-                epic_ids = entry.get("epic_ids")
-                if isinstance(epic_ids, list):
-                    for epic_id in epic_ids:
-                        if isinstance(epic_id, str) and epic_id:
-                            following_epics.append(epic_id)
-            for epic_id in dict.fromkeys(following_epics):
-                try:
-                    land_blockers = waiter_index.terminal_blocking_artifacts_for_name(
-                        f"{epic_id}.land",
-                        exclude_artifact_dir=waiter_dir,
-                    )
-                except Exception:  # noqa: BLE001 - best-effort land check.
-                    continue
-                for blocker in land_blockers:
-                    if blocker.outcome is None:
-                        continue
-                    land_name = blocker.name or f"{epic_id}.land"
-                    upsert_epic_follow_land_failed_notification(
-                        waiting_marker,
-                        data,
-                        epic_id,
-                        land_name,
-                        blocker.artifact_dir,
-                        blocker.outcome,
-                    )
-                    active.add(epic_follow_land_failed_dedup_key(waiter_str, epic_id))
-        except Exception as exc:  # noqa: BLE001 - notifications never park.
-            runtime.log(
-                "[wait_checks] Epic-follow notification failed for "
-                f"{waiter_dir}: {exc}",
-            )
-        return active
-
-    def _process_one_waiter(
-        waiter: _LiveWaiter,
-        waiter_index: WaitDependencyIndex,
-    ) -> None:
-        """Resolve one waiter; any exception parks only this waiter."""
-        nonlocal ready_written, skipped_ready, skipped_invalid
-        nonlocal unresolved, unknown_outcome
-        nonlocal deferred_unconfirmed, terminal_blocker_logs
-        nonlocal terminal_blocker_suppressed
-        nonlocal epic_follow_seen
-        waiting_marker = waiter.waiting_marker
-        data = waiter.data
-        waiting_for = waiter.waiting_for
-        wait_for_artifacts = waiter.wait_for_artifacts
-        wait_for_fork_sources = waiter.wait_for_fork_sources
-        wait_for_beads = waiter.wait_for_beads
-        wait_for_hoods = waiter.wait_for_hoods
-        resolved_deps = waiter.resolved_deps
-        wait_for_epics_of = waiter.wait_for_epics_of
-        wait_epic_follows = waiter.wait_epic_follows
-        scope_keys = waiter.scope_keys
-        closed_bead_ids = None
-        if wait_for_beads:
-            project_name = waiting_marker.project_name
-            closed_bead_ids = closed_bead_ids_for_waits(
-                project_name,
-                wait_for_beads,
-                cache=wait_bead_cache,
-                closed_ids_for_project=closed_bead_ids_for_project,
-                sync_hint=mark_bead_wait_sync_hint,
-            ).closed_ids
-
-        member_dirs = waiter_index.dependency_member_dirs(
-            waiting_for,
-            wait_for_artifacts,
-            resolved_deps,
-            wait_fork_sources=wait_for_fork_sources,
-            wait_hoods=wait_for_hoods,
-            self_artifact_dir=waiting_marker.waiting_path.parent,
-        )
-        confirmation_projects = {waiting_marker.project_name}
-        confirmation_projects.update(
-            candidate.project_name
-            for candidate in waiter_index.artifacts_by_dir.values()
-            if artifact_dir_key(candidate.artifact_dir) in member_dirs
-            and candidate.project_name
-        )
-        confirmation_round = 0
-        if scope_keys is None:
-            scope_token: tuple[tuple[str, ...], str] | None = None
-        else:
-            scope_token = (
-                tuple(sorted(scope_keys)),
-                str(waiting_marker.waiting_path.parent),
-            )
-
-        def fresh_index(
-            projects: frozenset[str] = frozenset(confirmation_projects),
-        ) -> WaitDependencyIndex:
-            nonlocal confirmation_round, view_ms, view_rows, scope_cache_used
-            key = (tuple(sorted(projects)), confirmation_round, scope_token)
-            confirmation_round += 1
-            cached = fresh_indexes.get(key)
-            if cached is not None:
-                return cached
-            fresh = _clone_empty_index(waiter_index)
-            fresh_started = time.monotonic()
-            if scope_keys is not None:
-                # Scoped confirmation re-lists fresh but stats instead of
-                # reading: new dirs are cache misses and still read meta,
-                # which preserves the new-member signal.
-                fresh_rows = _filesystem_dependency_rows(
-                    projects_dir,
-                    project_names=set(projects),
-                    meta_cache=meta_cache,
-                    scope_cache=scope_cache,
-                    scope_keys=scope_keys,
-                    include_dirs=(waiting_marker.waiting_path.parent,),
-                    seen_dirs=scope_cache_seen,
-                )
-                scope_cache_used = True
-            else:
-                fresh_rows = _filesystem_dependency_rows(
-                    projects_dir,
-                    project_names=set(projects),
-                    meta_cache=meta_cache,
-                )
-            fresh.add_many(fresh_rows)
-            view_ms += int((time.monotonic() - fresh_started) * 1000)
-            view_rows += len(fresh_rows)
-            fresh_indexes[key] = fresh
-            return fresh
-
-        marker: dict[str, Any] = {
-            "waiting_for": waiting_for,
-            "wait_for_artifacts": wait_for_artifacts,
-            "wait_for_fork_sources": wait_for_fork_sources,
-            "wait_for_beads": wait_for_beads,
-            "wait_for_hoods": wait_for_hoods,
-            "resolved_deps": resolved_deps,
-            "wait_for_epics_of": wait_for_epics_of,
-            "wait_epic_follows": wait_epic_follows,
-        }
-        try:
-            decision = resolve_wait_release(
-                waiter_index,
-                marker,
-                waiter_dir=waiting_marker.waiting_path.parent,
-                closed_bead_ids=closed_bead_ids,
-                now=time.time(),
-                fresh_index=fresh_index,
-            )
-        except Exception as exc:  # noqa: BLE001 - a failed release check must park.
-            deferred_unconfirmed += 1
-            runtime.log(
-                "[wait_checks] Deferred release for "
-                f"{data.get('cl_name', 'unknown')}: could not confirm "
-                f"dependency membership ({exc})",
-            )
-            return
-        status = decision.status
-        for diagnostic in status.diagnostics:
-            runtime.log(f"[wait_checks] {diagnostic}")
-        if decision.confirmation_failed:
-            deferred_unconfirmed += 1
-            cl_name = data.get("cl_name", "unknown")
-            if status.resolved:
-                runtime.log(
-                    "[wait_checks] Deferred release for "
-                    f"{cl_name}: dependency membership changed since the "
-                    "resolving view",
-                )
-            else:
-                blocked = ", ".join(status.blocked_on)
-                runtime.log(
-                    "[wait_checks] Deferred release for "
-                    f"{cl_name}: fresh dependency view remains unresolved "
-                    f"(blocked on: {blocked or '<unknown>'})",
-                )
-            return
-        if wait_for_epics_of or wait_epic_follows:
-            epic_follow_seen = True
-        if decision.patch is not None:
-            apply_wait_epic_follow_patch(
-                waiting_marker.waiting_path.parent, decision.patch
-            )
-            epic_follow_active_keys.update(
-                _epic_follow_notification_keys(
-                    waiting_marker,
-                    data,
-                    wait_epic_follows,
-                    decision.follows,
-                    waiter_index,
-                )
-            )
-            epic_follow_reconciled_dirs.add(str(waiting_marker.waiting_path.parent))
-            unresolved += 1
-            return
-        # Gate on the shared releasable verdict, not the pre-follow status:
-        # a persisted-but-unchanged LAUNCHING/BLOCKED follow leaves no patch
-        # yet must still hold the waiter (never release on a timeout).
-        if decision.releasable:
-            if wait_for_epics_of or wait_epic_follows:
-                epic_follow_reconciled_dirs.add(str(waiting_marker.waiting_path.parent))
-            cl_name = data.get("cl_name", "unknown")
-            waited_on = ", ".join(waiting_for)
-            if wait_for_beads:
-                bead_wait = f"beads: {', '.join(wait_for_beads)}"
-                waited_on = f"{waited_on}; {bead_wait}" if waited_on else bead_wait
-            if wait_for_hoods:
-                hood_wait = f"hoods: {', '.join(wait_for_hoods)}"
-                waited_on = f"{waited_on}; {hood_wait}" if waited_on else hood_wait
-            runtime.log(
-                f"[wait_checks] Dependencies satisfied for {cl_name}, "
-                f"waited on: {waited_on}",
-            )
-            ready_payload: dict[str, Any] = {
-                "resolved_deps": waiting_for,
-                "released_by": "wait_checks",
-            }
-            if not wait_for_beads:
-                satisfied_at = latest_member_finished_at(member_dirs)
-                if satisfied_at is not None:
-                    ready_payload["dependencies_satisfied_at"] = satisfied_at
-            try:
-                published = publish_ready_marker(
-                    str(waiting_marker.waiting_path.parent),
-                    ready_payload,
-                )
-            except OSError:
-                skipped_invalid += 1
-            else:
-                if published:
-                    ready_written += 1
-                else:
-                    # Lost the publish race (another writer published
-                    # first) or the waiter already released and cleaned up.
-                    skipped_ready += 1
-        else:
-            unresolved += 1
-            if wait_for_epics_of or wait_epic_follows:
-                epic_follow_active_keys.update(
-                    _epic_follow_notification_keys(
-                        waiting_marker,
-                        data,
-                        wait_epic_follows,
-                        decision.follows,
-                        waiter_index,
-                    )
-                )
-                epic_follow_reconciled_dirs.add(str(waiting_marker.waiting_path.parent))
-            found_blockers: tuple[TerminalBlocker, ...] = terminal_blockers(
-                waiter_index,
-                waiting_for,
-                wait_for_artifacts,
-                wait_for_hoods,
-                status.blocked_on,
-                self_artifact_dir=waiting_marker.waiting_path.parent,
-            )
-            for blocker in found_blockers:
-                upsert_terminal_blocked_wait_notification(
-                    waiting_marker,
-                    data,
-                    blocker,
-                )
-                if blocker.outcome not in KNOWN_DONE_OUTCOMES:
-                    unknown_outcome += 1
-                    runtime.log(
-                        "[wait_checks] Unknown done outcome blocks waiter "
-                        f"{waiting_marker.waiting_path.parent}: "
-                        f"dependency={blocker.dependency} "
-                        f"artifact={blocker.artifact_dir} "
-                        f"outcome={blocker.outcome!r}",
-                    )
-                if terminal_blocker_logs < _MAX_TERMINAL_BLOCKER_LOGS:
-                    terminal_blocker_logs += 1
-                    runtime.log(
-                        "[wait_checks] Terminal dependency still blocks waiter "
-                        f"{waiting_marker.waiting_path.parent}: "
-                        f"dependency={blocker.dependency} "
-                        f"artifact={blocker.artifact_dir} "
-                        f"outcome={blocker.outcome!r}",
-                    )
-                else:
-                    terminal_blocker_suppressed += 1
+    tick = WaitChecksTick(
+        runtime=runtime,
+        projects_dir=projects_dir,
+        meta_cache=meta_cache,
+        scope_cache=scope_cache,
+        scope_cache_seen=scope_cache_seen,
+        fresh_indexes={},
+        wait_bead_cache=WaitBeadStatusCache(),
+        skipped_ready=skipped_ready,
+        skipped_invalid=skipped_invalid,
+        epic_follow_seen=epic_follow_seen,
+        epic_follow_reconciled_dirs=epic_follow_reconciled_dirs,
+        view_ms=view_ms,
+        view_rows=view_rows,
+        scope_cache_used=scope_cache_used,
+    )
 
     resolve_started = time.monotonic()
     for waiter in live_waiters:
@@ -679,12 +310,12 @@ def _run(
             waiter_errors += 1
             continue
         try:
-            _process_one_waiter(waiter, waiter_index)
+            process_one_waiter(waiter, waiter_index, tick)
         except Exception as exc:  # noqa: BLE001 - one bad waiter must not stall the tick.
             waiter_errors += 1
             waiter_name = data.get("cl_name", "unknown")
             waiter_dir = waiting_marker.waiting_path.parent
-            if waiter_error_logs < _MAX_TERMINAL_BLOCKER_LOGS:
+            if waiter_error_logs < MAX_TERMINAL_BLOCKER_LOGS:
                 waiter_error_logs += 1
                 runtime.log(
                     f"[wait_checks] Waiter {waiter_dir} ({waiter_name}) "
@@ -698,23 +329,23 @@ def _run(
 
     resolve_ms = int((time.monotonic() - resolve_started) * 1000)
 
-    if terminal_blocker_suppressed:
+    if tick.terminal_blocker_suppressed:
         runtime.log(
             "[wait_checks] Suppressed "
-            f"{terminal_blocker_suppressed} additional terminal blocker log(s)",
+            f"{tick.terminal_blocker_suppressed} additional terminal blocker log(s)",
         )
 
-    if scope_cache_used:
+    if tick.scope_cache_used:
         # Only this job writes the cache, and only when an entry changed.
         # Dirs the tick never listed have vanished: drop them. The write is
         # atomic and best-effort, so it can never fail the tick.
-        scope_cache.drop_missing(scope_cache_seen)
-        scope_cache.save_if_changed()
+        tick.scope_cache.drop_missing(tick.scope_cache_seen)
+        tick.scope_cache.save_if_changed()
 
-    if epic_follow_seen and epic_follow_reconciled_dirs:
+    if tick.epic_follow_seen and tick.epic_follow_reconciled_dirs:
         try:
             cleared = reconcile_epic_follow_notifications(
-                epic_follow_active_keys, epic_follow_reconciled_dirs
+                tick.epic_follow_active_keys, tick.epic_follow_reconciled_dirs
             )
         except Exception as exc:  # noqa: BLE001 - reconcile never fails.
             runtime.log(f"[wait_checks] Epic-follow reconcile failed: {exc}")
@@ -725,16 +356,16 @@ def _run(
             )
 
     reason = None
-    if ready_written == 0:
+    if tick.ready_written == 0:
         if projects == 0:
             reason = "no_project_dirs"
         elif waiting_markers == 0:
             reason = "no_waiting_markers"
-        elif unresolved > 0:
+        elif tick.unresolved > 0:
             reason = "dependencies_not_ready"
         elif dead_waiting > 0 and live_waiting == 0 and unknown_liveness == 0:
             reason = "no_live_waiters"
-        elif skipped_ready > 0:
+        elif tick.skipped_ready > 0:
             reason = "waiting_markers_already_ready"
         else:
             reason = "no_ready_markers_written"
@@ -746,17 +377,17 @@ def _run(
             "live_waiting": live_waiting,
             "dead_waiting": dead_waiting,
             "unknown_liveness": unknown_liveness,
-            "ready_written": ready_written,
-            "already_ready": skipped_ready,
-            "invalid": skipped_invalid,
-            "unresolved": unresolved,
-            "unknown_outcome": unknown_outcome,
-            "deferred_unconfirmed": deferred_unconfirmed,
+            "ready_written": tick.ready_written,
+            "already_ready": tick.skipped_ready,
+            "invalid": tick.skipped_invalid,
+            "unresolved": tick.unresolved,
+            "unknown_outcome": tick.unknown_outcome,
+            "deferred_unconfirmed": tick.deferred_unconfirmed,
             "waiter_errors": waiter_errors,
             "walk_ms": walk_ms,
-            "view_ms": view_ms,
+            "view_ms": tick.view_ms,
             "resolve_ms": resolve_ms,
-            "view_rows": view_rows,
+            "view_rows": tick.view_rows,
             "scoped_waiters": scoped_waiters,
             "full_view_waiters": full_view_waiters,
         },
@@ -765,96 +396,6 @@ def _run(
     if waiter_errors > 0:
         result.status = "check_error"
     return result
-
-
-def _filesystem_dependency_rows(
-    projects_dir: Path,
-    *,
-    project_names: set[str] | None = None,
-    meta_cache: dict[Path, dict[str, Any] | None] | None = None,
-    scope_cache: ScopeKeyCache | None = None,
-    scope_keys: frozenset[str] | set[str] | None = None,
-    include_dirs: tuple[Path, ...] | list[Path] = (),
-    seen_dirs: set[Path] | None = None,
-) -> list[tuple[Path, dict[str, Any], str]]:
-    """Load ace-run agent_meta.json files for wait-dependency resolution.
-
-    When meta_cache is given, reuse metadata already loaded earlier in the run
-    and only read files for artifact directories not yet seen. The directory
-    listing itself is always fresh.
-
-    When scope_cache and scope_keys are given, select rows through the
-    persistent scope-key cache instead: unselected artifacts cost one
-    ``stat`` instead of one JSON read, while selected rows still read their
-    meta fresh. Every listed dir joins seen_dirs (when given) for the
-    end-of-tick prune of vanished cache entries.
-    """
-
-    if scope_cache is None or scope_keys is None:
-        rows: list[tuple[Path, dict[str, Any], str]] = []
-        for project_dir in projects_dir.iterdir():
-            if not project_dir.is_dir():
-                continue
-            project_name = project_dir.name
-            if project_names is not None and project_name not in project_names:
-                continue
-            for artifact_dir in iter_agent_artifact_dirs(
-                project_name,
-                "ace-run",
-                projects_root=projects_dir,
-            ):
-                meta_path = artifact_dir / "agent_meta.json"
-                if meta_cache is not None and meta_path in meta_cache:
-                    meta = meta_cache[meta_path]
-                else:
-                    meta = _read_json_dict(meta_path)
-                    if meta_cache is not None:
-                        meta_cache[meta_path] = meta
-                if meta is not None:
-                    rows.append((artifact_dir, meta, project_name))
-        return rows
-
-    def _read_meta_fresh(artifact_dir: Path) -> dict[str, Any] | None:
-        meta = _read_json_dict(artifact_dir / "agent_meta.json")
-        if meta_cache is not None:
-            meta_cache[artifact_dir / "agent_meta.json"] = meta
-        return meta
-
-    scoped_rows: list[tuple[Path, dict[str, Any], str]] = []
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
-            continue
-        project_name = project_dir.name
-        if project_names is not None and project_name not in project_names:
-            continue
-        candidates = list(
-            iter_agent_artifact_dirs(
-                project_name,
-                "ace-run",
-                projects_root=projects_dir,
-            )
-        )
-        if seen_dirs is not None:
-            seen_dirs.update(candidates)
-        selected = select_dirs_with_cache(
-            candidates,
-            scope_keys,
-            include_dirs=include_dirs,
-            cache=scope_cache,
-            read_meta=_read_meta_fresh,
-            update_cache=True,
-        )
-        for artifact_dir in selected:
-            meta_path = artifact_dir / "agent_meta.json"
-            if meta_cache is not None and meta_path in meta_cache:
-                meta = meta_cache[meta_path]
-            else:
-                meta = _read_json_dict(meta_path)
-                if meta_cache is not None:
-                    meta_cache[meta_path] = meta
-            if meta is not None:
-                scoped_rows.append((artifact_dir, meta, project_name))
-    return scoped_rows
 
 
 def main() -> None:

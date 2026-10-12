@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import sase.scripts._chop_wait_checks_run as wait_checks_module
+import sase.scripts._chop_wait_checks_run_waiters as wait_checks_waiters
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, run_wait_checks
 
@@ -34,7 +34,7 @@ def _launching_planner(base: Path) -> Path:
 
 def _point_bead_waits_at(monkeypatch: pytest.MonkeyPatch, closed_ids: set[str]) -> None:
     monkeypatch.setattr(
-        wait_checks_module,
+        wait_checks_waiters,
         "closed_bead_ids_for_waits",
         lambda *args, **kwargs: SimpleNamespace(closed_ids=frozenset(closed_ids)),
     )

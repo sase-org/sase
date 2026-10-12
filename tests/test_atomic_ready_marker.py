@@ -9,7 +9,7 @@ a torn, empty, or non-dict marker as not ready.
 import json
 from pathlib import Path
 
-import sase.scripts._chop_wait_checks_run as wait_checks_module
+import sase.scripts._chop_wait_checks_run_waiters as wait_checks_waiters
 from sase.axe.run_agent_wait_deps import read_ready_result
 from sase.axe.run_agent_wait_markers import publish_ready_marker
 
@@ -86,7 +86,7 @@ def test_wait_checks_late_ready_marker_counts_already_ready(
         outcome="completed",
     )
 
-    real_publish = wait_checks_module.publish_ready_marker
+    real_publish = wait_checks_waiters.publish_ready_marker
     sentinel = {"resolved_deps": ["concurrent-winner"]}
 
     def _racing_publish(artifacts_dir: str, payload: dict) -> bool:
@@ -94,7 +94,7 @@ def test_wait_checks_late_ready_marker_counts_already_ready(
         (Path(artifacts_dir) / "ready.json").write_text(json.dumps(sentinel))
         return real_publish(artifacts_dir, payload)
 
-    monkeypatch.setattr(wait_checks_module, "publish_ready_marker", _racing_publish)
+    monkeypatch.setattr(wait_checks_waiters, "publish_ready_marker", _racing_publish)
     run_wait_checks(tmp_path, monkeypatch)
 
     out = capsys.readouterr().out

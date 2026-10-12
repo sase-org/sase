@@ -277,7 +277,7 @@ def test_wait_checks_tick_writes_cache_and_warm_tick_agrees(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    import sase.scripts._chop_wait_checks_run as wait_checks
+    import sase.scripts._chop_wait_checks_run_fs as wait_checks_fs
 
     waiter_dir = make_waiting_agent(tmp_path, "lane")
     make_agent(
@@ -287,7 +287,7 @@ def test_wait_checks_tick_writes_cache_and_warm_tick_agrees(
         tmp_path, "proj", "20261011040102", "unrelated", done=True, outcome="completed"
     )
 
-    original_read = wait_checks._read_json_dict
+    original_read = wait_checks_fs.read_json_dict
     reads = [0]
 
     def counting_read(path: Path) -> dict[str, Any] | None:
@@ -295,7 +295,7 @@ def test_wait_checks_tick_writes_cache_and_warm_tick_agrees(
             reads[0] += 1
         return original_read(path)
 
-    monkeypatch.setattr(wait_checks, "_read_json_dict", counting_read)
+    monkeypatch.setattr(wait_checks_fs, "read_json_dict", counting_read)
     run_wait_checks(tmp_path, monkeypatch)
     out = capsys.readouterr().out
     assert "scoped_waiters=1" in out

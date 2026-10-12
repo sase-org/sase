@@ -11,7 +11,9 @@ from typing import Any
 import pytest
 
 import sase.scripts.sase_chop_bead_claim_checks as claim_checks
-import sase.scripts._chop_wait_checks_run as wait_checks_module
+import sase.scripts._chop_wait_checks_run as wait_checks_run
+import sase.scripts._chop_wait_checks_run_fs as wait_checks_fs
+import sase.scripts._chop_wait_checks_run_waiters as wait_checks_waiters
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     rebuild_agent_artifact_index,
@@ -30,7 +32,7 @@ FULL_WALK_ENV = "SASE_CHOP_SCAN_FULL_WALK"
 def _count_wait_meta_reads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[int]:
-    original = wait_checks_module._read_json_dict
+    original = wait_checks_fs.read_json_dict
     reads = [0]
 
     def counting_read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -39,8 +41,8 @@ def _count_wait_meta_reads(
         return original(path)
 
     monkeypatch.setattr(
-        wait_checks_module,
-        "_read_json_dict",
+        wait_checks_fs,
+        "read_json_dict",
         counting_read_json_dict,
     )
     return reads
@@ -184,13 +186,12 @@ def test_wait_checks_only_dead_pending_skips_dependency_view(
         outcome="completed",
     )
     reads = _count_wait_meta_reads(monkeypatch)
-    monkeypatch.setattr(
-        wait_checks_module,
-        "_filesystem_dependency_rows",
-        lambda *_args, **_kwargs: pytest.fail(
-            "dead-only tick must not build a dependency view"
-        ),
-    )
+
+    def _fail_rows(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("dead-only tick must not build a dependency view")
+
+    monkeypatch.setattr(wait_checks_run, "filesystem_dependency_rows", _fail_rows)
+    monkeypatch.setattr(wait_checks_waiters, "filesystem_dependency_rows", _fail_rows)
 
     run_wait_checks(tmp_path, monkeypatch)
     out = capsys.readouterr().out

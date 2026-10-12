@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import sase.scripts._chop_wait_checks_run as wait_checks_module
+import sase.scripts._chop_wait_checks_run_waiters as wait_checks_waiters
 from sase.core.agent_artifact_index_lifecycle_mutations import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -34,7 +34,7 @@ def _index(*artifact_dirs: Path) -> None:
 
 def _point_bead_waits_at(monkeypatch: pytest.MonkeyPatch, closed_ids: set[str]) -> None:
     monkeypatch.setattr(
-        wait_checks_module,
+        wait_checks_waiters,
         "closed_bead_ids_for_waits",
         lambda *args, **kwargs: SimpleNamespace(closed_ids=frozenset(closed_ids)),
     )

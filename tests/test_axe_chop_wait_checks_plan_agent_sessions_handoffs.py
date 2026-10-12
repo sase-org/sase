@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-import sase.scripts._chop_wait_checks_run as wait_checks
+import sase.scripts._chop_wait_checks_run as wait_checks_run
+import sase.scripts._chop_wait_checks_run_fs as wait_checks_fs
+import sase.scripts._chop_wait_checks_run_waiters as wait_checks_waiters
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import (
     make_waiting_agent,
@@ -94,7 +96,7 @@ def test_stale_resolving_view_defers_agent_session_release(
 ) -> None:
     waiter_dir, next_monitor_dir = _stale_index_handoff_wait_fixture(tmp_path)
     projects_root = tmp_path / ".sase/projects"
-    real_rows = wait_checks._filesystem_dependency_rows
+    real_rows = wait_checks_fs.filesystem_dependency_rows
     stale_rows = [row for row in real_rows(projects_root) if row[0] != next_monitor_dir]
 
     def _rows(projects_dir, *, project_names=None, meta_cache=None, **kwargs):
@@ -109,7 +111,8 @@ def test_stale_resolving_view_defers_agent_session_release(
             **kwargs,
         )
 
-    monkeypatch.setattr(wait_checks, "_filesystem_dependency_rows", _rows)
+    monkeypatch.setattr(wait_checks_run, "filesystem_dependency_rows", _rows)
+    monkeypatch.setattr(wait_checks_waiters, "filesystem_dependency_rows", _rows)
 
     run_wait_checks(tmp_path, monkeypatch)
 

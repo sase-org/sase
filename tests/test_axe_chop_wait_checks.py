@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-import sase.scripts._chop_wait_checks_run as wait_checks_module
+import sase.scripts._chop_wait_checks_run_fs as wait_checks_fs
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
     dependency_resolution_status,
@@ -216,7 +216,7 @@ def test_multiple_waiting_dependencies_scan_artifacts_once(
         outcome="completed",
     )
 
-    original_read_json_dict = wait_checks_module._read_json_dict
+    original_read_json_dict = wait_checks_fs.read_json_dict
     agent_meta_reads = 0
 
     def counting_read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -226,8 +226,8 @@ def test_multiple_waiting_dependencies_scan_artifacts_once(
         return original_read_json_dict(path)
 
     monkeypatch.setattr(
-        wait_checks_module,
-        "_read_json_dict",
+        wait_checks_fs,
+        "read_json_dict",
         counting_read_json_dict,
     )
 
