@@ -21,7 +21,7 @@ from tests.ace.tui._projects_pane_init_flow_helpers import (
 
 
 def _patch_init_subprocess_run(monkeypatch: pytest.MonkeyPatch, handler: Any) -> None:
-    """Patch init-actions ``subprocess.run`` without intercepting git probes.
+    """Patch init-flow ``subprocess.run`` without intercepting git probes.
 
     That module uses ``import subprocess``, so setattr on ``.subprocess.run``
     replaces the process-global function. Identity lookups then leak into
@@ -36,7 +36,7 @@ def _patch_init_subprocess_run(monkeypatch: pytest.MonkeyPatch, handler: Any) ->
         return handler(*args, **kwargs)
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.projects_pane_init_actions.subprocess.run",
+        "sase.ace.tui.modals.projects_pane_init_flow.subprocess.run",
         wrapped,
     )
 

@@ -44,7 +44,6 @@ from .inventory_project_picker import (
     InventoryProjectPickerResult,
 )
 from .project_management_actions import ProjectManagementActionsMixin
-from .projects_pane_init import InitScope
 from .projects_pane_init_actions import ProjectsPaneInitActionsMixin
 from .project_inventory_counts import (
     ProjectCountsLoadResult,
@@ -199,7 +198,6 @@ class ProjectsPane(
         )
         self._current_project_resolve_worker: Worker[Any] | None = None
         self._current_project_set_worker: Worker[Any] | None = None
-        self._init_scope_by_proc_id: dict[str, InitScope] = {}
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._project_selection_guard = ProgrammaticSelectionGuard()
         self._load_records()

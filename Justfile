@@ -439,6 +439,9 @@ _lint-patch-stitch-terminology: _setup
 # archive_read_only_context: the Record deck reads that Archive selection
 # context. sase-1jm.3.1 closed with the symbol still test-only, so the row is
 # re-keyed here. Drop it once that phase calls the symbol from non-test code.
+# sase-1jx.10.1.2 parks run_project_init for sase-1jx.10.1.4 (Apply, progress,
+# Ready, and Failed): that phase calls the shared init hand-off after a
+# successful durable add. Drop the row once apply-ready lands its caller.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -454,6 +457,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jx.11(NewProjectSelection)' \
         --epic-symbol 'sase-1jx.12(record_owner_selection)' \
         --epic-symbol 'sase-1jx.12(record_visibility_selection)' \
+        --epic-symbol 'sase-1jx.10.1.4(run_project_init)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
