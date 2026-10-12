@@ -145,23 +145,34 @@ class AgentReviveFlowMixin:
         )
 
     def _open_custom_revival_search(self) -> None:
-        """Open Artifacts -> Agent with the revivable dismissed-agent query."""
-        switch = getattr(self, "_switch_artifacts_subtab", None)
-        if not callable(switch):
-            self.notify(  # type: ignore[attr-defined]
-                "Artifacts Agent pane is not available", severity="warning"
-            )
+        """Browse dismissed runs, retaining the legacy search while unflagged."""
+        from ...models.agent_archive_view import agents_archive_view_enabled
+
+        if not agents_archive_view_enabled():
+            switch = getattr(self, "_switch_artifacts_subtab", None)
+            if not callable(switch):
+                self.notify(  # type: ignore[attr-defined]
+                    "Artifacts Agent pane is not available", severity="warning"
+                )
+                return
+            switch("agents")
+            pane = getattr(self, "_agents_pane", lambda: None)()
+            apply_seed = getattr(pane, "apply_seed_query", None)
+            if callable(apply_seed):
+                apply_seed("state:dismissed AND revivable:true")
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    "Opened Artifacts -> Agent; filter for revivable dismissed agents",
+                    severity="information",
+                )
             return
-        switch("agents")
-        pane = getattr(self, "_agents_pane", lambda: None)()
-        apply_seed = getattr(pane, "apply_seed_query", None)
-        if callable(apply_seed):
-            apply_seed("state:dismissed AND revivable:true")
+        opener = getattr(self, "action_open_agents_archive", None)
+        if callable(opener):
+            opener()
         else:
-            self.notify(  # type: ignore[attr-defined]
-                "Opened Artifacts -> Agent; filter for revivable dismissed agents",
-                severity="information",
-            )
+            from ._archive_view import open_agents_archive_view
+
+            open_agents_archive_view(self)
 
     def _revive_saved_agent_group(
         self,

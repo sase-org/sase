@@ -295,6 +295,17 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             None,
         )
         if dismissed is not None:
+            from ...models.agent_archive_view import agents_archive_view_enabled
+
+            if agents_archive_view_enabled():
+                from ..agents._archive_arrival import open_archive_for_agent
+
+                open_archive_for_agent(
+                    self,
+                    str(getattr(dismissed, "agent_name", "") or ""),
+                    source="Jumped to the dismissed target read-only in the Archive",
+                )
+                return
             revive(dismissed)
 
     def _handle_member_jump_key(self, key: str) -> bool:

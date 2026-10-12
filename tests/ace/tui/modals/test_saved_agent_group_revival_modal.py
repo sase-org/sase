@@ -12,6 +12,7 @@ from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalResult,
 )
 from sase.core.agent_group_archive_wire import SavedAgentGroupPageWire
+from sase.feature_flags import override_flags
 
 from .saved_agent_group_revival_modal_test_helpers import (
     _TestApp,
@@ -67,6 +68,17 @@ def test_empty_state_still_keeps_custom_search_final() -> None:
         "custom-search",
     ]
     assert "0 saved loaded | 0 recent" in modal._hints_text()
+
+
+def test_custom_search_row_becomes_archive_browse_when_flagged() -> None:
+    modal = SavedAgentGroupRevivalModal(
+        SavedAgentGroupPageWire(groups=(), next_cursor=None)
+    )
+
+    with override_flags(agents_archive_view=True):
+        row = modal._create_options()[-1]
+
+    assert "Browse the Archive (Enter restores)" in _option_plain(row)
 
 
 async def test_load_more_appends_next_page_and_keeps_custom_final() -> None:

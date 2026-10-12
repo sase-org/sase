@@ -112,6 +112,9 @@ class AgentArchiveColumnMixin:
 
         if not agents_archive_view_enabled():
             return
+        opening = not agents_archive_is_active(self)
+        capture = getattr(self, "_current_link_trail_origin", None)
+        origin = capture() if opening and callable(capture) else None
         if getattr(self, "current_tab", None) != "agents":
             save_position = getattr(self, "_save_current_tab_position", None)
             if callable(save_position):
@@ -120,6 +123,16 @@ class AgentArchiveColumnMixin:
             if callable(switch):
                 switch("agents")
         open_agents_archive_view(self)
+        if opening:
+            record = getattr(self, "_record_link_trail", None)
+            if origin is not None and callable(record):
+                record(origin)
+            notify = getattr(self, "notify", None)
+            if callable(notify):
+                notify(
+                    "Opened the Archive — dismissed runs open read-only · ctrl+o back",
+                    severity="information",
+                )
 
     def action_back_to_agents_inbox(self) -> None:
         """Return from Archive to the parked Inbox."""

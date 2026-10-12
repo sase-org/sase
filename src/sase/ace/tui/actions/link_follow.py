@@ -319,6 +319,17 @@ class LinkFollowMixin(
                 if self._follow_loaded_agent(payload):
                     self._record_link_trail(origin)
                     return
+                if self._agents_archive_arrivals_enabled():
+                    from .agents._archive_arrival import open_archive_for_agent
+
+                    open_archive_for_agent(
+                        self,
+                        payload,
+                        source="Not in your inbox",
+                        origin=origin,
+                        return_on_miss=True,
+                    )
+                    return
                 agents_tab_fallback = bool(
                     getattr(self, "_link_follow_agents_tab_filtered", False)
                 )

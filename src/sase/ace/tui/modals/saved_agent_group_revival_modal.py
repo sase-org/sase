@@ -21,6 +21,7 @@ from sase.core.agent_group_archive_wire import (
     SavedAgentGroupSummaryWire,
     SavedAgentGroupWire,
 )
+from sase.ace.tui.models.agent_archive_view import agents_archive_view_enabled
 
 from .base import OptionListNavigationMixin
 from .confirm_action_modal import ConfirmActionModal
@@ -382,7 +383,12 @@ class SavedAgentGroupRevivalModal(
         options.append(
             Option(
                 labeled(
-                    Text("Custom revival search...", style="bold #D7AFFF"),
+                    Text(
+                        "Browse the Archive (Enter restores)..."
+                        if agents_archive_view_enabled()
+                        else "Custom revival search...",
+                        style="bold #D7AFFF",
+                    ),
                     _CUSTOM_SEARCH_ID,
                 ),
                 id=_CUSTOM_SEARCH_ID,

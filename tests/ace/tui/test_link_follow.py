@@ -11,6 +11,7 @@ from sase.ace.tui.modals.artifact_links_panel_modal import (
     ArtifactLinksPanelResult,
 )
 from sase.ace.tui.widgets.artifacts.entry_navigation import LinkRequestState
+from sase.feature_flags import override_flags
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
 from ._link_follow_helpers import (
@@ -237,6 +238,88 @@ def test_loaded_agent_link_prefers_agents_tab_over_artifacts_pane() -> None:
     assert app.refreshed == 1
     assert app.rail_refreshed == 1
     assert len(app._link_trail) == 1
+
+
+def test_archived_agent_link_uses_archive_arrival_when_enabled(monkeypatch) -> None:  # noqa: ANN001
+    from sase.ace.tui.actions.agents import _archive_arrival
+
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    app = _App(
+        chips=(
+            _chip("agent:dismissed", ArtifactEntryTarget("agents", ("dismissed",))),
+        ),
+        panes={
+            "files": _Pane(targets=(origin,), selected=origin),
+            "agents": _Pane(targets=()),
+        },
+    )
+    arrivals: list[tuple[str, str, bool]] = []
+    monkeypatch.setattr(
+        _archive_arrival,
+        "open_archive_for_agent",
+        lambda _owner, name, *, source, origin, return_on_miss: arrivals.append(
+            (name, source, return_on_miss)
+        ),
+    )
+
+    with override_flags(agents_archive_view=True):
+        app._follow_link_number(1)
+
+    assert arrivals == [("dismissed", "Not in your inbox", True)]
+    assert app.current_tab == "artifacts"
+    assert app._panes["agents"].current is None
+    assert app._link_trail == []
+
+
+def test_loaded_agent_hidden_by_inbox_filter_commits_exact_name_query(
+    monkeypatch,
+) -> None:  # noqa: ANN001
+    origin = ArtifactEntryTarget("files", ("origin.txt",))
+    agent = _Agent(agent_name="builder", identity=("done", "builder", None))
+    app = _App(
+        chips=(_chip("agent:builder", ArtifactEntryTarget("agents", ("builder",))),),
+        panes={"files": _Pane(targets=(origin,), selected=origin)},
+        agents=(agent,),
+    )
+    app._agents_with_children = [agent]
+    app._agent_search_query = "status:failed"
+    committed: list[str] = []
+    transitions: list[tuple[str, str]] = []
+    app._record_explicit_agents_query_commit = lambda query: committed.append(query)
+    app._record_agents_live_query_transition = lambda old, new: transitions.append(
+        (old, new)
+    )
+    app._refilter_agents = lambda: None
+
+    def filtered(_match) -> bool:  # noqa: ANN001
+        app._link_follow_agents_tab_filtered = True
+        return False
+
+    app._reveal_loaded_agent = filtered
+
+    with override_flags(agents_archive_view=True):
+        app._follow_link_number(1)
+
+    assert committed == ['name:"builder"']
+    assert transitions == [("status:failed", 'name:"builder"')]
+    assert app.current_tab == "agents"
+    assert app.current_idx == 0
+    assert len(app._link_trail) == 1
+    assert "^ restores your filter" in app.notifications[0][0]
+
+
+def test_hidden_loaded_agent_is_classified_as_inbox_filtered(monkeypatch) -> None:  # noqa: ANN001
+    from sase.ace.tui.actions.navigation._agent_reveal import AgentRevealFailure
+
+    agent = _Agent(agent_name="builder", identity=("done", "builder", None))
+    app = _App(chips=(), panes={}, agents=(agent,))
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.navigation._agent_reveal.prepare_agent_navigation_target",
+        lambda *_args, **_kwargs: (None, AgentRevealFailure.TARGET_FILTERED),
+    )
+
+    assert app._reveal_loaded_agent(agent) is False
+    assert app._link_follow_agents_tab_filtered is True
 
 
 def test_follow_link_resolves_epic_kind_mismatch_via_pane_resolver() -> None:

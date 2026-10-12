@@ -253,7 +253,49 @@ class LinkFollowTargetsMixin:
             return False
         if self._reveal_loaded_agent(match):
             return True
+        if (
+            self._link_follow_agents_tab_filtered
+            and self._agents_archive_arrivals_enabled()
+        ):
+            return self._reveal_filtered_loaded_agent(match)
         return self._select_visible_loaded_agent(payload)
+
+    @staticmethod
+    def _agents_archive_arrivals_enabled() -> bool:
+        try:
+            from ..models.agent_archive_view import agents_archive_view_enabled
+
+            return agents_archive_view_enabled()
+        except Exception:
+            return False
+
+    def _reveal_filtered_loaded_agent(self, match: Any) -> bool:
+        """Replace the Inbox query with an exact name query and reveal *match*."""
+        import json
+
+        name = str(getattr(match, "agent_name", "") or "")
+        if not name:
+            return False
+        old_query = str(getattr(self, "_agent_search_query", "") or "")
+        query = f"name:{json.dumps(name, ensure_ascii=False)}"
+        record_transition = getattr(self, "_record_agents_live_query_transition", None)
+        if callable(record_transition):
+            record_transition(old_query, query)
+        commit = getattr(self, "_record_explicit_agents_query_commit", None)
+        if callable(commit):
+            commit(query)
+        refilter = getattr(self, "_refilter_agents", None)
+        if callable(refilter):
+            refilter()
+        selected = self._select_visible_loaded_agent(name)
+        if selected:
+            notify = getattr(self, "notify", None)
+            if callable(notify):
+                notify(
+                    f"The inbox filter hid it — showing {query} · ^ restores your filter",
+                    severity="information",
+                )
+        return selected
 
     def _reveal_loaded_agent(self, match: Any) -> bool:
         """Reveal *match* on the Agents tab; ``False`` falls through."""
@@ -268,7 +310,7 @@ class LinkFollowTargetsMixin:
         )
 
         try:
-            plan, _failure = prepare_agent_navigation_target(
+            plan, failure = prepare_agent_navigation_target(
                 self,
                 match.identity,
                 require_current=False,
@@ -277,6 +319,9 @@ class LinkFollowTargetsMixin:
             log.debug("agents-tab link reveal unavailable", exc_info=True)
             return False
         if plan is None:
+            self._link_follow_agents_tab_filtered = (
+                failure is AgentRevealFailure.TARGET_FILTERED
+            )
             return False
         previous_tab = ensure_agent_tab_for_identity(self, match.identity)
         try:

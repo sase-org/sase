@@ -5568,10 +5568,9 @@ Press `!R` on the Agents tab to revive previously dismissed work. sase's TUI ope
 saved-group revival modal first, showing newest saved groups with a right-hand preview
 of included agents, projects, PRs, statuses, provider/model labels, and revival count.
 Select a group and press Enter to revive it, choose **Load more saved groups...** to
-page older groups, or choose **Custom revival search...** to open the older
-dismissed-agent search where you choose all, home, project, or PR scope manually. In
-that dismissed-agent search, `Ctrl+J` loads `ace.page_size` more archive rows
-(default 100) and `Ctrl+K` unloads the last page, never dropping below the first page.
+page older groups, or choose **Browse the Archive** to read dismissed runs on the Agents
+tab. Archive rows open read-only; press Enter on a run when you want to restore it to
+the Inbox.
 
 Use `m` to mark related Agents-tab rows and then `s` to save and dismiss them as a
 group. The save modal accepts an optional human name. Leaving it blank keeps the

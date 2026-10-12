@@ -13,6 +13,7 @@ import pytest
 
 from sase.ace.tui.actions.artifacts_files import ArtifactsFilesActionsMixin
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
+from sase.feature_flags import override_flags
 from sase.core.artifact_file_types import ArtifactFile
 
 from tests.ace.tui._artifacts_files_helpers import artifact_file
@@ -330,6 +331,38 @@ def test_files_open_agent_revives_dismissed_match_once() -> None:
     assert app.current_idx == 0
     assert app._agents[app.current_idx] is reloaded
     assert app.notifications == []
+
+
+def test_files_open_agent_routes_dismissed_match_to_archive_when_enabled(
+    monkeypatch,
+) -> None:  # noqa: ANN001
+    from sase.ace.tui.actions.agents import _archive_arrival
+
+    entry = artifact_file(
+        "dismissed",
+        agent_artifacts_dir="/tmp/projects/alpha/artifacts/code/20260729020202",
+    )
+    dismissed = _agent(entry, identity="old")
+    app = _FakeApp(_pane(entry, modes=("text",)))
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+    arrivals: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        _archive_arrival,
+        "open_archive_for_agent",
+        lambda _owner, name, *, source, **_kwargs: arrivals.append((name, source)),
+    )
+
+    with override_flags(agents_archive_view=True):
+        app.action_files_open_agent()
+
+    assert arrivals == [
+        (
+            dismissed.agent_name,
+            "Opened the dismissed file owner read-only in the Archive",
+        )
+    ]
+    assert app.revived == []
 
 
 def test_files_open_agent_without_local_match_preserves_tab() -> None:

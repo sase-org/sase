@@ -19,6 +19,7 @@ from sase.project_display_names import (
     project_display_name_for,
 )
 
+from ..models.agent_archive_view import agents_archive_view_enabled
 from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 
 _STATUS_COLORS: dict[str, str] = {
@@ -115,13 +116,19 @@ def build_saved_group_preview(
 
     preview = Text()
     if summary is None:
-        preview.append("Custom revival search", style="bold #D7AFFF")
-        preview.append("\n\n")
+        enabled = agents_archive_view_enabled()
         preview.append(
-            "Load the 250 most recent dismissed agents, then filter them "
-            "in the next panel.",
-            style="dim",
+            "Browse the Archive" if enabled else "Custom revival search",
+            style="bold #D7AFFF",
         )
+        preview.append("\n\n")
+        description = (
+            "Read dismissed runs in the Agents tab. Press Enter on a run "
+            "when you want to restore it to the Inbox."
+            if enabled
+            else "Load recent dismissed agents, then filter and choose their scope."
+        )
+        preview.append(description, style="dim")
         return preview
 
     preview.append(_saved_group_display_title(summary), style="bold #87D7FF")
@@ -216,8 +223,12 @@ def build_empty_groups_preview() -> Text:
     preview.append("No saved groups yet", style="bold")
     preview.append("\n\n")
     preview.append(
-        "Use s on marked Agents-tab rows to save a group. Custom revival search "
-        "is still available below.",
+        (
+            "Use s on marked Agents-tab rows to save a group. Browse the Archive "
+            "below to read dismissed runs without restoring them."
+            if agents_archive_view_enabled()
+            else "Use s on marked Agents-tab rows to save and dismiss them as a group."
+        ),
         style="dim",
     )
     return preview

@@ -144,6 +144,11 @@ class LinkTrailMixin:
         )
         if match is None:
             return False
+        view = getattr(self, "_agents_archive_view", None)
+        if getattr(view, "active_view", None) == "archive":
+            from .agents._archive_view import close_agents_archive_view
+
+            close_agents_archive_view(self)
         previous_tab = self.current_tab
         switched = False
         if previous_tab != "agents":

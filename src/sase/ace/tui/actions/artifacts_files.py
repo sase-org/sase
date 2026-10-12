@@ -283,6 +283,16 @@ class ArtifactsFilesActionsMixin:
         target_identity = agent.identity
         target_raw_suffix = agent.raw_suffix
         if dismissed:
+            from .agents._archive_arrival import open_archive_for_agent
+            from ..models.agent_archive_view import agents_archive_view_enabled
+
+            if agents_archive_view_enabled():
+                open_archive_for_agent(
+                    self,
+                    str(getattr(agent, "agent_name", "") or ""),
+                    source="Opened the dismissed file owner read-only in the Archive",
+                )
+                return
             self._do_revive_agent(agent)  # type: ignore[attr-defined]
 
         self._save_current_tab_position()  # type: ignore[attr-defined]

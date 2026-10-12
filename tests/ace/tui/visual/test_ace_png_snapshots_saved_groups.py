@@ -19,6 +19,7 @@ from sase.core.agent_group_archive_wire import (
     SavedAgentGroupSummaryWire,
     SavedAgentGroupWire,
 )
+from sase.feature_flags import override_flags
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -83,25 +84,26 @@ async def test_saved_agent_group_modal_normal_png_snapshot(
         ),
     )
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press(page.artifacts_digit("patches"))
-        await page.expect_state("artifacts_subtab", "patches")
-        await _push_saved_group_modal(
-            page,
-            SavedAgentGroupPageWire(groups=groups, next_cursor=None),
-            {},
-            recent_page=SavedAgentGroupPageWire(
-                groups=recent_groups,
-                next_cursor=None,
-            ),
-        )
+    with override_flags(agents_archive_view=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press(page.artifacts_digit("patches"))
+            await page.expect_state("artifacts_subtab", "patches")
+            await _push_saved_group_modal(
+                page,
+                SavedAgentGroupPageWire(groups=groups, next_cursor=None),
+                {},
+                recent_page=SavedAgentGroupPageWire(
+                    groups=recent_groups,
+                    next_cursor=None,
+                ),
+            )
 
-        ace_png_visual.assert_page_png(
-            page,
-            "saved_agent_group_revival_normal_120x40",
-            title="ACE saved agent group modal normal",
-        )
+            ace_png_visual.assert_page_png(
+                page,
+                "saved_agent_group_revival_normal_120x40",
+                title="ACE saved agent group modal normal",
+            )
 
 
 async def test_saved_agent_group_modal_jump_mode_png_snapshot(
@@ -139,27 +141,28 @@ async def test_saved_agent_group_modal_jump_mode_png_snapshot(
         ),
     )
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press(page.artifacts_digit("patches"))
-        await page.expect_state("artifacts_subtab", "patches")
-        modal = await _push_saved_group_modal(
-            page,
-            SavedAgentGroupPageWire(groups=groups, next_cursor=None),
-            {},
-            recent_page=SavedAgentGroupPageWire(
-                groups=recent_groups,
-                next_cursor=None,
-            ),
-        )
-        modal.action_jump_to_entry()
-        await wait_for_visual_idle(page)
+    with override_flags(agents_archive_view=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press(page.artifacts_digit("patches"))
+            await page.expect_state("artifacts_subtab", "patches")
+            modal = await _push_saved_group_modal(
+                page,
+                SavedAgentGroupPageWire(groups=groups, next_cursor=None),
+                {},
+                recent_page=SavedAgentGroupPageWire(
+                    groups=recent_groups,
+                    next_cursor=None,
+                ),
+            )
+            modal.action_jump_to_entry()
+            await wait_for_visual_idle(page)
 
-        ace_png_visual.assert_page_png(
-            page,
-            "saved_agent_group_revival_jump_mode_120x40",
-            title="ACE saved agent group modal jump mode",
-        )
+            ace_png_visual.assert_page_png(
+                page,
+                "saved_agent_group_revival_jump_mode_120x40",
+                title="ACE saved agent group modal jump mode",
+            )
 
 
 async def test_saved_agent_group_modal_empty_png_snapshot(
@@ -168,21 +171,22 @@ async def test_saved_agent_group_modal_empty_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press(page.artifacts_digit("patches"))
-        await page.expect_state("artifacts_subtab", "patches")
-        await _push_saved_group_modal(
-            page,
-            SavedAgentGroupPageWire(groups=(), next_cursor=None),
-            {},
-        )
+    with override_flags(agents_archive_view=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press(page.artifacts_digit("patches"))
+            await page.expect_state("artifacts_subtab", "patches")
+            await _push_saved_group_modal(
+                page,
+                SavedAgentGroupPageWire(groups=(), next_cursor=None),
+                {},
+            )
 
-        ace_png_visual.assert_page_png(
-            page,
-            "saved_agent_group_revival_empty_120x40",
-            title="ACE saved agent group modal empty",
-        )
+            ace_png_visual.assert_page_png(
+                page,
+                "saved_agent_group_revival_empty_120x40",
+                title="ACE saved agent group modal empty",
+            )
 
 
 async def test_saved_agent_group_modal_load_more_png_snapshot(
@@ -192,29 +196,30 @@ async def test_saved_agent_group_modal_load_more_png_snapshot(
     patch_startup_loaders(monkeypatch)
     groups = tuple(_saved_group_summary(idx) for idx in range(20))
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press(page.artifacts_digit("patches"))
-        await page.expect_state("artifacts_subtab", "patches")
-        modal = await _push_saved_group_modal(
-            page,
-            SavedAgentGroupPageWire(groups=groups, next_cursor=20),
-            {},
-        )
-        option_list = modal.query_one("#saved-agent-group-list", OptionList)
-        option_list.highlighted = next(
-            idx
-            for idx, option in enumerate(option_list.options)
-            if option.id == "load-more"
-        )
-        modal._update_preview_for_option_id("load-more")
-        await wait_for_visual_idle(page)
+    with override_flags(agents_archive_view=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press(page.artifacts_digit("patches"))
+            await page.expect_state("artifacts_subtab", "patches")
+            modal = await _push_saved_group_modal(
+                page,
+                SavedAgentGroupPageWire(groups=groups, next_cursor=20),
+                {},
+            )
+            option_list = modal.query_one("#saved-agent-group-list", OptionList)
+            option_list.highlighted = next(
+                idx
+                for idx, option in enumerate(option_list.options)
+                if option.id == "load-more"
+            )
+            modal._update_preview_for_option_id("load-more")
+            await wait_for_visual_idle(page)
 
-        ace_png_visual.assert_page_png(
-            page,
-            "saved_agent_group_revival_load_more_120x40",
-            title="ACE saved agent group modal load more",
-        )
+            ace_png_visual.assert_page_png(
+                page,
+                "saved_agent_group_revival_load_more_120x40",
+                title="ACE saved agent group modal load more",
+            )
 
 
 async def test_saved_agent_group_modal_preview_rich_png_snapshot(
@@ -233,21 +238,22 @@ async def test_saved_agent_group_modal_preview_rich_png_snapshot(
     )
     group = _saved_group_from_summary(summary, ref_count=6)
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press(page.artifacts_digit("patches"))
-        await page.expect_state("artifacts_subtab", "patches")
-        await _push_saved_group_modal(
-            page,
-            SavedAgentGroupPageWire(groups=(summary,), next_cursor=None),
-            {summary.group_id: group},
-        )
+    with override_flags(agents_archive_view=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press(page.artifacts_digit("patches"))
+            await page.expect_state("artifacts_subtab", "patches")
+            await _push_saved_group_modal(
+                page,
+                SavedAgentGroupPageWire(groups=(summary,), next_cursor=None),
+                {summary.group_id: group},
+            )
 
-        ace_png_visual.assert_page_png(
-            page,
-            "saved_agent_group_revival_preview_rich_120x40",
-            title="ACE saved agent group modal preview-rich",
-        )
+            ace_png_visual.assert_page_png(
+                page,
+                "saved_agent_group_revival_preview_rich_120x40",
+                title="ACE saved agent group modal preview-rich",
+            )
 
 
 async def _push_saved_group_modal(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.feature_flags import override_flags
+
 from ._member_jump_navigation_helpers import (
     JumpHarness,
     make_agent,
@@ -64,6 +66,32 @@ def test_dismissed_neighbor_digit_revives_instead_of_jumping() -> None:
 
     assert app.revived_agents == [dismissed]
     assert app._agents[app.current_idx].identity == container.identity
+
+
+def test_dismissed_neighbor_digit_opens_archive_when_enabled(monkeypatch) -> None:  # noqa: ANN001
+    from sase.ace.tui.actions.agents import _archive_arrival
+
+    container = make_agent("foo")
+    dismissed = make_agent("foo.scratch")
+    app = JumpHarness([container], container)
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+    app._member_jump_maps[container.identity] = make_role_jump_map(
+        container,
+        [(dismissed, "dismissed")],
+    )
+    arrivals: list[str] = []
+    monkeypatch.setattr(
+        _archive_arrival,
+        "open_archive_for_agent",
+        lambda _owner, name, **_kwargs: arrivals.append(name),
+    )
+
+    with override_flags(agents_archive_view=True):
+        assert app._handle_member_jump_key("0") is True
+
+    assert arrivals == [dismissed.agent_name]
+    assert app.revived_agents == []
 
 
 def test_stale_neighbor_digit_uses_neighbor_specific_cancellation() -> None:
