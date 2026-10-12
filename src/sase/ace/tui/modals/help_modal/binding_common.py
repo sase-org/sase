@@ -131,6 +131,7 @@ def admin_center_projects_section(
     return (
         "Admin Center Projects",
         [
+            (d(p.new_project), "Open the New Project wizard"),
             (f"{d(p.next_option)} / {d(p.prev_option)}", "Move through projects"),
             (d(p.focus_filter), "Filter the current sub-tab"),
             (

@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.keymaps import key_display_name
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import (
     ProgrammaticSelectionGuard,
@@ -95,7 +96,8 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
             message = (
                 "No projects match the current search"
                 if self._text_filter.strip()
-                else "No registered projects"
+                else "No projects yet — press "
+                f"{key_display_name(self._keymaps.new_project)} to add or create one"
             )
             return [Option(Text(message, style="dim"), id="empty")]
         return [

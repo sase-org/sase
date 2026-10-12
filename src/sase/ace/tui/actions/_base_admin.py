@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from ._base_types import BaseActionsHost
@@ -18,6 +19,21 @@ class BaseAdminActionsMixin(BaseActionsHost):
         tab, so this fast path opens that modal pre-focused on Projects.
         """
         self._open_config_center("projects")
+
+    def action_open_new_project(self) -> None:
+        """Open Admin Center › Projects and start the New Project wizard."""
+        from ..modals.config_center_modal import CenterTab
+        from ..modals.projects_pane import ProjectsPane
+
+        def open_wizard(tab: CenterTab) -> None:
+            if tab != "projects":
+                return
+            try:
+                self.screen.query_one(ProjectsPane).action_new_project()  # type: ignore[attr-defined]
+            except Exception:
+                self.notify("Projects pane is unavailable", severity="warning")  # type: ignore[attr-defined]
+
+        self._open_config_center("projects", on_tab_activated=open_wizard)
 
     def action_open_log_panel(self) -> None:
         """Open the SASE Admin Center on the Logs tab."""
@@ -143,6 +159,7 @@ class BaseAdminActionsMixin(BaseActionsHost):
         on_dismissed: Any = None,
         proc_focus_target: str | None = None,
         tool_run_focus_target: str | None = None,
+        on_tab_activated: Callable[[Any], None] | None = None,
     ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
         from ..modals.config_center_modal import (
@@ -158,7 +175,9 @@ class BaseAdminActionsMixin(BaseActionsHost):
                 if tab is not None:
                     if tool_run_focus_target is not None:
                         screen._tool_run_focus_target = tool_run_focus_target
-                    screen.switch_to_tab(tab)
+                    if proc_focus_target is not None:
+                        screen._proc_focus_target = proc_focus_target
+                    screen.switch_to_tab(tab, on_activated=on_tab_activated)
                     return
         except Exception:
             pass
@@ -181,6 +200,11 @@ class BaseAdminActionsMixin(BaseActionsHost):
             if on_dismissed is not None:
                 on_dismissed(result)
 
+        def _on_tab_activated(tab: Any) -> None:
+            self._on_admin_center_tab_activated(tab)  # type: ignore[attr-defined]
+            if on_tab_activated is not None:
+                on_tab_activated(tab)
+
         self.push_screen(  # type: ignore[attr-defined]
             ConfigCenterModal(
                 initial_tab=initial_tab,
@@ -189,7 +213,7 @@ class BaseAdminActionsMixin(BaseActionsHost):
                 opener_binding=opener_binding,
                 log_error_target=log_error_target,
                 session_state=session_state,
-                on_tab_activated=self._on_admin_center_tab_activated,  # type: ignore[attr-defined]
+                on_tab_activated=_on_tab_activated,
                 config_entry=config_entry,
                 proc_focus_target=proc_focus_target,
                 tool_run_focus_target=tool_run_focus_target,

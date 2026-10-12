@@ -3207,6 +3207,10 @@
                   "type": "string",
                   "description": "Select the previous row"
                 },
+                "new_project": {
+                  "type": "string",
+                  "description": "Open the New Project wizard"
+                },
                 "focus_filter": {
                   "type": "string",
                   "description": "Focus the sub-tab's filter input"

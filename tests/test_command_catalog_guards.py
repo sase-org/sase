@@ -162,8 +162,9 @@ def test_every_command_spec_has_at_least_one_tab() -> None:
 def test_every_command_spec_has_label_and_key_display() -> None:
     """Palette rows must not be blank.
 
-    The tasks, logs, projects, statistics, and provider-usage panels are deliberately
-    keyless commands, so they are exempt from the key-sequence/display requirements.
+    The tasks, logs, projects, statistics, and provider-usage panels, plus the
+    palette-only New Project action, are deliberately keyless commands, so they are
+    exempt from the key-sequence/display requirements.
     """
     catalog = build_command_catalog(_registry())
     for spec in catalog:
@@ -172,6 +173,7 @@ def test_every_command_spec_has_label_and_key_display() -> None:
             "logs",
             "machines",
             "projects",
+            "projects.new",
             "tasks",
             "statistics",
             "provider_usage",

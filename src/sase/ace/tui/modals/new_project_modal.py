@@ -162,8 +162,11 @@ class NewProjectModal(
         previous = self._state.selected
         outcome = self._state.select_source(row)
         if outcome == "show-project":
+            project_key = self._project_key_for_row(row)
             self.dismiss(
-                NewProjectSelection("show-project", self._state.workflow_type, row)
+                NewProjectSelection(
+                    "show-project", self._state.workflow_type, row, project_key
+                )
             )
             return
         if outcome == "jump-resume":
@@ -171,16 +174,39 @@ class NewProjectModal(
                 NewProjectSelection("jump-resume", self._state.workflow_type, row)
             )
             return
-        if outcome == "configure":
+        if outcome in {"configure", "resume"}:
+            self._state.to_configure()
             self._prepare_configure(
-                row, preserve=previous is not None and previous.row_id == row.row_id
+                row,
+                preserve=(
+                    outcome == "configure"
+                    and previous is not None
+                    and previous.row_id == row.row_id
+                ),
             )
         elif outcome == "resume":
             self._start_failed_resume(row)
             return
         self._show_stage(self._state.stage)
-        if outcome == "configure":
+        if outcome in {"configure", "resume"}:
             self.query_one(NewProjectConfigure).focus_name()
+
+    def _project_key_for_row(self, row: SourceRow) -> str:
+        """Resolve a hidden existing-project row to its canonical project key."""
+        direct = str(row.data.get("project_key") or "")
+        if direct:
+            return direct
+        identity = str(row.data.get("identity_key") or "").casefold()
+        inputs = self._inputs.get(self._state.workflow_type)
+        if not identity or inputs is None:
+            return ""
+        for project in inputs.projects:
+            identities = project.get("identity_keys", [])
+            if isinstance(identities, (list, tuple)) and identity in {
+                str(item).casefold() for item in identities
+            }:
+                return str(project.get("key") or "")
+        return ""
 
     @on(events.Paste)
     def _paste_anywhere(self, event: events.Paste) -> None:

@@ -343,6 +343,20 @@ def _iter_projects_command() -> Iterator[CommandSpec]:
     )
 
 
+def _iter_new_project_command() -> Iterator[CommandSpec]:
+    """Yield the keyless command that opens the Projects wizard."""
+    yield CommandSpec(
+        id="projects.new",
+        label="Projects: New project…",
+        key_sequence=(),
+        key_display="",
+        category="Display",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="open_new_project"),
+        aliases=("new project", "add project", "create project", "project wizard"),
+    )
+
+
 def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
     """Yield numbered direct jumps for every Artifacts sub-tab."""
     for descriptor in resolve_artifacts_subtabs():
@@ -585,6 +599,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(_iter_statistics_command())
     catalog.extend(_iter_logs_command())
     catalog.extend(_iter_projects_command())
+    catalog.extend(_iter_new_project_command())
     catalog.extend(_iter_provider_usage_command())
     catalog.extend(_iter_tool_runs_commands())
     catalog.extend(iter_mode_commands(registry))

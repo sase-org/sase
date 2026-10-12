@@ -162,6 +162,7 @@ class ProjectsPane(
             "set_current_project",
             "initialize_project",
             "initialize_all_projects",
+            "new_project",
         }
     )
 
@@ -268,6 +269,8 @@ class ProjectsPane(
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if self._active_subtab != "projects" and action in self._PROJECT_ONLY_ACTIONS:
+            return False
+        if action == "new_project" and self._filter_has_focus():
             return False
         return super().check_action(action, parameters)
 
@@ -634,8 +637,40 @@ class ProjectsPane(
     def action_show_project_workspaces(self) -> None:
         self._show_selected_project_inventory("workspaces")
 
+    def action_new_project(self) -> None:
+        """Open the New Project wizard and integrate its selected result."""
+        from .new_project_modal import NewProjectModal, NewProjectSelection
+
+        def on_dismissed(result: object | None) -> None:
+            if not isinstance(result, NewProjectSelection):
+                return
+            if result.outcome in {"show", "show-project"}:
+                if self.is_mounted:
+                    self._reload_projects(preferred_project=result.project_key or None)
+                return
+            if result.outcome == "jump-resume" and result.row is not None:
+                proc_id = str(result.row.data.get("proc_id") or "")
+                opener = getattr(self.app, "_open_config_center", None)
+                if callable(opener):
+                    if proc_id:
+                        opener("procs", proc_focus_target=proc_id)
+                    else:
+                        opener("procs")
+
+        self.app.push_screen(NewProjectModal(), on_dismissed)
+
     def action_reload_projects(self) -> None:
-        selected = self._selected_project_name()
+        self._reload_projects()
+
+    def _reload_projects(self, *, preferred_project: str | None = None) -> None:
+        if preferred_project and self._text_filter:
+            self._text_filter = ""
+            try:
+                self.query_one("#projects-filter", _ProjectsFilterInput).value = ""
+            except Exception:
+                pass
+            self._apply_filters()
+        selected = preferred_project or self._selected_project_name()
         if not self._load_records():
             self._pending_force = None
             self._refresh_options(preferred_project=selected)

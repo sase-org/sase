@@ -314,9 +314,10 @@ def hints_text(
         for key in (keymaps.cycle_subtab_reverse, keymaps.cycle_subtab)
     )
     # This line already overflows 120 columns. ``i init  I init all`` is
-    # inserted early; the rare ``F force after block`` recovery hint is
-    # dropped to make room and remains in key help and docs.
+    # inserted early; ``n new`` now leads, and the rare ``F force after block``
+    # recovery hint is dropped to make room and remains in key help and docs.
     base = (
+        f"{key_display_name(keymaps.new_project)} new  "
         f"{move_keys} move  {jump_key} jump  "
         f"{key_display_name(keymaps.focus_filter)} filter  "
         f"{subtab_keys} sub-tab  "

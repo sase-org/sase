@@ -297,10 +297,15 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         if callable(visibility_changed):
             visibility_changed(active)
 
-    def _schedule_switch(self, tab: CenterTab) -> None:
+    def _schedule_switch(
+        self,
+        tab: CenterTab,
+        *,
+        on_activated: Callable[[CenterTab], None] | None = None,
+    ) -> None:
         """Run navigation outside Textual's serial message-pump callback."""
         self.run_worker(
-            self._switch_to(tab),
+            self._switch_to(tab, on_activated=on_activated),
             name=f"admin-center-open-{tab}",
             group="admin-center-navigation",
         )
@@ -353,10 +358,25 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
             self._tool_run_focus_target = None
         return accepted
 
-    def switch_to_tab(self, tab: CenterTab) -> None:
+    def switch_to_tab(
+        self,
+        tab: CenterTab,
+        *,
+        on_activated: Callable[[CenterTab], None] | None = None,
+    ) -> None:
         """Switch the open modal to *tab* instead of pushing a second modal."""
 
-        self._schedule_switch(tab)
+        if tab == self._active_tab and tab in self._panes:
+            self._focus_active_pane()
+            if on_activated is not None:
+                on_activated(tab)
+        else:
+            self._schedule_switch(tab, on_activated=on_activated)
+        if tab == "procs" and self._proc_focus_target is not None:
+            self.run_worker(
+                self._deliver_proc_after_switch(),
+                group="admin-center-navigation",
+            )
         if tab == "tools" and self._tool_run_focus_target is not None:
             self.run_worker(
                 self._deliver_tool_run_after_switch(),
@@ -412,11 +432,18 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
             self._opener_binding,
         )
 
-    async def _switch_to(self, tab: CenterTab) -> bool:
+    async def _switch_to(
+        self,
+        tab: CenterTab,
+        *,
+        on_activated: Callable[[CenterTab], None] | None = None,
+    ) -> bool:
         """Mount and select ``tab`` once, preserving a stable view on failure."""
         async with self._navigation_lock:
             if tab == self._active_tab and tab in self._panes:
                 self._focus_active_pane()
+                if on_activated is not None:
+                    on_activated(tab)
                 return True
             if not self._active_pane_can_deactivate():
                 return False
@@ -463,7 +490,20 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                     self._on_tab_activated(tab)
                 except Exception:
                     log.exception("Admin Center tab-activation callback failed")
+            if on_activated is not None:
+                try:
+                    on_activated(tab)
+                except Exception:
+                    log.exception("Admin Center one-shot tab callback failed")
             return True
+
+    async def _deliver_proc_after_switch(self) -> None:
+        """Deliver a pending onboarding proc focus after the Procs pane mounts."""
+        for _ in range(50):
+            if "procs" in self._panes:
+                break
+            await asyncio.sleep(0.05)
+        self._deliver_proc_focus_target()
 
     def _active_pane_can_deactivate(self) -> bool:
         pane = self._active_pane()

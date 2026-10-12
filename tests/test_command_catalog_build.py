@@ -493,6 +493,7 @@ def test_command_specs_are_well_formed() -> None:
             "logs",
             "machines",
             "projects",
+            "projects.new",
             "tasks",
             "statistics",
             "provider_usage",

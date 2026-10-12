@@ -322,10 +322,12 @@ The Projects tab is an inventory and lifecycle surface with three clickable sub-
 
 - **Projects** lists true projects—projects backed by their own main ProjectSpec,
   excluding `home` and internal linked-repo backing records. Enabled and disabled rows
-  appear together with VCS kind, claim, workspace, repo, and warning counts. `a` / `d`
-  enable or disable, `i` / `I` initialize the marked or highlighted set or every enabled
-  project, `r` / `w` cross-navigate to the selected project's inventories, and the
-  established mark, alias, edit, force, and confirmed-delete actions remain available.
+  appear together with VCS kind, claim, workspace, repo, and warning counts. Press `n`
+  to open the New Project wizard, or choose **Projects: New project…** from the command
+  palette. `a` / `d` enable or disable, `i` / `I` initialize the marked or highlighted
+  set or every enabled project, `r` / `w` cross-navigate to the selected project's
+  inventories, and the established mark, alias, edit, force, and confirmed-delete
+  actions remain available.
 - **Repos** lists primary, sidecar, linked, and opened external repos for enabled
   projects by default. It reports checkout presence, source/config metadata,
   `auto_clone`, environment names, and SDD storage mode.

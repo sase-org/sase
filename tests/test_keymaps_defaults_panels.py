@@ -208,6 +208,7 @@ def test_default_config_covers_all_projects_keymaps() -> None:
     assert defaults == {
         "next_option": "j,down,ctrl+n",
         "prev_option": "k,up,ctrl+p",
+        "new_project": "n",
         "focus_filter": "slash",
         "cycle_subtab": "right_square_bracket",
         "cycle_subtab_reverse": "left_square_bracket",

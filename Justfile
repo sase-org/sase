@@ -446,7 +446,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
-        --epic-symbol 'sase-1jx.11(NewProjectModal)' \
         --epic-symbol 'sase-1jx.12(record_visibility_selection)' \
         {{ args }}
 

@@ -235,6 +235,7 @@ _CONFIG_HUB_BINDING_META: tuple[tuple[str, str], ...] = (
 _PROJECTS_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("next_option", "next_option", "Next"),
     ("prev_option", "prev_option", "Previous"),
+    ("new_project", "new_project", "New Project"),
     ("focus_filter", "focus_filter", "Filter"),
     ("cycle_subtab", "cycle_subtab", "Next Sub-tab"),
     ("cycle_subtab_reverse", "cycle_subtab_reverse", "Previous Sub-tab"),

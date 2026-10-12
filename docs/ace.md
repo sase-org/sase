@@ -3882,6 +3882,7 @@ and warnings. Telemetry-only directories and linked-repo backing records cannot 
 | `j` / `k` | Move selection                                                      |
 | `'`       | Jump to a row via adaptive hints, within the active sub-tab only    |
 | `/`       | Filter the current sub-tab                                          |
+| `n`       | Open the New Project wizard                                         |
 | `[` / `]` | Cycle Projects, Repos, and Workspaces sub-tabs                      |
 | `r` / `w` | Show repos or workspaces pre-filtered to the highlighted project    |
 | `Enter`   | Run the highlighted project's default lifecycle action              |
@@ -3900,8 +3901,12 @@ and warnings. Telemetry-only directories and linked-repo backing records cannot 
 
 `c` requires the highlighted project to be enabled and launchable; pressing it on a
 project that is already current, disabled, or not launchable reports why in the status
-line instead of starting a write. All Projects-tab keys, including `c`, `i`, and `I`,
-are configurable under [`ace.keymaps.projects`](configuration.md#acekeymaps).
+line instead of starting a write. The wizard can also be opened from the command palette
+with **Projects: New project…**. It guides you through choosing a provider and
+repository, reviewing the add plan, and following setup through Ready; new projects can
+be launched from Ready or selected in the Projects list when you return. All
+Projects-tab keys, including `n`, `c`, `i`, and `I`, are configurable under
+[`ace.keymaps.projects`](configuration.md#acekeymaps).
 
 ### Initialize from the Projects tab
 

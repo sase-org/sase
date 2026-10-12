@@ -303,6 +303,7 @@ class ProjectsPaneKeymaps:
 
     next_option: str = "j,down,ctrl+n"
     prev_option: str = "k,up,ctrl+p"
+    new_project: str = "n"
     focus_filter: str = "slash"
     cycle_subtab: str = "right_square_bracket"
     cycle_subtab_reverse: str = "left_square_bracket"
