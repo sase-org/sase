@@ -24,6 +24,7 @@ _LAZY_EXPORTS = {
         "SUGGEST_SCHEMA_VERSION",
     ),
     "UserRefError": ("sase.project_onboarding.refs", "UserRefError"),
+    "apply_plan": ("sase.project_onboarding.apply", "apply_plan"),
     "build_plan_document": (
         "sase.project_onboarding.planning",
         "build_plan_document",
@@ -101,6 +102,7 @@ __all__ = [
     "Preferences",
     "SUGGEST_SCHEMA_VERSION",
     "UserRefError",
+    "apply_plan",
     "build_plan_document",
     "detect_actor",
     "emit_event",
