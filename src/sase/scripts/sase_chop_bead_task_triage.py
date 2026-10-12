@@ -36,6 +36,7 @@ from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_cho
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import time as core_time
 from sase.notification_gates.durability import file_lock
+from sase.scripts._chop_incremental_index import chop_scan_full_walk
 from sase.scripts._bead_task_triage_gates import (
     REQUEST_ID_PREFIXES as _REQUEST_ID_PREFIXES,
     GateState as _GateState,
@@ -361,7 +362,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
     notifications = _NotificationSnoozeIndex()
     work: BeadWorkInFlight = bead_work_in_flight(
         runtime.log.warning,
-        live_agents=beads_with_live_agents,
+        live_agents=lambda: beads_with_live_agents(use_index=not chop_scan_full_walk()),
     )
 
     today = core_time.local_now().date()

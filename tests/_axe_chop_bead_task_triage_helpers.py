@@ -259,8 +259,14 @@ def patch_live_agent_beads(
 def patch_snooze_gate(
     monkeypatch: pytest.MonkeyPatch, created: list[dict[str, Any]]
 ) -> None:
-    monkeypatch.setattr(
-        task_triage,
-        "create_bead_snooze_gate",
-        lambda **kwargs: created.append(kwargs),
-    )
+    from unittest.mock import create_autospec
+
+    from sase.bead.snooze_gate import create_bead_snooze_gate as real_factory
+
+    fake = create_autospec(real_factory)
+
+    def _record(*args: Any, **kwargs: Any) -> None:
+        created.append(kwargs)
+
+    fake.side_effect = _record
+    monkeypatch.setattr(task_triage, "create_bead_snooze_gate", fake)

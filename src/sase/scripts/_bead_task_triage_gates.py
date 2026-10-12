@@ -333,13 +333,12 @@ def create_gate(
         "refs": issue.refs,
         "plus_one_evidence": issue.plus_one_evidence,
         "close_history": issue.close_history,
-        "closed_at": issue.closed_at,
         "task_type": issue.task_type,
         "task_type_fields": dict(issue.task_type_fields),
         "producer": {"chop": "bead_task_triage", "project": project_name},
     }
     if kind == TASK_TRIAGE_KIND:
-        task_gate_factory(**common)
+        task_gate_factory(**common, closed_at=issue.closed_at)
         return
     if issue.snooze is None:
         raise ValueError(f"snoozed task {bead_id} has no snooze record")

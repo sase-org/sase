@@ -235,6 +235,67 @@ def test_due_flag_with_live_agent_is_deferred(
     assert created == []
 
 
+def _patch_live_agent_wiring(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[dict[str, object]]:
+    seen: list[dict[str, object]] = []
+
+    def _record(**kwargs: object) -> dict[tuple[str, str], str]:
+        seen.append(dict(kwargs))
+        return {}
+
+    monkeypatch.setattr(
+        task_triage,
+        "bead_work_in_flight",
+        work_liveness.bead_work_in_flight,
+    )
+    monkeypatch.setattr(
+        work_liveness,
+        "active_task_launch_bead_ids",
+        lambda: frozenset(),
+    )
+    monkeypatch.setattr(task_triage, "beads_with_live_agents", _record)
+    return seen
+
+
+def test_live_agent_read_uses_index_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_project(monkeypatch, tmp_path, [make_task()])
+    seen = _patch_live_agent_wiring(monkeypatch)
+    monkeypatch.delenv("SASE_CHOP_SCAN_FULL_WALK", raising=False)
+    created: list[str] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+
+    task_triage._run(make_runtime(tmp_path))
+
+    assert seen and seen[-1] == {"use_index": True}
+
+
+def test_live_agent_read_falls_back_to_walk_with_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_project(monkeypatch, tmp_path, [make_task()])
+    seen = _patch_live_agent_wiring(monkeypatch)
+    monkeypatch.setenv("SASE_CHOP_SCAN_FULL_WALK", "1")
+    created: list[str] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+
+    task_triage._run(make_runtime(tmp_path))
+
+    assert seen and seen[-1] == {"use_index": False}
+
+
 def test_live_agent_scan_failure_falls_back_to_gating(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

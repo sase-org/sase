@@ -123,6 +123,115 @@ def test_newest_timestamp_per_agent_decides_liveness(
     assert beads_with_live_agents(tmp_path) == {}
 
 
+def test_index_records_are_used_and_walk_is_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import sase.bead.work_liveness as work_liveness
+
+    records = [_record()]
+    captured: dict[str, object] = {}
+    index_path = tmp_path / "index.sqlite"
+    index_path.write_bytes(b"fake")
+
+    def _query(path: object, root: object, query: object, options: object) -> object:
+        captured["query"] = query
+        return _snapshot(records, tmp_path)
+
+    def _no_walk(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("filesystem walk must not run when the index exists")
+
+    monkeypatch.setattr(
+        work_liveness, "default_agent_artifact_index_path", lambda *_a, **_k: index_path
+    )
+    monkeypatch.setattr(work_liveness, "query_agent_artifact_index", _query)
+    monkeypatch.setattr(work_liveness, "scan_agent_artifacts", _no_walk)
+    monkeypatch.setattr(work_liveness, "is_process_alive", lambda *_: True)
+
+    assert beads_with_live_agents(tmp_path) == {("sase", "sase-task.1"): "sase-task.1"}
+    query = captured["query"]
+    assert query.include_active is True
+    assert query.include_recent_completed is False
+    assert query.include_full_history is False
+    assert query.include_hidden is True
+
+
+def test_missing_index_falls_back_to_walk(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import sase.bead.work_liveness as work_liveness
+
+    records = [_record()]
+    monkeypatch.setattr(
+        work_liveness,
+        "default_agent_artifact_index_path",
+        lambda *_a, **_k: tmp_path / "missing.sqlite",
+    )
+    monkeypatch.setattr(
+        work_liveness,
+        "scan_agent_artifacts",
+        lambda *_args, **_kwargs: _snapshot(records, tmp_path),
+    )
+    monkeypatch.setattr(work_liveness, "is_process_alive", lambda *_: True)
+
+    assert beads_with_live_agents(tmp_path) == {("sase", "sase-task.1"): "sase-task.1"}
+
+
+def test_failing_index_query_falls_back_to_walk(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import sase.bead.work_liveness as work_liveness
+
+    records = [_record()]
+    index_path = tmp_path / "index.sqlite"
+    index_path.write_bytes(b"fake")
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise OSError("index busy")
+
+    monkeypatch.setattr(
+        work_liveness, "default_agent_artifact_index_path", lambda *_a, **_k: index_path
+    )
+    monkeypatch.setattr(work_liveness, "query_agent_artifact_index", _boom)
+    monkeypatch.setattr(
+        work_liveness,
+        "scan_agent_artifacts",
+        lambda *_args, **_kwargs: _snapshot(records, tmp_path),
+    )
+    monkeypatch.setattr(work_liveness, "is_process_alive", lambda *_: True)
+
+    assert beads_with_live_agents(tmp_path) == {("sase", "sase-task.1"): "sase-task.1"}
+
+
+def test_use_index_false_walks_even_when_index_exists(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import sase.bead.work_liveness as work_liveness
+
+    records = [_record()]
+    index_path = tmp_path / "index.sqlite"
+    index_path.write_bytes(b"fake")
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("index must not be queried when use_index=False")
+
+    monkeypatch.setattr(work_liveness, "default_agent_artifact_index_path", _boom)
+    monkeypatch.setattr(work_liveness, "query_agent_artifact_index", _boom)
+    monkeypatch.setattr(
+        work_liveness,
+        "scan_agent_artifacts",
+        lambda *_args, **_kwargs: _snapshot(records, tmp_path),
+    )
+    monkeypatch.setattr(work_liveness, "is_process_alive", lambda *_: True)
+
+    assert beads_with_live_agents(tmp_path, use_index=False) == {
+        ("sase", "sase-task.1"): "sase-task.1"
+    }
+
+
 def test_covers_is_true_for_either_half() -> None:
     work = BeadWorkInFlight(
         launching=frozenset({"sase-a.1"}),

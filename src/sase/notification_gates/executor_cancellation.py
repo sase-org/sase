@@ -23,7 +23,7 @@ from sase.notification_gates.durability import (
 )
 from sase.notification_gates.failure_notifications import dismiss_gate_execution_failed
 from sase.notification_gates.failure_outcome import record_owner_lost_outcome
-from sase.notification_gates.hashing import load_and_verify_bundle
+from sase.notification_gates.hashing import verify_bundle_integrity
 from sase.notification_gates.models import GATE_RESPONSE_SCHEMA_VERSION, GateError
 from sase.notification_gates.paths import (
     CANCELLATION_FILENAME,
@@ -48,7 +48,10 @@ def cancel_gate(
     with file_lock(
         bundle_path / ACCEPTANCE_LOCK_FILENAME, timeout=lock_timeout_seconds
     ):
-        envelope, _adapter = load_and_verify_bundle(bundle_path)
+        # Cancellation runs no option commands, so it needs proof the bundle
+        # is the one SASE wrote (integrity), not proof it is still
+        # answerable under today's contract.
+        envelope, _adapter = verify_bundle_integrity(bundle_path)
         response_path = bundle_path / RESPONSE_FILENAME
         if response_path.exists():
             raise GateError(

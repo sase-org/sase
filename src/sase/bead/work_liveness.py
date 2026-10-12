@@ -1,5 +1,9 @@
 """Which beads currently have work in flight, and what proves it.
 
+Live agents are read from the persistent agent artifact index's active
+tier, which always contains every live worker, with the full filesystem
+walk as the fallback when the index is missing or unusable.
+
 Two independent sources contribute to that view:
 
 - **launching** — an active ``sase bead work <bead>`` proc, keyed by bead
@@ -21,8 +25,13 @@ from pathlib import Path
 
 from sase.agent.names import is_process_alive
 from sase.bead.task_launch import active_task_launch_bead_ids
-from sase.core.agent_scan_facade import scan_agent_artifacts
+from sase.core.agent_scan_facade import (
+    default_agent_artifact_index_path,
+    query_agent_artifact_index,
+    scan_agent_artifacts,
+)
 from sase.core.agent_scan_wire import (
+    AgentArtifactIndexQueryWire,
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
@@ -35,6 +44,15 @@ AGENT_BEAD_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_done_markers=False,
     include_workflow_state=False,
     include_waiting=False,
+)
+
+AGENT_BEAD_ACTIVE_INDEX_QUERY = AgentArtifactIndexQueryWire(
+    include_active=True,
+    include_recent_completed=False,
+    include_full_history=False,
+    active_limit=None,
+    recent_completed_limit=0,
+    include_hidden=True,
 )
 
 
@@ -69,8 +87,27 @@ def agent_record_is_alive(record: AgentArtifactRecordWire) -> bool:
     )
 
 
+def _candidate_agent_records(root: Path) -> list[AgentArtifactRecordWire]:
+    """Return ace-run candidate records, preferring the artifact index."""
+    try:
+        index_path = default_agent_artifact_index_path()
+    except Exception:  # noqa: BLE001 - fail open to the filesystem scan.
+        index_path = None
+    if index_path is not None and index_path.is_file():
+        try:
+            snapshot = query_agent_artifact_index(
+                index_path, root, AGENT_BEAD_ACTIVE_INDEX_QUERY, AGENT_BEAD_SCAN_OPTIONS
+            )
+            return list(snapshot.records)
+        except Exception:  # noqa: BLE001 - fail open to the filesystem scan.
+            pass
+    return list(scan_agent_artifacts(root, AGENT_BEAD_SCAN_OPTIONS).records)
+
+
 def beads_with_live_agents(
     projects_root: Path | None = None,
+    *,
+    use_index: bool = True,
 ) -> dict[tuple[str, str], str]:
     """Return ``{(project_name, bead_id): agent_name}`` for live ace-run workers.
 
@@ -79,11 +116,21 @@ def beads_with_live_agents(
     ``bead_claim_checks._latest_owner_records``: a stale record must not
     outvote a fresh one. When several live agents name the same bead, the
     newest timestamp's agent name is kept for diagnostics.
+
+    The index's active tier always contains every live worker: a live
+    process has written no done marker and holds no terminal workflow
+    status. "Newest record per agent name" is evaluated among active rows,
+    so a record that already wrote its done marker stops counting a little
+    earlier. The full filesystem walk remains the fallback when the index
+    is missing or unusable (or when ``use_index`` is false).
     """
     root = sase_projects_dir() if projects_root is None else projects_root
-    snapshot = scan_agent_artifacts(root, AGENT_BEAD_SCAN_OPTIONS)
+    if use_index:
+        records = _candidate_agent_records(root)
+    else:
+        records = list(scan_agent_artifacts(root, AGENT_BEAD_SCAN_OPTIONS).records)
     latest: dict[tuple[str, str], AgentArtifactRecordWire] = {}
-    for record in snapshot.records:
+    for record in records:
         meta = record.agent_meta
         if (
             record.workflow_dir_name != "ace-run"
@@ -175,6 +222,7 @@ def bead_work_in_flight(
 
 
 __all__ = [
+    "AGENT_BEAD_ACTIVE_INDEX_QUERY",
     "AGENT_BEAD_SCAN_OPTIONS",
     "BeadWorkInFlight",
     "agent_record_is_alive",

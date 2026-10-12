@@ -394,3 +394,78 @@ def test_gate_command_may_exit_without_reading_its_stdin_payload(
     ]
     assert lines == [("stdout", '{"status": "ok"}')]
     assert created.response_path.is_file()
+
+
+def _line_input_spec(request_id: str) -> dict[str, object]:
+    return {
+        "schema_version": 3,
+        "request_id": request_id,
+        "kind": "custom",
+        "producer": {"agent": "test"},
+        "payload": {},
+        "presentation": {"icon": "🧪", "title": "Drift", "notes": ["Drift"]},
+        "query": "run",
+        "primary_branch": ["run"],
+        "options": [
+            {
+                "id": "run",
+                "label": "Run",
+                "command": {"argv": ["commands/run"]},
+                "inputs": [{"id": "note", "label": "Note", "type": "line"}],
+            }
+        ],
+        "resources": [
+            {
+                "path": "commands/run",
+                "role": "command",
+                "content": (
+                    "#!/usr/bin/env python3\n"
+                    "import json, sys\n"
+                    "json.load(sys.stdin)\n"
+                    "print(json.dumps({'status': 'ok'}))\n"
+                ),
+            }
+        ],
+    }
+
+
+def _rewrite_stored_line_pattern_to_legacy(bundle_path: Path) -> dict[str, Any]:
+    request_path = bundle_path / "request.json"
+    envelope = json.loads(request_path.read_text(encoding="utf-8"))
+    options = envelope["options"]
+    assert isinstance(options, list) and options
+    schema = options[0]["input_schema"]
+    pattern = schema["properties"]["note"]["pattern"]
+    assert pattern == r"^[^\n]*(?![\s\S])"
+    schema["properties"]["note"]["pattern"] = r"^[^\n]*$"
+    return envelope
+
+
+def test_cancel_retires_contract_drifted_bundle(gate_home: Path) -> None:
+    del gate_home
+    created = create_gate(_line_input_spec("drift-cancel"))
+    envelope = _rewrite_stored_line_pattern_to_legacy(created.bundle_path)
+    envelope["hashes"]["request"] = request_sha256(envelope)
+    created.request_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(GateError) as excinfo:
+        load_and_verify_bundle(created.bundle_path)
+    assert excinfo.value.code == "conflicting_input_declaration"
+
+    cancellation = cancel_gate(created.bundle_path, source="test")
+    assert cancellation["request_id"] == "drift-cancel"
+    assert (created.bundle_path / "cancellation.json").is_file()
+    terminal = poll_gate(created.bundle_path)
+    assert terminal is not None
+    assert terminal.status == "cancelled"
+
+
+def test_cancel_still_enforces_integrity_on_drifted_bundle(gate_home: Path) -> None:
+    del gate_home
+    created = create_gate(_line_input_spec("drift-integrity"))
+    envelope = _rewrite_stored_line_pattern_to_legacy(created.bundle_path)
+    created.request_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(GateError) as excinfo:
+        cancel_gate(created.bundle_path, source="test")
+    assert excinfo.value.code == "hash_mismatch"

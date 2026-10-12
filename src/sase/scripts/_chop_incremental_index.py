@@ -4,6 +4,9 @@ bead_claim_checks prefers the persistent artifact index when it exists and
 answers the query. Missing, unreadable, or unexpected index state fails open
 to the caller's filesystem path. wait_checks resolves from filesystem rows
 instead (see :mod:`sase.scripts._chop_wait_checks_run`).
+
+``SASE_CHOP_SCAN_FULL_WALK=1`` also sends ``bead_task_triage``'s
+live-agent read back to the full walk.
 """
 
 from __future__ import annotations

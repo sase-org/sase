@@ -24,10 +24,18 @@ from sase.notification_gates.paths import assert_owned_bundle, owned_resource_pa
 from sase.notification_gates.registry import GateAdapter, adapter_for_kind
 
 
-def load_and_verify_bundle(
+def verify_bundle_integrity(
     bundle_path: Path,
 ) -> tuple[dict[str, Any], GateAdapter]:
-    """Load a canonical request and verify every recorded reviewed hash."""
+    """Load a request and verify only that it is the bundle SASE wrote.
+
+    This covers the owned-root assertion, schema_version check, kind and
+    request_id identity, the adapter lookup with the bundle-path identity
+    check, the request hash, resource hashes and modes, and the
+    unexpected-hash check. It deliberately skips the canonical-structure
+    checks so cancellation can retire a bundle whose options drifted from
+    today's contract.
+    """
     owned_root = assert_owned_bundle(bundle_path)
     request_path = owned_root / "request.json"
     envelope = read_json_object(request_path)
@@ -107,6 +115,15 @@ def load_and_verify_bundle(
             "hashes.resources",
             f"hashes reference undeclared resources: {', '.join(sorted(extra_hashes))}",
         )
+    return envelope, adapter
+
+
+def load_and_verify_bundle(
+    bundle_path: Path,
+) -> tuple[dict[str, Any], GateAdapter]:
+    """Load a canonical request and verify every recorded reviewed hash."""
+    envelope, adapter = verify_bundle_integrity(bundle_path)
+    schema_version = envelope.get("schema_version")
 
     query, _options, groups, branches = normalize_gate_structure(
         envelope.get("query"),
@@ -144,4 +161,4 @@ def load_and_verify_bundle(
     return projected, adapter
 
 
-__all__ = ["load_and_verify_bundle"]
+__all__ = ["load_and_verify_bundle", "verify_bundle_integrity"]
