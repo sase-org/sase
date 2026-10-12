@@ -14,6 +14,7 @@ from sase.project_onboarding.journal import (
     journal_path,
     lookup_journal,
     record_intent,
+    update_management,
 )
 from sase.project_onboarding.planning import build_plan_document
 from sase.workspace_provider._hookspec import ParsedRepoRef, RepoProbe, WorkflowMetadata
@@ -364,11 +365,39 @@ class TestBuildPlanDocument:
             workflow_type="gh",
             mode="add",
             intent_fingerprint=fingerprint,
+            setup_required=True,
+        )
+        update_management(
+            "github.com/sase-org/bob",
+            fingerprint,
+            stage="write_started",
+            baseline_config_hash="baseline",
+            expected_config_hash="expected",
+            marker_write_stage="write_started",
         )
         calls.clear()
-        build_plan_document(_request(), facts=_facts())
+        resumed = build_plan_document(
+            _request(),
+            facts=_facts(
+                remote={
+                    **_facts()["remote"],
+                    "sase_managed": True,
+                },
+                local_managed=True,
+                checkout={
+                    "state": "matching",
+                    "config_dirty": True,
+                    "config_hash": "expected",
+                },
+            ),
+        )
         assert "journal" not in calls[0]
         assert calls[1]["journal"]["remote_created"] is False
+        assert calls[1]["journal"]["management_incomplete"] is True
+        assert calls[1]["journal"]["config_changes_owned"] is True
+        assert resumed["setup"]["enabled"] is True
+        assert _step(resumed, "manage")["state"] == "pending"
+        assert "config_dirty" not in _codes(resumed["blockers"])
 
         record_intent(
             identity_key="github.com/sase-org/bob",

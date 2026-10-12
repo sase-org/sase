@@ -17,6 +17,7 @@ from sase.project_onboarding.journal import (
     ownership_facts,
     record_intent,
     set_journal_status,
+    update_management,
     update_step,
 )
 
@@ -99,6 +100,57 @@ class TestJournal:
         assert ownership_facts("github.com/sase-org/bob", "abc123") is not None
         assert ownership_facts("github.com/sase-org/bob", "other") is None
         assert ownership_facts("github.com/other/bob", "abc123") is None
+
+    def test_management_ownership_requires_active_matching_intent_and_exact_bytes(
+        self, isolated_home: Path
+    ) -> None:
+        del isolated_home
+        identity = "github.com/sase-org/bob"
+        record_intent(**_intent(setup_required=True))
+        update_management(
+            identity,
+            "abc123",
+            display="sase-org/bob",
+            stage="write_started",
+            baseline_config_hash="before",
+            expected_config_hash="expected",
+            marker_write_stage="write_started",
+        )
+
+        owned = ownership_facts(identity, "abc123", current_config_hash="expected")
+        assert owned is not None
+        assert owned["setup_required"] is True
+        assert owned["management_incomplete"] is True
+        assert owned["config_changes_owned"] is True
+        changed = ownership_facts(identity, "abc123", current_config_hash="other")
+        assert changed is not None
+        assert changed["management_incomplete"] is True
+        assert changed["config_changes_owned"] is False
+        assert (
+            ownership_facts(identity, "stale", current_config_hash="expected") is None
+        )
+
+    def test_completed_journal_does_not_grant_management_recovery_facts(
+        self, isolated_home: Path
+    ) -> None:
+        del isolated_home
+        identity = "github.com/sase-org/bob"
+        record_intent(**_intent(setup_required=True))
+        update_management(
+            identity,
+            "abc123",
+            stage="write_started",
+            baseline_config_hash="before",
+            expected_config_hash="expected",
+            marker_write_stage="write_started",
+        )
+        set_journal_status(identity, "complete")
+
+        facts = ownership_facts(identity, "abc123", current_config_hash="expected")
+        assert facts is not None
+        assert "setup_required" not in facts
+        assert facts["management_incomplete"] is False
+        assert facts["config_changes_owned"] is False
 
     def test_update_step_preserves_failed_evidence(self, isolated_home: Path) -> None:
         del isolated_home

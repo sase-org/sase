@@ -110,7 +110,12 @@ def _lookup_entry(identity_key: str) -> tuple[Path, dict[str, Any]] | None:
     return None
 
 
-def ownership_facts(identity_key: str, fingerprint: str) -> dict[str, Any] | None:
+def ownership_facts(
+    identity_key: str,
+    fingerprint: str,
+    *,
+    current_config_hash: str = "",
+) -> dict[str, Any] | None:
     """Return planner journal facts when identity and fingerprint both match."""
 
     raw = lookup_journal(identity_key)
@@ -123,11 +128,37 @@ def ownership_facts(identity_key: str, fingerprint: str) -> dict[str, Any] | Non
         return None
     remote = raw.get("remote")
     remote_map = remote if isinstance(remote, dict) else {}
-    return {
+    facts: dict[str, Any] = {
         "intent_recorded_at": str(raw.get("intent_recorded_at") or ""),
         "remote_created": bool(remote_map.get("created")),
         "repo_id": str(remote_map.get("repo_id") or ""),
     }
+    if str(raw.get("status") or "") not in _LIVE_JOURNAL_STATUSES:
+        facts["management_incomplete"] = False
+        facts["config_changes_owned"] = False
+        return facts
+
+    management = raw.get("management")
+    management_map = management if isinstance(management, dict) else {}
+    setup_required = raw.get("setup_required")
+    if isinstance(setup_required, bool):
+        facts["setup_required"] = setup_required
+    push_verified = bool(
+        management_map.get("push_verified") or management_map.get("pushed")
+    )
+    facts["management_incomplete"] = bool(setup_required is True and not push_verified)
+    baseline_hash = str(management_map.get("baseline_config_hash") or "")
+    expected_hash = str(management_map.get("expected_config_hash") or "")
+    current_hash = current_config_hash
+    marker_stage = str(management_map.get("marker_write_stage") or "")
+    facts["config_changes_owned"] = bool(
+        facts["management_incomplete"]
+        and expected_hash
+        and expected_hash != baseline_hash
+        and current_hash == expected_hash
+        and marker_stage in {"write_started", "written"}
+    )
+    return facts
 
 
 def record_intent(
@@ -140,6 +171,7 @@ def record_intent(
     intent_fingerprint: str,
     proc_id: str = "",
     project_key: str = "",
+    setup_required: bool | None = None,
 ) -> dict[str, Any]:
     """Write or refresh the active intent before any onboarding effect."""
 
@@ -149,6 +181,13 @@ def record_intent(
         current = found[1] if found is not None else {}
         if found is not None:
             path = found[0]
+        same_intent = bool(
+            found is not None
+            and str(current.get("status") or "") in _LIVE_JOURNAL_STATUSES
+            and str(current.get("identity_key") or "").casefold()
+            == identity_key.casefold()
+            and str(current.get("intent_fingerprint") or "") == intent_fingerprint
+        )
         record = _blank_record(
             identity_key=identity_key,
             ref=ref,
@@ -158,12 +197,16 @@ def record_intent(
             intent_fingerprint=intent_fingerprint,
             now=now,
         )
-        if current.get("status") == _JOURNAL_FAILED:
+        if same_intent:
             record["remote"] = _merge_mapping(current.get("remote"), record["remote"])
             record["steps"] = _merge_mapping(current.get("steps"), record["steps"])
             record["management"] = _merge_mapping(
                 current.get("management"), record["management"]
             )
+            if isinstance(current.get("setup_required"), bool):
+                record["setup_required"] = current["setup_required"]
+        if record.get("setup_required") is None and setup_required is not None:
+            record["setup_required"] = setup_required
         if proc_id:
             record["proc_id"] = proc_id
         elif current.get("proc_id"):
@@ -172,6 +215,34 @@ def record_intent(
             record["project_key"] = project_key
         elif current.get("project_key"):
             record["project_key"] = str(current["project_key"])
+        _write_record(path, record, now=now)
+        return record
+
+
+def update_management(
+    identity_key: str,
+    intent_fingerprint: str,
+    *,
+    display: str = "",
+    **updates: Any,
+) -> dict[str, Any]:
+    """Atomically persist management recovery evidence for a matching intent."""
+
+    now = _utc_now()
+    with journal_lock(identity_key, display) as path:
+        found = _lookup_entry(identity_key)
+        if found is None:
+            raise ValueError("onboarding intent journal is missing")
+        path, record = found
+        if str(record.get("intent_fingerprint") or "") != intent_fingerprint:
+            raise ValueError("onboarding intent journal fingerprint changed")
+        if str(record.get("status") or "") not in _LIVE_JOURNAL_STATUSES:
+            raise ValueError("onboarding intent journal is not active")
+        management = record.get("management")
+        management_map = dict(management) if isinstance(management, dict) else {}
+        management_map.update(updates)
+        record["management"] = management_map
+        record["updated_at"] = now
         _write_record(path, record, now=now)
         return record
 
@@ -293,6 +364,7 @@ def _blank_record(
         "mode": mode,
         "intent_fingerprint": intent_fingerprint,
         "status": _JOURNAL_RUNNING,
+        "setup_required": None,
         "intent_recorded_at": now,
         "updated_at": now,
         "remote": {"created": False, "repo_id": "", "created_at": ""},
@@ -300,8 +372,16 @@ def _blank_record(
         "management": {
             "stage": "",
             "marker_written": False,
+            "baseline_config_hash": "",
+            "expected_config_hash": "",
+            "current_config_hash": "",
+            "marker_write_stage": "",
             "commit_id": "",
             "commit_parent": "",
+            "commit_content_hash": "",
+            "commit_message": "",
+            "push_expected_oid": "",
+            "push_verified": False,
             "pushed": False,
         },
         "stopped_at": "",
@@ -417,5 +497,6 @@ __all__ = [
     "ownership_facts",
     "record_intent",
     "set_journal_status",
+    "update_management",
     "update_step",
 ]

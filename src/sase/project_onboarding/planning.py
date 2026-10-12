@@ -55,7 +55,13 @@ def build_plan_document(
     first = plan_project_onboarding(prepared, planner_facts)
     fingerprint = str(first.get("intent_fingerprint") or "")
     identity_key = str(prepared["target"].get("identity_key") or "")
-    matched = ownership_facts(identity_key, fingerprint)
+    observed_checkout = observed.get("checkout")
+    checkout_facts = observed_checkout if isinstance(observed_checkout, Mapping) else {}
+    matched = ownership_facts(
+        identity_key,
+        fingerprint,
+        current_config_hash=str(checkout_facts.get("config_hash") or ""),
+    )
     if matched is not None:
         planner_facts = {**planner_facts, "journal": matched}
         plan = plan_project_onboarding(prepared, planner_facts)

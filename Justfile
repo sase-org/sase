@@ -453,7 +453,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jx.7.1.3(journal_path)' \
         --epic-symbol 'sase-1jx.7.1.3(journal_lock_path)' \
         --epic-symbol 'sase-1jx.7.1.3(journal_lock)' \
-        --epic-symbol 'sase-1jx.7.1.3(lookup_journal)' \
+        --epic-symbol 'sase-1jx.7.1.3(ManagementError)' \
+        --epic-symbol 'sase-1jx.7.1.3(manage_repository)' \
         --epic-symbol 'sase-1jx.7.1.3(record_intent)' \
         --epic-symbol 'sase-1jx.7.1.3(update_step)' \
         --epic-symbol 'sase-1jx.7.1.3(set_journal_status)' \

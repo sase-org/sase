@@ -44,6 +44,14 @@ _LAZY_EXPORTS = {
         "sase.project_onboarding.preferences",
         "load_preferences",
     ),
+    "manage_repository": (
+        "sase.project_onboarding.manage",
+        "manage_repository",
+    ),
+    "ManagementError": (
+        "sase.project_onboarding.manage",
+        "ManagementError",
+    ),
     "parse_event_line": ("sase.project_onboarding.events", "parse_event_line"),
     "parse_user_ref": ("sase.project_onboarding.refs", "parse_user_ref"),
     "preferences_path": (
@@ -101,6 +109,8 @@ __all__ = [
     "list_incomplete",
     "load_candidate_inputs",
     "load_preferences",
+    "manage_repository",
+    "ManagementError",
     "parse_event_line",
     "parse_user_ref",
     "preferences_path",

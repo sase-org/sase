@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import hashlib
 from pathlib import Path
 import subprocess
 from typing import Any
@@ -57,6 +58,7 @@ def gather_facts(
             "origin_url": checkout["origin_url"],
             "config_dirty": checkout["config_dirty"],
             "on_default_branch": checkout["on_default_branch"],
+            "config_hash": checkout["config_hash"],
         },
         "projects": [
             {
@@ -142,6 +144,7 @@ def _observe_checkout(
         "config_dirty": False,
         "on_default_branch": None,
         "local_managed": None,
+        "config_hash": "",
     }
     if checkout_dir is None:
         return checkout
@@ -171,6 +174,7 @@ def _observe_checkout(
         else "mismatch"
     )
     checkout["config_dirty"] = _config_is_dirty(checkout_dir)
+    checkout["config_hash"] = _config_hash(checkout_dir)
     checkout["on_default_branch"] = _on_default_branch(checkout_dir, default_branch)
     checkout["local_managed"] = _local_managed_at(checkout_dir)
     return checkout
@@ -206,6 +210,14 @@ def _config_is_dirty(checkout: Path) -> bool:
     if result is None or result.returncode != 0:
         return False
     return bool(result.stdout.strip())
+
+
+def _config_hash(checkout: Path) -> str:
+    try:
+        content = (checkout / _SASE_MANAGED_RELATIVE).read_bytes()
+    except OSError:
+        return ""
+    return hashlib.sha256(content).hexdigest()
 
 
 def _on_default_branch(checkout: Path, default_branch: str) -> bool | None:
