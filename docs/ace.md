@@ -1366,36 +1366,36 @@ field (exact match, or `main` for the default tab).
 
 ### Navigation
 
-| Key                       | Action                                                                                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead          |
-| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                    |
-| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                      |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                         |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                          |
-| `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                              |
-| `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                                   |
-| `]` / `[`                 | Next / previous agent tab (wraps; only while the strip shows two or more tabs; see [Agent Tabs](#agent-tabs))                                                        |
-| _(palette)_               | Pick an agent tab from the command palette (`Agents: go to tab…`; same strip gating as `]`/`[`)                                                                      |
-| `P`                       | Cycle the focused panel's deck view wider, pinning it fixed (wraps; Main and Files only, only when there is more than one distinct layout)                           |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                                |
-| `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                                   |
-| `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels)     |
-| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                              |
-| `oo`                      | Step the Agents panel layout ladder forward, then close the grouping picker (see [Grouping Modes](#grouping-modes))                                                  |
-| `g`                       | Scroll to top (focused deck panel)                                                                                                                                   |
-| `G`                       | Scroll to bottom (focused deck panel)                                                                                                                                |
-| `Ctrl+D` / `Ctrl+U`       | Scroll the expanded jump panel when its content overflows, else the expanded header panel when its content overflows, else the focused deck panel (half page)        |
-| `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools → FINAL, wraps)                                                                                      |
-| `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL; `M`/`F`/`T`/`N` show it in the other panel (opening one below if needed); `pp`/`Esc` close |
-| `\` / `\|`                | Split deck panels stacked / side by side; the same key erases its divider, the other key nests a third panel or turns three panels                                   |
-| `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                            |
-| `Ctrl+F` / `Ctrl+B`       | Focus the next / previous deck panel in reading order, wrapping (split layouts only)                                                                                 |
-| `Ctrl+Shift+F` / `>`      | Swap the focused panel's session with the next panel in reading order, wrapping; geometry and ratios stay with the slots and focus follows the content (split only)  |
-| `Ctrl+Shift+B` / `<`      | Swap the focused panel's session with the previous panel in reading order, wrapping (split layouts only)                                                             |
-| `Ctrl+Shift+D` / `Ctrl+X` | Close the focused deck panel; focus goes to the most recently focused survivor (split layouts only)                                                                  |
-| `Ctrl+T`                  | Turn the deck layout: transpose a two-pane split, or a three-pane T layout (split layouts only)                                                                      |
-| `Ctrl+S`                  | Toggle the node rail (persisted preference); while zoomed, restore the snapshot like `Z`                                                                             |
+| Key                       | Action                                                                                                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead                          |
+| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                                    |
+| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                                      |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                                         |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                                          |
+| `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                                              |
+| `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                                                   |
+| `]` / `[`                 | Next / previous agent tab (wraps; only while the strip shows two or more tabs; see [Agent Tabs](#agent-tabs))                                                                        |
+| _(palette)_               | Pick an agent tab from the command palette (`Agents: go to tab…`; same strip gating as `]`/`[`)                                                                                      |
+| `P`                       | Cycle the focused panel's deck view wider, pinning it fixed (wraps; Main and Files only, only when there is more than one distinct layout)                                           |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                                                |
+| `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                                                   |
+| `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels)                     |
+| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                                              |
+| `oo`                      | Step the Agents panel layout ladder forward, then close the grouping picker (see [Grouping Modes](#grouping-modes))                                                                  |
+| `g`                       | Scroll to top (focused deck panel)                                                                                                                                                   |
+| `G`                       | Scroll to bottom (focused deck panel)                                                                                                                                                |
+| `Ctrl+D` / `Ctrl+U`       | Scroll the expanded jump panel when its content overflows, else the expanded header panel when its content overflows, else the focused deck panel (half page)                        |
+| `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools → FINAL → RECORD, wraps)                                                                                             |
+| `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL, `r` RECORD; `M`/`F`/`T`/`N`/`R` show it in the other panel (opening one below if needed); `pp`/`Esc` close |
+| `\` / `\|`                | Split deck panels stacked / side by side; the same key erases its divider, the other key nests a third panel or turns three panels                                                   |
+| `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                                            |
+| `Ctrl+F` / `Ctrl+B`       | Focus the next / previous deck panel in reading order, wrapping (split layouts only)                                                                                                 |
+| `Ctrl+Shift+F` / `>`      | Swap the focused panel's session with the next panel in reading order, wrapping; geometry and ratios stay with the slots and focus follows the content (split only)                  |
+| `Ctrl+Shift+B` / `<`      | Swap the focused panel's session with the previous panel in reading order, wrapping (split layouts only)                                                                             |
+| `Ctrl+Shift+D` / `Ctrl+X` | Close the focused deck panel; focus goes to the most recently focused survivor (split layouts only)                                                                                  |
+| `Ctrl+T`                  | Turn the deck layout: transpose a two-pane split, or a three-pane T layout (split layouts only)                                                                                      |
+| `Ctrl+S`                  | Toggle the node rail (persisted preference); while zoomed, restore the snapshot like `Z`                                                                                             |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
@@ -1473,7 +1473,7 @@ count gains a lit `▶M` when `M` in-flight targets remain hidden behind `.`.
 | `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                                                                                                                                                                                                                                                           |
 | `Enter`             | Act on agent: review pending gate, go to Patch, or choose when several apply                                                                                                                                                                                                                                                                   |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                                                                                                                                                                                                                                                 |
-| `E`                 | Edit focused deck content in editor (Files opens the real path; Main/Tools open the active card text as a temporary `.md`)                                                                                                                                                                                                                     |
+| `E`                 | Edit focused deck content in editor (Files opens the real path; Main/Tools/RECORD open the active card text as a temporary `.md`)                                                                                                                                                                                                              |
 | `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)                                                                                                                                                                                                                                            |
 | `T`                 | Open tmux window in the agent's primary project workspace                                                                                                                                                                                                                                                                                      |
 | `N`                 | Open the Tribe & Tab modal (tribe input is pre-seeded with `pinned` for agents without a tribe; empty keeps it, `Ctrl+D` clears it; on a clan row or clan member it sets the clan's recorded tribe; the second input moves the agent's whole presentation root between tabs — empty keeps, `main` or `Ctrl+T` clears; remote rows cannot move) |
@@ -1482,8 +1482,8 @@ count gains a lit `▶M` when `M` in-flight targets remain hidden behind `.`.
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                                                                                                                                                                                                                                                |
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                                                                                                                                                                                         |
 | `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                                                                                                                                                                                      |
-| `Ctrl+N` / `Ctrl+P` | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                                                                                                                                                                                                        |
-| `p`                 | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `M`/`F`/`T` show it in the other panel (opening one below if needed); `pp`/`Esc` close                                                                                                                                                                                          |
+| `Ctrl+N` / `Ctrl+P` | Focused panel to the next / previous deck (Main → Files → Tools → FINAL → RECORD, wraps)                                                                                                                                                                                                                                                       |
+| `p`                 | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL, `r` RECORD; `M`/`F`/`T`/`N`/`R` show it in the other panel (opening one below if needed); `pp`/`Esc` close                                                                                                                                                           |
 
 When `t` opens the **Tmux Workspace** chooser, a displayed selector key opens that one
 target immediately, even if other rows are already marked. `m` marks or unmarks the
@@ -5625,20 +5625,21 @@ skips legacy dismissal-prefixed candidates so it anchors on a live, visible agen
 ### Agents Deck Picker
 
 On the Agents tab, `p` opens a small centered deck picker for the focused deck panel.
-One more keypress picks the deck directly: `m` Main, `f` Files, `t` Tools, `n` FINAL.
-Pressing the opener again (`pp` with the default binding) switches the focused panel to
-the last deck that panel showed, or to the cycle-previous deck when that panel has no
-history yet, and closes the picker. The return row names the destination and badges it
-`last deck` or `previous`. `Esc` and `q` close without changing anything. `j`/`k` move
-the highlight (wrapping across the return row and the four deck rows) and `Enter` picks
-the highlighted row; any other printable key is swallowed so nothing leaks through to
-the tab. History is one deck deep per panel, updated by every real deck change (picker
-letters, palette jumps, `Ctrl+N` / `Ctrl+P`, and a capital letter that changes the other
-panel), and restored with the deck layout. The picker heading names the focused panel
-(`deck panel` single, `top` / `bottom` or `left` / `right` in a split, `zoomed` while
-zoomed), each deck row shows its letter, glyph, count, and whether it is already showing
-(or shown in the other split panel), and the palette offers the same jumps as
-`Show <Main|Files|Tools|FINAL> deck in focused panel` plus
+One more keypress picks the deck directly: `m` Main, `f` Files, `t` Tools, `n` FINAL,
+`r` RECORD. Pressing the opener again (`pp` with the default binding) switches the
+focused panel to the last deck that panel showed, or to the cycle-previous deck when
+that panel has no history yet, and closes the picker. The return row names the
+destination and badges it `last deck` or `previous`. `Esc` and `q` close without
+changing anything. `j`/`k` move the highlight (wrapping across the return row and the
+five deck rows) and `Enter` picks the highlighted row; any other printable key is
+swallowed so nothing leaks through to the tab. History is one deck deep per panel,
+updated by every real deck change (picker letters, palette jumps, `Ctrl+N` / `Ctrl+P`,
+and a capital letter that changes the other panel), and restored with the deck layout.
+The picker heading names the focused panel (`deck panel` single, `top` / `bottom` or
+`left` / `right` in a split, `zoomed` while zoomed), each deck row shows its letter,
+glyph, count, and whether it is already showing (or shown in the other split panel), and
+the palette offers the same jumps as
+`Show <Main|Files|Tools|FINAL|RECORD> deck in focused panel` plus
 `Show last deck in focused panel`. The old detail-view picker is retired: the Agents tab
 now always shows [agent data decks and cards](#agent-data-decks-and-cards). The
 in-picker deck letters are fixed and not configurable. `p` keeps its unrelated Artifacts
@@ -5658,7 +5659,7 @@ at the bottom of the picker names the MRU target with its position glyph (for ex
 `show in the ◲ bottom-right panel`) and says where the capital letter will go. Picking a
 capital letter for the deck the other panel already shows changes nothing. `Enter` and
 mouse clicks keep their focused-panel meaning. The palette offers the same jumps as
-`Show <Main|Files|Tools|FINAL> deck in other panel` plus
+`Show <Main|Files|Tools|FINAL|RECORD> deck in other panel` plus
 `Show last deck in other panel`.
 
 ### Agent Data Decks and Cards
@@ -5666,8 +5667,8 @@ mouse clicks keep their focused-panel meaning. The palette offers the same jumps
 The Agents tab detail column shows one to three deck panels between the sticky header
 panel and the jump panel. Each deck panel shows one agent data deck, a named ordered set
 of agent data cards about the selected node. `Ctrl+N` / `Ctrl+P` cycle the focused panel
-through the Main, Files, Tools, and FINAL decks (wrapping, nothing skipped), and `p`
-opens the [deck picker](#agents-deck-picker) for a two-key jump to any deck (`pp`
+through the Main, Files, Tools, FINAL, and RECORD decks (wrapping, nothing skipped), and
+`p` opens the [deck picker](#agents-deck-picker) for a two-key jump to any deck (`pp`
 returns to the last deck, or to the cycle-previous deck when the focused panel has no
 history); `Ctrl+J` / `Ctrl+K` move to the next / previous card in the focused panel.
 
@@ -5692,6 +5693,13 @@ history); `Ctrl+J` / `Ctrl+K` move to the next / previous card in the focused pa
 - **FINAL deck.** The `⊛ FINAL` deck shows how the selected node's turns landed: an
   `Overview` card plus one card per finalizer instance (see
   [Finalizers on the Agents tab](#finalizers-on-the-agents-tab)).
+- **RECORD deck.** The `≡ RECORD` deck is the one home for the selected agent's facts:
+  `Lifecycle`, `Provenance`, `Relations`, and `Links` cards, in that fixed order. It
+  renders for inbox agents, clan containers, thin agents, hydrated archived agents,
+  unreadable archive entries, and archive container rows. `Ctrl+J` / `Ctrl+K` cycle its
+  cards, and it is reachable only explicitly (`p r`, the palette's
+  `agents.show_deck.record`, or `Ctrl+N` / `Ctrl+P`, where it sits last in the cycle):
+  new split panels never auto-choose it.
 
 A multi-card deck renders **spread** — every card on one scrollable page separated by
 titled rules — when its cards fit within `ace.agent_decks.spread_max_screens` panel
@@ -5700,40 +5708,41 @@ time — otherwise. In spread mode `Ctrl+J` / `Ctrl+K` scroll the next / previou
 header to the top. The deck panel's border title names the deck, its
 [deck view](#deck-views) badge (Main and Files decks only), and its cards with the
 active card highlighted (and an `N/M` position when there is more than one card); the
-border subtitle is a `main · files · tools · final` switcher showing each deck's card,
-file, run/call, or finalizer count when known, dimming decks with no content. A deck
-with no content for the selection shows an empty-state card instead, so the layout never
-jumps.
+border subtitle is a `main · files · tools · final · record` switcher showing each
+deck's card, file, run/call, or finalizer count when known, dimming decks with no
+content. A deck with no content for the selection shows an empty-state card instead, so
+the layout never jumps.
 
 #### Deck Views
 
 Each Main and Files deck panel has a **deck view**: `spread` (every card on one
 scrollable page), `page cards` (one whole card per page), or `page blocks` (one card
 block per page). The view is normally **automatic** — resolved from the content through
-the `ace.agent_decks` spread thresholds — or **fixed** to one layout by you. The Tools
-and FINAL decks have no views: they always lay out automatically and show no badge. Deck
-views stay a Main-and-Files feature; FINAL's spread/paged and block paging resolve
-automatically from the `ace.agent_decks` thresholds like every other automatic deck.
+the `ace.agent_decks` spread thresholds — or **fixed** to one layout by you. The Tools,
+FINAL, and RECORD decks have no views: they always lay out automatically and show no
+badge. Deck views stay a Main-and-Files feature; FINAL's and RECORD's spread/paged and
+block paging resolve automatically from the `ace.agent_decks` thresholds like every
+other automatic deck.
 
 **The badge.** The top border title shows the effective view right after the deck name,
 for example `◆ MAIN  page blocks · auto` or `◆ MAIN  spread · fixed`. The layout word
 uses the deck accent; `fixed` is bold accent while `auto` stays muted, so a fixed panel
 stands out at a glance. On narrow panels the badge shortens (`cards`, `blocks`, `B·A`)
-but never depends on color alone. No badge appears for the Tools or FINAL deck, an empty
-deck, or a panel that has never painted a full Main document.
+but never depends on color alone. No badge appears for the Tools, FINAL, or RECORD deck,
+an empty deck, or a panel that has never painted a full Main document.
 
 **`P` cycles the view.** `P` steps the focused panel's Main or Files deck wider
 (`page blocks` → `page cards` → `spread`, wrapping) and pins the result as a fixed view.
 The first press from automatic starts after the effective layout, so it always changes
 what is on screen; layouts that would render identically for the current content are
-skipped. `P` is unavailable when there is nothing to choose (a one-card deck, the Tools
-or FINAL deck, an empty deck, or while a Main document is still partial). The footer
-shows a `P view` entry and the help modal an `Agents › Navigation` row only while the
-cycle is available. The first press that fixes a view posts one teaching toast naming
-the palette reset; routine presses stay silent because the badge changes in place. The
-badge and panel chrome repaint on the first frame after `P`; the Main body for the new
-layout is built off the event loop and swapped in when ready, so on a very long Reply
-the badge can lead the body by a moment.
+skipped. `P` is unavailable when there is nothing to choose (a one-card deck, the Tools,
+FINAL, or RECORD deck, an empty deck, or while a Main document is still partial). The
+footer shows a `P view` entry and the help modal an `Agents › Navigation` row only while
+the cycle is available. The first press that fixes a view posts one teaching toast
+naming the palette reset; routine presses stay silent because the badge changes in
+place. The badge and panel chrome repaint on the first frame after `P`; the Main body
+for the new layout is built off the event loop and swapped in when ready, so on a very
+long Reply the badge can lead the body by a moment.
 
 **Palette.** The command palette offers `Cycle deck view` plus four direct choices:
 `Deck view: automatic`, `Deck view: spread (fixed)`, `Deck view: page cards (fixed)`,
