@@ -535,6 +535,7 @@ class AgentBindingsMixin:
         """
         bindings: list[tuple[str, str]] = []
         if has_selection:
+            bindings.append((self._kd("act_on_agent"), "restore…"))
             bindings.append((self._kd("toggle_mark"), "mark"))
         if marked_count > 0:
             bindings.append((self._kd("clear_marks"), f"unmark ({marked_count})"))

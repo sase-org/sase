@@ -14,7 +14,7 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-AgentActionSection = Literal["gate", "patch"]
+AgentActionSection = Literal["gate", "patch", "archive"]
 
 #: Guidance footer shared by the chooser modal.
 _AGENT_ACTION_FOOTER: Final = "Up/Down or j/k move - Enter select - Esc cancel"
@@ -33,6 +33,7 @@ class AgentActionChoice:
     badge: str | None
     badge_style: str | None
     age: str | None
+    hotkey: str | None = None
 
 
 def _badge_text(choice: AgentActionChoice) -> str:
@@ -67,6 +68,7 @@ class AgentActionChooserModal(ModalScreen[str | None]):
         choices: tuple[AgentActionChoice, ...] | list[AgentActionChoice],
         *,
         title: str,
+        initial_index: int = 0,
     ) -> None:
         super().__init__()
         normalized = tuple(choices)
@@ -74,7 +76,7 @@ class AgentActionChooserModal(ModalScreen[str | None]):
             raise ValueError("AgentActionChooserModal needs at least one choice")
         self._choices = normalized
         self._title_text = title
-        self._selected = 0
+        self._selected = max(0, min(initial_index, len(normalized) - 1))
         self._key_to_index = self._assign_keys(normalized)
         self._dismissed = False
 
@@ -84,17 +86,20 @@ class AgentActionChooserModal(ModalScreen[str | None]):
             index for index, choice in enumerate(choices) if choice.section == "gate"
         ]
         keys: dict[str, int] = {}
+        for index, choice in enumerate(choices):
+            if choice.hotkey and choice.hotkey not in keys:
+                keys[choice.hotkey] = index
         if len(gate_indexes) == 1:
-            keys["g"] = gate_indexes[0]
+            keys.setdefault("g", gate_indexes[0])
         else:
             for position, index in enumerate(gate_indexes):
                 if position < 9:
-                    keys[str(position + 1)] = index
+                    keys.setdefault(str(position + 1), index)
             if gate_indexes:
-                keys["g"] = gate_indexes[0]
+                keys.setdefault("g", gate_indexes[0])
         for index, choice in enumerate(choices):
             if choice.section == "patch":
-                keys["p"] = index
+                keys.setdefault("p", index)
         return keys
 
     @property
@@ -120,6 +125,8 @@ class AgentActionChooserModal(ModalScreen[str | None]):
     def display_key(self, index: int) -> str:
         """Return the keycap shown for one row."""
         choice = self._choices[index]
+        if choice.hotkey:
+            return choice.hotkey
         if choice.section == "patch":
             return "p"
         gate_indexes = [
@@ -137,6 +144,11 @@ class AgentActionChooserModal(ModalScreen[str | None]):
             yield Static(self._title_text, id="agent-action-title")
             yield Static(self.guidance_text, id="agent-action-guidance")
             with VerticalScroll(id="agent-action-list"):
+                archive_indexes = [
+                    index
+                    for index, choice in enumerate(self._choices)
+                    if choice.section == "archive"
+                ]
                 gate_indexes = [
                     index
                     for index, choice in enumerate(self._choices)
@@ -147,6 +159,16 @@ class AgentActionChooserModal(ModalScreen[str | None]):
                     for index, choice in enumerate(self._choices)
                     if choice.section == "patch"
                 ]
+                if archive_indexes:
+                    yield Static("ARCHIVE", classes="agent-action-section")
+                    for index in archive_indexes:
+                        yield Static(
+                            self._row_renderable(
+                                index, focused=index == self._selected
+                            ),
+                            id=f"agent-action-row-{index}",
+                            classes=self._row_classes(index),
+                        )
                 if gate_indexes:
                     header = "GATE" if len(gate_indexes) == 1 else "GATES"
                     yield Static(header, classes="agent-action-section")

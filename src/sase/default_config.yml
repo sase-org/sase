@@ -1135,6 +1135,10 @@ ace:
             name: "n"
             prompt: "p"
             reference: "at"
+            handoff: "exclamation_mark"
+            link: "l"
+            json: "j"
+            artifacts_dir: "d"
             tool_run_id: "r"
             snapshot: "s"
           artifacts_agents:

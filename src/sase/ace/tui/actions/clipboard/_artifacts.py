@@ -116,8 +116,13 @@ class ClipboardArtifactsMixin(
         every Artifacts pane used to bind separately (``stitches_copy_sha``,
         ``beads_copy_bug``, ``files_copy_reference``): every pane now copies
         the same paste-ready ``@`` reference on ``y``. Sha/bug/id/etc.
-        copies remain reachable through copy mode (``%``).
+        copies remain reachable through copy mode (``%``). On the Agents
+        tab ``y`` copies the selected agent's ``@agent:`` reference for
+        inbox and archived rows alike.
         """
+        if self.current_tab == "agents":  # type: ignore[attr-defined]
+            self._copy_agent_reference()  # type: ignore[attr-defined]
+            return
         if self.current_tab != ARTIFACTS_TAB:  # type: ignore[attr-defined]
             return
         if self.current_artifacts_pane_key == "patches":  # type: ignore[attr-defined]

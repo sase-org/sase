@@ -47,6 +47,13 @@ class AgentPanelDetailMixin:
     def action_edit_spec(self) -> None:
         """Edit spec/chat - behavior depends on current tab."""
         if self.current_tab == "agents":
+            from ._archive_actions import archive_read_target, archive_ui_active
+            from ._archive_restore import open_archive_chat
+
+            if archive_ui_active(self):
+                # Archived chats open read-only: reading never restores.
+                open_archive_chat(self, archive_read_target(self))
+                return
             from ._archive_actions import guard_archive_live_action
 
             if guard_archive_live_action(self, "edit_spec"):

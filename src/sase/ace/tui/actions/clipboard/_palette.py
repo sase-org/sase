@@ -140,17 +140,35 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
         tool_run_preview = shorten(header_run_id_for_agent(app, agent) or "")
     except Exception:
         tool_run_preview = ""
+    try:
+        from ._artifact_reference_resolution import reference_for_agent_row
+
+        durable = reference_for_agent_row(agent)
+    except Exception:
+        durable = None
+    agent_name = getattr(agent, "agent_name", None) or ""
+    reference = f"@{durable}" if durable else ""
+    link_target = durable or agent_name
+    try:
+        from sase.core.agent_artifact_paths import resolve_agent_artifact_path
+
+        artifacts_dir = getattr(agent, "artifacts_dir", None)
+        resolved_dir = (
+            str(resolve_agent_artifact_path(artifacts_dir)) if artifacts_dir else ""
+        )
+    except Exception:
+        resolved_dir = ""
     previews = {
         "chat": shorten(response_path or ""),
         "file_path": shorten(file_path or ""),
         "name": shorten(str(presented_name)),
         "prompt": f"{status} agent prompt" if status else "agent prompt",
         "tool_run_id": tool_run_preview,
-        "reference": (
-            f"@agent:{getattr(agent, 'agent_name', '')}"
-            if getattr(agent, "agent_name", None)
-            else ""
-        ),
+        "reference": reference,
+        "handoff": f"{reference} in a new prompt" if reference else "",
+        "link": f"[{reference}](agent:{link_target})" if reference else "",
+        "json": "agent metadata JSON",
+        "artifacts_dir": shorten(resolved_dir),
         "snapshot": "current pane",
     }
     return context_from_registry(

@@ -17,6 +17,7 @@ from ...models.agent_archive_list import (
     ITEM_BANNER,
     ITEM_CONTAINER,
     ITEM_MEMBER,
+    ITEM_ROW,
     ITEM_TAIL,
     edge_key,
     neighbor_key,
@@ -230,6 +231,10 @@ def _activate(owner: Any) -> None:
         container = container_key_of(item.key)
         if container is not None:
             _set_container_expanded(owner, container, expanded=not item.expanded)
+    elif item.kind in (ITEM_ROW, ITEM_MEMBER):
+        from ._archive_restore import open_archive_chooser
+
+        open_archive_chooser(owner, item.key)
 
 
 def _switch_section(owner: Any) -> None:

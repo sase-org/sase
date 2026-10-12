@@ -426,9 +426,9 @@ _lint-patch-stitch-terminology: _setup
 # (plan/execute with protect_root=None, member reads, runner detection, and
 # their dataclasses) through reap_orphaned_agent_scopes, so its rows are
 # dropped.
-# sase-1jm.3.1.8.2 parks mark_archive_row_restored for sase-1jm.5 (Restore,
-# fork, and copy): that phase writes the restored-row overlay this view
-# renders as "⌂ restored". Drop the row once restore lands a real caller.
+# sase-1jm.5 (Restore, fork, and copy) landed the restored-row overlay
+# caller: run_archive_restore marks rows through mark_archive_row_restored,
+# which the Archive list renders as "⌂ restored".
 # sase-1j6.4 (witness-scan) consumes the update-skew failure-facts prefilter
 # as the W3 file-proof gate in witness collection, so the sase-1j6 epic-symbol
 # row for facts_look_like_update_skew is dropped. If a later phase needs the
@@ -451,7 +451,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1jm.4.1.3(archive_read_only_context)' \
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
-        --epic-symbol 'sase-1jm.5(mark_archive_row_restored)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
         --epic-symbol 'sase-1jx.11(NewProjectModal)' \
         --epic-symbol 'sase-1jx.11(NewProjectSelection)' \

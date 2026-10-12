@@ -109,6 +109,23 @@ class AgentForkActionsMixin:
         if self.current_tab != "agents":
             return
 
+        from ._archive_actions import archive_read_target, archive_ui_active
+        from ._archive_restore import archive_fork_accepted, fork_archive_agent
+
+        if archive_ui_active(self):
+            target = archive_read_target(self)
+            if target is None:
+                self.notify("Select an archived run first", severity="warning")  # type: ignore[attr-defined]
+                return
+            if not archive_fork_accepted(target):
+                self.notify(  # type: ignore[attr-defined]
+                    "The selected archived run can't be forked",
+                    severity="warning",
+                )
+                return
+            fork_archive_agent(self, target)
+            return
+
         from ._remote_lifecycle import is_remote_fleet_agent
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]

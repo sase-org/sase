@@ -189,8 +189,6 @@ def test_remaining_inbox_actions_are_guarded_or_use_archive_selection() -> None:
         assert selected_calls == []
 
         for mixin, action in (
-            (HookEditingMixin, "action_edit_hooks"),
-            (AgentPanelDetailMixin, "action_edit_spec"),
             (AgentPanelTmuxMixin, "action_open_tmux"),
             (AgentPanelTmuxMixin, "action_start_tmux_mode"),
         ):
@@ -198,6 +196,24 @@ def test_remaining_inbox_actions_are_guarded_or_use_archive_selection() -> None:
             app.__dict__.update(owner.__dict__)
             getattr(app, action)()
             assert app.notices[-1][0].endswith(",a for inbox")
+
+        # sase-1jm.5: F forks and e opens the archived chat read-only, so a
+        # banner selection warns about the missing run instead of guarding.
+        from sase.ace.tui.actions.agents._fork_actions import AgentForkActionsMixin
+
+        class ForkApp(HookEditingMixin, AgentForkActionsMixin):
+            pass
+
+        app = ForkApp()
+        app.__dict__.update(owner.__dict__)
+        app.action_edit_hooks()
+        assert app.notices[-1][0] == "Select an archived run first"
+
+        app = AgentPanelDetailMixin()
+        app.__dict__.update(owner.__dict__)
+        app.action_edit_spec()
+        assert app.notices[-1][0] == "Select an archived run first"
+        assert selected_calls == []
 
 
 def test_tribe_and_tab_entries_guarded() -> None:
@@ -395,7 +411,7 @@ def test_archive_footer_bindings_selection() -> None:
         _open_archive(owner, selected_key="u.m@r1")
         bindings = _bindings_for_owner(owner)
     assert ("toggle_mark", "mark") in bindings
-    assert not any(action == "act_on_agent" for action, _label in bindings)
+    assert ("act_on_agent", "restore…") in bindings
     assert not any("kill" in label or "Inbox" in label for _key, label in bindings)
 
 
@@ -416,7 +432,7 @@ def test_archive_footer_bindings_container_and_marks() -> None:
     assert "unmark (1)" in labels
 
 
-def test_compute_archive_bindings_has_no_live_chips() -> None:
+def test_compute_archive_bindings_restore_without_live_chips() -> None:
     from sase.ace.tui.widgets._keybinding_bindings_agents import AgentBindingsMixin
 
     mixin = AgentBindingsMixin()
@@ -430,9 +446,9 @@ def test_compute_archive_bindings_has_no_live_chips() -> None:
         deck_view_cycle_available=True,
     )
     text = " ".join(f"{key} {label}" for key, label in bindings)
-    for live in ("kill", "wait", "retry", "cleanup", "tabs", "Inbox", "restore"):
+    for live in ("kill", "wait", "retry", "cleanup", "tabs", "Inbox"):
         assert live not in text
-    assert not any(action == "act_on_agent" for action, _label in bindings)
+    assert ("act_on_agent", "restore…") in bindings
 
 
 def test_availability_hides_live_actions_in_archive() -> None:

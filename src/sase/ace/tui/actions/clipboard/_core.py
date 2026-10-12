@@ -179,6 +179,14 @@ class ClipboardCoreMixin(ClipboardBase):
             self._copy_agent_prompt()  # type: ignore[attr-defined]
         elif key == ag_keys["reference"]:
             self._copy_agent_reference()  # type: ignore[attr-defined]
+        elif key == ag_keys.get("handoff"):
+            self._copy_agent_handoff()  # type: ignore[attr-defined]
+        elif key == ag_keys.get("link"):
+            self._copy_agent_link()  # type: ignore[attr-defined]
+        elif key == ag_keys.get("json"):
+            self._copy_agent_json()  # type: ignore[attr-defined]
+        elif key == ag_keys.get("artifacts_dir"):
+            self._copy_agent_artifacts_dir()  # type: ignore[attr-defined]
         elif key == ag_keys.get("tool_run_id"):
             self._copy_tool_run_id()  # type: ignore[attr-defined]
         elif key == ag_keys["snapshot"]:
