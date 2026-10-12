@@ -9,7 +9,12 @@ from textual.message import Message
 from textual.widgets import Static
 
 from ..agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
-from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..keymaps import (
+    KeymapRegistry,
+    key_display_name,
+    leader_key_display,
+    load_keymap_registry,
+)
 from ..keymaps.key_validation import is_unbound_key
 from .decks.layout import SidebarMode
 
@@ -66,6 +71,11 @@ class AgentInfoPanel(Static):
         """Override the keymap registry and refresh display."""
         self._registry = registry
         self._update_display()
+
+    def on_resize(self) -> None:
+        """Rebuild width-sensitive Archive chrome after layout settles."""
+        if self._archive_info is not None:
+            self._update_display()
 
     @property
     def content_width(self) -> int:
@@ -467,7 +477,7 @@ class AgentInfoPanel(Static):
         self._sidebar_chip_click_span = None
         if self._archive_info is not None:
             info = self._archive_info
-            text.append("Archive", style="bold #FFAF87")
+            text.append("Archive", style="bold #d7af5f")
             count = int(info.get("count", 0) or 0)
             text.append(f" · {count} runs", style="bold #FFFFFF")
             text.append(f" · {info.get('grouping', 'day')}", style="dim")
@@ -484,7 +494,7 @@ class AgentInfoPanel(Static):
                 style="dim",
             )
             try:
-                shortcut = key_display_name(self._registry.leader_mode.prefix) + "a"
+                shortcut = leader_key_display(self._registry, "toggle_agents_archive")
             except Exception:
                 shortcut = ",a"
             width = int(getattr(getattr(self, "size", None), "width", 0) or 0)

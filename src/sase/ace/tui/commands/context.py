@@ -60,6 +60,14 @@ def _selected_patch(app: AceApp):  # type: ignore[no-untyped-def]
 
 
 def _selected_agent(app: AceApp):  # type: ignore[no-untyped-def]
+    archive_state = getattr(app, "_agents_archive_view", None)
+    if (
+        getattr(app, "current_tab", None) == "agents"
+        and getattr(archive_state, "active_view", None) == "archive"
+    ):
+        from sase.ace.tui.actions.agents._archive_actions import archive_read_target
+
+        return archive_read_target(app)
     resolver = getattr(app, "_get_selected_agent", None)
     if callable(resolver):
         try:

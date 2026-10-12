@@ -22,6 +22,13 @@ class AgentArtifactFileActionMixin:
         if self.current_tab != "agents":
             return
         try:
+            from ._archive_actions import archive_ui_active
+
+            if archive_ui_active(self):
+                from ...widgets.agents_archive import ArchiveList
+
+                self.query_one("#archive-list", ArchiveList).focus()  # type: ignore[attr-defined]
+                return
             from ._display_helpers import first_agent_list_widget
 
             widget = first_agent_list_widget(self)
@@ -58,7 +65,10 @@ class AgentArtifactFileActionMixin:
         """Open or choose artifact files associated with the selected agent."""
         if self.current_tab != "agents":
             return
-        if self._toggle_tracked_artifact_file_tmux_pane():  # type: ignore[attr-defined]
+        from ._archive_actions import archive_read_target, archive_ui_active
+
+        in_archive = archive_ui_active(self)
+        if not in_archive and self._toggle_tracked_artifact_file_tmux_pane():  # type: ignore[attr-defined]
             return
 
         from ...modals import ArtifactFileSelectionModal
@@ -83,7 +93,7 @@ class AgentArtifactFileActionMixin:
                 selected_artifact_files, zoom=zoom
             )
 
-        if self._marked_agents:
+        if not in_archive and self._marked_agents:
             artifact_files, labels, marked_count = self._collect_marked_artifact_files()
             if marked_count == 0:
                 self.notify(  # type: ignore[attr-defined]
@@ -107,7 +117,11 @@ class AgentArtifactFileActionMixin:
             )
             return
 
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        agent = (
+            archive_read_target(self) if in_archive else self._get_selected_agent()  # type: ignore[attr-defined]
+        )
+        if in_archive and agent is None:
+            return
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return

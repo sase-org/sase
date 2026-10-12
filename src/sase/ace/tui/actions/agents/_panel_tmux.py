@@ -108,6 +108,10 @@ class AgentPanelTmuxMixin:
     def action_open_tmux(self) -> None:
         """Open tmux window for primary workspace (agents tab) or default."""
         if self.current_tab == "agents":
+            from ._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "open_tmux"):
+                return
             self._open_agent_tmux_window(use_primary=True)
             return
         super().action_open_tmux()  # type: ignore[misc]
@@ -115,6 +119,10 @@ class AgentPanelTmuxMixin:
     def action_start_tmux_mode(self) -> None:
         """``t`` opens the workspace chooser or tmux directly; tmux mode otherwise."""
         if self.current_tab == "agents":
+            from ._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "start_tmux_mode"):
+                return
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is None:
                 self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]

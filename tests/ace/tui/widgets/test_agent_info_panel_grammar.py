@@ -115,6 +115,38 @@ def test_zero_interval_omits_refresh_without_trailing_separator() -> None:
     assert "   " not in plain
 
 
+def test_archive_info_uses_configured_toggle_key_and_amber_chrome() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.set_keymap_registry(
+            load_keymap_registry(
+                {
+                    "keymaps": {
+                        "modes": {
+                            "leader_mode": {"keys": {"toggle_agents_archive": "x"}}
+                        }
+                    }
+                }
+            )
+        )
+        panel.set_archive_info(active=True, count=3)
+
+    text = collect_rich_text(panel)
+    assert ",x Inbox" in text.plain
+    assert style_at_plain_index(text, 0) == "bold #d7af5f"
+
+
+def test_archive_info_rebuilds_after_resize() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.set_archive_info(active=True, count=3)
+
+    with patch.object(panel, "_update_display") as update:
+        panel.on_resize()
+
+    update.assert_called_once_with()
+
+
 def test_update_countdown_only_patches_refresh_template() -> None:
     panel = AgentInfoPanel()
     with patch.object(panel, "update"):

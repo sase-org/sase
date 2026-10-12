@@ -56,6 +56,7 @@ class ArchiveRenderContext:
     width: int = 56
     outcome_width: int = 0
     restored_keys: frozenset[str] = frozenset()
+    marked_keys: frozenset[str] = frozenset()
 
 
 def _outcome_label(row: Mapping[str, Any]) -> tuple[str, str]:
@@ -147,12 +148,12 @@ def _suffix_width(parts: Mapping[str, tuple[str, str]]) -> int:
 def _format_run(item: ArchiveListItem, ctx: ArchiveRenderContext) -> Text:
     """Render a run, container, or member row from its core light row.
 
-    Names are middle-truncated. When width is short the exception chip, then
-    MODEL, then RUNTIME drop out (in that order) before the name shrinks below
-    its floor; a container's size chip never drops.
+    Names are middle-truncated. When width is short MODEL and then RUNTIME
+    drop out before the exception chip; a container's size chip never drops.
     """
     row = item.row or {}
     indent = _MEMBER_INDENT if item.kind == ITEM_MEMBER else _ROW_INDENT
+    mark = "[✓] " if item.key in ctx.marked_keys else ""
     time_text = _time_chip(row, ctx)
     outcome_text, outcome_style = _outcome_label(row)
     outcome = Text(outcome_text, style=outcome_style)
@@ -161,6 +162,7 @@ def _format_run(item: ArchiveListItem, ctx: ArchiveRenderContext) -> Text:
         glyph = "▾ " if item.expanded else "▸ "
     fixed = (
         len(indent)
+        + cell_len(mark)
         + _time_width(ctx)
         + _GAP
         + max(ctx.outcome_width, outcome.cell_len)
@@ -170,7 +172,7 @@ def _format_run(item: ArchiveListItem, ctx: ArchiveRenderContext) -> Text:
     parts = _suffix_parts(item)
     restored = " ⌂ restored" if item.key in ctx.restored_keys else ""
     restored_width = cell_len(restored)
-    for dropped in ("exception", "model", "runtime"):
+    for dropped in ("model", "runtime", "exception"):
         if ctx.width - fixed - _suffix_width(parts) - restored_width >= _MIN_NAME_WIDTH:
             break
         parts.pop(dropped, None)
@@ -180,6 +182,8 @@ def _format_run(item: ArchiveListItem, ctx: ArchiveRenderContext) -> Text:
     )
 
     line = Text(indent)
+    if mark:
+        line.append(mark, style="bold #00D700")
     line.append_text(time_text)
     line.append(" " * (_time_width(ctx) - time_text.cell_len + _GAP))
     line.append_text(outcome)

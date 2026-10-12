@@ -88,6 +88,8 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.agents_archive_active
 
     agent = ctx.agent
+    if ctx.agents_archive_active and spec.id == "app.open_artifact_files":
+        return agent is not None
     panel_focused = ctx.panel_focused or ctx.collapsed_panel_focused
     summary_scale = resolve_summary_fold_scale(
         whole_panel_focused=panel_focused,

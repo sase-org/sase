@@ -426,11 +426,6 @@ _lint-patch-stitch-terminology: _setup
 # (plan/execute with protect_root=None, member reads, runner detection, and
 # their dataclasses) through reap_orphaned_agent_scopes, so its rows are
 # dropped.
-# sase-1jm.3.1.6 (action-boundary) parks two seams for still-open parent
-# sase-1jm.3 phases: archive_marked_run_keys feeds the parent bulk-restore
-# builder with container-expanded member runs, and archive_read_target feeds
-# the parent fork/copy chooser with the hydrated Archive agent. Drop each row
-# once its parent consumer lands a real caller.
 # sase-1jm.3.1.8.2 parks mark_archive_row_restored for sase-1jm.5 (Restore,
 # fork, and copy): that phase writes the restored-row overlay this view
 # renders as "⌂ restored". Drop the row once restore lands a real caller.
@@ -466,8 +461,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jx.11(NewProjectSelection)' \
         --epic-symbol 'sase-1jx.12(record_owner_selection)' \
         --epic-symbol 'sase-1jx.12(record_visibility_selection)' \
-        --epic-symbol 'sase-1jm.3(archive_marked_run_keys)' \
-        --epic-symbol 'sase-1jm.3(archive_read_target)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

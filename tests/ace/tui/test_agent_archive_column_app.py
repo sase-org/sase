@@ -251,3 +251,47 @@ async def test_clicking_a_banner_toggles_it_like_enter(
             assert "u.m@t00" not in _list_keys(app)
             await page.click("#archive-list", offset=(4, 1))
             await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
+
+
+async def test_live_only_archive_keys_reach_their_toast_guards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    with override_flags(agents_archive_view=True):
+        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+            await wait_for_startup(page)
+            app = page.app
+            open_agents_archive_view(app)
+            notices: list[str] = []
+
+            def capture_notice(message: str, *_args: Any, **_kwargs: Any) -> None:
+                notices.append(message)
+
+            monkeypatch.setattr(app, "notify", capture_notice)
+            app.bind(
+                "ctrl+f12",
+                "pick_agents_tab",
+                description="Pick agent tabs",
+                show=False,
+            )
+
+            for key in (
+                "x",
+                "X",
+                "s",
+                "S",
+                "w",
+                "W",
+                "A",
+                "R",
+                "n",
+                "N",
+                "U",
+                "[",
+                "]",
+                "ctrl+f12",
+            ):
+                before = len(notices)
+                await page.press(key)
+                assert len(notices) == before + 1, key
+                assert ",a" in notices[-1], key

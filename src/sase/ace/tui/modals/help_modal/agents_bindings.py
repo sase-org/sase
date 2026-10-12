@@ -31,8 +31,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         *main_sections(km),
         *mode_sections(km),
         *reference_sections(km),
-        *archive_sections(km),
     ]
+    from ...models.agent_archive_view import agents_archive_view_enabled
+
+    if agents_archive_view_enabled():
+        sections.extend(archive_sections(km))
     # Insert custom mode sections before "General".
     sections.extend(custom_mode_sections(km))
     sections.append(PROMPT_INPUT_SECTION)

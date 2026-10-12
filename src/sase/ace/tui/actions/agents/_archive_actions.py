@@ -34,9 +34,9 @@ from __future__ import annotations
 
 from typing import Any
 
-# Live-only Agents-tab action names: key dispatch guards each entry point
-# and ``check_agents_availability`` hides the same names from the palette
-# while the Archive owns the panel.
+# Live-only Agents-tab action names: key dispatch reaches each entry point so
+# its guard can explain the read-only boundary; command-palette availability
+# hides the same names while the Archive owns the panel.
 ARCHIVE_LIVE_ONLY_ACTIONS = frozenset(
     {
         "kill_agent",
@@ -51,9 +51,13 @@ ARCHIVE_LIVE_ONLY_ACTIONS = frozenset(
         "agents_retry",
         "rename_cl",
         "edit_agent_tribe",
+        "edit_hooks",
+        "edit_spec",
         "next_agents_tab",
+        "open_tmux",
         "prev_agents_tab",
         "pick_agents_tab",
+        "start_tmux_mode",
         "toggle_agent_unread",
     }
 )
@@ -89,6 +93,10 @@ _ARCHIVE_GUARD_KEY_LABELS = {
     "prev_agents_tab": "[",
     "pick_agents_tab": "tabs",
     "toggle_agent_unread": "U",
+    "edit_hooks": "F",
+    "edit_spec": "e",
+    "open_tmux": "T",
+    "start_tmux_mode": "t",
 }
 
 _TAB_GUARD_ACTIONS = frozenset(
@@ -198,12 +206,12 @@ def resolve_agents_read_agent(owner: Any) -> Any | None:
     """Return the Archive read target when active, else the Inbox selection.
 
     Copy readers and other read callers use this so Archive rows stay
-    readable while live actions stay Inbox-only. Never raises: failures
-    resolve to the Inbox selection (possibly None).
+    readable while live actions stay Inbox-only. An active Archive with no
+    hydrated run returns None; it never falls through to the parked Inbox.
+    Never raises.
     """
-    target = archive_read_target(owner)
-    if target is not None:
-        return target
+    if archive_ui_active(owner):
+        return archive_read_target(owner)
     try:
         selector = getattr(owner, "_get_selected_agent", None)
         return selector() if callable(selector) else None

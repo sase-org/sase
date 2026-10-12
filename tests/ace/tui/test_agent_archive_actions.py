@@ -123,7 +123,8 @@ def test_live_guard_names_archived_row() -> None:
 
 def test_guard_never_mutates_parked_inbox_state() -> None:
     inbox_marks = {("cl", "a", None)}
-    owner = _owner()
+    inbox = object()
+    owner = _owner(inbox_agent=inbox)
     owner._marked_agents = set(inbox_marks)
     before_unread = set(owner._unread_completed_agent_ids)
     _open_archive(owner)
@@ -137,7 +138,7 @@ def test_guard_never_mutates_parked_inbox_state() -> None:
             assert guard_archive_live_action(owner, action) is True
         assert owner._marked_agents == inbox_marks
         assert owner._unread_completed_agent_ids == before_unread
-        assert owner._inbox_agent is None or True
+        assert owner._inbox_agent is inbox
 
 
 def test_kill_entry_point_guarded() -> None:
@@ -157,6 +158,46 @@ def test_kill_entry_point_guarded() -> None:
     assert called == []
     assert len(app.notices) == 1
     assert ",a" in app.notices[0][0]
+
+
+def test_remaining_inbox_actions_are_guarded_or_use_archive_selection() -> None:
+    from sase.ace.tui.actions.agents._metadata_pager import AgentMetadataPagerMixin
+    from sase.ace.tui.actions.agents._panel_artifact_actions import (
+        AgentArtifactFileActionMixin,
+    )
+    from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
+    from sase.ace.tui.actions.agents._panel_tmux import AgentPanelTmuxMixin
+    from sase.ace.tui.actions.agents._patch_navigation import AgentPatchNavigationMixin
+    from sase.ace.tui.actions.hints._hooks import HookEditingMixin
+
+    inbox = SimpleNamespace(cl_name="parked-inbox")
+    owner = _owner(inbox_agent=inbox)
+    _open_archive(owner, selected_key="banner:day:2026-10-10")
+    selected_calls: list[bool] = []
+    owner._get_selected_agent = lambda: selected_calls.append(True) or inbox
+    with override_flags(agents_archive_view=True):
+        for mixin, action in (
+            (AgentMetadataPagerMixin, "action_view_agent_metadata"),
+            (AgentPatchNavigationMixin, "action_jump_to_agent_patch"),
+            (AgentArtifactFileActionMixin, "action_open_artifact_files"),
+        ):
+            app = mixin()
+            app.__dict__.update(owner.__dict__)
+            if mixin is AgentArtifactFileActionMixin:
+                app._toggle_tracked_artifact_file_tmux_pane = lambda: False  # type: ignore[attr-defined]
+            getattr(app, action)()
+        assert selected_calls == []
+
+        for mixin, action in (
+            (HookEditingMixin, "action_edit_hooks"),
+            (AgentPanelDetailMixin, "action_edit_spec"),
+            (AgentPanelTmuxMixin, "action_open_tmux"),
+            (AgentPanelTmuxMixin, "action_start_tmux_mode"),
+        ):
+            app = mixin()
+            app.__dict__.update(owner.__dict__)
+            getattr(app, action)()
+            assert app.notices[-1][0].endswith(",a for inbox")
 
 
 def test_tribe_and_tab_entries_guarded() -> None:
@@ -188,15 +229,21 @@ def test_toggle_mark_routes_to_archive_marks(monkeypatch: Any) -> None:
     app.__dict__.update(owner.__dict__)
     _open_archive(app, selected_key="u.m@r1")
     refreshed: list[bool] = []
+    footer_refreshed: list[bool] = []
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._archive_column.refresh_column",
         lambda _owner, **_kwargs: refreshed.append(True),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._archive_column.refresh_archive_footer",
+        lambda _owner: footer_refreshed.append(True),
     )
     with override_flags(agents_archive_view=True):
         app.action_toggle_mark()
     assert app._agents_archive_view.archive.marks == frozenset({"u.m@r1"})
     assert app._marked_agents == set()
     assert refreshed == [True]
+    assert footer_refreshed == [True]
 
 
 def test_mark_banner_tail_pulse_rejected() -> None:
@@ -316,7 +363,7 @@ def test_read_target_none_for_nav_items() -> None:
         selection = get_agents_tab_selection(owner)
         assert selection.row_kind == "none"
         assert archive_read_target(owner) is None
-        assert resolve_agents_read_agent(owner) is owner._inbox_agent
+        assert resolve_agents_read_agent(owner) is None
 
 
 def test_copy_context_resolves_without_raise() -> None:
@@ -347,8 +394,8 @@ def test_archive_footer_bindings_selection() -> None:
     with override_flags(agents_archive_view=True):
         _open_archive(owner, selected_key="u.m@r1")
         bindings = _bindings_for_owner(owner)
-    assert ("act_on_agent", "read") in bindings
     assert ("toggle_mark", "mark") in bindings
+    assert not any(action == "act_on_agent" for action, _label in bindings)
     assert not any("kill" in label or "Inbox" in label for _key, label in bindings)
 
 
@@ -385,7 +432,7 @@ def test_compute_archive_bindings_has_no_live_chips() -> None:
     text = " ".join(f"{key} {label}" for key, label in bindings)
     for live in ("kill", "wait", "retry", "cleanup", "tabs", "Inbox", "restore"):
         assert live not in text
-    assert ("act_on_agent", "read") in bindings
+    assert not any(action == "act_on_agent" for action, _label in bindings)
 
 
 def test_availability_hides_live_actions_in_archive() -> None:
@@ -395,10 +442,24 @@ def test_availability_hides_live_actions_in_archive() -> None:
     _open_archive(owner)
     with override_flags(agents_archive_view=True):
         for action in ("kill_agent", "reword", "agents_retry", "edit_agent_tribe"):
-            assert check_agents_availability(owner, action, ()) is False
+            assert check_agents_availability(owner, action, ()) is True
         assert check_agents_availability(owner, "act_on_agent", ()) is None
         assert check_agents_availability(owner, "next_deck_card", ()) is None
         assert check_agents_availability(owner, "pick_deck", ()) is None
+
+
+def test_command_palette_hides_live_only_actions_in_archive() -> None:
+    from sase.ace.tui.commands import CommandContext, build_command_catalog
+    from sase.ace.tui.commands.availability import is_command_available
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+    live_agent = SimpleNamespace(status="RUNNING")
+    context = CommandContext(tab="agents", agent=live_agent, agents_archive_active=True)
+    with override_flags(agents_archive_view=True):
+        assert not is_command_available(catalog["app.kill_agent"], context)
 
 
 def test_availability_untouched_in_inbox() -> None:
@@ -418,10 +479,34 @@ def test_help_archive_box_content() -> None:
     boxes = dict(archive_sections(km))
     assert "Archive (read-only)" in boxes
     rows = boxes["Archive (read-only)"]
+    assert all(len(key) <= 16 for key, _description in rows)
     assert all(len(description) <= 32 for _key, description in rows)
     assert rows[0][0] == ",a"
-    full = dict(agents_bindings(km))
+    assert not any(
+        "read archived run" == description.lower() for _, description in rows
+    )
+    with override_flags(agents_archive_view=True):
+        full = dict(agents_bindings(km))
     assert "Archive (read-only)" in full
+
+
+def test_archive_help_and_leader_label_are_hidden_with_beta_off() -> None:
+    from sase.ace.tui.keymaps import load_keymap_registry
+    from sase.ace.tui.modals.help_modal.agents_bindings import agents_bindings
+    from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
+
+    km = load_keymap_registry({})
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(km)
+    with override_flags():
+        assert "Archive (read-only)" not in dict(agents_bindings(km))
+        footer.update_leader_bindings(current_tab="agents")
+        bindings, _mode = footer._last_layout_inputs or ([], None)
+        assert "toggle Archive" not in " ".join(label for _, label in bindings)
+    with override_flags(agents_archive_view=True):
+        footer.update_leader_bindings(current_tab="agents")
+        bindings, _mode = footer._last_layout_inputs or ([], None)
+        assert "toggle Archive" in " ".join(label for _, label in bindings)
 
 
 def test_unread_attention_accounting_untouched() -> None:

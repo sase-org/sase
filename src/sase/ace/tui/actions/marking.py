@@ -61,9 +61,13 @@ class MarkingMixin:
 
             if archive_ui_active(self):
                 if toggle_archive_mark(self):
-                    from .agents._archive_column import refresh_column
+                    from .agents._archive_column import (
+                        refresh_archive_footer,
+                        refresh_column,
+                    )
 
                     refresh_column(self)
+                    refresh_archive_footer(self)
                 return
             self._toggle_mark_agent()  # type: ignore[attr-defined]
             return
@@ -136,9 +140,13 @@ class MarkingMixin:
             if archive_ui_active(self):
                 cleared = clear_archive_marks(self)
                 if cleared:
-                    from .agents._archive_column import refresh_column
+                    from .agents._archive_column import (
+                        refresh_archive_footer,
+                        refresh_column,
+                    )
 
                     refresh_column(self)
+                    refresh_archive_footer(self)
                     self.notify(f"Cleared {cleared} archive mark(s)")  # type: ignore[attr-defined]
                 else:
                     self.notify("No archive marks to clear", severity="warning")  # type: ignore[attr-defined]

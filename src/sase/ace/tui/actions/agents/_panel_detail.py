@@ -47,6 +47,10 @@ class AgentPanelDetailMixin:
     def action_edit_spec(self) -> None:
         """Edit spec/chat - behavior depends on current tab."""
         if self.current_tab == "agents":
+            from ._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "edit_spec"):
+                return
             self._open_agent_chat()
         elif self.current_tab == "services":
             self._open_selected_axe_entry_editor()  # type: ignore[attr-defined]

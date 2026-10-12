@@ -40,14 +40,15 @@ def archive_sections(km: KeymapRegistry) -> Sections:
                     f"{d(a.focus_next_agent_panel)} / {d(a.focus_prev_agent_panel)}",
                     "Pulse / list focus",
                 ),
-                (d(a.act_on_agent), "Read archived run"),
                 (
                     f"{d(a.toggle_mark)} / {d(a.clear_marks)}",
                     "Mark / unmark archived run",
                 ),
                 (d(a.choose_agent_grouping), "Archive grouping"),
                 (f"{d(a.edit_query)} in:archive", "Scoped Archive filter"),
-                ("x s w R (Inbox only)", "Live keys stay in Inbox"),
+                ("x X s S w W A", "Live actions stay in Inbox"),
+                ("R n N U [ ]", "Live actions stay in Inbox"),
+                ("tab picker", "Agent tabs stay in Inbox"),
             ],
         ),
     ]

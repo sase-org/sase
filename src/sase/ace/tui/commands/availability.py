@@ -43,6 +43,13 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         from sase.ace.tui.models.agent_archive_view import agents_archive_view_enabled
 
         return agents_archive_view_enabled() and ctx.agents_archive_active
+    if ctx.agents_archive_active and spec.id.startswith("app."):
+        from sase.ace.tui.actions.agents._archive_actions import (
+            ARCHIVE_LIVE_ONLY_ACTIONS,
+        )
+
+        if spec.id.removeprefix("app.") in ARCHIVE_LIVE_ONLY_ACTIONS:
+            return False
     if spec.id == "app.follow_artifact_link":
         return ctx.link_edges_present is not False
     if ctx.tab == "artifacts":

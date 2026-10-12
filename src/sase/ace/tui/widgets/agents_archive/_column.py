@@ -60,6 +60,7 @@ class ArchiveColumn(Vertical):
         tz: tzinfo | None,
         grouping: str,
         restored_keys: Collection[str] = (),
+        marked_keys: Collection[str] = (),
     ) -> None:
         if not self._children_ready:
             self._pending["items"] = {
@@ -68,6 +69,7 @@ class ArchiveColumn(Vertical):
                 "tz": tz,
                 "grouping": grouping,
                 "restored_keys": frozenset(restored_keys),
+                "marked_keys": frozenset(marked_keys),
             }
             return
         self.archive_list.apply_items(
@@ -76,6 +78,7 @@ class ArchiveColumn(Vertical):
             tz=tz,
             grouping=grouping,
             restored_keys=restored_keys,
+            marked_keys=marked_keys,
         )
 
     def set_cursor(self, key: str | None) -> None:

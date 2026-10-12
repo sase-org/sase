@@ -234,6 +234,31 @@ def test_exception_chip_and_unnamed_rows() -> None:
     assert "zzz" in format_archive_item(_item(unnamed), CTX).plain
 
 
+def test_exception_chip_is_kept_before_model_and_runtime_at_narrow_width() -> None:
+    item = _item(_light("a", restorable=False))
+    text = format_archive_item(
+        item,
+        ArchiveRenderContext(tz=UTC, width=52),
+    )
+    assert "⊘ no restore" in text.plain
+    assert "opus" not in text.plain
+    assert "4m32s" not in text.plain
+
+
+def test_marked_archive_row_uses_inbox_mark_style() -> None:
+    item = _item(_light("a"))
+    text = format_archive_item(
+        item,
+        ArchiveRenderContext(
+            tz=UTC,
+            width=80,
+            marked_keys=frozenset({item.key}),
+        ),
+    )
+    assert "[✓]" in text.plain
+    assert "bold #00D700" in _style_at(text, "[✓]")
+
+
 def test_banner_tail_and_note_rendering() -> None:
     banner = ArchiveListItem(
         "banner:day:x",

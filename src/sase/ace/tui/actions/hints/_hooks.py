@@ -14,6 +14,11 @@ class HookEditingMixin(HintMixinBase):
 
     def action_edit_hooks(self) -> None:
         """Edit hooks for the current Patch."""
+        if getattr(self, "current_tab", None) == "agents":
+            from ..agents._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "edit_hooks"):
+                return
         if self._refocus_existing_hint_bar():
             return
 

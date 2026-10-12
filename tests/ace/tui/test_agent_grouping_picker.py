@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+from sase.ace.tui.actions.agents._grouping import AgentGroupingMixin
 from sase.ace.testing import AcePage
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.modals.agent_grouping_modal import AgentGroupingModal
@@ -157,3 +160,36 @@ async def test_agents_default_capital_o_is_noop() -> None:
 
         assert page.app._grouping_mode is GroupingMode.STANDARD
         assert not isinstance(page.app.screen, AgentGroupingModal)
+
+
+def test_archive_grouping_same_choice_preserves_folds_and_selection() -> None:
+    archive = SimpleNamespace(
+        grouping="day",
+        expanded_banners=("banner:day:today",),
+        folded_banners=("banner:day:yesterday",),
+        expanded_containers=("archive:u.m@clan",),
+        loaded_pages={"banner:day:today": 2},
+        selected_key="u.m@run",
+        pending_exact_name="exact-name",
+        reveal_row={"agent_name": "exact-name"},
+    )
+    app = AgentGroupingMixin()
+    app.current_tab = "agents"
+    app._agents_archive_view = SimpleNamespace(active_view="archive", archive=archive)
+    callbacks = []
+    saved = []
+    app.push_screen = lambda _screen, callback: callbacks.append(callback)  # type: ignore[attr-defined]
+    app._schedule_grouping_mode_save = lambda *args: saved.append(args)  # type: ignore[attr-defined]
+
+    app.action_choose_agent_grouping()
+    assert len(callbacks) == 1
+    callbacks[0]("day")
+
+    assert archive.expanded_banners == ("banner:day:today",)
+    assert archive.folded_banners == ("banner:day:yesterday",)
+    assert archive.expanded_containers == ("archive:u.m@clan",)
+    assert archive.loaded_pages == {"banner:day:today": 2}
+    assert archive.selected_key == "u.m@run"
+    assert archive.pending_exact_name == "exact-name"
+    assert archive.reveal_row == {"agent_name": "exact-name"}
+    assert saved == []

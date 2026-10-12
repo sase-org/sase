@@ -191,6 +191,7 @@ class FakeColumnWidget:
         tz: Any,
         grouping: str,
         restored_keys: Any = (),
+        marked_keys: Any = (),
     ):
         self.paints.append(
             {
@@ -199,6 +200,7 @@ class FakeColumnWidget:
                 "tz": tz,
                 "grouping": grouping,
                 "restored_keys": frozenset(restored_keys),
+                "marked_keys": frozenset(marked_keys),
             }
         )
 

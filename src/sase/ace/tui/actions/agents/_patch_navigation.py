@@ -122,7 +122,9 @@ class AgentPatchNavigationMixin:
         """Jump to the patch attached to the selected agent."""
         if self.current_tab != "agents":
             return
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        from ._archive_actions import resolve_agents_read_agent
+
+        agent = resolve_agents_read_agent(self)
         if agent is None:
             return
 

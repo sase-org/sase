@@ -62,6 +62,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
         self._grouping = "day"
         self._rendered_width = 0
         self._restored_keys: frozenset[str] = frozenset()
+        self._marked_keys: frozenset[str] = frozenset()
 
     @property
     def item_keys(self) -> tuple[str, ...]:
@@ -86,6 +87,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
             width=width,
             outcome_width=outcome_cell_width(self._items),
             restored_keys=self._restored_keys,
+            marked_keys=self._marked_keys,
         )
         options: list[Option] = []
         for item in self._items:
@@ -102,6 +104,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
         tz: tzinfo | None,
         grouping: str,
         restored_keys: Collection[str] = (),
+        marked_keys: Collection[str] = (),
     ) -> None:
         """Swap in ``items`` keeping scroll, then silently park on ``cursor_key``."""
         self._items = tuple(items)
@@ -110,6 +113,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
         self._tz = tz
         self._grouping = grouping
         self._restored_keys = frozenset(restored_keys)
+        self._marked_keys = frozenset(marked_keys)
         self._install_options(self._render_options())
         self.set_cursor(cursor_key)
 

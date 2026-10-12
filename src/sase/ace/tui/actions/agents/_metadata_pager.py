@@ -41,7 +41,28 @@ def _build_document(
     return build_agent_metadata_document(agent, link_context=link_context)
 
 
-def _find_agent_by_identity(app: Any, identity: tuple[object, ...]) -> Agent | None:
+def _find_agent_by_identity(
+    app: Any,
+    identity: tuple[object, ...],
+    archive_key: str | None = None,
+) -> Agent | None:
+    if archive_key is not None:
+        from ._archive_actions import archive_read_target, archive_ui_active
+        from ._archive_view import get_agents_tab_selection
+
+        if not archive_ui_active(app):
+            return None
+        selection = get_agents_tab_selection(app)
+        agent = archive_read_target(app)
+        if selection.archive_key != archive_key:
+            return None
+        return (
+            agent if agent is not None and tuple(agent.identity) == identity else None
+        )
+    from ._archive_actions import archive_ui_active
+
+    if archive_ui_active(app):
+        return None
     for agent in getattr(app, "_agents", ()):
         if tuple(agent.identity) == identity:
             return agent
@@ -70,16 +91,27 @@ class AgentMetadataPagerMixin:
     def _action_view_agent_metadata_impl(self) -> None:
         if self.current_tab != "agents":  # type: ignore[attr-defined]
             return
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        from ._archive_actions import archive_ui_active, resolve_agents_read_agent
+
+        in_archive = archive_ui_active(self)
+        agent = resolve_agents_read_agent(self)
         if agent is None or getattr(agent, "fleet_origin_alias", None):
             return
+
+        archive_key: str | None = None
+        if in_archive:
+            from ._archive_view import get_agents_tab_selection
+
+            archive_key = get_agents_tab_selection(self).archive_key
+            if archive_key is None:
+                return
 
         agent_identity = tuple(agent.identity)
         captured_link_context = _capture_agent_link_context(agent)
 
         self.run_worker(  # type: ignore[attr-defined]
             self._open_agent_metadata_pager(
-                agent, agent_identity, captured_link_context
+                agent, agent_identity, captured_link_context, archive_key
             ),
             group="agent-metadata-pager",
             exclusive=True,
@@ -90,6 +122,7 @@ class AgentMetadataPagerMixin:
         agent: Agent,
         agent_identity: tuple[object, ...],
         captured_link_context: CapturedLinkContext,
+        archive_key: str | None = None,
     ) -> None:
         from sase.pager.screen import PagerScreen
         from sase.pager.syntax_policy import pager_syntax_session_from_config
@@ -97,12 +130,14 @@ class AgentMetadataPagerMixin:
         document = await asyncio.to_thread(
             _build_document, agent, captured_link_context
         )
-        if not self._agent_metadata_pager_selection_is_current(agent_identity):
+        if not self._agent_metadata_pager_selection_is_current(
+            agent_identity, archive_key=archive_key
+        ):
             return
 
         def refresh_document_fn() -> PagerDocument | None:
             current = self.call_from_thread(  # type: ignore[attr-defined]
-                _find_agent_by_identity, self, agent_identity
+                _find_agent_by_identity, self, agent_identity, archive_key
             )
             if current is None:
                 return None
@@ -123,10 +158,14 @@ class AgentMetadataPagerMixin:
     def _agent_metadata_pager_selection_is_current(
         self,
         agent_identity: tuple[object, ...],
+        *,
+        archive_key: str | None = None,
     ) -> bool:
         if self.current_tab != "agents":  # type: ignore[attr-defined]
             return False
-        selected = self._get_selected_agent()  # type: ignore[attr-defined]
+        selected = _find_agent_by_identity(
+            self, agent_identity, archive_key=archive_key
+        )
         return selected is not None and tuple(selected.identity) == agent_identity
 
 

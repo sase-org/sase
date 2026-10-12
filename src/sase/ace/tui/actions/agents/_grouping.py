@@ -314,6 +314,8 @@ class AgentGroupingMixin:
                 if chosen not in {"day", "project", "outcome", "model"}:
                     return
                 archive = self._agents_archive_view.archive
+                if chosen == archive.grouping:
+                    return
                 archive.grouping = chosen
                 archive.expanded_banners = ()
                 archive.folded_banners = ()

@@ -423,9 +423,16 @@ def _paint(owner: Any, computed: _Computed, model: ArchiveListModel) -> None:
         tz=computed.tz,
         grouping=archive.grouping,
         restored_keys=archive.restored_keys,
+        marked_keys=_archive_marked_keys(owner),
     )
     widget.set_section(archive.focused_section)
     widget.set_pulse(archive_inbox_pulse(owner))
+
+
+def _archive_marked_keys(owner: Any) -> frozenset[str]:
+    from ._archive_actions import archive_marked_run_keys
+
+    return archive_marked_run_keys(owner)
 
 
 def update_archive_pulse(owner: Any) -> None:
@@ -459,10 +466,10 @@ def on_archive_snapshot_applied(owner: Any) -> None:
             )
         except Exception:
             log.debug("archive info row update failed", exc_info=True)
-        _refresh_archive_footer(owner)
+        refresh_archive_footer(owner)
 
 
-def _refresh_archive_footer(owner: Any) -> None:
+def refresh_archive_footer(owner: Any) -> None:
     """Sync the conditional footer to Archive ownership.
 
     Detail renders update the footer on some paths (container summaries)
@@ -571,7 +578,7 @@ def sync_archive_chrome(owner: Any, *, request: bool = True) -> None:
         if widget is not None:
             widget.reveal_cursor()
         schedule_detail(owner)
-        _refresh_archive_footer(owner)
+        refresh_archive_footer(owner)
         return
     if column_widget(owner) is not None:
         repaint = getattr(owner, "_refresh_agents_display_debounced", None)
@@ -598,6 +605,7 @@ def schedule_detail(owner: Any) -> None:
     # without patching the reader module.
     _paint_detail_placeholder(owner)
     arm_archive_detail_hydration(owner)
+    refresh_archive_footer(owner)
 
 
 __all__ = [
@@ -610,6 +618,7 @@ __all__ = [
     "on_archive_snapshot_applied",
     "plan_archive_view_windows",
     "refresh_column",
+    "refresh_archive_footer",
     "schedule_detail",
     "sync_archive_chrome",
     "update_archive_pulse",

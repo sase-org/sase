@@ -138,6 +138,13 @@ def _prompt_input_owns_keys(app: Any) -> bool:
 
 
 def _selected_agent(app: Any) -> Any:
+    if _archive_owns_agents_panel(app):
+        try:
+            from sase.ace.tui.actions.agents._archive_actions import archive_read_target
+
+            return archive_read_target(app)
+        except Exception:
+            return None
     selected = getattr(app, "_get_selected_agent", None)
     if callable(selected):
         try:
@@ -196,15 +203,14 @@ def check_agents_availability(
     """Return agents/decks/prompt availability, or None when undecided."""
     del parameters
     if _archive_owns_agents_panel(app):
-        # Live-only row actions (and their palette entries) stay hidden
-        # while the Archive owns the panel; deck/read/copy/Enter seams
-        # stay available. Key dispatch toasts via guard_archive_live_action.
+        # Keep live actions dispatchable so their entry-point guards can toast.
+        # The command palette has its own availability check and hides them.
         from sase.ace.tui.actions.agents._archive_actions import (
             ARCHIVE_LIVE_ONLY_ACTIONS,
         )
 
         if action in ARCHIVE_LIVE_ONLY_ACTIONS:
-            return False
+            return True
     selected_agent = _selected_agent(app) if app.current_tab == "agents" else None
     selected_agent_remote = bool(
         selected_agent is not None
