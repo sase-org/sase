@@ -31,9 +31,10 @@ from sase.sdd._plan_display_decisions import (
 # Styling tokens for the current decision card. The focus colour marks the
 # current card's id and focus bar; the muted bar is the same hue dimmed for
 # when focus sits elsewhere (Actions/Verdict). Both are mirrored in
-# ``styles.tcss`` next to the card rules.
+# ``styles.tcss`` next to the card rules. Changed chips use gold.
 FOCUS_COLOR = "#5FD7FF"
 FOCUS_BAR_MUTED = "#3A6F80"
+CHANGED_COLOR = "#FFD700"
 READONLY_BAR_STYLE = "dim"
 
 FOCUS_BAR_GLYPH = "\u258c"
@@ -117,11 +118,11 @@ def unverified_warning_line(memory: dict[str, Any]) -> str:
     return f'{WARNING_GLYPH} "{quote_text}" \u2014 not in your messages \u00b7 off until you turn it on'
 
 
-def answer_chip_text(row: dict[str, Any]) -> tuple[str, bool]:
-    """Return the answer chip text and whether the value changed.
+def _answer_chip_parts(row: dict[str, Any]) -> tuple[str, str, bool]:
+    """Return ``(value_text, mark, changed)`` for the answer chip.
 
-    At the default the chip reads ``value ★``; changed it reads ``value ●``.
-    Toggles show ``☑ yes`` / ``☐ no`` (width-1 glyphs, no VS16).
+    ``value_text`` is ``☑ yes`` / ``☐ no`` for toggles, or the raw value
+    for choices. ``mark`` is ``★`` at the default and ``●`` when changed.
     """
     kind = str(row.get("kind", ""))
     value = row.get("value")
@@ -129,8 +130,18 @@ def answer_chip_text(row: dict[str, Any]) -> tuple[str, bool]:
     mark = DECISION_MODIFIED_MARK if changed else DECISION_DEFAULT_MARK
     if kind == "toggle":
         glyph = TOGGLE_ON_GLYPH if value is True else TOGGLE_OFF_GLYPH
-        return f"{glyph} {format_decision_value(value)} {mark}", changed
-    return f"{value} {mark}", changed
+        return f"{glyph} {format_decision_value(value)}", mark, changed
+    return f"{value}", mark, changed
+
+
+def answer_chip_text(row: dict[str, Any]) -> tuple[str, bool]:
+    """Return the answer chip text and whether the value changed.
+
+    At the default the chip reads ``value ★``; changed it reads ``value ●``.
+    Toggles show ``☑ yes`` / ``☐ no`` (width-1 glyphs, no VS16).
+    """
+    value_text, mark, changed = _answer_chip_parts(row)
+    return f"{value_text} {mark}", changed
 
 
 def default_line_text(
@@ -208,42 +219,39 @@ def _header_line(
     """Build the shared header row: id left, answer chip right.
 
     The id may ellipsize; the chip never does. The current, editable card
-    wraps the chip in muted ``‹ … ›`` ("h/l changes this").
+    wraps the chip in muted ``‹ … ›`` ("h/l changes this"). Each piece is
+    appended with its own style so wide glyphs (``🧠``) cannot shift spans.
     """
     decision_id = str(row.get("id", ""))
     memory = row.get("memory")
     id_text = (
         f"{MEMORY_GLYPH} {decision_id}" if isinstance(memory, dict) else decision_id
     )
-    chip, changed = answer_chip_text(row)
-    if current and not read_only:
-        chip = f"\u2039 {chip} \u203a"
-    chip_len = cell_len(chip)
+    value_text, mark, changed = _answer_chip_parts(row)
+    show_chevrons = current and not read_only
+    chip_len = cell_len(value_text) + 1 + cell_len(mark)
+    if show_chevrons:
+        chip_len += cell_len("\u2039 ") + cell_len(" \u203a")
     id_width = max(content_width - chip_len - 1, 1)
     shown_id = Text(id_text, overflow="ellipsis", no_wrap=True)
     shown_id.truncate(id_width, overflow="ellipsis")
-    header = Text(no_wrap=True, overflow="fold")
-    header.append_text(shown_id)
-    pad = content_width - cell_len(shown_id.plain) - chip_len
-    header.append(" " * max(pad, 1))
-    header.append(chip)
-    # Style the id span: bold everywhere; the focus colour on the current
-    # card; the value/chip spans stay unstyled (normal foreground).
     id_style = "bold"
     if current and not read_only:
         id_style = f"bold {FOCUS_COLOR if focused else FOCUS_BAR_MUTED}"
     elif read_only:
         id_style = "bold dim"
-    header.stylize(id_style, 0, cell_len(shown_id.plain))
-    if current and not read_only:
-        start = cell_len(header.plain) - chip_len
-        header.stylize("dim", start, start + 2)
-        header.stylize("dim", cell_len(header.plain) - 2, cell_len(header.plain))
-    if changed:
-        start = cell_len(header.plain) - (
-            chip_len if not (current and not read_only) else chip_len - 4
-        )
-        header.stylize("#FFD700", start, cell_len(header.plain))
+    header = Text(no_wrap=True, overflow="fold")
+    header.append(shown_id.plain, style=id_style)
+    pad = content_width - cell_len(shown_id.plain) - chip_len
+    header.append(" " * max(pad, 1))
+    if show_chevrons:
+        header.append("\u2039 ", style="dim")
+    value_style = CHANGED_COLOR if changed else ""
+    header.append(value_text, style=value_style)
+    mark_style = CHANGED_COLOR if changed else "dim"
+    header.append(f" {mark}", style=mark_style)
+    if show_chevrons:
+        header.append(" \u203a", style="dim")
     return header
 
 
@@ -349,6 +357,23 @@ def collapsed_card(
     )
 
 
+def _two_column_head_width(row: dict[str, Any]) -> int:
+    """Shared head-column width for option heads and the ``why ★`` footnote."""
+    width = cell_len(f"  why {DECISION_DEFAULT_MARK}")
+    default = row.get("default")
+    choices = row.get("choices")
+    if not isinstance(choices, list):
+        return width
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        head = f"{DECISION_SELECTED_MARK} {choice.get('key', '')}"
+        if str(default) == str(choice.get("key", "")):
+            head += f" {DECISION_DEFAULT_MARK}"
+        width = max(width, cell_len(head))
+    return width
+
+
 def _choice_option_rows(
     console: Console,
     row: dict[str, Any],
@@ -365,13 +390,7 @@ def _choice_option_rows(
     if not isinstance(choices, list):
         return lines, spans
     items = [c for c in choices if isinstance(c, dict)]
-    head_width = 0
-    if two_column:
-        for choice in items:
-            head = f"{DECISION_SELECTED_MARK} {choice.get('key', '')}"
-            if str(row.get("default")) == str(choice.get("key", "")):
-                head += f" {DECISION_DEFAULT_MARK}"
-            head_width = max(head_width, cell_len(head))
+    head_width = _two_column_head_width(row) if two_column else 0
     for choice in items:
         key = str(choice.get("key", ""))
         label = str(choice.get("label", ""))
@@ -380,36 +399,33 @@ def _choice_option_rows(
         star = f" {DECISION_DEFAULT_MARK}" if str(default) == key else ""
         first = len(lines)
         if two_column:
-            # Heads share one column width so labels align vertically.
-            head = f"{marker} {key}{star}"
-            prefix = head + " " * (head_width - cell_len(head))
-            label_width = content_width - cell_len(prefix) - 4
+            # Heads share one column width so labels (and the why text)
+            # align vertically. The ★ is its own dim segment at the end of
+            # the unpadded head, never a padding cell.
+            pad = head_width - cell_len(f"{marker} {key}{star}")
+            head_line = Text(no_wrap=True, overflow="fold")
+            marker_style = "bold" if selected else "dim"
+            head_line.append(f"{marker} {key}", style=marker_style)
+            if star:
+                head_line.append(star, style="dim")
+            if pad > 0:
+                head_line.append(" " * pad)
+            label_width = content_width - head_width - 4
+            label_style = "" if selected else "dim"
             if label and label_width > 8:
                 wrapped = _wrap_lines(console, label, label_width)
-                head_line = Text(no_wrap=True, overflow="fold")
-                head_line.append(prefix, style="bold" if selected else "dim")
-                if star:
-                    head_line.stylize("dim", cell_len(prefix) - 1, cell_len(prefix))
                 head_line.append(" " * 4)
-                head_line.append_text(wrapped[0])
-                if not selected:
-                    head_line.stylize(
-                        "dim", cell_len(prefix) + 4, cell_len(head_line.plain)
-                    )
+                if wrapped[0].plain:
+                    head_line.append(wrapped[0].plain, style=label_style)
                 lines.append(head_line)
                 for cont in wrapped[1:]:
-                    cont_line = Text(" " * (cell_len(prefix) + 4), no_wrap=True) + cont
-                    if not selected:
-                        cont_line.stylize("dim", 0, cell_len(cont_line.plain))
+                    cont_line = Text(" " * (head_width + 4), no_wrap=True)
+                    if cont.plain:
+                        cont_line.append(cont.plain, style=label_style)
                     lines.append(cont_line)
             else:
-                head_line = Text(
-                    prefix, style="bold" if selected else "dim", no_wrap=True
-                )
-                if star:
-                    head_line.stylize("dim", cell_len(prefix) - 1, cell_len(prefix))
                 if label:
-                    head_line.append(f"    {label}", style="" if selected else "dim")
+                    head_line.append(f"    {label}", style=label_style)
                 lines.append(head_line)
         else:
             marker_line = Text(f"{marker} {key}{star}", no_wrap=True, overflow="fold")
@@ -481,25 +497,61 @@ def expanded_card(
         why = row.get("why")
         if isinstance(why, str) and why.strip():
             lines.append(Text("", no_wrap=True))
-            why_wrapped = _wrap_lines(
-                console,
-                f"why {DECISION_DEFAULT_MARK} {why.strip()}",
-                content_width,
-                style="dim italic",
-            )
-            lines.extend(why_wrapped)
+            if two_column:
+                head_width = _two_column_head_width(row)
+                why_head = f"  why {DECISION_DEFAULT_MARK}"
+                pad = head_width - cell_len(why_head)
+                prefix = why_head + " " * max(pad, 0)
+                label_width = max(content_width - head_width - 4, 1)
+                why_wrapped = _wrap_lines(
+                    console,
+                    why.strip(),
+                    label_width,
+                    style="dim italic",
+                )
+                first = True
+                for part in why_wrapped:
+                    if first:
+                        line = Text(no_wrap=True, overflow="fold")
+                        line.append(prefix, style="dim italic")
+                        line.append(" " * 4, style="dim italic")
+                        line.append_text(part)
+                        lines.append(line)
+                        first = False
+                    else:
+                        indent = Text(" " * (head_width + 4), no_wrap=True)
+                        lines.append(indent + part)
+            else:
+                why_wrapped = _wrap_lines(
+                    console,
+                    f"why {DECISION_DEFAULT_MARK} {why.strip()}",
+                    content_width,
+                    style="dim italic",
+                )
+                lines.extend(why_wrapped)
     elif isinstance(memory, dict):
         names = memory_note_names(memory)
         chips = memory_type_chips(memory)
         selector_text = ", ".join(names) if names else str(row.get("id", ""))
-        edits = Text("  edits    ", style="dim", no_wrap=True) + Text(
-            selector_text, no_wrap=True
+        edits_wrapped = _wrap_lines(
+            console, selector_text, max(content_width - 11, 1), style="dim"
         )
-        lines.append(edits)
+        first = True
+        for part in edits_wrapped:
+            if first:
+                lines.append(Text("  edits    ", style="dim", no_wrap=True) + part)
+                first = False
+            else:
+                lines.append(Text(" " * 11, no_wrap=True) + part)
         if chips:
-            lines.append(
-                Text(f"           {', '.join(chips)}", style="dim", no_wrap=True)
+            chip_wrapped = _wrap_lines(
+                console,
+                ", ".join(chips),
+                max(content_width - 11, 1),
+                style="dim",
             )
+            for part in chip_wrapped:
+                lines.append(Text(" " * 11, no_wrap=True) + part)
         default_text, warns = default_line_text(row, definition)
         if default_text:
             default_wrapped = _wrap_lines(
@@ -552,6 +604,7 @@ def render_lines(renderable: Group, width: int) -> list[str]:
 
 
 __all__ = [
+    "CHANGED_COLOR",
     "FOCUS_BAR_GLYPH",
     "FOCUS_BAR_MUTED",
     "FOCUS_COLOR",

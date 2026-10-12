@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from textual.containers import VerticalScroll
+from textual.css.query import NoMatches
 from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
@@ -415,7 +416,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
         try:
             card = self.query_one(f"#plan-decision-{self._focused_index}", DecisionCard)
             self.scroll_to_widget(card, animate=False)
-        except Exception:
+        except NoMatches:
             pass
 
     def _refresh_all_widths(self) -> None:
