@@ -435,9 +435,9 @@ _lint-patch-stitch-terminology: _setup
 # symbol allow-listed again, re-add a row re-keyed onto a still-open bead.
 # sase-1jw.2 wires the machine-local plan project readers into approval; the
 # original symbol allowlist rows are now consumed and have been removed.
-# sase-1jx.10.1.2 parks run_project_init for sase-1jx.10.1.4 (Apply, progress,
-# Ready, and Failed): that phase calls the shared init hand-off after a
-# successful durable add. Drop the row once apply-ready lands its caller.
+# sase-1jx.10.1.4 (Apply, progress, Ready, and Failed) consumes
+# run_project_init, NewProjectSelection, and record_owner_selection through
+# the durable apply flow and shared init hand-off.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -447,10 +447,7 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jx.11(NewProjectModal)' \
-        --epic-symbol 'sase-1jx.11(NewProjectSelection)' \
-        --epic-symbol 'sase-1jx.12(record_owner_selection)' \
         --epic-symbol 'sase-1jx.12(record_visibility_selection)' \
-        --epic-symbol 'sase-1jx.10.1.4(run_project_init)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

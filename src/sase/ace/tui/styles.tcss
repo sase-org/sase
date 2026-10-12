@@ -4865,6 +4865,54 @@ NewProjectModal {
     content-align: center middle;
 }
 
+#new-project-progress-stage,
+#new-project-ready-stage,
+#new-project-failed-stage {
+    height: 1fr;
+    padding: 0 1;
+}
+
+#new-project-progress-scroll,
+#new-project-failed-scroll {
+    height: 1fr;
+    border: round #555555;
+    padding: 0 1;
+}
+
+#new-project-progress-heading,
+#new-project-ready-heading,
+#new-project-failed-heading,
+#new-project-progress-checklist,
+#new-project-progress-raw,
+#new-project-failed-message,
+#new-project-failed-checklist,
+#new-project-ready-name,
+#new-project-ready-key,
+#new-project-ready-init,
+#new-project-ready-actions {
+    height: auto;
+    min-height: 1;
+    margin-bottom: 1;
+}
+
+#new-project-progress-note {
+    height: 1;
+    color: #888888;
+    content-align: center middle;
+    text-overflow: ellipsis;
+}
+
+#new-project-ready-name {
+    content-align: center middle;
+    text-style: bold;
+}
+
+#new-project-ready-key,
+#new-project-ready-init,
+#new-project-ready-actions {
+    content-align: center middle;
+}
+
 #new-project-hints {
     height: 1;
     color: #888888;

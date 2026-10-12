@@ -9,7 +9,7 @@ from dataclasses import replace
 from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import ContentSwitcher, Static
 
@@ -27,6 +27,7 @@ from sase.project_onboarding import (
 from sase.workspace_provider import WorkflowMetadata
 
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
+from .new_project_apply import NewProjectApplyMixin, NewProjectInitHost
 from .new_project_rendering import clean_source_text, render_stepper
 from .new_project_configure import NewProjectConfigure
 from .new_project_configure_model import (
@@ -35,17 +36,21 @@ from .new_project_configure_model import (
     check_identity,
     validate_draft,
 )
+from .new_project_failed import NewProjectFailed
+from .new_project_progress import NewProjectProgress
+from .new_project_progress_model import ProgressResult
+from .new_project_ready import NewProjectReady
 from .new_project_review import NewProjectReview
 from .new_project_review_model import ApplySubmission
 from .new_project_source import NewProjectSource
 from .new_project_source_model import SourceRow
-from .new_project_state import NewProjectStateMachine, SourceOutcome
+from .new_project_state import NewProjectStateMachine
 
 _TASKS = "_new_project_modal_tasks"
 _PROVIDER_ACCENTS = {"gh": "#87D7FF", "git": "#00D7AF"}
 
 
-class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
+class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | None"]):
     """Wizard shell with provider strip and an interactive Source stage.
 
     ``provider_metadata`` and ``candidate_inputs`` allow a parent with a
@@ -94,6 +99,13 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
         self._local_plan: dict[str, object] = {}
         self._local_plan_draft: ConfigureDraft | None = None
         self._apply_submission: ApplySubmission | None = None
+        self._review_document: dict[str, object] = {}
+        self._progress_result: ProgressResult | None = None
+        self._ready_key = ""
+        self._ready_name = ""
+        self._ready_accent = ""
+        self._needs_init = False
+        self._init_host: NewProjectInitHost | None = None
 
     def compose(self) -> ComposeResult:
         with Container(id="new-project-frame"):
@@ -110,29 +122,9 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
                 yield NewProjectSource(id="new-project-source-stage")
                 yield NewProjectConfigure(id="new-project-configure-stage")
                 yield NewProjectReview(id="new-project-review-stage")
-                yield Vertical(
-                    Static("Progress", classes="new-project-placeholder-title"),
-                    Static(
-                        "Project setup progress will appear here.",
-                        id="new-project-progress-placeholder",
-                    ),
-                    id="new-project-progress-stage",
-                )
-                yield Vertical(
-                    Static("Ready", classes="new-project-placeholder-title"),
-                    Static(
-                        "Your project is ready.", id="new-project-ready-placeholder"
-                    ),
-                    id="new-project-ready-stage",
-                )
-                yield Vertical(
-                    Static("Could not finish", classes="new-project-placeholder-title"),
-                    Static(
-                        "The operation can be resumed from Source.",
-                        id="new-project-failed-placeholder",
-                    ),
-                    id="new-project-failed-stage",
-                )
+                yield NewProjectProgress(id="new-project-progress-stage")
+                yield NewProjectReady(id="new-project-ready-stage")
+                yield NewProjectFailed(id="new-project-failed-stage")
             yield Static(
                 "⏎ choose · [ ] provider · / filter · f forks · . all · R refresh · t provider login · esc close",
                 id="new-project-hints",
@@ -641,15 +633,6 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
         self._show_stage("configure")
         self.query_one(NewProjectConfigure).focus_name()
 
-    @on(NewProjectReview.ApplyRequested)
-    def _review_apply_requested(self, event: NewProjectReview.ApplyRequested) -> None:
-        self._apply_submission = event.submission
-        self._state.to_progress()
-        self._show_stage("progress")
-        self.query_one("#new-project-progress-placeholder", Static).update(
-            "Submission captured for the Apply phase."
-        )
-
     async def _save_preferences(self) -> None:
         try:
             await asyncio.to_thread(save_preferences, self._preferences)
@@ -672,17 +655,23 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
         self.query_one("#new-project-stages", ContentSwitcher).current = stage_ids.get(
             stage, stage_ids["source"]
         )
+        self._update_apply_chrome(stage)
 
 
 class NewProjectSelection:
-    """Typed result for source rows that leave the wizard shell."""
+    """Typed result for source rows and Ready outcomes that leave the wizard."""
 
     def __init__(
-        self, outcome: SourceOutcome, workflow_type: str, row: SourceRow
+        self,
+        outcome: str,
+        workflow_type: str = "",
+        row: SourceRow | None = None,
+        project_key: str = "",
     ) -> None:
         self.outcome = outcome
         self.workflow_type = workflow_type
         self.row = row
+        self.project_key = project_key
 
 
 __all__ = ["NewProjectModal", "NewProjectSelection"]

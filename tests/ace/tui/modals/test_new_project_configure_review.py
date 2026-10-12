@@ -9,6 +9,8 @@ import pytest
 from textual.widgets import Button, Input, OptionList
 
 from sase import workspace_provider
+from sase.ace.tui.proc_observer import ObservedProc
+from sase.core.time import local_now
 from sase.ace.tui.modals.new_project_configure import NewProjectConfigure
 from sase.ace.tui.modals.new_project_configure_model import (
     ConfigureDraft,
@@ -32,6 +34,23 @@ from tests.ace.tui.modals.test_new_project_source import (
 
 class _WizardApp(_ModalApp):
     CSS_PATH = Path(__file__).parents[4] / "src/sase/ace/tui/styles.tcss"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.submit_calls: list[tuple[Any, dict[str, Any]]] = []
+        self.submit_result: ObservedProc | None = ObservedProc(
+            proc_id="add-1",
+            proc_type="project.add",
+            cl_name="",
+            project_file="",
+            status="running",
+            message="running",
+            started_at=local_now(),
+        )
+
+    def _submit_durable_proc(self, argv: Any, **kwargs: Any) -> ObservedProc | None:
+        self.submit_calls.append((argv, kwargs))
+        return self.submit_result
 
 
 def _document(name: str = "new", *, blocked: bool = False) -> dict[str, Any]:

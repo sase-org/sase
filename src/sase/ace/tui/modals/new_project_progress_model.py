@@ -86,6 +86,16 @@ class ProgressView:
         """Return the last *limit* raw log lines."""
         return tuple(self.raw_log[-limit:])
 
+    def mark_sase_initialized(self) -> None:
+        """Append a completed init row after a successful hand-off."""
+        row = self._ensure(
+            {"id": "sase-init", "label": "SASE initialized"},
+            "sase-init",
+        )
+        row.state = "done"
+        row.message = ""
+        row.hint = ""
+
     def _seed_from_plan(self, plan: Any) -> None:
         if not isinstance(plan, Mapping):
             return

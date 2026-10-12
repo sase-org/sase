@@ -17,8 +17,6 @@ from .init_plan_modal_rendering import operation_glyph
 
 __all__ = [
     "ApplySubmission",
-    "ReviewBlocker",
-    "ReviewRow",
     "ReviewView",
     "apply_submission",
     "build_review",
@@ -26,7 +24,7 @@ __all__ = [
 
 
 @dataclass(frozen=True, slots=True)
-class ReviewRow:
+class _ReviewRow:
     """One review line derived from a plan step."""
 
     glyph: str
@@ -36,7 +34,7 @@ class ReviewRow:
 
 
 @dataclass(frozen=True, slots=True)
-class ReviewBlocker:
+class _ReviewBlocker:
     """One plan blocker with its follow-up hint."""
 
     message: str
@@ -47,9 +45,9 @@ class ReviewBlocker:
 class ReviewView:
     """Render-ready Review stage content for one plan document."""
 
-    rows: tuple[ReviewRow, ...]
+    rows: tuple[_ReviewRow, ...]
     warnings: tuple[str, ...]
-    blockers: tuple[ReviewBlocker, ...]
+    blockers: tuple[_ReviewBlocker, ...]
     argv: tuple[str, ...]
     argv_line: str
     can_confirm: bool
@@ -78,19 +76,19 @@ def build_review(document: Mapping[str, Any]) -> ReviewView:
     """Turn one plan document into review rows and the confirm verdict."""
     target = document.get("target")
     target_map = target if isinstance(target, Mapping) else {}
-    rows: list[ReviewRow] = []
+    rows: list[_ReviewRow] = []
     if str(document.get("mode") or "") == "create":
         visibility = str(target_map.get("visibility") or "").upper() or "—"
         web_url = str(target_map.get("web_url") or "")
         detail = f"{visibility} {web_url}".strip()
         glyph, style = operation_glyph("create")
-        rows.append(ReviewRow(glyph=glyph, style=style, label="REMOTE", detail=detail))
+        rows.append(_ReviewRow(glyph=glyph, style=style, label="REMOTE", detail=detail))
     for step in _steps(document):
         if str(step.get("state") or "") == "skipped":
             continue
         glyph, style = operation_glyph(str(step.get("operation") or ""))
         rows.append(
-            ReviewRow(
+            _ReviewRow(
                 glyph=glyph,
                 style=style,
                 label=str(step.get("label") or step.get("id") or "step"),
@@ -105,7 +103,7 @@ def build_review(document: Mapping[str, Any]) -> ReviewView:
     )
     raw_blockers = document.get("blockers")
     blockers = tuple(
-        ReviewBlocker(
+        _ReviewBlocker(
             message=str(item.get("message") or ""),
             hint=str(item.get("hint") or ""),
         )
