@@ -390,7 +390,12 @@ class NewProjectApplyMixin(_MixinBase):
 
     def _update_apply_chrome(self, stage: str) -> None:
         provider_row = self.query_one("#new-project-provider-row")
-        provider_row.display = stage in {"source", "configure", "review"}
+        provider_row.display = stage in {
+            "source",
+            "configure",
+            "create-configure",
+            "review",
+        }
         hints = {
             "source": (
                 "⏎ choose · [ ] provider · / filter · f forks · . all · "
@@ -398,6 +403,9 @@ class NewProjectApplyMixin(_MixinBase):
             ),
             "configure": (
                 "tab fields · space setup · ctrl+s review · b back · esc close"
+            ),
+            "create-configure": (
+                "tab fields · space toggle · a advanced · b back · esc close"
             ),
             "review": "y apply · b back · esc close",
             "progress": "esc close · setup continues in Procs",

@@ -11,11 +11,19 @@ from .new_project_source_model import SourceRow
 
 if TYPE_CHECKING:
     from .new_project_configure_model import ConfigureDraft
+    from .new_project_create import CreateDraft
 
 NewProjectStage = Literal[
-    "source", "configure", "review", "progress", "ready", "failed"
+    "source",
+    "configure",
+    "create-configure",
+    "review",
+    "progress",
+    "ready",
+    "failed",
 ]
 SourceOutcome = Literal["configure", "show-project", "jump-resume", "resume"]
+WizardMode = Literal["add", "create"]
 
 
 @dataclass
@@ -26,6 +34,8 @@ class NewProjectStateMachine:
     workflow_type: str = ""
     selected: SourceRow | None = None
     draft: ConfigureDraft | None = None
+    wizard_mode: WizardMode = "add"
+    create_draft: CreateDraft | None = None
 
     def select_source(self, row: SourceRow) -> SourceOutcome:
         """Choose a source row, preserving its specialized hand-off behavior."""
@@ -48,6 +58,21 @@ class NewProjectStateMachine:
     def set_draft(self, draft: ConfigureDraft | None) -> None:
         """Replace the editable draft; transitions never drop it implicitly."""
         self.draft = draft
+
+    def set_create_draft(self, draft: CreateDraft | None) -> None:
+        """Replace the editable create draft; add drafts stay intact."""
+        self.create_draft = draft
+
+    def to_create_configure(self, draft: CreateDraft) -> None:
+        """Move to create Configure, keeping the per-owner create draft."""
+        self.wizard_mode = "create"
+        self.create_draft = draft
+        self.stage = "create-configure"
+
+    def to_add_configure(self) -> None:
+        """Return to existing-repo Configure after an explicit add-instead."""
+        self.wizard_mode = "add"
+        self.stage = "configure"
 
     def to_configure(self) -> None:
         """Move to Configure, keeping the draft seeded from the source row."""
@@ -86,4 +111,9 @@ class NewProjectStateMachine:
         self.stage = stage
 
 
-__all__ = ["NewProjectStage", "NewProjectStateMachine", "SourceOutcome"]
+__all__ = [
+    "NewProjectStage",
+    "NewProjectStateMachine",
+    "SourceOutcome",
+    "WizardMode",
+]

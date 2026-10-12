@@ -32,6 +32,7 @@ from .new_project_configure_flow import NewProjectConfigureFlowMixin
 from .new_project_rendering import clean_source_text, render_stepper
 from .new_project_configure import NewProjectConfigure
 from .new_project_configure_model import ConfigureDraft, check_identity
+from .new_project_create import NewProjectCreateConfigure, NewProjectCreateFlowMixin
 from .new_project_failed import NewProjectFailed
 from .new_project_progress import NewProjectProgress
 from .new_project_progress_model import ProgressResult
@@ -48,6 +49,7 @@ _PROVIDER_ACCENTS = {"gh": "#87D7FF", "git": "#00D7AF"}
 
 class NewProjectModal(
     NewProjectConfigureFlowMixin,
+    NewProjectCreateFlowMixin,
     NewProjectApplyMixin,
     ModalScreen["NewProjectSelection | None"],
 ):
@@ -108,6 +110,7 @@ class NewProjectModal(
         self._ready_accent = ""
         self._needs_init = False
         self._init_host: NewProjectInitHost | None = None
+        self._init_create_state()
 
     def compose(self) -> ComposeResult:
         with Container(id="new-project-frame"):
@@ -123,6 +126,7 @@ class NewProjectModal(
             ):
                 yield NewProjectSource(id="new-project-source-stage")
                 yield NewProjectConfigure(id="new-project-configure-stage")
+                yield NewProjectCreateConfigure(id="new-project-create-stage")
                 yield NewProjectReview(id="new-project-review-stage")
                 yield NewProjectProgress(id="new-project-progress-stage")
                 yield NewProjectReady(id="new-project-ready-stage")
@@ -210,6 +214,10 @@ class NewProjectModal(
 
     @on(events.Paste)
     def _paste_anywhere(self, event: events.Paste) -> None:
+        # Bracketed pastes land in the focused create editor natively; only
+        # the Source stage forwards them into the hidden Source filter.
+        if self._state.stage != "source":
+            return
         event.stop()
         event.prevent_default()
         self.query_one(NewProjectSource).paste_filter(event.text)
@@ -222,6 +230,10 @@ class NewProjectModal(
                 return
             self._state.back_to_source()
             self._show_stage("source")
+        elif stage == "create-configure":
+            if self.query_one(NewProjectCreateConfigure).blur_input():
+                return
+            self._on_create_back_requested()
         elif stage == "review":
             self.query_one(NewProjectReview).invalidate_check()
             self._state.back_to_configure()
@@ -231,6 +243,8 @@ class NewProjectModal(
 
     def action_confirm_configure(self) -> None:
         """Advance only when the focused control is the valid Review button."""
+        if self._state.stage != "configure":
+            return
         configure = self.query_one(NewProjectConfigure)
         button = configure.query_one("#new-project-configure-review")
         if self.screen.focused is button:
@@ -537,6 +551,42 @@ class NewProjectModal(
         self._state.back_to_source()
         self._show_stage("source")
 
+    @on(NewProjectCreateConfigure.DraftChanged)
+    def _create_draft_changed(
+        self, event: NewProjectCreateConfigure.DraftChanged
+    ) -> None:
+        self._on_create_draft_changed(event.draft)
+
+    @on(NewProjectCreateConfigure.AvailabilityRequested)
+    def _create_check_requested(
+        self, _event: NewProjectCreateConfigure.AvailabilityRequested
+    ) -> None:
+        self._on_create_check_requested()
+
+    @on(NewProjectCreateConfigure.OwnerSelected)
+    def _create_owner_selected(
+        self, event: NewProjectCreateConfigure.OwnerSelected
+    ) -> None:
+        self._on_create_owner_selected(event.owner)
+
+    @on(NewProjectCreateConfigure.ReviewRequested)
+    def _create_review_requested(
+        self, _event: NewProjectCreateConfigure.ReviewRequested
+    ) -> None:
+        self._on_create_review_requested()
+
+    @on(NewProjectCreateConfigure.BackRequested)
+    def _create_back_requested(
+        self, _event: NewProjectCreateConfigure.BackRequested
+    ) -> None:
+        self._on_create_back_requested()
+
+    @on(NewProjectCreateConfigure.AddInsteadRequested)
+    def _create_add_instead_requested(
+        self, event: NewProjectCreateConfigure.AddInsteadRequested
+    ) -> None:
+        self._on_create_add_instead(event.identity)
+
     @on(NewProjectReview.BackRequested)
     def _review_back_requested(self, _event: NewProjectReview.BackRequested) -> None:
         self.query_one(NewProjectReview).invalidate_check()
@@ -557,12 +607,16 @@ class NewProjectModal(
         stage_ids = {
             "source": "new-project-source-stage",
             "configure": "new-project-configure-stage",
+            "create-configure": "new-project-create-stage",
             "review": "new-project-review-stage",
             "progress": "new-project-progress-stage",
             "ready": "new-project-ready-stage",
             "failed": "new-project-failed-stage",
         }
-        self.query_one("#new-project-stepper", Static).update(render_stepper(stage))
+        stepper_stage = "configure" if stage == "create-configure" else stage
+        self.query_one("#new-project-stepper", Static).update(
+            render_stepper(stepper_stage)
+        )
         self.query_one("#new-project-stages", ContentSwitcher).current = stage_ids.get(
             stage, stage_ids["source"]
         )
