@@ -299,6 +299,7 @@ def test_explain_guidance_names_corrects() -> None:
 
     assert "`corrects:`" in PLAN_DECISIONS_GUIDANCE
     assert "never carry both" in PLAN_DECISIONS_GUIDANCE
+    assert "Do not restate the choice key" in " ".join(PLAN_DECISIONS_GUIDANCE.split())
 
 
 def test_pending_chips_for_correction_and_claim_not_found() -> None:

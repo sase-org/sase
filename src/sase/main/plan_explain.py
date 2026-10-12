@@ -9,8 +9,9 @@ the primary action always approves exactly the values on display. A decision wit
 `choices:` is a choice; one without is a toggle. Every decision needs an `ask` (one
 line, at most 120 chars, phrased as a question where yes means do the work) and a
 `default` (a YAML boolean for toggles, one choice key for choices). Choices need 2–5
-entries with one-line consequence labels of at most 100 chars. Ids start with a
-lowercase letter, use only lowercase letters, digits, and underscores, and have at most
+entries with one-line consequence labels of at most 100 chars. Do not restate the
+choice key, or a `Yes:`/`No:` prefix, at the start of its label; the label states the
+consequence. Ids start with a lowercase letter, use only lowercase letters, digits, and underscores, and have at most
 32 chars (choice keys at most 24); the YAML 1.1 words (`yes`, `no`, `on`, `off`,
 `true`, `false`, `null`, and friends) and the reserved names (`approve`, `commit`,
 `reject`, `feedback`, `coder_prompt`, `coder_model`, `wait`, `epic_launch_mode`,

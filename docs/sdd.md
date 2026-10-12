@@ -621,8 +621,9 @@ underscores, and have at most 32 characters. Choice keys use the same pattern wi
 `capacity`. It also rejects the YAML 1.1 words `y`, `n`, `yes`, `no`, `on`, `off`,
 `true`, `false`, and `null` as both decision IDs and choice keys. Questions are one line
 of at most 120 characters. Choice labels and `why` are one line of at most 100
-characters. There is no authored `kind` field: the presence of `choices` selects the
-kind.
+characters. Do not restate the choice key, or a `Yes:`/`No:` prefix, at the start of its
+label; the label states the consequence. There is no authored `kind` field: the presence
+of `choices` selects the kind.
 
 A `> [!decision] <id>` block marks the true branch of a toggle; `= no` marks its false
 branch. A choice block must use `= <key>`. Unknown IDs or branches fail validation. The
