@@ -1,4 +1,4 @@
-"""Archive-controller tests: flag, prewarm gate, and idle ticks."""
+"""Archive-controller tests: prewarm gate and idle ticks (no flag gate)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sase.ace.tui.models.agent_archive_controller import (
     ARCHIVE_CORPUS_LOADING,
     ARCHIVE_CORPUS_WARM,
 )
-from sase.ace.tui.models.agent_archive_view import AGENTS_VIEW_INBOX
+from sase.ace.tui.models.agent_archive_view import AGENTS_VIEW_ARCHIVE
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.feature_flags import override_flags
 from tests.ace.tui._agent_archive_controller_helpers import (
@@ -33,30 +33,32 @@ __all__ = [
     "test_bounded_inbox_load_does_not_open_prewarm_gate",
     "test_complete_idle_prewarms_once_and_idle_tick_skips_compile",
     "test_early_open_paints_loading_and_queues_until_gate",
-    "test_flag_off_never_probes_or_prewarms",
+    "test_hooks_probe_and_prewarm_without_a_flag",
     "test_inbox_load_scheduled_resets_on_apply_and_failure",
     "test_prewarm_waits_for_idle_ui",
     "test_prompt_typing_defers_idle_requery",
 ]
 
 
-def test_flag_off_never_probes_or_prewarms() -> None:
+@pytest.mark.asyncio
+async def test_hooks_probe_and_prewarm_without_a_flag() -> None:
     owner = make_owner(agents=[make_agent("live")])
     spawn, compile_calls, facet_calls = instrument(owner)
 
     with override_flags():
         note_inbox_applied_for_archive(owner, load_state=complete_load())
+        assert spawn.coros
+        await spawn.drain()
+        assert len(compile_calls) == 1
+        assert facet_calls == ["facets"]
         schedule_archive_idle_tick(owner)
+        await spawn.drain()
         request_archive_view_load(owner)
         outcome = open_agents_archive_view(owner)
 
-    assert outcome.status == "disabled"
-    assert outcome.view == AGENTS_VIEW_INBOX
-    assert compile_calls == []
-    assert facet_calls == []
-    assert spawn.coros == []
+    assert outcome.status == "opened"
+    assert outcome.view == AGENTS_VIEW_ARCHIVE
     assert owner._agents[0].cl_name == "live"
-    assert archive_corpus_snapshot(owner).status == "cold"
 
 
 def test_bounded_inbox_load_does_not_open_prewarm_gate() -> None:

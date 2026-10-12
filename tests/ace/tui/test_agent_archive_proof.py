@@ -15,6 +15,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from sase.ace.query.scope_token import ScopeTokenError, extract_scope
 from sase.ace.tui.actions.agents._archive_actions import (
     archive_marked_run_keys,
@@ -49,7 +51,6 @@ from sase.ace.tui.models.agent_archive_view import (
     ARCHIVE_ROW_AGENT,
     ARCHIVE_ROW_NONE,
     ARCHIVE_STATUS_ALREADY_INBOX,
-    ARCHIVE_STATUS_DISABLED,
     ARCHIVE_STATUS_OPENED,
     ARCHIVE_STATUS_RETURNED,
     agent_is_archive_read_only,
@@ -111,30 +112,36 @@ def _proof_history() -> list[dict[str, Any]]:
     return rows
 
 
-# -- flag states -------------------------------------------------------------
+# -- unconditional entry (the beta flag is retired) -------------------------
 
 
-def test_beta_off_open_is_disabled_and_inbox_untouched() -> None:
+def test_open_needs_no_flag_and_parks_the_inbox() -> None:
     owner = _proof_owner()
     with override_flags():
-        assert open_agents_archive_view(owner).status == ARCHIVE_STATUS_DISABLED
-        assert close_agents_archive_view(owner).status == ARCHIVE_STATUS_ALREADY_INBOX
+        opened = open_agents_archive_view(owner)
+        assert opened.status == ARCHIVE_STATUS_OPENED
+        assert owner._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
+        parked = owner._agents_archive_view.parked_inbox
+        assert parked is not None
+        assert parked.committed_query == "model:opus"
+        assert archive_detail_owns_panel(owner)
+        returned = close_agents_archive_view(owner)
+        assert returned.status == ARCHIVE_STATUS_RETURNED
         selection = get_agents_tab_selection(owner)
         assert selection.view == AGENTS_VIEW_INBOX
-        assert selection.row_kind == ARCHIVE_ROW_AGENT
         assert selection.agent is owner._inbox_agent
         assert not archive_detail_owns_panel(owner)
-        assert archive_read_only_context(owner) is None
         assert owner._agent_search_query == "model:opus"
-        assert owner.current_idx == 3
 
 
-def test_beta_off_never_compiles_the_corpus() -> None:
+@pytest.mark.asyncio
+async def test_view_load_compiles_the_corpus_without_a_flag() -> None:
     harness = ColumnHarness(_proof_history())
     with override_flags():
         request_archive_view_load(harness.owner)
         harness.note_inbox_applied()
-        assert harness.corpus.summary_calls == 0
+        await harness.settle()
+        assert harness.corpus.summary_calls > 0
         cancel_archive_controller(harness.owner)
 
 

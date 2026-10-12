@@ -550,4 +550,7 @@ def test_do_dismiss_all_emits_toast_via_call_after_refresh() -> None:
 
     app._do_dismiss_all([a1, a2])
 
-    assert any(msg == "Dismissed 2 agents" for msg, _ in app.notifications)
+    assert any(
+        msg.startswith("Dismissed 2 agents") and msg.endswith("→ ◷ Archive · ,a browse")
+        for msg, _ in app.notifications
+    )

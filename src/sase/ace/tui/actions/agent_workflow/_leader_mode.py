@@ -165,10 +165,6 @@ class LeaderModeMixin:
 
         archive_key = leader_keys.get("toggle_agents_archive")
         if isinstance(archive_key, str) and key == archive_key:
-            from ...models.agent_archive_view import agents_archive_view_enabled
-
-            if not agents_archive_view_enabled():
-                return True
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self.action_toggle_agents_archive()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]

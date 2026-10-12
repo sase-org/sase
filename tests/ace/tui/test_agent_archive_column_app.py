@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from textual.css.query import NoMatches
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents._archive_controller import (
@@ -97,22 +96,23 @@ async def _wait_for_rows(page: AcePage) -> None:
     )
 
 
-async def test_beta_flag_off_never_mounts_the_archive_column(
+async def test_open_mounts_the_archive_column_without_a_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     with override_flags():
         async with AcePage(initial_tab="agents", size=(160, 40)) as page:
             await wait_for_startup(page)
+            app = page.app
+            _wire_corpus(app, ModelCorpus(_history()))
+            note_inbox_applied_for_archive(app, load_state=complete_load())
 
-            assert open_agents_archive_view(page.app).status == "disabled"
-            await page.press("j")
+            assert open_agents_archive_view(app).status == "opened"
+            await _wait_for_rows(page)
 
-            with pytest.raises(NoMatches):
-                page.app.query_one("#archive-column")
-            assert not page.app.query_one("#agents-content").has_class(
-                "-archive-active"
-            )
+            assert app.query_one("#agents-content").has_class("-archive-active")
+            assert app.query_one("#archive-column", ArchiveColumn).display
+            assert not app.query_one("#agent-list-container").display
 
 
 async def test_archive_replaces_the_inbox_column_and_keys_navigate_it(

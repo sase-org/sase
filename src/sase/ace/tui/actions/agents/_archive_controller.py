@@ -44,7 +44,6 @@ from ...models.agent_archive_view import (
     ARCHIVE_DEFAULT_GROUPING,
     ARCHIVE_DEFAULT_QUERY,
     ArchiveArrivalOutcome,
-    agents_archive_view_enabled,
     is_archive_row_key,
 )
 from ...util.pump_tasks import spawn_pump_free_task
@@ -133,10 +132,6 @@ def refresh_archive_inbox_pulse(owner: Any) -> ArchiveInboxPulse:
     Prefers the Inbox header's cached metrics (so the pulse can never disagree
     with it and costs nothing extra); a bare roster scan is the fallback.
     """
-    pulse = ArchiveInboxPulse()
-    if not agents_archive_view_enabled():
-        _controller(owner).pulse = pulse
-        return pulse
     pulse = _pulse_from_header_metrics(owner) or _pulse_from_roster(owner)
     _controller(owner).pulse = pulse
     from ._archive_column import update_archive_pulse
@@ -191,8 +186,6 @@ def note_inbox_applied_for_archive(owner: Any, load_state: Any = None) -> None:
     never disturb Inbox state.
     """
     try:
-        if not agents_archive_view_enabled():
-            return
         refresh_archive_inbox_pulse(owner)
         from ._archive_shelf import request_archive_shelf_refresh
 
@@ -238,8 +231,6 @@ def _maybe_arm_prewarm(owner: Any) -> None:
 def schedule_archive_idle_tick(owner: Any) -> None:
     """Quiet-tick hook. Compares cheap signatures only; never scans catalogs."""
     try:
-        if not agents_archive_view_enabled():
-            return
         if not _ui_is_idle(owner):
             return
         state = _controller(owner)
@@ -267,8 +258,6 @@ def schedule_archive_idle_tick(owner: Any) -> None:
 
 def request_archive_view_load(owner: Any) -> None:
     """Queue or start corpus work for an explicit Archive open (``,a``)."""
-    if not agents_archive_view_enabled():
-        return
     state = _controller(owner)
     if state.status in {ARCHIVE_CORPUS_COLD, ARCHIVE_CORPUS_MISSING} or (
         state.corpus is None and state.status != ARCHIVE_CORPUS_LOADING
@@ -313,8 +302,6 @@ def request_archive_windows(
     expanded_containers: Sequence[str] | None = None,
 ) -> int:
     """Request page windows against the warm handle. Returns the generation."""
-    if not agents_archive_view_enabled():
-        return _controller(owner).generation
     state = _controller(owner)
     state.last_windows = tuple(windows)
     if expanded_containers is not None:

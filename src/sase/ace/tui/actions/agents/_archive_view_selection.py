@@ -22,7 +22,6 @@ from ...models.agent_archive_view import (
     ARCHIVE_SECTION_PULSE,
     AgentsTabSelection,
     ReadOnlyArchiveContext,
-    agents_archive_view_enabled,
     is_archive_container_key,
     is_archive_row_key,
 )
@@ -43,8 +42,6 @@ def get_agents_tab_selection(owner: Any) -> AgentsTabSelection:
     """
     state = agents_archive_view_state(owner)
     if state.active_view == AGENTS_VIEW_ARCHIVE:
-        if not agents_archive_view_enabled():
-            return AgentsTabSelection(view=AGENTS_VIEW_INBOX, row_kind=ARCHIVE_ROW_NONE)
         key = state.archive.selected_key
         if (
             key is None

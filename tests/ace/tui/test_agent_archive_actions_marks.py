@@ -150,8 +150,9 @@ def test_archive_marks_parked_with_view_state() -> None:
     with override_flags(agents_archive_view=True):
         assert toggle_archive_mark(owner) is True
     with override_flags():
+        assert archive_marked_count(owner) == 1
+        assert clear_archive_marks(owner) == 1
         assert archive_marked_count(owner) == 0
-        assert clear_archive_marks(owner) == 0
 
 
 def test_marked_run_keys_expand_containers() -> None:

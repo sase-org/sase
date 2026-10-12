@@ -20,6 +20,15 @@ from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 async def test_agent_first_page_paints_before_full_extension(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.feature_flags import override_flags
+
+    with override_flags(artifacts_agent_pane_retired=False):
+        await _agent_first_page_paints_before_full_extension(monkeypatch)
+
+
+async def _agent_first_page_paints_before_full_extension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     first_rows = (
         make_agent_catalog_row("newest", started_at="2026-08-24T12:00:00+00:00"),
         make_agent_catalog_row("older", started_at="2026-08-24T11:00:00+00:00"),

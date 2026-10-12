@@ -148,13 +148,13 @@ more" links into the published docs. An empty Beads pane points agents to
 TaskTriage.
 
 Within Artifacts, number keys follow the visible left-to-right order of the strip:
-Agent, Stitch, Patch, and Bead are always **1**, **2**, **3**, **4**; configured
-document-provider tabs such as Plan and Research take the next digits; and File, which
-always renders last, carries the highest digit — **5** with no provider tabs configured,
-**7** with two. Digits stop at `9`, and File keeps `9` when the runtime strip grows past
-nine panes; middle overflow panes may then have no digit. Use `[` / `]` to cycle through
-the complete runtime strip. As horizontal space tightens, the strip chooses the widest
-tier that fits from a full → compact → micro ladder and re-renders only when the tier
+Stitch, Patch, and Bead are always **1**, **2**, **3**; configured document-provider
+tabs such as Plan and Research take the next digits; and File, which always renders
+last, carries the highest digit — **4** with no provider tabs configured, **6** with
+two. Digits stop at `9`, and File keeps `9` when the runtime strip grows past nine
+panes; middle overflow panes may then have no digit. Use `[` / `]` to cycle through the
+complete runtime strip. As horizontal space tightens, the strip chooses the widest tier
+that fits from a full → compact → micro ladder and re-renders only when the tier
 changes. Compact removes outer padding; micro also tightens the separators and hides
 inactive labels, leaving their digits and icons visible. If even micro is wider than the
 available space, micro remains selected. Every Artifacts tab has an icon, including
@@ -340,9 +340,8 @@ changing project scope, refreshing data, or collapsing an expanded bead tree. Es
 an invalid hint exits jump mode. These actions use the configured keymap values; the
 keys above are the defaults.
 
-The Agent pane is the deliberate exception to `Enter`: its detail is already inline, so
-selecting a row updates the right-hand identity, lifecycle, lineage, provenance, prompt,
-chat, and published-page view without opening a reader.
+On the Agents tab Archive, `Enter` opens the chooser with its ARCHIVE section first
+(Restore to inbox by default, then Restore and show, Fork, and read-only targets).
 
 When the selected entry has declared relationships, a relation panel appears at the
 bottom of the list column, starting collapsed into a one-line rail that names its own
@@ -628,9 +627,7 @@ Quoting opts out, so `"key"` stays free text. Because the shorthand is purely le
 (it always canonicalizes to the long spelling), it costs no schema field and moves no
 compiled profile's digest, so no saved query is invalidated. Stitches' `sidecar` field
 is Boolean, so a bare `sidecar` filters to `sidecar:true` instead of searching for the
-literal word in a commit subject; quote it (`"sidecar"`) to search for the word. The
-Agent pane uses the Boolean-expression grammar instead: write `revivable:true` there,
-because bare `revivable` remains a free-text term.
+literal word in a commit subject; quote it (`"sidecar"`) to search for the word.
 
 ### Bead Pane
 
@@ -729,58 +726,54 @@ When that worker appears on the Agents tab, its bead badge points directly to th
 and its **SASE CONTEXT / BEAD** lane shows the task title and description, plus size
 when one is stored, without trying to resolve an epic plan.
 
-### Agent Pane
+### Archive (Agents Tab)
 
-Artifacts → Agent is the durable historical catalog. It is intentionally different from
-the top-level Agents tab: the live tab is the operational view for running work, unread
-completions, and current clan/session panels, while this pane keeps queryable rows for
-prior runs, dismissed agents, sessions, clans, workflows, and workflow children. Rows
-are newest-first. The pane paints its newest 500 rows first, then extends to the
-complete catalog and builds the full query index off-thread.
+Artifacts → Agent is retired: agent history lives in the Agents tab's **Archive** view.
+Press `,a` to toggle between the Inbox and the Archive; the tab label reads `Agents ◷`
+while the Archive is parked. The Archive lists this machine's dismissed runs by day and
+opens any of them read-only in the real decks (Main, Files, Tools, FINAL, Record) —
+reading never restores, never marks anything read, and never writes.
 
-The left side defaults to **Session** grouping; `o` / `O` cycle forward or backward
-through **Session**, **State**, and **Project**. The shared fold keys (`h`, `l`, `H`,
-`L`) collapse or expand group banners. Selecting a row updates the right-hand detail
-with its durable `agent:` reference, identity, lifecycle and timing, model/provider,
-session and retry lineage, provenance, a bounded prompt preview, chat path, and hosted
-agent page when those files resolve.
+The Archive's committed query always contains `in:archive`, shown as a chip, so `^`
+history, saved slots, and [`sase agent search`](configuration.md#sase-agent) all agree
+on what is on screen. Each view parks its own query, selection, folds, and deck state,
+and `,a` always returns each view exactly as left. Pane-era saved slots and history were
+migrated once to free `agents-live` slots with `in:archive` prepended.
 
-The collapsed relation rail combines catalog lineage—session, clan, parent, and retry
-chain—with typed artifact links such as `cites`, `read`, `implements`, and their inverse
-labels. Expand it with `.`, then use the printed `<`, `>`, or `~` mode and row hint to
-navigate. `linked:true`, `relation:<slug>`, and `artifact:<canonical-ref>` expose the
-same graph as query facets.
+Day banners group the list by default; `o` switches grouping between day, project,
+outcome, and model. `j` / `k` move across rows, banners, containers, and `⋮ more` rows,
+while `J` / `K` move between the Inbox pulse and the list. Selecting a row hydrates the
+real decks from the retained bundle: the full prompt, the reply, diffs, tool calls, and
+the Record deck's Lifecycle, Provenance, Relations, and Links cards.
 
-| Key                 | Action                                                          |
-| ------------------- | --------------------------------------------------------------- |
-| `j` / `k`           | Select the next / previous catalog row                          |
-| `/`                 | Edit the Boolean Agent query                                    |
-| `o` / `O`           | Cycle grouping forward / backward                               |
-| `w`                 | Revive the selected dismissed row, or the marked revivable rows |
-| `m` / `u`           | Mark / unmark the selected row · clear this pane's marks        |
-| `Ctrl+J` / `Ctrl+K` | Load more matching agents / unload one page (rewrites `limit:`) |
-| `p`                 | Change the shared Artifacts project scope                       |
-| `%`                 | Open the Agent **Copy as…** palette                             |
-| `R`                 | Refresh the catalog (through the Refresh panel)                 |
+The Jump panel shows the archived agent's relations, and the `linked:`, `relation:`, and
+`artifact:` facets expose the same graph as query terms.
 
-`w` skips marked rows that are not revivable. On an aggregate session or clan with one
-revivable member it revives that member directly; with several, it narrows the pane to
-the matching `state:dismissed AND revivable:true` session or clan query so the choice is
-explicit. Use [`sase agent search`](configuration.md#sase-agent) for the same catalog
-dialect outside sase's TUI.
+| Key       | Action                                                          |
+| --------- | --------------------------------------------------------------- |
+| `,a`      | Toggle between the Inbox and the Archive                        |
+| `Enter`   | Open the chooser (Restore to inbox by default)                  |
+| `j` / `k` | Select the next / previous archive row, banner, or `⋮ more` row |
+| `J` / `K` | Move between the Inbox pulse and the Archive list               |
+| `o`       | Archive grouping picker: day · project · outcome · model        |
+| `l` / `h` | Expand / collapse a container row                               |
+| `m` / `u` | Mark / clear Archive rows (separate from Inbox marks)           |
+| `y`       | Copy the `@agent:` reference                                    |
+| `%`       | Open the **Copy as…** palette                                   |
+| `e`       | Open the chat in `$EDITOR` (read-only)                          |
 
 ### Document Provider Panes
 
 Artifacts includes one document pane per configured artifact-reference provider. The
-fixed tabs are Agent, Stitch, Patch, Bead, and File; provider-backed document tabs such
-as Plan and Research appear between Bead and File when an enabled project configures the
+fixed tabs are Stitch, Patch, Bead, and File; provider-backed document tabs such as Plan
+and Research appear between Bead and File when an enabled project configures the
 matching sidecar `ref:` policy. Persisted selections use stable ids such as `ref:plan`
 and `ref:research`, so a missing provider falls back to Stitch instead of crashing
-startup. Each pane renders an icon before its label — the five fixed marks (`⬡` Agent,
-`◉` Stitch, `⎇` Patch, `◈` Bead, `▤` File) are built in, and a provider pane's mark
-comes from its sidecar `ref.icon`. The active tab's icon takes that pane's accent color;
-inactive icons render dim. A missing `ref.icon`, one that fails validation, or one wider
-than two terminal cells uses the generic `◆` provider icon instead.
+startup. Each pane renders an icon before its label — the four fixed marks (`◉` Stitch,
+`⎇` Patch, `◈` Bead, `▤` File) are built in, and a provider pane's mark comes from its
+sidecar `ref.icon`. The active tab's icon takes that pane's accent color; inactive icons
+render dim. A missing `ref.icon`, one that fails validation, or one wider than two
+terminal cells uses the generic `◆` provider icon instead.
 
 Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
 existing plan actions: `A` and `X` approve or reject pending proposals. A plan's owning

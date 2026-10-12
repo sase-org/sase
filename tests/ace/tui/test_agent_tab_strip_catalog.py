@@ -262,7 +262,7 @@ def test_show_empty_cause_query_hides() -> None:
     assert len(detail.tab_empty) == 1
     title, text = detail.tab_empty[0]
     assert "sase" in title
-    assert "matches elsewhere" in text and "clear" in text.casefold()
+    assert "Archive" in text
 
 
 def test_show_empty_cause_feed_unavailable(

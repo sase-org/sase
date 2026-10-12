@@ -157,7 +157,7 @@ async def test_jump_hint_moves_to_custom_search_without_dismissing() -> None:
         assert modal._current_highlighted_option_id() == "custom-search"
 
         preview = modal.query_one("#saved-agent-group-preview", Static)
-        assert "Custom revival search" in _static_plain(preview)
+        assert "Browse the Archive" in _static_plain(preview)
 
         await pilot.press("enter")
         await pilot.pause()

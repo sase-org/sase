@@ -54,6 +54,21 @@ def handle_pane(args: argparse.Namespace) -> int:
 def _handle_show(args: argparse.Namespace) -> int:
     reset_artifacts_subtabs_cache()
     pane_id = str(getattr(args, "pane_id", "") or "")
+    if pane_id == "agents":
+        from sase.ace.tui._artifact_tab_model import artifacts_agent_pane_retired
+
+        if artifacts_agent_pane_retired():
+            console = Console()
+            console.print(
+                "[bold]Agent history moved to the Agents tab[/] "
+                "[dim](Artifacts ▸ Agent is retired)[/]"
+            )
+            console.print(
+                "Press [bold],a[/] on the Agents tab to open the Archive: "
+                "dismissed runs open read-only in the real decks, and "
+                "[bold]Enter[/] restores one to the Inbox."
+            )
+            return 0
     contract = artifacts_pane_contract(pane_id)
     if contract is None:
         configured = configured_artifacts_pane_ids()

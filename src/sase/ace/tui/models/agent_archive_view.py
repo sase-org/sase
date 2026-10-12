@@ -46,7 +46,6 @@ INTENT_SWITCH_SECTION = "switch_section"
 
 ARCHIVE_STATUS_OPENED = "opened"
 ARCHIVE_STATUS_ALREADY_OPEN = "already_open"
-ARCHIVE_STATUS_DISABLED = "disabled"
 ARCHIVE_STATUS_RETURNED = "returned"
 ARCHIVE_STATUS_ALREADY_INBOX = "already_inbox"
 
@@ -219,14 +218,6 @@ def startup_agents_archive_view_state() -> AgentsArchiveViewState:
     return AgentsArchiveViewState()
 
 
-def agents_archive_view_enabled() -> bool:
-    """Return whether the ``agents_archive_view`` beta flag is enabled."""
-    from sase.feature_flags.registry import FeatureFlag
-    from sase.feature_flags.snapshot import current_flags
-
-    return current_flags().enabled(FeatureFlag.agents_archive_view)
-
-
 def agent_is_archive_read_only(agent: Any) -> bool:
     """Return whether ``agent`` is a hydrated Archive row (live-path guard)."""
     return bool(getattr(agent, "_archive_read_only", False))
@@ -291,7 +282,6 @@ __all__ = [
     "ARCHIVE_ARRIVAL_OWNER",
     "ARCHIVE_STATUS_ALREADY_INBOX",
     "ARCHIVE_STATUS_ALREADY_OPEN",
-    "ARCHIVE_STATUS_DISABLED",
     "ARCHIVE_STATUS_OPENED",
     "ARCHIVE_STATUS_RETURNED",
     "AgentsArchiveViewState",
@@ -303,7 +293,6 @@ __all__ = [
     "ParkedInboxState",
     "ReadOnlyArchiveContext",
     "agent_is_archive_read_only",
-    "agents_archive_view_enabled",
     "capture_detail_owner",
     "detail_owner_is_current",
     "startup_agents_archive_view_state",

@@ -314,26 +314,20 @@ class LinkFollowMixin(
                         )
                     )
                 return
-            agents_tab_fallback = False
             if kind == "agent":
                 if self._follow_loaded_agent(payload):
                     self._record_link_trail(origin)
                     return
-                if self._agents_archive_arrivals_enabled():
-                    from .agents._archive_arrival import open_archive_for_agent
+                from .agents._archive_arrival import open_archive_for_agent
 
-                    open_archive_for_agent(
-                        self,
-                        payload,
-                        source="Not in your inbox",
-                        origin=origin,
-                        return_on_miss=True,
-                    )
-                    return
-                agents_tab_fallback = bool(
-                    getattr(self, "_link_follow_agents_tab_filtered", False)
+                open_archive_for_agent(
+                    self,
+                    payload,
+                    source="Not in your inbox",
+                    origin=origin,
+                    return_on_miss=True,
                 )
-                self._link_follow_agents_tab_filtered = False
+                return
             target = chip.neighbor_target
             if target is None:
                 target = target_for_ref_kind(kind, payload, project_hint=None)
@@ -344,7 +338,6 @@ class LinkFollowMixin(
                 chip.neighbor_ref,
                 target,
                 origin,
-                agents_tab_fallback=agents_tab_fallback,
             )
         finally:
             self._link_trail_guard = False

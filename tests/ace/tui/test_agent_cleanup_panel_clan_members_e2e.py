@@ -189,7 +189,8 @@ async def test_cleanup_panel_kill_and_dismiss_includes_clan_members(
         await page.expect_no_modal()
         await page.wait_for(
             lambda _screen: any(
-                message == "Killed 1 agent and dismissed 1 agent"
+                message.startswith("Killed 1 agent and dismissed 1 agent")
+                and message.endswith("→ ◷ Archive · ,a browse")
                 for message, _severity in notifications
             )
         )

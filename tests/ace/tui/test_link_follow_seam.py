@@ -363,6 +363,15 @@ async def test_files_sync_reports_visible_and_missing(
 async def test_agents_sync_reports_visible_and_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.feature_flags import override_flags
+
+    with override_flags(artifacts_agent_pane_retired=False):
+        await _agents_sync_reports_visible_and_missing(monkeypatch)
+
+
+async def _agents_sync_reports_visible_and_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     rows = (
         make_agent_catalog_row("alpha.1", project="alpha"),
         make_agent_catalog_row("alpha.2", project="alpha"),
@@ -525,6 +534,15 @@ async def test_plans_hydrated_row_becomes_queryable(
 
 
 async def test_agents_hydrated_row_rebuilds_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.feature_flags import override_flags
+
+    with override_flags(artifacts_agent_pane_retired=False):
+        await _agents_hydrated_row_rebuilds_index(monkeypatch)
+
+
+async def _agents_hydrated_row_rebuilds_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     rows = (make_agent_catalog_row("alpha.1", project="alpha"),)

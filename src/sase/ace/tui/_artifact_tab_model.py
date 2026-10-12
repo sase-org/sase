@@ -49,6 +49,19 @@ LEGACY_ARTIFACTS_SUBTABS: dict[str, ArtifactsSubTab] = {
     "chats": DEFAULT_ARTIFACTS_SUBTAB,
 }
 
+
+def artifacts_agent_pane_retired() -> bool:
+    """Return whether the ``artifacts_agent_pane_retired`` sunset flag is on.
+
+    While on, the Artifacts Agent sub-tab is hidden and ``agents`` resolves
+    to the Stitches pane; agent history lives in the Agents tab Archive.
+    """
+    from sase.feature_flags.registry import FeatureFlag
+    from sase.feature_flags.snapshot import current_flags
+
+    return current_flags().enabled(FeatureFlag.artifacts_agent_pane_retired)
+
+
 EXTERNAL_ACCENT = "#FF5F5F"
 ARTIFACTS_ACCENTS: dict[str, str] = {
     "patches": "#00D7AF",

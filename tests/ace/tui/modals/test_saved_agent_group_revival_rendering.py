@@ -24,12 +24,12 @@ from sase.core.agent_group_archive_wire import (
 from .saved_agent_group_revival_modal_test_helpers import _group, _summary
 
 
-def test_custom_search_preview_describes_recent_unscoped_filtering() -> None:
+def test_custom_search_preview_describes_archive_browsing() -> None:
     text = build_saved_group_preview(None).plain
 
-    assert "250 most recent dismissed agents" in text
-    assert "filter them in the next panel" in text
-    assert "scoped" not in text
+    assert "Browse the Archive" in text
+    assert "Press Enter on a run" in text
+    assert "restore it to the Inbox" in text
 
 
 def test_preview_rendering_includes_stable_time_and_status_text() -> None:

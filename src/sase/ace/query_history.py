@@ -58,6 +58,11 @@ def _records_from_wire(raw: Any) -> list[QueryRecord]:
 
 
 def _load_all_panes() -> dict[str, QueryHistoryStacks]:
+    from sase.ace._agents_pane_query_migration import (
+        ensure_agents_pane_queries_migrated,
+    )
+
+    ensure_agents_pane_queries_migrated()
     data = _read_raw()
     if set(data.keys()) <= _LEGACY_KEYS:
         migrated = {

@@ -6,8 +6,6 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from ...models.agent_archive_view import agents_archive_view_enabled
-
 
 @dataclass(frozen=True, slots=True)
 class ArchiveNameCandidate:
@@ -22,8 +20,6 @@ def archive_name_loader_for_owner(
     owner: Any,
 ) -> Callable[[], tuple[ArchiveNameCandidate, ...]] | None:
     """Capture the held corpus only; never compile or warm it here."""
-    if not agents_archive_view_enabled():
-        return None
     controller = getattr(owner, "_agents_archive_controller", None)
     corpus = getattr(controller, "corpus", None)
     profile = getattr(controller, "profile", None)

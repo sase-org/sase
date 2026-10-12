@@ -100,24 +100,17 @@ async def test_warm_reopen_needs_one_corpus_round_trip() -> None:
         assert harness.widget.reveals >= 1
 
 
-async def test_flag_off_routes_nothing_and_paints_nothing() -> None:
+async def test_open_routes_and_paints_without_a_flag() -> None:
     harness = ColumnHarness(history_rows())
     with override_flags():
         harness.note_inbox_applied()
         outcome = open_agents_archive_view(harness.owner)
         await harness.settle()
 
-        assert outcome.status == "disabled"
-        for intent in (
-            INTENT_DOWN,
-            INTENT_UP,
-            INTENT_FIRST,
-            INTENT_LAST,
-            INTENT_EXPAND,
-        ):
-            assert route_archive_key(harness.owner, intent) is False
-        assert harness.widget.paints == []
-        assert harness.corpus.summary_calls == 0
+        assert outcome.status == "opened"
+        assert route_archive_key(harness.owner, INTENT_DOWN) is True
+        assert harness.widget.paints != []
+        assert harness.corpus.summary_calls > 0
 
 
 async def test_keys_fall_through_to_the_inbox_when_it_owns_the_tab() -> None:
@@ -414,7 +407,7 @@ __all__ = [
     "test_scope_token_is_stripped_before_every_corpus_call",
     "test_small_complete_result_opens_every_banner",
     "test_warm_reopen_needs_one_corpus_round_trip",
-    "test_flag_off_routes_nothing_and_paints_nothing",
+    "test_open_routes_and_paints_without_a_flag",
     "test_keys_fall_through_to_the_inbox_when_it_owns_the_tab",
     "test_j_k_g_G_walk_banners_and_rows_without_wrapping",
     "test_navigation_never_touches_inbox_state",

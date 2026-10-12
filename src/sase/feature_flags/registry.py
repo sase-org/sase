@@ -21,17 +21,18 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
-    agents_archive_view = "agents_archive_view"
+    artifacts_agent_pane_retired = "artifacts_agent_pane_retired"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
-    FeatureFlag.agents_archive_view: FeatureFlagDefinition(
-        key=FeatureFlag.agents_archive_view,
-        kind="beta",
+    FeatureFlag.artifacts_agent_pane_retired: FeatureFlagDefinition(
+        key=FeatureFlag.artifacts_agent_pane_retired,
+        kind="sunset",
         description=(
-            "The Agents tab offers a read-only Archive of local dismissed runs."
+            "Artifacts has no Agent sub-tab: Stitch becomes digit 1 and "
+            "agent history lives in the Agents tab Archive."
         ),
-        bead="sase-1ju",
+        bead="sase-1kb",
     ),
 }
 

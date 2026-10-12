@@ -64,7 +64,7 @@ def test_help_archive_box_content() -> None:
     assert "Archive (read-only)" in full
 
 
-def test_archive_help_and_leader_label_are_hidden_with_beta_off() -> None:
+def test_archive_help_and_leader_label_shown_without_flag() -> None:
     from sase.ace.tui.keymaps import load_keymap_registry
     from sase.ace.tui.modals.help_modal.agents_bindings import agents_bindings
     from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
@@ -73,17 +73,13 @@ def test_archive_help_and_leader_label_are_hidden_with_beta_off() -> None:
     footer = KeybindingFooter()
     footer.set_keymap_registry(km)
     with override_flags():
-        assert "Archive (read-only)" not in dict(agents_bindings(km))
-        footer.update_leader_bindings(current_tab="agents")
-        bindings, _mode = footer._last_layout_inputs or ([], None)
-        assert "toggle Archive" not in " ".join(label for _, label in bindings)
-    with override_flags(agents_archive_view=True):
+        assert "Archive (read-only)" in dict(agents_bindings(km))
         footer.update_leader_bindings(current_tab="agents")
         bindings, _mode = footer._last_layout_inputs or ([], None)
         assert "toggle Archive" in " ".join(label for _, label in bindings)
 
 
-def test_toggle_archive_hidden_from_palette_when_beta_off() -> None:
+def test_toggle_archive_available_from_palette_without_flag() -> None:
     from sase.ace.tui.commands import CommandContext, build_command_catalog
     from sase.ace.tui.commands.availability import is_command_available
     from sase.ace.tui.keymaps import load_keymap_registry
@@ -93,12 +89,8 @@ def test_toggle_archive_hidden_from_palette_when_beta_off() -> None:
     }
     context = CommandContext(tab="agents")
     with override_flags():
-        assert not is_command_available(
-            catalog["leader.toggle_agents_archive"], context
-        )
-        assert not is_command_available(catalog["agents.open_archive"], context)
-    with override_flags(agents_archive_view=True):
         assert is_command_available(catalog["leader.toggle_agents_archive"], context)
+        assert is_command_available(catalog["agents.open_archive"], context)
 
 
 def test_command_palette_hides_every_live_only_action_in_archive() -> None:

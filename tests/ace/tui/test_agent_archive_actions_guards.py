@@ -22,9 +22,8 @@ def test_guard_inactive_in_inbox() -> None:
         assert owner.notices == []
 
 
-def test_guard_inactive_when_flag_off() -> None:
+def test_guard_inactive_in_inbox_without_flag() -> None:
     owner = make_owner()
-    open_archive(owner)
     with override_flags():
         assert not archive_ui_active(owner)
         assert guard_archive_live_action(owner, "kill_agent") is False

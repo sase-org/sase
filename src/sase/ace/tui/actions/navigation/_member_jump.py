@@ -269,7 +269,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         *,
         subject: str = "Member",
     ) -> None:
-        """Jump to a current target, or revive a dismissed neighbor."""
+        """Jump to a current target, or open a dismissed neighbor read-only."""
         if target.role != "dismissed":
             if target.role == "neighbor":
                 subject = "Neighbor"
@@ -283,8 +283,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if archive_detail_owns_panel(self):
             return
         dismissed_resolver = getattr(self, "_active_dismissed_agent_objects", None)
-        revive = getattr(self, "_do_revive_agent", None)
-        if not callable(dismissed_resolver) or not callable(revive):
+        if not callable(dismissed_resolver):
             return
         dismissed = next(
             (
@@ -295,18 +294,13 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             None,
         )
         if dismissed is not None:
-            from ...models.agent_archive_view import agents_archive_view_enabled
+            from ..agents._archive_arrival import open_archive_for_agent
 
-            if agents_archive_view_enabled():
-                from ..agents._archive_arrival import open_archive_for_agent
-
-                open_archive_for_agent(
-                    self,
-                    str(getattr(dismissed, "agent_name", "") or ""),
-                    source="Jumped to the dismissed target read-only in the Archive",
-                )
-                return
-            revive(dismissed)
+            open_archive_for_agent(
+                self,
+                str(getattr(dismissed, "agent_name", "") or ""),
+                source="Jumped to the dismissed target read-only in the Archive",
+            )
 
     def _handle_member_jump_key(self, key: str) -> bool:
         """Handle a digit, pending second digit, or pending cancellation.

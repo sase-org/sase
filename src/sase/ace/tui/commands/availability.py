@@ -36,17 +36,11 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if ctx.tab not in spec.tabs:
         return False
     if spec.id == "agents.open_archive":
-        from sase.ace.tui.models.agent_archive_view import agents_archive_view_enabled
-
-        return agents_archive_view_enabled()
+        return True
     if spec.id == "agents.back_to_inbox":
-        from sase.ace.tui.models.agent_archive_view import agents_archive_view_enabled
-
-        return agents_archive_view_enabled() and ctx.agents_archive_active
+        return ctx.agents_archive_active
     if spec.id == "leader.toggle_agents_archive":
-        from sase.ace.tui.models.agent_archive_view import agents_archive_view_enabled
-
-        return agents_archive_view_enabled()
+        return True
     if ctx.agents_archive_active:
         from sase.ace.tui.actions.agents._archive_actions import (
             ARCHIVE_LIVE_ONLY_ACTIONS,

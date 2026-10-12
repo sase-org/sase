@@ -85,7 +85,11 @@ def _plan_test_descriptor() -> Any:
 
 
 def _fast_artifacts_subtabs() -> tuple[Any, ...]:
-    """Expose deterministic Artifacts panes in fast TUI tests."""
+    """Expose deterministic Artifacts panes in fast TUI tests.
+
+    Always includes the Agent pane: fast tests exercise the pane in its
+    flag-off shape regardless of the sunset default.
+    """
     from sase.ace.tui._artifact_tab_descriptors import (
         assign_artifacts_digit_shortcuts,
         fixed_descriptor,

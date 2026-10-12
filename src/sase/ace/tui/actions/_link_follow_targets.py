@@ -42,8 +42,6 @@ class LinkFollowTargetsMixin:
         ref: str,
         chip_target: ArtifactEntryTarget,
         origin: LinkTrailHop,
-        *,
-        agents_tab_fallback: bool = False,
     ) -> None:
         """Resolve and dispatch one artifacts-pane follow to completion.
 
@@ -74,7 +72,6 @@ class LinkFollowTargetsMixin:
             target,
             origin,
             scope_change=scope_change,
-            agents_tab_fallback=agents_tab_fallback,
         )
         state = self._request_artifacts_target(target, generation=generation)
         handle = self._handle_link_follow_outcome  # type: ignore[attr-defined]
@@ -232,10 +229,8 @@ class LinkFollowTargetsMixin:
         not just the visible rows, and reveals through the shared
         prepare/reveal contract so collapsed folds, group banners, and
         panels open around the target. A row the Agents-tab filter hides
-        (``TARGET_FILTERED``) is not revealed here: this returns
-        ``False`` with ``_link_follow_agents_tab_filtered`` set so the
-        caller falls through to the Artifacts ▸ Agent jump and reports
-        the fallback on its outcome. When the reveal machinery itself
+        (``TARGET_FILTERED``) is revealed by replacing the Inbox query
+        with an exact name query. When the reveal machinery itself
         is unavailable, a directly visible row still selects the legacy
         way rather than failing the follow.
         """
@@ -253,21 +248,9 @@ class LinkFollowTargetsMixin:
             return False
         if self._reveal_loaded_agent(match):
             return True
-        if (
-            self._link_follow_agents_tab_filtered
-            and self._agents_archive_arrivals_enabled()
-        ):
+        if self._link_follow_agents_tab_filtered:
             return self._reveal_filtered_loaded_agent(match)
         return self._select_visible_loaded_agent(payload)
-
-    @staticmethod
-    def _agents_archive_arrivals_enabled() -> bool:
-        try:
-            from ..models.agent_archive_view import agents_archive_view_enabled
-
-            return agents_archive_view_enabled()
-        except Exception:
-            return False
 
     def _reveal_filtered_loaded_agent(self, match: Any) -> bool:
         """Replace the Inbox query with an exact name query and reveal *match*."""

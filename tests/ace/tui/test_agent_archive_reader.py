@@ -240,7 +240,7 @@ def test_resolve_bundle_path_prefers_explicit_then_root(tmp_path: Path) -> None:
     assert resolve_archive_bundle_path(row2, tmp_path) == nested
 
 
-def test_member_jump_does_not_revive_while_archive_owns_panel() -> None:
+def test_member_jump_never_revives_while_archive_owns_panel() -> None:
     from sase.ace.tui.actions.navigation._member_jump import MemberJumpNavigationMixin
 
     revived: list[Any] = []
@@ -265,9 +265,9 @@ def test_member_jump_does_not_revive_while_archive_owns_panel() -> None:
     with override_flags(agents_archive_view=True):
         owner._activate_member_jump_target(target)
     assert revived == []
-    with override_flags(agents_archive_view=False):
+    with override_flags():
         owner._activate_member_jump_target(target)
-    assert revived == [dismissed]
+    assert revived == []
 
 
 async def test_hydration_paints_identity_then_agent_and_never_writes(

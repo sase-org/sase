@@ -18,11 +18,9 @@ from ...models.agent_archive_view import (
     AGENTS_VIEW_INBOX,
     ARCHIVE_STATUS_ALREADY_INBOX,
     ARCHIVE_STATUS_ALREADY_OPEN,
-    ARCHIVE_STATUS_DISABLED,
     ARCHIVE_STATUS_OPENED,
     ARCHIVE_STATUS_RETURNED,
     ArchiveViewOutcome,
-    agents_archive_view_enabled,
 )
 from ._archive_view_parking import (
     capture_archive_parking,
@@ -92,13 +90,6 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
 
     Consumed by the query-parking phase; later phases add list hydration.
     """
-    if not agents_archive_view_enabled():
-        state = agents_archive_view_state(owner)
-        return ArchiveViewOutcome(
-            status=ARCHIVE_STATUS_DISABLED,
-            view=state.active_view,
-            generation=state.generation,
-        )
     state = agents_archive_view_state(owner)
     if state.active_view == AGENTS_VIEW_ARCHIVE:
         from ._archive_controller import request_archive_view_load
@@ -140,13 +131,6 @@ def open_agents_archive_view_with_query(
     phases to resolve. Returns a typed outcome so parent routing phases can
     own their toasts and trail hops.
     """
-    if not agents_archive_view_enabled():
-        state = agents_archive_view_state(owner)
-        return ArchiveViewOutcome(
-            status=ARCHIVE_STATUS_DISABLED,
-            view=state.active_view,
-            generation=state.generation,
-        )
     state = agents_archive_view_state(owner)
     if state.active_view != AGENTS_VIEW_ARCHIVE:
         _cancel_open_filter_session(owner)

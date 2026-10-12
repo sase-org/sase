@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import call, patch
 
-from sase.ace.tui.widgets.artifacts.agents_revival import AGENTS_REVIVABLE_QUERY
 from sase.ace.tui.modals import DismissedAgentSelectModal
 from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
@@ -28,14 +27,6 @@ class _ScreenCapture:
 
     def push_screen(self, screen: object, callback: Any = None) -> None:
         self.pushed.append((screen, callback))
-
-
-class _SeedCapturePane:
-    def __init__(self) -> None:
-        self.seeded: list[str] = []
-
-    def apply_seed_query(self, query: str) -> None:
-        self.seeded.append(query)
 
 
 def test_agents_r_opens_saved_group_revival_panel() -> None:
@@ -62,14 +53,12 @@ def test_agents_r_opens_saved_group_revival_panel() -> None:
     assert isinstance(capture.pushed[0][0], SavedAgentGroupRevivalModal)
 
 
-def test_custom_search_result_seeds_artifacts_agent_pane() -> None:
+def test_custom_search_result_opens_agents_archive() -> None:
     app = FakeReviveApp()
     capture = _ScreenCapture()
-    pane = _SeedCapturePane()
+    opened: list[str] = []
     app.app = capture  # type: ignore[attr-defined]
-    app.switched_subtabs: list[str] = []  # type: ignore[attr-defined]
-    app._switch_artifacts_subtab = app.switched_subtabs.append  # type: ignore[attr-defined]
-    app._agents_pane = lambda: pane  # type: ignore[attr-defined]
+    app.action_open_agents_archive = lambda: opened.append("archive")  # type: ignore[attr-defined]
     agent = make_agent()
     app._dismissed_agent_objects = [agent]
     app._dismissed_agents = {agent.identity}
@@ -92,8 +81,7 @@ def test_custom_search_result_seeds_artifacts_agent_pane() -> None:
     callback(SavedAgentGroupRevivalResult(action="custom_search"))
 
     assert len(capture.pushed) == 1
-    assert app.switched_subtabs == ["agents"]  # type: ignore[attr-defined]
-    assert pane.seeded == [AGENTS_REVIVABLE_QUERY]
+    assert opened == ["archive"]
 
 
 def test_custom_search_pages_global_archive_and_revives_without_scope() -> None:

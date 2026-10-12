@@ -333,7 +333,7 @@ def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
         if descriptor.digit_shortcut is not None
     }
 
-    assert expected_digits["1"] == "agents"
+    assert expected_digits["1"] == "stitches"
     assert {
         by_action[f"show_artifacts_digit({digit})"].key: subtab
         for digit, subtab in expected_digits.items()

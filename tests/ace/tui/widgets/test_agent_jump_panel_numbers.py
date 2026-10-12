@@ -104,9 +104,16 @@ def test_panel_neighbor_number_lands() -> None:
     _press_each_number(app, container, jump_map)
 
 
-def test_panel_dismissed_number_revives() -> None:
+def test_panel_dismissed_number_opens_archive(monkeypatch: Any) -> None:
+    from sase.ace.tui.actions.agents import _archive_arrival
     from sase.ace.tui.widgets._agent_jump_legend import JumpLegendRenderable
 
+    arrivals: list[str] = []
+    monkeypatch.setattr(
+        _archive_arrival,
+        "open_archive_for_agent",
+        lambda _owner, name, **_kwargs: arrivals.append(name),
+    )
     container = make_nav_agent("foo")
     dismissed = make_nav_agent("foo.scratch")
     app = JumpHarness([container], container)
@@ -137,10 +144,11 @@ def test_panel_dismissed_number_revives() -> None:
     app._member_jump_maps[container.identity] = jump_map
 
     rendered = renderable_to_text(JumpLegendRenderable(jump_map, mode="0"))
-    assert rendered and "revive" in rendered
+    assert rendered and "archive" in rendered
 
     assert app._handle_member_jump_key("0") is True
-    assert app.revived_agents == [dismissed]
+    assert arrivals == [dismissed.agent_name]
+    assert app.revived_agents == []
     assert app._agents[app.current_idx].identity == container.identity
     assert app.notifications == []
 

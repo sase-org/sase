@@ -107,7 +107,7 @@ def _build_cell(
     *,
     bucket: str | None,
     dismissed: bool,
-    show_revive: bool,
+    show_archive_hint: bool,
 ) -> Text:
     """Build one legend cell matching the roster row styling."""
     cell = Text()
@@ -134,8 +134,8 @@ def _build_cell(
             if glyph:
                 cell.append(" ")
                 cell.append(glyph, style=member_status_style(bucket))
-    if show_revive and dismissed:
-        cell.append(" revive", style=_DIM_STYLE)
+    if show_archive_hint and dismissed:
+        cell.append(" archive", style=_DIM_STYLE)
     return cell
 
 
@@ -299,7 +299,7 @@ class JumpLegendRenderable:
                 target.label,
                 bucket=target.status_bucket,
                 dismissed=target.role == "dismissed",
-                show_revive=True,
+                show_archive_hint=True,
             )
             for index, target in matches
         ]
@@ -358,7 +358,7 @@ class JumpLegendRenderable:
                 _truncate_middle(target.label, max(1, width - 4)),
                 bucket=target.status_bucket,
                 dismissed=target.role == "dismissed",
-                show_revive=False,
+                show_archive_hint=False,
             )
             clamped = cell.copy()
             clamped.truncate(max(1, width))
@@ -378,7 +378,7 @@ class JumpLegendRenderable:
                     labels[index],
                     bucket=target.status_bucket,
                     dismissed=target.role == "dismissed",
-                    show_revive=False,
+                    show_archive_hint=False,
                 )
             )
         if overflow:
@@ -425,7 +425,7 @@ def _largest_collapsed_columns(
                     labels[index],
                     bucket=target.status_bucket,
                     dismissed=target.role == "dismissed",
-                    show_revive=False,
+                    show_archive_hint=False,
                 )
             )
         if overflow:

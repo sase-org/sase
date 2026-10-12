@@ -54,7 +54,6 @@ class RevealOutcome:
     scope_change: tuple[str | None, str | None] | None
     context_label: str | None
     hydrated: bool = False
-    agents_tab_fallback: bool = False
     outcome: str = "context"
 
 

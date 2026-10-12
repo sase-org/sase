@@ -95,12 +95,9 @@ class _AgentArchiveColumnMixin:
 
     def action_open_agents_archive(self) -> None:
         """Open Agents Archive, switching to Agents when needed."""
-        from ...models.agent_archive_view import agents_archive_view_enabled
         from ._archive_view import open_agents_archive_view
         from ._display_helpers import agents_archive_is_active
 
-        if not agents_archive_view_enabled():
-            return
         opening = not agents_archive_is_active(self)
         capture = getattr(self, "_current_link_trail_origin", None)
         origin = capture() if opening and callable(capture) else None
@@ -140,12 +137,9 @@ class _AgentArchiveColumnMixin:
 
     def action_toggle_agents_archive(self) -> None:
         """Open Archive from another tab, or toggle the Agents view in place."""
-        from ...models.agent_archive_view import agents_archive_view_enabled
         from ._archive_view import close_agents_archive_view, open_agents_archive_view
         from ._display_helpers import agents_archive_is_active
 
-        if not agents_archive_view_enabled():
-            return
         if getattr(self, "current_tab", None) != "agents":
             self.action_open_agents_archive()
         elif agents_archive_is_active(self):

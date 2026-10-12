@@ -12,8 +12,8 @@ tests prove the mounted wiring:
 - Archive marks render and the footer syncs (action-boundary #6/#7)
 - deck splits survive an Archive round trip (parking-and-import #1)
 
-The closing test pins the beta-off contract: with the flag off the Archive
-never mounts and every guard passes through to the Inbox.
+The closing test pins the unconditional contract: with no flag the Archive
+opens on `,a` and every Inbox guard still passes through.
 """
 
 from __future__ import annotations
@@ -42,7 +42,10 @@ from sase.ace.tui.actions.agents._archive_view import (
     open_agents_archive_view,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_archive_view import AGENTS_VIEW_INBOX
+from sase.ace.tui.models.agent_archive_view import (
+    AGENTS_VIEW_ARCHIVE,
+    AGENTS_VIEW_INBOX,
+)
 from sase.ace.tui.widgets.agents_archive import ArchiveList
 from sase.feature_flags import override_flags
 from tests.ace.tui._agent_archive_column_helpers import (
@@ -317,10 +320,10 @@ async def test_mounted_deck_splits_survive_archive_round_trip(
             assert (after_state.layout, repr(after_state.grid)) == inside
 
 
-async def test_mounted_beta_off_guards_leave_inbox_intact(
+async def test_mounted_guards_pass_through_and_toggle_opens_archive(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With the beta off the Archive never mounts and guards pass through."""
+    """With no flag the Inbox guards pass through and `,a` opens the Archive."""
     patch_startup_loaders(
         monkeypatch, agents=[_inbox_agent("inbox.zero"), _inbox_agent("inbox.one")]
     )
@@ -329,7 +332,6 @@ async def test_mounted_beta_off_guards_leave_inbox_intact(
             await wait_for_startup(page)
             app = page.app
 
-            assert open_agents_archive_view(app).status == "disabled"
             assert guard_archive_live_action(app, "kill_agent") is False
             assert toggle_archive_mark(app) is False
             assert archive_read_target(app) is None
@@ -343,7 +345,7 @@ async def test_mounted_beta_off_guards_leave_inbox_intact(
             await page.press("comma")
             await page.press("a")
             await page.pause()
-            assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+            assert app._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
 
 
 async def test_quitting_from_archive_persists_inbox_query_and_grouping(

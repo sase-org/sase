@@ -383,6 +383,15 @@ async def test_matrix_agent_hood_via_links_panel(
 ) -> None:
     """Agent hood context reached through the Links-panel chip entry point."""
 
+    from sase.feature_flags import override_flags
+
+    with override_flags(artifacts_agent_pane_retired=False):
+        await _matrix_agent_hood_via_links_panel(monkeypatch)
+
+
+async def _matrix_agent_hood_via_links_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from sase.ace.testing import AcePage
     from sase.ace.tui.widgets.artifacts import agents_pane
     from sase.ace.tui.widgets.artifacts.agents_pane import ArtifactsAgentsPane

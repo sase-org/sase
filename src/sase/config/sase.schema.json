@@ -6034,10 +6034,11 @@
         "type": "boolean"
       },
       "properties": {
-        "agents_archive_view": {
+        "artifacts_agent_pane_retired": {
           "type": "boolean",
-          "description": "The Agents tab offers a read-only Archive of local dismissed runs.",
-          "default": false
+          "description": "Artifacts has no Agent sub-tab: Stitch becomes digit 1 and agent history lives in the Agents tab Archive.",
+          "default": true,
+          "deprecated": true
         }
       }
     }

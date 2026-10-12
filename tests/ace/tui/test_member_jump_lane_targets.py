@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sase.feature_flags import override_flags
 
 from ._member_jump_navigation_helpers import (
@@ -51,7 +53,11 @@ def test_agent_session_lane_digit_ladder_addresses_members_then_neighbors() -> N
     assert app._agents[app.current_idx].identity == neighbor.identity
 
 
-def test_dismissed_neighbor_digit_revives_instead_of_jumping() -> None:
+def test_dismissed_neighbor_digit_opens_archive_instead_of_reviving(
+    monkeypatch: Any,
+) -> None:
+    from sase.ace.tui.actions.agents import _archive_arrival
+
     container = make_agent("foo")
     dismissed = make_agent("foo.scratch")
     app = JumpHarness([container], container)
@@ -61,10 +67,17 @@ def test_dismissed_neighbor_digit_revives_instead_of_jumping() -> None:
         container,
         [(dismissed, "dismissed")],
     )
+    arrivals: list[str] = []
+    monkeypatch.setattr(
+        _archive_arrival,
+        "open_archive_for_agent",
+        lambda _owner, name, **_kwargs: arrivals.append(name),
+    )
 
     assert app._handle_member_jump_key("0") is True
 
-    assert app.revived_agents == [dismissed]
+    assert arrivals == [dismissed.agent_name]
+    assert app.revived_agents == []
     assert app._agents[app.current_idx].identity == container.identity
 
 

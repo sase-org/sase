@@ -20,6 +20,13 @@ from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
 
 async def test_agents_pane_mounts_activates_and_loads() -> None:
+    from sase.feature_flags import override_flags
+
+    with override_flags(artifacts_agent_pane_retired=False):
+        await _agents_pane_mounts_activates_and_loads()
+
+
+async def _agents_pane_mounts_activates_and_loads() -> None:
     async with AcePage(initial_tab="patches", startup_policy="real") as page:
         await page.press(page.artifacts_digit("agents"))
 

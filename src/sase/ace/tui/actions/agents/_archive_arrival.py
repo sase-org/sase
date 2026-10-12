@@ -60,14 +60,11 @@ def open_archive_for_agent(
     pump-free worker. The caller may supply a link-trail origin; it is added
     only after the controller confirms the row (or its workflow owner).
     """
-    from ...models.agent_archive_view import agents_archive_view_enabled
     from ._archive_view import (
         close_agents_archive_view,
         open_agents_archive_view_with_query,
     )
 
-    if not agents_archive_view_enabled():
-        return False
     if origin is None:
         capture = getattr(owner, "_current_link_trail_origin", None)
         origin = capture() if callable(capture) else None
@@ -133,12 +130,9 @@ def open_archive_for_archived_row(
     source: str,
 ) -> bool:
     """Open the Archive and reveal the exact selected light row."""
-    from ...models.agent_archive_view import agents_archive_view_enabled
     from ...models.agent_archive_list import archive_row_key
     from ._archive_view import open_agents_archive_view_with_query
 
-    if not agents_archive_view_enabled():
-        return False
     _switch_to_agents(owner)
     outcome = open_agents_archive_view_with_query(
         owner,

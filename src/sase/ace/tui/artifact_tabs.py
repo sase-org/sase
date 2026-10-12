@@ -51,6 +51,7 @@ from ._artifact_tab_model import (
     FilesSubTab,
     PaneCapability,
     PaneDeclaredFacts,
+    artifacts_agent_pane_retired,
 )
 
 log = logging.getLogger(__name__)
@@ -87,12 +88,14 @@ def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
     The first lookup after process start or explicit cache reset performs a
     real discovery pass. Later lookups serve the last known descriptors
     immediately; when the provider source token changes, a daemon thread
-    rebuilds the descriptors and publishes them for a later call.
+    rebuilds the descriptors and publishes them for a later call. The
+    cache key includes the Agent pane retirement flag so both sunset
+    states resolve deterministically in one process.
     """
 
     global _ARTIFACTS_TAB_CACHE
     token = provider_source_token()
-    cache_token = None if token is None else token
+    cache_token = None if token is None else (artifacts_agent_pane_retired(), token)
     with _ARTIFACTS_TAB_REFRESH_LOCK:
         cached = _ARTIFACTS_TAB_CACHE
         cache_epoch = _ARTIFACTS_TAB_CACHE_EPOCH
@@ -115,12 +118,19 @@ def _build_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
 
     loaded = load_project_provider_records(project=None)
     providers = provider_descriptors(loaded.records, loaded.issues)
-    return assign_artifacts_digit_shortcuts(
-        (
-            fixed_descriptor("agents"),
+    fixed: list[ArtifactsTabDescriptor] = []
+    if not artifacts_agent_pane_retired():
+        fixed.append(fixed_descriptor("agents"))
+    fixed.extend(
+        [
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
+        ]
+    )
+    return assign_artifacts_digit_shortcuts(
+        (
+            *fixed,
             *providers,
             fixed_descriptor("files"),
         )
@@ -335,6 +345,10 @@ def normalize_artifacts_subtab(value: str) -> ArtifactsSubTab:
     configured = {descriptor.id for descriptor in resolve_artifacts_subtabs()}
     if canonical in configured:
         return canonical
+    if canonical == "agents" and artifacts_agent_pane_retired():
+        # The retired Agent pane follows the Chats precedent: stale
+        # references land on Stitch instead of a missing descriptor.
+        return DEFAULT_ARTIFACTS_SUBTAB
     return DEFAULT_ARTIFACTS_SUBTAB
 
 
@@ -402,6 +416,7 @@ __all__ = [
     "FilesSubTab",
     "PaneCapability",
     "PaneDeclaredFacts",
+    "artifacts_agent_pane_retired",
     "artifacts_pane_contract",
     "artifacts_pane_key",
     "artifacts_provider_diagnostics",

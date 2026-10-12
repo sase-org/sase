@@ -129,7 +129,6 @@ def test_optional_scope_fetched_and_fallback_lines() -> None:
         scope_change=("sase", None),
         context_label="sase · 2026-09-01",
         hydrated=True,
-        agents_tab_fallback=False,
         outcome="context",
     )
     title, message = format_reveal_toast(
@@ -193,26 +192,6 @@ def test_live_reveal_toast_resolves_scope_through_project_choices() -> None:
 
     assert len(notifications) == 1
     assert "scope  sase → All projects" in notifications[0]
-
-
-def test_agents_tab_fallback_line() -> None:
-    outcome = RevealOutcome(
-        pane_label="Agent",
-        ref="agent:hidden-agent",
-        old_canonical="status:open",
-        new_canonical="name:hidden-agent",
-        hidden=HiddenReason(kind="filtered", terms=("status:open",)),
-        scope_change=None,
-        context_label="agent hidden-agent",
-        hydrated=False,
-        agents_tab_fallback=True,
-        outcome="identity",
-    )
-    _, message = format_reveal_toast(
-        outcome, restore_key="^", back_key="Ctrl+O", accent="#0062FF"
-    )
-    assert "Agents tab filter hides it — showing Artifacts ▸ Agent" in message
-    _assert_valid_markup(message)
 
 
 def test_unknown_keys_are_dropped_never_guessed() -> None:

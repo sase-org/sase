@@ -312,25 +312,35 @@ def test_files_open_agent_selects_live_match() -> None:
     assert app.notifications == []
 
 
-def test_files_open_agent_revives_dismissed_match_once() -> None:
+def test_files_open_agent_routes_dismissed_match_to_archive(
+    monkeypatch,
+) -> None:
+    from sase.ace.tui.actions.agents import _archive_arrival
+
     entry = artifact_file(
         "dismissed",
         agent_artifacts_dir="/tmp/projects/alpha/artifacts/code/20260729020202",
     )
     dismissed = _agent(entry, identity="old")
-    reloaded = _agent(entry, identity="new")
     app = _FakeApp(_pane(entry, modes=("text",)))
     app._dismissed_agent_objects = [dismissed]
     app._dismissed_agents = {dismissed.identity}
-    app.reloaded_agent = reloaded
+    arrivals: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        _archive_arrival,
+        "open_archive_for_agent",
+        lambda _owner, name, *, source, **_kwargs: arrivals.append((name, source)),
+    )
 
     app.action_files_open_agent()
 
-    assert app.revived == [dismissed]
-    assert app.current_tab == "agents"
-    assert app.current_idx == 0
-    assert app._agents[app.current_idx] is reloaded
-    assert app.notifications == []
+    assert arrivals == [
+        (
+            dismissed.agent_name,
+            "Opened the dismissed file owner read-only in the Archive",
+        )
+    ]
+    assert app.revived == []
 
 
 def test_files_open_agent_routes_dismissed_match_to_archive_when_enabled(

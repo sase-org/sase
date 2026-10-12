@@ -7,7 +7,7 @@ from typing import Any
 
 _TEST_MODULES = {
     "test_guard_inactive_in_inbox": "test_agent_archive_actions_guards",
-    "test_guard_inactive_when_flag_off": "test_agent_archive_actions_guards",
+    "test_guard_inactive_in_inbox_without_flag": "test_agent_archive_actions_guards",
     "test_each_live_only_key_family_guarded": "test_agent_archive_actions_guards",
     "test_tab_and_tribe_guard_messages": "test_agent_archive_actions_guards",
     "test_live_guard_names_archived_row": "test_agent_archive_actions_guards",
@@ -48,10 +48,10 @@ _TEST_MODULES = {
     ),
     "test_availability_untouched_in_inbox": "test_agent_archive_actions_availability",
     "test_help_archive_box_content": "test_agent_archive_actions_availability",
-    "test_archive_help_and_leader_label_are_hidden_with_beta_off": (
+    "test_archive_help_and_leader_label_shown_without_flag": (
         "test_agent_archive_actions_availability"
     ),
-    "test_toggle_archive_hidden_from_palette_when_beta_off": (
+    "test_toggle_archive_available_from_palette_without_flag": (
         "test_agent_archive_actions_availability"
     ),
     "test_command_palette_hides_every_live_only_action_in_archive": (

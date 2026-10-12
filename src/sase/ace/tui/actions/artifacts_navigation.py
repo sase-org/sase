@@ -487,6 +487,18 @@ class ArtifactsNavigationActionsMixin:
         self._switch_artifacts_subtab("beads")
 
     def action_show_artifacts_agents(self) -> None:
+        """Open the retired Agent pane, or the Agents tab Archive after retirement."""
+        from .._artifact_tab_model import artifacts_agent_pane_retired
+
+        if artifacts_agent_pane_retired():
+            opener = getattr(self, "action_open_agents_archive", None)
+            if callable(opener):
+                opener()
+                return
+            from .agents._archive_view import open_agents_archive_view
+
+            open_agents_archive_view(self)
+            return
         self._switch_artifacts_subtab("agents")
 
     def action_show_artifacts_files(self) -> None:

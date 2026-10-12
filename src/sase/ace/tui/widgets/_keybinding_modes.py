@@ -463,10 +463,7 @@ class KeybindingModesMixin:
         bindings.append((k("agent_home"), "agent (home)"))
         if current_tab in ("artifacts", "agents"):
             bindings.append((k("agent_from_cl"), "run agent (PR)"))
-        from ..models.agent_archive_view import agents_archive_view_enabled
-
-        if agents_archive_view_enabled():
-            bindings.append((k("toggle_agents_archive"), "toggle Archive"))
+        bindings.append((k("toggle_agents_archive"), "toggle Archive"))
         if current_tab == "agents":
             bindings.append((k("collapse_fold_by_hint"), "collapse by hint"))
             if has_stopped_agent:

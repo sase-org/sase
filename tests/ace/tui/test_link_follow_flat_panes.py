@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.artifacts.files_data import FilesSnapshot
 from sase.ace.tui.widgets.artifacts.files_filtering import parse_files_filter_query
 from sase.ace.tui.widgets.artifacts.files_navigation import FilesNavigationMixin
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
+from sase.feature_flags import override_flags
 from tests._agent_catalog_helpers import make_agent_catalog_row
 from tests.ace.tui._artifacts_files_helpers import (
     artifact_file,
@@ -96,6 +97,13 @@ async def _open_files(
 async def test_agent_hood_context_from_filtered_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    with override_flags(artifacts_agent_pane_retired=False):
+        await _agent_hood_context_from_filtered_state(monkeypatch)
+
+
+async def _agent_hood_context_from_filtered_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async with AcePage(initial_tab="patches") as page:
         pane = await _open_agents(page, monkeypatch, _agent_rows())
         before = ArtifactEntryTarget("agents", ("other",))
@@ -130,6 +138,13 @@ async def test_agent_hood_context_from_filtered_state(
 
 
 async def test_agent_limit_raised_by_member_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with override_flags(artifacts_agent_pane_retired=False):
+        await _agent_limit_raised_by_member_count(monkeypatch)
+
+
+async def _agent_limit_raised_by_member_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async with AcePage(initial_tab="patches") as page:
@@ -326,7 +341,7 @@ def test_agents_tab_folded_agent_revealed_in_place() -> None:
     assert app._link_follow_agents_tab_filtered is False
 
 
-def test_agents_tab_filtered_agent_reports_fallback() -> None:
+def test_agents_tab_filtered_agent_reveals_in_place_with_toast() -> None:
     first = make_agent("atlas.1")
     second = make_agent("atlas.2")
     app = _LoadedAgentHarness([first, second], first)
@@ -338,12 +353,16 @@ def test_agents_tab_filtered_agent_reports_fallback() -> None:
         merge_tribe_panels=app._agent_panels_grouped,
     )
 
-    assert app._follow_loaded_agent("atlas.1") is False
+    assert app._follow_loaded_agent("atlas.1") is True
     assert app._link_follow_agents_tab_filtered is True
     assert app.current_tab == "agents"
+    assert app._agents[app.current_idx].agent_name == "atlas.1"
+    assert app.notifications == [
+        'The inbox filter hid it — showing name:"atlas.1" · ^ restores your filter'
+    ]
 
 
-def test_agents_tab_fallback_reaches_reveal_outcome() -> None:
+def test_agents_pane_follow_reaches_reveal_outcome() -> None:
     target = ArtifactEntryTarget("agents", ("builder",))
     pane = _Pane(targets=(target,), selected=None, query="name:other")
     app = _App(
@@ -361,10 +380,8 @@ def test_agents_tab_fallback_reaches_reveal_outcome() -> None:
     app._build_reveal_outcome = capture  # type: ignore[method-assign]
     app._link_trail_guard = False
     origin = app._current_link_trail_origin()
-    app._follow_artifacts_target(
-        "agent:builder", target, origin, agents_tab_fallback=True
-    )
+    app._follow_artifacts_target("agent:builder", target, origin)
 
     assert app._link_follow_transaction is None
     assert pane.selected_entry_target() == target
-    assert seen["outcome"].agents_tab_fallback is True
+    assert not hasattr(seen["outcome"], "agents_tab_fallback")

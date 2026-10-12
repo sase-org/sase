@@ -49,6 +49,26 @@ class StartupLoadsMaintenanceMixin:
             timeout=15.0,
         )
 
+    def _maybe_show_artifacts_agent_pane_toast(self: Any) -> None:
+        """Show the Artifacts Agent pane retirement notice once, ever."""
+        from .._artifact_tab_model import artifacts_agent_pane_retired
+        from .._artifacts_agent_pane_notice import (
+            has_shown_artifacts_agent_pane_notice,
+            mark_artifacts_agent_pane_notice_shown,
+        )
+
+        if has_shown_artifacts_agent_pane_notice():
+            return
+        mark_artifacts_agent_pane_notice_shown()
+        if not artifacts_agent_pane_retired():
+            return
+        self.notify(
+            "Agent history moved to the Agents tab · ,a opens the Archive",
+            title="Artifacts Agent pane retired",
+            severity="information",
+            timeout=15.0,
+        )
+
     def _maybe_show_keymap_unification_toast(self: Any) -> None:
         """Show the sase-m6.9 ``y``/``R`` flip notice once, ever."""
         from .._keymap_unification_notice import (
@@ -131,6 +151,10 @@ class StartupLoadsMaintenanceMixin:
                 self._maybe_show_agent_decks_toast()
             except Exception:
                 log.debug("Failed to show agent decks toast", exc_info=True)
+            try:
+                self._maybe_show_artifacts_agent_pane_toast()
+            except Exception:
+                log.debug("Failed to show artifacts agent pane toast", exc_info=True)
         try:
             schedule_usage_refresh = getattr(
                 self, "_schedule_usage_refresh_fallback", None

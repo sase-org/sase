@@ -59,6 +59,11 @@ def _is_legacy_shape(data: dict[str, Any]) -> bool:
 
 
 def _load_all_panes() -> dict[str, dict[str, QueryRecord]]:
+    from sase.ace._agents_pane_query_migration import (
+        ensure_agents_pane_queries_migrated,
+    )
+
+    ensure_agents_pane_queries_migrated()
     data = _read_raw()
     if _is_legacy_shape(data):
         migrated = {

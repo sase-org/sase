@@ -107,7 +107,7 @@ def test_saved_query_picker_and_slots_follow_query_pane_capability() -> None:
     slot = catalog["saved_query.3"]
 
     for spec in (picker, slot):
-        for subtab in ("patches", "stitches", "beads", "agents", "files"):
+        for subtab in ("patches", "stitches", "beads", "files"):
             assert is_command_available(
                 spec,
                 CommandContext(
@@ -115,6 +115,14 @@ def test_saved_query_picker_and_slots_follow_query_pane_capability() -> None:
                     artifacts_subtab=subtab,
                 ),  # legacy tab id
             )
+        # The retired Agent pane keeps no saved-query capability.
+        assert not is_command_available(
+            spec,
+            CommandContext(
+                tab="changespecs",
+                artifacts_subtab="agents",
+            ),
+        )
         assert not is_command_available(spec, CommandContext(tab="agents"))
         assert is_command_available(
             spec,
@@ -128,7 +136,7 @@ def test_saved_query_slot_mode_command_follows_query_pane_capability() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.start_saved_query_mode"]
 
-    for subtab in ("patches", "stitches", "beads", "agents", "files"):
+    for subtab in ("patches", "stitches", "beads", "files"):
         assert is_command_available(
             spec,
             CommandContext(
@@ -136,6 +144,14 @@ def test_saved_query_slot_mode_command_follows_query_pane_capability() -> None:
                 artifacts_subtab=subtab,
             ),  # legacy tab id
         )
+    # The retired Agent pane keeps no saved-query capability.
+    assert not is_command_available(
+        spec,
+        CommandContext(
+            tab="changespecs",
+            artifacts_subtab="agents",
+        ),
+    )
     assert not is_command_available(spec, CommandContext(tab="agents"))
     assert is_command_available(
         spec,

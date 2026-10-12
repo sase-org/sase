@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sase.ace.query_history import QueryHistoryStacks
 from sase.ace.query_profile import (
     beads_query_schema,
@@ -160,13 +162,14 @@ def test_follow_uses_context_before_identity() -> None:
     assert _link_follow_outcomes["context"] == 1
 
 
-def test_follow_uses_limit_all_when_no_context_or_identity() -> None:
+def test_follow_routes_unloaded_agent_to_archive(monkeypatch: Any) -> None:
+    from sase.ace.tui.actions.agents import _archive_arrival
+
     origin = ArtifactEntryTarget("files", ("origin.txt",))
-    selected = ArtifactEntryTarget("agents", ("builder",))
     target = ArtifactEntryTarget("agents", ("hidden",))
     pane = _Pane(
-        targets=(selected,),
-        selected=selected,
+        targets=(target,),
+        selected=target,
         query="status:RUNNING AND name:hidden",
         target_after_limit=target,
         probe=_Probe({}),
@@ -178,12 +181,19 @@ def test_follow_uses_limit_all_when_no_context_or_identity() -> None:
             "files": _Pane(targets=(origin,), selected=origin),
             "agents": pane,
         },
+        agents=(),
+    )
+    arrivals: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        _archive_arrival,
+        "open_archive_for_agent",
+        lambda _owner, name, **kwargs: arrivals.append((name, kwargs.get("source"))),
     )
 
     app._follow_link_number(1)
 
-    assert pane.applied_queries == [("limit:all", True)]
-    assert pane.selected_entry_target() == target
+    assert arrivals == [("hidden", "Not in your inbox")]
+    assert pane.applied_queries == []
 
 
 def test_follow_records_exactly_one_history_entry_for_context_rewrite() -> None:

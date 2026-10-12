@@ -16,7 +16,6 @@ from ...models.agent_archive_view import (
     AGENTS_VIEW_ARCHIVE,
     AgentsArchiveViewState,
     DetailOwnership,
-    agents_archive_view_enabled,
     capture_detail_owner,
     detail_owner_is_current,
     startup_agents_archive_view_state,
@@ -67,12 +66,8 @@ def _agents_view_is_archive(owner: Any) -> bool:
 
 
 def archive_detail_owns_panel(owner: Any) -> bool:
-    """Return whether the Archive owns the shared detail panel.
-
-    With the beta off this is always False, so Inbox rendering stays
-    byte-identical to today.
-    """
-    return agents_archive_view_enabled() and _agents_view_is_archive(owner)
+    """Return whether the Archive owns the shared detail panel."""
+    return _agents_view_is_archive(owner)
 
 
 def agents_inbox_detail_allowed(owner: Any) -> bool:

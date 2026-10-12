@@ -43,12 +43,12 @@ from CLI search and day-to-day sase's TUI/axe scans. Views that are specifically
 agent history or old artifacts opt into all project lifecycle states explicitly.
 
 This page documents Patch queries. Agent filtering uses the shared Boolean profile
-dialect instead: the top-level Agents tab uses the live `agents-live` profile, while
-Artifacts -> Agent and the default `sase agent search` path use the catalog profile. The
-CLI's `in:archive` path uses `agents-archive` against the compiled archive corpus. The
-live profile includes operational fields such as `machine`, `pinned`, `unread`, `needs`,
-and `source`; the archive profile adds `outcome`, `restorable`, `tab`, `clan_tribe`, and
-archive link facets. See [sase's TUI: Agent Pane](ace.md#agent-pane) and
+dialect instead: the top-level Agents tab uses the live `agents-live` profile, while the
+default `sase agent search` path uses the catalog profile. The CLI's `in:archive` path
+uses `agents-archive` against the compiled archive corpus. The live profile includes
+operational fields such as `machine`, `pinned`, `unread`, `needs`, and `source`; the
+archive profile adds `outcome`, `restorable`, `tab`, `clan_tribe`, and archive link
+facets. See [sase's TUI: Archive](ace.md#archive-agents-tab) and
 [sase's TUI: Agent Search](ace.md#agent-search).
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
@@ -61,11 +61,11 @@ predicates, and shorthands — and, while the row is empty, saved-query slots. A
 `#` saves or deletes a slot without changing the active query; see
 [sase's TUI: Editing Queries](ace.md#editing-queries).
 
-Agent, Stitches, Beads, Plans, Files, and document-provider panes use the same idle
-chrome -- the committed query stays visible without opening an editor -- but each pane
-has its own query profile and previews against **that pane's** loaded snapshot, not the
-Patch snapshot. `/` still focuses the row (as does the pane-local `f`, except on
-Artifacts -> Agent); the tokens you can type are documented per pane in
+Stitches, Beads, Plans, Files, and document-provider panes use the same idle chrome --
+the committed query stays visible without opening an editor -- but each pane has its own
+query profile and previews against **that pane's** loaded snapshot, not the Patch
+snapshot. `/` still focuses the row (as does the pane-local `f`); the tokens you can
+type are documented per pane in
 [sase's TUI Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans). The
 top-level Agents tab hides its filter bar when idle; press `/` or `f` to edit the live
 Agent query there. `,/` searches the selected agent's metadata and does not edit the

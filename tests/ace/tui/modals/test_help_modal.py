@@ -61,7 +61,8 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     # Loose balance guard: a better split point would move the right column's
     # first section and re-baseline the help keymap PNG goldens, so tolerate the
     # small drift that new right-column rows (e.g. General) add over time.
-    assert abs(len(left.splitlines()) - len(right.splitlines())) < 51
+    # The retired Agent Pane section trimmed the left column (sase-1jm.8).
+    assert abs(len(left.splitlines()) - len(right.splitlines())) <= 51
 
     modal.refresh_for_tab("agents", active_query=None)
 

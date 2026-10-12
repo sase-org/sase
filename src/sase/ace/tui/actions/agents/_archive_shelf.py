@@ -13,7 +13,6 @@ from ...models.agent_archive_controller import (
     AgentsArchiveControllerState,
 )
 from ...models.agent_archive_list import archive_timezone
-from ...models.agent_archive_view import agents_archive_view_enabled
 from ...util.pump_tasks import spawn_pump_free_task
 
 log = logging.getLogger(__name__)
@@ -125,9 +124,6 @@ def _compute_shelf_snapshot(
 
 def request_archive_shelf_refresh(owner: Any) -> None:
     """Refresh committed-filter counts from the warm corpus off-thread."""
-    if not agents_archive_view_enabled():
-        _sync_widget(owner)
-        return
     state = _controller(owner)
     if state is None:
         return
@@ -193,7 +189,7 @@ def _sync_widget(owner: Any) -> None:
         widget.set_snapshot(
             archive_shelf_snapshot(owner),
             inbox_empty=not bool(getattr(owner, "_agents", ()) or ()),
-            enabled=agents_archive_view_enabled(),
+            enabled=True,
         )
     except Exception:
         # The controller can prewarm before the laid-out TUI widgets mount.
@@ -241,8 +237,6 @@ def _row_name(row: Mapping[str, Any]) -> str:
 
 def activate_archive_shelf(owner: Any) -> bool:
     """Open the parked Archive, carrying an answerable Inbox filter."""
-    if not agents_archive_view_enabled():
-        return False
     owner._agent_archive_shelf_focused = False
     try:
         owner.query_one("#agent-archive-shelf").remove_class("-focused")
@@ -265,16 +259,13 @@ def activate_archive_shelf(owner: Any) -> bool:
 
 
 def archive_dismissal_toast_suffix(owner: Any) -> str:
-    """Return the conditional Archive pointer appended to dismissal toasts."""
-    return " → ◷ Archive · ,a browse" if agents_archive_view_enabled() else ""
+    """Return the Archive pointer appended to dismissal toasts."""
+    return " → ◷ Archive · ,a browse"
 
 
 def route_archive_shelf_focus(owner: Any, *, forward: bool) -> bool:
     """Route J/K to and from the Inbox shelf pseudo-panel."""
-    if (
-        getattr(owner, "current_tab", None) != "agents"
-        or not agents_archive_view_enabled()
-    ):
+    if getattr(owner, "current_tab", None) != "agents":
         return False
     try:
         from ._display_helpers import agents_archive_is_active

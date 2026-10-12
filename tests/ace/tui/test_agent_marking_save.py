@@ -103,7 +103,9 @@ def test_save_marked_group_uses_tracked_task_and_refreshes_on_success() -> None:
     task = app.tracked_procs[0]
     assert task["proc_type"] == "save"
     assert task["display_name"] == "save 2 agents"
-    optimistic_notifications = [("Saved and dismissed 2 agents", "information")]
+    optimistic_notifications = [
+        ("Saved and dismissed 2 agents → ◷ Archive · ,a browse", "information")
+    ]
     assert app.notifications == optimistic_notifications
 
     with (
@@ -146,7 +148,7 @@ def test_save_marked_group_tracked_task_failure_toasts_and_refreshes() -> None:
     assert app.notification_refreshes_async == 0
     assert app.async_refresh_sources == ["mark_error_recovery"]
     assert app.notifications == [
-        ("Saved and dismissed 1 agent", "information"),
+        ("Saved and dismissed 1 agent → ◷ Archive · ,a browse", "information"),
         ("Save cleanup failed: boom", "error"),
     ]
 

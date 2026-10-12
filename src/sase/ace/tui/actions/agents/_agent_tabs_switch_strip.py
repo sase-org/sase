@@ -367,12 +367,9 @@ class AgentTabsSwitchStripMixin:
         if scoped:
             return None
         query = str(getattr(self, "_agent_search_query", "") or "")
-        from ...models.agent_archive_view import agents_archive_view_enabled
-
-        archive_enabled = agents_archive_view_enabled()
         if not self._agent_tab_strip_visible():
             if getattr(self, "_agent_tab_latched_key", None) is None and (
-                not query.strip() or not archive_enabled
+                not query.strip()
             ):
                 return None
         index = getattr(self, "_agent_tab_index", None)
@@ -398,7 +395,7 @@ class AgentTabsSwitchStripMixin:
             feed_unavailable=bool(feed_unavailable),
             tab_label=active_tab_label_for_owner(self),
         )
-        if query.strip() and archive_enabled:
+        if query.strip():
             from dataclasses import replace
 
             from ._archive_shelf import archive_bridge_detail

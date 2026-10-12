@@ -120,8 +120,6 @@ def format_reveal_toast(
         lines.append(scope_line)
     if outcome.hydrated:
         lines.append("fetched  outside the loaded rows")
-    if outcome.agents_tab_fallback:
-        lines.append("Agents tab filter hides it — showing Artifacts ▸ Agent")
     return title, "\n".join(lines)
 
 

@@ -1,9 +1,8 @@
-"""View-foundation tests: flag states, selection seams, refresh ownership.
+"""View-foundation tests: selection seams, refresh ownership.
 
-The beta-off cases prove the Inbox keeps its existing behavior with no new
-view exposed. The beta-on cases prove startup is always Inbox, opening the
-Archive parks the Inbox, the Archive owns the shared detail panel while
-active, pending Inbox work drops across a view switch, hidden Inbox refreshes
+The cases prove startup is always Inbox, opening the Archive (no flag needed)
+parks the Inbox, the Archive owns the shared detail panel while active,
+pending Inbox work drops across a view switch, hidden Inbox refreshes
 never cancel the Archive's debounce, and returning restores and repaints.
 """
 
@@ -181,23 +180,17 @@ def _enriched_message(agent: Agent) -> Any:
     return message
 
 
-def test_flag_off_preserves_inbox_detail() -> None:
+def test_open_moves_detail_ownership_to_archive() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
     with override_flags():
         outcome = open_agents_archive_view(app)
-        assert outcome.status == "disabled"
-        assert outcome.view == AGENTS_VIEW_INBOX
-        assert not archive_detail_owns_panel(app)
-
-        app._refresh_agents_display_debounced()
-
-    assert app.detail_widget.immediate_calls == [("agent_0", None)]
-    assert app.detail_widget.full_calls == []
-    assert app._agent_detail_debouncer.is_pending
+        assert outcome.status == "opened"
+        assert outcome.view == AGENTS_VIEW_ARCHIVE
+        assert archive_detail_owns_panel(app)
 
 
-def test_flag_off_selection_stays_inbox_only() -> None:
+def test_startup_selection_stays_inbox_only() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
     with override_flags():
@@ -361,7 +354,7 @@ def test_hidden_inbox_refresh_keeps_archive_debounce() -> None:
         assert app.footer_widget.binding_updates == 0
 
 
-def test_hidden_inbox_refresh_repaints_with_flag_off() -> None:
+def test_hidden_inbox_refresh_repaints() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
     with override_flags():
