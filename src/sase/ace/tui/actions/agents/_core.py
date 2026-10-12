@@ -88,6 +88,11 @@ class _AgentArchiveColumnMixin:
 
         archive_activate_pulse(self)
 
+    def _activate_agents_archive_shelf(self) -> None:
+        from ._archive_shelf import activate_archive_shelf
+
+        activate_archive_shelf(self)
+
     def action_open_agents_archive(self) -> None:
         """Open Agents Archive, switching to Agents when needed."""
         from ...models.agent_archive_view import agents_archive_view_enabled

@@ -29,6 +29,7 @@ class NodeFinderFilteringMixin:
     """Coalesced refilter and memoized filtered views for the Node Finder."""
 
     _snapshot: NodeFinderSnapshot
+    _live_view: NodeFinderView
     _view: NodeFinderView
     _view_cache: dict[tuple[str, tuple[str, ...] | None], NodeFinderView]
     _pending: str
@@ -87,7 +88,9 @@ class NodeFinderFilteringMixin:
         if not self.is_mounted:  # type: ignore[attr-defined]
             return
         with tui_trace("node_finder.filter"):
-            self._view = self._filtered_view(query, self._view)
+            self._live_view = self._filtered_view(query, self._live_view)
+            self._schedule_archive_search(query)  # type: ignore[attr-defined]
+            self._view = self._compose_archive_view()  # type: ignore[attr-defined]
             self._pending = ""
             self._rebuild_options(  # type: ignore[attr-defined]
                 highlight=self._view.best_index

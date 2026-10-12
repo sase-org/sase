@@ -366,8 +366,14 @@ class AgentTabsSwitchStripMixin:
         scoped = list(getattr(self, "_agents", ()) or [])
         if scoped:
             return None
+        query = str(getattr(self, "_agent_search_query", "") or "")
+        from ...models.agent_archive_view import agents_archive_view_enabled
+
+        archive_enabled = agents_archive_view_enabled()
         if not self._agent_tab_strip_visible():
-            if getattr(self, "_agent_tab_latched_key", None) is None:
+            if getattr(self, "_agent_tab_latched_key", None) is None and (
+                not query.strip() or not archive_enabled
+            ):
                 return None
         index = getattr(self, "_agent_tab_index", None)
         active = getattr(self, "_active_agent_tab", None)
@@ -375,7 +381,6 @@ class AgentTabsSwitchStripMixin:
             tab_has_roots = bool(index is not None and index.root_count(active) > 0)
         except Exception:
             tab_has_roots = False
-        query = str(getattr(self, "_agent_search_query", "") or "")
         query_result = list(getattr(self, "_agents_query_result", None) or [])
         matches_elsewhere = _top_level_count(query_result)
         health, _extras, _active_text = agent_tab_health_for_owner(self)
@@ -385,7 +390,7 @@ class AgentTabsSwitchStripMixin:
             ) in ("invalid", "offline")
         except Exception:
             feed_unavailable = False
-        return agent_tab_empty_state(
+        empty_state = agent_tab_empty_state(
             scoped_count=0,
             tab_has_roots=tab_has_roots,
             query=query,
@@ -393,6 +398,25 @@ class AgentTabsSwitchStripMixin:
             feed_unavailable=bool(feed_unavailable),
             tab_label=active_tab_label_for_owner(self),
         )
+        if query.strip() and archive_enabled:
+            from dataclasses import replace
+
+            from ._archive_shelf import archive_bridge_detail
+
+            title = f"No visible agents on {active_tab_label_for_owner(self)}"
+            if empty_state is None:
+                return AgentTabEmptyState(
+                    kind="query_hides",
+                    title=title,
+                    detail=archive_bridge_detail(self, query),
+                )
+            return replace(
+                empty_state,
+                kind="query_hides",
+                title=title,
+                detail=archive_bridge_detail(self, query),
+            )
+        return empty_state
 
     def _show_active_tab_empty_state(self, agent_detail: Any) -> bool:
         """Render the active tab's empty cause into the detail panel.

@@ -23,9 +23,15 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
         from ..agents._node_finder_snapshot import build_node_finder_snapshot
 
         snapshot = build_node_finder_snapshot(self)
-        if not any(row.jumpable for row in snapshot.rows):
+        from ...models.agent_archive_view import agents_archive_view_enabled
+
+        show_archive = agents_archive_view_enabled()
+        if not any(row.jumpable for row in snapshot.rows) and not show_archive:
             self.notify("No nodes to jump to")  # type: ignore[attr-defined]
             return
+        from ..agents._node_finder_archive import archive_name_loader_for_owner
+
+        archive_loader = archive_name_loader_for_owner(self) if show_archive else None
         from ...modals import NodeFinderModal, NodeFinderResult
 
         has_back_fn = getattr(self, "_entry_jump_footer_has_back", None)
@@ -40,11 +46,34 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
                 if callable(fast):
                     fast()
                 return
+            if result.archive_name is not None:
+                if result.archive_row is not None:
+                    from ..agents._archive_arrival import open_archive_for_archived_row
+
+                    open_archive_for_archived_row(
+                        self,
+                        result.archive_row,
+                        source="Node Finder",
+                    )
+                else:
+                    from ..agents._archive_arrival import open_archive_for_agent
+
+                    open_archive_for_agent(
+                        self,
+                        result.archive_name,
+                        source="Node Finder",
+                    )
+                return
             if result.identity is not None:
                 self._jump_to_node_identity(result.identity, name=result.name)
 
         self.push_screen(  # type: ignore[attr-defined]
-            NodeFinderModal(snapshot, has_back=has_back),
+            NodeFinderModal(
+                snapshot,
+                has_back=has_back,
+                show_archive=show_archive,
+                archive_name_loader=archive_loader,
+            ),
             _on_dismiss,
         )
 

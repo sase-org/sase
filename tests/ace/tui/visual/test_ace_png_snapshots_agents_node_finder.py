@@ -9,6 +9,7 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents._node_finder_archive import ArchiveNameCandidate
 from sase.ace.tui.actions.agents._node_finder_snapshot import (
     build_node_finder_snapshot,
 )
@@ -18,6 +19,7 @@ from sase.ace.tui.modals.node_finder_preview_loader import NodeFinderPreviewPayl
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.node_finder import (
     NodeFinderReason,
+    NodeFinderSnapshot,
     node_finder_action_text,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
@@ -143,6 +145,54 @@ async def test_node_finder_search_png_snapshot(
             page,
             "node_finder_search_160x48",
             title="ACE Node Finder search",
+        )
+
+
+async def test_node_finder_archive_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The warm-corpus Archive section keeps archived names directly jumpable."""
+    patch_startup_loaders(monkeypatch, agents=[])
+
+    async with AcePage(query='"visual"', patches=patches(), size=(160, 48)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+
+        candidates = (
+            ArchiveNameCandidate(
+                "archive.report-builder",
+                status="DONE",
+                model="claude-opus-4",
+            ),
+            ArchiveNameCandidate(
+                "archive.review-notes",
+                status="FAILED",
+                model="gpt-5",
+            ),
+        )
+        modal = NodeFinderModal(
+            NodeFinderSnapshot(),
+            show_archive=True,
+            archive_name_loader=lambda: candidates,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("NodeFinderModal")
+        await page.wait_for(
+            lambda _state: any(
+                row.archive_name == "archive.report-builder" for row in modal._view.rows
+            )
+        )
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "◷ In Archive")
+        assert_page_svg_contains(page, "archive.report-builder")
+        assert_page_svg_contains(page, "ARCHIVED RUN")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "node_finder_archive_160x48",
+            title="ACE Node Finder Archive results",
         )
 
 

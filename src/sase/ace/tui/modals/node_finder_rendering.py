@@ -104,7 +104,9 @@ def render_scope_strip(
         matched = sum(
             1
             for index, row in enumerate(view.rows)
-            if row.jumpable and index not in view.context
+            if row.role is NodeFinderRole.NODE
+            and row.jumpable
+            and index not in view.context
         )
         text.append(f"{matched} of {snapshot.node_count}")
         if view.relaxed:
@@ -216,9 +218,46 @@ def _render_row_body(
         return _render_panel_header(row)
     if row.role is NodeFinderRole.GROUP:
         return _render_group_header(row)
+    if row.role is NodeFinderRole.ARCHIVE_HEADER:
+        return _render_archive_header()
+    if row.role is NodeFinderRole.ARCHIVE_MESSAGE:
+        return _render_archive_message(row)
+    if row.role is NodeFinderRole.ARCHIVE_RESULT:
+        return _render_archive_result(view, row)
     return _render_node_body(
         view, index, show_status=show_status, last_child=last_child
     )
+
+
+def _render_archive_header() -> Text:
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append("◷ In Archive", style="bold #d7af5f")
+    text.append(" ───", style="dim #d7af5f")
+    return text
+
+
+def _render_archive_message(row: NodeFinderRow) -> Text:
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append(f"  {row.name}", style="dim")
+    return text
+
+
+def _render_archive_result(view: NodeFinderView, row: NodeFinderRow) -> Text:
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append("  ◷ ", style="#d7af5f")
+    name = row.archive_name or row.name
+    append_highlighted(
+        text,
+        name,
+        _name_match_runs(name, view.tokens),
+        base_style="#d7af5f",
+        match_style="bold underline #ffd75f",
+    )
+    if row.archive_status:
+        text.append(f"  {row.archive_status}", style="dim")
+    if row.archive_model:
+        text.append(f"  {row.archive_model}", style="dim #8787af")
+    return text
 
 
 def _render_panel_header(row: NodeFinderRow) -> Text:

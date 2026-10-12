@@ -126,4 +126,40 @@ def open_archive_for_agent(
     return True
 
 
-__all__ = ["archive_name_query", "open_archive_for_agent"]
+def open_archive_for_archived_row(
+    owner: Any,
+    row: Mapping[str, Any],
+    *,
+    source: str,
+) -> bool:
+    """Open the Archive and reveal the exact selected light row."""
+    from ...models.agent_archive_view import agents_archive_view_enabled
+    from ...models.agent_archive_list import archive_row_key
+    from ._archive_view import open_agents_archive_view_with_query
+
+    if not agents_archive_view_enabled():
+        return False
+    _switch_to_agents(owner)
+    outcome = open_agents_archive_view_with_query(
+        owner,
+        query="in:archive",
+    )
+    state = getattr(owner, "_agents_archive_view", None)
+    archive = getattr(state, "archive", None)
+    if archive is None or getattr(outcome, "status", None) != "opened":
+        return False
+    archive.reveal_row = dict(row)
+    archive.selected_key = archive_row_key(row)
+    archive.pending_exact_name = None
+    archive.arrival_outcome = None
+    notify = getattr(owner, "notify", None)
+    if callable(notify):
+        notify(f"{source} · opening archived run · read-only")
+    return True
+
+
+__all__ = [
+    "archive_name_query",
+    "open_archive_for_agent",
+    "open_archive_for_archived_row",
+]

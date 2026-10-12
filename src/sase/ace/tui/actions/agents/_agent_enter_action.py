@@ -305,6 +305,22 @@ class AgentEnterActionMixin:
         except Exception:
             return
         if selected is None:
+            query = str(getattr(self, "_agent_search_query", "") or "")
+            empty_state = getattr(self, "_active_tab_empty_state", None)
+            empty = empty_state() if callable(empty_state) else None
+            if query.strip() and getattr(empty, "kind", None) == "query_hides":
+                from ._archive_shelf import (
+                    activate_archive_shelf,
+                    archive_shelf_snapshot,
+                )
+
+                shelf = archive_shelf_snapshot(self)
+                if (
+                    shelf.query == query
+                    and shelf.status == "ready"
+                    and int(shelf.matching or 0) > 0
+                ):
+                    activate_archive_shelf(self)
             return
 
         def _then() -> None:

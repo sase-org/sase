@@ -92,16 +92,19 @@ class AgentKillProcessMixin:
         """Emit kill notification message for an already-signaled process."""
         if agent.pid is None:
             return
+        from ._archive_shelf import archive_dismissal_toast_suffix
+
+        suffix = archive_dismissal_toast_suffix(self)
         if kind == "workflow":
-            self.notify(f"Killed workflow (PID {agent.pid})")  # type: ignore[attr-defined]
+            self.notify(f"Killed workflow (PID {agent.pid}){suffix}")  # type: ignore[attr-defined]
             return
         if kind == "hook":
-            self.notify(f"Killed hook agent (PID {agent.pid})")  # type: ignore[attr-defined]
+            self.notify(f"Killed hook agent (PID {agent.pid}){suffix}")  # type: ignore[attr-defined]
             return
         if kind == "mentor":
-            self.notify(f"Killed mentor agent (PID {agent.pid})")  # type: ignore[attr-defined]
+            self.notify(f"Killed mentor agent (PID {agent.pid}){suffix}")  # type: ignore[attr-defined]
             return
         if kind == "crs":
-            self.notify(f"Killed CRS agent (PID {agent.pid})")  # type: ignore[attr-defined]
+            self.notify(f"Killed CRS agent (PID {agent.pid}){suffix}")  # type: ignore[attr-defined]
             return
-        self.notify(f"Killed agent (PID {agent.pid})")  # type: ignore[attr-defined]
+        self.notify(f"Killed agent (PID {agent.pid}){suffix}")  # type: ignore[attr-defined]

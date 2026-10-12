@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from sase.ace.tui.actions.agents._archive_arrival import (
     archive_name_query,
     open_archive_for_agent,
+    open_archive_for_archived_row,
 )
 from sase.ace.tui.models.agent_archive_view import AgentsArchiveViewState
 from sase.feature_flags import override_flags
@@ -42,6 +43,44 @@ def test_archive_name_query_quotes_exact_name() -> None:
     assert archive_name_query('alice "special"') == (
         'in:archive name:"alice \\"special\\""'
     )
+
+
+def test_node_finder_archived_row_is_revealed_by_stable_key(monkeypatch) -> None:  # noqa: ANN001
+    from sase.ace.tui.actions.agents import _archive_view
+
+    owner = _Owner()
+    captured: dict[str, object] = {}
+
+    def open_view(app, *, query):  # noqa: ANN001, ANN202
+        captured["query"] = query
+        app._agents_archive_view.active_view = "archive"
+        app._agents_archive_view.generation += 1
+        return SimpleNamespace(
+            status="opened",
+            generation=app._agents_archive_view.generation,
+        )
+
+    monkeypatch.setattr(_archive_view, "open_agents_archive_view_with_query", open_view)
+    row = {
+        "archive_key": {
+            "source_username": "alice",
+            "source_machine": "athena",
+            "source_run_id": "run-42",
+        },
+        "container_key": "archive:alice.athena@run-42",
+        "agent_name": "worker",
+        "last_activity_at": "2026-08-13T12:00:00Z",
+    }
+    with override_flags(agents_archive_view=True):
+        assert open_archive_for_archived_row(owner, row, source="Node Finder")
+
+    archive = owner._agents_archive_view.archive
+    assert captured == {"query": "in:archive"}
+    assert archive.selected_key == "alice.athena@run-42"
+    assert archive.reveal_row == row
+    assert owner.notifications == [
+        ("Node Finder · opening archived run · read-only", "information")
+    ]
 
 
 def test_exact_archive_arrival_records_one_return_hop_on_hit(monkeypatch) -> None:  # noqa: ANN001

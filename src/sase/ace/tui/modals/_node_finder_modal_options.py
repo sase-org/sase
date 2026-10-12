@@ -173,6 +173,8 @@ class NodeFinderOptionsMixin:
                 disabled = (
                     not row.jumpable or index in view.context or row.identity is None
                 )
+                if row.archive_name is not None:
+                    disabled = not row.jumpable or index in view.context
                 options.append(
                     Option(
                         render_row_prompt(

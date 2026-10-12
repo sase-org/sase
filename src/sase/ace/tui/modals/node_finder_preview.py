@@ -58,6 +58,22 @@ def render_node_finder_preview(
     the modal has painted this result.
     """
 
+    if row.role is NodeFinderRole.ARCHIVE_RESULT:
+        text = Text()
+        text.append("ARCHIVED RUN\n", style="bold #d7af5f")
+        text.append(row.archive_name or row.name, style="bold #d7af5f")
+        if row.archive_status:
+            text.append(f"\n{row.archive_status}", style="dim")
+        if row.archive_model:
+            text.append(f" · {row.archive_model}", style="dim")
+        text.append("\n\nDismissed on this machine · read-only", style="dim")
+        text.append("\n⏎ opens the run in the Archive", style="bold #d7af5f")
+        return text
+    if row.role in {
+        NodeFinderRole.ARCHIVE_HEADER,
+        NodeFinderRole.ARCHIVE_MESSAGE,
+    }:
+        return Text("Select an archived run to open it.", style="dim")
     if row.role is not NodeFinderRole.NODE or row.agent is None:
         return Text("Select a node to inspect it.", style="dim")
 

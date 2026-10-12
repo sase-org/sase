@@ -154,7 +154,12 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
             clear_completion_notifications(agents)
 
         count = len(agents)
-        message = f"Saved and dismissed {count} {plural_agent(count)}"
+        from ._archive_shelf import archive_dismissal_toast_suffix
+
+        message = (
+            f"Saved and dismissed {count} {plural_agent(count)}"
+            f"{archive_dismissal_toast_suffix(self)}"
+        )
         notify_after_refresh = getattr(self, "_notify_after_refresh", None)
         if callable(notify_after_refresh):
             notify_after_refresh(message)

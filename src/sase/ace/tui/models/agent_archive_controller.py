@@ -74,6 +74,18 @@ class ArchiveInboxPulse:
 
 
 @dataclass(frozen=True)
+class ArchiveShelfSnapshot:
+    """Committed Inbox-filter counts and bridge rows from the warm corpus."""
+
+    status: str = "cold"
+    query: str = ""
+    total: int = 0
+    today: int = 0
+    matching: int | None = None
+    rows: tuple[Mapping[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
 class ArchiveRequestSnapshot:
     """Immutable last-request-wins work item. UI callbacks never mutate it."""
 
@@ -143,6 +155,9 @@ class AgentsArchiveControllerState:
     identities: tuple[str, ...] = ()
     count: int = 0
     pulse: ArchiveInboxPulse = field(default_factory=ArchiveInboxPulse)
+    shelf: ArchiveShelfSnapshot = field(default_factory=ArchiveShelfSnapshot)
+    shelf_generation: int = 0
+    shelf_requested_key: tuple[Any, ...] | None = None
     last_windows: tuple[ArchivePageWindow, ...] = ()
     last_query: str = ARCHIVE_DEFAULT_QUERY
     last_grouping: str = ARCHIVE_DEFAULT_GROUPING
@@ -200,6 +215,7 @@ __all__ = [
     "ArchivePageWindow",
     "ArchiveRequestSnapshot",
     "ArchiveRevalidationTokens",
+    "ArchiveShelfSnapshot",
     "preserve_archive_selected_key",
     "startup_agents_archive_controller_state",
 ]

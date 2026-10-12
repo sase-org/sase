@@ -210,7 +210,11 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
 
         count = len(agents)
         s = "s" if count != 1 else ""
-        self._notify_after_refresh(f"Dismissed {count} agent{s}")
+        from ._archive_shelf import archive_dismissal_toast_suffix
+
+        self._notify_after_refresh(
+            f"Dismissed {count} agent{s}{archive_dismissal_toast_suffix(self)}"
+        )
         # Defer the heavy in-memory refilter so the toast widget can paint
         # before the agents list rebuild blocks the UI tick.
         self.call_later(self._apply_dismissal_in_memory, list(agents))  # type: ignore[attr-defined]
@@ -364,11 +368,16 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         if callable(record_removals):
             record_removals(identities)
         self._append_dismissed_agent_objects([agent], identities)
+        from ._archive_shelf import archive_dismissal_toast_suffix
+
+        suffix = archive_dismissal_toast_suffix(self)
 
         if agent.agent_type == AgentType.WORKFLOW:
-            self._notify_after_refresh(f"Dismissed workflow {agent.workflow}")
+            self._notify_after_refresh(f"Dismissed workflow {agent.workflow}{suffix}")
         else:
-            self._notify_after_refresh(f"Dismissed agent for {agent.display_name}")
+            self._notify_after_refresh(
+                f"Dismissed agent for {agent.display_name}{suffix}"
+            )
         self._apply_dismissal_in_memory([agent])
         clear_completion_notifications = getattr(
             self,

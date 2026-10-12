@@ -348,12 +348,18 @@ class AgentKillFlowMixin:
         killed_count = len(kill_items)
         dismissed_count = len(dismiss_candidates)
         if killed_count or dismissed_count:
+            from ._archive_shelf import archive_dismissal_toast_suffix
+
             self._notify_after_refresh(  # type: ignore[attr-defined]
                 killing_compat._bulk_kill_summary(killed_count, dismissed_count)
+                + archive_dismissal_toast_suffix(self)
             )
         if member_agents:
+            from ._archive_shelf import archive_dismissal_toast_suffix
+
             self._notify_after_refresh(  # type: ignore[attr-defined]
                 _member_stop_summary(member_agents)
+                + archive_dismissal_toast_suffix(self)
             )
 
         if kill_items or dismiss_candidates or member_agents:

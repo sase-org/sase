@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -26,6 +26,7 @@ from ..util.debounce import DetailPanelDebouncer
 from ..util.pump_tasks import cancel_pump_free_tasks
 from ..util.trace import tui_trace
 from ._node_finder_modal_filtering import NodeFinderFilteringMixin
+from ._node_finder_modal_archive import NodeFinderArchiveMixin
 from ._node_finder_modal_options import NodeFinderOptionsMixin
 from ._node_finder_modal_preview import NodeFinderPreviewMixin
 from .base import FilterInput
@@ -45,6 +46,7 @@ from .node_finder_rendering import (
 if TYPE_CHECKING:
     from ..models.agent import Agent
     from ..models.node_finder import AgentIdentity
+    from ..actions.agents._node_finder_archive import ArchiveNameCandidate
     from textual.timer import Timer
 
 _FLASH_S = 1.2
@@ -54,14 +56,17 @@ _PreviewLoader = Callable[["Agent"], NodeFinderPreviewPayload]
 
 @dataclass(frozen=True, slots=True)
 class NodeFinderResult:
-    """Dismiss payload: a jump identity, or ``back=True`` for ``""``."""
+    """Dismiss payload: a live identity, archive name, or ``back=True``."""
 
     identity: AgentIdentity | None = None
     name: str = ""
     back: bool = False
+    archive_name: str | None = None
+    archive_row: Mapping[str, object] | None = None
 
 
 class NodeFinderModal(
+    NodeFinderArchiveMixin,
     NodeFinderFilteringMixin,
     NodeFinderOptionsMixin,
     NodeFinderPreviewMixin,
@@ -91,6 +96,10 @@ class NodeFinderModal(
         snapshot: NodeFinderSnapshot,
         has_back: bool = False,
         preview_loader: _PreviewLoader | None = None,
+        *,
+        show_archive: bool = False,
+        archive_name_loader: Callable[[], tuple[ArchiveNameCandidate, ...]]
+        | None = None,
     ) -> None:
         super().__init__()
         self._snapshot = snapshot
@@ -106,7 +115,12 @@ class NodeFinderModal(
         # misses and recomputes. Bounded and modal-local: entries die with
         # the modal, and live owner state is still read afresh on every open.
         self._view_cache: dict[tuple[str, tuple[str, ...] | None], NodeFinderView] = {}
-        self._view = self._filtered_view("", None)
+        self._live_view = self._filtered_view("", None)
+        self._init_archive_search(
+            show_archive=show_archive,
+            archive_name_loader=archive_name_loader,
+        )
+        self._view = self._compose_archive_view()
         self._last_options_key: tuple[object, ...] | None = None
         # Memoized per-view window guides (hint width plus sibling
         # closure); see ``NodeFinderOptionsMixin._window_guides``. The
@@ -177,6 +191,7 @@ class NodeFinderModal(
             self._rebuild_options(highlight=self._view.best_index)
             self.query_one("#node-finder-list", OptionList).focus()
             self._paint_preview()
+            self._start_archive_name_load()
 
     def on_unmount(self) -> None:
         if self._debouncer is not None:
@@ -191,6 +206,8 @@ class NodeFinderModal(
         # Invalidate in-flight Tier 1 loads so a late worker neither
         # repaints nor re-caches through the released snapshot below.
         self._preview_generation += 1
+        self._archive_load_generation += 1
+        self._archive_search_generation += 1
         cancel_pump_free_tasks(self)
         self._node_finder_preview_tasks.clear()
         self._release_per_open_state()
@@ -210,7 +227,8 @@ class NodeFinderModal(
         raising; every producer path is still generation-guarded.
         """
         self._snapshot = NodeFinderSnapshot()
-        self._view = NodeFinderView()
+        self._live_view = NodeFinderView()
+        self._view = self._live_view
         self._view_cache.clear()
         self._tier0_cache.clear()
         self._cache = NodeFinderPreviewCache()
@@ -222,6 +240,9 @@ class NodeFinderModal(
         self._window_end = 0
         self._pending = ""
         self._flash = ""
+        self._archive_name_loader = None
+        self._archive_candidates = ()
+        self._archive_matches = ()
 
     def on_resize(self, event: Resize) -> None:
         desired = layout_class_for_width(event.size.width)
@@ -353,6 +374,18 @@ class NodeFinderModal(
             self._set_flash("No matching node")
             return
         row = self._view.rows[index]
+        if (
+            row.archive_name is not None
+            and row.jumpable
+            and index not in self._view.context
+        ):
+            self.dismiss(
+                NodeFinderResult(
+                    archive_name=row.archive_name,
+                    archive_row=row.archive_row,
+                )
+            )
+            return
         if not row.jumpable or index in self._view.context or row.identity is None:
             self._set_flash("No matching node")
             return

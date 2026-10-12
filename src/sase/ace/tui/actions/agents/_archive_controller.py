@@ -194,6 +194,9 @@ def note_inbox_applied_for_archive(owner: Any, load_state: Any = None) -> None:
         if not agents_archive_view_enabled():
             return
         refresh_archive_inbox_pulse(owner)
+        from ._archive_shelf import request_archive_shelf_refresh
+
+        request_archive_shelf_refresh(owner)
         state = _controller(owner)
         state.inbox_load_scheduled = False
         if not _load_is_complete_inbox(load_state):
@@ -330,10 +333,11 @@ def note_inbox_load_finished_for_archive(owner: Any) -> None:
 
 def cancel_archive_controller(owner: Any) -> None:
     """Cancel in-flight Archive tasks at teardown."""
-    for task in tuple(getattr(owner, _ARCHIVE_TASK_REGISTRY, ())):
-        cancel = getattr(task, "cancel", None)
-        if callable(cancel):
-            cancel()
+    for attr in (_ARCHIVE_TASK_REGISTRY, "_archive_shelf_tasks"):
+        for task in tuple(getattr(owner, attr, ())):
+            cancel = getattr(task, "cancel", None)
+            if callable(cancel):
+                cancel()
 
 
 def _schedule_inbox_load_for_gate(owner: Any) -> None:
@@ -476,6 +480,9 @@ def _apply_archive_result(
         state.windows = ()
         state.identities = ()
         state.count = 0
+        from ._archive_shelf import request_archive_shelf_refresh
+
+        request_archive_shelf_refresh(owner)
         _publish_arrival(owner, snapshot, result)
         _notify_snapshot_applied(owner)
         _maybe_coalesce_idle(owner, snapshot)
@@ -506,6 +513,9 @@ def _apply_archive_result(
     if state.corpus is not None:
         state.prewarm_started = True
         state.prewarm_pending = False
+    from ._archive_shelf import request_archive_shelf_refresh
+
+    request_archive_shelf_refresh(owner)
     _apply_selection(owner, snapshot, result)
     _notify_snapshot_applied(owner)
     _maybe_coalesce_idle(owner, snapshot)

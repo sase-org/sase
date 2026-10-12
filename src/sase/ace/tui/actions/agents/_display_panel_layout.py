@@ -47,6 +47,12 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
 
         size = getattr(container, "size", None)
         container_height = getattr(size, "height", 0) if size is not None else 0
+        try:
+            archive_shelf = container.query_one("#agent-archive-shelf")  # type: ignore[attr-defined]
+        except Exception:
+            archive_shelf = None
+        if archive_shelf is not None and bool(getattr(archive_shelf, "display", False)):
+            container_height = max(0, container_height - 1)
         if not container_height:
             return
 

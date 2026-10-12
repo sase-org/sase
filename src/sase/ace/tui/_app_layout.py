@@ -142,6 +142,9 @@ class AppLayoutMixin:
                 with Horizontal(id="agents-content"):
                     with Vertical(id="agent-list-container"):
                         yield AgentList(id="agent-list-panel")
+                        from .widgets.agent_archive_shelf import AgentArchiveShelf
+
+                        yield AgentArchiveShelf(id="agent-archive-shelf")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")
                         yield TabQuickStart(

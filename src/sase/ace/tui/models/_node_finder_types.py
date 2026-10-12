@@ -8,9 +8,10 @@ duplicating them.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .agent import Agent, AgentType
@@ -48,6 +49,9 @@ class NodeFinderRole(StrEnum):
     PANEL = "panel"
     GROUP = "group"
     NODE = "node"
+    ARCHIVE_HEADER = "archive_header"
+    ARCHIVE_RESULT = "archive_result"
+    ARCHIVE_MESSAGE = "archive_message"
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +77,11 @@ class NodeFinderRow:
     jumpable_count: int = 0
     hidden_count: int = 0
     tab_label: str = ""
+    archive_name: str | None = None
+    archive_row: Mapping[str, Any] | None = None
+    archive_status: str = ""
+    archive_model: str = ""
+    archive_outcome: str = ""
 
 
 @dataclass(frozen=True, slots=True)

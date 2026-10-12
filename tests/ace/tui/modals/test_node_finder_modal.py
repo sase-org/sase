@@ -12,6 +12,7 @@ from textual.app import App, ComposeResult
 from textual.events import Key
 from textual.widgets import Input, OptionList, Static
 
+from sase.ace.tui.actions.agents._node_finder_archive import ArchiveNameCandidate
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals.base import FilterInput
 from sase.ace.tui.modals.node_finder_modal import NodeFinderModal, NodeFinderResult
@@ -282,6 +283,46 @@ async def test_enter_jumps_in_search_mode() -> None:
         await pilot.press("tab")
         await pilot.press("enter")
         assert dismissed == [NodeFinderResult(identity=beta.identity, name="beta")]
+
+
+@pytest.mark.asyncio
+async def test_archive_search_appends_results_and_enter_returns_exact_name() -> None:
+    modal = NodeFinderModal(
+        _snapshot(_node("live-node")),
+        show_archive=True,
+        archive_name_loader=lambda: (
+            ArchiveNameCandidate("archived-alpha", status="DONE", model="test-model"),
+            ArchiveNameCandidate("old-beta", status="FAILED"),
+        ),
+    )
+    dismissed: list[object] = []
+    modal.dismiss = dismissed.append  # type: ignore[method-assign]
+    async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
+        query = modal.query_one("#node-finder-query", FilterInput)
+        await wait_for(
+            pilot,
+            lambda: any(
+                row.archive_name == "archived-alpha" for row in modal._view.rows
+            ),
+        )
+        await pilot.press("/")
+        query.value = "arch"
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._view.query == "arch"
+                and any(
+                    row.archive_name == "archived-alpha" for row in modal._view.rows
+                )
+            ),
+        )
+        await pilot.press("enter")
+        assert dismissed == [
+            NodeFinderResult(
+                archive_name="archived-alpha",
+                archive_row={},
+            )
+        ]
 
 
 @pytest.mark.asyncio
