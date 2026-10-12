@@ -1,7 +1,7 @@
 ---
 name: sase_project
 description: >-
-  Inspect and manage SASE projects with `sase project` (list, show, current,
+  Inspect and manage SASE projects with `sase project` (list, add, show, current,
   set-current, enable, disable, alias, suggest). Use when you need the set of enabled
   projects, the current project, one project's lifecycle record, or machine-readable
   project data — e.g. to fan out one agent per enabled project.

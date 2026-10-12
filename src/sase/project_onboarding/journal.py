@@ -35,7 +35,7 @@ def journals_dir() -> Path:
     return sase_home() / "project_onboarding" / _JOURNALS_DIRNAME
 
 
-def journal_path(identity_key: str, display: str = "") -> Path:
+def _journal_path(identity_key: str, display: str = "") -> Path:
     """Return the canonical journal path for *identity_key*."""
 
     stem = _display_stem(display or identity_key)
@@ -43,7 +43,7 @@ def journal_path(identity_key: str, display: str = "") -> Path:
     return journals_dir() / f"{stem}-{digest}.json"
 
 
-def journal_lock_path(identity_key: str) -> Path:
+def _journal_lock_path(identity_key: str) -> Path:
     """Return the cooperating lock path for *identity_key*."""
 
     digest = hashlib.sha1(identity_key.encode("utf-8")).hexdigest()[:12]
@@ -51,11 +51,11 @@ def journal_lock_path(identity_key: str) -> Path:
 
 
 @contextmanager
-def journal_lock(identity_key: str, display: str = "") -> Iterator[Path]:
+def _journal_lock(identity_key: str, display: str = "") -> Iterator[Path]:
     """Hold an exclusive flock on the journal for *identity_key*."""
 
-    path = journal_path(identity_key, display)
-    lock_path = journal_lock_path(identity_key)
+    path = _journal_path(identity_key, display)
+    lock_path = _journal_lock_path(identity_key)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a", encoding="utf-8") as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
@@ -176,7 +176,7 @@ def record_intent(
     """Write or refresh the active intent before any onboarding effect."""
 
     now = _utc_now()
-    with journal_lock(identity_key, display) as path:
+    with _journal_lock(identity_key, display) as path:
         found = _lookup_entry(identity_key)
         current = found[1] if found is not None else {}
         if found is not None:
@@ -229,7 +229,7 @@ def update_management(
     """Atomically persist management recovery evidence for a matching intent."""
 
     now = _utc_now()
-    with journal_lock(identity_key, display) as path:
+    with _journal_lock(identity_key, display) as path:
         found = _lookup_entry(identity_key)
         if found is None:
             raise ValueError("onboarding intent journal is missing")
@@ -260,7 +260,7 @@ def update_step(
 
     now = _utc_now()
     display_name = display
-    with journal_lock(identity_key, display_name) as path:
+    with _journal_lock(identity_key, display_name) as path:
         found = _lookup_entry(identity_key)
         if found is None:
             record = _blank_record(
@@ -319,7 +319,7 @@ def set_journal_status(
     """Set the journal's overall running/failed/complete status."""
 
     now = _utc_now()
-    with journal_lock(identity_key, display) as path:
+    with _journal_lock(identity_key, display) as path:
         found = _lookup_entry(identity_key)
         if found is None:
             record = _blank_record(
@@ -488,9 +488,6 @@ def _merge_mapping(existing: Any, default: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
-    "journal_lock",
-    "journal_lock_path",
-    "journal_path",
     "journals_dir",
     "list_incomplete",
     "lookup_journal",

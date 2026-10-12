@@ -10,7 +10,7 @@ import stat
 import pytest
 
 from sase.project_onboarding.journal import (
-    journal_path,
+    _journal_path,
     journals_dir,
     list_incomplete,
     lookup_journal,
@@ -46,7 +46,7 @@ class TestJournal:
     def test_record_intent_is_atomic_and_private(self, isolated_home: Path) -> None:
         del isolated_home
         record = record_intent(**_intent())
-        path = journal_path("github.com/sase-org/bob", "sase-org/bob")
+        path = _journal_path("github.com/sase-org/bob", "sase-org/bob")
         assert path.is_file()
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
         assert list(path.parent.glob(".*.tmp")) == []
@@ -176,7 +176,7 @@ class TestJournal:
         self, isolated_home: Path
     ) -> None:
         record_intent(**_intent(display="sase-org/bob"))
-        original = journal_path("github.com/sase-org/bob", "sase-org/bob")
+        original = _journal_path("github.com/sase-org/bob", "sase-org/bob")
         assert original.is_file()
         record_intent(**_intent(display="bob-renamed"))
         stored = lookup_journal("github.com/sase-org/bob")
@@ -193,7 +193,7 @@ class TestJournal:
         del isolated_home
         record_intent(**_intent(identity_key="github.com/sase-org/old", display="old"))
         set_journal_status("github.com/sase-org/old", "complete", display="old")
-        path = journal_path("github.com/sase-org/old", "old")
+        path = _journal_path("github.com/sase-org/old", "old")
         payload = json.loads(path.read_text(encoding="utf-8"))
         old = (datetime.now(UTC) - timedelta(days=31)).strftime("%Y-%m-%dT%H:%M:%SZ")
         payload["updated_at"] = old

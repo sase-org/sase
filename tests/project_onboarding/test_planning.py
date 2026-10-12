@@ -11,7 +11,7 @@ import pytest
 from sase import workspace_provider
 from sase.project_onboarding import planning as planning_mod
 from sase.project_onboarding.journal import (
-    journal_path,
+    _journal_path,
     lookup_journal,
     record_intent,
     update_management,
@@ -444,7 +444,7 @@ class TestBuildPlanDocument:
             mode="create",
             intent_fingerprint=blocked["intent_fingerprint"],
         )
-        path = journal_path("github.com/sase-org/bob", "sase-org/bob")
+        path = _journal_path("github.com/sase-org/bob", "sase-org/bob")
         stored = lookup_journal("github.com/sase-org/bob")
         assert stored is not None
         stored["remote"] = {"created": True, "repo_id": "R1", "created_at": ""}

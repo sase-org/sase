@@ -1,4 +1,4 @@
-"""Rich renderers for the suggest command (plan/progress arrive with cli-add)."""
+"""Rich renderers for project suggest and ``sase project add`` plans."""
 
 from __future__ import annotations
 
