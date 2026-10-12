@@ -47,6 +47,7 @@ class AgentDetail(
         """Initialize the agent detail view."""
         super().__init__(**kwargs)
         self._current_agent: Agent | None = None
+        self._current_record_subject: Any | None = None
         self._current_tribe_identity: TribePanelIdentity | None = None
         self._tribe_document_complete: bool = False
         self._attempt_view_mode: str = "merged"

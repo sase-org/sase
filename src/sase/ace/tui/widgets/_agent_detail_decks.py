@@ -19,6 +19,7 @@ class AgentDetailDeckMixin(
 
     _main_deck_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
     _current_agent: Any | None
+    _current_record_subject: Any | None
     _current_tribe_identity: Any | None
     _tribe_document_complete: bool
     _current_attempt_number: int | None

@@ -27,6 +27,12 @@ ARCHIVE_MISSING_FILES = "Files not retained — the chat file was removed by ret
 ARCHIVE_MISSING_TOOLS = "Tools not retained — the chat file was removed by retention"
 ARCHIVE_MISSING_FINAL = "FINAL not retained — the chat file was removed by retention"
 
+_TIME_BASIS_WORDS = {
+    "ended": "Ended",
+    "started": "Started",
+    "dismissed": "Dismissed",
+}
+
 
 @dataclass
 class ArchiveReaderRuntime:
@@ -87,8 +93,7 @@ def archive_identity_header_from_light_row(
         if outcome:
             expanded.append(f"Outcome: {outcome}\n")
         if basis and stamp:
-            word = "Ended" if basis == "ended" else "Started"
-            expanded.append(f"{word}: {stamp}\n")
+            expanded.append(f"{_time_basis_word(basis)}: {stamp}\n")
         elif stamp:
             expanded.append(f"Time: {stamp}\n")
         if runtime not in (None, ""):
@@ -96,7 +101,11 @@ def archive_identity_header_from_light_row(
         if model:
             expanded.append(f"Model: {model}\n")
     dismissed = dismissed_at or (None if row is None else row.get("dismissed_at"))
-    if dismissed:
+    basis = str(row.get("time_basis") or "") if row else ""
+    stamp = (
+        str(row.get("last_activity_at") or row.get("start_time") or "") if row else ""
+    )
+    if dismissed and not (basis == "dismissed" and str(dismissed) == stamp):
         expanded.append(f"Dismissed: {dismissed}\n")
     if loading:
         expanded.append(f"{ARCHIVE_LOADING_TITLE}\n", style="italic #d7af5f")
@@ -116,6 +125,11 @@ def archive_identity_header_from_light_row(
         expanded=expanded,
         compact=compact,
     )
+
+
+def _time_basis_word(basis: str) -> str:
+    """Return the identity-header time label for a light-row time basis."""
+    return _TIME_BASIS_WORDS.get(basis, basis.title() or "Time")
 
 
 def archive_container_summary_text(

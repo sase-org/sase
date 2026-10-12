@@ -203,6 +203,17 @@ def test_links_group_by_direction_relation_and_cap_each_group(monkeypatch) -> No
     assert "plan:source" in rendered
 
 
+def test_container_relations_list_member_references() -> None:
+    subject = RecordSubject(
+        kind="container",
+        location="archive",
+        member_names=("swarm.one", "swarm.two"),
+    )
+    rendered = _text(relations_card(subject, RelationsExtras()))
+    assert "@agent:swarm.one" in rendered
+    assert "@agent:swarm.two" in rendered
+
+
 def test_empty_links_and_snapshot_errors_degrade_visibly(monkeypatch) -> None:
     import sase.ace.tui.widgets.decks.record.relations as module
 

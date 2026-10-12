@@ -267,6 +267,15 @@ def relations_card(subject: RecordSubject, extras: RelationsExtras) -> CardPart:
         text.append("\n")
         rows += 1
 
+    if subject.member_names:
+        text.append("Members:\n", style="bold")
+        for name in subject.member_names:
+            text.append("  ")
+            reference = name if name.startswith("@agent:") else f"@agent:{name}"
+            _append_ref(text, reference, name)
+            text.append("\n")
+        rows += 1
+
     if not rows:
         text.append("No relations", style="dim italic")
     elif text.plain.endswith("\n"):

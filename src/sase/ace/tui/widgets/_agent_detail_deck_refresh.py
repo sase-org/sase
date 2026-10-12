@@ -26,6 +26,7 @@ class AgentDetailDeckRefreshMixin:
 
     _main_deck_document: MainDeckDocument
     _current_agent: Any | None
+    _current_record_subject: Any | None
     _current_tribe_identity: Any | None
     _tribe_document_complete: bool
     _current_attempt_number: int | None
@@ -217,6 +218,48 @@ class AgentDetailDeckRefreshMixin:
         except Exception:
             return None
 
+    def show_record_subject(self, subject: Any) -> None:
+        """Paint every visible RECORD panel from a light-row subject.
+
+        Unreadable Archive entries and container rows have no hydrated
+        Agent. RECORD stays available; other decks are left on their
+        titled cards.
+        """
+        self._current_record_subject = subject
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            panels = area.visible_panels()
+        except Exception:
+            return
+        generation = self._agent_detail_generation
+        for panel in panels:
+            try:
+                availability = dict(getattr(panel, "_availability", {}) or {})
+                availability[DeckId.RECORD] = DeckAvailability(True, None)
+                panel.set_availability(availability)
+            except Exception:
+                pass
+            if panel.deck is not DeckId.RECORD:
+                try:
+                    panel.refresh_chrome()
+                except Exception:
+                    pass
+                continue
+            try:
+                preferred = self._record_preferred_card(panel)
+            except Exception:
+                preferred = None
+            try:
+                panel.record_view.show_subject(
+                    subject, generation=generation, preferred_card=preferred
+                )
+            except Exception:
+                pass
+            try:
+                panel.refresh_chrome()
+            except Exception:
+                pass
+
     def _tools_preferred_card(self, panel: Any) -> str | None:
         """Return the panel's sticky Tools card from area state, if any."""
         try:
@@ -293,6 +336,7 @@ class AgentDetailDeckRefreshMixin:
             return
         for panel in panels:
             if agent is None:
+                record_open = getattr(self, "_current_record_subject", None) is not None
                 availability = {
                     DeckId.MAIN: DeckAvailability(
                         bool(self._main_deck_document.cards),
@@ -301,7 +345,11 @@ class AgentDetailDeckRefreshMixin:
                     DeckId.FILES: DeckAvailability(False, 0),
                     DeckId.TOOLS: DeckAvailability(False, 0),
                     DeckId.FINAL: DeckAvailability(False, 0),
-                    DeckId.RECORD: DeckAvailability(False, 0),
+                    DeckId.RECORD: (
+                        DeckAvailability(True, None)
+                        if record_open
+                        else DeckAvailability(False, 0)
+                    ),
                 }
             else:
                 availability = {
@@ -344,6 +392,7 @@ class AgentDetailDeckRefreshMixin:
     ) -> None:
         prev_agent = self._current_agent
         self._current_agent = agent
+        self._current_record_subject = None
         self._tribe_document_complete = False  # type: ignore[attr-defined]
         self._current_attempt_number = attempt_number
         if prev_agent is not None and prev_agent.identity != agent.identity:
@@ -357,6 +406,7 @@ class AgentDetailDeckRefreshMixin:
 
         self._agent_detail_generation += 1
         self._current_agent = None
+        self._current_record_subject = None
         self._current_tribe_identity = None
         self._tribe_document_complete = False  # type: ignore[attr-defined]
         self._current_attempt_number = None
@@ -419,6 +469,7 @@ class AgentDetailDeckRefreshMixin:
     def _deck_show_tribe_summary(self, snapshot: Any, *, cheap: bool = False) -> None:
         self._agent_detail_generation += 1
         self._current_agent = None
+        self._current_record_subject = None
         self._current_tribe_identity = snapshot.container_identity
         self._tribe_document_complete = not cheap  # type: ignore[attr-defined]
         self._current_attempt_number = None

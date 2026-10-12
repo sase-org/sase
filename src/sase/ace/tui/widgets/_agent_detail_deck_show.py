@@ -16,6 +16,7 @@ class AgentDetailDeckShowMixin:
 
     _main_deck_document: MainDeckDocument
     _current_agent: Any | None
+    _current_record_subject: Any | None
     _current_attempt_number: int | None
     _agent_detail_generation: int
 
@@ -35,7 +36,31 @@ class AgentDetailDeckShowMixin:
         panel = area.panel(panel_index)
         agent = self._current_agent
         attempt_number = self._current_attempt_number
+        record_subject = getattr(self, "_current_record_subject", None)
         if agent is None:
+            if deck is DeckId.RECORD and record_subject is not None:
+                try:
+                    preferred = self._record_preferred_card(panel)  # type: ignore[attr-defined]
+                except Exception:
+                    preferred = None
+                try:
+                    panel.record_view.show_subject(
+                        record_subject,
+                        generation=self._agent_detail_generation,
+                        preferred_card=preferred,
+                    )
+                except Exception:
+                    pass
+                self._deck_refresh_availability()  # type: ignore[attr-defined]
+                try:
+                    panel.refresh_chrome()
+                except Exception:
+                    pass
+                try:
+                    self._notify_deck_state_changed()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                return
             try:
                 panel.refresh_chrome()
             except Exception:

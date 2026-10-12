@@ -10,8 +10,12 @@ parallel phases never edit the same file.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
+
+#: Cap on container member names captured onto a light-row subject.
+_MEMBER_NAME_CAP = 8
 
 
 @dataclass(frozen=True)
@@ -215,6 +219,160 @@ def record_subject_from_agent(
     )
 
 
+def _optional_int(value: Any) -> int | None:
+    """Return ``value`` as int, or None when absent or unparsable."""
+    if value is None or value == "" or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: Any) -> float | None:
+    """Return ``value`` as float, or None when absent or unparsable."""
+    if value is None or value == "" or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    """Return ``value`` as bool only when it is already a bool."""
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+def _archive_key_text(row: Mapping[str, Any]) -> str | None:
+    """Return the ``user.machine@run`` identity for one light row."""
+    archive_key = row.get("archive_key")
+    if isinstance(archive_key, Mapping):
+        user = archive_key.get("source_username")
+        machine = archive_key.get("source_machine")
+        run_id = archive_key.get("source_run_id")
+        if all(isinstance(part, str) and part for part in (user, machine, run_id)):
+            return f"{user}.{machine}@{run_id}"
+        if isinstance(run_id, str) and run_id:
+            return run_id
+    if isinstance(archive_key, str) and archive_key:
+        return archive_key
+    return None
+
+
+def _light_row_identity(row: Mapping[str, Any], kind: str) -> object:
+    """Return a hashable identity for a light-row or container subject."""
+    if kind == "container":
+        key = row.get("container_key")
+        return ("archive-container", str(key) if key else "")
+    archive_key = row.get("archive_key")
+    if isinstance(archive_key, Mapping):
+        return (
+            "archive-light",
+            str(archive_key.get("source_username") or ""),
+            str(archive_key.get("source_machine") or ""),
+            str(archive_key.get("source_run_id") or ""),
+        )
+    name = _text(row.get("agent_name") or row.get("name"))
+    return ("archive-light", name or "")
+
+
+def _member_names_from_rows(members: Any) -> tuple[str, ...]:
+    """Return capped member names from light-row mappings or strings."""
+    out: list[str] = []
+    try:
+        rows = tuple(members or ())
+    except Exception:
+        return ()
+    for member in rows:
+        if len(out) >= _MEMBER_NAME_CAP:
+            break
+        if isinstance(member, Mapping):
+            name = _text(
+                member.get("agent_name") or member.get("name") or member.get("cl_name")
+            )
+        else:
+            name = _text(member)
+        if name:
+            out.append(name)
+    return tuple(out)
+
+
+def record_archive_facts_from_light_row(
+    row: Mapping[str, Any] | None,
+) -> RecordArchiveFacts:
+    """Copy Archive light-row facts onto :class:`RecordArchiveFacts` (no I/O)."""
+    if not row:
+        return RecordArchiveFacts()
+    return RecordArchiveFacts(
+        outcome=_text(row.get("outcome")),
+        time_basis=_text(row.get("time_basis")),
+        last_activity=_text(row.get("last_activity_at") or row.get("last_activity")),
+        start_time=_text(row.get("start_time")),
+        runtime_seconds=_optional_float(row.get("runtime_seconds")),
+        restorable=_optional_bool(row.get("restorable")),
+        member_count=_optional_int(row.get("member_count")),
+        container_key=_text(row.get("container_key")),
+        archive_key=_archive_key_text(row),
+    )
+
+
+def record_subject_from_light_row(
+    light_row: Mapping[str, Any] | None,
+    *,
+    members: Any = (),
+) -> RecordSubject:
+    """Build a :class:`RecordSubject` from an Archive light row (no I/O).
+
+    Kind is ``container`` when the row is a container summary, else
+    ``light_row`` for an unreadable (or otherwise unhydrated) entry.
+    Facts come from the light row only; ``members`` supplies capped
+    member names for the Relations card.
+    """
+    row: Mapping[str, Any] = light_row or {}
+    is_container = bool(row.get("container"))
+    kind = "container" if is_container else "light_row"
+    archive = record_archive_facts_from_light_row(row)
+    archive_key = row.get("archive_key")
+    username = None
+    machine = None
+    run_id = None
+    if isinstance(archive_key, Mapping):
+        username = _text(archive_key.get("source_username"))
+        machine = _text(archive_key.get("source_machine"))
+        run_id = _text(archive_key.get("source_run_id"))
+    restorable = archive.restorable
+    return RecordSubject(
+        identity=_light_row_identity(row, kind),
+        kind=kind,
+        location="archive",
+        agent_name=_text(
+            row.get("agent_name") or row.get("name") or row.get("cl_name")
+        ),
+        raw_suffix=_text(row.get("raw_suffix")),
+        status=_text(row.get("status")),
+        start_time=row.get("start_time"),
+        stop_time=row.get("stop_time") or row.get("end_time"),
+        historically_viewable=True,
+        durably_revivable=True if restorable is None else restorable,
+        restartable=False,
+        project_label=_text(
+            row.get("project_label") or row.get("project_name") or row.get("project")
+        ),
+        model=_text(row.get("model")),
+        llm_provider=_text(row.get("provider") or row.get("llm_provider")),
+        reasoning_effort=_text(row.get("reasoning_effort")),
+        source_username=username,
+        source_machine=machine,
+        source_run_id=run_id,
+        bundle_path=_text(row.get("bundle_path")),
+        member_names=_member_names_from_rows(members),
+        archive=archive,
+    )
+
+
 def live_related_names(
     agents: Any, suffixes: tuple[str, ...] | list[str]
 ) -> tuple[tuple[str, str], ...]:
@@ -256,5 +414,7 @@ __all__ = [
     "RecordArchiveFacts",
     "RecordSubject",
     "live_related_names",
+    "record_archive_facts_from_light_row",
     "record_subject_from_agent",
+    "record_subject_from_light_row",
 ]

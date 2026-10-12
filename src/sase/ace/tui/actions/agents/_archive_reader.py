@@ -115,6 +115,42 @@ def _paint_identity(detail: Any, header: Any) -> None:
         show(header)
 
 
+def _paint_record_from_light_row(
+    detail: Any,
+    light_row: Mapping[str, Any] | None,
+    members: tuple[Mapping[str, Any], ...] = (),
+) -> None:
+    """Paint every visible RECORD panel from a light-row subject.
+
+    Unreadable entries and container rows have no hydrated Agent. RECORD
+    stays available; other decks keep their titled cards. No bundle is
+    hydrated per member.
+    """
+    if detail is None or not light_row:
+        return
+    try:
+        from ...widgets.decks.record.model import record_subject_from_light_row
+
+        subject = record_subject_from_light_row(light_row, members=members)
+    except Exception:
+        return
+    try:
+        from ...widgets._agent_detail_deck_refresh import AgentDetailDeckRefreshMixin
+
+        if isinstance(detail, AgentDetailDeckRefreshMixin):
+            detail.show_record_subject(subject)
+            return
+    except Exception:
+        pass
+    show = getattr(detail, "show_record_subject", None)
+    if not callable(show):
+        return
+    try:
+        show(subject)
+    except Exception:
+        log.debug("Record light-row subject paint failed", exc_info=True)
+
+
 def _show_titled(detail: Any, title: str, detail_text: str = "") -> None:
     show_cause = getattr(detail, "show_tab_empty_state", None)
     if callable(show_cause):
@@ -186,16 +222,17 @@ def _paint_container_summary(owner: Any, detail: Any, selection: Any) -> None:
     show_cause = getattr(detail, "show_tab_empty_state", None)
     if callable(show_cause):
         show_cause("Container summary", body.plain)
-        return
-    update = getattr(detail, "update", None)
-    if callable(update):
-        from ...widgets.decks.card_part import card_document, summary_card
+    else:
+        update = getattr(detail, "update", None)
+        if callable(update):
+            from ...widgets.decks.card_part import card_document, summary_card
 
-        update(card_document(summary_card(body)))
-        return
-    show_empty = getattr(detail, "show_empty", None)
-    if callable(show_empty):
-        show_empty()
+            update(card_document(summary_card(body)))
+        else:
+            show_empty = getattr(detail, "show_empty", None)
+            if callable(show_empty):
+                show_empty()
+    _paint_record_from_light_row(detail, selection.light_row, members)
 
 
 def arm_archive_detail_hydration(owner: Any) -> None:
@@ -368,6 +405,7 @@ def _apply_hydration_result(
     _paint_identity(detail, header)
     if unreadable or agent is None:
         _show_titled(detail, ARCHIVE_UNREADABLE_TITLE, _UNREADABLE_DETAIL)
+        _paint_record_from_light_row(detail, light_row)
         return
     update = getattr(detail, "update_display", None)
     if callable(update):

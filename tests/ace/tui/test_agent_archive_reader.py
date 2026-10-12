@@ -98,6 +98,7 @@ class _FakeDetail:
         self.identities: list[Any] = []
         self.displays: list[Agent] = []
         self.updates: list[Any] = []
+        self.record_subjects: list[Any] = []
 
     def show_empty(self) -> None:
         self.empty += 1
@@ -113,6 +114,9 @@ class _FakeDetail:
 
     def update(self, content: Any = "", **kwargs: Any) -> None:
         self.updates.append(content)
+
+    def show_record_subject(self, subject: Any) -> None:
+        self.record_subjects.append(subject)
 
 
 class _FakeFilePanel:
@@ -211,6 +215,11 @@ def test_light_row_identity_and_placeholders() -> None:
     assert "Ended:" in header.expanded.plain or "ended" in header.expanded.plain.lower()
     unreadable = archive_identity_header_from_light_row(row, unreadable=True)
     assert ARCHIVE_UNREADABLE_TITLE in unreadable.expanded.plain
+    dismissed = archive_identity_header_from_light_row(
+        light_row("run-2", time_basis="dismissed")
+    )
+    assert "Dismissed:" in dismissed.expanded.plain
+    assert "Started:" not in dismissed.expanded.plain
     card = titled_archive_card(ARCHIVE_MISSING_CONTEXT)
     assert ARCHIVE_MISSING_CONTEXT in card.plain
     members = (light_row("m1", name="one"), light_row("m2", name="two"))
@@ -333,6 +342,14 @@ async def test_unreadable_bundle_paints_record_placeholder(tmp_path: Path) -> No
         assert runtime.hydrated_agent is None
         titles = [title for title, _ in detail.causes]
         assert ARCHIVE_UNREADABLE_TITLE in titles
+        assert detail.displays == []
+        assert len(detail.record_subjects) == 1
+        subject = detail.record_subjects[0]
+        assert subject.kind == "light_row"
+        assert subject.location == "archive"
+        assert subject.agent_name == "agent-t00"
+        assert subject.archive is not None
+        assert subject.archive.outcome == "done"
         context = archive_read_only_context(harness.owner)
         assert context is not None and context.unreadable is True
 
@@ -385,6 +402,13 @@ async def test_container_summary_uses_light_rows_only(tmp_path: Path) -> None:
         assert selection.agent is None
         titles = [title for title, _ in detail.causes]
         assert "Container summary" in titles
+        assert detail.displays == []
+        assert detail.record_subjects
+        subject = detail.record_subjects[-1]
+        assert subject.kind == "container"
+        assert subject.location == "archive"
+        assert subject.archive is not None
+        assert subject.archive.member_count == 3
         route_archive_key(harness.owner, INTENT_EXPAND)
         await harness.settle()
         members = archive_container_members(harness.owner, clan)
@@ -394,6 +418,11 @@ async def test_container_summary_uses_light_rows_only(tmp_path: Path) -> None:
         assert len(members) == 3
         body = archive_container_summary_text(selection.light_row, members)
         assert "swarm.one" in body.plain
+        expanded = detail.record_subjects[-1]
+        assert expanded.kind == "container"
+        assert "swarm.one" in expanded.member_names
+        assert "swarm.two" in expanded.member_names
+        assert "swarm.three" in expanded.member_names
 
 
 async def test_partial_reply_is_retained_for_archived_running(tmp_path: Path) -> None:

@@ -71,6 +71,8 @@ def lifecycle_card(subject: RecordSubject, extras: FactsExtras) -> CardPart:
     archive = subject.archive
     if archive is not None:
         _outcome_line(text, subject, archive)
+        if subject.kind == "container" and archive.member_count is not None:
+            _field(text, "Members", str(archive.member_count))
     _field(text, "Started", _started_value(subject))
     ended = _format_timestamp(subject.stop_time)
     if ended:

@@ -27,7 +27,11 @@ from .loader import (
     load_record_deck,
     record_cache_key,
 )
-from .model import record_subject_from_agent
+from .model import (
+    RecordSubject,
+    record_archive_facts_from_light_row,
+    record_subject_from_agent,
+)
 
 
 class RecordDeckLoaded(Message):
@@ -74,20 +78,40 @@ class RecordDeckView(CardDocumentView):
     ) -> None:
         """Show RECORD cards for ``agent``, loading off-thread on a miss.
 
-        ``archive_light_row`` is accepted for the ``archive-rows``
-        phase; the ``shell`` contract still captures the subject from
-        the agent alone. ``bundle_path`` overrides the agent's own path
+        ``archive_light_row`` supplies Archive facts for a hydrated
+        archived agent. ``bundle_path`` overrides the agent's own path
         when the caller already resolved one.
         """
-        del archive_light_row
+        archive = None
+        if archive_light_row is not None:
+            try:
+                archive = record_archive_facts_from_light_row(archive_light_row)
+            except Exception:
+                archive = None
         try:
             subject = record_subject_from_agent(
                 agent,
                 attempt_number=attempt_number,
+                archive=archive,
                 bundle_path=bundle_path,
             )
         except Exception:
             return
+        self.show_subject(subject, generation=generation, preferred_card=preferred_card)
+
+    def show_subject(
+        self,
+        subject: RecordSubject,
+        *,
+        generation: int = 0,
+        preferred_card: str | None = None,
+    ) -> None:
+        """Show RECORD cards for a captured ``subject``, loading off-thread.
+
+        Used for unreadable Archive entries and container rows that have
+        no hydrated Agent, and as the shared paint path for
+        :meth:`update_display`.
+        """
         identity = subject.identity
         self._current_subject_identity = identity
         self._current_generation = generation

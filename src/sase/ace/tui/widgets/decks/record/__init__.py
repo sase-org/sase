@@ -30,7 +30,9 @@ from .model import (
     RecordArchiveFacts,
     RecordSubject,
     live_related_names,
+    record_archive_facts_from_light_row,
     record_subject_from_agent,
+    record_subject_from_light_row,
 )
 from .relations import (
     RelationsExtras,
@@ -66,9 +68,11 @@ __all__ = [
     "load_record_deck",
     "load_relations_extras",
     "provenance_card",
+    "record_archive_facts_from_light_row",
     "record_cache_key",
     "record_default_card",
     "record_subject_from_agent",
+    "record_subject_from_light_row",
     "relations_card",
     "store_record_result",
 ]
