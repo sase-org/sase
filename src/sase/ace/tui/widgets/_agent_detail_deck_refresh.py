@@ -32,6 +32,82 @@ class AgentDetailDeckRefreshMixin:
     _current_attempt_number: int | None
     _agent_detail_generation: int
 
+    def _record_display_kwargs(self, agent: Agent) -> dict[str, Any]:
+        """Capture pump-safe Archive and live relation inputs for RECORD."""
+        kwargs: dict[str, Any] = {
+            "archive_light_row": None,
+            "bundle_path": None,
+            "related_live_names": (),
+        }
+        try:
+            archive_read_only = bool(getattr(agent, "_archive_read_only", False))
+        except Exception:
+            archive_read_only = False
+        if archive_read_only:
+            try:
+                from ..actions.agents._archive_view_selection import (
+                    archive_read_only_context,
+                )
+
+                try:
+                    app = getattr(self, "app", None)  # type: ignore[attr-defined]
+                except Exception:
+                    app = None
+                for owner in (app, self):
+                    if owner is None:
+                        continue
+                    context = archive_read_only_context(owner)
+                    if context is not None:
+                        kwargs["archive_light_row"] = getattr(
+                            context, "light_row", None
+                        )
+                        break
+            except Exception:
+                pass
+            for attr in ("bundle_path", "_dismissed_bundle_path"):
+                try:
+                    candidate = getattr(agent, attr, None)
+                except Exception:
+                    candidate = None
+                if candidate:
+                    kwargs["bundle_path"] = str(candidate)
+                    break
+
+        suffixes: list[str] = []
+        for attr in (
+            "parent_timestamp",
+            "retry_of_timestamp",
+            "retried_as_timestamp",
+        ):
+            try:
+                value = getattr(agent, attr, None)
+                if value:
+                    suffixes.append(str(value))
+            except Exception:
+                pass
+        if suffixes:
+            try:
+                from .decks.record.model import live_related_names
+
+                try:
+                    app = getattr(self, "app", None)  # type: ignore[attr-defined]
+                except Exception:
+                    app = None
+                owner = app if app is not None else self
+                try:
+                    agents = getattr(owner, "_agents_with_children", None)
+                except Exception:
+                    agents = None
+                if agents is None:
+                    try:
+                        agents = getattr(owner, "_agents", None)
+                    except Exception:
+                        agents = None
+                kwargs["related_live_names"] = live_related_names(agents, suffixes)
+            except Exception:
+                pass
+        return kwargs
+
     def _deck_refresh_views(
         self, agent: Agent, stale_threshold_seconds: int, attempt_number: int | None
     ) -> None:
@@ -154,42 +230,13 @@ class AgentDetailDeckRefreshMixin:
                     preferred = self._record_preferred_card(panel)
                 except Exception:
                     preferred = None
-                light_row = None
-                bundle_path = None
-                if getattr(agent, "_archive_read_only", False):
-                    try:
-                        from ..actions.agents._archive_view_selection import (
-                            archive_read_only_context,
-                        )
-
-                        for owner in (
-                            getattr(self, "app", None),
-                            self,
-                        ):
-                            if owner is None:
-                                continue
-                            context = archive_read_only_context(owner)
-                            if context is not None:
-                                light_row = getattr(context, "light_row", None)
-                                break
-                    except Exception:
-                        light_row = None
-                    for attr in ("bundle_path", "_dismissed_bundle_path"):
-                        try:
-                            candidate = getattr(agent, attr, None)
-                        except Exception:
-                            candidate = None
-                        if candidate:
-                            bundle_path = str(candidate)
-                            break
                 try:
                     panel.record_view.update_display(
                         agent,
                         attempt_number=attempt_number,
                         generation=self._agent_detail_generation,
                         preferred_card=preferred,
-                        archive_light_row=light_row,
-                        bundle_path=bundle_path,
+                        **self._record_display_kwargs(agent),
                     )
                 except Exception:
                     pass

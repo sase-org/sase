@@ -258,12 +258,125 @@ def test_subject_capture_needs_no_attributes() -> None:
 
 def test_live_related_names_resolve_from_memory_only() -> None:
     agents = [
-        SimpleNamespace(raw_suffix="a", presented_agent_name="@agent:a-x"),
+        SimpleNamespace(
+            raw_suffix="a",
+            agent_name="a-durable",
+            presented_agent_name="@agent:a-presented",
+        ),
         SimpleNamespace(raw_suffix="b", agent_name="bee"),
+        SimpleNamespace(raw_suffix="c", agent_name="", presented_agent_name="cee"),
     ]
-    assert live_related_names(agents, ("a", "missing")) == (("a", "@agent:a-x"),)
+    assert live_related_names(agents, ("a", "missing")) == (("a", "a-durable"),)
+    assert live_related_names(agents, ("c",)) == (("c", "cee"),)
     assert live_related_names(agents, ()) == ()
     assert live_related_names(None, ("a",)) == ()
+
+
+def test_record_display_kwargs_skips_live_roster_scan_without_relations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.ace.tui.widgets.decks.record.model as record_model
+    from sase.ace.tui.widgets._agent_detail_deck_refresh import (
+        AgentDetailDeckRefreshMixin,
+    )
+
+    def _unexpected_scan(
+        *_args: object, **_kwargs: object
+    ) -> tuple[tuple[str, str], ...]:
+        raise AssertionError("agents without relation suffixes must not scan")
+
+    monkeypatch.setattr(record_model, "live_related_names", _unexpected_scan)
+    owner = SimpleNamespace(app=SimpleNamespace(_agents=[]))
+    kwargs = AgentDetailDeckRefreshMixin._record_display_kwargs(owner, _agent())
+    assert kwargs["related_live_names"] == ()
+
+
+def test_record_display_kwargs_falls_back_to_agent_roster() -> None:
+    from sase.ace.tui.widgets._agent_detail_deck_refresh import (
+        AgentDetailDeckRefreshMixin,
+    )
+
+    live_parent = SimpleNamespace(raw_suffix="live-parent", agent_name="parent")
+    owner = SimpleNamespace(app=SimpleNamespace(_agents=[live_parent]))
+    kwargs = AgentDetailDeckRefreshMixin._record_display_kwargs(
+        owner, _agent(parent_timestamp="live-parent")
+    )
+    assert kwargs["related_live_names"] == (("live-parent", "parent"),)
+
+
+async def test_record_show_and_refresh_share_archive_and_live_subject(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pathlib import Path
+
+    from textual.app import App, ComposeResult
+
+    from sase.ace.tui.widgets.agent_detail import AgentDetail
+    from sase.ace.tui.widgets.decks.record.loader import record_cache_key
+    from tests.ace.tui.widgets._agent_display_helpers import make_agent
+
+    root = Path(__file__).resolve().parents[5]
+
+    class _DetailApp(App[None]):
+        CSS_PATH = root / "src/sase/ace/tui/styles.tcss"
+
+        def compose(self) -> ComposeResult:
+            yield AgentDetail(id="agent-detail-panel")
+
+    agent = make_agent(
+        agent_name="archived",
+        raw_suffix="archive-row",
+        parent_timestamp="live-parent",
+        retry_of_timestamp="live-retry",
+        _archive_read_only=True,
+    )
+    agent._dismissed_bundle_path = "/tmp/archive.json"
+    parent = make_agent(
+        agent_name="durable-parent",
+        raw_suffix="live-parent",
+    )
+    parent.presented_agent_name = "@agent:presented-parent"
+    retry = make_agent(agent_name="durable-retry", raw_suffix="live-retry")
+    app = _DetailApp()
+    app._agents_with_children = [parent, retry]  # type: ignore[attr-defined]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._archive_view_selection.archive_read_only_context",
+        lambda _owner: SimpleNamespace(
+            light_row={
+                "outcome": "done",
+                "last_activity_at": "2026-10-10T15:30:00Z",
+                "time_basis": "ended",
+            }
+        ),
+    )
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail._current_agent = agent
+        subjects: list[RecordSubject] = []
+        view = detail.deck_area.panel(0).record_view
+        monkeypatch.setattr(
+            view,
+            "show_subject",
+            lambda subject, **_kwargs: subjects.append(subject),
+        )
+
+        detail.show_deck(0, DeckId.RECORD)
+        detail._deck_refresh_views(agent, 10, None)
+
+        assert len(subjects) == 2
+        shown, refreshed = subjects
+        assert shown.archive is not None
+        assert shown.archive.outcome == "done"
+        assert shown.archive.last_activity == "2026-10-10T15:30:00Z"
+        assert shown.archive.time_basis == "ended"
+        assert shown.bundle_path == "/tmp/archive.json"
+        assert shown.related_live_names == (
+            ("live-parent", "durable-parent"),
+            ("live-retry", "durable-retry"),
+        )
+        assert record_cache_key(shown) == record_cache_key(refreshed)
 
 
 # -- Chrome: tabs and subtitle -------------------------------------------

@@ -399,8 +399,8 @@ def live_related_names(
             continue
         try:
             name = str(
-                getattr(agent, "presented_agent_name", None)
-                or getattr(agent, "agent_name", None)
+                getattr(agent, "agent_name", None)
+                or getattr(agent, "presented_agent_name", None)
                 or ""
             )
         except Exception:

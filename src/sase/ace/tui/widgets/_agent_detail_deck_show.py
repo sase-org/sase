@@ -153,6 +153,7 @@ class AgentDetailDeckShowMixin:
                     attempt_number=attempt_number,
                     generation=self._agent_detail_generation,
                     preferred_card=preferred,
+                    **self._record_display_kwargs(agent),  # type: ignore[attr-defined]
                 )
             except Exception:
                 pass

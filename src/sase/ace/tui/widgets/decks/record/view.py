@@ -75,12 +75,14 @@ class RecordDeckView(CardDocumentView):
         preferred_card: str | None = None,
         archive_light_row: Any | None = None,
         bundle_path: str | None = None,
+        related_live_names: tuple[tuple[str, str], ...] = (),
     ) -> None:
         """Show RECORD cards for ``agent``, loading off-thread on a miss.
 
         ``archive_light_row`` supplies Archive facts for a hydrated
         archived agent. ``bundle_path`` overrides the agent's own path
-        when the caller already resolved one.
+        when the caller already resolved one. ``related_live_names``
+        carries parent/retry names captured from the in-memory roster.
         """
         archive = None
         if archive_light_row is not None:
@@ -92,6 +94,7 @@ class RecordDeckView(CardDocumentView):
             subject = record_subject_from_agent(
                 agent,
                 attempt_number=attempt_number,
+                related_live_names=related_live_names,
                 archive=archive,
                 bundle_path=bundle_path,
             )

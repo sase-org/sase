@@ -106,7 +106,7 @@ def test_relations_resolve_live_and_archived_parent_retry_refs(
         retry_of_timestamp="archived-old",
         retried_as_timestamp="missing-new",
         retry_attempt=2,
-        related_live_names=(("live-parent", "presented-parent"),),
+        related_live_names=(("live-parent", "durable-parent"),),
     )
 
     extras = load_relations_extras(subject)
@@ -114,7 +114,7 @@ def test_relations_resolve_live_and_archived_parent_retry_refs(
     assert queried == [{"archived-old", "missing-new"}]
     assert refs == {
         "clan": "@agent:clan-current",
-        "parent": "@agent:presented-parent",
+        "parent": "@agent:durable-parent",
         "retry_of": "@agent:parent-copy",
         "session": "@agent:session-current",
         "workflow": "@agent:release-flow",
@@ -123,7 +123,7 @@ def test_relations_resolve_live_and_archived_parent_retry_refs(
     rendered = _text(relations_card(subject, extras))
     assert "Session: @agent:session-current · code" in rendered
     assert "Clan: @agent:clan-current · generation g4" in rendered
-    assert "Parent: @agent:presented-parent" in rendered
+    assert "Parent: @agent:durable-parent" in rendered
     assert "Workflow: @agent:release-flow" in rendered
     assert "Retry: @agent:parent-copy → @agent:missing-new · attempt 2" in rendered
 

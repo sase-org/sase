@@ -182,6 +182,7 @@ async def test_agents_record_inbox_lifecycle_png_snapshot(
         assert detail.deck_area.panel(0).record_view.active_card_id == "lifecycle"
         assert_page_svg_contains(page, "Lifecycle")
         assert_page_svg_contains(page, "Inbox")
+        assert_page_svg_contains(page, "@agent:landed")
         ace_png_visual.assert_page_png(
             page,
             "agents_record_inbox_lifecycle_120x40",
@@ -344,9 +345,13 @@ async def test_agents_record_archived_lifecycle_png_snapshot(
             await _open_archive(page, rows)
 
             await _wait_for_svg(page, "ARCHIVED")
-            detail = await show_record(page, preferred="lifecycle", expect="Lifecycle")
+            detail = await show_record(page, preferred="lifecycle", expect="Time basis")
             assert detail.deck_area.panel(0).record_view.active_card_id == "lifecycle"
             assert_page_svg_contains(page, "Archive")
+            assert_page_svg_contains(page, "@agent:archived-run")
+            assert_page_svg_contains(page, "Outcome")
+            assert_page_svg_contains(page, "Last activity")
+            assert_page_svg_contains(page, "Time basis")
             await wait_for_visual_idle(page)
             ace_png_visual.assert_page_png(
                 page,
@@ -381,6 +386,7 @@ async def test_agents_record_unreadable_entry_png_snapshot(
             await _wait_for_svg(page, "Record only")
             detail = await show_record(page, preferred="lifecycle", expect="Lifecycle")
             assert detail.deck_area.panel(0).record_view.active_card_id == "lifecycle"
+            assert_page_svg_contains(page, "@agent:missing.bundle")
             assert_page_svg_contains(page, "missing.bundle")
             await wait_for_visual_idle(page)
             ace_png_visual.assert_page_png(

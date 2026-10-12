@@ -67,9 +67,10 @@ def test_inbox_lifecycle_and_provenance_cards() -> None:
         source_run_id="run-1",
     )
     subject = record_subject_from_agent(agent)
-    extras = FactsExtras(reference="@agent:athena", chat_path="/tmp/chat.json")
+    extras = FactsExtras(reference="agent:athena", chat_path="/tmp/chat.json")
     life = _card_text(lifecycle_card(subject, extras))
     prov = _card_text(provenance_card(subject, extras))
+    assert life.splitlines()[0] == "@agent:athena"
     assert "@agent:athena" in life
     assert "Inbox" in life
     assert "DONE" in life
@@ -113,13 +114,14 @@ def test_hydrated_archived_lifecycle_uses_light_row_and_index() -> None:
         agent, archive=archive, bundle_path="/tmp/dismissed/run.json"
     )
     extras = FactsExtras(
-        reference="@agent:archived-run",
+        reference="agent:archived-run",
         dismissed_at="2026-10-08T18:20:00Z",
         times_revived=2,
         bundle_path="/tmp/dismissed/run.json",
     )
     life = _card_text(lifecycle_card(subject, extras))
     prov = _card_text(provenance_card(subject, extras))
+    assert life.splitlines()[0] == "@agent:archived-run"
     assert "Archive" in life
     assert "FAILED" in life
     assert "✗ failed" in life
@@ -191,6 +193,7 @@ def test_thin_agent_artifacts_dir_not_recorded(
     prov = _card_text(provenance_card(subject, extras))
     assert "not recorded" in prov
     life = _card_text(lifecycle_card(subject, extras))
+    assert life.splitlines()[0] == "@agent:thin"
     assert "@agent:thin" in life
     assert "Inbox" in life
 

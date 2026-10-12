@@ -63,7 +63,11 @@ def load_facts_extras(subject: RecordSubject) -> FactsExtras:
 def lifecycle_card(subject: RecordSubject, extras: FactsExtras) -> CardPart:
     """Build the Lifecycle card from pump-captured facts plus extras."""
     text = Text()
-    heading = extras.reference or subject.agent_name or "Unnamed agent"
+    reference = extras.reference
+    if reference:
+        heading = reference if reference.startswith("@") else f"@{reference}"
+    else:
+        heading = subject.agent_name or "Unnamed agent"
     text.append(heading, style="bold")
     text.append("\n")
     _field(text, "Location", _location_label(subject.location))
