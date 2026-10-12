@@ -25,6 +25,13 @@ _OPERATION_GLYPHS: dict[str, tuple[str, str]] = {
     "validate": ("●", "cyan"),
     "deploy": ("●", "cyan"),
 }
+
+
+def operation_glyph(operation: str) -> tuple[str, str]:
+    """Return the (glyph, style) pair for an onboarding operation."""
+    return _OPERATION_GLYPHS.get(operation, ("~", "yellow"))
+
+
 _OPERATION_SEVERITY: dict[str, int] = {
     "delete": 0,
     "overwrite": 1,
@@ -303,5 +310,6 @@ __all__ = [
     "init_plan_is_danger",
     "init_plan_renderable",
     "init_plan_title",
+    "operation_glyph",
     "runnable_project_count",
 ]

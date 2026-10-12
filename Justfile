@@ -450,7 +450,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jm.5(mark_archive_row_restored)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
-        --epic-symbol 'sase-1jx.10(parse_event_line)' \
         --epic-symbol 'sase-1jx.11(NewProjectModal)' \
         --epic-symbol 'sase-1jx.11(NewProjectSelection)' \
         --epic-symbol 'sase-1jx.12(record_owner_selection)' \
