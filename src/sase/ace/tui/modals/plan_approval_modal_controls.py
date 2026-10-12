@@ -86,6 +86,7 @@ class PlanApprovalControlsMixin:
             target = control_ids[(current + delta) % len(control_ids)]
             self.query_one(f"#{target}").focus(scroll_visible=False)  # type: ignore[attr-defined]
             self._sync_focused_decision(target)
+            self._refresh_footer()  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -118,6 +119,7 @@ class PlanApprovalControlsMixin:
         control_id = getattr(control, "id", "") or ""
         if isinstance(control_id, str) and control_id.startswith("plan-decision-"):
             self._sync_focused_decision(control_id)
+        self._refresh_footer()  # type: ignore[attr-defined]
 
     def on_descendant_blur(self, event: object) -> None:
         """Drop the focus bar when focus leaves every decision card."""
@@ -141,6 +143,7 @@ class PlanApprovalControlsMixin:
             rows.set_cards_focused(False)
         except Exception:
             pass
+        self._refresh_footer()  # type: ignore[attr-defined]
 
     def on_plan_decision_rows_option_selected(
         self, event: PlanDecisionRows.OptionSelected
@@ -246,10 +249,12 @@ class PlanApprovalControlsMixin:
                 except Exception:
                     pass
                 self._scroll_to_focused_decision()  # type: ignore[attr-defined]
+                self._refresh_footer()  # type: ignore[attr-defined]
                 return
             except Exception:
                 pass
         self.focus_gate_control(1)
+        self._refresh_footer()  # type: ignore[attr-defined]
 
     def _decision_inputs_for(
         self, selected_option_ids: tuple[str, ...]
@@ -372,7 +377,10 @@ class PlanApprovalControlsMixin:
         self.dismiss(self._result_with_decisions(result))  # type: ignore[attr-defined]
 
     def action_cancel(self) -> None:
-        """Cancel the modal (no response written)."""
+        """Leave the decision sheet first; a second Esc/q cancels as today."""
+        if self.has_class("-decision-sheet"):  # type: ignore[attr-defined]
+            self._set_decision_sheet(False)  # type: ignore[attr-defined]
+            return
         if self._request_id is not None and self.has_decisions:  # type: ignore[attr-defined]
             esc_drafts[self._request_id] = self._decision_draft.values()
         self.dismiss(None)  # type: ignore[attr-defined]
@@ -424,6 +432,12 @@ class PlanApprovalControlsMixin:
 
     def action_decision_reset_all(self) -> None:
         self._apply_draft_edit(self._decision_draft.reset_all)
+
+    def action_decision_zoom(self) -> None:
+        """Toggle the full-width decision sheet (plans with decisions only)."""
+        if not self.has_decisions:  # type: ignore[attr-defined]
+            return
+        self._set_decision_sheet(not self.has_class("-decision-sheet"))  # type: ignore[attr-defined]
 
     def action_submit_primary(self) -> None:
         self.query_one(GateBranchControls).submit_primary_branch()  # type: ignore[attr-defined]

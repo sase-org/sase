@@ -251,6 +251,7 @@ def test_declared_key_wins_when_free_and_falls_back_when_taken() -> None:
 def test_open_inputs_key_is_withheld_from_declared_gate_action_keys() -> None:
     taken = gate_modal_taken_keys((), GateModalKeymaps())
     assert "i" in taken
+    assert "z" in taken
     resolved = resolve_gate_action_keys((_edit_operation(key="i"),), taken=taken)
     assert resolved["edit_plan"] != "i"
 

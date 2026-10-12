@@ -2,8 +2,8 @@
 
 Split facade: the tests now live in ``test_plan_decision_ace_draft``,
 ``test_plan_decision_ace_document``, ``test_plan_decision_ace_modal``,
-``test_plan_decision_ace_verdict``, ``test_plan_decision_ace_stale``, and
-``test_plan_decision_ace_render``. This module re-exports the public names so
+``test_plan_decision_ace_verdict``, ``test_plan_decision_ace_stale``, ``test_plan_decision_ace_render``, and
+``test_plan_decision_ace_sheet``. This module re-exports the public names so
 the original import path keeps working. It collects no tests itself.
 """
 
@@ -62,6 +62,16 @@ from tests.ace.tui.test_plan_decision_ace_render import (
     test_one_keypress_computes_sheet_once_and_refreshes_edited_card,
     test_settled_polling_reads_only_open_modal,
 )
+from tests.ace.tui.test_plan_decision_ace_sheet import (
+    test_decisions_footer_fits_one_line_at_262,
+    test_footer_merges_choice_keys_and_conditions_on_focus,
+    test_footer_refreshes_on_focus_without_sheet_recompute,
+    test_narrow_sheet_stays_docked_on_open,
+    test_q_leaves_sheet_like_escape,
+    test_sheet_keeps_choice_keys_and_hides_plan_pane,
+    test_z_does_not_start_fold_mode,
+    test_z_toggles_sheet_and_esc_leaves_then_cancels,
+)
 
 __test__ = False
 
@@ -76,6 +86,7 @@ __all__ = [
     "test_custom_gate_decision_handlers_noop",
     "test_decision_map_keys",
     "test_decision_option_inputs_same_map_and_reject_omits",
+    "test_decisions_footer_fits_one_line_at_262",
     "test_draft_edit_avoids_revalidate_relex",
     "test_draft_preserves_author_order_and_effective_defaults",
     "test_esc_store_freeze_and_settled",
@@ -83,6 +94,8 @@ __all__ = [
     "test_feedback_carry_lines_only_changed",
     "test_first_frame_tint_keeps_syntax",
     "test_flip_and_reset",
+    "test_footer_merges_choice_keys_and_conditions_on_focus",
+    "test_footer_refreshes_on_focus_without_sheet_recompute",
     "test_fold_maps_many_yaml_lines_to_one",
     "test_freeze_banner_visible_and_submit_blocked",
     "test_gate_card_decisions_block_pending_and_answered",
@@ -91,20 +104,25 @@ __all__ = [
     "test_modal_decision_mouse_selects_card_and_option",
     "test_modal_decisions_focus_step_reset_and_enter",
     "test_modal_result_carries_displayed_revision_and_decisions",
+    "test_narrow_sheet_stays_docked_on_open",
     "test_new_chip_for_missing_memory_note",
     "test_one_keypress_computes_sheet_once_and_refreshes_edited_card",
     "test_plan_section_render_path_no_stat_no_validate",
     "test_plan_short_labels_and_generic_unchanged",
+    "test_q_leaves_sheet_like_escape",
     "test_receipt_has_no_gate_card_and_is_silent",
     "test_scroll_prefers_callout_then_id_and_uses_fold",
     "test_scroll_uses_cached_fold_map",
     "test_settled_labels_truthful",
     "test_settled_polling_reads_only_open_modal",
     "test_sheet_counts_and_revision",
+    "test_sheet_keeps_choice_keys_and_hides_plan_pane",
     "test_stale_review_reloads_revision_keeping_values",
     "test_step_wraps_choices_and_sets_toggles",
     "test_tint_dims_unselected_without_dropping_lines",
     "test_toggle_chip_glyphs_measure_one_cell",
     "test_toast_second_line_and_plan_document_sheet",
     "test_unverified_copy_and_human_override",
+    "test_z_does_not_start_fold_mode",
+    "test_z_toggles_sheet_and_esc_leaves_then_cancels",
 ]

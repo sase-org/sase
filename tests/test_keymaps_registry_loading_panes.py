@@ -85,6 +85,7 @@ def test_gate_modal_keys_can_be_overridden_independently() -> None:
     assert reg.gate.decision_prev == "h,left"
     assert reg.gate.decision_reset == "r"
     assert reg.gate.decision_reset_all == "R"
+    assert reg.gate.decision_zoom == "z"
 
 
 def test_memory_panel_keys_can_be_overridden_independently() -> None:

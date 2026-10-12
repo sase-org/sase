@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import VerticalScroll
 from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
@@ -26,6 +26,10 @@ from .plan_decision_cards import (
 
 #: Fallback card width before the first layout pass measures the real one.
 _FALLBACK_CARD_WIDTH = 44
+#: Wrap width cap inside the full-width decision sheet.
+SHEET_CARD_MAX_WIDTH = 100
+#: Pinned-slot hint; the sheet phase appends the zoom key.
+MORE_HINT = "↓ more · z: sheet"
 
 
 @dataclass(frozen=True)
@@ -104,6 +108,7 @@ class DecisionCard(Static, can_focus=True):
         self._card_focused = False
         self._read_only = False
         self._preview_lines = 2
+        self._force_expanded = False
         self._card_width = _FALLBACK_CARD_WIDTH
         self._built: BuiltCard | None = None
 
@@ -121,6 +126,7 @@ class DecisionCard(Static, can_focus=True):
         focused: bool,
         read_only: bool,
         preview_lines: int = 2,
+        force_expanded: bool = False,
     ) -> None:
         """Rebuild this card's renderable from a sheet row."""
         self._row = dict(row)
@@ -129,12 +135,14 @@ class DecisionCard(Static, can_focus=True):
         self._card_focused = focused
         self._read_only = read_only
         self._preview_lines = preview_lines
+        self._force_expanded = force_expanded
         self._card_width = max(int(width), 8)
-        if current:
+        if current or force_expanded:
             self._built = expanded_card(
                 self._row,
                 self._definition,
                 self._card_width,
+                current=current,
                 focused=focused,
                 read_only=read_only,
             )
@@ -164,6 +172,7 @@ class DecisionCard(Static, can_focus=True):
             focused=self._card_focused,
             read_only=self._read_only,
             preview_lines=self._preview_lines,
+            force_expanded=self._force_expanded,
         )
         return True
 
@@ -228,8 +237,12 @@ class DecisionSlot(VerticalScroll):
         )
 
 
-class PlanDecisionRows(Vertical):
-    """Pinned decision cards; the modal owns the draft."""
+class PlanDecisionRows(VerticalScroll, can_focus=False):
+    """Pinned decision cards; the modal owns the draft.
+
+    Docked mode keeps every decision on screen (the list itself does not
+    scroll). The decision sheet turns pinning off so this widget scrolls.
+    """
 
     class OptionSelected(Message):
         """A mouse click picked an option in the current choice card."""
@@ -257,6 +270,7 @@ class PlanDecisionRows(Vertical):
         self._focused_index = 0 if self._rows else -1
         self._cards_focused = True
         self._read_only = False
+        self._sheet_mode = False
         self._density_refresh_pending = False
 
     @property
@@ -268,6 +282,16 @@ class PlanDecisionRows(Vertical):
         if 0 <= self._focused_index < len(self._rows):
             return str(self._rows[self._focused_index].get("id", ""))
         return None
+
+    def set_sheet_mode(self, enabled: bool) -> None:
+        """Expand every card and let the list scroll, or restore pinning."""
+        if self._sheet_mode == enabled:
+            return
+        self._sheet_mode = enabled
+        self.set_class(enabled, "-sheet")
+        if self.is_mounted:
+            self._render_cards(range(len(self._rows)))
+            self._queue_density_recompute()
 
     def set_read_only(self, read_only: bool) -> None:
         """Mark every card read-only (settled elsewhere) or editable."""
@@ -330,6 +354,8 @@ class PlanDecisionRows(Vertical):
             touched = {old, self._focused_index}
             self._render_cards(sorted(i for i in touched if 0 <= i < len(self._rows)))
             self._queue_density_recompute()
+            if self._sheet_mode:
+                self._scroll_current_into_view()
 
     def set_cards_focused(self, focused: bool) -> None:
         """Re-render the current card for card-focus gained/lost."""
@@ -374,15 +400,38 @@ class PlanDecisionRows(Vertical):
     def on_resize(self) -> None:
         self._refresh_all_widths()
 
+    def _card_width(self, card: DecisionCard) -> int:
+        width = card.content_region.width or card._card_width or _FALLBACK_CARD_WIDTH
+        if not card.is_mounted:
+            width = _FALLBACK_CARD_WIDTH
+        width = max(int(width), 8)
+        if self._sheet_mode:
+            return min(width, SHEET_CARD_MAX_WIDTH)
+        return width
+
+    def _scroll_current_into_view(self) -> None:
+        if not self._sheet_mode or not (0 <= self._focused_index < len(self._rows)):
+            return
+        try:
+            card = self.query_one(f"#plan-decision-{self._focused_index}", DecisionCard)
+            self.scroll_to_widget(card, animate=False)
+        except Exception:
+            pass
+
     def _refresh_all_widths(self) -> None:
         if not self.is_mounted:
             return
         changed = False
         for index in range(len(self._rows)):
             card = self.query_one(f"#plan-decision-{index}", DecisionCard)
-            width = card.content_region.width or _FALLBACK_CARD_WIDTH
+            width = self._card_width(card)
             row = self._rows[index]
-            if card._row != row or width != card._card_width or card._built is None:
+            if (
+                card._row != row
+                or width != card._card_width
+                or card._built is None
+                or card._force_expanded != self._sheet_mode
+            ):
                 card.render_card(
                     row,
                     self._by_id.get(str(row.get("id", ""))),
@@ -390,6 +439,7 @@ class PlanDecisionRows(Vertical):
                     current=(index == self._focused_index),
                     focused=self._cards_focused and (index == self._focused_index),
                     read_only=self._read_only,
+                    force_expanded=self._sheet_mode,
                 )
                 changed = True
         if changed:
@@ -412,6 +462,16 @@ class PlanDecisionRows(Vertical):
         """Measure card builders and pin each decision into the visible list."""
         if not self._rows:
             return
+        if self._sheet_mode:
+            for index in range(len(self._rows)):
+                slot = self.query_one(f"#decision-slot-{index}", DecisionSlot)
+                hint = self.query_one(f"#decision-more-{index}", Static)
+                slot.styles.max_height = None
+                hint.update("")
+                hint.add_class("hidden")
+            self._scroll_current_into_view()
+            return
+        self.scroll_home(animate=False)
         list_height = int(self.content_region.height)
         if list_height <= 0:
             return
@@ -485,7 +545,7 @@ class PlanDecisionRows(Vertical):
                         density.show_more
                     )
                     if density.show_more:
-                        hint.update("↓ more")
+                        hint.update(MORE_HINT)
                         hint.remove_class("hidden")
                     else:
                         hint.update("")
@@ -509,16 +569,14 @@ class PlanDecisionRows(Vertical):
         for index in indexes:
             card = self.query_one(f"#plan-decision-{index}", DecisionCard)
             row = self._rows[index]
-            width = card.content_region.width or _FALLBACK_CARD_WIDTH
-            if not card.is_mounted:
-                width = _FALLBACK_CARD_WIDTH
             card.render_card(
                 row,
                 self._by_id.get(str(row.get("id", ""))),
-                width,
+                self._card_width(card),
                 current=(index == self._focused_index),
                 focused=self._cards_focused and (index == self._focused_index),
                 read_only=self._read_only,
+                force_expanded=self._sheet_mode,
             )
 
     def visible_control_ids(self) -> list[str]:

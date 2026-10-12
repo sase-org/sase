@@ -2645,6 +2645,10 @@
                 "decision_reset_all": {
                   "type": "string",
                   "description": "Reset all decisions"
+                },
+                "decision_zoom": {
+                  "type": "string",
+                  "description": "Toggle the full-width decision sheet"
                 }
               }
             },

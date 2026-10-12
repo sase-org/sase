@@ -258,6 +258,9 @@ class CustomGateModal(
     def action_decision_reset_all(self) -> None:
         return
 
+    def action_decision_zoom(self) -> None:
+        return
+
     def action_submit_primary(self) -> None:
         self.query_one(GateBranchControls).submit_primary_branch()
 

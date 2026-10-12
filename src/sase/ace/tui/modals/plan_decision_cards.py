@@ -444,10 +444,15 @@ def expanded_card(
     definition: dict[str, Any] | None,
     width: int,
     *,
+    current: bool = True,
     focused: bool = True,
     read_only: bool = False,
 ) -> BuiltCard:
-    """Build the current (expanded) card with every option and footnote."""
+    """Build the expanded card with every option and footnote.
+
+    Non-current expanded cards (the decision sheet) keep the full body but
+    drop the focus bar and the ``‹ ›`` chip wrapper.
+    """
     width = max(int(width), 8)
     content_width = width - 2
     console = Console(width=content_width, color_system=None)
@@ -455,7 +460,7 @@ def expanded_card(
     memory = row.get("memory")
     lines = [
         _header_line(
-            row, content_width, current=True, focused=focused, read_only=read_only
+            row, content_width, current=current, focused=focused, read_only=read_only
         )
     ]
     ask = str(row.get("ask", "")).strip()
@@ -532,7 +537,7 @@ def expanded_card(
         width,
         lines,
         [OptionLineMap(o.key, o.first_line, o.last_line) for o in option_map],
-        current=True,
+        current=current,
         focused=focused,
         read_only=read_only,
     )

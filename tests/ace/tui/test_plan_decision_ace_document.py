@@ -182,3 +182,4 @@ def test_custom_gate_decision_handlers_noop() -> None:
     assert CustomGateModal.action_decision_prev is not None
     assert CustomGateModal.action_decision_reset is not None
     assert CustomGateModal.action_decision_reset_all is not None
+    assert CustomGateModal.action_decision_zoom is not None

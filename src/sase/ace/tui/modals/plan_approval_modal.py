@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from rich.text import Text
 from textual.binding import BindingsMap
 from textual.screen import ModalScreen
 
@@ -143,6 +144,7 @@ class PlanApprovalModal(
         self._fold_map: dict[int, int] = {}
         self._folded_line: int | None = None
         self._callout_spans: list[dict[str, Any]] = []
+        self._cached_enter_badge: Text | None = None
         self._init_gate_actions(
             actions,
             action_runner,

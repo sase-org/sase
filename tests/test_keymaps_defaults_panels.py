@@ -302,6 +302,7 @@ def test_default_config_covers_all_gate_modal_keymaps() -> None:
         "decision_prev": "h,left",
         "decision_reset": "r",
         "decision_reset_all": "R",
+        "decision_zoom": "z",
     }
     assert field_names == set(defaults)
 

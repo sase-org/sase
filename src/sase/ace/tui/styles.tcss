@@ -1788,6 +1788,7 @@ PlanApprovalModal .gate-review-body > .gate-review-actions--decisions {
    so custom and sudo gates keep their look. */
 PlanApprovalModal .plan-decision-rows {
     height: 1fr;
+    overflow-y: hidden;
     scrollbar-size-vertical: 1;
     scrollbar-gutter: auto;
     scrollbar-color: $text-muted;
@@ -2273,6 +2274,30 @@ PlanApprovalModal.-gate-review-narrow .gate-review-body > .gate-review-actions--
     min-width: 0;
     max-width: 100%;
     margin: 1 0 0 0;
+}
+
+/* Full-width decision sheet: hide the plan pane and let the rail fill the
+   body, overriding both the wide 40% cap and the narrow 62% dock. */
+PlanApprovalModal.-decision-sheet #plan-approval-scroll {
+    display: none;
+}
+
+PlanApprovalModal.-decision-sheet .gate-review-body > .gate-review-actions--decisions,
+PlanApprovalModal.-gate-review-narrow.-decision-sheet .gate-review-body > .gate-review-actions--decisions {
+    dock: left;
+    width: 100%;
+    height: 1fr;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+}
+
+PlanApprovalModal.-decision-sheet .plan-decision-rows {
+    overflow-y: auto;
+}
+
+PlanApprovalModal.-decision-sheet .plan-decision-card {
+    max-width: 100;
 }
 
 /* Launch Approval Modal styling */

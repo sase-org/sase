@@ -1155,6 +1155,7 @@ modals, plus the input panel those modals open when a selection needs typed inpu
 | `decision_prev`      | `h,left`    | Previous decision choice, or set no.                                   |
 | `decision_reset`     | `r`         | Reset the focused decision row to ★.                                   |
 | `decision_reset_all` | `R`         | Reset every decision row to ★.                                         |
+| `decision_zoom`      | `z`         | Toggle the full-width decision sheet (plans with decisions only).      |
 
 Gate keys are scoped to the active modal and may overlap app-level bindings.
 `open_inputs` is bound on the gate modal and opens the panel even when the selection

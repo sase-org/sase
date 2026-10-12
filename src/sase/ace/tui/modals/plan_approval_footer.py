@@ -9,10 +9,18 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from ..keymaps import GateModalKeymaps, key_display_name
+from ..keymaps import GateModalKeymaps, key_display_name, split_key_alternatives
 from .gate_branch_controls import GateBranchData, gate_declares_inputs
 from .gate_primary_footer import primary_action_badge
 from .plan_approval_gate_data import HOST_COLLECTED_PROPERTIES
+
+
+def _first_key_display(binding: str) -> str:
+    """Return the display name of the first alternative in *binding*."""
+    alternatives = split_key_alternatives(binding)
+    if not alternatives:
+        return ""
+    return key_display_name(alternatives[0])
 
 
 def plan_approval_footer_text(
@@ -21,18 +29,36 @@ def plan_approval_footer_text(
     action_hints: Text,
     *,
     has_decisions: bool = False,
+    decision_focused: bool = False,
+    sheet_open: bool = False,
     enter_badge: Text | None = None,
 ) -> Text:
     """Return footer hints with the declared primary action emphasized."""
     hints = Text()
     hints.append(
-        f"{key_display_name(keys.next_control)}/"
-        f"{key_display_name(keys.previous_control)}",
+        f"{_first_key_display(keys.next_control)}/"
+        f"{_first_key_display(keys.previous_control)}",
         style="green",
     )
     hints.append("=Navigate  ")
-    hints.append(key_display_name(keys.toggle_option), style="green")
-    hints.append("=Toggle  ")
+    if has_decisions and decision_focused:
+        hints.append(
+            f"{_first_key_display(keys.decision_prev)}/"
+            f"{_first_key_display(keys.decision_next)}",
+            style="green",
+        )
+        hints.append("=Choice  ")
+        hints.append(key_display_name(keys.toggle_option), style="green")
+        hints.append("=Cycle  ")
+        hints.append(
+            f"{_first_key_display(keys.decision_reset)}/"
+            f"{_first_key_display(keys.decision_reset_all)}",
+            style="green",
+        )
+        hints.append("=Reset  ")
+    else:
+        hints.append(key_display_name(keys.toggle_option), style="green")
+        hints.append("=Toggle  ")
     if enter_badge is not None:
         hints.append_text(enter_badge)
     else:
@@ -41,14 +67,8 @@ def plan_approval_footer_text(
     hints.append(key_display_name(keys.submit_branch), style="green")
     hints.append("=Submit  ")
     if has_decisions:
-        hints.append(key_display_name(keys.decision_next), style="green")
-        hints.append("=Next choice  ")
-        hints.append(key_display_name(keys.decision_prev), style="green")
-        hints.append("=Prev choice  ")
-        hints.append(key_display_name(keys.decision_reset), style="green")
-        hints.append("=Reset  ")
-        hints.append(key_display_name(keys.decision_reset_all), style="green")
-        hints.append("=Reset all  ")
+        hints.append(_first_key_display(keys.decision_zoom), style="green")
+        hints.append("=Back to plan  " if sheet_open else "=Sheet  ")
     has_inputs, _ = gate_declares_inputs(gate.options, HOST_COLLECTED_PROPERTIES)
     if has_inputs or any(option.feedback != "disabled" for option in gate.options):
         hints.append(key_display_name(keys.open_inputs), style="green")

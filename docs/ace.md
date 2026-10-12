@@ -6510,11 +6510,12 @@ defaults, and names memory decisions with `· 🧠 K`. Each card's answer chip s
 value with `★` at the default and gold `●` once changed (`☑`/`☐` for toggles); the
 current card wraps the chip in `‹ … ›` as the "h/l changes this" hint. Change a value
 with `Space`, `h`/`l`, or `r`, move between cards with `j`/`k` or by clicking a card,
-and click an option line in the current choice card to select it; the primary action
-approves exactly the values on display. `decision_<id>` fields are treated as already
-collected, so they do not appear as extra inputs either. Changing decision definitions
-through the gate's plan editor is refused. Override a default outside the modal with
-`sase gate answer` and `--set decision_<id>=...`.
+and click an option line in the current choice card to select it. Press `z` for a
+full-width sheet with every card expanded; Esc leaves the sheet, and a second Esc
+cancels. The primary action approves exactly the values on display. `decision_<id>`
+fields are treated as already collected, so they do not appear as extra inputs either.
+Changing decision definitions through the gate's plan editor is refused. Override a
+default outside the modal with `sase gate answer` and `--set decision_<id>=...`.
 
 For tale plans, the modal's primary **Approve** decision includes two independently
 selectable add-ons: **Commit plan file to the plans sidecar** and **Run coder
@@ -6581,6 +6582,7 @@ Every enabled built-in profile also chooses the first option for each question. 
 | `h` / `Left`  | Previous choice, or set no                                              |
 | `r`           | Reset the focused decision row to ★                                     |
 | `R`           | Reset every decision row to ★                                           |
+| `z`           | Toggle the full-width decision sheet (Esc leaves the sheet first)       |
 | `Enter`       | Submit the primary (approve) decision with the values on display        |
 | `Ctrl+S`      | Submit the focused decision (for example reject or feedback)            |
 | `1`–`9`       | Submit the correspondingly numbered decision                            |
@@ -6847,6 +6849,7 @@ ace:
       decision_prev: "h,left"
       decision_reset: "r"
       decision_reset_all: "R"
+      decision_zoom: "z"
 ```
 
 These bindings dispatch only while a branch-driven gate modal is open, and its footer

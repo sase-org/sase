@@ -133,6 +133,7 @@ def test_bindings_use_shared_branch_actions_and_drop_presets() -> None:
         "decision_prev",
         "decision_reset",
         "decision_reset_all",
+        "decision_zoom",
     } <= actions
     assert {"approve", "tale", "epic", "reject", "feedback"}.isdisjoint(actions)
 

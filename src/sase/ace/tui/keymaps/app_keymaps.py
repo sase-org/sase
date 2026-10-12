@@ -410,6 +410,7 @@ class GateModalKeymaps:
     decision_prev: str = "h,left"
     decision_reset: str = "r"
     decision_reset_all: str = "R"
+    decision_zoom: str = "z"
 
 
 @dataclass

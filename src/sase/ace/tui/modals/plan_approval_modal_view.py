@@ -73,6 +73,7 @@ class PlanApprovalViewMixin:
     _decision_draft: PlanDecisionDraft
     _fold_map: dict[int, int]
     _callout_spans: list[dict[str, Any]]
+    _cached_enter_badge: Text | None
 
     def _build_title_markup(self) -> str:
         """Return the Rich markup string used for the modal title."""
@@ -416,17 +417,68 @@ class PlanApprovalViewMixin:
                 classes="gate-review-footer",
             )
 
+    def _decision_card_focused(self) -> bool:
+        """Return True when a decision card currently owns keyboard focus."""
+        if not self.is_mounted:  # type: ignore[attr-defined]
+            # Mount focuses the first card when the plan has decisions.
+            return bool(self.has_decisions)  # type: ignore[attr-defined]
+        try:
+            from textual.widget import Widget
+
+            focused = self.screen.focused  # type: ignore[attr-defined]
+            focused_id = focused.id if isinstance(focused, Widget) else ""
+        except Exception:
+            return False
+        return isinstance(focused_id, str) and focused_id.startswith("plan-decision-")
+
+    def _decision_sheet_open(self) -> bool:
+        return bool(self.has_class("-decision-sheet"))  # type: ignore[attr-defined]
+
+    def _refresh_footer(self) -> None:
+        """Repaint the footer from the cached Enter badge; never recompute sheet."""
+        if not self.is_mounted:  # type: ignore[attr-defined]
+            return
+        try:
+            footer = self.query_one("#plan-approval-footer", Static)  # type: ignore[attr-defined]
+            footer.update(self._footer_text())
+        except Exception:
+            pass
+
+    def _set_decision_sheet(self, open_sheet: bool) -> None:
+        if not self.has_decisions:  # type: ignore[attr-defined]
+            return
+        currently = self._decision_sheet_open()
+        if currently == open_sheet:
+            return
+        self.set_class(open_sheet, "-decision-sheet")  # type: ignore[attr-defined]
+        try:
+            rows = self.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
+            rows.set_sheet_mode(open_sheet)
+        except Exception:
+            pass
+        self._refresh_footer()
+
     def _footer_text(self, sheet: dict[str, Any] | None = None) -> Text:
         """Return footer hints with the declared primary action emphasized."""
+        badge: Text | None
         try:
-            badge = self._enter_badge(sheet)
+            if sheet is not None:
+                badge = self._enter_badge(sheet)
+                self._cached_enter_badge = badge  # type: ignore[attr-defined]
+            else:
+                badge = getattr(self, "_cached_enter_badge", None)
+                if badge is None:
+                    badge = self._enter_badge(None)
+                    self._cached_enter_badge = badge  # type: ignore[attr-defined]
         except Exception:
-            badge = None
+            badge = getattr(self, "_cached_enter_badge", None)
         return plan_approval_footer_text(
             self._gate,
             self._gate_keymaps,
             self.gate_action_hints(separator="="),  # type: ignore[attr-defined]
             has_decisions=self.has_decisions,  # type: ignore[attr-defined]
+            decision_focused=self._decision_card_focused(),
+            sheet_open=self._decision_sheet_open(),
             enter_badge=badge,
         )
 
@@ -458,24 +510,27 @@ class PlanApprovalViewMixin:
         except Exception as e:
             return f"[Error reading plan file: {e}]"
 
+    def _sheet_or_plan_scroll(self) -> VerticalScroll:
+        if self._decision_sheet_open():
+            return self.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
+        return self.query_one("#plan-approval-scroll", VerticalScroll)  # type: ignore[attr-defined]
+
     def action_scroll_down(self) -> None:
         """Scroll the content down by half a page."""
-        scroll = self.query_one("#plan-approval-scroll", VerticalScroll)  # type: ignore[attr-defined]
+        scroll = self._sheet_or_plan_scroll()
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=height // 2, animate=False)
 
     def action_scroll_up(self) -> None:
         """Scroll the content up by half a page."""
-        scroll = self.query_one("#plan-approval-scroll", VerticalScroll)  # type: ignore[attr-defined]
+        scroll = self._sheet_or_plan_scroll()
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
 
     def action_scroll_to_top(self) -> None:
         """Scroll the content to the very top."""
-        scroll = self.query_one("#plan-approval-scroll", VerticalScroll)  # type: ignore[attr-defined]
-        scroll.scroll_home(animate=False)
+        self._sheet_or_plan_scroll().scroll_home(animate=False)
 
     def action_scroll_to_bottom(self) -> None:
         """Scroll the content to the very bottom."""
-        scroll = self.query_one("#plan-approval-scroll", VerticalScroll)  # type: ignore[attr-defined]
-        scroll.scroll_end(animate=False)
+        self._sheet_or_plan_scroll().scroll_end(animate=False)
