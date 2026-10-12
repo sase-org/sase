@@ -266,4 +266,13 @@ class AgentLoadingRefreshMixin(
                         log.exception("agents async refresh callback failed")
             elif carry_callbacks:
                 self._agents_refresh_pending_callbacks[:0] = callbacks
+            else:
+                try:
+                    from ._archive_controller import (
+                        note_inbox_load_finished_for_archive,
+                    )
+
+                    note_inbox_load_finished_for_archive(self)
+                except Exception:
+                    log.debug("archive inbox-load finish hook failed", exc_info=True)
             self._drain_pending_agents_refresh_work()

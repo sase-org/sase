@@ -200,6 +200,30 @@ def test_container_rows_show_glyph_count_and_members_indent() -> None:
     assert not format_archive_item(_item(_light("p")), CTX).plain.startswith("    ")
 
 
+def test_restored_overlay_renders_home_chip() -> None:
+    item = _item(_light("a"))
+    ctx = ArchiveRenderContext(
+        tz=UTC, grouping="day", width=80, restored_keys=frozenset()
+    )
+    assert "⌂ restored" not in format_archive_item(item, ctx).plain
+    restored = ArchiveRenderContext(
+        tz=UTC, grouping="day", width=80, restored_keys=frozenset({item.key})
+    )
+    text = format_archive_item(item, restored)
+    assert "⌂ restored" in text.plain
+    assert "d7af5f" in _style_at(text, "⌂ restored")
+
+
+def test_legacy_duplicate_option_ids_are_unique_on_the_widget() -> None:
+    widget = ArchiveList()
+    items = (
+        ArchiveListItem("legacy", ITEM_ROW, True, row={"name": "legacy"}),
+        ArchiveListItem("legacy#2", ITEM_ROW, True, row={"name": "legacy"}),
+    )
+    widget.apply_items(items, "legacy", tz=UTC, grouping="day")
+    assert widget.item_keys == ("legacy", "legacy#2")
+
+
 def test_exception_chip_and_unnamed_rows() -> None:
     text = format_archive_item(
         _item(_light("a", restorable=False)),

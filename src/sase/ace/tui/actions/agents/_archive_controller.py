@@ -38,8 +38,12 @@ from ._archive_controller_build import build_archive_result, row_identity
 from ...models.agent_archive_view import (
     AGENTS_VIEW_ARCHIVE,
     AGENTS_VIEW_INBOX,
+    ARCHIVE_ARRIVAL_FOUND,
+    ARCHIVE_ARRIVAL_MISSING,
+    ARCHIVE_ARRIVAL_OWNER,
     ARCHIVE_DEFAULT_GROUPING,
     ARCHIVE_DEFAULT_QUERY,
+    ArchiveArrivalOutcome,
     agents_archive_view_enabled,
     is_archive_row_key,
 )
@@ -88,6 +92,7 @@ def archive_corpus_snapshot(owner: Any) -> ArchiveCorpusSnapshot:
         applied_grouping=state.applied_grouping,
         applied_expanded=state.applied_expanded,
         timezone=str(getattr(state.corpus, "timezone", "") or ""),
+        display_snapshot=state.display_snapshot,
     )
 
 
@@ -189,9 +194,10 @@ def note_inbox_applied_for_archive(owner: Any, load_state: Any = None) -> None:
         if not agents_archive_view_enabled():
             return
         refresh_archive_inbox_pulse(owner)
+        state = _controller(owner)
+        state.inbox_load_scheduled = False
         if not _load_is_complete_inbox(load_state):
             return
-        state = _controller(owner)
         state.inbox_complete_applied = True
         if state.explicit_open_queued:
             state.explicit_open_queued = False
@@ -236,7 +242,14 @@ def schedule_archive_idle_tick(owner: Any) -> None:
         state = _controller(owner)
         if not state.inbox_complete_applied:
             return
+        if state.explicit_open_queued:
+            state.explicit_open_queued = False
+            _schedule_request(owner, kind=ARCHIVE_REQUEST_VIEW)
+            return
         if state.refreshing:
+            return
+        if state.idle_in_flight:
+            state.idle_coalesced = True
             return
         if state.prewarm_pending and not state.prewarm_started:
             _maybe_arm_prewarm(owner)
@@ -310,19 +323,9 @@ def request_archive_windows(
     return _schedule_request(owner, kind=ARCHIVE_REQUEST_QUERY)
 
 
-def request_archive_lookup(owner: Any, name: str) -> int:
-    """Resolve one exact name after the corpus is warm. Returns the generation."""
-    if not agents_archive_view_enabled() or not name:
-        return _controller(owner).generation
-    view = _view_state(owner)
-    archive = getattr(view, "archive", None)
-    if archive is not None:
-        archive.pending_exact_name = name
-    if not _controller(owner).inbox_complete_applied:
-        _controller(owner).explicit_open_queued = True
-        _schedule_inbox_load_for_gate(owner)
-        return _controller(owner).generation
-    return _schedule_request(owner, kind=ARCHIVE_REQUEST_QUERY)
+def note_inbox_load_finished_for_archive(owner: Any) -> None:
+    """Reset the Inbox-load gate so a later Archive open can retry after a miss."""
+    _controller(owner).inbox_load_scheduled = False
 
 
 def cancel_archive_controller(owner: Any) -> None:
@@ -344,7 +347,14 @@ def _schedule_inbox_load_for_gate(owner: Any) -> None:
     try:
         schedule(source="archive_prewarm_gate")
     except TypeError:
-        schedule()
+        try:
+            schedule()
+        except Exception:
+            state.inbox_load_scheduled = False
+            raise
+    except Exception:
+        state.inbox_load_scheduled = False
+        raise
 
 
 def _schedule_request(owner: Any, *, kind: str) -> int:
@@ -358,6 +368,7 @@ def _schedule_request(owner: Any, *, kind: str) -> int:
     if state.last_expanded:
         expanded = state.last_expanded
     windows = state.last_windows
+    pending_exact_name = getattr(archive, "pending_exact_name", None)
     state.generation += 1
     snapshot = ArchiveRequestSnapshot(
         generation=state.generation,
@@ -373,9 +384,15 @@ def _schedule_request(owner: Any, *, kind: str) -> int:
         tokens=state.tokens,
         corpus=state.corpus,
         profile=state.profile,
+        pending_exact_name=str(pending_exact_name) if pending_exact_name else None,
     )
     state.last_query = query
     state.last_grouping = grouping
+    if kind == ARCHIVE_REQUEST_IDLE:
+        state.idle_in_flight = True
+    else:
+        state.idle_in_flight = False
+        state.idle_coalesced = False
     if kind != ARCHIVE_REQUEST_IDLE or state.corpus is None:
         state.refreshing = True
         if state.corpus is None and state.status == ARCHIVE_CORPUS_COLD:
@@ -414,11 +431,17 @@ def _spawn_archive_task(owner: Any, coro: Any) -> Any:
 
 
 async def _run_archive_request(owner: Any, snapshot: ArchiveRequestSnapshot) -> None:
-    runner = getattr(owner, "_archive_run_off_thread", None)
-    if callable(runner):
-        result = await runner(lambda: build_archive_result(owner, snapshot))
-    else:
-        result = await asyncio.to_thread(build_archive_result, owner, snapshot)
+    result: Mapping[str, Any]
+    try:
+        runner = getattr(owner, "_archive_run_off_thread", None)
+        if callable(runner):
+            built = await runner(lambda: build_archive_result(owner, snapshot))
+        else:
+            built = await asyncio.to_thread(build_archive_result, owner, snapshot)
+        result = built if isinstance(built, Mapping) else {"kind": "error"}
+    except Exception:
+        log.debug("archive request worker failed", exc_info=True)
+        result = {"kind": "error"}
     _apply_archive_result(owner, snapshot, result)
 
 
@@ -430,14 +453,21 @@ def _apply_archive_result(
     state = _controller(owner)
     if snapshot.generation != state.generation:
         return
+    state.refreshing = False
+    if snapshot.kind == ARCHIVE_REQUEST_IDLE:
+        state.idle_in_flight = False
     tokens = result.get("tokens")
     if isinstance(tokens, ArchiveRevalidationTokens):
         state.tokens = tokens
-    if result.get("kind") == "unchanged":
-        state.refreshing = False
+    display_snapshot = result.get("display_snapshot")
+    if display_snapshot is not None:
+        state.display_snapshot = display_snapshot
+    kind = result.get("kind")
+    if kind == "unchanged":
+        _publish_arrival(owner, snapshot, result)
+        _maybe_coalesce_idle(owner, snapshot)
         return
-    if result.get("kind") == "unreadable":
-        state.refreshing = False
+    if kind in {"unreadable", "error"}:
         state.corpus = None
         state.status = ARCHIVE_CORPUS_UNREADABLE
         state.error_message = ARCHIVE_INDEX_UNAVAILABLE_MESSAGE
@@ -445,7 +475,9 @@ def _apply_archive_result(
         state.windows = ()
         state.identities = ()
         state.count = 0
+        _publish_arrival(owner, snapshot, result)
         _notify_snapshot_applied(owner)
+        _maybe_coalesce_idle(owner, snapshot)
         return
     facets = result.get("facets")
     if isinstance(facets, Mapping):
@@ -470,12 +502,22 @@ def _apply_archive_result(
     state.applied_query = snapshot.query
     state.applied_grouping = snapshot.grouping
     state.applied_expanded = tuple(snapshot.expanded_containers)
-    state.refreshing = False
     if state.corpus is not None:
         state.prewarm_started = True
         state.prewarm_pending = False
     _apply_selection(owner, snapshot, result)
     _notify_snapshot_applied(owner)
+    _maybe_coalesce_idle(owner, snapshot)
+
+
+def _maybe_coalesce_idle(owner: Any, snapshot: ArchiveRequestSnapshot) -> None:
+    state = _controller(owner)
+    if snapshot.kind != ARCHIVE_REQUEST_IDLE or not state.idle_coalesced:
+        return
+    if snapshot.generation != state.generation:
+        return
+    state.idle_coalesced = False
+    _schedule_request(owner, kind=ARCHIVE_REQUEST_IDLE)
 
 
 def _notify_snapshot_applied(owner: Any) -> None:
@@ -494,10 +536,12 @@ def _apply_selection(
     result: Mapping[str, Any],
 ) -> None:
     if _active_view(owner) != AGENTS_VIEW_ARCHIVE:
+        _publish_arrival(owner, snapshot, result)
         return
     view = _view_state(owner)
     archive = getattr(view, "archive", None)
     if archive is None:
+        _publish_arrival(owner, snapshot, result)
         return
     identities = result.get("identities")
     new_identities = identities if isinstance(identities, tuple) else ()
@@ -507,9 +551,12 @@ def _apply_selection(
         looked_up = row_identity(lookup_row)
         if looked_up is not None:
             archive.selected_key = looked_up
-            archive.pending_exact_name = None
             archive.reveal_row = dict(lookup_row)
+            _publish_arrival(owner, snapshot, result)
             return
+    if snapshot.pending_exact_name:
+        _publish_arrival(owner, snapshot, result)
+        return
     if current_key is not None and not is_archive_row_key(str(current_key)):
         return  # a banner or page tail cursor is not an identity to preserve
     if snapshot.kind == ARCHIVE_REQUEST_PREWARM and current_key is None:
@@ -523,6 +570,56 @@ def _apply_selection(
         archive.selected_key = preserved
 
 
+def _row_agent_name(row: Mapping[str, Any] | None) -> str | None:
+    if not isinstance(row, Mapping):
+        return None
+    for key in ("name", "agent_name", "cl_name"):
+        value = row.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _publish_arrival(
+    owner: Any,
+    snapshot: ArchiveRequestSnapshot,
+    result: Mapping[str, Any],
+) -> None:
+    requested = snapshot.pending_exact_name
+    if not requested:
+        return
+    view = _view_state(owner)
+    archive = getattr(view, "archive", None)
+    if archive is None:
+        return
+    lookup_row = result.get("lookup_row")
+    row = lookup_row if isinstance(lookup_row, Mapping) else None
+    row_name = _row_agent_name(row)
+    if row is None:
+        status = ARCHIVE_ARRIVAL_MISSING
+        selected_key = None
+    elif row_name == requested:
+        status = ARCHIVE_ARRIVAL_FOUND
+        selected_key = row_identity(row)
+    else:
+        status = ARCHIVE_ARRIVAL_OWNER
+        selected_key = row_identity(row)
+    outcome = ArchiveArrivalOutcome(
+        status=status,
+        requested_name=requested,
+        selected_key=selected_key,
+        row_name=row_name,
+    )
+    archive.pending_exact_name = None
+    archive.arrival_outcome = outcome
+    callback = getattr(owner, "_archive_arrival_callback", None)
+    if callable(callback):
+        try:
+            callback(outcome)
+        except Exception:
+            log.debug("archive arrival callback failed", exc_info=True)
+
+
 __all__ = [
     "archive_corpus_is_warm",
     "archive_corpus_snapshot",
@@ -530,8 +627,8 @@ __all__ = [
     "cancel_archive_controller",
     "init_agents_archive_controller",
     "note_inbox_applied_for_archive",
+    "note_inbox_load_finished_for_archive",
     "refresh_archive_inbox_pulse",
-    "request_archive_lookup",
     "request_archive_view_load",
     "request_archive_windows",
     "schedule_archive_idle_tick",

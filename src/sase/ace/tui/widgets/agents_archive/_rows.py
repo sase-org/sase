@@ -55,6 +55,7 @@ class ArchiveRenderContext:
     grouping: str = "day"
     width: int = 56
     outcome_width: int = 0
+    restored_keys: frozenset[str] = frozenset()
 
 
 def _outcome_label(row: Mapping[str, Any]) -> tuple[str, str]:
@@ -167,12 +168,15 @@ def _format_run(item: ArchiveListItem, ctx: ArchiveRenderContext) -> Text:
         + cell_len(glyph)
     )
     parts = _suffix_parts(item)
+    restored = " ⌂ restored" if item.key in ctx.restored_keys else ""
+    restored_width = cell_len(restored)
     for dropped in ("exception", "model", "runtime"):
-        if ctx.width - fixed - _suffix_width(parts) >= _MIN_NAME_WIDTH:
+        if ctx.width - fixed - _suffix_width(parts) - restored_width >= _MIN_NAME_WIDTH:
             break
         parts.pop(dropped, None)
     name = middle_truncate(
-        _name_for(item), max(6, ctx.width - fixed - _suffix_width(parts))
+        _name_for(item),
+        max(6, ctx.width - fixed - _suffix_width(parts) - restored_width),
     )
 
     line = Text(indent)
@@ -183,6 +187,8 @@ def _format_run(item: ArchiveListItem, ctx: ArchiveRenderContext) -> Text:
     if glyph:
         line.append(glyph, style=ARCHIVE_CHROME_STYLE)
     line.append(name, style="bold" if item.kind == ITEM_CONTAINER else "")
+    if restored:
+        line.append(restored, style=ARCHIVE_CHROME_STYLE)
     if parts:
         suffix = Text()
         for index, (text, style) in enumerate(parts.values()):

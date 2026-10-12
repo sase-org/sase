@@ -90,6 +90,7 @@ class ArchiveRequestSnapshot:
     tokens: ArchiveRevalidationTokens | None
     corpus: Any = None
     profile: Any = None
+    pending_exact_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,7 @@ class ArchiveCorpusSnapshot:
     applied_expanded: tuple[str, ...] = ()
     timezone: str = ""
     requested_windows: tuple[ArchivePageWindow, ...] = ()
+    display_snapshot: Any = None
 
 
 @dataclass
@@ -126,6 +128,8 @@ class AgentsArchiveControllerState:
     prewarm_pending: bool = False
     explicit_open_queued: bool = False
     inbox_load_scheduled: bool = False
+    idle_in_flight: bool = False
+    idle_coalesced: bool = False
     status: str = ARCHIVE_CORPUS_COLD
     error_message: str | None = None
     indexed_rows: int = 0
@@ -146,6 +150,7 @@ class AgentsArchiveControllerState:
     applied_query: str | None = None
     applied_grouping: str | None = None
     applied_expanded: tuple[str, ...] = ()
+    display_snapshot: Any = None
 
 
 def startup_agents_archive_controller_state() -> AgentsArchiveControllerState:

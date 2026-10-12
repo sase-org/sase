@@ -157,7 +157,12 @@ def _compute(owner: Any) -> _Computed:
     banners: tuple[ArchiveBanner, ...] = ()
     default_open: frozenset[str] = frozenset()
     if usable:
-        banners = build_archive_banners(snapshot.summary, archive.grouping, today=today)
+        banners = build_archive_banners(
+            snapshot.summary,
+            archive.grouping,
+            today=today,
+            display_snapshot=snapshot.display_snapshot,
+        )
         total = int((snapshot.summary or {}).get("total", 0) or 0)
         default_open = default_open_banner_keys(
             banners,
@@ -417,6 +422,7 @@ def _paint(owner: Any, computed: _Computed, model: ArchiveListModel) -> None:
         archive.selected_key,
         tz=computed.tz,
         grouping=archive.grouping,
+        restored_keys=archive.restored_keys,
     )
     widget.set_section(archive.focused_section)
     widget.set_pulse(archive_inbox_pulse(owner))

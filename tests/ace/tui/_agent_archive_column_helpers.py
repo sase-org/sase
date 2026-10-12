@@ -184,7 +184,13 @@ class FakeColumnWidget:
         self.reveals = 0
 
     def apply_items(
-        self, items: Any, cursor_key: str | None, *, tz: Any, grouping: str
+        self,
+        items: Any,
+        cursor_key: str | None,
+        *,
+        tz: Any,
+        grouping: str,
+        restored_keys: Any = (),
     ):
         self.paints.append(
             {
@@ -192,6 +198,7 @@ class FakeColumnWidget:
                 "cursor": cursor_key,
                 "tz": tz,
                 "grouping": grouping,
+                "restored_keys": frozenset(restored_keys),
             }
         )
 

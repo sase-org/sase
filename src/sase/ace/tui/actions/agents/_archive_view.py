@@ -355,8 +355,10 @@ def open_agents_archive_view_with_query(
         committed_query=query,
         selected_key=None,
         pending_exact_name=agent_name,
+        arrival_outcome=None,
         reveal_row=None,
         loaded_pages={},
+        restored_keys=frozenset(),
     )
     _invalidate_agents_detail_ownership(owner)
     from ._archive_controller import request_archive_view_load
@@ -386,6 +388,7 @@ def close_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
         _restore_parked_inbox(owner, parked)
     state.parked_inbox = None
     state.active_view = AGENTS_VIEW_INBOX
+    state.archive.restored_keys = frozenset()
     _invalidate_agents_detail_ownership(owner)
     _sync_archive_chrome(owner)
     return ArchiveViewOutcome(
@@ -393,6 +396,18 @@ def close_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
         view=state.active_view,
         generation=state.generation,
     )
+
+
+def mark_archive_row_restored(owner: Any, key: str) -> None:
+    """Presentation overlay for sase-1jm.5 restore. Never touches corpus or counts."""
+    if not key:
+        return
+    archive = _view_state(owner).archive
+    archive.restored_keys = archive.restored_keys | {key}
+    if archive_detail_owns_panel(owner):
+        from ._archive_column import refresh_column
+
+        refresh_column(owner, request=False)
 
 
 def get_agents_tab_selection(owner: Any) -> AgentsTabSelection:
@@ -589,6 +604,7 @@ __all__ = [
     "close_agents_archive_view",
     "get_agents_tab_selection",
     "init_agents_archive_view_state",
+    "mark_archive_row_restored",
     "open_agents_archive_view",
     "open_agents_archive_view_with_query",
     "remember_agents_detail_owner",

@@ -8,7 +8,7 @@ keys, mouse) post :class:`CursorMoved`. ``Enter`` or a click posts
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import tzinfo
 
 from textual.binding import Binding
@@ -61,6 +61,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
         self._tz: tzinfo | None = None
         self._grouping = "day"
         self._rendered_width = 0
+        self._restored_keys: frozenset[str] = frozenset()
 
     @property
     def item_keys(self) -> tuple[str, ...]:
@@ -84,6 +85,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
             grouping=self._grouping,
             width=width,
             outcome_width=outcome_cell_width(self._items),
+            restored_keys=self._restored_keys,
         )
         options: list[Option] = []
         for item in self._items:
@@ -99,6 +101,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
         *,
         tz: tzinfo | None,
         grouping: str,
+        restored_keys: Collection[str] = (),
     ) -> None:
         """Swap in ``items`` keeping scroll, then silently park on ``cursor_key``."""
         self._items = tuple(items)
@@ -106,6 +109,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
         self._index_by_key = {key: index for index, key in enumerate(self._keys)}
         self._tz = tz
         self._grouping = grouping
+        self._restored_keys = frozenset(restored_keys)
         self._install_options(self._render_options())
         self.set_cursor(cursor_key)
 

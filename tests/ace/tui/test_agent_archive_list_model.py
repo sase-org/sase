@@ -126,6 +126,40 @@ def _assemble(
 # --- identity ---------------------------------------------------------------
 
 
+def test_legacy_duplicate_names_get_unique_list_ids() -> None:
+    banners = build_archive_banners(_summary(("2026-10-10", 2)), "day", today=TODAY)
+    model = _assemble(
+        banners,
+        [_window("2026-10-10", [{"name": "legacy"}, {"name": "legacy"}])],
+    )
+    keys = [item.key for item in model.items if item.kind == ITEM_ROW]
+    assert keys == ["legacy", "legacy#2"]
+    assert len({item.key for item in model.items}) == len(model.items)
+
+
+def test_project_banners_use_display_snapshot_labels() -> None:
+    from sase.project_display_names import ProjectDisplaySnapshot
+
+    summary = _summary(("gh_acme__widgets", 3), ("plain", 1))
+    raw = build_archive_banners(summary, "project", today=TODAY)
+    assert [(b.key, b.label) for b in raw] == [
+        ("project:gh_acme__widgets", "gh_acme__widgets"),
+        ("project:plain", "plain"),
+    ]
+    labeled = build_archive_banners(
+        summary,
+        "project",
+        today=TODAY,
+        display_snapshot=ProjectDisplaySnapshot(
+            {"gh_acme__widgets": "widgets", "plain": "plain"}
+        ),
+    )
+    assert [(b.key, b.label) for b in labeled] == [
+        ("project:gh_acme__widgets", "widgets"),
+        ("project:plain", "plain"),
+    ]
+
+
 def test_row_keys_distinguish_runs_containers_and_banners() -> None:
     assert archive_row_key(_row("r1")) == "u.m@r1"
     assert archive_row_key(_container("clan:x:1", 3)) == "container:clan:x:1"

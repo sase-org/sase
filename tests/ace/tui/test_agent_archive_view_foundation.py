@@ -423,3 +423,19 @@ def test_open_close_idempotency() -> None:
         returned = close_agents_archive_view(app)
         repeat = close_agents_archive_view(app)
         assert (returned.status, repeat.status) == ("returned", "already_inbox")
+
+
+def test_restored_overlay_clears_on_query_change_and_exit() -> None:
+    from sase.ace.tui.actions.agents._archive_view import mark_archive_row_restored
+
+    app = _FakeApp(agents=[_make_agent("agent_0")])
+
+    with override_flags(agents_archive_view=True):
+        open_agents_archive_view(app)
+        mark_archive_row_restored(app, "u.m@r1")
+        assert app._agents_archive_view.archive.restored_keys == frozenset({"u.m@r1"})
+        open_agents_archive_view_with_query(app, query="in:archive outcome:failed")
+        assert app._agents_archive_view.archive.restored_keys == frozenset()
+        mark_archive_row_restored(app, "u.m@r2")
+        close_agents_archive_view(app)
+        assert app._agents_archive_view.archive.restored_keys == frozenset()

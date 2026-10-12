@@ -50,6 +50,10 @@ ARCHIVE_STATUS_DISABLED = "disabled"
 ARCHIVE_STATUS_RETURNED = "returned"
 ARCHIVE_STATUS_ALREADY_INBOX = "already_inbox"
 
+ARCHIVE_ARRIVAL_FOUND = "found"
+ARCHIVE_ARRIVAL_OWNER = "owner"
+ARCHIVE_ARRIVAL_MISSING = "missing"
+
 ARCHIVE_IDENTITY_KIND = "◷ ARCHIVED · read-only"
 ARCHIVE_IDENTITY_ACCENT = "#d7af5f"
 
@@ -73,11 +77,13 @@ class ArchiveViewState:
     loaded_pages: dict[str, int] = field(default_factory=dict)
     selected_key: str | None = None
     pending_exact_name: str | None = None
+    arrival_outcome: ArchiveArrivalOutcome | None = None
     reveal_row: Mapping[str, Any] | None = None
     scroll: int = 0
     focused_section: str = ARCHIVE_SECTION_LIST
     deck_choices: dict[str, str] = field(default_factory=dict)
     marks: frozenset[str] = frozenset()
+    restored_keys: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -162,6 +168,16 @@ class ArchiveViewOutcome:
     generation: int
     committed_query: str | None = None
     exact_agent_name: str | None = None
+
+
+@dataclass(frozen=True)
+class ArchiveArrivalOutcome:
+    """Typed exact-name lookup: the row itself, its workflow owner, or a miss."""
+
+    status: str
+    requested_name: str
+    selected_key: str | None = None
+    row_name: str | None = None
 
 
 def banner_item_key(banner_key: str) -> str:
@@ -270,6 +286,9 @@ __all__ = [
     "ARCHIVE_ROW_NONE",
     "ARCHIVE_SECTION_LIST",
     "ARCHIVE_SECTION_PULSE",
+    "ARCHIVE_ARRIVAL_FOUND",
+    "ARCHIVE_ARRIVAL_MISSING",
+    "ARCHIVE_ARRIVAL_OWNER",
     "ARCHIVE_STATUS_ALREADY_INBOX",
     "ARCHIVE_STATUS_ALREADY_OPEN",
     "ARCHIVE_STATUS_DISABLED",
@@ -277,6 +296,7 @@ __all__ = [
     "ARCHIVE_STATUS_RETURNED",
     "AgentsArchiveViewState",
     "AgentsTabSelection",
+    "ArchiveArrivalOutcome",
     "ArchiveViewOutcome",
     "ArchiveViewState",
     "DetailOwnership",

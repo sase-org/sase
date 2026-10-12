@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import tzinfo
 from typing import Any
 
@@ -59,6 +59,7 @@ class ArchiveColumn(Vertical):
         *,
         tz: tzinfo | None,
         grouping: str,
+        restored_keys: Collection[str] = (),
     ) -> None:
         if not self._children_ready:
             self._pending["items"] = {
@@ -66,9 +67,16 @@ class ArchiveColumn(Vertical):
                 "cursor_key": cursor_key,
                 "tz": tz,
                 "grouping": grouping,
+                "restored_keys": frozenset(restored_keys),
             }
             return
-        self.archive_list.apply_items(items, cursor_key, tz=tz, grouping=grouping)
+        self.archive_list.apply_items(
+            items,
+            cursor_key,
+            tz=tz,
+            grouping=grouping,
+            restored_keys=restored_keys,
+        )
 
     def set_cursor(self, key: str | None) -> None:
         if not self._children_ready:

@@ -20,7 +20,7 @@ from sase.ace.tui.actions.agents._archive_controller import (
     cancel_archive_controller,
     init_agents_archive_controller,
     note_inbox_applied_for_archive,
-    request_archive_lookup,
+    note_inbox_load_finished_for_archive,
     request_archive_view_load,
     request_archive_windows,
     schedule_archive_idle_tick,
@@ -41,7 +41,12 @@ from sase.ace.tui.models.agent_archive_controller import (
     ArchiveRevalidationTokens,
     preserve_archive_selected_key,
 )
-from sase.ace.tui.models.agent_archive_view import AGENTS_VIEW_INBOX
+from sase.ace.tui.models.agent_archive_view import (
+    AGENTS_VIEW_INBOX,
+    ARCHIVE_ARRIVAL_FOUND,
+    ARCHIVE_ARRIVAL_MISSING,
+    ARCHIVE_ARRIVAL_OWNER,
+)
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.feature_flags import override_flags
 
@@ -213,6 +218,7 @@ def _instrument(
     owner._archive_probe_tokens = lambda: tokens or _tokens()
     owner._archive_load_facets = lambda: facet_calls.append("facets") or {"agent": {}}
     owner._archive_profile = SimpleNamespace(digest="profile-1")
+    owner._archive_load_display_snapshot = lambda: None
     return spawn, compile_calls, facet_calls
 
 
@@ -523,23 +529,6 @@ async def test_rebuilding_index_serves_rows_and_progress() -> None:
 
 
 @pytest.mark.asyncio
-async def test_lookup_selects_exact_name_and_clears_pending() -> None:
-    owner = _owner()
-    spawn, compile_calls, _facets = _instrument(owner)
-
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(owner)
-        note_inbox_applied_for_archive(owner, load_state=_complete_load())
-        await spawn.drain()
-        request_archive_lookup(owner, "bob-cli-5p.4")
-        await spawn.drain()
-
-    assert owner._agents_archive_view.archive.selected_key == "bob-cli-5p.4"
-    assert owner._agents_archive_view.archive.pending_exact_name is None
-    assert len(compile_calls) == 1
-
-
-@pytest.mark.asyncio
 async def test_open_with_query_lookup_selects_row() -> None:
     owner = _owner()
     spawn, _calls, _facets = _instrument(owner)
@@ -551,8 +540,12 @@ async def test_open_with_query_lookup_selects_row() -> None:
         note_inbox_applied_for_archive(owner, load_state=_complete_load())
         await spawn.drain()
 
-    assert owner._agents_archive_view.archive.selected_key == "bob-cli-5p.4"
-    assert owner._agents_archive_view.archive.pending_exact_name is None
+    archive = owner._agents_archive_view.archive
+    assert archive.selected_key == "bob-cli-5p.4"
+    assert archive.pending_exact_name is None
+    assert archive.arrival_outcome is not None
+    assert archive.arrival_outcome.status == ARCHIVE_ARRIVAL_FOUND
+    assert archive.arrival_outcome.requested_name == "bob-cli-5p.4"
 
 
 def test_adjacent_selection_fallback() -> None:
@@ -569,3 +562,188 @@ def test_init_controller_is_cold() -> None:
     assert snapshot.status == "cold"
     assert snapshot.warm is False
     assert snapshot.generation == 0
+
+
+@pytest.mark.asyncio
+async def test_probe_error_publishes_unavailable_and_unwedges_idle() -> None:
+    owner = _owner()
+    spawn, _calls, _facets = _instrument(owner)
+
+    with override_flags(agents_archive_view=True):
+        note_inbox_applied_for_archive(owner, load_state=_complete_load())
+        await spawn.drain()
+        owner._archive_probe_tokens = lambda: (_ for _ in ()).throw(
+            RuntimeError("probe failed")
+        )
+        schedule_archive_idle_tick(owner)
+        await spawn.drain()
+
+    snapshot = archive_corpus_snapshot(owner)
+    assert snapshot.refreshing is False
+    assert snapshot.status == ARCHIVE_CORPUS_UNREADABLE
+    assert snapshot.error_message == ARCHIVE_INDEX_UNAVAILABLE_MESSAGE
+
+    with override_flags(agents_archive_view=True):
+        schedule_archive_idle_tick(owner)
+
+    assert spawn.coros, "idle tick must keep scheduling after a worker error"
+
+
+@pytest.mark.asyncio
+async def test_queued_explicit_open_drains_on_idle_tick() -> None:
+    owner = _owner()
+    spawn, _calls, _facets = _instrument(owner)
+
+    with override_flags(agents_archive_view=True):
+        note_inbox_applied_for_archive(owner, load_state=_complete_load())
+        await spawn.drain()
+        owner._nav_gate.record()
+        request_archive_view_load(owner)
+        assert owner._agents_archive_controller.explicit_open_queued is True
+        assert spawn.coros == []
+        owner._nav_gate = NavigationGate()
+        schedule_archive_idle_tick(owner)
+        assert owner._agents_archive_controller.explicit_open_queued is False
+        assert len(spawn.coros) == 1
+        await spawn.drain()
+
+    assert spawn.coros == []
+
+
+@pytest.mark.asyncio
+async def test_overlapping_idle_rebuilds_coalesce_to_one_in_flight() -> None:
+    owner = _owner()
+    spawn, _calls, _facets = _instrument(owner)
+    drifted = _tokens(digest="profile-2")
+
+    with override_flags(agents_archive_view=True):
+        note_inbox_applied_for_archive(owner, load_state=_complete_load())
+        await spawn.drain()
+        probes: list[int] = []
+
+        def _probe() -> ArchiveRevalidationTokens:
+            probes.append(1)
+            return drifted
+
+        owner._archive_probe_tokens = _probe
+        schedule_archive_idle_tick(owner)
+        schedule_archive_idle_tick(owner)
+        schedule_archive_idle_tick(owner)
+        assert len(spawn.coros) == 1
+        await spawn.drain()
+
+    assert len(probes) == 2
+    assert spawn.coros == []
+
+
+@pytest.mark.asyncio
+async def test_inbox_load_scheduled_resets_on_apply_and_failure() -> None:
+    owner = _owner()
+    _instrument(owner)
+
+    with override_flags(agents_archive_view=True):
+        request_archive_view_load(owner)
+        assert owner._agents_archive_controller.inbox_load_scheduled is True
+        assert owner._schedule_calls == ["archive_prewarm_gate"]
+        note_inbox_applied_for_archive(owner, load_state=_bounded_load())
+        assert owner._agents_archive_controller.inbox_load_scheduled is False
+        request_archive_view_load(owner)
+        assert owner._agents_archive_controller.inbox_load_scheduled is True
+        note_inbox_load_finished_for_archive(owner)
+        assert owner._agents_archive_controller.inbox_load_scheduled is False
+        request_archive_view_load(owner)
+
+    assert owner._schedule_calls == [
+        "archive_prewarm_gate",
+        "archive_prewarm_gate",
+        "archive_prewarm_gate",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_lookup_miss_clears_pending_and_publishes_missing() -> None:
+    owner = _owner()
+    arrivals: list[Any] = []
+    owner._archive_arrival_callback = arrivals.append
+    spawn, _calls, _facets = _instrument(owner)
+
+    with override_flags(agents_archive_view=True):
+        open_agents_archive_view_with_query(
+            owner, query="in:archive name:ghost", agent_name="ghost"
+        )
+        note_inbox_applied_for_archive(owner, load_state=_complete_load())
+        await spawn.drain()
+
+    archive = owner._agents_archive_view.archive
+    assert archive.pending_exact_name is None
+    assert archive.arrival_outcome is not None
+    assert archive.arrival_outcome.status == ARCHIVE_ARRIVAL_MISSING
+    assert archive.arrival_outcome.requested_name == "ghost"
+    assert arrivals == [archive.arrival_outcome]
+
+
+@pytest.mark.asyncio
+async def test_lookup_owner_of_workflow_child_is_typed() -> None:
+    owner = _owner()
+    parent = {"name": "250302.parent", "archive_key": {"source_run_id": "parent-run"}}
+    corpus = _FakeCorpus(rows=[parent])
+
+    def _lookup(name: str) -> dict[str, Any] | None:
+        corpus.lookup_calls.append(name)
+        if name in {"step", "250302.step"}:
+            return parent
+        if name == parent["name"]:
+            return parent
+        return None
+
+    corpus.lookup = _lookup  # type: ignore[method-assign]
+    spawn, _calls, _facets = _instrument(owner, corpus=corpus)
+
+    with override_flags(agents_archive_view=True):
+        open_agents_archive_view_with_query(
+            owner, query="in:archive name:step", agent_name="step"
+        )
+        note_inbox_applied_for_archive(owner, load_state=_complete_load())
+        await spawn.drain()
+
+    archive = owner._agents_archive_view.archive
+    assert archive.pending_exact_name is None
+    assert archive.arrival_outcome is not None
+    assert archive.arrival_outcome.status == ARCHIVE_ARRIVAL_OWNER
+    assert archive.arrival_outcome.row_name == "250302.parent"
+    assert archive.selected_key == "250302.parent"
+
+
+@pytest.mark.asyncio
+async def test_lookup_reads_name_from_request_snapshot_not_live_state() -> None:
+    owner = _owner()
+    corpus = _FakeCorpus()
+    spawn, _calls, _facets = _instrument(owner, corpus=corpus)
+
+    with override_flags(agents_archive_view=True):
+        open_agents_archive_view_with_query(
+            owner, query="in:archive name:bob-cli-5p.4", agent_name="bob-cli-5p.4"
+        )
+        note_inbox_applied_for_archive(owner, load_state=_complete_load())
+        owner._agents_archive_view.archive.pending_exact_name = "mutated-after-schedule"
+        await spawn.drain()
+
+    assert corpus.lookup_calls == ["bob-cli-5p.4"]
+    archive = owner._agents_archive_view.archive
+    assert archive.pending_exact_name is None
+    assert archive.arrival_outcome is not None
+    assert archive.arrival_outcome.status == ARCHIVE_ARRIVAL_FOUND
+
+
+@pytest.mark.asyncio
+async def test_worker_publishes_display_snapshot_for_project_banners() -> None:
+    owner = _owner()
+    snapshot = object()
+    spawn, _calls, _facets = _instrument(owner)
+    owner._archive_load_display_snapshot = lambda: snapshot
+
+    with override_flags(agents_archive_view=True):
+        note_inbox_applied_for_archive(owner, load_state=_complete_load())
+        await spawn.drain()
+
+    assert archive_corpus_snapshot(owner).display_snapshot is snapshot

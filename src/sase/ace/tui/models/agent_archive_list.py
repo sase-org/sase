@@ -179,11 +179,22 @@ def _day_group_banner(group_key: str, today: date) -> tuple[str, str]:
     return _day_banner(day, today)
 
 
-def _plain_group_label(grouping: str, group_key: str) -> str:
+def _plain_group_label(
+    grouping: str,
+    group_key: str,
+    *,
+    display_snapshot: Any = None,
+) -> str:
     if grouping == "outcome":
         return _OUTCOME_LABELS.get(group_key, group_key or "(unknown)")
     if grouping == "project":
-        return group_key or "(no project)"
+        if not group_key:
+            return "(no project)"
+        if display_snapshot is None:
+            return group_key
+        from sase.project_display_names import project_display_name_for
+
+        return project_display_name_for(group_key, snapshot=display_snapshot)
     return group_key or "(no model)"
 
 
@@ -192,6 +203,7 @@ def build_archive_banners(
     grouping: str,
     *,
     today: date,
+    display_snapshot: Any = None,
 ) -> tuple[ArchiveBanner, ...]:
     """Combine core summary groups into display banners, in core order.
 
@@ -214,7 +226,9 @@ def build_archive_banners(
             key, label = _day_group_banner(group_key, today)
         else:
             key = f"{grouping}:{group_key}"
-            label = _plain_group_label(grouping, group_key)
+            label = _plain_group_label(
+                grouping, group_key, display_snapshot=display_snapshot
+            )
         if key not in members:
             order.append(key)
             labels[key] = label
@@ -405,6 +419,7 @@ def assemble_archive_list(
 ) -> ArchiveListModel:
     """Flatten banners and loaded light windows into render-ordered items."""
     items: list[ArchiveListItem] = []
+    used: set[str] = set()
     note = _status_message(
         status=status,
         error_message=error_message,
@@ -414,6 +429,7 @@ def assemble_archive_list(
     )
     if note is not None:
         items.append(note)
+        used.add(note.key)
     if (
         summary_known
         and not banners
@@ -423,15 +439,17 @@ def assemble_archive_list(
         if status == ARCHIVE_CORPUS_REBUILDING:
             text = "No matches yet — the index is still rebuilding."
         items.append(ArchiveListItem("message:empty", ITEM_MESSAGE, False, label=text))
+        used.add("message:empty")
     by_group = {window.group_key: window for window in windows}
     wanted = frozenset(desired_expanded)
     applied = frozenset(applied_expanded)
     open_set = frozenset(open_keys)
     for banner in banners:
         is_open = banner.key in open_set
+        banner_id = _unique_item_key(banner_item_key(banner.key), used)
         items.append(
             ArchiveListItem(
-                banner_item_key(banner.key),
+                banner_id,
                 ITEM_BANNER,
                 True,
                 banner_key=banner.key,
@@ -442,7 +460,7 @@ def assemble_archive_list(
         )
         if not is_open:
             continue
-        items.extend(_banner_rows(banner, by_group, pages, wanted, applied))
+        items.extend(_banner_rows(banner, by_group, pages, wanted, applied, used))
     index = {item.key: position for position, item in enumerate(items)}
     return ArchiveListModel(
         items=tuple(items),
@@ -452,12 +470,27 @@ def assemble_archive_list(
     )
 
 
+def _unique_item_key(key: str, used: set[str]) -> str:
+    """Return ``key``, or ``key#N``, so OptionList IDs stay unique."""
+    if key not in used:
+        used.add(key)
+        return key
+    index = 2
+    while True:
+        candidate = f"{key}#{index}"
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+        index += 1
+
+
 def _banner_rows(
     banner: ArchiveBanner,
     by_group: Mapping[str, ArchiveLoadedWindow],
     pages: Mapping[str, int],
     wanted: frozenset[str],
     applied: frozenset[str],
+    used: set[str],
 ) -> list[ArchiveListItem]:
     target = _banner_page_target(pages, banner.key)
     flat_total = 0
@@ -488,7 +521,7 @@ def _banner_rows(
             expanded = container_key in wanted
             out.append(
                 ArchiveListItem(
-                    key,
+                    _unique_item_key(key, used),
                     ITEM_CONTAINER,
                     True,
                     banner_key=banner.key,
@@ -501,7 +534,7 @@ def _banner_rows(
             if expanded and container_key not in applied:
                 out.append(
                     ArchiveListItem(
-                        f"loading:{container_key}",
+                        _unique_item_key(f"loading:{container_key}", used),
                         ITEM_LOADING,
                         False,
                         banner_key=banner.key,
@@ -517,7 +550,7 @@ def _banner_rows(
                 continue
             out.append(
                 ArchiveListItem(
-                    key,
+                    _unique_item_key(key, used),
                     ITEM_MEMBER,
                     True,
                     banner_key=banner.key,
@@ -528,14 +561,20 @@ def _banner_rows(
         else:
             current_container = None
             out.append(
-                ArchiveListItem(key, ITEM_ROW, True, banner_key=banner.key, row=row)
+                ArchiveListItem(
+                    _unique_item_key(key, used),
+                    ITEM_ROW,
+                    True,
+                    banner_key=banner.key,
+                    row=row,
+                )
             )
         shown += 1
     remaining = flat_total - hidden_members - shown
     if not out and not contiguous and banner.count > 0:
         out.append(
             ArchiveListItem(
-                f"loading:{banner.key}",
+                _unique_item_key(f"loading:{banner.key}", used),
                 ITEM_LOADING,
                 False,
                 banner_key=banner.key,
@@ -545,7 +584,7 @@ def _banner_rows(
     elif remaining > 0:
         out.append(
             ArchiveListItem(
-                tail_item_key(banner.key),
+                _unique_item_key(tail_item_key(banner.key), used),
                 ITEM_TAIL,
                 True,
                 banner_key=banner.key,

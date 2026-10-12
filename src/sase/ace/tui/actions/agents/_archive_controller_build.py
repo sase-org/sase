@@ -65,6 +65,17 @@ def build_archive_result(
     snapshot: ArchiveRequestSnapshot,
 ) -> dict[str, Any]:
     """Probe, compile or reuse the handle, and query still-requested windows."""
+    try:
+        return _build_archive_result(owner, snapshot)
+    except Exception:
+        log.debug("archive corpus probe failed", exc_info=True)
+        return {"kind": "error"}
+
+
+def _build_archive_result(
+    owner: Any,
+    snapshot: ArchiveRequestSnapshot,
+) -> dict[str, Any]:
     tokens = _probe_tokens(owner)
     if snapshot.kind == ARCHIVE_REQUEST_IDLE and _idle_tokens_match(snapshot, tokens):
         return {"kind": "unchanged", "tokens": tokens}
@@ -75,6 +86,7 @@ def build_archive_result(
         and _idle_tokens_match(snapshot, tokens)
     )
     facets = snapshot.link_facets
+    display_snapshot = _load_display_snapshot(owner)
     if reuse_handle:
         corpus = snapshot.corpus
         profile = snapshot.profile
@@ -87,6 +99,8 @@ def build_archive_result(
                 "kind": "unreadable",
                 "tokens": tokens,
                 "facets": facets,
+                "display_snapshot": display_snapshot,
+                "lookup_row": _lookup_pending(snapshot.pending_exact_name, None),
             }
         corpus = getattr(cached, "corpus", None)
         profile = getattr(cached, "profile", None)
@@ -105,7 +119,8 @@ def build_archive_result(
         "windows": windows,
         "identities": identities,
         "count": count,
-        "lookup_row": _lookup_pending(owner, corpus),
+        "display_snapshot": display_snapshot,
+        "lookup_row": _lookup_pending(snapshot.pending_exact_name, corpus),
     }
 
 
@@ -345,10 +360,17 @@ def _query_handle(
     return summary, tuple(windows), tuple(identities), count
 
 
-def _lookup_pending(owner: Any, corpus: Any) -> Mapping[str, Any] | None:
-    view = getattr(owner, "_agents_archive_view", None)
-    archive = getattr(view, "archive", None)
-    name = getattr(archive, "pending_exact_name", None)
+def _load_display_snapshot(owner: Any) -> Any:
+    """Warm the project-display snapshot off-thread for project banners."""
+    loader = getattr(owner, "_archive_load_display_snapshot", None)
+    if callable(loader):
+        return loader()
+    from sase.project_display_names import load_project_display_snapshot
+
+    return load_project_display_snapshot()
+
+
+def _lookup_pending(name: str | None, corpus: Any) -> Mapping[str, Any] | None:
     if not name or corpus is None:
         return None
     try:

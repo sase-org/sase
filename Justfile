@@ -431,6 +431,9 @@ _lint-patch-stitch-terminology: _setup
 # builder with container-expanded member runs, and archive_read_target feeds
 # the parent fork/copy chooser with the hydrated Archive agent. Drop each row
 # once its parent consumer lands a real caller.
+# sase-1jm.3.1.8.2 parks mark_archive_row_restored for sase-1jm.5 (Restore,
+# fork, and copy): that phase writes the restored-row overlay this view
+# renders as "⌂ restored". Drop the row once restore lands a real caller.
 # sase-1j6.4 (witness-scan) consumes the update-skew failure-facts prefilter
 # as the W3 file-proof gate in witness collection, so the sase-1j6 epic-symbol
 # row for facts_look_like_update_skew is dropped. If a later phase needs the
@@ -447,7 +450,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm.3.1(open_agents_archive_view)' \
         --epic-symbol 'sase-1jm.3.1(archive_read_only_context)' \
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
-        --epic-symbol 'sase-1jm.3.1(request_archive_lookup)' \
+        --epic-symbol 'sase-1jm.5(mark_archive_row_restored)' \
         --epic-symbol 'sase-1jx.7(plan_project_onboarding)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
         --epic-symbol 'sase-1jx.7(parse_user_ref)' \
