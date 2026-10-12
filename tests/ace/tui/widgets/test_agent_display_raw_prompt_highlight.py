@@ -203,9 +203,9 @@ class TestAgentRawPromptHighlighting:
         tmp_path: Path,
         monkeypatch,
     ) -> None:
-        from sase.ace.tui.widgets.prompt_panel import _agent_display_render
+        from sase.ace.tui.widgets.prompt_panel import _agent_display_prompt_render
 
-        original = _agent_display_render.highlight_prompt_text
+        original = _agent_display_prompt_render.highlight_prompt_text
         calls = 0
 
         def _counted(
@@ -230,7 +230,7 @@ class TestAgentRawPromptHighlighting:
             )
         )
         monkeypatch.setattr(
-            _agent_display_render,
+            _agent_display_prompt_render,
             "highlight_prompt_text",
             _counted,
         )
@@ -260,9 +260,9 @@ class TestAgentRawPromptHighlighting:
         tmp_path: Path,
         monkeypatch,
     ) -> None:
-        from sase.ace.tui.widgets.prompt_panel import _agent_display_render
+        from sase.ace.tui.widgets.prompt_panel import _agent_display_prompt_render
 
-        original = _agent_display_render.highlight_prompt_text
+        original = _agent_display_prompt_render.highlight_prompt_text
         calls = 0
 
         def _counted(
@@ -276,7 +276,7 @@ class TestAgentRawPromptHighlighting:
             return original(text, known_skills=known_skills, **kwargs)
 
         monkeypatch.setattr(
-            _agent_display_render,
+            _agent_display_prompt_render,
             "highlight_prompt_text",
             _counted,
         )
